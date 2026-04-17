@@ -24,11 +24,6 @@ _DRAM_OOM_SKIP_REASON = (
         pytest.param(
             ModelVariant.MOCHI,
             marks=[
-                pytest.mark.xfail(
-                    reason=failed_runtime(
-                        "L1 OOM: https://github.com/tenstorrent/tt-xla/issues/3108"
-                    )
-                ),
                 pytest.mark.record_test_properties(
                     category=Category.MODEL_TEST,
                     model_info=ModelLoader.get_model_info(ModelVariant.MOCHI),

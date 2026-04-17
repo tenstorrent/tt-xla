@@ -825,9 +825,6 @@ test_config:
   inception/pytorch-v4_OSMR-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-34.in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
   googlenet/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME

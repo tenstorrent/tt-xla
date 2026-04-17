@@ -62,6 +62,8 @@ def get_device_type(arch: str, device_count: int) -> str:
             return "p150"
         if device_count == 2:
             return "p300"
+        if device_count == 4:
+            return "qb2-blackhole"
 
     return "unknown"
 
