@@ -1400,12 +1400,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 self.tt_config.cpu_sampling,
             )
-            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+            # tt::sampling requires k >= 1; vLLM uses k=0 to mean "disabled".
+            # Check the CPU tensor before metadata moves to device — calling
+            # .any() on an XLA tensor generates stablehlo.reduce which fails.
+            _top_k_disabled = (
+                self.input_batch.top_k_cpu_tensor[: self.max_num_reqs].max().item() == 0
+            )
+            tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            if _top_k_disabled:
+                tpu_sampling_metadata.top_k = None
             if grammar_output is not None:
                 (
                     require_struct_decoding,
