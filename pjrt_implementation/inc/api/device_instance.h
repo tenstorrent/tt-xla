@@ -22,13 +22,15 @@
 
 namespace tt::pjrt {
 
+class ClientInstance;
 class MemoryInstance;
 
 // Represents PJRT_Device structure and the functionality around it.
 class DeviceInstance {
 public:
   // Creates new device instance.
-  static std::unique_ptr<DeviceInstance> createInstance(int global_device_id,
+  static std::unique_ptr<DeviceInstance> createInstance(ClientInstance *client,
+                                                        int global_device_id,
                                                         bool is_addressable,
                                                         int local_device_id,
                                                         tt::target::Arch arch);
@@ -43,6 +45,9 @@ public:
   static DeviceInstance *unwrap(PJRT_Device *device) {
     return reinterpret_cast<DeviceInstance *>(device);
   }
+
+  ClientInstance *getClient() { return m_client; }
+  const ClientInstance *getClient() const { return m_client; }
 
   // Returns reference to device description.
   DeviceDescription &getDeviceDescription() { return m_description; }
@@ -84,10 +89,15 @@ public:
 
 private:
   // Constructor.
-  DeviceInstance(int global_device_id, bool is_addressable, int local_device_id,
+  DeviceInstance(ClientInstance *client, int global_device_id,
+                 bool is_addressable, int local_device_id,
                  tt::target::Arch arch)
-      : m_description(global_device_id, arch), m_is_addressable(is_addressable),
-        m_local_device_id(local_device_id), m_default_memory(nullptr) {}
+      : m_client(client), m_description(global_device_id, arch),
+        m_is_addressable(is_addressable), m_local_device_id(local_device_id),
+        m_default_memory(nullptr) {}
+
+  // back-reference to client.
+  ClientInstance *m_client;
 
   // Device description.
   DeviceDescription m_description;

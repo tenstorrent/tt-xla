@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
-from ttxla_tools import enable_compile_only, save_system_descriptor_to_disk
+from ttxla_tools import save_system_descriptor_to_disk
 
 
 class SimpleModel(nn.Module):
@@ -29,7 +29,7 @@ def save_system_desc(output_prefix: str):
 
 def compile_only(system_desc_path: str):
     """Compile for a target system using a saved system descriptor (no hardware needed)."""
-    enable_compile_only(system_desc_path)
+    os.environ["TT_COMPILE_ONLY_SYSTEM_DESC"] = system_desc_path
 
     xr.set_device_type("TT")
     cache_dir = f"{os.getcwd()}/cachedir"
@@ -42,12 +42,10 @@ def compile_only(system_desc_path: str):
     output = model(x, y)
 
     # torch_xla uses lazy execution: compilation and execution both happen here.
-    # In compile-only mode, compilation succeeds and artifacts are cached, but
-    # execution raises an error since no hardware is available.
-    try:
-        output.to("cpu")
-    except RuntimeError:
-        pass
+    # In compile-only mode, compilation succeeds and artifacts are cached.
+    # Execution returns default-initialized output buffers (with uninitialized
+    # data) instead of running on hardware.
+    output.to("cpu")
 
     parse_compiled_artifacts_from_cache_to_disk(cache_dir, "output/model")
 
