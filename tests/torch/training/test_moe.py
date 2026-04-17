@@ -26,7 +26,7 @@ from third_party.tt_forge_models.gpt_oss.pytorch.overrides import (
 @pytest.mark.training
 def test_gpt_oss_moe_multichip_backward():
 
-    model_loader = GptOssModelLoader(GptOssModelVariant.GPT_OSS_20B)
+    model_loader = GptOssModelLoader(GptOssModelVariant.GPT_OSS_20B, num_layers=8)
     model = model_loader.load_model(patch_modules=True)
 
     enable_spmd()
