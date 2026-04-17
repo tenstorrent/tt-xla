@@ -56,15 +56,11 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/4004"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   gemma/pytorch-2_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
@@ -100,14 +96,10 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4125"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: NOT_SUPPORTED_SKIP

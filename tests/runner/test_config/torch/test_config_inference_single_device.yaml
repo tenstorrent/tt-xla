@@ -2225,9 +2225,7 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Test hangs, investigation is ongoing: https://github.com/tenstorrent/tt-xla/issues/3838"
+    status: EXPECTED_PASSING
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
@@ -2380,9 +2378,8 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Currently hanging - https://github.com/tenstorrent/tt-xla/issues/3852"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 1536736 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/4239"
     markers: [large]
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
