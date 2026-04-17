@@ -1,0 +1,8 @@
+{
+  "name": "tt-xla-dev",
+  "description": "Commit message templates, local PR review, CI review, and PR creation for the tt-xla repository",
+  "author": {
+    "name": "ctr-sraguram",
+    "email": ""
+  }
+}
