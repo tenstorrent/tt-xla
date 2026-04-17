@@ -20,17 +20,19 @@
 namespace tt::pjrt {
 
 std::unique_ptr<DeviceInstance>
-DeviceInstance::createInstance(int global_device_id, bool is_addressable,
-                               int local_device_id, tt::target::Arch arch) {
+DeviceInstance::createInstance(ClientInstance *client, int global_device_id,
+                               bool is_addressable, int local_device_id,
+                               tt::target::Arch arch) {
   struct make_unique_enabler : public DeviceInstance {
-    make_unique_enabler(int global_device_id, bool is_addressable,
-                        int local_device_id, tt::target::Arch arch)
-        : DeviceInstance(global_device_id, is_addressable, local_device_id,
-                         arch) {}
+    make_unique_enabler(ClientInstance *client, int global_device_id,
+                        bool is_addressable, int local_device_id,
+                        tt::target::Arch arch)
+        : DeviceInstance(client, global_device_id, is_addressable,
+                         local_device_id, arch) {}
   };
 
-  return std::make_unique<make_unique_enabler>(global_device_id, is_addressable,
-                                               local_device_id, arch);
+  return std::make_unique<make_unique_enabler>(
+      client, global_device_id, is_addressable, local_device_id, arch);
 }
 
 void DeviceInstance::bindApi(PJRT_Api *api) {
