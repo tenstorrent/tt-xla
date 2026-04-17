@@ -1204,9 +1204,6 @@ test_config:
   rcnn/pytorch-Alexnet-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-34.in1k-single_device-inference:
-    status: EXPECTED_PASSING
-
   googlenet/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
 
