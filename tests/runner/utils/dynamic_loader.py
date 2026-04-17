@@ -446,7 +446,8 @@ class TorchDynamicLoader(DynamicLoader):
 
         for root, dirs, files in os.walk(models_root):
             # Skip hidden directories (e.g. .claude, .local_venv, .cache)
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            # and nested git worktrees kept under models_root/worktrees.
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "worktrees"]
 
             model_dir_name = os.path.basename(os.path.dirname(root))
             if model_dir_name in excluded_model_dirs:
@@ -518,7 +519,8 @@ class JaxDynamicLoader(DynamicLoader):
 
         for root, dirs, files in os.walk(models_root):
             # Skip hidden directories (e.g. .claude, .local_venv, .cache)
-            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            # and nested git worktrees kept under models_root/worktrees.
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d != "worktrees"]
 
             model_dir_name = os.path.basename(os.path.dirname(root))
             if model_dir_name in excluded_model_dirs:
