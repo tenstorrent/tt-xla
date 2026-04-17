@@ -209,11 +209,13 @@ class Sampler(nn.Module):
         if _USE_TTNN_SAMPLING:
             # ttnn.sampling handles temperature internally (multiplies by
             # 1/temperature), so skip apply_temperature and run topk on
-            # raw logits.
+            # raw logits. Pass None for k/p — ttnn.sampling handles them
+            # internally, and passing them here would break shape assumptions
+            # after the batch=32 padding in apply_top_k_top_p_fast.
             filtered_logits, candidate_indices = apply_top_k_top_p_fast(
                 logits,
-                sampling_metadata.top_k,
-                sampling_metadata.top_p,
+                None,
+                None,
             )
             random_sampled_padded = self._ttnn_sampling_padded(
                 filtered_logits,
@@ -462,6 +464,16 @@ def apply_top_k_top_p_fast(
         vocab_size
     )
 
+    # Pad batch to _TTNN_SAMPLING_BATCH_SIZE (32) so topk runs on
+    # [32, chunk] instead of [batch, chunk]. Multi-core topk is 14x faster
+    # at batch=32 — hardware processes all rows simultaneously and
+    # dummy -inf rows add negligible overhead.
+    logits = torch.nn.functional.pad(
+        logits,
+        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
+        value=float("-inf"),
+    )
+
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)
     topk_values_list = []
@@ -501,7 +513,8 @@ def apply_top_k_top_p_fast(
             top_p_cutoff = probs_sort.gather(-1, top_p_count)
             all_values = all_values.masked_fill(probs < top_p_cutoff, -float("inf"))
 
-    return all_values, all_indices
+    # Trim back to original batch (we padded to 32 for topk efficiency).
+    return all_values[:batch], all_indices[:batch]
 
 
 def apply_top_k_top_p(

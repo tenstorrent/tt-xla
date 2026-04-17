@@ -98,6 +98,10 @@ from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
+
+# Pad hidden states / logits to this batch size before the LM head and topk.
+# Multi-core topk is 14x faster at batch=32 vs batch=1 on Blackhole hardware.
+_SAMPLING_PAD_BATCH = 32
 from .vllm_distributed_utils import shard_model
 from .vllm_utils import determine_mesh_shape
 
