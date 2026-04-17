@@ -25,10 +25,8 @@ prompts.txt format: one prompt per line, blank lines and # comments ignored.
 """
 
 import argparse
-import importlib.util
 import os
 import re
-import sys
 import time
 
 import torch
@@ -39,9 +37,7 @@ from transformers import AutoTokenizer
 
 from text_encoder.model_ttnn import TextEncoderTTNN
 from dit.model_ttnn import ZImageTransformerTTNN
-
-_HERE   = os.path.dirname(os.path.abspath(__file__))
-_VAE_DIR = os.path.join(_HERE, "vae")
+from vae.model_ttnn import VaeDecoderTTNN
 
 MODEL_ID        = "Tongyi-MAI/Z-Image-Turbo"
 CAP_TOKENS      = 32    # caption tokens (baked into compiled model)
@@ -49,23 +45,6 @@ IMG_LATENT_H    = 64    # 512 px / 8 (VAE scale)
 IMG_LATENT_W    = 64
 LATENT_CHANNELS = 16
 DRAM_RM = ttnn.MemoryConfig(ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None)
-
-
-# ── Module loading ─────────────────────────────────────────────────────────────
-
-def _load_module(name, filepath):
-    spec = importlib.util.spec_from_file_location(name, filepath)
-    mod  = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-# VAE modules — still loaded via sys.modules shim because the vae/ dir uses
-# bare sibling imports (import utils, from params import ...).
-_load_module("consteval", os.path.join(_VAE_DIR, "consteval.py"))
-_load_module("params",    os.path.join(_VAE_DIR, "params.py"))
-_vae_model_pt   = _load_module("vae_model_pt",   os.path.join(_VAE_DIR, "model_pt.py"))
-_vae_model_ttnn = _load_module("vae_model_ttnn", os.path.join(_VAE_DIR, "model_ttnn.py"))
 
 
 # ── Tensor helpers ─────────────────────────────────────────────────────────────
@@ -92,41 +71,6 @@ def _tt_to_torch(tt_tensor, mesh_device):
         mesh_composer=ttnn.ConcatMeshToTensor(mesh_device, dim=0),
     )
     return host[:host.shape[0] // 4].float()
-
-
-# ── TTNN VAE decoder ───────────────────────────────────────────────────────────
-
-class VAEDecoderTTNN:
-    """TTNN VAE decoder — weights loaded from HuggingFace, processed once at init.
-
-    Uses the refactored vae_opt1/ model (PCC=0.9987, ~1.4 s/decode).
-    Consteval runs during __init__; all decode() calls are fast.
-    """
-
-    _SCALING_FACTOR = 0.3611
-    _SHIFT_FACTOR   = 0.1159
-
-    def __init__(self, mesh_device):
-        self.mesh_device = mesh_device
-        pt = _vae_model_pt.VaeDecoderPT()
-        self._model = _vae_model_ttnn.VaeDecoderTTNN(mesh_device, pt.state_dict)
-        del pt
-
-    def decode(self, raw_latents):
-        """Decode raw (pre-scaling) latents → [1, 3, 512, 512] float32 CPU tensor."""
-        z = (raw_latents.float() / self._SCALING_FACTOR) + self._SHIFT_FACTOR
-        z_tt = ttnn.from_torch(
-            z.bfloat16(), dtype=ttnn.DataType.BFLOAT16,
-            layout=ttnn.Layout.ROW_MAJOR, device=self.mesh_device,
-            memory_config=DRAM_RM,
-            mesh_mapper=ttnn.ReplicateTensorToMesh(self.mesh_device),
-        )
-        outputs = self._model.forward(z_tt)
-        out = ttnn.to_torch(
-            ttnn.from_device(outputs[0]),
-            mesh_composer=ttnn.ConcatMeshToTensor(self.mesh_device, dim=0),
-        )
-        return out[:out.shape[0] // 4].float()
 
 
 # ── Scheduler ─────────────────────────────────────────────────────────────────
@@ -180,8 +124,8 @@ class Models:
         print("[4/5] Building Transformer ...")
         self.tr = ZImageTransformerTTNN(self.mesh_device)
 
-        # print("[5/5] Loading TTNN VAE decoder (weights from HuggingFace) ...")
-        # self.vae_tt = VAEDecoderTTNN(self.mesh_device)
+        print("[5/5] Loading TTNN VAE decoder (weights from HuggingFace) ...")
+        self.vae_tt = VaeDecoderTTNN(self.mesh_device)
         print()
 
     def encode_prompt(self, prompt):
@@ -253,21 +197,20 @@ def _run_one(models, prompt, steps, seed, output_path, prompt_index, total_promp
         label = " ← trace capture" if i == 0 else ""
         print(f"  step {i+1}/{steps}: {elapsed:.0f} ms{label}")
 
-    # # VAE decode
-    # t0 = time.time()
-    # image = models.decode_latents(latents)
-    # vae_ms = (time.time() - t0) * 1000
+    # VAE decode
+    t0 = time.time()
+    image = models.decode_latents(latents)
+    vae_ms = (time.time() - t0) * 1000
 
-    # total_ms = (time.time() - t_start) * 1000
-    # steady   = step_times[1:] if len(step_times) > 1 else step_times
-    # print(f"  VAE: {vae_ms:.0f} ms  |  total: {total_ms:.0f} ms  "
-    #       f"|  steady-state step: {sum(steady)/len(steady):.0f} ms avg")
+    total_ms = (time.time() - t_start) * 1000
+    steady   = step_times[1:] if len(step_times) > 1 else step_times
+    print(f"  VAE: {vae_ms:.0f} ms  |  total: {total_ms:.0f} ms  "
+          f"|  steady-state step: {sum(steady)/len(steady):.0f} ms avg")
 
-    # os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    # image.save(output_path)
-    # print(f"  → {output_path}\n")
-    # return total_ms
-    return 1
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    image.save(output_path)
+    print(f"  → {output_path}\n")
+    return total_ms
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

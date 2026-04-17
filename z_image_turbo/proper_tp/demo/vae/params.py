@@ -9,7 +9,7 @@ the generated main.py.
 import torch
 import ttnn
 
-from consteval import (
+from vae.consteval import (
     prepare_conv_weights,
     prepare_conv_bias,
     reshape_gn_weight,

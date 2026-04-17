@@ -1,21 +1,41 @@
 """TTNN VAE Decoder model for Tongyi-MAI/Z-Image-Turbo."""
 
+import torch
 import ttnn
-from params import load_weights
+from vae.model_pt import SCALING_FACTOR, SHIFT_FACTOR, VaeDecoderPT
+from vae.params import load_weights
 
-DRAM = ttnn.MemoryConfig(ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None)
+DRAM_RM = ttnn.MemoryConfig(ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None)
 
 
 class VaeDecoderTTNN:
     """TTNN VAE Decoder - direct translation of the generated _main function."""
 
-    def __init__(self, device, state_dict):
-        self.device = device
+    def __init__(self, mesh_device):
+        self.device = mesh_device
+        pt = VaeDecoderPT()
         print("  Processing weights through consteval functions ...")
-        self.ce_cache, self.attn_args = load_weights(state_dict, device)
+        self.ce_cache, self.attn_args = load_weights(pt.state_dict, mesh_device)
+        del pt
 
     def __call__(self, latent):
         return self.forward(latent)
+
+    def decode(self, raw_latents):
+        """Decode raw (pre-scaling) latents → [1, 3, 512, 512] float32 CPU tensor."""
+        z = (raw_latents.float() / SCALING_FACTOR) + SHIFT_FACTOR
+        z_tt = ttnn.from_torch(
+            z.bfloat16(), dtype=ttnn.DataType.BFLOAT16,
+            layout=ttnn.Layout.ROW_MAJOR, device=self.device,
+            memory_config=DRAM_RM,
+            mesh_mapper=ttnn.ReplicateTensorToMesh(self.device),
+        )
+        outputs = self.forward(z_tt)
+        out = ttnn.to_torch(
+            ttnn.from_device(outputs[0]),
+            mesh_composer=ttnn.ConcatMeshToTensor(self.device, dim=0),
+        )
+        return out[:out.shape[0] // 4].float()
 
     def forward(self, latent):
         """Forward pass - exact replica of _main from the generated code.
