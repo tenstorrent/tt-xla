@@ -88,6 +88,8 @@ jobs:
         - /lib/modules:/lib/modules
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
         - /mnt/dockercache:/mnt/dockercache
+        # Multihost: host user ubuntu’s SSH agent (same socket as in ubuntu-host-mapped) for mpirun/ssh -A in this job container
+        - /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
 
     steps:
     - name: Mark repo as safe for git
@@ -236,67 +238,41 @@ jobs:
       run: |
         curl -fsSL https://get.docker.com | sh
 
-    - name: Start multihost controller container
+    - name: Start multihost containers via mpirun
       if: ${{ matrix.build.multihost }}
       shell: bash
       run: |
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+        HOST_WORKSPACE="${{ github.workspace }}"
+        WORK_DIR="${{ steps.strings.outputs.work-dir }}"
 
-        docker run --pull=never --rm -d \
-          --name ubuntu-host-mapped \
-          --privileged --pid=host --network=host \
-          --device /dev/tenstorrent \
-          -v /dev/hugepages:/dev/hugepages \
-          -v /dev/hugepages-1G:/dev/hugepages-1G \
-          -v /etc/udev/rules.d:/etc/udev/rules.d \
-          -v /lib/modules:/lib/modules \
-          -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
-          -v /mnt/dockercache:/mnt/dockercache \
-          -v /etc/mpirun:/etc/mpirun:ro \
-          -v /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
-          -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
-          -v ${{ github.workspace }}:${{ steps.strings.outputs.work-dir }} \
-          -w ${{ steps.strings.outputs.work-dir }} \
-          "$DOCKER_IMAGE" sleep infinity
+        if [ -S /var/run/mpirun/id_rsa_multihost_ssh_agent_sock ]; then
+          export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+        fi
 
-    - name: Start multihost worker containers via mpirun
-      if: ${{ matrix.build.multihost }}
-      shell: bash
-      run: |
-        DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
-
-        # Launch containers on all hosts idempotently (controller already running, will skip)
-        docker exec \
-          -e DOCKER_IMAGE="$DOCKER_IMAGE" \
-          -e HOST_WORKSPACE_PATH="${{ github.workspace }}" \
-          -e IN_CONTAINER_WORKSPACE="${{ steps.strings.outputs.work-dir }}" \
-          ubuntu-host-mapped bash -c '
-          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
-            --tag-output \
-            bash -c "
-              CONTAINER_NAME=ubuntu-host-mapped
-              if docker ps --filter name=\$CONTAINER_NAME --format \"{{.Names}}\" | grep -q \$CONTAINER_NAME; then
-                echo \"\$(hostname): Container already running, skipping\"
-              else
-                docker run --pull=always --rm -d \
-                  --name \$CONTAINER_NAME --privileged --pid=host --network=host \
-                  --device /dev/tenstorrent \
-                  -v /dev/hugepages:/dev/hugepages \
-                  -v /dev/hugepages-1G:/dev/hugepages-1G \
-                  -v /etc/udev/rules.d:/etc/udev/rules.d \
-                  -v /lib/modules:/lib/modules \
-                  -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
-                  -v /mnt/dockercache:/mnt/dockercache \
-                  -v /etc/mpirun:/etc/mpirun:ro \
-                  -v $HOST_WORKSPACE_PATH:$IN_CONTAINER_WORKSPACE \
-                  -w $IN_CONTAINER_WORKSPACE \
-                  $DOCKER_IMAGE sleep infinity
-                echo \"\$(hostname): Container started\"
-              fi
-            "
-        '
+        # Launch identical containers on every host in the MPI hostfile (including this runner)
+        mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+          --mca btl_tcp_if_exclude docker0,lo \
+          --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+          --tag-output \
+          bash -c "
+            docker run --pull=always --rm -d \
+              --name ubuntu-host-mapped --privileged --pid=host --network=host \
+              --device /dev/tenstorrent \
+              -v /dev/hugepages:/dev/hugepages \
+              -v /dev/hugepages-1G:/dev/hugepages-1G \
+              -v /etc/udev/rules.d:/etc/udev/rules.d \
+              -v /lib/modules:/lib/modules \
+              -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+              -v /mnt/dockercache:/mnt/dockercache \
+              -v /etc/mpirun:/etc/mpirun:ro \
+              -v /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
+              -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
+              -v ${HOST_WORKSPACE}:${WORK_DIR} \
+              -w ${WORK_DIR} \
+              ${DOCKER_IMAGE} sleep infinity
+            echo \"\$(hostname): Container started\"
+          "
         echo "All multihost containers ready"
 
     - name: SSH connectivity check to worker containers
@@ -589,13 +565,15 @@ jobs:
       if: ${{ always() && matrix.build.multihost }}
       shell: bash
       run: |
-        docker exec ubuntu-host-mapped bash -c '
-          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
-            --tag-output \
-            bash -c "docker stop ubuntu-host-mapped || true; docker rm ubuntu-host-mapped || true"
-        ' || true
+        if [ -S /var/run/mpirun/id_rsa_multihost_ssh_agent_sock ]; then
+          export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+        fi
+        mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+          --mca btl_tcp_if_exclude docker0,lo \
+          --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+          --tag-output \
+          bash -c "docker stop ubuntu-host-mapped || true; docker rm ubuntu-host-mapped || true" \
+        || true
 
     - name: Fix multihost workspace permissions
       if: ${{ always() && matrix.build.multihost }}
