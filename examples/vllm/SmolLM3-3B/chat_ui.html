@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmolLM3-3B Chat</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+  header { padding: 16px 24px; background: #16213e; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; color: #e94560; }
+  header span { font-size: 13px; color: #888; }
+  #chat { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; font-size: 15px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: #0f3460; color: #fff; border-bottom-right-radius: 4px; }
+  .msg.assistant { align-self: flex-start; background: #222; color: #e0e0e0; border-bottom-left-radius: 4px; }
+  .msg.assistant .think { color: #888; font-style: italic; font-size: 13px; display: block; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #333; }
+  .msg.error { background: #3a1111; color: #e94560; }
+  .typing { opacity: 0.6; }
+  #input-area { padding: 16px 24px; background: #16213e; border-top: 1px solid #0f3460; display: flex; gap: 12px; }
+  #input { flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid #0f3460; background: #1a1a2e; color: #e0e0e0; font-size: 15px; font-family: inherit; resize: none; outline: none; }
+  #input:focus { border-color: #e94560; }
+  #send { padding: 12px 24px; border-radius: 8px; border: none; background: #e94560; color: #fff; font-size: 15px; cursor: pointer; font-weight: 600; }
+  #send:hover { background: #c73e54; }
+  #send:disabled { background: #555; cursor: not-allowed; }
+  .settings { display: flex; gap: 16px; align-items: center; margin-left: auto; font-size: 13px; }
+  .settings label { color: #888; }
+  .settings input, .settings select { background: #1a1a2e; border: 1px solid #0f3460; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; width: 70px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SmolLM3-3B</h1>
+  <span>running on Tenstorrent p300c via vLLM</span>
+  <div class="settings">
+    <label>Temp <input type="number" id="temp" value="0.6" min="0" max="2" step="0.1"></label>
+    <label>Max tokens <input type="number" id="max-tokens" value="1024" min="1" max="1800" step="1"></label>
+  </div>
+</header>
+
+<div id="chat"></div>
+
+<div id="input-area">
+  <textarea id="input" rows="1" placeholder="Type a message..." autofocus></textarea>
+  <button id="send">Send</button>
+</div>
+
+<script>
+const API = `${window.location.protocol}//${window.location.hostname}:8000/v1/chat/completions`;
+const MODEL = "HuggingFaceTB/SmolLM3-3B";
+let messages = [];
+let busy = false;
+
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+
+function addMsg(role, text, cls) {
+  const div = document.createElement('div');
+  div.className = `msg ${cls || role}`;
+  // Handle <think> blocks
+  if (role === 'assistant' && text.includes('<think>')) {
+    const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/);
+    if (thinkMatch) {
+      const thinking = thinkMatch[1].trim();
+      const rest = text.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+      if (thinking) {
+        const thinkSpan = document.createElement('span');
+        thinkSpan.className = 'think';
+        thinkSpan.textContent = thinking;
+        div.appendChild(thinkSpan);
+      }
+      div.appendChild(document.createTextNode(rest || '(thinking...)'));
+    } else {
+      // Unclosed think tag — still streaming
+      const partial = text.replace('<think>', '').trim();
+      const thinkSpan = document.createElement('span');
+      thinkSpan.className = 'think';
+      thinkSpan.textContent = partial || 'thinking...';
+      div.appendChild(thinkSpan);
+    }
+  } else {
+    div.textContent = text;
+  }
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text || busy) return;
+  busy = true;
+  sendBtn.disabled = true;
+  input.value = '';
+
+  addMsg('user', text);
+  messages.push({ role: 'user', content: text });
+
+  const assistantDiv = addMsg('assistant', '', 'assistant typing');
+  let fullText = '';
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: messages,
+        max_tokens: parseInt(document.getElementById('max-tokens').value) || 256,
+        temperature: parseFloat(document.getElementById('temp').value) || 0.6,
+        stream: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || res.statusText);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.replace(/^data: /, '').trim();
+        if (!trimmed || trimmed === '[DONE]') continue;
+        try {
+          const json = JSON.parse(trimmed);
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            // Re-render with think block handling
+            assistantDiv.innerHTML = '';
+            if (fullText.includes('<think>')) {
+              const thinkMatch = fullText.match(/<think>([\s\S]*?)<\/think>/);
+              if (thinkMatch) {
+                const thinking = thinkMatch[1].trim();
+                const rest = fullText.replace(/<think>[\s\S]*?<\/think>/, '').trim();
+                if (thinking) {
+                  const s = document.createElement('span');
+                  s.className = 'think';
+                  s.textContent = thinking;
+                  assistantDiv.appendChild(s);
+                }
+                assistantDiv.appendChild(document.createTextNode(rest));
+              } else {
+                const partial = fullText.replace('<think>', '').trim();
+                const s = document.createElement('span');
+                s.className = 'think';
+                s.textContent = partial;
+                assistantDiv.appendChild(s);
+              }
+            } else {
+              assistantDiv.textContent = fullText;
+            }
+            chat.scrollTop = chat.scrollHeight;
+          }
+        } catch {}
+      }
+    }
+
+    messages.push({ role: 'assistant', content: fullText });
+    assistantDiv.classList.remove('typing');
+  } catch (e) {
+    assistantDiv.className = 'msg error';
+    assistantDiv.textContent = 'Error: ' + e.message;
+  }
+
+  busy = false;
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+// Auto-resize textarea
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+});
+</script>
+</body>
+</html>
