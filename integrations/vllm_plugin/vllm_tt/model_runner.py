@@ -460,6 +460,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             self.sample_from_logits_func = self.sample_from_logits
 
+        self.gather_logprobs_func = torch.compile(
+            self._gather_logprobs_impl,
+            backend="tt",
+            fullgraph=True,
+            dynamic=False,
+            options={"tt_enable_composite_ops": False},
+        )
+
         # For passing scheduler_output between successive
         # execute_model() and sample_tokens() calls.
         self.scheduler_output: SchedulerOutput | None = None
@@ -1349,6 +1357,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            hidden_states = self._normalize_hidden_states_for_logits(hidden_states)
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1388,7 +1397,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # due to recompilations outside torch.compiled code, so just make
             # sure `sample_from_logits` does not modify the logits in-place.
             logprobs = (
-                self.gather_logprobs(logits, selected_token_ids)
+                self._gather_logprobs_cpu(logits, selected_token_ids)
                 if tpu_sampling_metadata.logprobs
                 else None
             )
@@ -1576,9 +1585,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
-        self.model.compile(backend="tt", dynamic=False)
+        if self.enforce_eager:
+            logger.info("Skipping tt torch.compile because enforce_eager=True.")
+        else:
+            self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
-        logger.info(f"Compiled model: \n{self.model}")
+        logger.info(f"Initialized model: \n{self.model}")
 
     def reload_weights(self) -> None:
         assert (
@@ -1737,13 +1749,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
             )
+            # Compile prefill/decode token buckets as separate XLA graphs.
+            # Without a blocking sync here, lazy ops from multiple dummy runs can
+            # collapse into one graph and mix incompatible cache update paths.
+            torch_xla.sync()
             if self.most_model_len is not None:
                 self._dummy_run(
                     num_tokens,
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
-        xm.wait_device_ops()
+                torch_xla.sync()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("model backbone")
@@ -1903,7 +1919,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
             ),
         ):
-            self.gather_logprobs(dummy_logits, dummy_tokens)
+            self.gather_logprobs_func(dummy_logits, dummy_tokens)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2132,6 +2148,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             get_kv_transfer_group().set_host_xfer_buffer_ops(copy_kv_blocks)
 
     def reset_dynamo_cache(self):
+        if self.model_config.enforce_eager:
+            return
+
         # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`
         # since the compiled model object of the language backbone of a
         # multimodal model needs to be extracted via `get_language_model`.
@@ -2155,6 +2174,35 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
+
+    def _normalize_hidden_states_for_logits(
+        self, hidden_states: torch.Tensor
+    ) -> torch.Tensor:
+        hidden_size = self.model_config.get_hidden_size()
+
+        if hidden_states.ndim == 4:
+            batch_size, dim1, dim2, dim3 = hidden_states.shape
+
+            # vLLM 0.19 may hand TT a head-split layout for some models.
+            # Fold the head axes back into the hidden dimension so downstream
+            # logits/prompt-logprobs code sees [batch, tokens, hidden_size].
+            if dim2 * dim3 == hidden_size:
+                return hidden_states.reshape(batch_size, dim1, hidden_size)
+            if dim1 * dim3 == hidden_size:
+                return hidden_states.permute(0, 2, 1, 3).reshape(
+                    batch_size, dim2, hidden_size
+                )
+            if dim1 * dim2 == hidden_size:
+                return hidden_states.permute(0, 3, 1, 2).reshape(
+                    batch_size, dim3, hidden_size
+                )
+
+            raise RuntimeError(
+                "Unsupported TT hidden state shape for logits: "
+                f"{tuple(hidden_states.shape)} with hidden_size={hidden_size}"
+            )
+
+        return hidden_states
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
@@ -2196,8 +2244,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         return out_tokens
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def gather_logprobs(
+    def _gather_logprobs_impl(
         self, logits: torch.Tensor, sampled_tokens: torch.Tensor
     ) -> LogprobsTensors:
         """
@@ -2216,6 +2263,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logprob_token_ids=logprobTensors.logprob_token_ids,
             logprobs=logprobTensors.logprobs,
             selected_token_ranks=logprobTensors.selected_token_ranks,
+        )
+
+    def _gather_logprobs_cpu(
+        self, logits: torch.Tensor, sampled_tokens: torch.Tensor
+    ) -> LogprobsTensors:
+        # Keep logprobs numerically stable by doing log_softmax/top-k on CPU.
+        logits_cpu = logits.to("cpu", dtype=torch.float32)
+        finfo = torch.finfo(logits_cpu.dtype)
+        logits_cpu = torch.nan_to_num(
+            logits_cpu,
+            nan=finfo.min,
+            posinf=finfo.max,
+            neginf=finfo.min,
+        )
+        sampled_tokens_cpu = sampled_tokens.to("cpu", dtype=torch.int64).squeeze(-1)
+        logprobs = self.sampler.compute_logprobs(logits_cpu)
+        return self.sampler.gather_logprobs(
+            logprobs,
+            self.model_config.max_logprobs,
+            token_ids=sampled_tokens_cpu,
         )
 
     def _get_prompt_logprobs_dict(
@@ -2317,8 +2384,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 batch_tgt_dev = batch_tgt_buf.to(self.device)
 
-                # Gather top-k logprobs on device (reuses compiled graph).
-                lp_tensors = self.gather_logprobs(logits, batch_tgt_dev)
+                # Gather top-k logprobs on CPU to avoid TT log_softmax/top-k
+                # numerical issues without changing token generation itself.
+                lp_tensors = self._gather_logprobs_cpu(logits, batch_tgt_dev)
 
                 # Move only the small gathered result to CPU and trim to the
                 # actual batch size and per-request num_prompt_logprobs.
