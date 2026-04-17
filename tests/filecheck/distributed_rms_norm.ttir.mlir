@@ -1,1 +1,1 @@
-//CHECK: "ttir.distributed_rms_norm"
+// CHECK: "ttir.distributed_rms_norm"
