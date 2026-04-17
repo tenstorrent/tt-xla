@@ -19,6 +19,7 @@ from torch.fx.passes.tools_common import legalize_graph
 from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
 
+from ..utils import is_torch_2_10_or_newer
 from .decompositions import populate_decompositions
 from .metadata_propagation import (
     MetadataDispatchMode,
@@ -43,7 +44,12 @@ def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
-) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
+) -> Tuple[
+    torch.fx.GraphModule,
+    torch.export.ExportGraphSignature,
+    dict[str, str],
+    ExportedProgram,
+]:
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -70,9 +76,13 @@ def torch_pass_pipeline(
         tuple(example_inputs),
         strict=False,
     )
+
     program = program.run_decompositions(decompositions)
 
+    # Get unlifted module BEFORE modifying program.graph_module so that the
+    # unlifting process sees the original graph structure.
     compiled_graph = program.module()
+
     # When torch.compile traces a model, it flattens the module hierarchy and
     # mangles parameter names (e.g., "model.layers.0.weight" becomes something
     # like "L__self___model_layers___0___weight"). Dynamo stores a reverse
@@ -98,7 +108,7 @@ def torch_pass_pipeline(
     # Extract metadata from FX nodes in order to inject them into locs
     node_info = extract_nodes_info(compiled_graph)
 
-    return compiled_graph, program.graph_signature, node_info
+    return compiled_graph, program.graph_signature, node_info, program
 
 
 class XLAExecutor:
@@ -115,10 +125,12 @@ class XLAExecutor:
         signature: torch.export.ExportGraphSignature,
         node_info: dict[str, str],
         legacy_compile_enabled: bool,
+        exported_program: ExportedProgram | None = None,
     ):
         self.module = module
         self.signature = signature
         self.node_info = node_info
+        self.exported_program = exported_program
         # Inject metadata if xla debug is enabled and node_info is not empty
         # We need xla debug to be enabled in order for torch-xla to inject metadata
         self.inject_metadata = os.environ.get("XLA_HLO_DEBUG", "0") == "1" and node_info
@@ -131,11 +143,42 @@ class XLAExecutor:
             self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
+        # In multi-chip configurations with PyTorch 2.10+, torch.export.export()
+        # creates pending TransferFromDevice ops for every sharded XLA parameter.
+        # The experimental compile path calls extract_compiled_graph which
+        # internally runs torch_xla.sync(), executing ALL pending ops at once
+        # and flooding DRAM with replicated copies of each sharded param -> OOM.
+        # The legacy path uses _xla_sync_multi(outputs) which only syncs the
+        # output tensors, keeping sharded params as-is inside the computation.
+        if (
+            is_torch_2_10_or_newer()
+            and not legacy_compile_enabled
+            and xr.global_runtime_device_count() > 1
+        ):
+            logger.info(
+                "Multi-chip detected on torch >= 2.10 (device_count={}), using "
+                "legacy compile to avoid ReplicateShardedData flood in "
+                "experimental path.",
+                xr.global_runtime_device_count(),
+            )
+            legacy_compile_enabled = True
+
+        if not legacy_compile_enabled and any(
+            spec.kind == OutputKind.USER_INPUT_MUTATION
+            for spec in self.signature.output_specs
+        ):
+            logger.info(
+                "User-input mutation outputs detected, using legacy compile to "
+                "preserve torch.compile input alias semantics."
+            )
+            legacy_compile_enabled = True
+
         # Whether to enable the legacy compile flow.
         # The following group of fields will only be used if the experimental flow is enabled.
         self.legacy_compile_enabled = legacy_compile_enabled
         self.params_and_consts = None
         self.compiled_graph = None
+        self._lifted_graph_prepared = False
 
     # Extract the param and consts from the exported program.
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
@@ -177,6 +220,24 @@ class XLAExecutor:
 
         return total_args
 
+    def _apply_passes_to_lifted_graph(self):
+        """Apply FX passes to the lifted graph module from the ExportedProgram.
+
+        The lifted graph has params as placeholder nodes (instead of get_attr).
+        insert_argument_type_markers handles both representations thanks to
+        the dual-dict lookup (get_attr_target_type_dict + placeholder_target_type_dict).
+        """
+        if self._lifted_graph_prepared:
+            return
+        gm = self.exported_program.graph_module
+        fqn = gm.meta.get("dynamo_flat_name_to_original_fqn", {})
+        insert_argument_type_markers(gm, self.signature, fqn)
+        bypass_dtype_promotion_and_redundant_cast(gm, [])
+        bypass_redundant_getitem(gm)
+        bypass_assert_tensor_metadata(gm)
+        gm.recompile()
+        self._lifted_graph_prepared = True
+
     def _call_experimental_compile(self, *args):
         # Move any CPU tensors in args to XLA. Some model attributes (e.g.
         # detection grid tensors in YOLOP) are not registered buffers, so
@@ -193,28 +254,28 @@ class XLAExecutor:
             moved_args.append(arg)
         args = tuple(moved_args)
         if self.compiled_graph is None:
-            # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
-            # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
-            program = torch.export.export(self.module, tuple(args), strict=False)
+            if self.exported_program is not None:
+                # Reuse the ExportedProgram from torch_pass_pipeline. A second
+                # torch.export.export() call would trigger TransferFromDevice for
+                # every sharded XLA parameter, compiling and executing a separate
+                # ReplicateShardedData graph for each one and exhausting DRAM.
+                program = self.exported_program
+                self._apply_passes_to_lifted_graph()
+                legalize_graph(program.graph_module)
+                self.params_and_consts = self._build_params_and_consts(program)
 
-            # we observe that nodes in the fx graph can have inconsistent prev/next pointers.
-            # specifically, after invoking `torch.export.export` as part of torch_pass_pipeline,
-            # we observed in one case that a "placeholder=target['c_lifted_tensor_1']" node has it's successor set to "get_attr=target['_tensor_constant0']"
-            # a node which doesn't appear at all when interating over the fx graph directly(and whose successor is the real successor of the node as per the fx graph)
-            # Calling legalize_graph rebuilds the graph in topological order(from usage information), and fixes up the prev/next pointers in the process - which fixes our issue.
-            # All this is a problem because DynamoBridge Partitioner can get confused by wrong next nodes and partition the graph in a way which fails to execute.
-            legalize_graph(program.graph_module)
+                self.compiled_graph = bridge.extract_compiled_graph(
+                    program.graph_module, self.params_and_consts + args
+                )
+            else:
+                # Fallback: re-export when no pre-exported program is available.
+                program = torch.export.export(self.module, tuple(args), strict=False)
+                legalize_graph(program.graph_module)
+                self.params_and_consts = self._build_params_and_consts(program)
 
-            # Collect the params and constants from the exported program.
-            self.params_and_consts = self._build_params_and_consts(program)
-
-            # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
-            # This helps us avoid tracing the graph on the subsequent model execution. On the next
-            # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
-            # without any tracing.
-            self.compiled_graph = bridge.extract_compiled_graph(
-                program.graph_module, self.params_and_consts + args
-            )
+                self.compiled_graph = bridge.extract_compiled_graph(
+                    program.graph_module, self.params_and_consts + args
+                )
 
         full_args = self.params_and_consts + args
 
@@ -234,34 +295,16 @@ class XLAExecutor:
                 output = interp.run(*args)
         else:
             output = self.module(*args)
-        gm_has_functional_output_kind: bool = True
-
-        for el in self.signature.output_specs:
-            if el.kind is not OutputKind.USER_OUTPUT:
-                gm_has_functional_output_kind = False
-                break
-
-        if gm_has_functional_output_kind:
-            # This tells torch-xla to cut the graph at only what is required to
-            # compute all tensors in the `output` list.
-
-            # Two hacks to make AOTAutograd with legacy compile work:
-            # 1) Filter out non-tensor outputs (e.g. None values from aot_autograd
-            # backward graphs where some inputs don't require gradients).
-            output_tensors = [o for o in output if isinstance(o, torch.Tensor)]
-            # 2) When AOTAutograd is used, the forward graph module has no
-            # state_dict (parameters are lifted as inputs), so self.devices
-            # may be empty. Derive devices from the output tensors instead.
-            devices = self.devices
-            if not devices and output_tensors:
-                devices = list({t.device.type for t in output_tensors})
-            torch_xla._XLAC._xla_sync_multi(output_tensors, devices, wait=False)
-        else:
-            # Some graphs have side effects not included in graph output.
-            # In these cases we must call sync() to force materialization of non-user-output
-            # tensors, eg. inplace static cache updates as OutputKind.USER_INPUT_MUTATION.
-            # This causes buffer mutations to show up as graph outputs in MLIR.
-            torch_xla.sync()
+        # Sync only the output tensors (including mutation outputs like KV
+        # cache updates). A global torch_xla.sync() would execute ALL pending
+        # XLA operations, including orphaned ReplicateShardedData ops created
+        # by torch.export.export() for every sharded parameter, causing DRAM
+        # OOM on large multi-chip models.
+        output_tensors = [o for o in output if isinstance(o, torch.Tensor)]
+        devices = self.devices
+        if not devices and output_tensors:
+            devices = list({t.device.type for t in output_tensors})
+        torch_xla._XLAC._xla_sync_multi(output_tensors, devices, wait=False)
 
         return output
 
@@ -271,7 +314,7 @@ def fw_compiler(
     example_inputs: Tuple[torch.Tensor],
     options: dict[str, bool] | None,
 ):
-    module, graph_signature, node_info = torch_pass_pipeline(
+    module, graph_signature, node_info, exported_program = torch_pass_pipeline(
         gm, example_inputs, options
     )
 
@@ -286,7 +329,9 @@ def fw_compiler(
         if "tt_legacy_compile" in options:
             legacy_compile = bool(options["tt_legacy_compile"])
 
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile)
+    return XLAExecutor(
+        module, graph_signature, node_info, legacy_compile, exported_program
+    )
 
 
 def aot_backend(
