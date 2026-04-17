@@ -440,11 +440,16 @@ def apply_top_k_top_p_fast(
     # [32, chunk] instead of [batch, chunk]. Multi-core topk is 14x faster
     # at batch=32 — hardware processes all rows simultaneously and
     # dummy -inf rows add negligible overhead.
-    logits = torch.nn.functional.pad(
-        logits,
-        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
-        value=float("-inf"),
-    )
+    # Only pad when k/p filtering is skipped (k=None, p=None) — if actual
+    # k/p tensors are passed they have shape [batch] and won't broadcast
+    # against the padded [32, ...] topk outputs.
+    _pad_for_topk = k is None and p is None and batch < _TTNN_SAMPLING_BATCH_SIZE
+    if _pad_for_topk:
+        logits = torch.nn.functional.pad(
+            logits,
+            (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
+            value=float("-inf"),
+        )
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)
@@ -485,5 +490,7 @@ def apply_top_k_top_p_fast(
             top_p_cutoff = probs_sort.gather(-1, top_p_count)
             all_values = all_values.masked_fill(probs < top_p_cutoff, -float("inf"))
 
-    # Trim back to original batch (we padded to 32 for topk efficiency).
-    return all_values[:batch], all_indices[:batch]
+    # Trim back to original batch if we padded above.
+    if _pad_for_topk:
+        return all_values[:batch], all_indices[:batch]
+    return all_values, all_indices
