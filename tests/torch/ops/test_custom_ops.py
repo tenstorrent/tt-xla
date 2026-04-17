@@ -51,16 +51,16 @@ def test_update_cache(num_heads, max_seq_len, head_size):
 
 @pytest.mark.single_device
 @pytest.mark.parametrize(
-    "batch_size, num_heads, seq_len, head_size, num_kv_heads, max_seq_len, is_causal, scale",
+    "batch_size, num_heads, seq_len, head_size, num_kv_heads, max_seq_len, is_causal, scale, sliding_window_size",
     [
-        (1, 12, 32, 128, 12, 32, True, 1.0),
-        (1, 12, 32, 128, 12, 128, False, 1.0),
-        (8, 12, 32, 128, 12, 32, True, 1.0),
-        (8, 12, 32, 128, 12, 128, False, 1.0),
-        (1, 12, 32, 128, 4, 32, True, 1.0),
-        (1, 12, 32, 128, 4, 128, False, 1.0),
-        (8, 12, 32, 128, 4, 32, True, 1.0),
-        (8, 12, 32, 128, 4, 128, False, 1.0),
+        (1, 12, 32, 128, 12, 32, True, 1.0, 16),
+        (1, 12, 32, 128, 12, 128, False, 1.0, 16),
+        (8, 12, 32, 128, 12, 32, True, 1.0, 32),
+        (8, 12, 32, 128, 12, 128, False, 1.0, 32),
+        (1, 12, 32, 128, 4, 32, True, 1.0, 16),
+        (1, 12, 32, 128, 4, 128, False, 1.0, 16),
+        (8, 12, 32, 128, 4, 32, True, 1.0, 32),
+        (8, 12, 32, 128, 4, 128, False, 1.0, 32),
     ],
 )
 def test_scaled_dot_product_attention(
@@ -72,6 +72,7 @@ def test_scaled_dot_product_attention(
     max_seq_len,
     is_causal,
     scale,
+    sliding_window_size,
 ):
 
     query = torch.randn(batch_size, num_heads, seq_len, head_size, dtype=torch.bfloat16)
@@ -89,7 +90,7 @@ def test_scaled_dot_product_attention(
 
     run_op_test(
         torch.ops.tt.scaled_dot_product_attention,
-        [query, key, value, attn_mask, is_causal, scale],
+        [query, key, value, attn_mask, is_causal, scale, sliding_window_size],
         framework=Framework.TORCH,
     )
 

@@ -58,6 +58,9 @@ def test_llm(
     accuracy_testing: bool = False,
     max_output_tokens=None,
     decode_only: bool = False,
+    weight_dtype_overrides: dict = None,
+    input_output_sharding_spec=None,
+    kv_cache_sharding_spec=None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -148,6 +151,9 @@ def test_llm(
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        weight_dtype_overrides=weight_dtype_overrides,
+        input_output_sharding_spec=input_output_sharding_spec,
+        kv_cache_sharding_spec=kv_cache_sharding_spec,
     )
 
     if output_file:
@@ -210,6 +216,7 @@ def test_llm_tp(
     request=None,
     arch="wormhole_llmbox",
     decode_only=False,
+    required_pcc=DEFAULT_REQUIRED_PCC,
     **kwargs,
 ):
     mesh_config_fn = kwargs.pop(
@@ -235,6 +242,7 @@ def test_llm_tp(
         num_layers=num_layers,
         request=request,
         decode_only=decode_only,
+        required_pcc=required_pcc,
         **kwargs,
     )
 
@@ -1444,6 +1452,10 @@ def test_llama_3_1_70b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
+            "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
+        },
     )
 
 
@@ -1468,7 +1480,7 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
+# Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/issues/4192)
 def test_gpt_oss_20b_tp(
     output_file,
     num_layers,
@@ -1500,7 +1512,6 @@ def test_gpt_oss_20b_tp(
     )
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_batch_size_1(
     output_file,
     num_layers,
@@ -1528,7 +1539,6 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
-        trace_enabled=False,
     )
 
 
@@ -1561,7 +1571,6 @@ def test_llama_3_1_70b_tp_galaxy(
     )
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     output_file,
     num_layers,
@@ -1591,11 +1600,9 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
-        trace_enabled=False,
     )
 
 
-# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3929)
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     output_file,
     num_layers,
@@ -1625,5 +1632,150 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
-        trace_enabled=False,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.router.weight": "bfp_bf4",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+        required_pcc=0.93,
+    )
+
+
+def _galaxy_mesh_config_fn(model_loader, num_devices):
+    """4x8 wormhole_galaxy mesh"""
+
+    if num_devices != 32:
+        raise ValueError("wormhole_galaxy benchmarks expect 32 devices (4x8 mesh).")
+    return (4, 8), ("batch", "model")
+
+
+def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
+    """Sharding specs for MoE models optimized for throughput on 4x8 galaxy mesh.
+    TP - 8 : DP - 4 : EP - 32
+    Inputs are sharded on the batch axis DP - 4. One tile per device so batch 128 should be used.
+    Attention weights are sharded on model axis TP - 8 and replicated along the batch axis.
+    Expert weights are sharded across both model and batch axes EP - 32.
+    """
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
+    shard_specs[model.lm_head.weight] = (None, None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = ("model",)
+        shard_specs[layer.mlp.router.weight] = (None, None)
+        # This is a temporary sharding spec to enable gpt oss to not get OOM on galaxy.
+        # Once the MoE module is refactored, this should be changed to EP 32.
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", "batch", None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, "batch")
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", "batch")
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+    return shard_specs
+
+
+def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=128,
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        mesh_config_fn=_galaxy_mesh_config_fn,
+        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", "model", None, None),
+        trace_enabled=True,
+    )
+
+
+def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
+    return (1, 4), ("batch", "model")
+
+
+def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
+    """QB2 (1,4) mesh shard specs — model-axis-only, no batch sharding."""
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
+    return shard_specs
+
+
+def test_gpt_oss_120b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=batch_size if batch_size is not None else 8,
+        arch="qb2-blackhole",
+        optimization_level=1,
+        trace_enabled=True,
+        experimental_weight_dtype="bfp_bf8",
+        weight_dtype_overrides={
+            "default": "bfp_bf8",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+        required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
+        mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
+        # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
     )

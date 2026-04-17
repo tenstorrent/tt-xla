@@ -50,6 +50,10 @@ static std::string getRankBindingPath(const std::string &metal_home) {
        "tests/tt_metal/distributed/config/dual_galaxy_rank_bindings.yaml"},
       {"quad_galaxy",
        "tests/tt_metal/distributed/config/quad_galaxy_rank_bindings.yaml"},
+      {"dual_exabox_galaxy", "tests/tt_metal/distributed/config/"
+                             "16x4_dual_bh_galaxy_rank_bindings.yaml"},
+      {"quad_exabox_galaxy", "tests/tt_metal/distributed/config/"
+                             "32x4_quad_bh_galaxy_rank_bindings.yaml"},
   };
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
@@ -109,6 +113,8 @@ static tt_pjrt_status launchDistributedRuntime() {
   // Network interface name for MPI (eg. cnx1, enp10s0f1np1)
   const char *tt_distributed_tcp_iface =
       std::getenv("TT_DISTRIBUTED_TCP_IFACE");
+  // Path to an MPI rankfile, needed for >2 hosts when using a rank binding file
+  const char *rank_file_path = std::getenv("TT_DISTRIBUTED_RANK_FILE_PATH");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -181,6 +187,10 @@ static tt_pjrt_status launchDistributedRuntime() {
     distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
   } else if (hosts_file) {
     distributed_options.multiProcessArgs->withHostsFilePath(hosts_file);
+  }
+
+  if (rank_file_path) {
+    distributed_options.multiProcessArgs->withRankFilePath(rank_file_path);
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);

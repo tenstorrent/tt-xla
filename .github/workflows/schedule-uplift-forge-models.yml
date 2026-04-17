@@ -58,7 +58,7 @@ jobs:
           cat commit_list.txt
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         id: create-pr
         with:
           branch: uplift-forge-models
@@ -70,7 +70,7 @@ jobs:
           body: "This PR uplifts the ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to the ${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }}"
           labels: uplift-forge-models
           delete-branch: true
-          token: ${{ github.token }}
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Approve Pull Request
         if: ${{ steps.create-pr.outputs.pull-request-number }}

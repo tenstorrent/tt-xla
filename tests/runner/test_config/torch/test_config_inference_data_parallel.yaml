@@ -126,7 +126,6 @@ test_config:
   albert/masked_lm/pytorch-Large_v2-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING
-    required_pcc: 0.98
 
   albert/token_classification/pytorch-Large_v2-data_parallel-inference:
     supported_archs: [n300]
@@ -727,9 +726,7 @@ test_config:
 
   albert/token_classification/pytorch-Xxlarge_v2-data_parallel-inference:
     supported_archs: [n300]
-    assert_pcc: false
     status: EXPECTED_PASSING
-    reason: "Calculated: pcc=0.9272822141647339. Required: pcc=0.99."
 
   regnet/pytorch-Y_120-data_parallel-inference:
     supported_archs: [n300]

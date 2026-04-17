@@ -177,6 +177,10 @@ onLoadedExecutableIsDeleted(PJRT_LoadedExecutable_IsDeleted_Args *args);
 // Implements PJRT_LoadedExecutable_Execute API function.
 PJRT_Error *onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args);
 
+// Implements PJRT_LoadedExecutable_GetDeviceAssignment API function.
+PJRT_Error *onLoadedExecutableGetDeviceAssignment(
+    PJRT_LoadedExecutable_GetDeviceAssignment_Args *args);
+
 } // namespace internal
 
 } // namespace tt::pjrt
