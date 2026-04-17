@@ -9,6 +9,7 @@ TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py greedy   
 TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py topk_only  |& tee $DIR/3_topk_only.log
 TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py topk_pad   |& tee $DIR/4_topk_pad.log
 TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py sampling   |& tee $DIR/5_sampling.log
+TT_USE_TTNN_SAMPLING=1 python3 perf_debug/test_sampling_op_overhead.py sampling_b32 |& tee $DIR/5_sampling_b32.log
 
 echo ""
 echo "=== Results ==="
