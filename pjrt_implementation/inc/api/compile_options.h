@@ -115,6 +115,12 @@ struct CompileOptions {
   // default name.
   std::string ttnn_perf_metrics_output_file = "";
 
+  // Perform everything as if the graph was executed, but don't actually execute
+  // it. Instead, return zero-filled output buffers. Useful for just getting the
+  // IRs out, or input tensors, or codegen code. Default true for codegen
+  // backends, false for flatbuffer backend.
+  bool dry_run = true;
+
   // Path that will contain any exported artifacts.
   // This includes: codegen solutions, graph inputs and intermediate IRs.
   // Setting this will enable IR dumping.
