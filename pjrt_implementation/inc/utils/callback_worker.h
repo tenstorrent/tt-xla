@@ -42,7 +42,7 @@ class CallbackWorker {
 public:
   explicit CallbackWorker(size_t queue_capacity = 1024);
 
-  // Signals shutdown, joins the worker thread, and drains any remaining items.
+  // Signals shutdown and joins the worker thread.
   ~CallbackWorker();
 
   // Non-copyable, non-movable.
