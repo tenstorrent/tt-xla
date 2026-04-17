@@ -326,7 +326,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    #cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
 
     run_graph_test(
         attention,
@@ -335,7 +335,7 @@ def test_llama_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
+            #cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
