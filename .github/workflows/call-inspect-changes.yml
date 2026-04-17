@@ -24,6 +24,9 @@ on:
       wheel-changes:
         description: "True if wheel build related files changed."
         value: ${{ jobs.inspect-changes.outputs.wheel-changes }}
+      needs-build:
+        description: "True if build-affecting files (src, cmake, python package, third_party) changed."
+        value: ${{ jobs.inspect-changes.outputs.needs-build }}
 
 jobs:
   inspect-changes:
@@ -36,6 +39,7 @@ jobs:
       uplift-additional-test-suites: ${{ steps.inspect.outputs.uplift-additional-test-suites }}
       detected-uplifts: ${{ steps.inspect.outputs.detected-uplifts }}
       wheel-changes: ${{ steps.inspect.outputs.wheel-changes }}
+      needs-build: ${{ steps.inspect.outputs.needs-build }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -56,6 +60,7 @@ jobs:
           detected_uplifts=""
           uplift_additional_test_suites=""
           wheel_changes=false
+          needs_build=true
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only --repo ${{ github.repository }})
@@ -170,6 +175,30 @@ jobs:
               done
             done
 
+            # Check if any build-affecting files changed.
+            # Files outside these patterns (tests, docs, .github, examples) do not require a rebuild.
+            build_patterns=(
+              "CMakeLists.txt"
+              "**/CMakeLists.txt"
+              "CMakePresets.json"
+              "pjrt_implementation/*"
+              "python_package/*"
+              "third_party/*"
+              "integrations/*"
+              "scripts/build_torch_xla.sh"
+            )
+
+            needs_build=false
+            for file in $CHANGED_FILES; do
+              for pattern in "${build_patterns[@]}"; do
+                if [[ $file == $pattern ]]; then
+                  echo "Build-affecting file changed: $file"
+                  needs_build=true
+                  break 2
+                fi
+              done
+            done
+
           else
             skip_build_and_test=false
             run_pr_tests=true
@@ -179,6 +208,7 @@ jobs:
           echo "detected-uplifts=${detected_uplifts:-}"
           echo "uplift-additional-test-suites=${uplift_additional_test_suites:-}"
           echo "wheel-changes=$wheel_changes"
+          echo "needs-build=$needs_build"
           echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
 
           echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
@@ -188,3 +218,4 @@ jobs:
           echo "uplift-additional-test-suites=${uplift_additional_test_suites:-}" >> "$GITHUB_OUTPUT"
           echo "detected-uplifts=${detected_uplifts:-}" >> "$GITHUB_OUTPUT"
           echo "wheel-changes=$wheel_changes" >> "$GITHUB_OUTPUT"
+          echo "needs-build=$needs_build" >> "$GITHUB_OUTPUT"

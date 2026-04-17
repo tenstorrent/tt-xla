@@ -43,9 +43,10 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       build_types: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'release,explorer,manylinux' || 'release,explorer' }}
+      artifact_sha: ${{ needs.inspect-changes.outputs.needs-build == 'false' && github.event.pull_request.base.sha || '' }}
 
   build-ttxla-debug:
-    if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.needs-build != 'false'
     uses: ./.github/workflows/call-build-debug.yml
     name: "Build and test tt-xla (debug with coverage)"
     secrets: inherit
@@ -113,6 +114,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
       artifacts_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+
   build-docs:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
     needs: [ inspect-changes, build-image, build-ttxla ]
