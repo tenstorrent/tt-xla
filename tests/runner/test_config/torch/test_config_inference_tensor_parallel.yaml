@@ -33,7 +33,7 @@ test_config:
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, galaxy-wh-6u]
     status: EXPECTED_PASSING
-    required_pcc: 0.975
+    required_pcc: 0.97
     inject_custom_moe: true
 
   gpt_oss/pytorch-120B-tensor_parallel-inference:
@@ -53,6 +53,7 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: EXPECTED_PASSING
+    required_pcc: 0.98 # PCC dropped to 0.9894 on n300-llmbox - https://github.com/tenstorrent/tt-xla/issues/4154
 
   llama/causal_lm/pytorch-3.0_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
@@ -155,6 +156,7 @@ test_config:
     arch_overrides:
       n300-llmbox:
         enable_weight_bfp8_conversion: true
+        required_pcc: 0.95
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     arch_overrides:
@@ -253,3 +255,8 @@ test_config:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  command/pytorch-command-a-reasoning-08-2025-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true

@@ -43,22 +43,12 @@ class MochiCausalConv3dWrapper(torch.nn.Module):
             768,
             768,
             id="in_and_out_div32",
-            marks=pytest.mark.xfail(
-                reason=failed_runtime(
-                    "L1 OOM: https://github.com/tenstorrent/tt-xla/issues/3108"
-                )
-            ),
         ),
         pytest.param(12, 512, id="in_not_div32"),
         pytest.param(
             512,
             12,
             id="out_not_div32",
-            marks=pytest.mark.xfail(
-                reason=failed_runtime(
-                    "L1 OOM: https://github.com/tenstorrent/tt-xla/issues/3108"
-                )
-            ),
         ),
         pytest.param(12, 34, id="neither_div32"),
     ],

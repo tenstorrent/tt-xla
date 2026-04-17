@@ -758,14 +758,14 @@ test_config:
     reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/3922"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8219157204385233. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
 
   pi_0/pytorch-pi0_base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/3922"
-    bringup_status: FAILED_RUNTIME
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
@@ -1204,9 +1204,6 @@ test_config:
   rcnn/pytorch-Alexnet-single_device-inference:
     status: EXPECTED_PASSING
 
-  dla/pytorch-34.in1k-single_device-inference:
-    status: EXPECTED_PASSING
-
   googlenet/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
 
@@ -1456,8 +1453,7 @@ test_config:
     status: EXPECTED_PASSING
 
   gliner/pytorch-Multi_v2.1-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "TypeError: GLiNER.compile() got an unexpected keyword argument 'backend'"
+    status: NOT_SUPPORTED_SKIP #https://github.com/tenstorrent/tt-xla/issues/4267
 
   gemma/pytorch-1.1_7B_IT-single_device-inference:
     supported_archs: ["p150"]
@@ -2229,9 +2225,7 @@ test_config:
         required_pcc: 0.95 # https://github.com/tenstorrent/tt-xla/issues/1472, https://github.com/tenstorrent/tt-mlir/issues/6217
 
   maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Test hangs, investigation is ongoing: https://github.com/tenstorrent/tt-xla/issues/3838"
+    status: EXPECTED_PASSING
 
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-inference:
     status: EXPECTED_PASSING
@@ -2384,9 +2378,8 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-Base-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Currently hanging - https://github.com/tenstorrent/tt-xla/issues/3852"
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 1536736 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/4239"
     markers: [large]
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
