@@ -130,7 +130,7 @@ def run_topk_pad():
 
 
 def run_sampling():
-    """4x topk + pad + ttnn.sampling (full path)."""
+    """4x topk + pad + ttnn.sampling (full path, batch=1 matching vLLM)."""
     dev = xm.xla_device()
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -151,6 +151,26 @@ def run_sampling():
     temp = torch.full((1,), 1.667, dtype=torch.bfloat16).to(dev)
     print("=== sampling: 4x topk + pad + ttnn.sampling ===")
     return benchmark(graph, (logits, k, p, temp), "sampling")
+
+
+def run_sampling_b32():
+    """4x topk + ttnn.sampling (batch=32, no padding — theoretical ceiling)."""
+    dev = xm.xla_device()
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def graph(logits, k_in, p_in, temp_in):
+        logits = logits.to(torch.bfloat16)
+        vals, inds = _topk_body(logits)
+        vals = vals.to(torch.bfloat16)
+        inds = inds.to(torch.int32)
+        return torch.ops.tt.sampling(vals, inds, k_in, p_in, temp_in, 42)
+
+    logits = torch.randn(32, VOCAB, dtype=torch.float32).to(dev)
+    k = torch.full((32,), 32, dtype=torch.int32).to(dev)
+    p = torch.ones(32, dtype=torch.bfloat16).to(dev)
+    temp = torch.full((32,), 1.667, dtype=torch.bfloat16).to(dev)
+    print("=== sampling_b32: 4x topk + ttnn.sampling (batch=32, no padding) ===")
+    return benchmark(graph, (logits, k, p, temp), "sampling_b32")
 
 
 def run_standalone():
@@ -175,11 +195,19 @@ TESTS = {
     "topk_only": run_topk_only,
     "topk_pad": run_topk_pad,
     "sampling": run_sampling,
+    "sampling_b32": run_sampling_b32,
     "standalone": run_standalone,
 }
 
 # Order for "all" — layered from simplest to most complex
-ALL_ORDER = ["greedy", "topk_only", "topk_pad", "sampling", "standalone"]
+ALL_ORDER = [
+    "greedy",
+    "topk_only",
+    "topk_pad",
+    "sampling",
+    "sampling_b32",
+    "standalone",
+]
 
 
 def main():
