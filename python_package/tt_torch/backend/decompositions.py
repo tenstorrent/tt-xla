@@ -78,6 +78,7 @@ def upsample_linear(
     align_corners: bool,
     scales: List[Optional[float]],
 ) -> torch.Tensor:
+    scales = list(scales)
     input_size = input.shape[-len(scales) :]
 
     for i in range(len(scales)):
@@ -380,7 +381,6 @@ def _get_custom_decompositions() -> DecompositionTable:
     return {
         aten.copy.default: copy_default,
         aten.matmul.default: matmul,
-        aten.dot.default: dot,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -423,10 +423,16 @@ def populate_decompositions() -> DecompositionTable:
     # We add a custom decomposition of mm -> einsum. For this reason, remove einsum decomposition.
     decompositions.pop(torch.ops.aten.einsum.default)
 
-    # Dot product gets lowered to stablehlo.multiply, returning eltwise product
-    # of two tensors: https://github.com/tenstorrent/tt-xla/issues/2672
-    # A custom decomposition dot->matmul is added later (ref dot fn).
+    # Torch decomposition for dot results in a multiply rather than a matmul
+    # https://github.com/tenstorrent/tt-xla/issues/2672
+    # TorchXLA handles dot correctly anyway, so we don't need to decompose it.
     decompositions.pop(torch.ops.aten.dot.default)
+
+    # Sum decompositions were causing a different shape to appear for final reduced loss in a backward test([18] vs [])
+    # And subsequently caused shape mismatch errors in the backward pass.
+    # Same story as above, TorchXLA handles sum correctly anyway, so we don't need to decompose it.
+    decompositions.pop(torch.ops.aten.sum.default)
+    decompositions.pop(torch.ops.aten.sum.out)
 
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())
