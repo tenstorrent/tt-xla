@@ -155,8 +155,13 @@ _8B_BASE = dict(
     max_model_len=128,
     gpu_memory_utilization=0.05,
 )
+
+# FIXME - Add trace:
 _8B_OPT = dict(
-    enable_const_eval=True, experimental_weight_dtype="bfp_bf8", optimization_level=1
+    enable_const_eval=True,
+    experimental_weight_dtype="bfp_bf8",
+    optimization_level=1,
+    enable_trace=True,
 )
 
 SAMPLING_COMPARISON_CONFIGS = [
@@ -233,6 +238,15 @@ SAMPLING_COMPARISON_CONFIGS = [
             additional_config={**_8B_OPT, "cpu_sampling": False},
         ),
         id="8b-b8-nongreedy-nopenalty-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=16,
+            temperature=0.6,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b16-nongreedy-nopenalty-device",
     ),
     pytest.param(
         VLLMBenchmarkConfig(
