@@ -307,6 +307,18 @@
         "pytest": "tests/benchmark/test_encoders.py::test_unet_for_conditional_generation"
       },
       {
+        "name": "sdxl_pipeline_512",
+        "pyreq": "accelerate diffusers==0.36.0 loguru pytest requests torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_sdxl_pipeline.py::test_sdxl_pipeline_512",
+        "runs-on": "p100"
+      },
+      {
+        "name": "sdxl_pipeline_1024",
+        "pyreq": "accelerate diffusers==0.36.0 loguru pytest requests torch==2.9.0 tqdm transformers==4.57.1",
+        "pytest": "tests/benchmark/test_sdxl_pipeline.py::test_sdxl_pipeline_1024",
+        "runs-on": "p100"
+      },
+      {
         "name": "llama_3_2_1b_instruct_accuracy",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==4.57.1",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b",
