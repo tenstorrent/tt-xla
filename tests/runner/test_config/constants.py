@@ -12,6 +12,7 @@ ALLOWED_ARCHES = {
     "n300-llmbox",
     "galaxy-wh-6u",
     "qb2-blackhole",
+    "lb-blackhole",
 }
 
 # Allowed fields in test_config YAML entries
