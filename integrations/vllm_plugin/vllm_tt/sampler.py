@@ -398,13 +398,6 @@ class Sampler(nn.Module):
         # Use the metadata tensors, padding to 32 with safe defaults.
         if sampling_metadata.top_k is not None:
             k_tensor = sampling_metadata.top_k[:batch].to(torch.int32)
-            # k=0 means disabled in vLLM but tt::sampling requires k >= 1.
-            # Replace zeros with the full candidate count.
-            k_tensor = torch.where(
-                k_tensor == 0,
-                torch.full_like(k_tensor, values.shape[-1]),
-                k_tensor,
-            )
         else:
             # Default: keep all candidates
             k_tensor = torch.full(

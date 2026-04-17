@@ -1398,6 +1398,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
+            # tt::sampling requires k >= 1; vLLM uses k=0 to mean "disabled".
+            # Normalize k=0 → None in uncompiled Python to avoid adding
+            # torch.where ops inside the compiled sampler graph (which can
+            # trigger BLOCK_SHARDED layout conflicts in tt-mlir).
+            if (
+                tpu_sampling_metadata.top_k is not None
+                and not tpu_sampling_metadata.top_k.any()
+            ):
+                tpu_sampling_metadata.top_k = None
+
             _t_sample = time.perf_counter()
             if self.tt_config.cpu_sampling:
                 selected_token_ids = self.sample_from_logits_cpu(
