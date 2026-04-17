@@ -24,6 +24,11 @@
 
 namespace tt::pjrt {
 
+CallbackWorker &EventInstance::getCallbackWorker() {
+  static CallbackWorker instance;
+  return instance;
+}
+
 std::unique_ptr<EventInstance> EventInstance::createInstance() {
   struct make_unique_enabler : public EventInstance {};
 
@@ -62,7 +67,8 @@ bool EventInstance::isReady() {
 }
 
 PJRT_Error *EventInstance::getErrorFromStatus() {
-  return *ErrorInstance::makeError(m_status).release();
+  return reinterpret_cast<PJRT_Error *>(
+      ErrorInstance::makeError(m_status).release());
 }
 
 static void inline logWarningOnMultipleReadyMarks() {
@@ -100,14 +106,7 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
   //   available (emplacing a value or setting an error), which can accidentally
   //   lead to executing a very expensive computations on a low-latency thread."
   //
-  // For now, to keep things simple, we will execute the callbacks on the same
-  // thread which is marking the event as ready. Or in this thread, if the
-  // event is already ready.
-  //
-  // TODO: In the future we might consider having one dedicated thread per
-  // client for executing all event callbacks. However, executing all callbacks
-  // on a single thread could lead to congestion if callbacks are slow or
-  // numerous, so a smarter solution (e.g. a thread pool) might be needed.
+  // We decided to dispatch the callbacks to a dedicated CallbackWorker thread.
 
   {
     std::lock_guard<std::mutex> ready_lock(m_ready_mutex);
@@ -117,9 +116,8 @@ void EventInstance::onReady(PJRT_Event_OnReadyCallback callback_function,
     }
   }
 
-  // The event is already ready, so execute the callback immediately on the
-  // calling thread.
-  callback_function(getErrorFromStatus(), user_arg);
+  getCallbackWorker().enqueue(callback_function, user_arg,
+                              getErrorFromStatus());
 }
 
 void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
@@ -132,13 +130,14 @@ void EventInstance::markAsReadyAndCallback(EventInstance *event_instance,
   std::vector<OnReadyCallback> callbacks_to_execute =
       std::move(event_instance->m_on_ready_callbacks);
 
-  // Release the lock before executing callbacks.
+  // Release the lock before dispatching callbacks.
   ready_lock.unlock();
 
-  // Execute callbacks without holding lock (event may be destroyed in callback)
   for (OnReadyCallback &callback : callbacks_to_execute) {
-    callback.callback_function(*ErrorInstance::makeError(status).release(),
-                               callback.user_arg);
+    getCallbackWorker().enqueue(
+        callback.callback_function, callback.user_arg,
+        reinterpret_cast<PJRT_Error *>(
+            ErrorInstance::makeError(status).release()));
   }
 }
 

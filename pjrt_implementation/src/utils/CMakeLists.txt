@@ -12,6 +12,7 @@
 # Depends on: loguru, coverage_config
 
 add_library(TTPJRTUtils
+    "callback_worker.cc"
     "data_type_utils.cc"
     "logging.cc"
 )
