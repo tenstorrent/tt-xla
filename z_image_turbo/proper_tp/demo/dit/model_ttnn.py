@@ -26,7 +26,8 @@ import sys
 import torch
 import ttnn
 
-import consteval  # run_const_evals, CONSTEVAL_MAP
+from dit import consteval  # run_const_evals, CONSTEVAL_MAP
+from dit import model_pt
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -159,12 +160,17 @@ class ZImageTransformerTTNN(LightweightModule):
     Expects device opened with trace_region_size >= 50_000_000.
     """
 
-    def __init__(self, mesh_device, transformer):
+    def __init__(self, mesh_device):
         self.mesh_device = mesh_device
+
+        # ── Load + pad the reference PyTorch model ─────────────────────────────
+        tr_pt = model_pt.load_model()
+        model_pt.pad_heads(tr_pt)
 
         # ── Load weights ───────────────────────────────────────────────────────
         print("  Loading static inputs ...")
-        self._static_inputs = load_static_inputs(mesh_device, transformer)
+        self._static_inputs = load_static_inputs(mesh_device, tr_pt)
+        del tr_pt
         print("  Running consteval ...")
         self._cached = consteval.run_const_evals(self._static_inputs, mesh_device)
         print("  Consteval complete.")

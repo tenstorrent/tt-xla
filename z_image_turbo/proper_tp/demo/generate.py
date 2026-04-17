@@ -38,10 +38,9 @@ from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
 from transformers import AutoTokenizer
 
 from text_encoder.model_ttnn import TextEncoderTTNN
+from dit.model_ttnn import ZImageTransformerTTNN
 
 _HERE   = os.path.dirname(os.path.abspath(__file__))
-_TE_DIR = os.path.join(_HERE, "text_encoder")
-_TR_DIR = os.path.join(_HERE, "transformer")
 _VAE_DIR = os.path.join(_HERE, "vae")
 
 MODEL_ID        = "Tongyi-MAI/Z-Image-Turbo"
@@ -61,17 +60,12 @@ def _load_module(name, filepath):
     spec.loader.exec_module(mod)
     return mod
 
-_utils         = _load_module("utils",         os.path.join(_TR_DIR, "utils.py"))
-_load_module("consteval", os.path.join(_TR_DIR, "consteval.py"))
-_tr_model_pt   = _load_module("tr_model_pt",   os.path.join(_TR_DIR, "model_pt.py"))
-_tr_model_ttnn = _load_module("tr_model_ttnn", os.path.join(_TR_DIR, "model_ttnn.py"))
-# VAE modules (overwrite transformer's "consteval" in sys.modules — safe, transformer already loaded)
+# VAE modules — still loaded via sys.modules shim because the vae/ dir uses
+# bare sibling imports (import utils, from params import ...).
 _load_module("consteval", os.path.join(_VAE_DIR, "consteval.py"))
 _load_module("params",    os.path.join(_VAE_DIR, "params.py"))
 _vae_model_pt   = _load_module("vae_model_pt",   os.path.join(_VAE_DIR, "model_pt.py"))
 _vae_model_ttnn = _load_module("vae_model_ttnn", os.path.join(_VAE_DIR, "model_ttnn.py"))
-
-ZImageTransformerTTNN = _tr_model_ttnn.ZImageTransformerTTNN
 
 
 # ── Tensor helpers ─────────────────────────────────────────────────────────────
@@ -184,10 +178,7 @@ class Models:
         self.te = TextEncoderTTNN(self.mesh_device)
 
         print("[4/5] Building Transformer ...")
-        tr_pt = _tr_model_pt.load_model()
-        _tr_model_pt.pad_heads(tr_pt)
-        self.tr = ZImageTransformerTTNN(self.mesh_device, tr_pt)
-        del tr_pt
+        self.tr = ZImageTransformerTTNN(self.mesh_device)
 
         # print("[5/5] Loading TTNN VAE decoder (weights from HuggingFace) ...")
         # self.vae_tt = VAEDecoderTTNN(self.mesh_device)
