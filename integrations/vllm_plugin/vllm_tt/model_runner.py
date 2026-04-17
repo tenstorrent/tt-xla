@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -216,6 +217,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
+        # Allow overriding num_hidden_layers via env var for quick iteration.
+        # e.g. TT_NUM_HIDDEN_LAYERS=1 to run a single-layer model.
+        _env_layers = os.environ.get("TT_NUM_HIDDEN_LAYERS", "")
+        if _env_layers:
+            self.tt_config.num_hidden_layers = int(_env_layers)
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         self.vllm_config = vllm_config
