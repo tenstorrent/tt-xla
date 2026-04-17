@@ -103,6 +103,13 @@ def _patch_transformers_models():
         if "use_cache" in kwargs:
             config.use_cache = kwargs["use_cache"]
 
+        # Forward experts_implementation to the config (needed for MoE models).
+        # Default to "eager" since grouped_mm requires BF16 and random-weight
+        # models are typically float32.
+        experts_impl = kwargs.get("experts_implementation", None)
+        if hasattr(config, "_experts_implementation"):
+            config._experts_implementation = experts_impl or "eager"
+
         # Handle composite configs (e.g. multimodal models where AutoConfig
         # returns a top-level config but the model class expects a sub-config
         # like text_config). Extract the sub-config when there's a mismatch.
