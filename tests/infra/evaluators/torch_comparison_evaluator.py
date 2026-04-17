@@ -33,11 +33,24 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         (key, value) tensors per layer for comparison.
         """
         if hasattr(cache, "to_legacy_cache"):
-            return cache.to_legacy_cache()
+            try:
+                return cache.to_legacy_cache()
+            except (AttributeError, TypeError):
+                pass
         # Fallback for any Cache with .layers (DynamicCache, StaticCache in transformers 5.x,
-        # and any other Cache subclass). Each layer exposes .keys and .values via CacheLayerMixin.
+        # and any other Cache subclass). Standard attention layers expose .keys and .values
+        # via CacheLayerMixin; linear attention layers (e.g. HybridCache) expose .conv_states
+        # and .recurrent_states instead.
         if hasattr(cache, "layers"):
-            return tuple((layer.keys, layer.values) for layer in cache.layers)
+            result = []
+            for layer in cache.layers:
+                if hasattr(layer, "keys") and hasattr(layer, "values"):
+                    result.append((layer.keys, layer.values))
+                elif hasattr(layer, "conv_states") and hasattr(
+                    layer, "recurrent_states"
+                ):
+                    result.append((layer.conv_states, layer.recurrent_states))
+            return tuple(result)
         # Handle EncoderDecoderCache (transformers 5.x): contains self_attention_cache and
         # cross_attention_cache as separate DynamicCache objects instead of .layers directly.
         if hasattr(cache, "self_attention_cache") and hasattr(
