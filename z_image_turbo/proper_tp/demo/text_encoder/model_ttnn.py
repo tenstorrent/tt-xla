@@ -278,7 +278,6 @@ class TextEncoderTTNN(LightweightModule):
         """
         Compute RoPE cosine and sine tables for the given sequence length.
 
-        Matches the traced op sequence (ce_100 in consteval.py):
           inv_freq [64] × positions [0..seq_len-1] → angles [seq_len, 64]
           → doubled [seq_len, 128] → cos/sin → BF16 → [1, 1, seq_len, 128]
 

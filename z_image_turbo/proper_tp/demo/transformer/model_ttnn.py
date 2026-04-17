@@ -166,7 +166,7 @@ class ZImageTransformerTTNN(LightweightModule):
         print("  Loading static inputs ...")
         self._static_inputs = load_static_inputs(mesh_device, transformer)
         print("  Running consteval ...")
-        self._cached = consteval.run_const_evals(self._static_inputs)
+        self._cached = consteval.run_const_evals(self._static_inputs, mesh_device)
         print("  Consteval complete.")
 
         config_path = os.path.join(HERE, "tensor_load_config.json")

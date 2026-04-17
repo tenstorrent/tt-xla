@@ -37,6 +37,8 @@ from diffusers.image_processor import VaeImageProcessor
 from diffusers.schedulers import FlowMatchEulerDiscreteScheduler
 from transformers import AutoTokenizer
 
+from text_encoder.model_ttnn import TextEncoderTTNN
+
 _HERE   = os.path.dirname(os.path.abspath(__file__))
 _TE_DIR = os.path.join(_HERE, "text_encoder")
 _TR_DIR = os.path.join(_HERE, "transformer")
@@ -62,7 +64,6 @@ def _load_module(name, filepath):
 _utils         = _load_module("utils",         os.path.join(_TR_DIR, "utils.py"))
 _load_module("consteval", os.path.join(_TR_DIR, "consteval.py"))
 _tr_model_pt   = _load_module("tr_model_pt",   os.path.join(_TR_DIR, "model_pt.py"))
-_te_model_ttnn = _load_module("te_model_ttnn", os.path.join(_TE_DIR, "model_ttnn.py"))
 _tr_model_ttnn = _load_module("tr_model_ttnn", os.path.join(_TR_DIR, "model_ttnn.py"))
 # VAE modules (overwrite transformer's "consteval" in sys.modules — safe, transformer already loaded)
 _load_module("consteval", os.path.join(_VAE_DIR, "consteval.py"))
@@ -70,7 +71,6 @@ _load_module("params",    os.path.join(_VAE_DIR, "params.py"))
 _vae_model_pt   = _load_module("vae_model_pt",   os.path.join(_VAE_DIR, "model_pt.py"))
 _vae_model_ttnn = _load_module("vae_model_ttnn", os.path.join(_VAE_DIR, "model_ttnn.py"))
 
-TextEncoderTTNN       = _te_model_ttnn.TextEncoderTTNN
 ZImageTransformerTTNN = _tr_model_ttnn.ZImageTransformerTTNN
 
 
@@ -155,6 +155,16 @@ def _output_path(prompt, index, output_dir):
 
 # ── Model loading (once, shared across all prompts) ────────────────────────────
 
+def open_mesh_device():
+    ttnn.set_fabric_config(ttnn.FabricConfig.FABRIC_1D)
+    device = ttnn.open_mesh_device(
+                mesh_shape=ttnn.MeshShape((1, 4)),
+                l1_small_size=1 << 15,
+                trace_region_size=50_000_000,
+            )
+    device.enable_program_cache()
+    return device
+
 class Models:
     """Loaded models, shared across all prompts in a run."""
 
@@ -168,20 +178,19 @@ class Models:
         self.scheduler_template.sigma_min = 0.0
 
         print("[2/5] Opening TTNN (1,4) mesh device ...")
-        _utils.DeviceGetter.trace_region_size = 50_000_000  # required for Metal Trace
-        self.mesh_device = _utils.DeviceGetter.get_device((1, 4))
+        self.mesh_device = open_mesh_device()
 
-        print("[3/5] Building text encoder ...")
+        print("[3/5] Building Text Encoder ...")
         self.te = TextEncoderTTNN(self.mesh_device)
 
-        print("[4/5] Building transformer ...")
+        print("[4/5] Building Transformer ...")
         tr_pt = _tr_model_pt.load_model()
         _tr_model_pt.pad_heads(tr_pt)
         self.tr = ZImageTransformerTTNN(self.mesh_device, tr_pt)
         del tr_pt
 
-        print("[5/5] Loading TTNN VAE decoder (weights from HuggingFace) ...")
-        self.vae_tt = VAEDecoderTTNN(self.mesh_device)
+        # print("[5/5] Loading TTNN VAE decoder (weights from HuggingFace) ...")
+        # self.vae_tt = VAEDecoderTTNN(self.mesh_device)
         print()
 
     def encode_prompt(self, prompt):
@@ -253,20 +262,21 @@ def _run_one(models, prompt, steps, seed, output_path, prompt_index, total_promp
         label = " ← trace capture" if i == 0 else ""
         print(f"  step {i+1}/{steps}: {elapsed:.0f} ms{label}")
 
-    # VAE decode
-    t0 = time.time()
-    image = models.decode_latents(latents)
-    vae_ms = (time.time() - t0) * 1000
+    # # VAE decode
+    # t0 = time.time()
+    # image = models.decode_latents(latents)
+    # vae_ms = (time.time() - t0) * 1000
 
-    total_ms = (time.time() - t_start) * 1000
-    steady   = step_times[1:] if len(step_times) > 1 else step_times
-    print(f"  VAE: {vae_ms:.0f} ms  |  total: {total_ms:.0f} ms  "
-          f"|  steady-state step: {sum(steady)/len(steady):.0f} ms avg")
+    # total_ms = (time.time() - t_start) * 1000
+    # steady   = step_times[1:] if len(step_times) > 1 else step_times
+    # print(f"  VAE: {vae_ms:.0f} ms  |  total: {total_ms:.0f} ms  "
+    #       f"|  steady-state step: {sum(steady)/len(steady):.0f} ms avg")
 
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    image.save(output_path)
-    print(f"  → {output_path}\n")
-    return total_ms
+    # os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    # image.save(output_path)
+    # print(f"  → {output_path}\n")
+    # return total_ms
+    return 1
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

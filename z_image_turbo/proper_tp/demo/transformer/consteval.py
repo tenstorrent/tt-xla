@@ -552,11 +552,8 @@ CONSTEVAL_MAP = {
 }
 
 
-def _apply_transform(tensor, transform: str):
+def _apply_transform(tensor, transform: str, device):
     """Apply a single consteval transformation to a host TTNN tensor."""
-    import utils
-    device = utils.DeviceGetter.get_device((1, 4))
-
     t = ttnn.to_device(tensor, device=device, memory_config=DRAM_MC)
     t = ttnn.to_layout(t, ttnn.Layout.TILE, None, memory_config=None)
 
@@ -598,11 +595,12 @@ def _apply_transform(tensor, transform: str):
     raise ValueError(f"Unknown transform type: {transform!r}")
 
 
-def run_const_evals(inputs: list) -> dict:
+def run_const_evals(inputs: list, device) -> dict:
     """Apply all consteval transformations and return the cache dict.
 
     Args:
         inputs: The 529-element inputs list from load_static_inputs().
+        device: The (mesh) device to place tensors on.
 
     Returns:
         Dict keyed by "main_const_eval_{N}" — same format as the cached dict
@@ -610,14 +608,12 @@ def run_const_evals(inputs: list) -> dict:
     """
     cache = {}
     for ce_idx, (arg_idx, transform) in CONSTEVAL_MAP.items():
-        result = _apply_transform(inputs[arg_idx], transform)
+        result = _apply_transform(inputs[arg_idx], transform, device)
         cache[f"main_const_eval_{ce_idx}"] = result
 
     # ── Constant generators ───────────────────────────────────────────────────
     # These 9 entries are not loaded from model weights but computed from scratch.
     # They were originally inline constant functions in the generated graph.
-    import utils
-    device = utils.DeviceGetter.get_device((1, 4))
     replicated = ttnn.ReplicateTensorToMesh(device)
 
     def _sf32(v):
