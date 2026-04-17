@@ -206,6 +206,43 @@ SAMPLING_COMPARISON_CONFIGS = [
         ),
         id="8b-b1-nongreedy-cpu",
     ),
+    # Batch=2,4,8 nopenalty (for batch-pad topk experiment)
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=2,
+            temperature=0.6,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b2-nongreedy-nopenalty-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=4,
+            temperature=0.6,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b4-nongreedy-nopenalty-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=8,
+            temperature=0.6,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b8-nongreedy-nopenalty-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE,
+            batch_size=32,
+            temperature=0.6,
+            additional_config={**_8B_OPT, "cpu_sampling": False},
+        ),
+        id="8b-b32-nongreedy-nopenalty-device",
+    ),
     # Batch=32
     pytest.param(
         VLLMBenchmarkConfig(
