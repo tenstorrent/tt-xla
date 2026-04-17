@@ -1787,8 +1787,6 @@ test_config:
   qwen_3/causal_lm/pytorch-14B-single_device-training:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   rt_detr/pytorch-R34vd-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
