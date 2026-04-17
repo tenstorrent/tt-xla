@@ -45,6 +45,17 @@ class ResolvedFailingReason:
         self.value = Value(description, component)
 
 
+# Adapter mode for model augmentation during training.
+# NONE means no adapter (baseline training), LORA applies LoRA low-rank adapters.
+# Extend this enum to add new adapter types (e.g. DORA) without changing call sites.
+class AdapterMode(Enum):
+    NONE = "none"
+    LORA = "lora"
+
+    def __str__(self) -> str:
+        return self.value
+
+
 # Optional hint that selects a non-default execution/input-loading phase.
 # Today this is only used to distinguish LLM prefill vs decode; in the future it may
 # be extended to other model families (e.g., vision) if they need phase-specific inputs.
@@ -163,6 +174,11 @@ class ModelTestConfig:
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
         self.seq_len = self._resolve("seq_len", default=None)
+        self.adapter_mode = AdapterMode.NONE
+        self.lora_r = self._resolve("lora_r", default=8)
+        self.lora_alpha = self._resolve("lora_alpha", default=16.0)
+        self.lora_target_modules = self._resolve("lora_target_modules", default=None)
+        self.lora_dropout = self._resolve("lora_dropout", default=0.0)
 
         # Sharding configuration for TP prefill tests (set from parametrization, not YAML)
         self.sharding_strategy: ShardingStrategy | None = None

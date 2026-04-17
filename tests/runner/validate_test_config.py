@@ -28,6 +28,7 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 from tests.runner.test_config.constants import (
+    ADAPTER_MODES_LLM,
     ALLOWED_ARCHES,
     ALLOWED_FIELDS,
     FRAMEWORKS,
@@ -444,13 +445,13 @@ class TestConfigValidator:
         # Prefill: seq_{128..8192} x batch_{1,2} (test_models.py:444-448)
         for rel_path, variant, phase in llm_models:
             base = f"{rel_path}-{variant}" if variant else rel_path
-            for parallelism, mesh_shape, run_mode in itertools.product(
-                PARALLELISMS_LLM, LLM_MESH_SHAPES, RUN_MODES_LLM
+            for parallelism, mesh_shape, run_mode, adapter_mode in itertools.product(
+                PARALLELISMS_LLM, LLM_MESH_SHAPES, RUN_MODES_LLM, ADAPTER_MODES_LLM
             ):
                 if phase == "llm_decode":
                     ids.add(
                         f"{base}-{phase}-seq_1-batch_1"
-                        f"-{parallelism}-{mesh_shape}-{run_mode}"
+                        f"-{parallelism}-{mesh_shape}-{run_mode}-{adapter_mode}"
                     )
                 else:
                     for seq, batch in itertools.product(
@@ -458,7 +459,7 @@ class TestConfigValidator:
                     ):
                         ids.add(
                             f"{base}-{phase}-seq_{seq}-batch_{batch}"
-                            f"-{parallelism}-{mesh_shape}-{run_mode}"
+                            f"-{parallelism}-{mesh_shape}-{run_mode}-{adapter_mode}"
                         )
 
         return ids

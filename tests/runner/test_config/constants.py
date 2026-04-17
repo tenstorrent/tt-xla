@@ -41,6 +41,11 @@ ALLOWED_FIELDS = {
     "enable_weight_bfp8_conversion",
     # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
     "inject_custom_moe",
+    # LoRA adapter configuration (only meaningful when adapter_mode=LORA)
+    "lora_r",
+    "lora_alpha",
+    "lora_target_modules",
+    "lora_dropout",
 }
 
 # Single source of truth for the placeholders YAML filename
@@ -63,7 +68,7 @@ LLM_MESH_SHAPES = ("mesh_default", "mesh_1x8", "mesh_2x4")
 
 # Run modes
 RUN_MODES_STANDARD = ("inference", "training")
-RUN_MODES_LLM = ("inference",)
+RUN_MODES_LLM = ("inference", "training")
 
 # LLM phases
 LLM_PHASES = {"load_inputs_decode": "llm_decode", "load_inputs_prefill": "llm_prefill"}
@@ -71,6 +76,7 @@ LLM_PHASES = {"load_inputs_decode": "llm_decode", "load_inputs_prefill": "llm_pr
 # LLM parametrization values (mirrors test_models.py)
 LLM_SEQUENCE_LENGTHS = (128, 1024, 2048, 4096, 8192)
 LLM_BATCH_SIZES = (1, 4)
+ADAPTER_MODES_LLM = ("no_adapter", "lora")
 
 # Models excluded from PyTorch discovery (matches dynamic_loader.py)
 TORCH_EXCLUDED_MODEL_DIRS = {"suryaocr"}
