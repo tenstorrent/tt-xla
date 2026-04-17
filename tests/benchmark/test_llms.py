@@ -53,6 +53,7 @@ def test_llm(
     arch=None,
     required_pcc=DEFAULT_REQUIRED_PCC,
     fp32_dest_acc_en=None,
+    experimental_kv_cache_dtype=None,
     num_layers=None,
     request=None,
     accuracy_testing: bool = False,
@@ -109,6 +110,7 @@ def test_llm(
     task={task}
     experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
+    experimental_kv_cache_dtype={experimental_kv_cache_dtype}
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
@@ -146,6 +148,7 @@ def test_llm(
         arch=arch,
         required_pcc=required_pcc,
         fp32_dest_acc_en=fp32_dest_acc_en,
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
         accuracy_testing=accuracy_testing,
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,
@@ -918,6 +921,94 @@ def test_llama_3_1_8b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+    )
+
+
+@pytest.mark.parametrize("kv_cache_dtype", ["bfp_bf8", "bfp_bf4"])
+def test_llama_3_2_1b_kv_cache(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    kv_cache_dtype,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_2_1B_INSTRUCT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        experimental_kv_cache_dtype=kv_cache_dtype,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+    )
+
+
+@pytest.mark.parametrize("kv_cache_dtype", ["bfp_bf8", "bfp_bf4"])
+def test_llama_3_2_3b_kv_cache(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    kv_cache_dtype,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_2_3B_INSTRUCT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        experimental_kv_cache_dtype=kv_cache_dtype,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+    )
+
+
+@pytest.mark.parametrize("kv_cache_dtype", ["bfp_bf8", "bfp_bf4"])
+def test_llama_3_1_8b_kv_cache(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    kv_cache_dtype,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_8B_INSTRUCT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        experimental_kv_cache_dtype=kv_cache_dtype,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
     )
 
 
