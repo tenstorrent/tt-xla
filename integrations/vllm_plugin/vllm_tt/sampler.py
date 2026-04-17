@@ -369,7 +369,16 @@ def chunked_topk_candidates(
     User-specified top-k / top-p / softmax / multinomial are applied
     downstream by the fused tt::sampling kernel, not here.
     """
+    batch = logits.shape[0]
     chunk_size, padded_chunk_size = _get_topk_split_params(logits.shape[-1])
+
+    # Multi-core topk is 14x faster at batch=32 vs small batches — pad
+    # with -inf rows so dummy entries can't win the topk.
+    logits = torch.nn.functional.pad(
+        logits,
+        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
+        value=float("-inf"),
+    )
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)
@@ -388,4 +397,4 @@ def chunked_topk_candidates(
     # Concat: [batch, num_chunks * k_per_chunk]
     all_values = torch.cat(topk_values_list, dim=-1)
     all_indices = torch.cat(topk_indices_list, dim=-1)
-    return all_values, all_indices
+    return all_values[:batch], all_indices[:batch]
