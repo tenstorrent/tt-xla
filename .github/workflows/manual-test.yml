@@ -28,6 +28,7 @@ on:
           - 'vllm-model-tests.json'
           - 'vllm-model-tests-nightly.json'
           - 'fusion-tests.json'
+          - 'basic-multihost-test.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'

@@ -7,42 +7,13 @@ Pytest configuration for unified multi-host tests with explicit topology paramet
 
 Tests explicitly specify which topologies they support using pytest.mark.parametrize.
 The mesh shape is automatically determined based on the device count.
+
+NOTE: TT_DISTRIBUTED_* (and related) environment variables are set by CI / the test
+harness (e.g. eval $(python scripts/multihost_topology.py ...)) before pytest runs,
+not by pytest fixtures during collection.
 """
 
-from pathlib import Path
-
 import pytest
-import torch_xla.runtime as xr
-
-# Import the topology configurations
-from tests.torch.multi_host.conftest import TOPOLOGIES
-
-
-@pytest.fixture(scope="function")
-def configure_topology(topology, setup_distributed_env):
-    """
-    Configure environment for the specified topology.
-
-    This fixture sets up all necessary environment variables for distributed execution
-    based on the topology parameter provided by test parameterization.
-
-    Tests should include both 'topology' and 'configure_topology' in their parameters.
-
-    Example:
-        @pytest.mark.parametrize("topology", ["dual_bh_quietbox", "quad_galaxy"])
-        def test_foo(topology, configure_topology, mesh_shape):
-            # configure_topology will be called with the parameterized topology
-            ...
-
-    Args:
-        topology: Topology name from test's @pytest.mark.parametrize("topology", [...])
-        setup_distributed_env: Parent fixture from multi_host/conftest.py
-
-    Returns:
-        MultihostConfiguration object for the selected topology
-    """
-    script_dir = Path(__file__).parent
-    return setup_distributed_env(topology=topology, script_dir=script_dir)
 
 
 def get_mesh_shape_for_device_count(num_devices: int) -> tuple[int, int]:
@@ -80,15 +51,33 @@ def get_mesh_shape_for_device_count(num_devices: int) -> tuple[int, int]:
 
 
 @pytest.fixture(scope="function")
-def mesh_shape():
+def mesh_shape(topology):
     """
     Fixture that provides the appropriate mesh shape for the current topology.
 
-    Queries the actual device count and returns the corresponding mesh shape.
-    This allows tests to be topology-agnostic.
+    Derives mesh shape from the topology parameter to avoid querying devices
+    during pytest collection (which would initialize the runtime too early).
+
+    Args:
+        topology: Topology name from test's @pytest.mark.parametrize("topology", [...])
 
     Returns:
         Tuple of (batch_dim, model_dim) for mesh construction
     """
-    num_devices = xr.global_runtime_device_count()
+    # Map topology to device count without querying hardware
+    topology_device_counts = {
+        "dual_bh_quietbox": 8,
+        "dual_bh_loudbox_1x16": 16,
+        "dual_t3k": 16,
+        "single_galaxy": 32,
+        "dual_galaxy": 64,
+        "quad_galaxy": 128,
+    }
+
+    num_devices = topology_device_counts.get(topology)
+    if num_devices is None:
+        raise ValueError(
+            f"Unknown topology '{topology}'. Known topologies: {list(topology_device_counts.keys())}"
+        )
+
     return get_mesh_shape_for_device_count(num_devices)

@@ -72,7 +72,7 @@ jobs:
       matrix:
         build: ${{ fromJson(needs.generate-matrix-test.outputs.test_matrix) }}
 
-    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
+    runs-on: ${{ matrix.build.runs-on }}
 
     # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
@@ -81,12 +81,15 @@ jobs:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
       options: --device /dev/tenstorrent
       volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
         - /etc/udev/rules.d:/etc/udev/rules.d
         - /lib/modules:/lib/modules
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
         - /mnt/dockercache:/mnt/dockercache
+        # Multihost: host user ubuntu’s SSH agent (same socket as in ubuntu-host-mapped) for mpirun/ssh -A in this job container
+        - /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
 
     steps:
     - name: Mark repo as safe for git
@@ -123,6 +126,7 @@ jobs:
           tests/
           venv/
           examples/
+          scripts/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
@@ -229,6 +233,86 @@ jobs:
           fi
         fi
 
+    - name: Install Docker CLI for multihost
+      if: ${{ matrix.build.multihost }}
+      run: |
+        curl -fsSL https://get.docker.com | sh
+
+    - name: Start multihost containers via mpirun
+      if: ${{ matrix.build.multihost }}
+      shell: bash
+      run: |
+        DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+        HOST_WORKSPACE="${{ github.workspace }}"
+        WORK_DIR="${{ steps.strings.outputs.work-dir }}"
+
+        if [ -S /var/run/mpirun/id_rsa_multihost_ssh_agent_sock ]; then
+          export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+        fi
+
+        # Launch identical containers on every host in the MPI hostfile (including this runner)
+        mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+          --mca btl_tcp_if_exclude docker0,lo \
+          --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+          --tag-output \
+          bash -c "
+            docker run --pull=always --rm -d \
+              --name ubuntu-host-mapped --privileged --pid=host --network=host \
+              --device /dev/tenstorrent \
+              -v /dev/hugepages:/dev/hugepages \
+              -v /dev/hugepages-1G:/dev/hugepages-1G \
+              -v /etc/udev/rules.d:/etc/udev/rules.d \
+              -v /lib/modules:/lib/modules \
+              -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
+              -v /mnt/dockercache:/mnt/dockercache \
+              -v /etc/mpirun:/etc/mpirun:ro \
+              -v /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
+              -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
+              -v ${HOST_WORKSPACE}:${WORK_DIR} \
+              -w ${WORK_DIR} \
+              ${DOCKER_IMAGE} sleep infinity
+            echo \"\$(hostname): Container started\"
+          "
+        echo "All multihost containers ready"
+
+    - name: SSH connectivity check to worker containers
+      if: ${{ matrix.build.multihost }}
+      shell: bash
+      run: |
+        docker exec ubuntu-host-mapped bash -c '
+          echo "=== SSH connectivity check (via ssh) ==="
+          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+            --tag-output \
+            bash -c "
+              echo \"\$(hostname): hostname OK\"
+              if [ -f /.dockerenv ]; then
+                echo \"\$(hostname): /.dockerenv EXISTS (running inside container)\"
+              else
+                echo \"\$(hostname): /.dockerenv NOT FOUND (running on bare metal)\"
+              fi
+            "
+          echo "=== End SSH connectivity check (via ssh) ==="
+
+          echo "=== SSH connectivity check (via remote_docker.sh) ==="
+          ls -la ${{ steps.strings.outputs.work-dir }}/tests/torch/multi_host/experimental/remote_docker.sh
+          chmod +x ${{ steps.strings.outputs.work-dir }}/tests/torch/multi_host/experimental/remote_docker.sh
+          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+            --mca btl_tcp_if_exclude docker0,lo \
+            --mca plm_rsh_agent ${{ steps.strings.outputs.work-dir }}/tests/torch/multi_host/experimental/remote_docker.sh \
+            --tag-output \
+            bash -c "
+              echo \"\$(hostname): hostname OK\"
+              if [ -f /.dockerenv ]; then
+                echo \"\$(hostname): /.dockerenv EXISTS (running inside container)\"
+              else
+                echo \"\$(hostname): /.dockerenv NOT FOUND (running on bare metal)\"
+              fi
+            "
+          echo "=== End SSH connectivity check (via remote_docker.sh) ==="
+        '
+
     - name: Check for re-run attempt
       id: check-rerun-attempt
       shell: bash
@@ -307,11 +391,12 @@ jobs:
             --splitting-algorithm least_duration"
         fi
 
+        # Use -m '...' not -m "..." so BASE_PYTEST_CMD does not nest double quotes inside FULL_PYTEST_CMD="...".
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
-          -m \"$MARKS\" ${{ matrix.build.args }} \
+          -m '${MARKS}' ${{ matrix.build.args }} \
           -k "$(printf '%q' '${{ matrix.build.contains }}')" \
           $PYTEST_SPLITS"
 
@@ -341,8 +426,7 @@ jobs:
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
-        cat collected_tests.txt
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} |& tee collected_tests.txt
 
         # Check if any collected tests have notimeout marker
         NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
@@ -361,7 +445,26 @@ jobs:
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
         echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
 
+    - name: Prepare vLLM test dependencies
+      if: ${{ matrix.build.name == 'run_vllm_n150_tests' || matrix.build.name == 'run_vllm_n300_tests' || matrix.build.name == 'run_vllm_llmbox_tests' }}
+      shell: bash
+      run: |
+        source venv/activate
+        uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
+        uv pip freeze
+
+    - name: Generate pytest command
+      shell: bash
+      run: |
+        FULL_PYTEST_CMD="python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
+          --junitxml=${{ steps.strings.outputs.test_report_path }} \
+          --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+          --perf-id=${{ steps.fetch-job-id.outputs.job_id }}"
+        echo "FULL_PYTEST_CMD=$FULL_PYTEST_CMD" >> $GITHUB_ENV
+        echo "Will execute: $FULL_PYTEST_CMD"
+
     - name: Run tests
+      if: ${{ !matrix.build.multihost }}
       timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
       env:
         HF_HOME: /mnt/dockercache/huggingface
@@ -372,24 +475,56 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
-          uv pip freeze
-        fi
-        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
-               --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
-               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
-               2>&1 | tee pytest.log
+        ${{ env.FULL_PYTEST_CMD }} 2>&1 | tee pytest.log
 
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip uninstall vllm transformers
-          uv pip install -r $(pwd)/venv/requirements-dev.txt
-        fi
+    - name: Run tests (multihost)
+      if: ${{ matrix.build.multihost }}
+      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
+      shell: bash
+      run: |
+        docker exec \
+          -e HF_HOME=/mnt/dockercache/huggingface \
+          -e TORCH_HOME=/mnt/dockercache/torchhub \
+          -e GITHUB_TOKEN=${{ secrets.GH_TOKEN }} \
+          -e HF_TOKEN=${{ secrets.HF_TOKEN }} \
+          -e ENABLE_BRINGUP_STAGE_LOGGING=1 \
+          -e FULL_PYTEST_CMD="${{ env.FULL_PYTEST_CMD }}" \
+          ubuntu-host-mapped bash -c '
+            cd ${{ steps.strings.outputs.work-dir }}
+            source venv/activate
+
+            export TTXLA_LOGGER_LEVEL=DEBUG
+            export TT_METAL_LOGGER_LEVEL=DEBUG
+            export TT_METAL_LOGGER_TYPES=Fabric,Always
+
+            TOPOLOGY="${{ matrix.build.topology }}"
+
+            # Call topology script to set distributed env vars
+            # The topology script auto-discovers TT_PJRT_PLUGIN_DIR from pjrt_plugin_tt package
+            TOPOLOGY_EXPORTS=$(python scripts/multihost_topology.py \
+              --topology "$TOPOLOGY" \
+              --script-dir tests/torch/multi_host/experimental)
+            echo "Environment variables being set:"
+            echo "$TOPOLOGY_EXPORTS"
+            eval "$TOPOLOGY_EXPORTS"
+
+            python -m pytest -sv \
+              --log-memory --durations=0 \
+              ./tests/torch/multi_host/experimental \
+              -k "$TOPOLOGY" \
+              --junitxml=${{ steps.strings.outputs.test_report_path }} \
+              --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+              --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+              2>&1 | tee pytest.log
+          '
+
+    - name: Teardown vLLM test dependencies
+      if: ${{ matrix.build.name == 'run_vllm_n150_tests' || matrix.build.name == 'run_vllm_n300_tests' || matrix.build.name == 'run_vllm_llmbox_tests' }}
+      shell: bash
+      run: |
+        source venv/activate
+        uv pip uninstall vllm transformers
+        uv pip install -r $(pwd)/venv/requirements-dev.txt
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
@@ -425,6 +560,39 @@ jobs:
         path: ${{ steps.strings.outputs.perf_report_dir }}
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
+
+    - name: Cleanup multihost worker containers
+      if: ${{ always() && matrix.build.multihost }}
+      shell: bash
+      run: |
+        if [ -S /var/run/mpirun/id_rsa_multihost_ssh_agent_sock ]; then
+          export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+        fi
+        mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+          --mca btl_tcp_if_exclude docker0,lo \
+          --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
+          --tag-output \
+          bash -c "docker stop ubuntu-host-mapped || true; docker rm ubuntu-host-mapped || true" \
+        || true
+
+    - name: Fix multihost workspace permissions
+      if: ${{ always() && matrix.build.multihost }}
+      shell: bash
+      run: |
+        DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+        docker run --rm \
+          -v "${{ github.workspace }}:${{ steps.strings.outputs.work-dir }}" \
+          "$DOCKER_IMAGE" \
+          chown -R "$(id -u):$(id -g)" ${{ steps.strings.outputs.work-dir }} || true
+        echo "Workspace ownership restored"
+
+    - name: Teardown multihost controller container
+      if: ${{ always() && matrix.build.multihost }}
+      shell: bash
+      run: |
+        docker stop ubuntu-host-mapped || true
+        docker rm ubuntu-host-mapped || true
+        echo "Controller container removed"
 
 
   test-summary:
