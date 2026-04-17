@@ -82,6 +82,10 @@ def to_device(x, device, depth=5, moved=None):
         for attr_name in x.__dict__:
             attr_value = getattr(x, attr_name)
             setattr(x, attr_name, to_device(attr_value, device, depth - 1, moved))
+        # Sync the 'device' attribute (str or torch.device) to the target device
+        # so it stays consistent with any tensors that were just moved.
+        if "device" in x.__dict__ and isinstance(x.__dict__["device"], (str, torch.device)):
+            x.device = device
         moved[obj_id] = x
         return x
     else:
