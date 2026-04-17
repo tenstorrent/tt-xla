@@ -1685,7 +1685,6 @@ test_config:
   mistral/pytorch-Ministral_8B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate DRAM buffer"
     reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-training:
     status: NOT_SUPPORTED_SKIP
