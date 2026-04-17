@@ -800,3 +800,32 @@ def test_prompt_logprobs_known_target(device):
             f"row {i}: dominant token logprob {lp[i, 0].item():.4f} "
             f"should be close to 0"
         )
+
+
+# ---------------------------------------------------------------------------
+# Large batch size tests
+# ---------------------------------------------------------------------------
+
+# Use Llama-3-8B vocab as the representative production shape.
+_LARGE_BATCH_VOCAB = 128256
+
+_NON_GREEDY_LARGE_BATCH_SIZES = [
+    pytest.param(8, id="batch8"),
+    pytest.param(16, id="batch16"),
+    pytest.param(32, id="batch32"),
+]
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("batch_size", _NON_GREEDY_LARGE_BATCH_SIZES)
+def test_non_greedy_large_batch(device, batch_size):
+    """Non-greedy stochastic sampling at batch sizes 8, 16, 32."""
+    logits_cpu = torch.randn(batch_size, _LARGE_BATCH_VOCAB, dtype=torch.float32)
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    metadata_dev = make_metadata(batch_size=batch_size, device=device)
+    actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
+
+    assert actual.shape == (batch_size, 1)
+    assert_valid_tokens(actual, _LARGE_BATCH_VOCAB, context=f"batch_size={batch_size}")
