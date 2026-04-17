@@ -25,6 +25,13 @@ from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.request import Request, RequestStatus
 from vllm.v1.structured_output import StructuredOutputManager
 
+if hasattr(RequestStatus, "WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR"):
+    WAITING_FOR_STRUCTURED_OUTPUT_STATUS = (
+        RequestStatus.WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR
+    )
+else:
+    WAITING_FOR_STRUCTURED_OUTPUT_STATUS = RequestStatus.WAITING_FOR_FSM
+
 
 class AscendScheduler(Scheduler):
     """This Scheduler extends vllm's original v1 scheduler
@@ -107,7 +114,7 @@ class AscendScheduler(Scheduler):
 
             # Skip request if the structured output request is still waiting
             # for structured output grammar compilation.
-            if request.status == RequestStatus.WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR:
+            if request.status == WAITING_FOR_STRUCTURED_OUTPUT_STATUS:
                 structured_output_req = request.structured_output_request
                 if structured_output_req and structured_output_req.grammar:
                     # unblock request if ready

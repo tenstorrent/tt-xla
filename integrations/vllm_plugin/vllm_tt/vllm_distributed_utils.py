@@ -61,12 +61,9 @@ class XlaMergedColumnParallelLinear(nn.Module):
     def _load_weights_from_merged_column_parallel_linear(
         self, merged_column_parallel_linear: nn.Module
     ):
-        # The weight is a concatenation of all output weights along the output dimension.
-        # Force the weight to CPU before slicing so that slices are plain CPU
-        # tensors rather than XLA lazy ops referencing the full (replicated)
-        # merged weight.  _shard_weight will move each slice to XLA and apply
-        # mark_sharding individually, avoiding a replicated copy of the full
-        # merged tensor in the XLA graph.
+        # The weight is a concatenation of all output weights along the output
+        # dimension. Slice it on CPU first so each shard is a plain tensor
+        # instead of an XLA lazy view on the full merged weight.
         merged_column_parallel_weight = (
             merged_column_parallel_linear.weight.detach().cpu()
         )
@@ -160,10 +157,8 @@ class XlaQKVParallelLinear(nn.Module):
     def _load_weights_from_qkv_linear(self, qkv_linear: nn.Module):
         q_proj_size, k_proj_size, _ = qkv_linear.output_sizes
         # The weight of qkv linear is a concatenation of q, k, and v weights
-        # along the output dimension.
-        # Force to CPU before slicing so that slices are plain CPU tensors
-        # rather than XLA lazy ops referencing the full (replicated) merged
-        # weight. _shard_weight will move each slice to XLA individually.
+        # along the output dimension. Slice it on CPU first so each shard is a
+        # plain tensor instead of an XLA lazy view on the full merged weight.
         qkv_weight = qkv_linear.weight.detach().cpu()
         q_weight = Parameter(qkv_weight[:q_proj_size], requires_grad=False)
         k_weight = Parameter(

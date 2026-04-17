@@ -192,13 +192,19 @@ class TTPlatform(Platform):
             )
 
         cache_config = vllm_config.cache_config
+        model_config = vllm_config.model_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
         compilation_config = vllm_config.compilation_config
 
-        # TT only supports DYNAMO_TRACE_ONCE compilation level
-        if compilation_config.mode != CompilationMode.DYNAMO_TRACE_ONCE:
+        # Respect vLLM's enforce_eager handling, which sets mode=NONE before
+        # platform validation. TT should only force DYNAMO_TRACE_ONCE when the
+        # model is actually allowed to compile.
+        if (
+            not (model_config is not None and model_config.enforce_eager)
+            and compilation_config.mode != CompilationMode.DYNAMO_TRACE_ONCE
+        ):
             logger.info(
                 "[TT] Forcing DYNAMO_TRACE_ONCE compilation level, and "
                 "disabling cudagraph."
@@ -222,7 +228,6 @@ class TTPlatform(Platform):
             vllm_config.speculative_config is None
         ), "TT does not support speculative decoding"
 
-        model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
             torch.float16,
             torch.float32,
@@ -289,9 +294,8 @@ class TTPlatform(Platform):
     @classmethod
     def validate_request(
         cls,
-        prompt: "PromptType",
+        processed_inputs: "ProcessorInputs",
         params: "ParamsType",
-        # processed_inputs: "ProcessorInputs",
     ) -> None:
         pass
 
