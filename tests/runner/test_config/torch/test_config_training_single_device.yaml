@@ -125,12 +125,20 @@ test_config:
   albert/token_classification/pytorch-Xxlarge_v2-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  allam/causal_lm/pytorch-7B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   alexnet/pytorch-B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   alexnet/pytorch-Default-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  arcee/text_generation/pytorch-arcee_Spark-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   attention_denseunet/pytorch-Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -188,6 +196,14 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  bevformer/pytorch-v2_R50_T1-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  bevformer/pytorch-v2_R50_T1_Base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   bge_m3/encode/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -257,6 +273,14 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  deepseek/deepseek_coder/pytorch-1_3B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: KeyError: 'shape' in pad_inputs"
+  deepseek/deepseek_math/pytorch-7B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   deepseek/qwen/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -300,6 +324,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 8 banks, where each bank needs to store 1073741824 B, but bank size is 4273390016 B"
+  dinov2/image_classification/pytorch-Large-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  dinov2/image_classification/pytorch-Small-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   distilbert/masked_lm/pytorch-Base_Cased-single_device-training:
     status: EXPECTED_PASSING
     markers: [notimeout]
@@ -493,6 +525,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+  falcon/pytorch-3_10B_Base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  falcon/pytorch-3_7B_Base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   fpn/pytorch-ResNet50_Backbone_with_FPN_V2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -522,6 +562,14 @@ test_config:
       p150:
         status: EXPECTED_PASSING
         assert_pcc: false
+  gemma/pytorch-2_9B_IT-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   ghostnet/pytorch-100-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
@@ -565,6 +613,10 @@ test_config:
   gpt_neo/sequence_classification/pytorch-125M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  gpt_neo/sequence_classification/pytorch-2_7B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   hardnet/pytorch-hardnet68-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -643,6 +695,10 @@ test_config:
   inception/pytorch-v4_OSMR-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  issac_groot/pytorch-Gr00t_N1.5_3B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   llama/causal_lm/pytorch-3.2_1B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
@@ -653,9 +709,17 @@ test_config:
     status: EXPECTED_PASSING
     markers: [large, notimeout]
     assert_pcc: false
+  llama/llama_3_2_vision/pytorch-3.2_11B_Vision_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   llama/sequence_classification/pytorch-3.1_70B_Instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
+  llama/sequence_classification/pytorch-3.1_8B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   llama/sequence_classification/pytorch-3.2_1B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -725,6 +789,14 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  minicpm_o_2_6/pytorch-Default-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  mistral/pixtral/pytorch-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   mistral/pytorch-Ministral_8B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -889,6 +961,14 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "No handler for class Qwen2VLCausalLMOutputWithPast exists in `unpack_forward_output`"
+  olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  olmo3/causal_lm/pytorch-3_1025_7b-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 33554432 B DRAM buffer"
   openpose/v2/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -896,6 +976,14 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "cannot import name 'PaddingStrategy' from 'transformers.tokenization_utils'"
+  openvla_oft/pytorch-Finetuned_Libero_Goal-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  openvla_oft/pytorch-Finetuned_Libero_Object-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   opt/causal_lm/pytorch-1.3b-single_device-training:
     status: EXPECTED_PASSING
     markers: [notimeout]
@@ -948,6 +1036,10 @@ test_config:
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  petr/pytorch-Vovnet_Gridmask_P4_800x320-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   phi1/causal_lm/pytorch-Phi_1-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [large, notimeout]
@@ -980,6 +1072,10 @@ test_config:
   phi2/sequence_classification/pytorch-Phi_2_Pytdml-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  phi2/token_classification/pytorch-Phi_2-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   phi2/token_classification/pytorch-Phi_2_Pytdml-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -987,6 +1083,14 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+  phi4/seq_cls/pytorch-Phi_4-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer"
+  phi4/token_cls/pytorch-Phi_4-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1022,6 +1126,14 @@ test_config:
     status: EXPECTED_PASSING
     markers: [notimeout]
     assert_pcc: false
+  qwen_2_5/causal_lm/pytorch-7B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  qwen_2_5/causal_lm/pytorch-7B_Instruct_1M-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   qwen_2_5_coder/pytorch-0.5B-single_device-training:
     status: EXPECTED_PASSING
     markers: [notimeout]
@@ -1052,6 +1164,14 @@ test_config:
   qwen_3/causal_lm/pytorch-4B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  qwen_3/causal_lm/pytorch-8B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  qwen_3/causal_lm/pytorch-14B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   qwen_3/embedding/pytorch-Embedding_0_6B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1217,6 +1337,10 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "No handler for class RTDetrObjectDetectionOutput exists in `unpack_forward_output`"
+  rt_detr/pytorch-R50vd-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   sam/pytorch-Vit_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1229,6 +1353,10 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  seamless_m4t/pytorch-Large-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ModuleNotFoundError: Could not import module 'SeamlessM4TModel'. RuntimeError: function '_has_torch_function' already has a docstring"
   segformer/pytorch-Mit_B0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -1276,10 +1404,18 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "No handler for class tuple exists in `unpack_forward_output`"
+  siglip/image_text_similarity/pytorch-So400m_Patch16_256_I18n-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   speecht5/pytorch-Tts-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: mat1 and mat2 must have the same dtype, but got Float and BFloat16"
+  smolvla/vision_language_action/pytorch-smolvla_base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   squeezebert/pytorch-Mnli-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1392,6 +1528,14 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 6710886400 B DRAM buffer across 8 banks, where each bank needs to store 838860800 B"
     markers: [large]
+  ultra_fast_lane_detection/pytorch-TuSimple_ResNet34_Backbone-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  ultra_fast_lane_detection_v2/pytorch-TuSimple_ResNet34_Backbone-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   uniad/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1612,6 +1756,14 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+  yolov7/pytorch-Default-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  yolov7/pytorch-E6-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yolov9/pytorch-C-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1636,6 +1788,10 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "No handler for class tuple exists in `unpack_forward_output`"
+  yoloworld/pytorch-Xlarge_640-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yolox/pytorch-Darknet-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
