@@ -1382,12 +1382,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.tt_config.cpu_sampling,
                 )
                 self._logged_sampling_device = True
+            # tt::sampling requires k >= 1; vLLM uses k=0 to mean "disabled".
+            # Check the CPU tensor before metadata moves to device — calling
+            # .any() on an XLA tensor generates stablehlo.reduce which fails.
+            _top_k_disabled = (
+                self.input_batch.top_k_cpu_tensor[: self.max_num_reqs].max().item() == 0
+            )
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            if _top_k_disabled:
+                tpu_sampling_metadata.top_k = None
             if grammar_output is not None:
                 (
                     require_struct_decoding,
@@ -1397,16 +1405,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 logits = self.structured_decode(
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
-
-            # tt::sampling requires k >= 1; vLLM uses k=0 to mean "disabled".
-            # Normalize k=0 → None in uncompiled Python to avoid adding
-            # torch.where ops inside the compiled sampler graph (which can
-            # trigger BLOCK_SHARDED layout conflicts in tt-mlir).
-            if (
-                tpu_sampling_metadata.top_k is not None
-                and not tpu_sampling_metadata.top_k.any()
-            ):
-                tpu_sampling_metadata.top_k = None
 
             _t_sample = time.perf_counter()
             if self.tt_config.cpu_sampling:
