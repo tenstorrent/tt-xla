@@ -1,9 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
@@ -13,13 +15,107 @@ from diffusers.utils import export_to_video
 from diffusers.video_processor import VideoProcessor
 from transformers import AutoTokenizer, UMT5EncoderModel
 
+# ---------------------------------------------------------------------------
+# Set to True to enable 2D SPMD tensor-parallel sharding on the transformer.
+# When False, the pipeline behaves exactly as before (single device).
+# ---------------------------------------------------------------------------
+ENABLE_SPMD_SHARDING = False
+
+
+# ---------------------------------------------------------------------------
+# SPMD sharding helpers (only used when ENABLE_SPMD_SHARDING = True)
+# ---------------------------------------------------------------------------
+
+
+def _setup_spmd_mesh():
+    """Enable SPMD and create a 2D mesh. Returns (mesh, tt_device)."""
+    from torch_xla.distributed.spmd import Mesh
+
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.use_spmd()
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+
+    if num_devices == 32:
+        mesh_shape = (8, 4)
+    elif num_devices == 8:
+        mesh_shape = (2, 4)
+    elif num_devices == 4:
+        mesh_shape = (1, 4)
+    else:
+        raise ValueError(
+            f"Unsupported device count for SPMD: {num_devices}. Expected 4, 8, or 32."
+        )
+
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    print(f"[SPMD] Mesh: {mesh_shape} on {num_devices} devices")
+    return mesh
+
+
+def _shard_transformer_weights(transformer_on_device, mesh):
+    """
+    Apply 2D tensor-parallel sharding to WanTransformer3DModel weights.
+
+    Column-parallel (QKV, FFN up):  ("model", "batch")
+    Row-parallel   (O, FFN down):   ("batch", "model")
+    """
+    import torch_xla.distributed.spmd as xs
+
+    xs.mark_sharding(
+        transformer_on_device.patch_embedding.weight,
+        mesh,
+        ("batch", None, None, None, None),
+    )
+    xs.mark_sharding(transformer_on_device.patch_embedding.bias, mesh, ("batch",))
+    xs.mark_sharding(
+        transformer_on_device.scale_shift_table, mesh, (None, None, "batch")
+    )
+
+    ce = transformer_on_device.condition_embedder
+    xs.mark_sharding(ce.time_embedder.linear_1.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(ce.time_embedder.linear_1.bias, mesh, ("model",))
+    xs.mark_sharding(ce.time_embedder.linear_2.weight, mesh, ("batch", "model"))
+    xs.mark_sharding(ce.time_embedder.linear_2.bias, mesh, ("batch",))
+    xs.mark_sharding(ce.time_proj.weight, mesh, ("batch", None))
+    xs.mark_sharding(ce.time_proj.bias, mesh, ("batch",))
+    xs.mark_sharding(ce.text_embedder.linear_1.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(ce.text_embedder.linear_1.bias, mesh, ("model",))
+    xs.mark_sharding(ce.text_embedder.linear_2.weight, mesh, ("batch", "model"))
+    xs.mark_sharding(ce.text_embedder.linear_2.bias, mesh, ("batch",))
+
+    xs.mark_sharding(transformer_on_device.proj_out.weight, mesh, (None, "batch"))
+    xs.mark_sharding(transformer_on_device.proj_out.bias, mesh, (None,))
+
+    for block in transformer_on_device.blocks:
+        xs.mark_sharding(block.scale_shift_table, mesh, (None, None, "batch"))
+        xs.mark_sharding(block.norm2.weight, mesh, ("batch",))
+        xs.mark_sharding(block.norm2.bias, mesh, ("batch",))
+
+        for attn in [block.attn1, block.attn2]:
+            xs.mark_sharding(attn.to_q.weight, mesh, ("model", "batch"))
+            xs.mark_sharding(attn.to_q.bias, mesh, ("model",))
+            xs.mark_sharding(attn.to_k.weight, mesh, ("model", "batch"))
+            xs.mark_sharding(attn.to_k.bias, mesh, ("model",))
+            xs.mark_sharding(attn.to_v.weight, mesh, ("model", "batch"))
+            xs.mark_sharding(attn.to_v.bias, mesh, ("model",))
+            xs.mark_sharding(attn.to_out[0].weight, mesh, ("batch", "model"))
+            xs.mark_sharding(attn.to_out[0].bias, mesh, ("batch",))
+            xs.mark_sharding(attn.norm_q.weight, mesh, ("model",))
+            xs.mark_sharding(attn.norm_k.weight, mesh, ("model",))
+
+        xs.mark_sharding(block.ffn.net[0].proj.weight, mesh, ("model", "batch"))
+        xs.mark_sharding(block.ffn.net[0].proj.bias, mesh, ("model",))
+        xs.mark_sharding(block.ffn.net[2].weight, mesh, ("batch", "model"))
+        xs.mark_sharding(block.ffn.net[2].bias, mesh, ("batch",))
+
 
 class WanConfig:
     def __init__(
         self,
         device="cpu",
         encoder_on_tt=False,
-        transformer_on_tt=False,
+        transformer_on_tt=True,
         vae_on_tt=False,
     ):
         self.model_id = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
@@ -54,6 +150,11 @@ class WanT2VPipeline:
         )
 
     def load_models(self):
+        # Set up SPMD mesh before loading models (if enabled)
+        self.spmd_mesh = None
+        if ENABLE_SPMD_SHARDING:
+            self.spmd_mesh = _setup_spmd_mesh()
+
         self.text_encoder = UMT5EncoderModel.from_pretrained(
             self.model_id,
             subfolder="text_encoder",
@@ -75,6 +176,9 @@ class WanT2VPipeline:
         if self.transformer_on_tt:
             self.transformer.compile(backend="tt")
             self.transformer = self.transformer.to(xm.xla_device())
+            if self.spmd_mesh is not None:
+                _shard_transformer_weights(self.transformer, self.spmd_mesh)
+                print("[SPMD] Transformer weights sharded")
 
         self.vae = AutoencoderKLWan.from_pretrained(
             self.model_id,
@@ -328,10 +432,13 @@ class WanT2VPipeline:
 
 def run_wan_pipeline(
     output_path: str = "wan_output.mp4",
-    num_inference_steps: int = 50,
+    num_inference_steps: int = 1,
     output_type: str = "np",
 ):
     torch_xla.set_custom_compile_options({"optimization_level": 1})
+    torch_xla.set_custom_compile_options(
+        {"experimental_enable_dram_space_saving_optimization": True}
+    )
 
     config = WanConfig(device="cpu")
     pipeline = WanT2VPipeline(config=config)
@@ -367,7 +474,7 @@ def test_wan_pipeline():
     try:
         video = run_wan_pipeline(
             output_path=output_path,
-            num_inference_steps=2,
+            num_inference_steps=1,
             output_type="latent",
         )
         assert video is not None, "Pipeline returned None"
