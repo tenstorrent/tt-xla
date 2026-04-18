@@ -11,7 +11,6 @@ All performance optimizations are active:
   - minimal_matmul_split    (fused Q/K/V in one kernel)
   - nlp_create_qkv_heads    (fused V head-reshape)
   - CCLManager async CCL    (reduce_scatter_minimal_async + all_gather_async)
-  - Metal Trace             (full forward captured on first call, replayed after)
 
 4-way tensor parallelism, (1,4) MeshDevice, 8 heads/device.
 Fixed resolution: 512×512 px (64×64 latent, 1024 image patches, 32 caption tokens).
@@ -40,7 +39,6 @@ if _TT_DIT_PATH not in sys.path:
     sys.path.insert(0, _TT_DIT_PATH)
 
 from tt_dit.parallel.manager import CCLManager
-from tt_dit.utils.tracing import Tracer
 
 # tt_dit minimal_matmul config (shape lookup for blocking parameters)
 _matmul_path = os.path.join(_TT_DIT_PATH, "tt_dit/utils/matmul.py")
@@ -154,11 +152,7 @@ def load_static_inputs(mesh_device, transformer):
 # ── Main model class ───────────────────────────────────────────────────────────
 
 class ZImageTransformerTTNN(LightweightModule):
-    """Optimized TTNN ZImageTransformer with all perf improvements baked in.
-
-    Metal Trace is captured on first forward call and replayed on subsequent calls.
-    Expects device opened with trace_region_size >= 50_000_000.
-    """
+    """Optimized TTNN ZImageTransformer with all perf improvements baked in."""
 
     def __init__(self, mesh_device):
         self.mesh_device = mesh_device
@@ -247,12 +241,8 @@ class ZImageTransformerTTNN(LightweightModule):
         self._ccl = CCLManager(mesh_device, num_links=1, topology=ttnn.Topology.Ring)
         print("  Async CCL initialized.")
 
-        # ── cap_feats persistent buffer (updated per-prompt, outside Tracer) ────
+        # ── cap_feats persistent buffer (updated per-prompt) ───────────────────
         self._cap_feats_buf = None
-
-        # ── Metal Trace ────────────────────────────────────────────────────────
-        self._tracer = Tracer(self._forward_impl, device=mesh_device)
-        print("  Metal Trace ready (captured on first forward call).")
 
     # ── Weight preprocessing ───────────────────────────────────────────────────
 
@@ -667,23 +657,17 @@ class ZImageTransformerTTNN(LightweightModule):
     # ── Forward ────────────────────────────────────────────────────────────────
 
     def set_cap_feats(self, cap_cpu_bf16):
-        """Upload caption features for a new prompt and reset the Metal Trace.
+        """Upload caption features for a new prompt.
 
-        Must be called before each prompt's denoising loop.  The trace is
-        released so that it re-captures on the first step of the new prompt,
-        picking up the new device buffer.  from_torch with ReplicateTensorToMesh
-        is the only API that reliably writes to all 4 BH devices; in-place
-        copy helpers (copy_host_to_device_tensor without mesh_mapper) only
-        reach device 0, leaving the other 3 with stale caption data that then
-        propagates through the all_reduce ring.
+        Must be called before each prompt's denoising loop.  from_torch with
+        ReplicateTensorToMesh is the only API that reliably writes to all 4
+        BH devices; in-place copy helpers (copy_host_to_device_tensor without
+        mesh_mapper) only reach device 0, leaving the other 3 with stale
+        caption data that then propagates through the all_reduce ring.
 
         Args:
             cap_cpu_bf16: CPU BF16 tensor of shape [1, CAP_TOKENS, 2560].
         """
-        # Release any existing trace so the next forward() re-captures with the
-        # new buffer.  release() is a no-op when _trace_id is already None.
-        self._tracer.release()
-
         self._cap_feats_buf = ttnn.from_torch(
             cap_cpu_bf16,
             dtype=ttnn.DataType.BFLOAT16,
@@ -694,7 +678,7 @@ class ZImageTransformerTTNN(LightweightModule):
         )
 
     def _forward_impl(self, latents, timestep):
-        """Full forward pass without ttnn.synchronize_device (required for Metal Trace)."""
+        """Full forward pass."""
         latent = latents[0]
         cap_feats   = self._cap_feats_buf
         x           = self._patchify_and_embed(latent)
@@ -721,8 +705,5 @@ class ZImageTransformerTTNN(LightweightModule):
         return [self._unpatchify(x)]
 
     def forward(self, latents, timestep):
-        """Metal Trace forward: captured on first call, replayed thereafter.
-
-        Call set_cap_feats(cap_cpu_bf16) before each new prompt.
-        """
-        return self._tracer(latents, timestep)
+        """Forward pass. Call set_cap_feats(cap_cpu_bf16) before each new prompt."""
+        return self._forward_impl(latents, timestep)

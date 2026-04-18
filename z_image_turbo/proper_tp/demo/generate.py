@@ -7,9 +7,7 @@ Z-Image-Turbo demo — generate 512×512 images from text prompts.
 
 Hardware: 4× Blackhole P150, tensor-parallel across (1,4) mesh.
 Models:   text encoder + transformer + VAE decoder all on TTNN.
-Speed:    ~1.1 s/step after Metal Trace capture on first step of first prompt.
-          All subsequent steps and prompts replay the trace.
-          VAE consteval runs on first decode (~330 s); subsequent decodes ~1.4 s.
+Speed:    VAE consteval runs on first decode (~330 s); subsequent decodes ~1.4 s.
 
 Single prompt:
     python generate.py "a misty mountain lake at dawn"
@@ -194,8 +192,7 @@ def _run_one(models, prompt, steps, seed, output_path, prompt_index, total_promp
 
         elapsed = (time.time() - t0) * 1000
         step_times.append(elapsed)
-        label = " ← trace capture" if i == 0 else ""
-        print(f"  step {i+1}/{steps}: {elapsed:.0f} ms{label}")
+        print(f"  step {i+1}/{steps}: {elapsed:.0f} ms")
 
     # VAE decode
     t0 = time.time()
