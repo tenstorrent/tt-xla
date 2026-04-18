@@ -946,6 +946,7 @@ def sparse_matmul(
             - Down with activation input: [BD, S, E, N]
             - Otherwise: canonical sparse_matmul output shapes
     """
+    print(f"Executing sparse_matmul", flush=True)
     device = input_tensor_a.device
 
     # Detect MoE inputs that need normalization to 4D canonical form.
@@ -953,19 +954,28 @@ def sparse_matmul(
     # Down from activation:  [BD, S, E, inter] → [BD*S, E, 1, inter]
     _moe_shape = None
     E_experts = input_tensor_b.shape[1]
+    print(
+        f"input_tensor_a shape: {input_tensor_a.shape}, input_tensor_b shape: {input_tensor_b.shape}, sparsity shape: {sparsity.shape}",
+        flush=True,
+    )
+    print(f"E_experts: {E_experts}", flush=True)
 
     if not is_input_a_sparse and is_input_b_sparse:
+        print(f"calculating gate-up", flush=True)
         if input_tensor_a.dim() == 4 and input_tensor_a.shape[0] == 1:
             _, BD, S, H = input_tensor_a.shape
             _moe_shape = (BD, S)
+            print(f"Detected MoE shape: {_moe_shape}", flush=True)
+            print(f"BD: {BD}, S: {S}, H: {H}", flush=True)
     elif is_input_a_sparse and not is_input_b_sparse:
+        print(f"calculating down_proj", flush=True)
         # Detect MoE format [BD, S, E, inter] vs canonical [A, E, M, K].
         # Use sparsity dim: canonical has A == sparsity.shape[2] (reduced),
         # MoE format has BD != reduced. This works even when S == E_global.
         if input_tensor_a.dim() == 4 and input_tensor_a.shape[1] != E_experts:
             BD, S, _, _ = input_tensor_a.shape
             _moe_shape = (BD, S)
-
+    #    %82 = stablehlo.custom_call @tt.sparse_matmul(%78, %80, %81) {api_version = 0 : i32, mhlo.frontend_attributes = {is_input_a_sparse = "False", is_input_b_sparse = "True", nnz = "0"}} : (tensor<64x1x32x2880xbf16>, tensor<1x32x1440x5760xbf16>, tensor<64x1x1x32xbf16>) -> tensor<64x1x1x32x32x5760xbf16> loc(#loc72)
     if device.type == "xla":
         # Pre-tile MoE tensors so the M (tile) dimension is already 32-aligned.
         # This avoids MLIR workaround reshape/permute overhead entirely.
@@ -981,10 +991,15 @@ def sparse_matmul(
             BD, S = _moe_shape
             reduced = sparsity.shape[2]
             M = (BD * S) // reduced
-
+            print(f"Tiling MoE inputs for XLA with BD: {BD}, S: {S}, M={M}", flush=True)
+            #     %100 = stablehlo.custom_call @tt.sparse_matmul(%97, %99, %76#1) {api_version = 0 : i32, mhlo.frontend_attributes = {is_input_a_sparse = "True", is_input_b_sparse = "False", nnz = "0"}} : (tensor<64x32x32x2880xbf16>, tensor<1x32x2880x1440xbf16>, tensor<1x1x64x32xbf16>) -> tensor<64x32x32x1440xbf16> loc(#loc90)
             if not is_input_a_sparse and is_input_b_sparse:
                 H = input_tensor_a.shape[-1]
                 split_seq = S % M == 0 and S >= M
+                print(
+                    f"Gate-up format detected. split_seq: {split_seq} H: {H}",
+                    flush=True,
+                )
                 if split_seq:
                     input_tensor_a = input_tensor_a.reshape(BD, S // M, M, H)
                     sparsity = sparsity.reshape(BD, S // M, 1, E_experts)
@@ -1005,8 +1020,13 @@ def sparse_matmul(
             output_shape = list(input_tensor_a.shape)
             output_shape[-1] = input_tensor_b.shape[-1]
         elif not is_input_a_sparse and is_input_b_sparse:
+            print(
+                f"Calculating output shape for gate-up format. A: {input_tensor_a.shape[0]}, B: {input_tensor_a.shape[1]}, M_dim: {input_tensor_a.shape[2]}, K: {input_tensor_a.shape[3]}, E_experts: {E_experts}, output N: {input_tensor_b.shape[-1]}",
+                flush=True,
+            )
             A, B, M_dim, K = input_tensor_a.shape
             output_shape = [A, B, 1, E_experts, M_dim, input_tensor_b.shape[-1]]
+            print(f"Output shape for gate-up: {output_shape}", flush=True)
         elif is_input_a_sparse and not is_input_b_sparse:
             output_shape = list(input_tensor_a.shape)
             output_shape[-1] = input_tensor_b.shape[-1]

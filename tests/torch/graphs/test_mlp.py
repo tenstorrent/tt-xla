@@ -509,6 +509,11 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
+    print(f"hidden_states shape: {hidden_states.shape}", flush=True)
+    print(f"gate_up_proj weight shape: {mlp.experts.gate_up_proj.shape}", flush=True)
+    print(f"gate_up_proj bias shape: {mlp.experts.gate_up_proj_bias.shape}", flush=True)
+    print(f"down_proj weight shape: {mlp.experts.down_proj.shape}", flush=True)
+    print(f"down_proj bias shape: {mlp.experts.down_proj_bias.shape}", flush=True)
 
     if arch in ("llmbox", "galaxy"):
         batch_size = 2 if arch == "llmbox" else 4
@@ -516,6 +521,10 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+        print(
+            f"mlp_type: {mlp_type}, mesh_shape: {mesh_shape}, num_devices: {num_devices}",
+            flush=True,
+        )
         if mlp_type == "sparse":
             mlp = enable_sparse_mlp(mlp, mesh=mesh_shape, cluster_axis=0)
 

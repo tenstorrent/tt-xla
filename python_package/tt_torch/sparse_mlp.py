@@ -80,7 +80,9 @@ def _moe_activation(
         gate_out = gate_out.clamp(max=limit)
         up_out = up_out.clamp(-limit, limit)
         glu = gate_out * torch.sigmoid(gate_out * alpha)
-        return (up_out + 1) * glu
+        output = (up_out + 1) * glu
+        # print(f"MoE activation: gate_out={gate_out.shape}, up_out={up_out.shape}, glu={glu.shape}, output={output.shape}", flush=True)
+        return output
 
 
 class _SparseForwardMixin:
@@ -124,8 +126,11 @@ def _sparse_expert_forward(
     Down output [A*B, E, M, H] is untiled to [BD, S, E, H].
     """
     E = experts.w2.shape[0]
-    w1 = experts.w1.unsqueeze(0)  # [1, E, H, N1]
+    w1 = experts.w1.unsqueeze(0)  # [1, E, H, N1] [1, 32, 1440, 5760]
     w2 = experts.w2.view(1, E, experts.intermediate_size, -1)  # [1, E, inter, H]
+    # w2 = experts.w2.view(1, E, -1, experts.intermediate_size) #, -1)  # [1, E, inter, H]
+    # print(f"w2.shape: {w2.shape}", flush=True)
+    # print(f"experts.w3 shape: {getattr(experts, 'w3', None).shape}", flush=True)
 
     # Gate (or gate+up fused): output [A, B, E, M, N1] (5D tiled)
     w1_out = torch.ops.tt.sparse_matmul(
@@ -136,25 +141,17 @@ def _sparse_expert_forward(
         is_input_a_sparse=False,
         is_input_b_sparse=True,
     )
-    print(
-        f"Sparse expert forward: dispatched={dispatched.shape}, sparsity_remap={sparsity_remap.shape}",
-        flush=True,
-    )
-    print(
-        f"experts: {experts}, has w1: {hasattr(experts, 'w1')}, has w2: {hasattr(experts, 'w2')}, has w3: {hasattr(experts, 'w3')}",
-        flush=True,
-    )
+    # print(f"Sparse expert forward: dispatched={dispatched.shape}", flush=True)
+    # print(f"Sparse expert forward: sparsity_remap={sparsity_remap.shape}", flush=True)
     # print(f"experts.w1: {experts.w1}", flush=True)
     # print(f"experts.w2: {experts.w2}", flush=True)
-    print(f"experts.w1 shape: {w1.shape}", flush=True)
-    print(f"experts.w2 shape: {w2.shape}", flush=True)
-    print(f"w1_out shape: {w1_out.shape}", flush=True)
-    print(
-        f"experts.w3 shape: {getattr(experts, 'w3', None).shape if hasattr(experts, 'w3') else None}"
-    )
+    # print(f"experts.w1 shape: {w1.shape}", flush=True)
+    # print(f"experts.w2 shape: {w2.shape}", flush=True)
     if experts.w1_bias is not None:
         w1_out = w1_out + experts.w1_bias.view(1, 1, E, 1, -1)
 
+    # print(f"w1_out shape: {w1_out.shape}", flush=True)
+    # print(f"experts.w3 shape: {getattr(experts, 'w3', None).shape}", flush=True)
     if experts.w3 is not None:
         # Separate gate/up: 2 sparse_matmuls
         w3 = experts.w3.unsqueeze(0)  # [1, E, H, inter]
@@ -180,6 +177,7 @@ def _sparse_expert_forward(
         # Fused gate_up: 1 sparse_matmul, split via activation
         activated = _moe_activation(w1_out, activation_type, alpha, limit)
 
+    # print(f"experts.w3 shape: {getattr(experts, 'w3', None).shape}", flush=True)
     # Reshape 5D → 4D canonical for down: [A, B, E, M, K] → [A*B, E, M, K]
     A, B = activated.shape[0], activated.shape[1]
     M = activated.shape[3]
@@ -194,6 +192,8 @@ def _sparse_expert_forward(
         is_input_a_sparse=True,
         is_input_b_sparse=False,
     )
+    # print(f"Sparse expert forward: activated={activated.shape}, w2={w2.shape}, down_out={down_out.shape}", flush=True)
+    # print(f"experts.w3 shape: {getattr(experts, 'w3', None).shape}", flush=True)
     if experts.w2_bias is not None:
         down_out = down_out + experts.w2_bias.view(1, E, 1, -1)
 
@@ -495,8 +495,74 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
             self.gate_up_proj_bias = None
             self.down_proj_bias = None
 
+    def _decode_mxfp4_weight(self, weight, scale, target_dim=None):
+        """Decode and unpack MXFP4 weight using scale factors and convert to bfloat16.
+
+        Args:
+            weight: MXFP4 encoded weight tensor [E, dim1, packed_dim]
+            scale: Scale tensor [E, dim1, scale_dim]
+            target_dim: Target unpacked dimension (e.g., 2880 for gate_up_proj)
+
+        Returns:
+            Decoded and unpacked bfloat16 weight tensor [E, dim1, target_dim]
+        """
+        try:
+            print(
+                f"[FusedMoEWrapper] Decoding MXFP4 weight: {weight.shape}, scale: {scale.shape}"
+            )
+
+            E, dim1, packed_dim = weight.shape
+            scale_dim = scale.shape[-1]
+
+            # Determine target dimension (unpack factor)
+            if target_dim is None:
+                target_dim = packed_dim * 2  # Default: assume 2x packing
+
+            unpack_factor = target_dim // packed_dim  # 2880 / 1440 = 2
+            elements_per_scale = target_dim // scale_dim  # 2880 / 90 = 32
+
+            print(
+                f"[FusedMoEWrapper] Unpacking factor: {unpack_factor}, elements per scale: {elements_per_scale}"
+            )
+
+            # Reshape weight to unpack: [E, dim1, packed_dim] -> [E, dim1, packed_dim, unpack_factor]
+            # Then flatten last two dims: -> [E, dim1, target_dim]
+            weight_unpacked = weight.unsqueeze(-1).expand(
+                E, dim1, packed_dim, unpack_factor
+            )
+            weight_unpacked = weight_unpacked.reshape(E, dim1, target_dim)
+
+            # Expand scale to match unpacked weight dimensions
+            # [E, dim1, scale_dim] -> [E, dim1, target_dim]
+            expanded_scale = scale.repeat_interleave(elements_per_scale, dim=-1)
+
+            # Apply scaling to decode MXFP4 to full precision
+            decoded_weight = weight_unpacked.float() * expanded_scale.float()
+
+            # Convert to bfloat16
+            decoded_weight = decoded_weight.to(torch.bfloat16)
+
+            print(
+                f"[FusedMoEWrapper] Decoded weight shape: {decoded_weight.shape}, dtype: {decoded_weight.dtype}"
+            )
+            return decoded_weight
+
+        except Exception as e:
+            print(f"[FusedMoEWrapper] MXFP4 decoding failed: {e}")
+            # Fallback to original weight with simple unpacking
+            if target_dim and target_dim > weight.shape[-1]:
+                unpack_factor = target_dim // weight.shape[-1]
+                weight_unpacked = weight.unsqueeze(-1).expand(
+                    *weight.shape, unpack_factor
+                )
+                weight_unpacked = weight_unpacked.reshape(
+                    *weight.shape[:-1], target_dim
+                )
+                return weight_unpacked.to(torch.bfloat16)
+            return weight.to(torch.bfloat16)
+
     def _fallback_weight_extraction(self):
-        """Fallback weight extraction from FusedMoE named_parameters."""
+        """Fallback weight extraction from FusedMoE named_parameters with MXFP4 decoding."""
         try:
             # Try to get weights directly from the module
             all_params = dict(self._fused_moe.named_parameters())
@@ -506,11 +572,13 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
             for name, param in all_params.items():
                 print(f"[FusedMoEWrapper]  - {name}: {param.shape}")
 
-            # Common weight names to check
+            # Common weight names to check (including scale tensors for MXFP4)
             weight_patterns = {
                 "gate_up": ["w13_weight", "gate_up_proj", "gate_up.weight"],
+                "gate_up_scale": ["w13_weight_scale", "gate_up_proj_scale"],
                 "gate_up_bias": ["w13_bias", "gate_up_proj_bias", "gate_up.bias"],
                 "down": ["w2_weight", "down_proj", "down.weight"],
+                "down_scale": ["w2_weight_scale", "down_proj_scale"],
                 "down_bias": ["w2_bias", "down_proj_bias", "down.bias"],
                 "gate": ["w1_weight", "gate_proj", "gate.weight"],
                 "up": ["w3_weight", "up_proj", "up.weight"],
@@ -528,14 +596,33 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
 
             # Set up the weights based on what we found
             if "gate_up" in found:
-                self.gate_up_proj = found["gate_up"]
-                print(f"[FusedMoEWrapper] Set gate_up_proj: {self.gate_up_proj.shape}")
+                gate_up_weight = found["gate_up"]
+
+                # Check for MXFP4 scale tensor and decode if found
+                if "gate_up_scale" in found:
+                    print(
+                        f"[FusedMoEWrapper] Found MXFP4 scale for gate_up: {found['gate_up_scale'].shape}"
+                    )
+                    # Gate+up proj should unpack from packed_hidden_size to full hidden_size
+                    # [32, 5760, 1440] -> [32, 5760, 2880]
+                    target_dim = 2880  # hidden_size (unpacked)
+                    gate_up_weight = self._decode_mxfp4_weight(
+                        gate_up_weight, found["gate_up_scale"], target_dim
+                    )
+                else:
+                    # No scale found, just convert to bfloat16
+                    gate_up_weight = gate_up_weight.to(torch.bfloat16)
+
+                self.gate_up_proj = torch.nn.Parameter(gate_up_weight.transpose(1, 2))
                 print(
-                    f"[FusedMoEWrapper] Found gate_up_proj directly: {self.gate_up_proj}"
+                    f"[FusedMoEWrapper] Set gate_up_proj: {self.gate_up_proj.shape}, dtype: {self.gate_up_proj.dtype}"
                 )
+
             elif "gate" in found and "up" in found:
+                gate_weight = found["gate"].to(torch.bfloat16)
+                up_weight = found["up"].to(torch.bfloat16)
                 self.gate_up_proj = nn.Parameter(
-                    torch.cat([found["gate"], found["up"]], dim=-1)
+                    torch.cat([gate_weight, up_weight], dim=-1)
                 )
                 print(
                     f"[FusedMoEWrapper] Set gate_up_proj from cat: {self.gate_up_proj.shape}"
@@ -550,10 +637,30 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
                     f"[FusedMoEWrapper] Set gate_up_proj_bias: {self.gate_up_proj_bias.shape}"
                 )
 
-            self.down_proj = found.get("down", None)
-            if self.down_proj is not None:
-                print(f"[FusedMoEWrapper] Set down_proj: {self.down_proj.shape}")
+            # Handle down projection weights with MXFP4 decoding
+            if "down" in found:
+                down_weight = found["down"]
+
+                # Check for MXFP4 scale tensor and decode if found
+                if "down_scale" in found:
+                    print(
+                        f"[FusedMoEWrapper] Found MXFP4 scale for down: {found['down_scale'].shape}"
+                    )
+                    # Down proj should unpack to hidden_size = 2880
+                    target_dim = 2880  # hidden_size
+                    down_weight = self._decode_mxfp4_weight(
+                        down_weight, found["down_scale"], target_dim
+                    )
+                else:
+                    # No scale found, just convert to bfloat16
+                    down_weight = down_weight.to(torch.bfloat16)
+
+                self.down_proj = torch.nn.Parameter(down_weight)
+                print(
+                    f"[FusedMoEWrapper] Set down_proj: {self.down_proj.shape}, dtype: {self.down_proj.dtype}"
+                )
             else:
+                self.down_proj = None
                 print(f"[FusedMoEWrapper] No down_proj found")
 
             if "down_bias" in found:
@@ -790,6 +897,8 @@ class A2aSparseMLP(nn.Module):
     def forward(self, hidden_states):
         batch_size, seq_len, hidden_size = hidden_states.shape
         K = self.num_experts_per_tok
+        # print(f"batch_size={batch_size}, seq_len={seq_len}, hidden_size={hidden_size}, K={K}, {hasattr(self.router, 'gate')}", flush=True)
+        # print(f"Router type: {type(self.router)}, router: {self.router}", flush=True)
 
         # CPU golden path
         if hidden_states.device.type == "cpu":
@@ -800,9 +909,25 @@ class A2aSparseMLP(nn.Module):
         router_input = hidden_states
         if not hasattr(self.router, "gate"):
             router_input = hidden_states.view(-1, hidden_size)
-        router_scores, router_indices = _unpack_router_output(
-            self.router(router_input), self.num_experts
-        )
+        router_output = self.router(router_input)
+        # print(f"Router output shape: {router_output.shape}", flush=True)
+
+        # Handle raw logits router (single tensor) vs tuple-based routers
+        if isinstance(router_output, torch.Tensor) and router_output.dim() == 2:
+            # Raw logits from Linear router: [BS, num_experts] → convert to (scores, indices)
+            topk_weights, topk_indices = torch.topk(router_output, k=K, dim=-1)
+            topk_weights = F.softmax(topk_weights, dim=-1)
+            router_scores = _topk_to_sparse_scores(
+                topk_weights, topk_indices, self.num_experts
+            )
+            router_indices = topk_indices
+        else:
+            # Tuple-based router output
+            router_scores, router_indices = _unpack_router_output(
+                router_output, self.num_experts
+            )
+        # print(f"Router scores shape: {router_scores.shape}, indices shape: {router_indices.shape}, dispatch_devices: {self.dispatch_devices}", flush=True)
+        # print(f"self.expert_mapping shape: {self.expert_mapping.shape} -- {self.expert_mapping} -- {self.use_dense_matmul}", flush=True)
 
         # 2. Dispatch: route tokens to devices along cluster_axis
         # Dispatch accepts [B, S, H] and [B*S, K] directly.
@@ -814,6 +939,7 @@ class A2aSparseMLP(nn.Module):
             num_devices=effective_dispatch,
             cluster_axis=self.cluster_axis,
         )
+        # print(f"Dispatched shape: {dispatched.shape}, metadata shape: {metadata.shape}", flush=True)
         # dispatched: [1, BD, S, H],  metadata: [1, BD, S, K]
         # Reshape metadata to [1, 1, BD*S, K] so combine's output_shard_dim=2
         # sees tokens on dim 2 (matching demo layout). Just a reshape, no permute.
@@ -958,9 +1084,10 @@ class A2aSparseMLP(nn.Module):
             topk_weights.permute(1, 0).unsqueeze(1).unsqueeze(-1)
         )  # [K, 1, B*S, 1]
         output = (combined * topk_weights).sum(dim=0)  # [1, B*S, H]
+        # print(f"Combined shape: {combined.shape}, topk_weights shape: {topk_weights.shape}, output shape: {output.shape}", flush=True)
         output = output.view(batch_size, seq_len, hidden_size)
 
-        return output.to(hidden_states.dtype), router_scores
+        return output.to(hidden_states.dtype)  # , router_scores
 
 
 class DeepseekV3MoEToA2AAdapter(nn.Module):
@@ -1373,6 +1500,10 @@ def enable_sparse_mlp(
 
     num_devices = mesh[0] * mesh[1]
     dispatch_devices = mesh[cluster_axis]
+    print(
+        f"dispatch_devices: {dispatch_devices}, num_devices: {num_devices}, cluster_axis: {cluster_axis}",
+        flush=True,
+    )
 
     def replace_mlp(parent: nn.Module, name: str, module: nn.Module):
         nonlocal replaced_count

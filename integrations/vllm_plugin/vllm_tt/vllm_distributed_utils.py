@@ -278,10 +278,18 @@ def partition_vllm_a2a_sparse_mlp(
     # logger.info(f"layer.core_mlp.experts.weights: {layer.core_mlp.experts.weights}")
     logger.info(f"Sharding expert dimensions across mesh {mesh}")
     # Shard expert dimension (first dim) across 'model' axis
-    xs.mark_sharding(layer.core_mlp.experts.gate_up_proj, mesh, ("model", None, None))
-    xs.mark_sharding(layer.core_mlp.experts.gate_up_proj_bias, mesh, ("model", None))
-    xs.mark_sharding(layer.core_mlp.experts.down_proj, mesh, ("model", None, None))
-    xs.mark_sharding(layer.core_mlp.experts.down_proj_bias, mesh, ("model", None))
+    xs.mark_sharding(
+        layer.core_mlp.experts.gate_up_proj, mesh, (("batch", "model"), None, None)
+    )
+    xs.mark_sharding(
+        layer.core_mlp.experts.gate_up_proj_bias, mesh, (("batch", "model"), None)
+    )
+    xs.mark_sharding(
+        layer.core_mlp.experts.down_proj, mesh, (("batch", "model"), None, None)
+    )
+    xs.mark_sharding(
+        layer.core_mlp.experts.down_proj_bias, mesh, (("batch", "model"), None)
+    )
 
     return layer
 
@@ -294,7 +302,7 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
-        ("VllmA2aSparseMLP", partition_vllm_a2a_sparse_mlp),
+        # ("VllmA2aSparseMLP", partition_vllm_a2a_sparse_mlp),
     ]
 )
 
