@@ -90,7 +90,9 @@ class TorchModelTester(ModelTester):
         )
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
-        if compiler_config is not None:
+        if compiler_config is not None and not os.environ.get(
+            "TT_COMPILE_ONLY_SYSTEM_DESC"
+        ):
             torch_xla.set_custom_compile_options(
                 compiler_config.to_torch_compile_options()
             )

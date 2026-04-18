@@ -695,6 +695,9 @@ def get_xla_device_arch():
     Returns:
         str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
     """
+    if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
+        return ""
+
     all_attributes = xr.global_runtime_device_attributes()
     device_attributes = all_attributes[0]
 
