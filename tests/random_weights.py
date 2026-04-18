@@ -87,7 +87,7 @@ def _patch_transformers_models():
         if config is None:
             # Extract config-relevant kwargs, drop weight-loading ones
             config_kwargs = {}
-            for key in ("trust_remote_code", "revision", "token", "gguf_file"):
+            for key in ("trust_remote_code", "revision", "token", "gguf_file", "subfolder"):
                 if key in kwargs:
                     config_kwargs[key] = kwargs[key]
 
