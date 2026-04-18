@@ -147,7 +147,7 @@ class Models:
 
     def decode_latents(self, latents):
         """VAE decode on TTNN → PIL image."""
-        image_tensor = self.vae_tt.decode(latents)
+        image_tensor = self.vae_tt(latents)
         return self.vae_processor.postprocess(image_tensor, output_type="pil")[0]
 
 

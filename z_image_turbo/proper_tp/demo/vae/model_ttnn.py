@@ -8,44 +8,29 @@ from vae.params import load_weights
 DRAM_RM = ttnn.MemoryConfig(ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None)
 
 
-class VaeDecoderTTNN:
+class LightweightModule:
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
+
+
+class VaeDecoderTTNN(LightweightModule):
     """TTNN VAE Decoder - direct translation of the generated _main function."""
 
     def __init__(self, mesh_device):
         self.device = mesh_device
         pt = VaeDecoderPT()
-        print("  Processing weights through consteval functions ...")
-        self.ce_cache, self.attn_args = load_weights(pt.state_dict, mesh_device)
+        self.ce_cache, self.attn_args = load_weights(pt.state_dict, self.device)
         del pt
 
-    def __call__(self, latent):
-        return self.forward(latent)
-
-    def decode(self, raw_latents):
+    def forward(self, raw_latents):
         """Decode raw (pre-scaling) latents → [1, 3, 512, 512] float32 CPU tensor."""
         z = (raw_latents.float() / SCALING_FACTOR) + SHIFT_FACTOR
-        z_tt = ttnn.from_torch(
+        latent = ttnn.from_torch(
             z.bfloat16(), dtype=ttnn.DataType.BFLOAT16,
             layout=ttnn.Layout.ROW_MAJOR, device=self.device,
             memory_config=DRAM_RM,
             mesh_mapper=ttnn.ReplicateTensorToMesh(self.device),
         )
-        outputs = self.forward(z_tt)
-        out = ttnn.to_torch(
-            ttnn.from_device(outputs[0]),
-            mesh_composer=ttnn.ConcatMeshToTensor(self.device, dim=0),
-        )
-        return out[:out.shape[0] // 4].float()
-
-    def forward(self, latent):
-        """Forward pass - exact replica of _main from the generated code.
-
-        Args:
-            latent: TTNN tensor [1, 16, 64, 64] BF16 ROW_MAJOR on device
-
-        Returns:
-            TTNN tensor [1, 3, 512, 512] on device
-        """
         var_0 = latent
         var_1 = self.ce_cache["main_const_eval_13"][0]
         var_2 = self.ce_cache["main_const_eval_81"]
@@ -7099,5 +7084,9 @@ class VaeDecoderTTNN:
             pad_value=0.0,
         )
         ttnn.deallocate(ttnn_reshape_317, False)
-        return [ttnn_permute_234]
+        out = ttnn.to_torch(
+            ttnn.from_device(ttnn_permute_234),
+            mesh_composer=ttnn.ConcatMeshToTensor(self.device, dim=0),
+        )
+        return out[:out.shape[0] // 4].float()
 
