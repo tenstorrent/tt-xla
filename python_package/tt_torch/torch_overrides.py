@@ -10,14 +10,26 @@ class TorchFunctionOverride(TorchFunctionMode):
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
-            if len(args[0].shape) >= 4 or len(args[1].shape) >= 4:
+            kwargs = kwargs or {}
+            if func.__name__ == "linear":
+                inp = args[0] if len(args) > 0 else kwargs.get("input")
+                weight = args[1] if len(args) > 1 else kwargs.get("weight")
+                bias = args[2] if len(args) > 2 else kwargs.get("bias", None)
+            else:
+                inp = args[0] if len(args) > 0 else kwargs.get("input")
+                weight = args[1] if len(args) > 1 else kwargs.get("other")
+                bias = None
+            if (
+                inp is not None
+                and weight is not None
+                and (len(inp.shape) >= 4 or len(weight.shape) >= 4)
+            ):
                 if func.__name__ == "linear":
-                    # Linear function transposes args[1]
-                    res = torch.einsum("...mk,...nk->...mn", args[0], args[1])
+                    res = torch.einsum("...mk,...nk->...mn", inp, weight)
                 else:
-                    res = torch.einsum("...mk,...kn->...mn", args[0], args[1])
-                if len(args) > 2 and args[2] is not None:
-                    res = res + args[2]
+                    res = torch.einsum("...mk,...kn->...mn", inp, weight)
+                if bias is not None:
+                    res = res + bias
                 return res
         return func(*args, **(kwargs or {}))
 
