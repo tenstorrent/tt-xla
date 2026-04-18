@@ -71,19 +71,36 @@ class OpTester(BaseTester):
 
         t0 = time.perf_counter()
 
+        import os as _os_skip
+
+        _skip_cpu = _os_skip.environ.get("SKIP_CPU_GOLDEN", "0") == "1"
         cpu_workload = workload
-        if self._framework == Framework.JAX:
-            compile_jax_workload_for_cpu(cpu_workload)
+        if _skip_cpu:
+            print("[timing] CPU compile: skipped", flush=True)
+            print("[timing] CPU forward: skipped", flush=True)
+            cpu_res = None
+            t2 = time.perf_counter()
         else:
-            compile_torch_workload_for_cpu(cpu_workload)
+            if self._framework == Framework.JAX:
+                compile_jax_workload_for_cpu(cpu_workload)
+            else:
+                compile_torch_workload_for_cpu(cpu_workload)
 
-        t1 = time.perf_counter()
-        print(f"[timing] CPU compile: {t1 - t0:.1f}s", flush=True)
+            t1 = time.perf_counter()
+            print(f"[timing] CPU compile: {t1 - t0:.1f}s", flush=True)
 
-        cpu_res = self._device_runner.run_on_cpu(cpu_workload)
+            cpu_res = self._device_runner.run_on_cpu(cpu_workload)
 
-        t2 = time.perf_counter()
-        print(f"[timing] CPU forward: {t2 - t1:.1f}s", flush=True)
+            t2 = time.perf_counter()
+            print(f"[timing] CPU forward: {t2 - t1:.1f}s", flush=True)
+
+        # Reset Dynamo caches so the TT compile does not reuse Dynamo frames
+        # specialized for the CPU path (which can introduce spurious per-module
+        # subgraph fragmentation on TT).
+        if self._framework == Framework.TORCH:
+            import torch._dynamo
+
+            torch._dynamo.reset()
 
         tt_workload = workload
         self._compile_for_tt_device(tt_workload)
@@ -112,13 +129,17 @@ class OpTester(BaseTester):
             flush=True,
         )
 
-        if self._custom_comparator is not None:
-            self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
+        if _skip_cpu:
+            print("[timing] comparison: skipped (no CPU reference)", flush=True)
+            t7 = time.perf_counter()
         else:
-            self._evaluator.evaluate(tt_res, cpu_res)
+            if self._custom_comparator is not None:
+                self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
+            else:
+                self._evaluator.evaluate(tt_res, cpu_res)
 
-        t7 = time.perf_counter()
-        print(f"[timing] comparison: {t7 - t6:.1f}s", flush=True)
+            t7 = time.perf_counter()
+            print(f"[timing] comparison: {t7 - t6:.1f}s", flush=True)
         print(f"[timing] run_graph_test total: {t7 - t0:.1f}s", flush=True)
 
         if self._enable_perf_measurement:
