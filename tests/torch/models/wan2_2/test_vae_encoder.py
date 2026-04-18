@@ -12,10 +12,13 @@ IN:  (1, 3, 1, video_h, video_w) float
 OUT: latent_dist.mean (1, 48, 1, latent_h, latent_w)
 """
 
-import pytest
 import torch
+import torch_xla
+import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 
-from .shared import RESOLUTIONS, compare_cpu_tt, load_vae, shard_vae_encoder_weights
+from .shared import RESOLUTIONS, load_vae, shard_vae_encoder_specs, wan22_mesh
 
 
 class VAEEncoderWrapper(torch.nn.Module):
@@ -29,42 +32,41 @@ class VAEEncoderWrapper(torch.nn.Module):
         return self.vae.encode(x).latent_dist.mean
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_encoder_480p():
     _run(resolution="480p", sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_encoder_720p():
     _run(resolution="720p", sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_encoder_480p_sharded():
     _run(resolution="480p", sharded=True)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_encoder_720p_sharded():
     _run(resolution="720p", sharded=True)
 
 
 def _run(resolution: str, sharded: bool):
+    xr.set_device_type("TT")
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
-    wrapper = VAEEncoderWrapper(load_vae())
 
-    # Single-frame image encoding (the I2V use case)
+    wrapper = VAEEncoderWrapper(load_vae()).eval().bfloat16()
+
+    # Single-frame image encoding
     x = torch.randn(1, 3, 1, shapes["video_h"], shapes["video_w"], dtype=torch.bfloat16)
 
-    shard_fn = None
-    if sharded:
+    mesh = wan22_mesh() if sharded else None
+    shard_spec_fn = (lambda m: shard_vae_encoder_specs(m.vae)) if sharded else None
 
-        def shard_fn(model, mesh):
-            shard_vae_encoder_weights(model.vae, mesh)
-
-    compare_cpu_tt(wrapper, [x], shard_fn=shard_fn)
+    run_graph_test(
+        wrapper,
+        [x],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=shard_spec_fn,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.99)),
+    )
