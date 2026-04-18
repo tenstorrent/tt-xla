@@ -21,6 +21,8 @@ from modified_model import ModelArgs, MoE
 from modified_model import Transformer as ModifiedTransformer
 from modified_model import precompute_freqs_cis
 from safetensors import safe_open
+from safetensors.torch import load_file as safetensors_load_file
+from safetensors.torch import save_file as safetensors_save_file
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
@@ -352,13 +354,140 @@ def _load_hf_dequantized_weights(model, repo_id, n_layers):
             print(f"[weights] missing: {sorted(real_missing)[:10]}")
 
 
+def _cache_dir_for(repo_id, n_layers):
+    """Return the per-model cache directory for chunked BF16 safetensors."""
+    repo_slug = repo_id.replace("/", "--")
+    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    return os.path.join(base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers")
+
+
+def _save_cache_chunked(state_dict, cache_dir):
+    """Save state_dict as per-layer safetensors chunks + a shared chunk.
+
+    Each chunk is small enough that safetensors' serialization buffer
+    doesn't double peak memory.
+    """
+    os.makedirs(cache_dir, exist_ok=True)
+
+    # Partition keys by layer
+    layer_dicts = {}  # layer_idx -> {key: tensor}
+    shared = {}
+    for key, tensor in state_dict.items():
+        m = re.match(r"layers\.(\d+)\.", key)
+        if m:
+            layer_dicts.setdefault(int(m.group(1)), {})[key] = tensor
+        else:
+            shared[key] = tensor
+
+    total_bytes = 0
+    if shared:
+        path = os.path.join(cache_dir, "shared.safetensors")
+        safetensors_save_file(shared, path)
+        total_bytes += os.path.getsize(path)
+
+    for layer_idx in sorted(layer_dicts):
+        path = os.path.join(cache_dir, f"layer_{layer_idx:04d}.safetensors")
+        safetensors_save_file(layer_dicts[layer_idx], path)
+        sz = os.path.getsize(path)
+        total_bytes += sz
+        del layer_dicts[layer_idx]  # free after saving
+        print(
+            f"  [cache] saved layer {layer_idx} ({sz / 1e9:.1f} GB)",
+            flush=True,
+        )
+
+    return total_bytes
+
+
+def _load_cache_chunked(cache_dir):
+    """Load all chunk files from cache_dir via mmap. Returns merged state_dict."""
+    state_dict = {}
+    for fname in sorted(os.listdir(cache_dir)):
+        if not fname.endswith(".safetensors"):
+            continue
+        chunk = safetensors_load_file(os.path.join(cache_dir, fname))
+        state_dict.update(chunk)
+    return state_dict
+
+
 def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=1):
     """Load and dequantize FP8 safetensors weights into a modified model.
 
-    Downloads the needed shards, dequantizes FP8 weights block-wise, renames
-    checkpoint keys to modified_model.py naming, and loads via assign=True
-    (for meta-device models).
+    On first run, downloads the needed shards, dequantizes FP8 weights
+    block-wise, renames checkpoint keys to modified_model.py naming, and
+    saves the result as per-layer BF16 safetensors cache files.
+
+    On subsequent runs, loads directly from the cache via mmap — skipping
+    shard reads, FP8 dequantization, and key renaming entirely.
     """
+    cache_dir = _cache_dir_for(repo_id, n_layers)
+
+    if os.path.isdir(cache_dir) and any(
+        f.endswith(".safetensors") for f in os.listdir(cache_dir)
+    ):
+        t_cache_start = time.perf_counter()
+        print(f"[weights] loading cached BF16 weights from {cache_dir}", flush=True)
+        state_dict = _load_cache_chunked(cache_dir)
+        t_cache_end = time.perf_counter()
+        print(
+            f"[timing] cache load (mmap): {t_cache_end - t_cache_start:.1f}s "
+            f"({len(state_dict)} tensors)",
+            flush=True,
+        )
+    else:
+        print(
+            f"[weights] no cache found at {cache_dir}, "
+            "dequantizing from FP8 shards...",
+            flush=True,
+        )
+        state_dict = _dequantize_from_shards(repo_id, n_layers, n_dense_layers)
+
+        t_save_start = time.perf_counter()
+        total_bytes = _save_cache_chunked(state_dict, cache_dir)
+        t_save_end = time.perf_counter()
+        print(
+            f"[timing] cache save: {t_save_end - t_save_start:.1f}s "
+            f"({total_bytes / 1e9:.1f} GB)",
+            flush=True,
+        )
+
+        # Re-load from cache so tensors are mmap-backed
+        del state_dict
+        state_dict = _load_cache_chunked(cache_dir)
+
+    t_load_start = time.perf_counter()
+    missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
+    t_load_end = time.perf_counter()
+    print(
+        f"[weights] loaded {len(state_dict)} tensors. "
+        f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
+    )
+    print(
+        f"[timing] load_state_dict: {t_load_end - t_load_start:.1f}s",
+        flush=True,
+    )
+    if missing:
+        real_missing = [
+            k
+            for k in missing
+            if not any(
+                skip in k
+                for skip in [
+                    "kv_cache",
+                    "pe_cache",
+                    "k_cache",
+                    "hadamard",
+                    "freqs_cis",
+                    "prepopulated",
+                ]
+            )
+        ]
+        if real_missing:
+            print(f"[weights] missing: {sorted(real_missing)[:20]}")
+
+
+def _dequantize_from_shards(repo_id, n_layers, n_dense_layers):
+    """Read FP8 shards, dequantize, rename keys. Returns a BF16 state_dict."""
     index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
     with open(index_path) as f:
         index = json.load(f)
@@ -421,6 +550,7 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
             else:
                 tensor = tensor.to(torch.bfloat16)
         dequantized[ckpt_key] = tensor
+    del raw
     t_dequant_end = time.perf_counter()
     print(f"[weights] dequantized {n_dequant} FP8 tensors")
     print(
@@ -440,41 +570,14 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
         elif tensor.dtype != torch.bfloat16:
             tensor = tensor.to(torch.bfloat16)
         state_dict[model_key] = tensor
+    del dequantized
     t_rename_end = time.perf_counter()
     print(
         f"[timing] rename keys + build state_dict: {t_rename_end - t_rename_start:.1f}s",
         flush=True,
     )
 
-    t_load_start = time.perf_counter()
-    missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
-    t_load_end = time.perf_counter()
-    print(
-        f"[weights] loaded {len(state_dict)} tensors. "
-        f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
-    )
-    print(
-        f"[timing] load_state_dict: {t_load_end - t_load_start:.1f}s",
-        flush=True,
-    )
-    if missing:
-        real_missing = [
-            k
-            for k in missing
-            if not any(
-                skip in k
-                for skip in [
-                    "kv_cache",
-                    "pe_cache",
-                    "k_cache",
-                    "hadamard",
-                    "freqs_cis",
-                    "prepopulated",
-                ]
-            )
-        ]
-        if real_missing:
-            print(f"[weights] missing: {sorted(real_missing)[:20]}")
+    return state_dict
 
 
 def _fix_meta_buffers(model, args):
