@@ -96,8 +96,9 @@ def _patch_transformers_models():
                 pretrained_model_name_or_path, **config_kwargs
             )
 
-        # Carry over kwargs that affect model construction
-        torch_dtype = kwargs.get("torch_dtype", None)
+        # Carry over kwargs that affect model construction.
+        # transformers v5 renames torch_dtype → dtype before reaching here.
+        torch_dtype = kwargs.get("torch_dtype", None) or kwargs.get("dtype", None)
 
         # Disable use_cache if the caller asked for it (common for generation models)
         if "use_cache" in kwargs:
