@@ -60,27 +60,20 @@ class OpTester(BaseTester):
             custom_comparator=custom_comparator,
         )
 
-    def test(self, workload: Workload, request=None) -> tuple:
+    def test(self, workload: Workload, request=None, skip_cpu=False) -> tuple:
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
 
         Returns:
-            A tuple of (tt_res, cpu_res).
+            A tuple of (tt_res, cpu_res). cpu_res is None when skip_cpu=True.
         """
         from infra.connectors import DeviceType
 
         t0 = time.perf_counter()
 
-        import os as _os_skip
-
-        _skip_cpu = _os_skip.environ.get("SKIP_CPU_GOLDEN", "0") == "1"
-        cpu_workload = workload
-        if _skip_cpu:
-            print("[timing] CPU compile: skipped", flush=True)
-            print("[timing] CPU forward: skipped", flush=True)
-            cpu_res = None
-            t2 = time.perf_counter()
-        else:
+        cpu_res = None
+        if not skip_cpu:
+            cpu_workload = workload
             if self._framework == Framework.JAX:
                 compile_jax_workload_for_cpu(cpu_workload)
             else:
@@ -93,6 +86,10 @@ class OpTester(BaseTester):
 
             t2 = time.perf_counter()
             print(f"[timing] CPU forward: {t2 - t1:.1f}s", flush=True)
+        else:
+            t2 = t0
+            print("[timing] CPU compile: skipped", flush=True)
+            print("[timing] CPU forward: skipped", flush=True)
 
         # Reset Dynamo caches so the TT compile does not reuse Dynamo frames
         # specialized for the CPU path (which can introduce spurious per-module
@@ -129,10 +126,7 @@ class OpTester(BaseTester):
             flush=True,
         )
 
-        if _skip_cpu:
-            print("[timing] comparison: skipped (no CPU reference)", flush=True)
-            t7 = time.perf_counter()
-        else:
+        if cpu_res is not None:
             if self._custom_comparator is not None:
                 self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
             else:
@@ -140,6 +134,10 @@ class OpTester(BaseTester):
 
             t7 = time.perf_counter()
             print(f"[timing] comparison: {t7 - t6:.1f}s", flush=True)
+        else:
+            t7 = t6
+            print("[timing] comparison: skipped (no CPU reference)", flush=True)
+
         print(f"[timing] run_graph_test total: {t7 - t0:.1f}s", flush=True)
 
         if self._enable_perf_measurement:

@@ -53,6 +53,7 @@ def run_graph_test(
     torch_options: dict = None,
     request=None,
     custom_comparator: Optional[Callable] = None,
+    skip_cpu: bool = False,
 ) -> None:
     """
     Tests `graph` with `inputs` by running it on TT device and CPU and comparing the
@@ -71,7 +72,7 @@ def run_graph_test(
         )
     else:
         workload = Workload(framework=framework, executable=graph, args=inputs)
-    return tester.test(workload, request=request)
+    return tester.test(workload, request=request, skip_cpu=skip_cpu)
 
 
 def run_graph_test_with_random_inputs(

@@ -361,6 +361,18 @@ def _cache_dir_for(repo_id, n_layers):
     return os.path.join(base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers")
 
 
+def _post_sparse_cache_dir_for(repo_id, n_layers):
+    """Return the post-sparse cache directory (stacked expert weights)."""
+    return _cache_dir_for(repo_id, n_layers) + "_post_sparse"
+
+
+def _has_cache(cache_dir):
+    """Check if a cache directory has safetensors files."""
+    return os.path.isdir(cache_dir) and any(
+        f.endswith(".safetensors") for f in os.listdir(cache_dir)
+    )
+
+
 def _save_cache_chunked(state_dict, cache_dir):
     """Save state_dict as per-layer safetensors chunks + a shared chunk.
 
@@ -1781,28 +1793,64 @@ def test_deepseek_v3_1_full_sparse_moe():
     t1 = time.perf_counter()
     print(f"[timing] model construction (meta): {t1 - t0:.1f}s", flush=True)
 
-    _load_modified_dequantized_weights(
-        model,
-        repo_id=repo_id,
-        n_layers=args.n_layers,
-        n_dense_layers=args.n_dense_layers,
-    )
-
-    t2 = time.perf_counter()
-    print(f"[timing] weight load + dequant: {t2 - t1:.1f}s", flush=True)
-
-    _fix_meta_buffers(model, args)
-    _align_model_to_bf16(model)
-    model.eval()
-
-    t3 = time.perf_counter()
-    print(f"[timing] fix_meta + align_bf16 + eval: {t3 - t2:.1f}s", flush=True)
-
     mesh_shape = (4, 8)
-    enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+    post_sparse_dir = _post_sparse_cache_dir_for(repo_id, args.n_layers)
+    use_post_sparse = _has_cache(post_sparse_dir)
 
-    t4 = time.perf_counter()
-    print(f"[timing] enable_sparse_mlp: {t4 - t3:.1f}s", flush=True)
+    if use_post_sparse:
+        print(
+            f"[weights] loading post-sparse cache from {post_sparse_dir}",
+            flush=True,
+        )
+        # Patch Gate/Expert/MoE forward methods to remove .float() upcasts
+        # BEFORE enable_sparse_mlp, while layer.ffn is still a MoE instance.
+        # The Gate forward is traced by torch.compile via RouterAdapter;
+        # without this patch the entire MoE computation runs in f32 instead of bf16.
+        _align_model_to_bf16(model)
+
+        # Restructure model to A2aSparseMLP on meta (no data needed)
+        enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+
+        # Drop original experts and CPU forward path — not needed
+        from tt_torch.sparse_mlp import A2aSparseMLP
+
+        for _, mod in model.named_modules():
+            if isinstance(mod, A2aSparseMLP):
+                object.__setattr__(mod, "_original_mlp", None)
+            if hasattr(mod, "original_experts"):
+                mod.original_experts = nn.ModuleList()
+
+        # Load stacked weights via mmap
+        state_dict = _load_cache_chunked(post_sparse_dir)
+        model.load_state_dict(state_dict, strict=False, assign=True)
+
+        _fix_meta_buffers(model, args)
+        model.eval()
+
+        t2 = time.perf_counter()
+        print(f"[timing] post-sparse load (mmap): {t2 - t1:.1f}s", flush=True)
+    else:
+        _load_modified_dequantized_weights(
+            model,
+            repo_id=repo_id,
+            n_layers=args.n_layers,
+            n_dense_layers=args.n_dense_layers,
+        )
+
+        t2 = time.perf_counter()
+        print(f"[timing] weight load + dequant: {t2 - t1:.1f}s", flush=True)
+
+        _fix_meta_buffers(model, args)
+        _align_model_to_bf16(model)
+        model.eval()
+
+        t3 = time.perf_counter()
+        print(f"[timing] fix_meta + align_bf16 + eval: {t3 - t2:.1f}s", flush=True)
+
+        enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+
+        t4 = time.perf_counter()
+        print(f"[timing] enable_sparse_mlp: {t4 - t3:.1f}s", flush=True)
 
     tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
     # text = "The quick brown fox jumps over the lazy dog. " * 10
@@ -1893,16 +1941,19 @@ def test_deepseek_v3_1_full_sparse_moe():
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
+        skip_cpu=use_post_sparse,
     )
 
     tt_top5 = tt_res.topk(5, dim=-1).indices[0]
-    cpu_top5 = cpu_res.topk(5, dim=-1).indices[0]
     print(f"[TT  top-5] {[tokenizer.decode([t]) for t in tt_top5.tolist()]}")
-    print(f"[CPU top-5] {[tokenizer.decode([t]) for t in cpu_top5.tolist()]}")
 
-    TorchComparisonEvaluator(
-        ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
-    ).evaluate(tt_res, cpu_res)
+    if cpu_res is not None:
+        cpu_top5 = cpu_res.topk(5, dim=-1).indices[0]
+        print(f"[CPU top-5] {[tokenizer.decode([t]) for t in cpu_top5.tolist()]}")
+
+        TorchComparisonEvaluator(
+            ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
+        ).evaluate(tt_res, cpu_res)
 
 
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])

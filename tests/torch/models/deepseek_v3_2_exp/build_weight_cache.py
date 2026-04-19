@@ -22,6 +22,7 @@ import time
 import torch
 from huggingface_hub import hf_hub_download
 from safetensors import safe_open
+from safetensors.torch import load_file as safetensors_load_file
 from safetensors.torch import save_file as safetensors_save_file
 
 # Import the canonical helpers from the test file to stay in sync
@@ -159,6 +160,127 @@ def build_cache(repo_id, n_layers, n_dense_layers=1):
     print(f"Cache dir: {cache_dir}")
 
 
+def _stack_experts_for_chunk(chunk):
+    """Convert per-expert weights in a chunk to stacked StackedExperts format.
+
+    Input keys like ``layers.N.ffn.experts.{idx}.{w1,w2,w3}.weight``
+    become ``layers.N.ffn.mlp.experts.{gate,up,down}_proj`` (transposed & stacked).
+    Router keys ``ffn.gate.*`` become ``ffn.mlp.router.gate.*``.
+    All other keys (attention, norms, shared_experts) pass through unchanged.
+    """
+    # Collect per-expert weights
+    expert_weights = {}  # idx -> {w1: tensor, w2: tensor, w3: tensor}
+    layer_prefix = None
+
+    for key in chunk:
+        m = re.match(r"(layers\.\d+\.ffn)\.experts\.(\d+)\.(w[123])\.weight", key)
+        if m:
+            layer_prefix = m.group(1)
+            idx, wname = int(m.group(2)), m.group(3)
+            expert_weights.setdefault(idx, {})[wname] = chunk[key]
+
+    if not expert_weights:
+        return dict(chunk)
+
+    n_experts = max(expert_weights.keys()) + 1
+    result = {}
+
+    # Stack: w1=gate, w3=up, w2=down — with transpose to match StackedExperts
+    gate_proj = torch.stack([expert_weights[i]["w1"].T for i in range(n_experts)])
+    up_proj = torch.stack([expert_weights[i]["w3"].T for i in range(n_experts)])
+    down_proj = torch.stack([expert_weights[i]["w2"].T for i in range(n_experts)])
+
+    inter = gate_proj.shape[-1]
+    hidden = gate_proj.shape[1]
+    dtype = gate_proj.dtype
+
+    mlp_pfx = f"{layer_prefix}.mlp.experts"
+    result[f"{mlp_pfx}.gate_proj"] = gate_proj
+    result[f"{mlp_pfx}.up_proj"] = up_proj
+    result[f"{mlp_pfx}.down_proj"] = down_proj
+    result[f"{mlp_pfx}.gate_proj_bias"] = torch.zeros(n_experts, inter, dtype=dtype)
+    result[f"{mlp_pfx}.up_proj_bias"] = torch.zeros(n_experts, inter, dtype=dtype)
+    result[f"{mlp_pfx}.down_proj_bias"] = torch.zeros(n_experts, hidden, dtype=dtype)
+
+    # Non-expert keys: rename router, pass through rest
+    for key in chunk:
+        if ".ffn.experts." in key:
+            continue  # already handled
+        if ".ffn.gate." in key:
+            new_key = key.replace(".ffn.gate.", ".ffn.mlp.router.gate.")
+            result[new_key] = chunk[key]
+        else:
+            result[key] = chunk[key]
+
+    return result
+
+
+def build_post_sparse_cache(repo_id, n_layers, n_dense_layers):
+    """Build post-sparse cache from existing pre-sparse cache.
+
+    Reads each layer's pre-sparse chunk via mmap, stacks expert weights
+    to match the StackedExperts layout, and saves. Peak memory is ~46 GB
+    (one layer of mmap'd per-expert weights + one layer of stacked tensors).
+    """
+    repo_slug = repo_id.replace("/", "--")
+    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    pre_dir = os.path.join(
+        base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers"
+    )
+    post_dir = os.path.join(
+        base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers_post_sparse"
+    )
+
+    if not os.path.isdir(pre_dir):
+        print(
+            f"Pre-sparse cache not found at {pre_dir}.\n"
+            "Run without --post-sparse first."
+        )
+        sys.exit(1)
+
+    if os.path.isdir(post_dir) and any(
+        f.endswith(".safetensors") for f in os.listdir(post_dir)
+    ):
+        print(f"Post-sparse cache already exists at {post_dir}, skipping.")
+        print(f"  Files: {sorted(os.listdir(post_dir))}")
+        print("  Delete the directory to rebuild.")
+        return
+
+    os.makedirs(post_dir, exist_ok=True)
+    total_bytes = 0
+    t_start = time.perf_counter()
+
+    for fname in sorted(os.listdir(pre_dir)):
+        if not fname.endswith(".safetensors"):
+            continue
+
+        t_chunk = time.perf_counter()
+        chunk = safetensors_load_file(os.path.join(pre_dir, fname))
+
+        is_moe = any(".ffn.experts." in k for k in chunk)
+        if is_moe:
+            out_dict = _stack_experts_for_chunk(chunk)
+        else:
+            out_dict = dict(chunk)
+
+        out_path = os.path.join(post_dir, fname)
+        safetensors_save_file(out_dict, out_path)
+        sz = os.path.getsize(out_path)
+        total_bytes += sz
+        del chunk, out_dict
+
+        dt = time.perf_counter() - t_chunk
+        tag = " (MoE stacked)" if is_moe else ""
+        print(f"  {fname}: {sz / 1e9:.1f} GB, {dt:.1f}s{tag}", flush=True)
+
+    dt_total = time.perf_counter() - t_start
+    print(
+        f"\nDone. {total_bytes / 1e9:.1f} GB total, {dt_total:.1f}s",
+        flush=True,
+    )
+    print(f"Post-sparse cache dir: {post_dir}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Build BF16 weight cache for DeepSeek V3.1"
@@ -173,6 +295,11 @@ if __name__ == "__main__":
         default=None,
         help="Number of dense (non-MoE) layers (default: read from config)",
     )
+    parser.add_argument(
+        "--post-sparse",
+        action="store_true",
+        help="Build post-sparse cache (stacked experts). Requires pre-sparse cache.",
+    )
     args = parser.parse_args()
 
     n_dense_layers = args.n_dense_layers
@@ -183,4 +310,7 @@ if __name__ == "__main__":
         n_dense_layers = hf_cfg.get("first_k_dense_replace", 1)
         print(f"Read n_dense_layers={n_dense_layers} from {args.repo} config")
 
-    build_cache(args.repo, args.n_layers, n_dense_layers)
+    if args.post_sparse:
+        build_post_sparse_cache(args.repo, args.n_layers, n_dense_layers)
+    else:
+        build_cache(args.repo, args.n_layers, n_dense_layers)
