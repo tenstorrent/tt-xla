@@ -1820,7 +1820,6 @@ def test_deepseek_v3_1_full_sparse_moe():
         shard_spec_fn=get_shard_spec,
         comparison_config=comparison_config,
         compiler_config=CompilerConfig(experimental_weight_dtype="bfp8"),
-        skip_cpu=use_post_sparse,
     )
 
     tt_top5 = tt_res.topk(5, dim=-1).indices[0]

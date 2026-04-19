@@ -465,13 +465,56 @@ class A2aSparseMLP(nn.Module):
             return result
         return result, None
 
+    @torch.compiler.disable
+    def _cpu_forward_stacked(self, hidden_states):
+        """CPU golden path using the stacked expert weights directly.
+
+        Used when _original_mlp has been dropped (e.g. post-sparse cache path).
+        Computes the same routed-experts output as the TT path, just with a
+        dense [T,E,*] intermediate and a sparse weighted sum via router scores.
+        Does NOT include shared_experts; the wrapper adds them.
+        """
+        B, S, H = hidden_states.shape
+        x = hidden_states.reshape(B * S, H)
+        router_scores, _ = self.router(hidden_states)  # scores: [T, E] (sparse)
+
+        has_fused = hasattr(self.experts, "gate_up_proj")
+        if has_fused:
+            gate_up = self.experts.gate_up_proj  # [E, H, 2*I]
+            gate_up_bias = self.experts.gate_up_proj_bias  # [E, 2*I]
+            gu = torch.einsum("th,ehi->tei", x, gate_up) + gate_up_bias  # [T,E,2I]
+            activated = _moe_activation(
+                gu, self.activation_type, self.alpha, self.limit
+            )
+        else:
+            gate = self.experts.gate_proj  # [E, H, I]
+            up = self.experts.up_proj  # [E, H, I]
+            g = torch.einsum("th,ehi->tei", x, gate) + self.experts.gate_proj_bias
+            u = torch.einsum("th,ehi->tei", x, up) + self.experts.up_proj_bias
+            if self.activation_type == ACTIVATION_DEEPSEEK:
+                activated = F.silu(g) * u
+            else:
+                g = g.clamp(max=self.limit)
+                u = u.clamp(-self.limit, self.limit)
+                glu = g * torch.sigmoid(g * self.alpha)
+                activated = (u + 1) * glu
+
+        down = self.experts.down_proj  # [E, I, H]
+        y = (
+            torch.einsum("tei,eih->teh", activated, down) + self.experts.down_proj_bias
+        )  # [T, E, H]
+        out = torch.einsum("te,teh->th", router_scores.to(y.dtype), y)
+        return out.view(B, S, H), router_scores
+
     def forward(self, hidden_states):
         batch_size, seq_len, hidden_size = hidden_states.shape
         K = self.num_experts_per_tok
 
         # CPU golden path
         if hidden_states.device.type == "cpu":
-            return self._cpu_forward(hidden_states)
+            if self._original_mlp is not None:
+                return self._cpu_forward(hidden_states)
+            return self._cpu_forward_stacked(hidden_states)
 
         # 1. Router
         router_scores, router_indices = self.router(hidden_states)
@@ -802,11 +845,16 @@ class A2aSparseMLPWithSharedExperts(nn.Module):
 
     def forward(self, hidden_states):
         out, _ = self.mlp(hidden_states)
-        # On CPU, _cpu_forward delegates to the original MoE module whose
-        # forward already includes shared_experts.  Only add them on device
-        # where A2aSparseMLP computes routed experts alone.
-        if self.shared_experts is not None and hidden_states.device.type != "cpu":
-            out = out + self.shared_experts(hidden_states)
+        # On CPU, when _original_mlp is present, its forward already includes
+        # shared_experts — skip them here. When _original_mlp has been dropped
+        # (post-sparse cache path), _cpu_forward_stacked computes routed experts
+        # only, so we must add shared_experts explicitly, matching the TT path.
+        if self.shared_experts is not None:
+            add_shared = (
+                hidden_states.device.type != "cpu" or self.mlp._original_mlp is None
+            )
+            if add_shared:
+                out = out + self.shared_experts(hidden_states)
         return out
 
 
