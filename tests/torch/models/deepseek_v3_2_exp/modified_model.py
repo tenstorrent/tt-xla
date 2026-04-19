@@ -1015,7 +1015,9 @@ class Gate(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Routing weights and selected expert indices.
         """
-        scores = linear(x.float(), self.weight.float())
+        # fp32 linear has accuracy issues
+        # scores = linear(x.float(), self.weight.float())
+        scores = linear(x, self.weight)
         if self.score_func == "softmax":
             scores = scores.softmax(dim=-1)
         else:
@@ -1030,8 +1032,11 @@ class Gate(nn.Module):
             else:
                 group_scores = scores.topk(2, dim=-1)[0].sum(dim=-1)
             group_indices = group_scores.topk(self.topk_groups, dim=-1)[1]
-            # Use one_hot + any instead of scatter_ to avoid SPMD partitioning
-            # bug where scatter indices are not adjusted after all_gather.
+            # SPMD: scatter_ indices aren't shard-offset after all_gather on
+            # cluster_axis=1, corrupting the mask when batches differ per shard.
+            # indices = group_scores.topk(self.topk_groups, dim=-1)[1]
+            # mask = scores.new_ones(x.size(0), self.n_groups, dtype=bool).scatter_(1, indices, False)
+            # scores = scores.masked_fill_(mask.unsqueeze(-1), float("-inf")).flatten(1)
             group_range = torch.arange(
                 self.n_groups, device=scores.device, dtype=group_indices.dtype
             )

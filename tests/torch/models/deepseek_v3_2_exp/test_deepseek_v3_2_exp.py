@@ -1646,121 +1646,6 @@ def test_deepseek_v3_1_moe_ffn():
     )
 
 
-def _align_model_to_bf16(model):
-    """Patch MoE layers so CPU golden computes in bf16, matching TT precision.
-
-    The modified_model.py Gate/Expert/MoE use .float() upcasts and an fp32
-    accumulator.  The TT sparse_matmul path runs everything in bf16.  This
-    function monkey-patches the original MoE module (which is the CPU golden
-    via _cpu_forward) to drop the fp32 upcasts so the comparison is fair.
-    """
-    import types
-
-    from modified_model import linear
-
-    for layer in model.layers:
-        ffn = layer.ffn
-        if not isinstance(ffn, MoE):
-            continue
-
-        # Gate: bf16 scoring — TT compiler strips .float() casts (they map
-        # to aten::to.dtype, not aten::_to_copy, so bypass_dtype_promotion
-        # removes them). Gate runs in bf16 on TT; match on CPU.
-        def _make_bf16_gate_fwd(gate):
-            def fwd(self, x):
-                scores = linear(x, self.weight)
-                if self.score_func == "softmax":
-                    scores = scores.softmax(dim=-1)
-                else:
-                    scores = scores.sigmoid()
-                original_scores = scores
-                if self.bias is not None:
-                    scores = scores + self.bias.to(scores.dtype)
-                if self.n_groups > 1:
-                    scores = scores.view(x.size(0), self.n_groups, -1)
-                    if self.bias is None:
-                        group_scores = scores.amax(dim=-1)
-                    else:
-                        group_scores = scores.topk(2, dim=-1)[0].sum(dim=-1)
-                    group_indices = group_scores.topk(self.topk_groups, dim=-1)[1]
-                    group_range = torch.arange(
-                        self.n_groups,
-                        device=scores.device,
-                        dtype=group_indices.dtype,
-                    )
-                    selected_groups = (group_indices.unsqueeze(-1) == group_range).any(
-                        dim=1
-                    )
-                    scores = torch.where(
-                        selected_groups.unsqueeze(-1).expand_as(scores),
-                        scores,
-                        torch.tensor(
-                            float("-inf"),
-                            dtype=scores.dtype,
-                            device=scores.device,
-                        ),
-                    ).flatten(1)
-                indices = scores.topk(self.topk, dim=-1)[1]
-                weights = original_scores.gather(1, indices)
-                if self.score_func == "sigmoid":
-                    weights /= weights.sum(dim=-1, keepdim=True)
-                weights *= self.route_scale
-                return weights, indices
-
-            return fwd
-
-        ffn.gate.forward = types.MethodType(_make_bf16_gate_fwd(ffn.gate), ffn.gate)
-
-        # Expert: bf16 intermediates (TT sparse_matmul computes in bf16)
-        for expert in ffn.experts:
-            if expert is None:
-                continue
-
-            def _make_bf16_expert_fwd(exp):
-                def fwd(self, x):
-                    return self.w2(F.silu(self.w1(x)) * self.w3(x))
-
-                return fwd
-
-            expert.forward = types.MethodType(_make_bf16_expert_fwd(expert), expert)
-
-        # Shared experts MLP: bf16 intermediates
-        def _make_bf16_mlp_fwd(mlp):
-            def fwd(self, x):
-                return self.w2(F.silu(self.w1(x)) * self.w3(x))
-
-            return fwd
-
-        ffn.shared_experts.forward = types.MethodType(
-            _make_bf16_mlp_fwd(ffn.shared_experts), ffn.shared_experts
-        )
-
-        # MoE: bf16 accumulator (instead of fp32)
-        def _make_bf16_moe_fwd(moe):
-            def fwd(self, x):
-                shape = x.size()
-                x = x.view(-1, self.dim)
-                weights, indices = self.gate(x)
-                y = torch.zeros_like(x)
-                counts = torch.bincount(
-                    indices.flatten(), minlength=self.n_routed_experts
-                ).tolist()
-                for i in range(self.experts_start_idx, self.experts_end_idx):
-                    if counts[i] == 0:
-                        continue
-                    expert = self.experts[i]
-                    idx, top = torch.where(indices == i)
-                    y[idx] += expert(x[idx]) * weights[idx, top, None]
-                y += self.shared_experts(x)
-                return y.view(shape)
-
-            return fwd
-
-        ffn.forward = types.MethodType(_make_bf16_moe_fwd(ffn), ffn)
-
-    print("[precision] patched MoE layers to bf16 (matching TT compute precision)")
-
-
 @pytest.mark.llmbox
 def test_deepseek_v3_1_full_sparse_moe():
     """Test full DeepseekV3.1 Transformer with A2aSparseMLP on (4,8) mesh — real input."""
@@ -1802,11 +1687,6 @@ def test_deepseek_v3_1_full_sparse_moe():
             f"[weights] loading post-sparse cache from {post_sparse_dir}",
             flush=True,
         )
-        # Patch Gate/Expert/MoE forward methods to remove .float() upcasts
-        # BEFORE enable_sparse_mlp, while layer.ffn is still a MoE instance.
-        # The Gate forward is traced by torch.compile via RouterAdapter;
-        # without this patch the entire MoE computation runs in f32 instead of bf16.
-        _align_model_to_bf16(model)
 
         # Restructure model to A2aSparseMLP on meta (no data needed)
         enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
@@ -1841,7 +1721,6 @@ def test_deepseek_v3_1_full_sparse_moe():
         print(f"[timing] weight load + dequant: {t2 - t1:.1f}s", flush=True)
 
         _fix_meta_buffers(model, args)
-        _align_model_to_bf16(model)
         model.eval()
 
         t3 = time.perf_counter()
