@@ -1386,6 +1386,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
 
             _t_sample = time.perf_counter()
+            # HACK: force greedy argmax on device, ignoring client sampling params.
+            # Uncomment the next 2 lines to bypass all sampling and always use greedy.
+            # selected_token_ids = torch.argmax(logits, dim=-1, keepdim=True)
+            # pass  # skip normal sampling below
             if self.tt_config.cpu_sampling:
                 selected_token_ids = self.sample_from_logits_cpu(
                     logits, tpu_sampling_metadata
