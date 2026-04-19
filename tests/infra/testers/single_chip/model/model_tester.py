@@ -166,6 +166,11 @@ class ModelTester(BaseTester, ABC):
 
         self._compile_for_tt_device(self._workload)
 
+        if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
+            if request:
+                self.handle_filecheck_and_serialization(request, self._workload)
+            return (ComparisonResult(passed=True),)
+
         if not self._disable_perf_measurement:
             e2e_perf_stats = self._test_e2e_perf()
             list.append(self._perf_measurements, e2e_perf_stats)
