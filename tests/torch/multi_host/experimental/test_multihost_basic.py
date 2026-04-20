@@ -3,59 +3,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Unified multi-host distributed tests that work across different topologies.
-
-Tests explicitly specify supported topologies via @pytest.mark.parametrize.
-Mesh shapes are automatically determined based on device count.
-
-Example:
-    # Run all tests on dual_bh_quietbox
-    pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "dual_bh_quietbox"
-
-    # Run all tests on quad_galaxy
-    pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py -k "quad_galaxy"
-
-    # Run specific test on all topologies
-    pytest -svv tests/torch/multi_host/experimental/test_multihost_basic.py::test_simple_distributed_addition
+Multi-host distributed tests. Mesh shape comes from
+:func:`infra.utilities.torch_multichip_utils.get_mesh_shape_for_device_count`
+using the runtime device count.
 """
 
-import os
-
-import numpy as np
-import pytest
 import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
-from torch_xla.distributed.spmd import Mesh
-
-
-def setup_spmd():
-    """Helper to enable SPMD mode with Shardy conversion."""
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-    xr.use_spmd()
-
-
-def create_device_mesh(mesh_shape) -> Mesh:
-    """Helper to create a device mesh with specified shape."""
-    num_devices = xr.global_runtime_device_count()
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-    return mesh
-
-
-@pytest.mark.parametrize(
-    "topology",
-    [
-        "dual_bh_quietbox",
-        "quad_galaxy",
-        "dual_galaxy",
-        "dual_t3k",
-        "dual_bh_loudbox_1x16",
-    ],
+from infra.utilities.torch_multichip_utils import (
+    enable_spmd,
+    get_mesh,
+    get_mesh_shape_for_device_count,
 )
-def test_simple_distributed_addition(topology, mesh_shape):
+
+
+def test_simple_distributed_addition():
     """
     Verifies basic distributed tensor addition across multiple hosts.
     Creates two sharded tensors, adds them, and validates correctness.
@@ -66,11 +31,11 @@ def test_simple_distributed_addition(topology, mesh_shape):
             return a + b
 
     xr.set_device_type("TT")
-    setup_spmd()
+    enable_spmd()
     device = torch_xla.device()
 
-    # Use mesh_shape from fixture (topology-aware)
-    mesh = create_device_mesh(mesh_shape)
+    mesh_shape = get_mesh_shape_for_device_count(xr.global_runtime_device_count())
+    mesh = get_mesh(mesh_shape, ("batch", "model"))
 
     # Create test tensors
     a_cpu = torch.ones(32, 32, dtype=torch.float32)
@@ -96,17 +61,7 @@ def test_simple_distributed_addition(topology, mesh_shape):
     comparator.evaluate(output.cpu(), expected_output)
 
 
-@pytest.mark.parametrize(
-    "topology",
-    [
-        "dual_bh_quietbox",
-        "quad_galaxy",
-        "dual_galaxy",
-        "dual_t3k",
-        "dual_bh_loudbox_1x16",
-    ],
-)
-def test_matmul_contracting_dim_sharded(topology, mesh_shape):
+def test_matmul_contracting_dim_sharded():
     """
     Matmul A @ B with contracting dimension (K) sharded across model axis.
     Each device holds a slice of A on K and B on K; local matmuls give partial
@@ -118,16 +73,18 @@ def test_matmul_contracting_dim_sharded(topology, mesh_shape):
             return torch.matmul(a, b)
 
     xr.set_device_type("TT")
-    setup_spmd()
+    enable_spmd()
     device = torch_xla.device()
-    mesh = create_device_mesh(mesh_shape)
 
-    batch_dim, model_dim = mesh_shape
+    mesh_shape = get_mesh_shape_for_device_count(xr.global_runtime_device_count())
+    mesh = get_mesh(mesh_shape, ("batch", "model"))
 
-    # Scale batch and K based on topology size
-    if model_dim == 4:  # dual_bh_quietbox
+    _, model_dim = mesh_shape
+
+    # Scale batch with model-parallel width (smaller meshes use smaller batch in this scenario)
+    if model_dim == 4:  # 8-device mesh
         batch, M, K, N = 2, 16, 32, 16
-    else:  # quad_galaxy or larger
+    else:
         batch, M, K, N = 4, 16, 32, 16
 
     assert K % model_dim == 0, f"K={K} must be divisible by model_dim={model_dim}"
@@ -154,17 +111,7 @@ def test_matmul_contracting_dim_sharded(topology, mesh_shape):
     comparator.evaluate(output.cpu(), expected)
 
 
-@pytest.mark.parametrize(
-    "topology",
-    [
-        "dual_bh_quietbox",
-        "quad_galaxy",
-        "dual_galaxy",
-        "dual_t3k",
-        "dual_bh_loudbox_1x16",
-    ],
-)
-def test_matmul_batch_sharded(topology, mesh_shape):
+def test_matmul_batch_sharded():
     """
     Matmul A @ B with A sharded on batch. Each device holds a batch slice,
     B is replicated; result is sharded on batch. No all-reduce on result.
@@ -175,11 +122,13 @@ def test_matmul_batch_sharded(topology, mesh_shape):
             return torch.matmul(a, b)
 
     xr.set_device_type("TT")
-    setup_spmd()
+    enable_spmd()
     device = torch_xla.device()
-    mesh = create_device_mesh(mesh_shape)
 
-    batch_dim, model_dim = mesh_shape
+    mesh_shape = get_mesh_shape_for_device_count(xr.global_runtime_device_count())
+    mesh = get_mesh(mesh_shape, ("batch", "model"))
+
+    batch_dim, _ = mesh_shape
 
     # Use batch_dim for the batch size to ensure even sharding
     batch, M, K, N = batch_dim, 16, 32, 16

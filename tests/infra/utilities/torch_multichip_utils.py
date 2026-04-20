@@ -9,6 +9,39 @@ import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 
 
+def get_mesh_shape_for_device_count(num_devices: int) -> Tuple[int, int]:
+    """
+    Map total device count to a 2D (batch, model) mesh shape for multi-host / multichip runs.
+
+    Args:
+        num_devices: Total devices visible to the PJRT runtime (all hosts).
+
+    Returns:
+        ``(batch_dim, model_dim)`` with product equal to ``num_devices``.
+
+    Examples:
+        8 -> (2, 4)    # e.g. dual_bh_quietbox
+        16 -> (1, 16)  # e.g. dual T3K / loudbox 1x16
+        32 -> (4, 8)   # e.g. single galaxy
+        64 -> (8, 8)   # e.g. dual galaxy
+        128 -> (8, 16) # e.g. quad galaxy
+    """
+    if num_devices == 8:
+        return (2, 4)
+    if num_devices == 16:
+        return (1, 16)
+    if num_devices == 32:
+        return (4, 8)
+    if num_devices == 64:
+        return (8, 8)
+    if num_devices == 128:
+        return (8, 16)
+    raise ValueError(
+        f"Unsupported device count: {num_devices}. "
+        f"Supported counts: 8, 16, 32, 64, 128"
+    )
+
+
 def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
     """
     Creates and returns a Mesh object based on the provided mesh shape and mesh names.

@@ -5,14 +5,17 @@
 # Copied from @ddilbaz's original implementation
 # The purpose of this test is to show E2E execution of 120B GPT-OSS model on dual BH QB
 
-import os
 import sys
 
-import numpy as np
 import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.utilities.torch_multichip_utils import (
+    enable_spmd,
+    get_mesh,
+    get_mesh_shape_for_device_count,
+)
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.utils.quantization_config import Mxfp4Config
@@ -21,11 +24,12 @@ from transformers.utils.quantization_config import Mxfp4Config
 def test_gpt_oss_120b():
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
-    setup_spmd()
+    enable_spmd()
 
     # Connect the device and create an xla mesh.
     device: torch.device = torch_xla.device()
-    mesh: Mesh = create_device_mesh()
+    mesh_shape = get_mesh_shape_for_device_count(xr.global_runtime_device_count())
+    mesh: Mesh = get_mesh(mesh_shape, ("batch", "model"))
 
     quantization_config = Mxfp4Config(dequantize=True)
     config = AutoConfig.from_pretrained("openai/gpt-oss-120b", trust_remote_code=True)
@@ -149,37 +153,6 @@ def mark_sharding_on_inputs_and_model(model: torch.nn.Module, mesh: Mesh):
         xs.mark_sharding(layer.post_attention_layernorm.weight, mesh, ("batch",))
 
     print(f"Tensor parallel sharding applied to {len(model.model.layers)} layers")
-
-
-def setup_spmd():
-    """
-    Initialize SPMD mode in torch_xla.
-    Sets the CONVERT_SHLO_TO_SHARDY environment variable to enable
-    conversion of StableHLO to Shardy dialect for improved sharding.
-    """
-    print("Setting up XLA SPMD environment...")
-
-    # Converts the StableHLO emitted by torch-xla to the Shardy dialect
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-
-    # Initialize SPMD
-    xr.use_spmd()
-    print("XLA SPMD environment configured.")
-
-
-def create_device_mesh() -> Mesh:
-    """
-    Create device mesh for tensor parallelism.
-    Returns:
-        Mesh object with shape (1, num_devices) for batch and model parallelism
-    """
-    num_devices = xr.global_runtime_device_count()
-    # mesh_shape = (1, num_devices)
-    mesh_shape = (2, 4)
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-    print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
-    return mesh
 
 
 if __name__ == "__main__":
