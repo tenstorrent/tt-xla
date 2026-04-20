@@ -168,6 +168,15 @@ class DynamicLoader:
         if override and os.path.isdir(override):
             return override
 
+        # Fall back to TTMLIR_VENV_DIR (set to <worktree>/.local_venv by
+        # run.sh) so worktree-based runs automatically find the right models
+        # root without requiring TT_FORGE_MODELS_ROOT to be set explicitly.
+        venv_dir = os.environ.get("TTMLIR_VENV_DIR")
+        if venv_dir:
+            candidate = os.path.dirname(venv_dir)
+            if candidate and os.path.isdir(candidate) and candidate != project_root:
+                return candidate
+
         module_name = "third_party.tt_forge_models"
         spec = importlib.util.find_spec(module_name)
         if spec:
