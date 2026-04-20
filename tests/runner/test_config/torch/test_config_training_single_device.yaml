@@ -1280,7 +1280,7 @@ test_config:
   monodepth2/pytorch-Stereo_No_Pt_640x192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
+    reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   monodepth2/pytorch-Mono+stereo_No_Pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1691,7 +1691,7 @@ test_config:
   mistral/pytorch-Ministral_8B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
+    reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
