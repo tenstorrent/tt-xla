@@ -182,8 +182,7 @@ void SOLoadedExecutableInstance::fillPJRTOutputLists(
     shards.reserve(num_devices);
 
     for (int device_index = 0; device_index < num_devices; ++device_index) {
-      std::vector<std::uint32_t> output_shape =
-          m_executable_image->getOutputShape(output_index);
+      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
 
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(

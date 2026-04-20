@@ -213,46 +213,80 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
   return tt_pjrt_status::kSuccess;
 }
 
+std::vector<std::uint32_t>
+LoadedExecutableInstance::getOutputShape(size_t output_index) const {
+  std::vector<std::uint32_t> output_shape =
+      m_executable_image->getOutputShape(output_index);
+  const mlir::tt::sharding_utils::MeshSharding &output_sharding =
+      m_executable_image->getOutputSharding(output_index);
+
+  if (output_sharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Identity ||
+      output_sharding.getShardType() ==
+          mlir::tt::ttcore::MeshShardType::Replicate) {
+    return output_shape;
+  }
+
+  llvm::SmallVector<int64_t> shard_shape = output_sharding.getShardShape();
+  TT_FATAL(shard_shape.size() == output_shape.size(),
+           "Output sharding shape doesn't match the output shape: "
+           "shard_shape.size()={}, output_shape.size()={}",
+           shard_shape.size(), output_shape.size());
+
+  for (size_t i = 0; i < output_shape.size(); ++i) {
+    TT_FATAL(output_shape[i] % shard_shape[i] == 0,
+             "Output shape is not divisible by the sharding shape: "
+             "dim={}, output_shape[dim]={}, shard_shape[dim]={}",
+             i, output_shape[i], shard_shape[i]);
+    output_shape[i] /= shard_shape[i];
+  }
+
+  return output_shape;
+}
+
 void LoadedExecutableInstance::createDefaultOutputBuffers(
     PJRT_Buffer **const *output_lists, size_t num_devices) {
   ZoneScoped;
   size_t num_outputs = m_executable_image->getNumOutputs();
 
-  for (size_t device_index = 0; device_index < num_devices; ++device_index) {
-    for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-      std::vector<std::uint32_t> output_shape =
-          m_executable_image->getOutputShape(output_index);
-      PJRT_Buffer_Type output_type =
-          m_executable_image->getOutputTypes()[output_index];
-      ::tt::target::DataType runtime_data_type =
-          data_type_utils::convertPJRTToRuntimeDataType(output_type);
-      std::uint32_t element_size =
-          tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
+    std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+    PJRT_Buffer_Type output_type =
+        m_executable_image->getOutputTypes()[output_index];
+    ::tt::target::DataType runtime_data_type =
+        data_type_utils::convertPJRTToRuntimeDataType(output_type);
+    std::uint32_t element_size =
+        tt::runtime::utils::dataTypeElementSize(runtime_data_type);
 
+    // Row-major strides: last stride is 1, each preceding stride is the
+    // product of all following dimension sizes.
+    std::vector<std::uint32_t> strides(output_shape.size());
+    std::exclusive_scan(output_shape.rbegin(), output_shape.rend(),
+                        strides.rbegin(), std::uint32_t(1),
+                        std::multiplies<>());
+
+    tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
+        nullptr, output_shape, strides, element_size, runtime_data_type);
+
+    std::vector<BufferInstance *> shards;
+    shards.reserve(num_devices);
+
+    for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              std::move(output_shape), m_addressable_devices[device_index],
+              std::vector<std::uint32_t>(output_shape),
+              m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               output_type, device_index);
 
-      // We create a row-major tensor. Last stride is 1, one before is the last
-      // dimension size, etc. That means the right algorithm is the exclusive
-      // right scan.
-      std::vector<std::uint32_t> strides(output_shape.size());
-      std::exclusive_scan(output_shape.rbegin(), output_shape.rend(),
-                          strides.rbegin(), std::uint32_t(1),
-                          std::multiplies<>());
-
-      tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
-          nullptr, output_shape, strides, element_size, runtime_data_type);
-
-      PjrtTensor::from_runtime_tensor({output_buffer.get()}, host_tensor);
-
       output_buffer->markAsDataReady();
+      shards.emplace_back(output_buffer.get());
 
       // Release ownership to the PJRT API caller
       output_lists[device_index][output_index] = *output_buffer.release();
     }
+
+    PjrtTensor::from_runtime_tensor(shards, std::move(host_tensor));
   }
 }
 

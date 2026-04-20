@@ -9,17 +9,13 @@
 #include "tracy/Tracy.hpp"
 
 // tt-mlir includes
-#define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
-#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
-#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
-#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -131,37 +127,6 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
 
     PjrtTensor::from_runtime_tensor(shards, std::move(outputTensor));
   }
-}
-
-std::vector<std::uint32_t>
-FlatbufferLoadedExecutableInstance::getOutputShape(size_t output_index) {
-  std::vector<std::uint32_t> outputShape =
-      m_executable_image->getOutputShape(output_index);
-  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
-      m_executable_image->getOutputSharding(output_index);
-
-  if (outputSharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Identity ||
-      outputSharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Replicate) {
-    return outputShape;
-  }
-  llvm::SmallVector<int64_t> output_sharding_shard_shape =
-      outputSharding.getShardShape();
-  TT_FATAL(output_sharding_shard_shape.size() == outputShape.size(),
-           "Output sharding shape doesn't match the output shape: "
-           "output_sharding_shard_shape.size()={}, outputShape.size()={}",
-           output_sharding_shard_shape.size(), outputShape.size());
-
-  for (size_t i = 0; i < outputShape.size(); ++i) {
-    TT_FATAL(outputShape[i] % output_sharding_shard_shape[i] == 0,
-             "Output shape is not divisible by the sharding shape: "
-             "dim={}, outputShape[dim]={}, output_sharding_shard_shape[dim]={}",
-             i, outputShape[i], output_sharding_shard_shape[i]);
-    outputShape[i] /= output_sharding_shard_shape[i];
-  }
-
-  return outputShape;
 }
 
 std::shared_ptr<FlatbufferExecutableImage>

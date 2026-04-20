@@ -64,9 +64,6 @@ private:
       size_t num_devices, PJRT_Buffer **const *output_lists,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
-  // Returns the shape of the output on the specified index.
-  std::vector<std::uint32_t> getOutputShape(size_t output_index);
-
   // Creates flatbuffer loaded executable instance from the executable image.
   FlatbufferLoadedExecutableInstance(
       std::shared_ptr<FlatbufferExecutableImage> executable_image,

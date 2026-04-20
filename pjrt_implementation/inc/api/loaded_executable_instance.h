@@ -102,6 +102,11 @@ protected:
   void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
                                   size_t num_devices);
 
+  // Returns the per-device shape for the output at the given index, accounting
+  // for sharding. For sharded outputs the full shape is divided by the shard
+  // shape; for replicated/identity outputs the full shape is returned as-is.
+  std::vector<std::uint32_t> getOutputShape(size_t output_index) const;
+
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
   // corresponding devices count in the mesh shape estimated by the compiler.
