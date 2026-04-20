@@ -8,6 +8,7 @@ Multi-host distributed tests. Mesh shape comes from
 using the runtime device count.
 """
 
+import pytest
 import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
@@ -18,7 +19,7 @@ from infra.utilities.torch_multichip_utils import (
     get_mesh,
     get_mesh_shape_for_device_count,
 )
-import pytest
+
 
 @pytest.mark.push
 def test_simple_distributed_addition():
@@ -111,6 +112,7 @@ def test_matmul_contracting_dim_sharded():
     )
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(output.cpu(), expected)
+
 
 @pytest.mark.push
 def test_matmul_batch_sharded():
