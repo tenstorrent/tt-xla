@@ -1312,6 +1312,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.scheduler_output = None
         self.mm_embed_inputs = None
 
+        # DEBUG: track request boundaries
+        if hasattr(self, '_debug_req_count'):
+            self._debug_req_count += 1
+
         # Prepare inputs, the requests might be split into multiple
         # executions, combine the result of each execution.
         start_index = 0
@@ -1362,6 +1366,41 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
+
+            # DEBUG: diagnose batch-1 garbage output
+            if not hasattr(self, '_debug_step_count'):
+                self._debug_step_count = 0
+                self._debug_req_count = 0
+            self._debug_step_count += 1
+            # Log first 5 steps of warmup, then first 5 steps of first real request
+            _should_log = (self._debug_step_count <= 5 or
+                          (self._debug_req_count == 1 and self._debug_step_count <= 15))
+            if _should_log:
+                _logits_cpu = logits.cpu()
+                _top5_vals, _top5_idx = torch.topk(_logits_cpu[0], 5)
+                from transformers import AutoTokenizer
+                if not hasattr(self, '_debug_tokenizer'):
+                    try:
+                        self._debug_tokenizer = AutoTokenizer.from_pretrained(
+                            self.model_config.model)
+                    except Exception:
+                        self._debug_tokenizer = None
+                _tok_names = ""
+                if self._debug_tokenizer:
+                    _tok_names = [self._debug_tokenizer.decode([t]) for t in _top5_idx.tolist()]
+                # Also log argmax token (what greedy would pick)
+                _greedy_id = int(_top5_idx[0].item())
+                _greedy_tok = self._debug_tokenizer.decode([_greedy_id]) if self._debug_tokenizer else "?"
+                logger.warning(
+                    "DEBUG step %d (req#%d): max_num_reqs=%d, num_reqs=%d, "
+                    "logits shape=%s, logits_indices=%s, "
+                    "greedy_token=[%d]'%s', top5=%s vals=%s decoded=%s",
+                    self._debug_step_count, self._debug_req_count,
+                    self.max_num_reqs, num_reqs,
+                    list(_logits_cpu.shape), logits_indices.cpu().tolist(),
+                    _greedy_id, _greedy_tok,
+                    _top5_idx.tolist(), _top5_vals.tolist(), _tok_names,
+                )
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
@@ -1405,6 +1444,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if tpu_sampling_metadata.logprobs
                 else None
             )
+
+            # DEBUG: log the selected token
+            if _should_log:
+                _sel_cpu = selected_token_ids.cpu()
+                _sel_id = int(_sel_cpu[0].item()) if _sel_cpu.dim() == 1 else int(_sel_cpu[0, 0].item())
+                _sel_tok = self._debug_tokenizer.decode([_sel_id]) if hasattr(self, '_debug_tokenizer') and self._debug_tokenizer else "?"
+                logger.warning(
+                    "DEBUG step %d: selected token=[%d]'%s'",
+                    self._debug_step_count, _sel_id, _sel_tok,
+                )
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]

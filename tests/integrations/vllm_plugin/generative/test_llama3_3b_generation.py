@@ -21,6 +21,7 @@ def test_llama3_3b_generation():
         "additional_config": {
             "enable_const_eval": False,
             "min_context_len": 32,
+            "cpu_sampling": True,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -46,6 +47,7 @@ def test_llama3_3b_generation_opt_level_1():
             "enable_const_eval": False,
             "min_context_len": 32,
             "optimization_level": 1,
+            "cpu_sampling": True,
         },
     }
     llm = vllm.LLM(**llm_args)
