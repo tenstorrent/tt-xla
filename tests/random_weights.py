@@ -87,7 +87,13 @@ def _patch_transformers_models():
         if config is None:
             # Extract config-relevant kwargs, drop weight-loading ones
             config_kwargs = {}
-            for key in ("trust_remote_code", "revision", "token", "gguf_file", "subfolder"):
+            for key in (
+                "trust_remote_code",
+                "revision",
+                "token",
+                "gguf_file",
+                "subfolder",
+            ):
                 if key in kwargs:
                     config_kwargs[key] = kwargs[key]
 
@@ -99,6 +105,12 @@ def _patch_transformers_models():
         # Carry over kwargs that affect model construction.
         # transformers v5 renames torch_dtype → dtype before reaching here.
         torch_dtype = kwargs.get("torch_dtype", None) or kwargs.get("dtype", None)
+
+        # Resolve torch_dtype="auto" from config (matches transformers behavior).
+        # Custom model code (e.g. Jina CLIP) may inject torch_dtype="auto" which
+        # cannot be passed directly to model.to().
+        if torch_dtype == "auto":
+            torch_dtype = getattr(config, "torch_dtype", None)
 
         # Disable use_cache if the caller asked for it (common for generation models)
         if "use_cache" in kwargs:
@@ -127,7 +139,7 @@ def _patch_transformers_models():
         # Instantiate with random weights
         model = cls(config)
 
-        if torch_dtype is not None:
+        if isinstance(torch_dtype, torch.dtype):
             model = model.to(torch_dtype)
 
         return model
