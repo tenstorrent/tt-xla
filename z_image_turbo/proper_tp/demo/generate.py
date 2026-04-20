@@ -178,9 +178,11 @@ def _run_one(models, prompt, steps, seed, output_path, prompt_index, total_promp
     except TypeError:
         scheduler.set_timesteps(steps)
 
-    # Denoising
+    # Denoising — skip last timestep (t=0, dt=0 → no-op). 8 DIT forwards with 9-step schedule.
+    active_timesteps = scheduler.timesteps[:-1]
+    num_steps = len(active_timesteps)
     step_times = []
-    for i, t in enumerate(scheduler.timesteps):
+    for i, t in enumerate(active_timesteps):
         t0     = time.time()
         t_norm = max((1000.0 - float(t)) / 1000.0, 1e-3)
         tt_t   = _to_device_bf16(torch.tensor([t_norm], dtype=torch.bfloat16), models.mesh_device)
@@ -192,7 +194,7 @@ def _run_one(models, prompt, steps, seed, output_path, prompt_index, total_promp
 
         elapsed = (time.time() - t0) * 1000
         step_times.append(elapsed)
-        print(f"  step {i+1}/{steps}: {elapsed:.0f} ms")
+        print(f"  step {i+1}/{num_steps}: {elapsed:.0f} ms")
 
     # VAE decode
     t0 = time.time()
