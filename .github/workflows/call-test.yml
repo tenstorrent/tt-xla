@@ -490,7 +490,6 @@ jobs:
             python -m pytest -sv \
               --log-memory --durations=0 \
               ./tests/torch/multi_host/experimental \
-              -k "$TOPOLOGY" \
               --junitxml=${{ steps.strings.outputs.test_report_path }} \
               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \

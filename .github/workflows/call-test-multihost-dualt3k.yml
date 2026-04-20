@@ -199,7 +199,6 @@ jobs:
 
           pytest -svv \
             tests/torch/multi_host/experimental/test_multihost_basic.py \
-            -k "dual_t3k" \
             --junitxml=/workspace/${{ steps.strings.outputs.test_report_path }} \
             2>&1 | tee /workspace/${{ steps.strings.outputs.test_log_path }}
         '

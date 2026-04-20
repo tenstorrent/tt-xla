@@ -3,14 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Multi-host tensor parallel test for Llama 3.1 8B across different topologies.
+Multi-host tensor parallel test for Llama 3.1 8B.
 
 Loads model and inputs via the tt_forge_models loader, applies tensor parallel
-sharding, compiles with backend 'tt', and runs inference.
-
-Example:
-    # Run on quad_galaxy
-    pytest -svv tests/torch/multi_host/experimental/test_llama_3_8b.py -k "quad_galaxy"
+sharding, compiles with backend 'tt', and runs inference. Mesh shape follows
+``get_mesh_shape_for_device_count(xr.global_runtime_device_count())``.
 """
 
 import pytest
@@ -19,8 +16,11 @@ import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
-from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
-from torch_xla.distributed.spmd import Mesh
+from infra.utilities.torch_multichip_utils import (
+    enable_spmd,
+    get_mesh,
+    get_mesh_shape_for_device_count,
+)
 from transformers import AutoTokenizer
 
 from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
@@ -29,19 +29,8 @@ from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
 )
 
 
-def setup_spmd():
-    """Enable SPMD mode with Shardy conversion (required for tensor parallel)."""
-    enable_spmd()
-
-
-def create_device_mesh(mesh_shape: tuple[int, int]) -> Mesh:
-    """Create device mesh with specified shape and names ('batch', 'model')."""
-    return get_mesh(mesh_shape, ("batch", "model"))
-
-
 @pytest.mark.tensor_parallel
-@pytest.mark.parametrize("topology", ["dual_bh_quietbox", "dual_galaxy", "quad_galaxy"])
-def test_llama_3_8b_tensor_parallel(topology, mesh_shape):
+def test_llama_3_8b_tensor_parallel():
     """
     Run Llama 3.1 8B inference with tensor parallelism.
 
@@ -64,9 +53,10 @@ def test_llama_3_8b_tensor_parallel(topology, mesh_shape):
 
     # Now run on TT devices with tensor parallelism
     xr.set_device_type("TT")
-    setup_spmd()
+    enable_spmd()
     device = torch_xla.device()
-    mesh = create_device_mesh(mesh_shape)
+    mesh_shape = get_mesh_shape_for_device_count(xr.global_runtime_device_count())
+    mesh = get_mesh(mesh_shape, ("batch", "model"))
 
     # Move model and inputs to device
     model_tt = model.to(device)
@@ -97,7 +87,7 @@ def test_llama_3_8b_tensor_parallel(topology, mesh_shape):
     )
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(tt_logits_cpu, cpu_logits)
-    print(f"PCC validation passed for topology {topology}")
+    print("PCC validation passed")
 
     # Decode and print output tokens
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.1-8B")
