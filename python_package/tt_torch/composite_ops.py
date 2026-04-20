@@ -462,7 +462,7 @@ replacements = {
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
-    # torch.nn.GroupNorm: replace_group_norm_module,
+    torch.nn.GroupNorm: replace_group_norm_module,
 }
 
 """
