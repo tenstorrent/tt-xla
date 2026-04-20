@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -212,6 +213,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
+        logger.warning("TTConfig: %s", vars(self.tt_config))
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         self.vllm_config = vllm_config
@@ -614,6 +616,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ), "Pooling is not supported in TPU yet"
             req_id = new_req_data.req_id
             sampling_params = new_req_data.sampling_params
+            _sp = sampling_params
+            _greedy = _sp is None or _sp.temperature < 1e-5
+            _sampler = (
+                "ttnn.sampling"
+                if os.environ.get("TT_USE_TTNN_SAMPLING") == "1"
+                else "cpu/scatter"
+            )
+            logger.warning(
+                "New request %s: %s, sampler=%s, temp=%.2f",
+                req_id[-8:],
+                "greedy" if _greedy else "non-greedy",
+                _sampler,
+                _sp.temperature if _sp else 0.0,
+            )
 
             if (
                 sampling_params

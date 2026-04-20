@@ -10,6 +10,8 @@ from .metadata import XLASupportedSamplingMetadata
 
 _SAMPLING_EPS = 1e-5
 
+_logged_sampling_modes: set = set()
+
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
     """Count tokens per row whose logprob >= threshold, minimum 1.
@@ -144,6 +146,13 @@ class Sampler(nn.Module):
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> torch.Tensor:
+        # mode_key = (_USE_TTNN_SAMPLING, bool(sampling_metadata.all_random))
+        # if mode_key not in _logged_sampling_modes:
+        #     _logged_sampling_modes.add(mode_key)
+        #     sampler = "ttnn.sampling" if _USE_TTNN_SAMPLING else "cpu/scatter"
+        #     greedy = "non-greedy" if sampling_metadata.all_random else "greedy (or mixed)"
+        #     print(f"[sampler] {greedy}, sampler={sampler}", flush=True)
+
         # Apply allowed_token_ids mask (sets disallowed tokens to -inf).
         if not sampling_metadata.no_allowed_token_ids:
             logits = logits + sampling_metadata.allowed_token_ids_mask
@@ -289,6 +298,15 @@ class Sampler(nn.Module):
                 for i, generator in generators.items():
                     q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
+
+        #     # exponential_() is not supported on TT XLA device — generate on
+        #     # CPU then move to device. Transfer is tiny (~128 floats).
+        #     q = torch.empty_like(probs, device="cpu").exponential_()
+        #     if generators:
+        #         for i, generator in generators.items():
+        #             q[i].exponential_(generator=generator)
+        #     q = q.to(probs.device)
+        # return probs.div_(q).argmax(dim=-1).view(-1)
 
 
 def apply_top_k_top_p(
