@@ -195,7 +195,7 @@ def construct_inputs(
         max_cache_len: Maximum cache length
 
     Returns:
-        Dictionary containing input_ids, past_key_values, cache_position, and use_cache
+        Dictionary containing input_ids, past_key_values, position_ids, and use_cache
     """
     inputs = tokenizer(
         input_prompt,
@@ -224,7 +224,8 @@ def construct_inputs(
         dtype=torch.bfloat16,
         device="cpu",
     )
-    cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
+    seq_len: int = inputs.input_ids.shape[1]
+    position_ids: torch.Tensor = torch.arange(0, seq_len).unsqueeze(0)
 
     # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
     # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
@@ -237,7 +238,7 @@ def construct_inputs(
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
-        "cache_position": cache_position,
+        "position_ids": position_ids,
         "use_cache": True,
         "attention_mask": full_attention_mask,
     }
@@ -250,8 +251,8 @@ def construct_inputs(
     print(f"Input attention mask shape: {inputs.attention_mask.shape}")
     print(f"Full attention mask shape (pre-allocated): {full_attention_mask.shape}")
     print(f"Full attention mask: {full_attention_mask}")
-    print(f"Cache position shape: {cache_position.shape}")
-    print(f"Cache position: {cache_position}")
+    print(f"Position IDs shape: {position_ids.shape}")
+    print(f"Position IDs: {position_ids}")
     print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
     print("=" * 50)
 
@@ -275,8 +276,10 @@ def transfer_to_device(
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        layer.cumulative_length = layer.cumulative_length.to(device)
+        layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
-    input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["position_ids"] = input_args["position_ids"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     model = model.to(device)
@@ -290,7 +293,7 @@ def mark_sharding_on_inputs_and_model(
     """
     Mark sharding on inputs and model internals.
     If mark_sharding is not called on a tensor, it is fully replicated across all devices.
-        i.e. on cache_positions, input_ids
+        i.e. on position_ids, input_ids
 
     Args:
         model: Model instance
@@ -364,9 +367,10 @@ def run_generate(
             # Update inputs for next iteration
             input_args["input_ids"] = next_token_id.unsqueeze(-1).to(device)
 
-            host_cache_pos = input_args["cache_position"].to("cpu")
-            host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
-            input_args["cache_position"] = host_cache_pos.to(device)
+            host_pos = input_args["position_ids"].to("cpu")
+            input_args["position_ids"] = torch.tensor(
+                [[host_pos[0, -1].item() + 1]]
+            ).to(device)
 
     print()
     if not is_interactive:
