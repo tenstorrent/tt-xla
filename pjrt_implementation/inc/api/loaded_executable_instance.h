@@ -110,8 +110,8 @@ protected:
   // Fills the PJRT output lists from the runtime output tensors produced by
   // execution, creating one BufferInstance shard per device per output.
   void fillPJRTOutputLists(
-      const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
-      PJRT_Buffer **const *output_lists,
+      const std::vector<tt::runtime::Tensor> &output_tensors,
+      size_t num_devices, PJRT_Buffer **const *output_lists,
       const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Opens devices on which input arguments are placed, which we assume are the
