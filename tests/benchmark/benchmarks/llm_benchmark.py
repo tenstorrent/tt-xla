@@ -660,15 +660,17 @@ def benchmark_llm_torch_xla(
         print("PCC verification skipped in decode-only mode")
     else:
         # Check PCC for prefill
-        pcc_value = compute_pcc(
-            output_logits[0][0], cpu_output_logits[0][0], required_pcc=required_pcc
-        )
+        pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+        assert (
+            pcc_value >= required_pcc
+        ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
         print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
         # Check PCC for first decode token
         if len(output_logits) > 1 and len(cpu_output_logits) > 1:
-            decode_pcc_value = compute_pcc(
-                output_logits[1][0], cpu_output_logits[1][0], required_pcc=required_pcc
-            )
+            decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+            assert (
+                decode_pcc_value >= required_pcc
+            ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
             print(
                 "First decode PCC verification passed with PCC={:.6f}".format(
                     decode_pcc_value
