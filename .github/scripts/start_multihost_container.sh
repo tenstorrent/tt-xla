@@ -18,7 +18,7 @@ if [[ "$(docker ps --filter "name=^/${CONTAINER_NAME}$" --format '{{.Names}}')" 
 fi
 
 docker_args=(
-  run --pull=always --rm -d
+  run --rm -d
   --name "${CONTAINER_NAME}"
   --privileged --pid=host --network=host
   --device /dev/tenstorrent
