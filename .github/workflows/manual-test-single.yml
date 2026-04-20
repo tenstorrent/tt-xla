@@ -63,6 +63,10 @@ on:
         required: false
         type: string
         default: ''
+      artifact_sha:
+        description: 'tt-xla commit SHA to reuse pre-built artifacts from instead of building (leave empty to build fresh)'
+        required: false
+        type: string
 
 permissions:
   actions: write
@@ -86,6 +90,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       mlir_override: ${{ inputs.mlir_override }}
+      artifact_sha: ${{ inputs.artifact_sha }}
 
   generate-test-config:
     needs: build-ttxla
