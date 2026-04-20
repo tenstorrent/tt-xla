@@ -6,12 +6,64 @@
 
 // c++ standard library includes
 #include <chrono>
+#include <dlfcn.h>
 #include <thread>
 
 // tt-xla includes
+#include "api/error_instance.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+namespace {
+using PyIsInitializedFn = int (*)();
+using PyIsFinalizingFn = int (*)();
+
+bool shouldSkipCallbackDispatch() {
+  static const PyIsInitializedFn is_initialized =
+      reinterpret_cast<PyIsInitializedFn>(
+          dlsym(RTLD_DEFAULT, "Py_IsInitialized"));
+  static const PyIsFinalizingFn is_finalizing = []() {
+    auto py_is_finalizing = reinterpret_cast<PyIsFinalizingFn>(
+        dlsym(RTLD_DEFAULT, "Py_IsFinalizing"));
+    if (py_is_finalizing == nullptr) {
+      py_is_finalizing = reinterpret_cast<PyIsFinalizingFn>(
+          dlsym(RTLD_DEFAULT, "_Py_IsFinalizing"));
+    }
+    return py_is_finalizing;
+  }();
+
+  if (is_finalizing != nullptr && is_finalizing() != 0) {
+    return true;
+  }
+
+  if (is_initialized != nullptr && is_initialized() == 0) {
+    return true;
+  }
+
+  return false;
+}
+
+void dispatchOrDropCallback(const CallbackWorkItem &item) {
+  if (item.callback_function == nullptr) {
+    if (item.error != nullptr) {
+      delete ErrorInstance::unwrap(item.error);
+    }
+    return;
+  }
+
+  if (shouldSkipCallbackDispatch()) {
+    DLOG_F(WARNING,
+           "Skipping PJRT event callback dispatch during Python shutdown.");
+    if (item.error != nullptr) {
+      delete ErrorInstance::unwrap(item.error);
+    }
+    return;
+  }
+
+  item.callback_function(item.error, item.user_arg);
+}
+
+} // namespace
 
 CallbackWorker::CallbackWorker(size_t queue_capacity)
     : m_queue(queue_capacity),
@@ -52,7 +104,14 @@ void CallbackWorker::workerLoop() {
       }
       std::this_thread::yield();
     }
-    item.callback_function(item.error, item.user_arg);
+    dispatchOrDropCallback(item);
+    // Agressively drain the queue, signal later to keep the counter accurate.
+    // Empty queue is not a problem, we will be signaled again when a new item
+    // is enqueued.
+    while (m_queue.tryPop(item)) {
+      dispatchOrDropCallback(item);
+      m_work_available.acquire();
+    }
   }
 }
 
