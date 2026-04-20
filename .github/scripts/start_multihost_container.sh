@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Starts a privileged multihost Docker container with required device mounts.
 set -euo pipefail
 
 readonly DOCKER_IMAGE="${1:-}"
@@ -20,7 +21,7 @@ fi
 docker_args=(
   run --rm -d
   --name "${CONTAINER_NAME}"
-  --privileged --pid=host --network=host
+  --pid=host --network=host
   --device /dev/tenstorrent
   -v /dev/hugepages:/dev/hugepages
   -v /dev/hugepages-1G:/dev/hugepages-1G

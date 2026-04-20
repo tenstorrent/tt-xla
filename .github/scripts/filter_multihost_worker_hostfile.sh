@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Filters an MPI hostfile by removing the controller host entry.
+
 set -euo pipefail
 
 readonly SOURCE_HOSTFILE="${1:-/etc/mpirun/hostfile}"
