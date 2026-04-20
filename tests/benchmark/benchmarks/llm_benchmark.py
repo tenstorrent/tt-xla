@@ -201,14 +201,15 @@ def construct_inputs(
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
     """
     if input_prompt_tokens is not None:
-        if input_prompt_tokens.ndim != 1:
-            raise ValueError(
-                f"input_prompt_tokens must be 1D token IDs, got shape {tuple(input_prompt_tokens.shape)}"
+        if input_prompt_tokens.ndim == 2:
+            input_ids = input_prompt_tokens[:, :max_cache_len].contiguous()
+        else:
+            input_ids = (
+                input_prompt_tokens[:max_cache_len]
+                .unsqueeze(0)
+                .expand(batch_size, -1)
+                .contiguous()
             )
-        if input_prompt_tokens.shape[0] > max_cache_len:
-            input_prompt_tokens = input_prompt_tokens[:max_cache_len]
-
-        input_ids = input_prompt_tokens.unsqueeze(0).expand(batch_size, -1).contiguous()
         inputs = {"input_ids": input_ids}
     else:
         if input_prompt is None:
@@ -328,6 +329,7 @@ def benchmark_llm_torch_xla(
     custom_moe_cluster_axis: int = 0,
     gpt_oss_fused_decode: bool = False,
     preprocess_fused_weights: bool = False,
+    per_user_prompts: Optional[list] = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -444,6 +446,28 @@ def benchmark_llm_torch_xla(
             hf_model_name=hf_model_name_for_accuracy,
         )
 
+    # MoE benchmarks pass per_user_prompts so each user gets a distinct prompt.
+    # Prompts are hand-tuned to tokenize to an identical length, so no padding
+    # or truncation is needed — tokenize each and assert the shape is uniform.
+    # Accuracy testing takes precedence since it needs its reference prompt.
+    if accuracy_testing:
+        prompt_tokens = token_accuracy.input_prompt
+    elif per_user_prompts is not None:
+        assert batch_size <= len(
+            per_user_prompts
+        ), f"per_user_prompts has {len(per_user_prompts)} entries, need {batch_size}"
+        encoded = [
+            tokenizer.encode(p, add_special_tokens=False)
+            for p in per_user_prompts[:batch_size]
+        ]
+        seq_lens = {len(e) for e in encoded}
+        assert (
+            len(seq_lens) == 1
+        ), f"per_user_prompts must all tokenize to the same length, got {sorted(seq_lens)}"
+        prompt_tokens = torch.tensor(encoded, dtype=torch.long)
+    else:
+        prompt_tokens = None
+
     # Construct inputs, including static cache
     input_args = construct_inputs(
         tokenizer,
@@ -451,7 +475,7 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=prompt_tokens,
     )
     log_memory("after construct_inputs #1 (StaticCache allocated on CPU)")
 
@@ -487,7 +511,7 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=prompt_tokens,
         past_key_values=decode_only_cache if decode_only else None,
     )
     log_memory("after construct_inputs #2 (pre-device)")
@@ -619,7 +643,7 @@ def benchmark_llm_torch_xla(
             input_args["past_key_values"] if not decode_only else decode_only_cache
         ),
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=prompt_tokens,
     )
     log_memory("after construct_inputs #3 (perf benchmark)")
 
@@ -681,9 +705,7 @@ def benchmark_llm_torch_xla(
             max_cache_len,
             past_key_values=input_args["past_key_values"],
             input_prompt=custom_input_prompt,
-            input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
-            ),
+            input_prompt_tokens=prompt_tokens,
         )
         input_args = transfer_to_device(input_args, device)
         if input_output_sharding_spec:
