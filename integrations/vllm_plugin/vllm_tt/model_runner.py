@@ -1354,6 +1354,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logger.info(
                 f"input_ids_run: {input_ids.shape} -- {input_ids[0, :].to('cpu')}"
             )
+            logger.info(
+                f"positions: {self.position_ids.shape} -- {self.position_ids[0, :].to('cpu')}"
+            )
             logger.info(f"hidden_states shape: {hidden_states.shape}")
             logger.info(f"hidden_states: {hidden_states.to('cpu')[0, :, :]}")
             # sys.exit(0)
@@ -1394,9 +1397,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
+                # self.device,
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            logger.info(f"grammer_output: {grammar_output}")
             if grammar_output is not None:
                 (
                     require_struct_decoding,
@@ -1411,7 +1416,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             logger.info(f"tpu_sampling_metadata: {tpu_sampling_metadata}")
 
-            selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
+            selected_token_ids = self.sample_from_logits_func(
+                logits, tpu_sampling_metadata
+            )
             logger.info(
                 f"selected_token_ids shape: {selected_token_ids.shape} -- {selected_token_ids.to('cpu')}"
             )
@@ -2302,9 +2309,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         This function mainly exists as a workaround for https://github.com/tenstorrent/tt-xla/issues/3610.
         Only support greedy sampling for now to reduce maintenance overhead.
         """
+        logger.info(
+            f"Asif:: Sampling on CPU with logits shape {logits.shape} and metadata {sampling_metadata}."
+        )
+        logger.info(f"Asif:: Sampling on CPU with logits dtype {logits.dtype}.")
+        # logits_device = logits.device
         logits = logits.cpu()
         out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         return out_tokens
+        return out_tokens.to(logits_device)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
