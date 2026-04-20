@@ -11,15 +11,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
-#include "mlir/Support/LogicalResult.h"
 #include "tt/runtime/types.h"
 
 // tt-xla includes
@@ -57,13 +54,6 @@ private:
   prepareInputTensor(const std::vector<BufferInstance *> &arg_buffers,
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
-
-  // Fills the output lists of the PJRT API with actual output tensors
-  // produced by PythonModelRunner execution.
-  void fillPJRTOutputLists(
-      const std::vector<tt::runtime::Tensor> &output_tensors,
-      size_t num_devices, PJRT_Buffer **const *output_lists,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
 private:
   // Creates SO loaded executable instance from the executable image.

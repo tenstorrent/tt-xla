@@ -56,14 +56,6 @@ private:
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
 
-  // Fills the output lists of the PJRT API with the outputs of tt runtime
-  // execution. Creates BufferInstances with device tensors instead of
-  // transferring them to host.
-  void fillPJRTOutputLists(
-      const std::vector<tt::runtime::Tensor> &output_tensors,
-      size_t num_devices, PJRT_Buffer **const *output_lists,
-      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
-
   // Creates flatbuffer loaded executable instance from the executable image.
   FlatbufferLoadedExecutableInstance(
       std::shared_ptr<FlatbufferExecutableImage> executable_image,

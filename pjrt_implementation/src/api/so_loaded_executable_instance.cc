@@ -167,42 +167,6 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   return tt_pjrt_status::kSuccess;
 }
 
-void SOLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
-    PJRT_Buffer **const *output_lists,
-    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
-  ZoneScoped;
-  size_t n_prog_output_tensors = output_tensors.size();
-
-  for (size_t output_index = 0; output_index < n_prog_output_tensors;
-       output_index++) {
-    tt::runtime::Tensor outputTensor = output_tensors[output_index];
-
-    std::vector<BufferInstance *> shards;
-    shards.reserve(num_devices);
-
-    for (int device_index = 0; device_index < num_devices; ++device_index) {
-      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
-
-      std::unique_ptr<BufferInstance> output_buffer =
-          BufferInstance::createOutputBufferInstance(
-              std::move(output_shape), m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index], device_index);
-
-      output_buffer->markAsDataReady();
-
-      shards.emplace_back(output_buffer.get());
-
-      // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
-      output_lists[device_index][output_index] = *output_buffer.release();
-    }
-
-    PjrtTensor::from_runtime_tensor(shards, std::move(outputTensor));
-  }
-}
-
 std::optional<tt::runtime::Tensor>
 SOLoadedExecutableInstance::prepareInputTensor(
     const std::vector<BufferInstance *> &arg_buffers,

@@ -107,6 +107,13 @@ protected:
   // shape; for replicated/identity outputs the full shape is returned as-is.
   std::vector<std::uint32_t> getOutputShape(size_t output_index) const;
 
+  // Fills the PJRT output lists from the runtime output tensors produced by
+  // execution, creating one BufferInstance shard per device per output.
+  void fillPJRTOutputLists(
+      const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
+      PJRT_Buffer **const *output_lists,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
+
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the
   // corresponding devices count in the mesh shape estimated by the compiler.
