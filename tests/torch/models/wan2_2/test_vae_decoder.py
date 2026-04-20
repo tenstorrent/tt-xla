@@ -11,10 +11,13 @@ IN:  z (1, 48, latent_frames, latent_h, latent_w)
 OUT: sample (1, 3, num_frames, video_h, video_w)
 """
 
-import pytest
 import torch
+import torch_xla
+import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 
-from .shared import RESOLUTIONS, compare_cpu_tt, load_vae, shard_vae_decoder_weights
+from .shared import RESOLUTIONS, load_vae, shard_vae_decoder_specs, wan22_mesh
 
 
 class VAEDecoderWrapper(torch.nn.Module):
@@ -28,34 +31,29 @@ class VAEDecoderWrapper(torch.nn.Module):
         return self.vae.decode(z, return_dict=False)[0]
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_decoder_480p():
     _run(resolution="480p", sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_decoder_720p():
     _run(resolution="720p", sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_decoder_480p_sharded():
     _run(resolution="480p", sharded=True)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_vae_decoder_720p_sharded():
     _run(resolution="720p", sharded=True)
 
 
 def _run(resolution: str, sharded: bool):
+    xr.set_device_type("TT")
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
-    wrapper = VAEDecoderWrapper(load_vae())
+
+    wrapper = VAEDecoderWrapper(load_vae()).eval().bfloat16()
 
     z = torch.randn(
         1,
@@ -66,10 +64,14 @@ def _run(resolution: str, sharded: bool):
         dtype=torch.bfloat16,
     )
 
-    shard_fn = None
-    if sharded:
+    mesh = wan22_mesh() if sharded else None
+    shard_spec_fn = (lambda m: shard_vae_decoder_specs(m.vae)) if sharded else None
 
-        def shard_fn(model, mesh):
-            shard_vae_decoder_weights(model.vae, mesh)
-
-    compare_cpu_tt(wrapper, [z], shard_fn=shard_fn)
+    run_graph_test(
+        wrapper,
+        [z],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=shard_spec_fn,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.99)),
+    )
