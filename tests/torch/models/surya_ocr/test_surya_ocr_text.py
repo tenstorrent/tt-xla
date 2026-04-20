@@ -48,7 +48,7 @@ def training_tester() -> SuryaOCRTester:
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.FAILED_RUNTIME,
 )
-@pytest.mark.skip(reason="Hangs - https://github.com/tenstorrent/tt-xla/issues/3892")
+#@pytest.mark.skip(reason="Hangs - https://github.com/tenstorrent/tt-xla/issues/3892")
 def test_torch_surya_ocr_text_inference():
     loader_path = inspect.getsourcefile(surya_loader)
     with RequirementsManager.for_loader(loader_path):
