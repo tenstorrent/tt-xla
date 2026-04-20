@@ -88,6 +88,7 @@ jobs:
         - /lib/modules:/lib/modules
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
         - /mnt/dockercache:/mnt/dockercache
+        - /etc/mpirun:/etc/mpirun:ro
         # Multihost: host user ubuntu’s SSH agent (same socket as in ubuntu-host-mapped) for mpirun/ssh -A in this job container
         - /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
 
