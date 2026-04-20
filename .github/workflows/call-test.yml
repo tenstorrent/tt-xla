@@ -256,14 +256,13 @@ jobs:
       if: ${{ matrix.build.multihost }}
       shell: bash
       run: |
-        DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
-
         # Launch containers on workers idempotently (controller handled by bootstrap step)
         docker exec \
-          -e DOCKER_IMAGE="$DOCKER_IMAGE" \
-          -e HOST_WORKSPACE_PATH="${{ github.workspace }}" \
-          -e IN_CONTAINER_WORKSPACE="${{ steps.strings.outputs.work-dir }}" \
           ubuntu-host-mapped bash -c '
+          DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+          HOST_WORKSPACE_PATH="${{ github.workspace }}"
+          IN_CONTAINER_WORKSPACE="${{ steps.strings.outputs.work-dir }}"
+
           CONTROLLER_HOSTNAME=$(hostname -s)
           bash "$IN_CONTAINER_WORKSPACE/.github/scripts/filter_multihost_worker_hostfile.sh" \
             /etc/mpirun/hostfile \
@@ -276,17 +275,14 @@ jobs:
 
           SCRIPT_B64=$(base64 -w0 "$IN_CONTAINER_WORKSPACE/.github/scripts/start_multihost_container.sh")
           mpirun --allow-run-as-root --hostfile /tmp/mpirun-workers-hostfile \
-            -x DOCKER_IMAGE \
-            -x HOST_WORKSPACE_PATH \
-            -x IN_CONTAINER_WORKSPACE \
             --mca btl_tcp_if_exclude docker0,lo \
             --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
             --tag-output \
             bash -lc "
               echo '\''$SCRIPT_B64'\'' | base64 -d | bash -s -- \
-                \"\$DOCKER_IMAGE\" \
-                \"\$HOST_WORKSPACE_PATH\" \
-                \"\$IN_CONTAINER_WORKSPACE\" \
+                '\''$DOCKER_IMAGE'\'' \
+                '\''$HOST_WORKSPACE_PATH'\'' \
+                '\''$IN_CONTAINER_WORKSPACE'\'' \
                 ubuntu-host-mapped
             "
         '
