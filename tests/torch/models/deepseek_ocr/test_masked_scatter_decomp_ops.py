@@ -15,7 +15,10 @@ The new decomp:
     gathered     = torch.gather(source, 0, source_idx_2d)           # op6: gather
     result       = torch.where(mask.unsqueeze(-1), gathered, row)   # op7: where
 
-Inputs match DeepSeek OCR real shapes: S=913, D=1280, ~577 True values.
+Inputs match DeepSeek OCR real model forward (confirmed via debug print):
+  inputs_embeds[0]    shape=[913, 1280]  dtype=bfloat16
+  images_seq_mask[0]  shape=[913]        dtype=bool  num_true=903
+  images_in_this_batch shape=[903, 1280] dtype=bfloat16
 """
 
 import pytest
@@ -25,11 +28,11 @@ from infra import Framework, run_op_test
 
 
 # ---------------------------------------------------------------------------
-# Realistic input factory (matches DeepSeek OCR prefill)
+# Realistic input factory (matches DeepSeek OCR model forward)
 # ---------------------------------------------------------------------------
 
 S, D = 913, 1280
-NUM_TRUE = 577
+NUM_TRUE = 903
 
 
 @pytest.fixture(scope="module")

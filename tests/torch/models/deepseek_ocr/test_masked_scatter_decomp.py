@@ -140,7 +140,7 @@ def _assert_match(candidate, reference, label):
 # ---------------------------------------------------------------------------
 SHAPE_CASES = [
     pytest.param(32, 16, 10, id="small_S32_D16"),
-    pytest.param(913, 1280, 577, id="deepseek_ocr_S913_D1280"),
+    pytest.param(913, 1280, 903, id="deepseek_ocr_S913_D1280"),
     pytest.param(2048, 1280, 1024, id="stress_S2048_D1280"),
 ]
 

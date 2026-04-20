@@ -28,19 +28,20 @@ from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 
 
 # ---------------------------------------------------------------------------
-# Model-matching dimensions from issue #3412
-# S=913 seq len, D=1280 hidden dim, num_true=577 image token rows
-# Flattened = 913*1280 = 1,168,640 (the shape that caused OOM)
+# Model-matching dimensions (confirmed via debug print on real model forward):
+#   inputs_embeds[0]    shape=[913, 1280]  dtype=bfloat16
+#   images_seq_mask[0]  shape=[913]        dtype=bool  num_true=903
+#   images_in_this_batch shape=[903, 1280] dtype=bfloat16
 # ---------------------------------------------------------------------------
 S = 913
 D = 1280
-NUM_TRUE = 577
+NUM_TRUE = 903
 
 
 def _build_inputs(S, D, num_true, seed=42):
     torch.manual_seed(seed)
-    inputs_embeds = torch.randn(S, D)
-    source = torch.randn(num_true, D)
+    inputs_embeds = torch.randn(S, D, dtype=torch.bfloat16)
+    source = torch.randn(num_true, D, dtype=torch.bfloat16)
 
     mask_1d = torch.zeros(S, dtype=torch.bool)
     true_positions = torch.randperm(S)[:num_true].sort().values
