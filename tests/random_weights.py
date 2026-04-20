@@ -130,11 +130,20 @@ def _patch_transformers_models():
         if (
             expected_config_class is not None
             and not isinstance(config, expected_config_class)
-            and hasattr(config, "get_text_config")
         ):
-            text_config = config.get_text_config()
-            if isinstance(text_config, expected_config_class):
-                config = text_config
+            if hasattr(config, "get_text_config"):
+                text_config = config.get_text_config()
+                if isinstance(text_config, expected_config_class):
+                    config = text_config
+
+            if not isinstance(config, expected_config_class) and hasattr(
+                config, "sub_configs"
+            ):
+                for attr_name in config.sub_configs:
+                    sub = getattr(config, attr_name, None)
+                    if isinstance(sub, expected_config_class):
+                        config = sub
+                        break
 
         # Instantiate with random weights
         model = cls(config)
