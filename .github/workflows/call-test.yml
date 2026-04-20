@@ -294,24 +294,7 @@ jobs:
       shell: bash
       run: |
         docker exec ubuntu-host-mapped bash -c '
-          echo "=== SSH connectivity check (via ssh) ==="
-          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
-            --mca btl_tcp_if_exclude docker0,lo \
-            --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
-            --tag-output \
-            bash -c "
-              echo \"\$(hostname): hostname OK\"
-              if [ -f /.dockerenv ]; then
-                echo \"\$(hostname): /.dockerenv EXISTS (running inside container)\"
-              else
-                echo \"\$(hostname): /.dockerenv NOT FOUND (running on bare metal)\"
-              fi
-            "
-          echo "=== End SSH connectivity check (via ssh) ==="
-
           echo "=== SSH connectivity check (via remote_docker.sh) ==="
-          ls -la ${{ steps.strings.outputs.work-dir }}/tests/torch/multi_host/experimental/remote_docker.sh
-          chmod +x ${{ steps.strings.outputs.work-dir }}/tests/torch/multi_host/experimental/remote_docker.sh
           mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --mca plm_rsh_agent ${{ steps.strings.outputs.work-dir }}/tests/torch/multi_host/experimental/remote_docker.sh \
@@ -522,13 +505,7 @@ jobs:
             echo "$TOPOLOGY_EXPORTS"
             eval "$TOPOLOGY_EXPORTS"
 
-            python -m pytest -sv \
-              --log-memory --durations=0 \
-              ./tests/torch/multi_host/experimental \
-              --junitxml=${{ steps.strings.outputs.test_report_path }} \
-              --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
-              --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
-              2>&1 | tee pytest.log
+            ${{ env.FULL_PYTEST_CMD }} 2>&1 | tee pytest.log
           '
 
     - name: Teardown vLLM test dependencies
