@@ -1353,6 +1353,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             logger.info(f"hidden_states shape: {hidden_states.shape}")
             logger.info(f"hidden_states: {hidden_states.to('cpu')[0, :, :]}")
+            # sys.exit(0)
             hidden_states = sharding_constraint_tensor(
                 hidden_states, self.mesh, (None, None, None)
             )
