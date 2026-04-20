@@ -241,23 +241,16 @@ jobs:
       shell: bash
       run: |
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
+        HOST_WORKSPACE_PATH="${{ github.workspace }}"
+        IN_CONTAINER_WORKSPACE="${{ steps.strings.outputs.work-dir }}"
+        SSH_AUTH_SOCK_PATH=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
 
-        docker run --pull=never --rm -d \
-          --name ubuntu-host-mapped \
-          --privileged --pid=host --network=host \
-          --device /dev/tenstorrent \
-          -v /dev/hugepages:/dev/hugepages \
-          -v /dev/hugepages-1G:/dev/hugepages-1G \
-          -v /etc/udev/rules.d:/etc/udev/rules.d \
-          -v /lib/modules:/lib/modules \
-          -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
-          -v /mnt/dockercache:/mnt/dockercache \
-          -v /etc/mpirun:/etc/mpirun:ro \
-          -v /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
-          -e SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock \
-          -v ${{ github.workspace }}:${{ steps.strings.outputs.work-dir }} \
-          -w ${{ steps.strings.outputs.work-dir }} \
-          "$DOCKER_IMAGE" sleep infinity
+        bash .github/scripts/start_multihost_container.sh \
+          "$DOCKER_IMAGE" \
+          "$HOST_WORKSPACE_PATH" \
+          "$IN_CONTAINER_WORKSPACE" \
+          ubuntu-host-mapped \
+          "$SSH_AUTH_SOCK_PATH"
 
     - name: Start multihost worker containers via mpirun
       if: ${{ matrix.build.multihost }}
@@ -265,36 +258,33 @@ jobs:
       run: |
         DOCKER_IMAGE="${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}"
 
-        # Launch containers on all hosts idempotently (controller already running, will skip)
+        # Launch containers on workers idempotently (controller handled by bootstrap step)
         docker exec \
           -e DOCKER_IMAGE="$DOCKER_IMAGE" \
           -e HOST_WORKSPACE_PATH="${{ github.workspace }}" \
           -e IN_CONTAINER_WORKSPACE="${{ steps.strings.outputs.work-dir }}" \
           ubuntu-host-mapped bash -c '
-          mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
+          CONTROLLER_HOSTNAME=$(hostname -s)
+          bash "$IN_CONTAINER_WORKSPACE/.github/scripts/filter_multihost_worker_hostfile.sh" \
+            /etc/mpirun/hostfile \
+            /tmp/mpirun-workers-hostfile
+
+          if [ ! -s /tmp/mpirun-workers-hostfile ]; then
+            echo "No worker hosts found after filtering controller host (${CONTROLLER_HOSTNAME}), skipping worker container launch"
+            exit 0
+          fi
+
+          SCRIPT_B64=$(base64 -w0 "$IN_CONTAINER_WORKSPACE/.github/scripts/start_multihost_container.sh")
+          mpirun --allow-run-as-root --hostfile /tmp/mpirun-workers-hostfile \
             --mca btl_tcp_if_exclude docker0,lo \
             --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
             --tag-output \
-            bash -c "
-              CONTAINER_NAME=ubuntu-host-mapped
-              if docker ps --filter name=\$CONTAINER_NAME --format \"{{.Names}}\" | grep -q \$CONTAINER_NAME; then
-                echo \"\$(hostname): Container already running, skipping\"
-              else
-                docker run --pull=always --rm -d \
-                  --name \$CONTAINER_NAME --privileged --pid=host --network=host \
-                  --device /dev/tenstorrent \
-                  -v /dev/hugepages:/dev/hugepages \
-                  -v /dev/hugepages-1G:/dev/hugepages-1G \
-                  -v /etc/udev/rules.d:/etc/udev/rules.d \
-                  -v /lib/modules:/lib/modules \
-                  -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
-                  -v /mnt/dockercache:/mnt/dockercache \
-                  -v /etc/mpirun:/etc/mpirun:ro \
-                  -v $HOST_WORKSPACE_PATH:$IN_CONTAINER_WORKSPACE \
-                  -w $IN_CONTAINER_WORKSPACE \
-                  $DOCKER_IMAGE sleep infinity
-                echo \"\$(hostname): Container started\"
-              fi
+            bash -lc "
+              echo '\''$SCRIPT_B64'\'' | base64 -d | bash -s -- \
+                \"\$DOCKER_IMAGE\" \
+                \"\$HOST_WORKSPACE_PATH\" \
+                \"\$IN_CONTAINER_WORKSPACE\" \
+                ubuntu-host-mapped
             "
         '
         echo "All multihost containers ready"
