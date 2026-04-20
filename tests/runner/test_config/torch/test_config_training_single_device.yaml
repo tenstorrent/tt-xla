@@ -10,7 +10,7 @@ test_config:
   mnist/image_classification/pytorch-Cnn_Nodropout-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    markers: [push, nightly , notimeout]
+    markers: [push, nightly, notimeout]
     reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   autoencoder/pytorch-linear-single_device-training:
     status: EXPECTED_PASSING
