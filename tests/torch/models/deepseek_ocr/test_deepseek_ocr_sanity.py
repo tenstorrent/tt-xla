@@ -250,19 +250,19 @@ class DeepseekOCRPreDecoderPipeline(nn.Module):
         return hidden_states, attention_mask, position_ids
 
 
-class DeepseekOCRSingleDecoderLayerPipeline(nn.Module):
+class DeepseekOCRLayerSlicePipeline(nn.Module):
     """OCR forward (vision embed with new masked scatter decomp) + V2 setup
-    + only the FIRST decoder layer.
+    + decoder layers[start:end].
 
-    If this completes but the full 30-layer pass hangs, the issue is with
-    stacking multiple decoder layers, not with a single layer.
+    Use to isolate a specific layer or range of layers (e.g. only the first
+    MoE layer) without running all preceding layers.
     """
 
-    def __init__(self, ocr_model):
+    def __init__(self, ocr_model, start, end):
         super().__init__()
         self.vision_embed = DeepseekOCRVisionEmbedPipeline(ocr_model)
         self._use_flash_attention_2 = ocr_model.model._use_flash_attention_2
-        self.first_layer = ocr_model.model.layers[0]
+        self.layers = ocr_model.model.layers[start:end]
 
     def forward(
         self,
@@ -290,21 +290,22 @@ class DeepseekOCRSingleDecoderLayerPipeline(nn.Module):
             )
 
         hidden_states = inputs_embeds
-        layer_outputs = self.first_layer(
-            hidden_states,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_value=None,
-            output_attentions=False,
-            use_cache=False,
-        )
-        hidden_states = layer_outputs[0]
+        for decoder_layer in self.layers:
+            layer_outputs = decoder_layer(
+                hidden_states,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_value=None,
+                output_attentions=False,
+                use_cache=False,
+            )
+            hidden_states = layer_outputs[0]
         return (hidden_states,)
 
 
 class DeepseekOCRFullSinglePassPipeline(nn.Module):
     """Full model single forward pass: OCR forward (vision embed with new
-    masked scatter decomp) + all V2 decoder layers + RMS norm.
+    masked scatter decomp) + all 12 V2 decoder layers + RMS norm.
 
     Single iteration only — no autoregressive generation loop.
     Tests whether one pass through the full model hangs.
@@ -358,6 +359,10 @@ class DeepseekOCRFullSinglePassPipeline(nn.Module):
         return (hidden_states,)
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 def _load_model_and_inputs():
     """Load pretrained DeepseekOCR model and sample inputs."""
     import inspect
@@ -386,6 +391,18 @@ def _extract_inputs(raw_inputs):
     ]
 
 
+def _make_layer_slice_fixture(full_model_and_raw_inputs, start, end):
+    full_model, raw_inputs = full_model_and_raw_inputs
+    pipeline = DeepseekOCRLayerSlicePipeline(full_model, start, end)
+    pipeline.eval()
+    pipeline = pipeline.to(torch.bfloat16)
+    return pipeline, _extract_inputs(raw_inputs)
+
+
+# ---------------------------------------------------------------------------
+# Fixtures (model loaded once per module, shared across all tests)
+# ---------------------------------------------------------------------------
+
 @pytest.fixture(scope="module")
 def full_model_and_raw_inputs():
     """Load pretrained model + raw inputs once for every test in this module."""
@@ -411,12 +428,21 @@ def pre_decoder_model_and_inputs(full_model_and_raw_inputs):
 
 
 @pytest.fixture(scope="module")
-def single_decoder_layer_model_and_inputs(full_model_and_raw_inputs):
-    full_model, raw_inputs = full_model_and_raw_inputs
-    pipeline = DeepseekOCRSingleDecoderLayerPipeline(full_model)
-    pipeline.eval()
-    pipeline = pipeline.to(torch.bfloat16)
-    return pipeline, _extract_inputs(raw_inputs)
+def layer0_only_model_and_inputs(full_model_and_raw_inputs):
+    """Layer 0 only (dense MLP)."""
+    return _make_layer_slice_fixture(full_model_and_raw_inputs, 0, 1)
+
+
+@pytest.fixture(scope="module")
+def layer1_only_model_and_inputs(full_model_and_raw_inputs):
+    """Layer 1 only (first MoE layer — 64 routed experts, top-6)."""
+    return _make_layer_slice_fixture(full_model_and_raw_inputs, 1, 2)
+
+
+@pytest.fixture(scope="module")
+def layer0_and_1_model_and_inputs(full_model_and_raw_inputs):
+    """Layers 0-1 (dense + first MoE)."""
+    return _make_layer_slice_fixture(full_model_and_raw_inputs, 0, 2)
 
 
 @pytest.fixture(scope="module")
@@ -429,68 +455,84 @@ def full_single_pass_model_and_inputs(full_model_and_raw_inputs):
 
 
 # ---------------------------------------------------------------------------
-# Sanity: full vision-embedding pipeline (CPU vs TT)
+# 1. Vision embed only
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
 def test_deepseek_ocr_vision_embed_pipeline(model_and_inputs):
     """
     Full vision-embedding pipeline (embed + SAM + CLIP + project + scatter)
     on TT device vs CPU.
-    This replicates everything inside DeepseekOCRModel.forward before
-    super().forward() is called, using real pretrained weights and
-    the same sample image input as the whole-model run.
-    Expected shapes from CPU log:
-      input:  input_ids [1,913], patches [6,3,640,640],
-              image_ori [1,3,1024,1024], images_seq_mask [1,913],
-              images_spatial_crop [1,2]
-      output: (inputs_embeds [1,913,1280], attention_mask, position_ids,
-               past_key_values)
     """
     pipeline, inputs = model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
 
 
 # ---------------------------------------------------------------------------
-# Sanity: OCR forward + V2 setup before decoder layers (CPU vs TT)
+# 2. Vision embed + pre-decoder (pos IDs, attn mask)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
 def test_deepseek_ocr_pre_decoder(pre_decoder_model_and_inputs):
     """
     Vision-embedding pipeline + V2 forward setup (position IDs, 4-D causal
     attention mask) — everything up to but NOT including the decoder layer
-    loop.  If this hangs, the attention-mask / position-id computation on
-    TT device is the culprit.
+    loop.
     """
     pipeline, inputs = pre_decoder_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
 
 
 # ---------------------------------------------------------------------------
-# Sanity: OCR forward + V2 setup + 1 decoder layer (CPU vs TT)
+# 3. Vision embed + pre-decoder + layer 0 only (dense)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_deepseek_ocr_single_decoder_layer(single_decoder_layer_model_and_inputs):
+def test_deepseek_ocr_layer0_only(layer0_only_model_and_inputs):
     """
-    Vision-embedding pipeline + V2 setup + first decoder layer only.
-    If this completes but the full 30-layer pass hangs, the issue is with
-    stacking multiple decoder layers (e.g. growing memory / graph size),
-    not with a single decoder layer in isolation.
+    Vision-embedding pipeline + V2 setup + layer 0 only (DeepseekV2MLP, dense).
+    Baseline: layer 0 is the only dense layer — should pass (~3 min).
     """
-    pipeline, inputs = single_decoder_layer_model_and_inputs
+    pipeline, inputs = layer0_only_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
 
 
 # ---------------------------------------------------------------------------
-# Sanity: full model single forward pass (CPU vs TT)
+# 4. Vision embed + pre-decoder + layer 1 only (first MoE, skip layer 0)
+# ---------------------------------------------------------------------------
+@pytest.mark.single_device
+def test_deepseek_ocr_layer1_only(layer1_only_model_and_inputs):
+    """
+    Vision-embedding pipeline + V2 setup + layer 1 only (DeepseekV2MoE,
+    64 routed experts, top-6).  Skips layer 0 entirely.
+    If this hangs, the MoE layer itself is the culprit, independent of
+    chaining with the dense layer.
+    """
+    pipeline, inputs = layer1_only_model_and_inputs
+    run_op_test(pipeline, inputs, framework=Framework.TORCH)
+
+
+# ---------------------------------------------------------------------------
+# 5. Vision embed + pre-decoder + layer 0 + layer 1 (dense + MoE)
+# ---------------------------------------------------------------------------
+@pytest.mark.single_device
+def test_deepseek_ocr_layer0_and_1(layer0_and_1_model_and_inputs):
+    """
+    Vision-embedding pipeline + V2 setup + layers 0-1 (dense + first MoE).
+    Known to hang (~10+ min).  Confirms chaining dense + MoE reproduces
+    the hang.
+    """
+    pipeline, inputs = layer0_and_1_model_and_inputs
+    run_op_test(pipeline, inputs, framework=Framework.TORCH)
+
+
+# ---------------------------------------------------------------------------
+# 6. Full model single pass (all 12 decoder layers + norm)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
 def test_deepseek_ocr_full_single_pass(full_single_pass_model_and_inputs):
     """
-    Full model: OCR forward + all 30 decoder layers + RMS norm.
+    Full model: OCR forward + all 12 decoder layers + RMS norm.
     Single forward pass only (no autoregressive generation loop).
-    If this completes but the full generation hangs, the issue is in the
-    multi-iteration autoregressive loop, not in a single pass through the
-    decoder stack.
+    Tells whether the hang is layer-1-specific (MoE) or scales with
+    layer count.
     """
     pipeline, inputs = full_single_pass_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
