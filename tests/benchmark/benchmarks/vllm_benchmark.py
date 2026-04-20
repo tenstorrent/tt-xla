@@ -13,9 +13,7 @@ from utils import (
     print_benchmark_results,
 )
 
-DEFAULT_PROMPT = (
-    "Here is an exhaustive list of the best practices for writing clean code:"
-)
+DEFAULT_PROMPT = "Tell me a short story about a fox and a river."
 
 
 @dataclass
@@ -34,6 +32,10 @@ class VLLMBenchmarkConfig:
     batch_size: int = 1
     max_tokens: int = 128
     warmup_iterations: int = 1
+
+    # Sampling params (temperature=0.0 → greedy)
+    temperature: float = 0.0
+    repetition_penalty: float = 1.0
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
@@ -167,9 +169,22 @@ def benchmark_vllm(
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
     prompts = [DEFAULT_PROMPT] * config.batch_size
+    # sampling_kwargs = dict(
+    #     max_tokens=config.max_tokens,
+    #     ignore_eos=True,
+    #     temperature=config.temperature,
+    #     top_p=config.top_p,
+    # )
+    # Alternative
     sampling_params = vllm.SamplingParams(
-        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.0
+        max_tokens=config.max_tokens,
+        ignore_eos=True,
+        temperature=config.temperature,
+        repetition_penalty=config.repetition_penalty,
     )
+    # if config.repetition_penalty != 1.0:
+    #     sampling_kwargs["repetition_penalty"] = config.repetition_penalty
+    # sampling_params = vllm.SamplingParams(**sampling_kwargs)
 
     llm = _create_llm(config)
 
@@ -181,6 +196,10 @@ def benchmark_vllm(
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
     outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+
+    # Print generated text for output quality inspection
+    for i, output in enumerate(outputs):
+        print(f"  [{i}] {output.prompt!r} → {output.outputs[0].text!r}")
 
     # Assert decode is consistent
     _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
