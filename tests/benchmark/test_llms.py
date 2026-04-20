@@ -61,6 +61,7 @@ def test_llm(
     weight_dtype_overrides: dict = None,
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
+    per_user_prompts=None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -154,6 +155,7 @@ def test_llm(
         weight_dtype_overrides=weight_dtype_overrides,
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
+        per_user_prompts=per_user_prompts,
     )
 
     if output_file:
@@ -1459,6 +1461,142 @@ def test_llama_3_1_70b_tp(
     )
 
 
+# Distinct per-user prompts for GPT-OSS (MoE) benchmarks. Replicating the same
+# input across users collapses expert routing; these are tokenized and padded
+# to PER_USER_PROMPT_LEN inside the benchmark.
+_GPT_OSS_PER_USER_QUESTIONS = [
+    "What is the capital of France, and why has it remained the political center for centuries? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "Can you explain how a transformer decides which tokens to attend to during self-attention? I'd love an answer that goes beyond the basics, covers all the main ideas, and includes a few concrete examples.",
+    "What are the main differences between classical and quantum mechanics in terms of predictability? Please explain it step by step in a way a curious reader can follow, with clear, concrete, and helpful examples.",
+    "How does photosynthesis convert sunlight into chemical energy inside a plant cell at the molecular level? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "Why do onions make people cry when chopped, and what is a reliable way to prevent it? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What caused the fall of the Western Roman Empire, and which factors do historians weight most heavily? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "How do modern GPUs achieve such high floating-point throughput compared to general-purpose CPUs today? I'd love an answer that goes beyond the basics, covers all the main ideas, and includes a few concrete examples.",
+    "What is the Monty Hall problem, and why does switching doors actually improve the chance of winning? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How does sourdough bread get its sour flavor, and what role do wild yeasts play in the process? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "What is the difference between TCP and UDP, and when would you pick one over the other? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "Why is the sky blue during the day but often red or orange at sunset, optically speaking? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do black holes form, and what happens to matter that crosses the event horizon from outside? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What is the role of mitochondria in eukaryotic cells, and why are they called the powerhouse of the cell? Please explain it step by step in a way a curious reader can follow.",
+    "Can you walk me through how HTTPS establishes a secure connection between a browser and a server? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "What are the main reasons Japan developed such a distinctive tea ceremony tradition over the centuries? I'd love an answer that goes beyond the basics, covers all the main ideas, and includes a few concrete examples.",
+    "How do vaccines train the immune system, and why do some vaccines require booster shots to stay effective? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What distinguishes a compiler from an interpreter, and are there languages that blur the line between them? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "Why do some bridges collapse under resonance, and what engineering practices help prevent this from happening? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "How does caffeine affect the brain, and why does its stimulating effect differ so much from person to person? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the significance of the Rosetta Stone in the history of decoding ancient Egyptian hieroglyphs? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How do modern recommender systems balance exploration and exploitation when suggesting items to their users? I'd love an answer that goes beyond the basics, covers all the main ideas, and includes a few concrete examples.",
+    "What causes rainbows, and why do they always appear opposite the sun with a specific angular radius? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "Why did the Industrial Revolution start in Britain rather than in other parts of Europe at the time? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "How do refrigerators actually move heat from inside to outside, and what role does the refrigerant play? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is dynamic programming, and which kinds of problems is it particularly well suited to solve efficiently? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "How does the human eye perceive color, and why do some people see colors differently from one another? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is the difference between a virus, a worm, and a Trojan horse in computer security terms? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How did Charles Darwin arrive at the theory of evolution by natural selection, and who influenced him most? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What makes a chess engine like Stockfish so strong, and how does it evaluate positions at great depth? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "Why are some materials superconductors at low temperatures, and what practical applications does this enable? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "How do hurricanes form over warm ocean water, and what determines how intense they eventually become? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "What is the traveling salesman problem, and why is it such a famously hard problem in computer science? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How did the printing press change European society in the 15th and 16th centuries, culturally and politically? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "What is the reason many birds fly in a V-formation, and how does it help with long-distance travel? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "How do antibiotics work at the cellular level, and why is antibiotic resistance such a growing concern? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What is the Fourier transform, and why does it show up in so many different engineering and physics problems? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How do tides work, and why does the moon have a larger effect than the more massive but distant sun? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "What is the purpose of dark matter in cosmology, and what evidence do scientists have for its existence? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does a combustion engine convert the chemical energy in gasoline into mechanical motion for the wheels? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "What is the Turing test, and why do many researchers now consider it a less useful benchmark than it once was? I'd love an answer that goes beyond the surface and includes a few illustrative examples.",
+    "How do bees communicate the location of food sources to other bees inside the hive with their waggle dance? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What factors led to the decline of the Ottoman Empire in the 19th and early 20th centuries over time? I'd love an answer that goes beyond the surface and includes a few illustrative examples.",
+    "How does a solid-state drive differ internally from a traditional spinning hard disk drive in architecture? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "What is the difference between machine learning, deep learning, and classical statistics in applied practice? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "How does the human body regulate its internal temperature when external conditions change dramatically? I'd love an answer that goes beyond the basics, covers all the main ideas clearly, and includes several concrete and illustrative examples.",
+    "What is the origin of the English language, and how has it absorbed vocabulary from so many other languages? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How do satellites maintain a stable orbit around Earth, and what makes geostationary orbit so special? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the role of enzymes in biological reactions, and why are they so specific to particular substrates? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do modern databases implement transactions, and what do the ACID guarantees actually mean in practice? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "Why do earthquakes happen along certain faults, and how do seismologists estimate magnitudes after an event? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the philosophical debate between free will and determinism, and how do neuroscientists weigh in today? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How does a cryptocurrency like Bitcoin reach consensus about the true state of its distributed ledger? I'd love an answer that goes beyond the basics, covers all the main ideas, and includes a few concrete examples.",
+    "What is the reason leaves change color in autumn, and why does the timing vary so much by region? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does the immune system distinguish between the body's own cells and foreign pathogens most of the time? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What is the Doppler effect, and how do astronomers use it to measure the motion of distant stars and galaxies? I'd love an answer that goes beyond the surface and includes a few illustrative examples.",
+    "Why did the Silk Road become such an important trade route, and which goods and ideas traveled along it? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does a modern jet engine generate thrust, and what are the thermodynamic stages it uses internally? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is the P versus NP problem, and why is it still unsolved after so many decades of intense research? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "How does mindfulness meditation affect the brain over time, and what does current neuroimaging research show? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What causes thunderstorms, and why is lightning sometimes seen without the accompanying sound of thunder? I'd love an answer that goes beyond the basics, covers all the main ideas, and includes a few concrete examples.",
+    "How do magicians use misdirection to create the illusion of impossible events even for attentive audiences? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What is the reason that most of the observable universe is expanding away from us at accelerating rates? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "How do musical instruments like violins produce such rich, complex tones from a vibrating string and bow? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is reinforcement learning, and how does an agent balance short-term reward with long-term strategy? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "How did the Great Library of Alexandria come to be, and what happened to the knowledge it once contained? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "Why do some countries drive on the left side of the road while others drive on the right, historically? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does a lithium-ion battery store and release energy, and what causes it to slowly degrade over cycles? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the difference between correlation and causation, and why do people confuse them so often in practice? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How do octopuses solve puzzles, and what does their nervous system tell us about the evolution of intelligence? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "What is the theory of plate tectonics, and how did it revolutionize our understanding of the surface of Earth? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "How do search engines rank web pages, and how has the approach evolved from early keyword matching to today? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "Why does bread rise when yeast is added, and what happens chemically during the baking process in the oven? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the history of the Olympic Games, and how have they changed from their ancient Greek origins to today? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How do noise-cancelling headphones cancel sound using tiny microphones and real-time signal processing? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "What is the significance of the discovery of the Higgs boson, and how does it relate to the masses of particles? Please explain it step by step in a way a curious reader can follow.",
+    "How do coral reefs form, and why are they such important ecosystems despite occupying a small fraction of ocean? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the Byzantine Generals Problem, and why is it a useful abstraction for understanding distributed systems? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do cats communicate with humans, and which behaviors appear to have evolved specifically for that purpose? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What led to the start of World War I, and how did alliances turn a regional crisis into a global conflict? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "How does a quantum computer differ from a classical computer, and what kinds of problems can it solve faster? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "Why is pi considered such an important mathematical constant, and where does it show up outside of geometry? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do vaccines get designed and tested, from initial discovery through clinical trials and eventual approval? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "What is the Great Filter hypothesis, and how does it relate to the Fermi paradox about extraterrestrial life? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How do sound waves travel through air, water, and solids differently, and what governs their speed in each? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "What is the role of the hippocampus in forming long-term memories, and what happens when it is damaged? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How did ancient Egyptians build the great pyramids at Giza, and which theories are currently best supported? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the difference between static and dynamic typing in programming languages, and what are the trade-offs? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do gears in a transmission multiply torque, and why do electric vehicles usually need so few of them? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the reason some perfumes last much longer on the skin than others, in terms of chemistry and evaporation? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How do sports like tennis and basketball use advanced analytics now, and how have coaches adapted strategies? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What causes the northern lights, and why are they more commonly seen near the magnetic poles of the Earth? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does a microphone convert sound into an electrical signal, and how do different designs change the output? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is the history of paper money, and why did it eventually replace commodity-based forms of currency? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do antidepressant medications work, and why do they often take several weeks to show a therapeutic effect? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the difference between supervised and unsupervised learning, and when is each approach more appropriate? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do astronauts train for life on the International Space Station, including handling emergencies in microgravity? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What is the reason some languages are read right to left while most European languages are read left to right? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does the stock market price of a company reflect the collective beliefs of investors about its future? Please explain it step by step in a way a curious reader can follow, with clear and concrete examples.",
+    "What is the origin of the universe according to the Big Bang model, and how do we know what happened long ago? I'd love an answer that goes beyond the surface and includes a few illustrative examples.",
+    "How does yeast-based brewing of beer differ from wine fermentation in terms of inputs, microbes, and conditions? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What is the philosophy behind test-driven development, and in what contexts is it most effective for engineers? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do dogs interpret human emotions, and how has their co-evolution with humans shaped their social behavior? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "What caused the Great Depression of the 1930s, and how did government responses shape modern economic policy? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How do compilers perform optimizations like inlining and loop unrolling, and when do these actually help performance? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "What is the structure and function of DNA, and how did Watson and Crick combine ideas to propose the double helix? Please explain it step by step in a way a curious reader can follow.",
+    "How do telescopes observe objects billions of light-years away, and what does that mean about looking back in time? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "What is the reason some people are left-handed, and what does research suggest about possible genetic influences? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do ride-sharing apps match drivers to riders in real time, and what algorithms make the overall system efficient? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "What is the story of Joan of Arc, and why does she remain such a powerful figure in French national memory today? I'd love an answer that goes beyond the surface and includes a few illustrative examples.",
+    "How do hormones coordinate activity between distant parts of the body, using the bloodstream as a delivery system? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is the history of the calendar, and why do we have exactly twelve months of varying lengths in the Gregorian one? I'd love an answer that goes beyond the surface and includes a few illustrative examples.",
+    "How does cryptography use large prime numbers to make certain problems practically impossible to solve by brute force? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is the reason some animals hibernate in winter, and how does their metabolism change to conserve energy then? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How do wind turbines convert moving air into electricity, and what factors limit their efficiency in practice today? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is the difference between weather and climate, and why is distinguishing between them important for public policy? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "How do video game engines render three-dimensional worlds in real time, and what tricks do they use to save work? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "What is the Cambrian explosion, and why is that period so important in the overall history of life on Earth? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "How do modern airplanes generate lift, and what role do the flaps, slats, and ailerons play during different phases? I'd love an answer that goes beyond the surface and includes examples.",
+    "What is the reason traditional Japanese architecture often uses wood rather than stone, historically and culturally? I'd love an answer that goes beyond the basics, covers the main ideas, and includes a few concrete examples.",
+    "How do allergies work, and why does the immune system sometimes overreact to harmless substances like pollen? Please explain it step by step in a way a curious reader can really follow, with concrete examples.",
+    "What is the concept of opportunity cost in economics, and how can it change decisions that seem purely financial? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How do spiders produce silk, and why is spider silk often compared favorably to steel by weight in material science? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "What led to the European Enlightenment, and how did it shape modern ideas about government and individual rights? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does a microwave oven heat food, and why does it sometimes warm things unevenly or struggle with frozen items? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+    "What is the role of sleep in memory consolidation, and what happens cognitively when people are chronically deprived? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "How do self-driving cars combine cameras, lidar, and radar to build a model of their surroundings while moving? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "What is the mathematical concept of infinity, and why are there different sizes of infinity according to set theory? I'd love an answer that goes beyond the basics and includes a few concrete and clearly illustrative examples.",
+    "How does a vaccine mRNA platform like the one used for COVID-19 differ from older vaccine technologies fundamentally? I'd love an answer that goes beyond the basics and includes a few concrete, illustrative examples.",
+    "What is the history of the internet, and how did early research networks evolve into the global system we use today? I'd love an answer that goes beyond the surface and really includes a few illustrative examples.",
+]
+
+
 # Use 1x8 shard specs for gpt-oss-20b until https://github.com/tenstorrent/tt-xla/issues/3490 is resolved.
 def _gpt_oss_20b_mesh_config_fn(model_loader, num_devices):
     return (1, num_devices), ("batch", "model")
@@ -1509,6 +1647,7 @@ def test_gpt_oss_20b_tp(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
+        per_user_prompts=None if accuracy_testing else _GPT_OSS_PER_USER_QUESTIONS,
     )
 
 
@@ -1539,6 +1678,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
+        per_user_prompts=None if accuracy_testing else _GPT_OSS_PER_USER_QUESTIONS,
     )
 
 
@@ -1600,6 +1740,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
+        per_user_prompts=None if accuracy_testing else _GPT_OSS_PER_USER_QUESTIONS,
     )
 
 
@@ -1638,6 +1779,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
         required_pcc=0.93,
+        per_user_prompts=None if accuracy_testing else _GPT_OSS_PER_USER_QUESTIONS,
     )
 
 
@@ -1715,6 +1857,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+        per_user_prompts=None if accuracy_testing else _GPT_OSS_PER_USER_QUESTIONS,
     )
 
 
@@ -1778,4 +1921,5 @@ def test_gpt_oss_120b_tp_qb2(
         required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
         mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
         # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+        per_user_prompts=None if accuracy_testing else _GPT_OSS_PER_USER_QUESTIONS,
     )
