@@ -1351,6 +1351,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            logger.info(
+                f"input_ids_run: {input_ids.shape} -- {input_ids[0, :].to('cpu')}"
+            )
             logger.info(f"hidden_states shape: {hidden_states.shape}")
             logger.info(f"hidden_states: {hidden_states.to('cpu')[0, :, :]}")
             # sys.exit(0)
@@ -1412,6 +1415,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logger.info(
                 f"selected_token_ids shape: {selected_token_ids.shape} -- {selected_token_ids.to('cpu')}"
             )
+            # sys.exit(0)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
