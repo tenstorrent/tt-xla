@@ -16,6 +16,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
+from tests.infra.testers.compiler_config import CompilerConfig
 
 from .shared import RESOLUTIONS, load_vae, shard_vae_decoder_specs, wan22_mesh
 
@@ -49,7 +50,7 @@ def test_vae_decoder_720p_sharded():
 
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
-    torch_xla.set_custom_compile_options({"optimization_level": 1})
+    compiler_config = CompilerConfig(optimization_level=1)
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
 
@@ -73,5 +74,6 @@ def _run(resolution: str, sharded: bool):
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
+        compiler_config=compiler_config,
         comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.99)),
     )
