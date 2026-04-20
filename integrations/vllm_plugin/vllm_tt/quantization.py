@@ -128,7 +128,7 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         w13_weight_scale.weight_loader = create_tt_weight_loader()
 
         w13_bias = nn.Parameter(
-            torch.empty(num_experts, 2 * intermediate_size, dtype=params_dtype),
+            torch.empty(num_experts, 2 * intermediate_size, dtype=torch.bfloat16),
             requires_grad=False,
         )
         w13_bias.weight_loader = create_tt_weight_loader()
@@ -155,7 +155,7 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         w2_weight_scale.weight_loader = create_tt_weight_loader()
 
         w2_bias = nn.Parameter(
-            torch.empty(num_experts, intermediate_size, dtype=params_dtype),
+            torch.empty(num_experts, intermediate_size, dtype=torch.bfloat16),
             requires_grad=False,
         )
         w2_bias.weight_loader = create_tt_weight_loader()

@@ -270,13 +270,13 @@ def partition_vocab_parallel_embedding(
 def partition_vllm_a2a_sparse_mlp(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
-    logger.info(f"Partitioning A2aSparseMLP: {layer}")
+    # logger.info(f"Partitioning A2aSparseMLP: {layer}")
     assert isinstance(layer, A2aSparseMLP)
     logger.debug("Applied parallel sharding to %s", layer)
-    logger.info(f"layer: {layer}")
-    logger.info(f"layer.experts: {layer.experts}")
+    # logger.info(f"layer: {layer}")
+    # logger.info(f"layer.experts: {layer.experts}")
     # logger.info(f"layer.experts.weights: {layer.experts.weights}")
-    logger.info(f"Sharding expert dimensions across mesh {mesh}")
+    # logger.info(f"Sharding expert dimensions across mesh {mesh}")
     # Shard expert dimension (first dim) across 'model' axis
     xs.mark_sharding(layer.experts.gate_up_proj, mesh, (("batch", "model"), None, None))
     xs.mark_sharding(layer.experts.gate_up_proj_bias, mesh, (("batch", "model"), None))

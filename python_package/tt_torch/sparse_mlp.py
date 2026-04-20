@@ -434,10 +434,6 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
         try:
             # Access FusedMoE's quant_method which holds the actual weights
             quant_method = self._fused_moe.quant_method
-            print(f"FusedMoE quant_method type: {type(quant_method)}")
-            print(
-                f"quant_method attributes: {[attr for attr in dir(quant_method) if not attr.startswith('_')]}"
-            )
 
             # Handle TTMxfp4MoEMethod specifically
             if hasattr(quant_method, "w13_weight"):
@@ -582,15 +578,9 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
         Returns:
             (E, dim1, H) decoded bfloat16 tensor where H = packed_dim * 2
         """
-        print(
-            f"[FusedMoEWrapper] Decoding MXFP4 weight: {weight.shape}, scale: {scale.shape}"
-        )
 
         # Step 1: Unpack 4-bit values to E2M1 float32 (following vLLM)
         unpacked = self._unpack_mxfp4(weight)  # (E, dim1, H) where H = packed_dim * 2
-        print(
-            f"[FusedMoEWrapper] Unpacked shape: {unpacked.shape}, dtype: {unpacked.dtype}"
-        )
 
         # Step 2: Apply block-wise scaling with proper E8M0 scale handling
         decoded = self._apply_block_scale(unpacked, scale, block_size)
@@ -598,9 +588,6 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
         # Step 3: Convert to target dtype
         decoded = decoded.to(torch.bfloat16)
 
-        print(
-            f"[FusedMoEWrapper] Decoded weight shape: {decoded.shape}, dtype: {decoded.dtype}"
-        )
         return decoded
 
     def _convert_gate_up_proj(
@@ -621,7 +608,6 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
 
         # Decode MXFP4 → (E, D, H)
         w = self._decode_mxfp4(w13_weight, w13_scale)
-        print(f"[FusedMoEWrapper] Decoded gate_up_proj shape: {w.shape}")
 
         # vLLM stores fused gate+up as (E, 2*D, H)
         # Reshape to fused format
@@ -727,7 +713,7 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
             if "gate_up" in found:
                 gate_up_weight = found["gate_up"]
                 print(
-                    f"[FusedMoEWrapper] Found gate_up weight: {gate_up_weight.shape}, dtype: {gate_up_weight.dtype}"
+                    f"[FusedMoEWrapper] Found gate_up weight: {gate_up_weight.shape}, dtype: {gate_up_weight.dtype} -- {gate_up_weight}"
                 )
 
                 # Check for MXFP4 scale tensor and decode if found
@@ -1576,7 +1562,6 @@ def _is_moe_mlp(module: nn.Module) -> bool:
 def _get_moe_config(module: nn.Module) -> Optional[tuple]:
     """Extract MoE configuration from a module."""
     try:
-        print(f"Attempting to extract MoE config from module {module}")
         num_experts = None
         # Try to get from experts
         if hasattr(module, "experts"):
@@ -1584,34 +1569,16 @@ def _get_moe_config(module: nn.Module) -> Optional[tuple]:
             num_experts = getattr(experts, "num_experts", None)
             if num_experts is None:
                 num_experts = getattr(experts, "global_num_experts", None)
-            print(f"Extracted num_experts from experts: {num_experts}")
-            print(f"hasattr(experts, 'gate_proj'): {hasattr(experts, 'gate_proj')}")
-            print(
-                f"hasattr(experts, 'gate_up_proj'): {hasattr(experts, 'gate_up_proj')}"
-            )
-            print(
-                f"gate_up_proj shape: {hasattr(experts, 'w13_weight') and experts.w13_weight.shape if hasattr(experts, 'w13_weight') else 'N/A'}"
-            )
-            print(
-                f"check-1: {hasattr(experts, 'w13_weight')} -- {hasattr(experts, '.w13_weigth')}"
-            )
             if num_experts is None and hasattr(experts, "gate_proj"):
                 num_experts = experts.gate_proj.shape[0]
             elif num_experts is None and hasattr(experts, "gate_up_proj"):
                 num_experts = experts.gate_up_proj.shape[0]
 
-        print(f"Extracted num_experts: {num_experts}")
-        print(f"Attempting to extract num_experts_per_tok from router/gate")
-        print(f"hasattr(module, 'router'): {hasattr(module, 'router')}")
-        print(f"expert.topk: {hasattr(experts, 'top_k')}")
         # Try to get num_experts_per_tok from router
         if hasattr(module, "router"):
             router = module.router
             num_experts_per_tok = getattr(router, "top_k", None)
             if hasattr(experts, "top_k"):
-                print(
-                    f"Extracting num_experts_per_tok from experts.top_k: {experts.top_k}"
-                )
                 num_experts_per_tok = experts.top_k
             elif num_experts_per_tok is None:
                 num_experts_per_tok = getattr(router, "num_experts_per_tok", 2)
@@ -1619,9 +1586,6 @@ def _get_moe_config(module: nn.Module) -> Optional[tuple]:
             num_experts_per_tok = 2  # Default
 
         if num_experts is not None:
-            print(
-                f"Successfully extracted MoE config: num_experts={num_experts}, num_experts_per_tok={num_experts_per_tok}"
-            )
             return (num_experts, num_experts_per_tok)
     except Exception:
         pass
@@ -1648,10 +1612,6 @@ def enable_sparse_mlp(
 
     num_devices = mesh[0] * mesh[1]
     dispatch_devices = mesh[cluster_axis]
-    print(
-        f"dispatch_devices: {dispatch_devices}, num_devices: {num_devices}, cluster_axis: {cluster_axis}",
-        flush=True,
-    )
 
     def replace_mlp(parent: nn.Module, name: str, module: nn.Module):
         nonlocal replaced_count
@@ -1659,13 +1619,8 @@ def enable_sparse_mlp(
         should_replace = False
         if target_classes:
             should_replace = any(isinstance(module, cls) for cls in target_classes)
-            print(f"module {module}")
-            print(
-                f"Checking {name} against target classes: {should_replace}", flush=True
-            )
         else:
             should_replace = _is_moe_mlp(module)
-            print(f"Checking {name} for MoE MLP patterns: {should_replace}", flush=True)
 
         if not should_replace:
             return False
@@ -1702,30 +1657,19 @@ def enable_sparse_mlp(
 
         # Wrap fused experts (e.g. GptOssExperts or FusedMoE) with appropriate wrapper
         # so they have sparse_forward() like StackedExperts
-        print(f'hasattr(module, "experts")={hasattr(module, "experts")}')
-        print(
-            f'hasattr(module.experts, "gate_up_proj")={hasattr(module.experts, "gate_up_proj")}'
-        )
-        print(
-            f'hasattr(module.experts, "sparse_forward")={hasattr(module.experts, "sparse_forward")}'
-        )
-        print(f"type(module.experts).__name__={type(module.experts).__name__}")
         if (
             hasattr(module, "experts")
             and hasattr(module.experts, "gate_up_proj")
             and not hasattr(module.experts, "sparse_forward")
         ):
-            print(f"Applying FusedExpertsWrapper to {name} with gate_up_proj")
             module.experts = FusedExpertsWrapper(module.experts)
         elif (
             hasattr(module, "experts")
             and type(module.experts).__name__ == "FusedMoE"
             and not hasattr(module.experts, "sparse_forward")
         ):
-            print(f"Applying FusedMoEWrapper to {name} with FusedMoE experts")
             # Handle vLLM's FusedMoE specifically
             module.experts = FusedMoEWrapper(module.experts)
-            print(f"Wrapped FusedMoE experts for {name}")
 
         sparse_mlp = A2aSparseMLP(
             module,
