@@ -2212,7 +2212,6 @@ test_config:
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/3379"
 
   gemma/codegemma/pytorch-2B-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-Tinyllama_v1.1-single_device-inference:
@@ -2651,7 +2650,6 @@ test_config:
 
   gemma3/causal_lm/pytorch-1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3860 - AssertionError: PCC comparison failed. Calculated: pcc=0.955831792289353. Required: pcc=0.99
 
   gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
