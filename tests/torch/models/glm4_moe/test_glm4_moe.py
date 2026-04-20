@@ -118,7 +118,7 @@ def test_glm4_moe_layer_sparse_moe(batch_size, seq_len):
 
     run_graph_test(
         layer,
-        [hidden_states, None, position_ids, None, False, None, (cos, sin)],
+        [hidden_states, None, position_ids, None, False, (cos, sin)],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
