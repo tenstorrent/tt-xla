@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 # Starts a privileged multihost Docker container with required device mounts.
+
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 readonly DOCKER_IMAGE="${1:-}"

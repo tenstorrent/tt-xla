@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Filters an MPI hostfile by removing the controller host entry.
 
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
 set -euo pipefail
 
 readonly SOURCE_HOSTFILE="${1:-/etc/mpirun/hostfile}"
