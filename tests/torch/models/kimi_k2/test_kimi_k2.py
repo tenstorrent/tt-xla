@@ -100,8 +100,15 @@ def test_kimi_k2_attention_prefill():
         device="cpu",
         dtype=torch.bfloat16,
     )
+    for cache_layer in static_cache.layers:
+        cache_layer.lazy_initialization(
+            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
+            torch.zeros(
+                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
+            ),
+        )
     past_key_states = static_cache
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    cache_positions = torch.arange(seq_len, dtype=torch.long)
     position_ids = torch.arange(seq_len).unsqueeze(0)
 
     def get_shard_spec(attention, args, kwargs):
@@ -344,7 +351,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     attention_mask = torch.rand(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
     )
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    cache_positions = torch.arange(seq_len, dtype=torch.long)
     num_devices = xr.global_runtime_device_count()
     mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
@@ -359,6 +366,13 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
         device="cpu",
         dtype=torch.bfloat16,
     )
+    for cache_layer in static_cache.layers:
+        cache_layer.lazy_initialization(
+            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
+            torch.zeros(
+                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
+            ),
+        )
     past_key_states = static_cache
 
     num_devices = xr.global_runtime_device_count()
