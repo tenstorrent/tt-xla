@@ -465,6 +465,12 @@ class A2aSparseMLP(nn.Module):
         # When True, uses dense torch.matmul instead of sparse_matmul.
         # Skips remap (no sparsity mask needed). Demo-style approach.
         self.use_dense_matmul = False
+        # When True, uses the corrected down-proj reshape (permute E to front
+        # directly from `activated` instead of the buggy view-swap dance).
+        # Old path scrambles the (E, M) axes via `permute(0,1,3,2,4).reshape(
+        # dim_a*dim_b*M, E, I)` which doesn't preserve semantics. New tests
+        # set this True; existing callers keep the legacy behaviour.
+        self.correct_down_proj_reshape = False
 
         # Keep original MLP for CPU golden path.
         # cpu_forward_module overrides original_mlp when the adapter wrapping
@@ -617,27 +623,43 @@ class A2aSparseMLP(nn.Module):
                     activated = (up_out + 1) * glu
 
             # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
-            act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
-                dim_a * dim_b * M, E, self.intermediate_size
-            )
-            act_per_expert = act_per_expert.permute(
-                1, 0, 2
-            )  # [E, dim_a*dim_b*M, inter]
-            down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-            down_out = torch.bmm(
-                act_per_expert, down_per_expert
-            )  # [E, dim_a*dim_b*M, H]
-            down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
-            down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
+            if self.correct_down_proj_reshape:
+                # Put E to front first, then flatten (dim_a, dim_b, M) to T.
+                # activated: [dim_a, dim_b, M, E, inter] → [E, T, inter]
+                act_per_expert = activated.permute(3, 0, 1, 2, 4).reshape(
+                    E, dim_a * dim_b * M, self.intermediate_size
+                )
+                down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
+                down_out = torch.bmm(
+                    act_per_expert, down_per_expert
+                )  # [E, T, H]
+                if down_bias is not None:
+                    down_out = down_out + down_bias[:, None, :]
+                down_out = down_out.view(E, 1, BD * seq_len, hidden_size)
+            else:
+                # Legacy path — keeps the prior (buggy) E↔M reshape behaviour
+                # so existing demo-style tests continue to match.
+                act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
+                    dim_a * dim_b * M, E, self.intermediate_size
+                )
+                act_per_expert = act_per_expert.permute(
+                    1, 0, 2
+                )  # [E, dim_a*dim_b*M, inter]
+                down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
+                down_out = torch.bmm(
+                    act_per_expert, down_per_expert
+                )  # [E, dim_a*dim_b*M, H]
+                down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
+                down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
 
-            # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
-            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
-            if down_bias is not None:
-                down_out = down_out + down_bias
-            # E to front, merge all spatial dims into one token dim
-            down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
-            down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
+                # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
+                down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
+                down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
+                if down_bias is not None:
+                    down_out = down_out + down_bias
+                # E to front, merge all spatial dims into one token dim
+                down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
+                down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
 
         else:
             # ===== Fused moe_expert_token_remap path =====

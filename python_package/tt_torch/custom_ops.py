@@ -1308,8 +1308,11 @@ def _a2a_dispatch_backward(ctx, grad_dispatched, grad_metadata):
     # combine needs SPMD + proper mesh sharding; without them the TTNN
     # kernel crashes in fabric setup. Fall back to the math adjoint whenever
     # we're on CPU, num_devices==1, or SPMD isn't enabled on this run.
+    import os as _os
     _use_combine = False
-    if D > 1 and grad_dispatched.device.type == "xla":
+    if D > 1 and grad_dispatched.device.type == "xla" and _os.environ.get(
+        "TT_DISPATCH_BWD_USE_COMBINE", "1"
+    ) != "0":
         try:
             import torch_xla.runtime as _xr  # local import — avoid at module top
 
