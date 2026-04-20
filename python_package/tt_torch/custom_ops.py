@@ -1519,13 +1519,16 @@ def _a2a_combine_setup_context(ctx, inputs, output):
     #          cluster_axis, num_experts_per_tok, output_shard_dim)
     input_tensor = inputs[0]
     expert_metadata = inputs[1]
+    expert_mapping = inputs[2]
     num_devices = inputs[3]
+    cluster_axis = inputs[4]
     K = inputs[5]
     output_shard_dim = inputs[6]
 
-    ctx.save_for_backward(expert_metadata)
+    ctx.save_for_backward(expert_metadata, expert_mapping)
     ctx.input_shape = tuple(input_tensor.shape)
     ctx.num_devices = int(num_devices)
+    ctx.cluster_axis = int(cluster_axis)
     ctx.K = int(K)
     ctx.output_shard_dim = int(output_shard_dim)
 
@@ -1533,25 +1536,32 @@ def _a2a_combine_setup_context(ctx, inputs, output):
 def _a2a_combine_backward(ctx, grad_combined):
     """Adjoint of all_to_all_combine.
 
-    Forward: combined[k, tok, :] = input_flat[metadata[tok, k], tok, :] * valid(tok, k).
-    Adjoint: d_input_flat[e, tok, :] = sum_{k: metadata[tok, k]==e and valid} d_combined[k, tok, :].
+    Forward semantics (per device d, with tpd = BD*S / D tokens on d):
+        combined[k, tok_local, :] = input[metadata[d*tpd+tok_local, k],
+                                          d*tpd+tok_local, :]
+    Adjoint (scatter into input-space):
+        d_input[metadata[d*tpd+tok_local, k], d*tpd+tok_local, :]
+            += grad_combined[k, tok_local, :]
 
-    Implemented with torch's native scatter_add — no new custom op is
-    introduced. On multi-chip hardware the compiler is responsible for
-    inserting the appropriate cross-device collective if the expert dim is
-    sharded; under replicated execution the scatter is self-contained per
-    chip and produces the same result everywhere.
+    XLA + SPMD path: the adjoint is naturally expressed as
+    ``tt.all_to_all_dispatch`` — for each k we route grad_combined[k, :, :]
+    from the owning-token device to the device that holds metadata[..., k].
+    That mirrors how ``_a2a_dispatch_backward`` uses combine.
+
+    CPU / single-device: fall back to a local ``scatter_add_`` that realises
+    the same math without any cross-device collective.
     """
-    (expert_metadata,) = ctx.saved_tensors
+    expert_metadata, expert_mapping = ctx.saved_tensors
     input_shape = ctx.input_shape
-    num_devices = ctx.num_devices
+    D = ctx.num_devices
+    cluster_axis = ctx.cluster_axis
     K = ctx.K
     output_shard_dim = ctx.output_shard_dim
 
     E_local = input_shape[0]
-    tokens = expert_metadata.shape[2]
+    tokens_total = expert_metadata.shape[2]  # BD*S
     H = input_shape[-1]
-    tokens_per_device = tokens // num_devices
+    tpd = tokens_total // D  # B*S per device
 
     # Undo shard_dim insertion from forward to recover [K, tpd, H].
     if output_shard_dim == 1:
@@ -1561,33 +1571,87 @@ def _a2a_combine_backward(ctx, grad_combined):
     else:
         raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
 
-    metadata_indices = expert_metadata[0, 0, :tokens_per_device].long()  # [tpd, K]
-    expert_ids_KT = metadata_indices.transpose(0, 1).contiguous()  # [K, tpd]
-    valid_KT = (expert_ids_KT >= 0) & (expert_ids_KT < E_local)
-    expert_ids_clamped = expert_ids_KT.clamp(0, E_local - 1)
+    # Device-local metadata slice: each device sees its own tokens' expert
+    # choices under SPMD sharding on the tokens dim.
+    metadata_local = expert_metadata[0, 0, :tpd, :].long()  # [tpd, K]
 
-    g_masked = g * valid_KT.unsqueeze(-1).to(g.dtype)
+    import os as _os
 
-    idx = expert_ids_clamped.unsqueeze(-1).expand(K, tokens_per_device, H)
-    partial = torch.zeros(
-        E_local, tokens_per_device, H, dtype=g.dtype, device=g.device
+    _use_dispatch = False
+    if (
+        D > 1
+        and grad_combined.device.type == "xla"
+        and _os.environ.get("TT_COMBINE_BWD_USE_DISPATCH", "1") != "0"
+    ):
+        try:
+            import torch_xla.runtime as _xr  # local import — keep out of module top
+
+            _use_dispatch = _xr.is_spmd()
+        except Exception:
+            _use_dispatch = False
+
+    if not _use_dispatch:
+        expert_ids_KT = metadata_local.transpose(0, 1).contiguous()  # [K, tpd]
+        valid_KT = (expert_ids_KT >= 0) & (expert_ids_KT < E_local)
+        expert_ids_clamped = expert_ids_KT.clamp(0, E_local - 1)
+        g_masked = g * valid_KT.unsqueeze(-1).to(g.dtype)
+        idx = expert_ids_clamped.unsqueeze(-1).expand(K, tpd, H)
+        partial = torch.zeros(E_local, tpd, H, dtype=g.dtype, device=g.device)
+        partial.scatter_add_(0, idx, g_masked)
+        if tokens_total > tpd:
+            zero_pad = torch.zeros(
+                E_local,
+                tokens_total - tpd,
+                H,
+                dtype=g.dtype,
+                device=g.device,
+            )
+            d_input_flat = torch.cat([partial, zero_pad], dim=1)
+        else:
+            d_input_flat = partial
+        d_input = d_input_flat.reshape(input_shape)
+        return d_input, None, None, None, None, None, None
+
+    # === Dispatch-based backward (XLA + SPMD) ===
+    # For each k, route g[k, :, :] to the device holding metadata[..., k] via
+    # all_to_all_dispatch. The dispatched output on device d_this has values
+    # only where metadata_global[d_src*tpd+tok, k] is owned by d_this; we
+    # scatter-add those into the E_local axis using the device-local expert
+    # index reported by dispatch's all-gathered metadata output.
+    d_input = torch.zeros(
+        E_local, 1, tokens_total, H, dtype=g.dtype, device=g.device
     )
-    partial.scatter_add_(0, idx, g_masked)
+    for k in range(K):
+        # [B=1, 1, S=tpd, H]
+        dispatch_input = g[k].reshape(1, 1, tpd, H).contiguous()
+        # [B=1, 1, S=tpd, K_disp=1]  — int64 to match dispatch's indices dtype
+        dispatch_ei = metadata_local[:, k].reshape(1, 1, tpd, 1).contiguous()
 
-    if tokens > tokens_per_device:
-        zero_pad = torch.zeros(
-            E_local,
-            tokens - tokens_per_device,
-            H,
-            dtype=g.dtype,
-            device=g.device,
+        dispatched, meta_out = torch.ops.tt.all_to_all_dispatch(
+            dispatch_input,
+            dispatch_ei,
+            expert_mapping,
+            num_devices=D,
+            cluster_axis=cluster_axis,
         )
-        d_input_flat = torch.cat([partial, zero_pad], dim=1)
-    else:
-        d_input_flat = partial
+        # dispatched: [1, D, tpd, H] — sparsely populated on d_this for
+        #             (d_src, tok) whose expert is local to d_this.
+        # meta_out:   [1, D, tpd, 1] — all-gathered global expert indices.
 
-    d_input = d_input_flat.reshape(input_shape)
+        # global_e → local_e: global_e % E_local is the in-range value for
+        # tokens actually routed to d_this (those dispatched slots are the
+        # only non-zero ones). For non-routed slots the index is don't-care
+        # because the dispatched value is zero.
+        meta_flat = meta_out.reshape(tokens_total).long()
+        local_idx = meta_flat % E_local  # [tokens_total]
 
+        disp_src = dispatched.reshape(1, 1, tokens_total, H)
+        idx_exp = local_idx.view(1, 1, tokens_total, 1).expand(
+            1, 1, tokens_total, H
+        )
+        d_input = torch.scatter_add(d_input, 0, idx_exp, disp_src)
+
+    d_input = d_input.reshape(input_shape)
     return d_input, None, None, None, None, None, None
 
 
