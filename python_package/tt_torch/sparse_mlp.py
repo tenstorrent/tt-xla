@@ -495,70 +495,199 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
             self.gate_up_proj_bias = None
             self.down_proj_bias = None
 
-    def _decode_mxfp4_weight(self, weight, scale, target_dim=None):
-        """Decode and unpack MXFP4 weight using scale factors and convert to bfloat16.
+    def _unpack_mxfp4(self, packed: torch.Tensor) -> torch.Tensor:
+        """Unpack MXFP4 4-bit values using proper E2M1 format (matches vLLM).
 
         Args:
-            weight: MXFP4 encoded weight tensor [E, dim1, packed_dim]
-            scale: Scale tensor [E, dim1, scale_dim]
-            target_dim: Target unpacked dimension (e.g., 2880 for gate_up_proj)
+            packed: uint8 tensor [..., packed_dim] with 2 4-bit values per byte
 
         Returns:
-            Decoded and unpacked bfloat16 weight tensor [E, dim1, target_dim]
+            float32 tensor [..., packed_dim * 2] with proper E2M1 values
         """
+        assert packed.dtype == torch.uint8, f"Expected uint8, got {packed.dtype}"
+
+        # E2M1 lookup table from vLLM (proper MXFP4 format)
+        E2M1_TABLE = torch.tensor(
+            [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0],
+            dtype=torch.float32,
+            device=packed.device,
+        )
+
+        # Vectorized nibble processing (following vLLM approach)
+        original_shape = packed.shape
+        a_flat = packed.flatten()
+
+        # Extract nibbles - note vLLM uses (low, high) order
+        high = (a_flat & 0xF0) >> 4  # Upper nibbles
+        low = a_flat & 0x0F  # Lower nibbles
+
+        # Combine nibbles for batch processing (low first, then high - vLLM order)
+        combined = torch.stack((low, high), dim=1).flatten()
+
+        # Vectorized sign and magnitude extraction (E2M1 format)
+        signs = (combined & 0x08).to(torch.bool)  # Sign bits (bit 3)
+        abs_vals = (combined & 0x07).to(torch.long)  # Magnitude (bits 0-2)
+
+        # Device-aware lookup and sign application (vLLM approach)
+        kE2M1 = E2M1_TABLE.to(device=packed.device)
+        values = kE2M1[abs_vals] * torch.where(signs, -1.0, 1.0)
+
+        # Reshape to match original packed dimensions × 2
+        new_shape = original_shape[:-1] + (original_shape[-1] * 2,)
+        return values.reshape(new_shape).to(torch.float32)
+
+    def _apply_block_scale(
+        self, values: torch.Tensor, scale: torch.Tensor, block_size: int = 16
+    ) -> torch.Tensor:
+        """Apply block-wise scaling to MXFP4 values using proper E8M0 conversion.
+
+        Args:
+            values: (E, dim1, H) unpacked float32 E2M1 values
+            scale: (E, dim1, num_blocks) scale factors (uint8 E8M0 format)
+            block_size: Number of elements per scale factor (default 16)
+
+        Returns:
+            Scaled float tensor
+        """
+        E, dim1, H = values.shape
+        _, _, num_blocks = scale.shape
+        print(
+            f"[FusedMoEWrapper] Applying block scale: values={values.shape}, scale={scale.shape}, block_size={block_size}"
+        )
+
+        # For unpacked MXFP4 weights, H = packed_dim * 2, and num_blocks = packed_dim // block_size
+        expected_H = num_blocks * block_size * 2
+        assert H == expected_H, f"H mismatch: {H} vs {expected_H}"
+
+        # Decode E8M0 scale: value = 2^(exp - 127)
+        scale_f32 = torch.pow(2.0, scale.to(torch.float32) - 127.0)
+
+        # Reshape for block-wise multiply
+        values_reshaped = values.view(E, dim1, num_blocks, block_size * 2)
+        scale_expanded = scale_f32.unsqueeze(-1)
+
+        output = values_reshaped * scale_expanded
+        return output.view(E, dim1, H)
+
+    def _decode_mxfp4(
+        self, weight: torch.Tensor, scale: torch.Tensor, block_size: int = 16
+    ) -> torch.Tensor:
+        """Decode MXFP4 weight tensor using proper E2M1 unpacking and E8M0 scaling.
+
+        Args:
+            weight: (E, dim1, packed_dim) uint8 packed MXFP4 weights
+            scale: (E, dim1, num_blocks) scale factors (uint8 E8M0 format)
+            block_size: Elements per scale factor (default 16)
+
+        Returns:
+            (E, dim1, H) decoded bfloat16 tensor where H = packed_dim * 2
+        """
+        print(
+            f"[FusedMoEWrapper] Decoding MXFP4 weight: {weight.shape}, scale: {scale.shape}"
+        )
+
+        # Step 1: Unpack 4-bit values to E2M1 float32 (following vLLM)
+        unpacked = self._unpack_mxfp4(weight)  # (E, dim1, H) where H = packed_dim * 2
+        print(
+            f"[FusedMoEWrapper] Unpacked shape: {unpacked.shape}, dtype: {unpacked.dtype}"
+        )
+
+        # Step 2: Apply block-wise scaling with proper E8M0 scale handling
+        decoded = self._apply_block_scale(unpacked, scale, block_size)
+
+        # Step 3: Convert to target dtype
+        decoded = decoded.to(torch.bfloat16)
+
+        print(
+            f"[FusedMoEWrapper] Decoded weight shape: {decoded.shape}, dtype: {decoded.dtype}"
+        )
+        return decoded
+
+    def _convert_gate_up_proj(
+        self, w13_weight: torch.Tensor, w13_scale: torch.Tensor, D: int
+    ) -> torch.Tensor:
+        """Convert gate_up_proj weights from MXFP4 to HuggingFace layout.
+
+        Args:
+            w13_weight: (E, D, packed_dim) MXFP4 weights
+            w13_scale: (E, D, num_blocks) scale factors
+            D: Dimension size (typically 2880)
+
+        Returns:
+            (E, 2*D, H) tensor in HF format where H = packed_dim * 2
+        """
+        E, D_, packed_dim = w13_weight.shape
+        assert D_ == D, f"Expected D={D}, got D_={D_}"
+
+        # Decode MXFP4 → (E, D, H)
+        w = self._decode_mxfp4(w13_weight, w13_scale)
+        print(f"[FusedMoEWrapper] Decoded gate_up_proj shape: {w.shape}")
+
+        # vLLM stores fused gate+up as (E, 2*D, H)
+        # Reshape to fused format
+        w = w.view(
+            E, D, -1
+        )  # (E, 2*Intermediate, H) # D is already 2*Intermediate for gate_up_proj
+
+        return w
+
+    def _convert_down_proj(
+        self, w2_weight: torch.Tensor, w2_scale: torch.Tensor, D: int
+    ) -> torch.Tensor:
+        """Convert down_proj weights from MXFP4 to HuggingFace layout.
+
+        Args:
+            w2_weight: (E, D, packed_dim) MXFP4 weights
+            w2_scale: (E, D, num_blocks) scale factors
+            D: Dimension size (typically 2880)
+
+        Returns:
+            (E, H, D) tensor in HF format where H = packed_dim * 2
+        """
+        # Decode MXFP4 → (E, D, H)
+        w = self._decode_mxfp4(w2_weight, w2_scale)
+
+        # Convert to HF layout: (E, H, D)
+        w = w.transpose(1, 2).contiguous()
+        print(f"[FusedMoEWrapper] Decoded down_proj shape: {w.shape}, dtype: {w.dtype}")
+        return w
+
+    def _decode_mxfp4_weight(self, weight, scale, target_dim=None):
+        """Legacy wrapper for MXFP4 decoding - delegates to proper implementation."""
         try:
-            print(
-                f"[FusedMoEWrapper] Decoding MXFP4 weight: {weight.shape}, scale: {scale.shape}"
-            )
+            # Use proper MXFP4 decoding if weight is uint8 (packed format)
+            if weight.dtype == torch.uint8:
+                print(
+                    f"[FusedMoEWrapper] Using proper MXFP4 decoding for uint8 weights"
+                )
+                return self._decode_mxfp4(weight, scale)
+            else:
+                # Fallback for non-uint8 weights - use simple approach
+                print(
+                    f"[FusedMoEWrapper] Using fallback decoding for {weight.dtype} weights"
+                )
+                E, dim1, packed_dim = weight.shape
+                scale_dim = scale.shape[-1]
 
-            E, dim1, packed_dim = weight.shape
-            scale_dim = scale.shape[-1]
+                if target_dim is None:
+                    target_dim = packed_dim * 2
 
-            # Determine target dimension (unpack factor)
-            if target_dim is None:
-                target_dim = packed_dim * 2  # Default: assume 2x packing
+                elements_per_scale = target_dim // scale_dim
+                expanded_scale = scale.repeat_interleave(elements_per_scale, dim=-1)
 
-            unpack_factor = target_dim // packed_dim  # 2880 / 1440 = 2
-            elements_per_scale = target_dim // scale_dim  # 2880 / 90 = 32
+                # Simple expansion for non-uint8 data
+                if target_dim > packed_dim:
+                    unpack_factor = target_dim // packed_dim
+                    weight = weight.unsqueeze(-1).expand(
+                        E, dim1, packed_dim, unpack_factor
+                    )
+                    weight = weight.reshape(E, dim1, target_dim)
 
-            print(
-                f"[FusedMoEWrapper] Unpacking factor: {unpack_factor}, elements per scale: {elements_per_scale}"
-            )
-
-            # Reshape weight to unpack: [E, dim1, packed_dim] -> [E, dim1, packed_dim, unpack_factor]
-            # Then flatten last two dims: -> [E, dim1, target_dim]
-            weight_unpacked = weight.unsqueeze(-1).expand(
-                E, dim1, packed_dim, unpack_factor
-            )
-            weight_unpacked = weight_unpacked.reshape(E, dim1, target_dim)
-
-            # Expand scale to match unpacked weight dimensions
-            # [E, dim1, scale_dim] -> [E, dim1, target_dim]
-            expanded_scale = scale.repeat_interleave(elements_per_scale, dim=-1)
-
-            # Apply scaling to decode MXFP4 to full precision
-            decoded_weight = weight_unpacked.float() * expanded_scale.float()
-
-            # Convert to bfloat16
-            decoded_weight = decoded_weight.to(torch.bfloat16)
-
-            print(
-                f"[FusedMoEWrapper] Decoded weight shape: {decoded_weight.shape}, dtype: {decoded_weight.dtype}"
-            )
-            return decoded_weight
+                decoded_weight = weight.float() * expanded_scale.float()
+                return decoded_weight.to(torch.bfloat16)
 
         except Exception as e:
             print(f"[FusedMoEWrapper] MXFP4 decoding failed: {e}")
-            # Fallback to original weight with simple unpacking
-            if target_dim and target_dim > weight.shape[-1]:
-                unpack_factor = target_dim // weight.shape[-1]
-                weight_unpacked = weight.unsqueeze(-1).expand(
-                    *weight.shape, unpack_factor
-                )
-                weight_unpacked = weight_unpacked.reshape(
-                    *weight.shape[:-1], target_dim
-                )
-                return weight_unpacked.to(torch.bfloat16)
             return weight.to(torch.bfloat16)
 
     def _fallback_weight_extraction(self):
@@ -597,25 +726,34 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
             # Set up the weights based on what we found
             if "gate_up" in found:
                 gate_up_weight = found["gate_up"]
+                print(
+                    f"[FusedMoEWrapper] Found gate_up weight: {gate_up_weight.shape}, dtype: {gate_up_weight.dtype}"
+                )
 
                 # Check for MXFP4 scale tensor and decode if found
                 if "gate_up_scale" in found:
                     print(
-                        f"[FusedMoEWrapper] Found MXFP4 scale for gate_up: {found['gate_up_scale'].shape}"
+                        f"[FusedMoEWrapper] Found MXFP4 scale for gate_up: {found['gate_up_scale'].shape} -- {found['gate_up_scale'].dtype}"
                     )
-                    # Gate+up proj should unpack from packed_hidden_size to full hidden_size
-                    # [32, 5760, 1440] -> [32, 5760, 2880]
-                    target_dim = 2880  # hidden_size (unpacked)
-                    gate_up_weight = self._decode_mxfp4_weight(
-                        gate_up_weight, found["gate_up_scale"], target_dim
+                    # Use proper MXFP4 conversion for gate_up_proj
+                    # Assumes D = 2880 (hidden_size), will be inferred from shapes
+                    D = gate_up_weight.shape[1]  # Should be 2880
+                    gate_up_weight = self._convert_gate_up_proj(
+                        gate_up_weight, found["gate_up_scale"], D
                     )
                 else:
-                    # No scale found, just convert to bfloat16
-                    gate_up_weight = gate_up_weight.to(torch.bfloat16)
+                    # No scale found, use legacy approach
+                    target_dim = 2880  # hidden_size (unpacked)
+                    gate_up_weight = self._decode_mxfp4_weight(
+                        gate_up_weight, None, target_dim
+                    )
 
                 self.gate_up_proj = torch.nn.Parameter(gate_up_weight.transpose(1, 2))
                 print(
                     f"[FusedMoEWrapper] Set gate_up_proj: {self.gate_up_proj.shape}, dtype: {self.gate_up_proj.dtype}"
+                )
+                print(
+                    f"[FusedMoEWrapper] gate_up_proj: {self.gate_up_proj}", flush=True
                 )
 
             elif "gate" in found and "up" in found:
@@ -634,30 +772,39 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
             if "gate_up_bias" in found:
                 self.gate_up_proj_bias = found["gate_up_bias"]
                 print(
-                    f"[FusedMoEWrapper] Set gate_up_proj_bias: {self.gate_up_proj_bias.shape}"
+                    f"[FusedMoEWrapper] Set gate_up_proj_bias: {self.gate_up_proj_bias.shape} -- {self.gate_up_proj_bias}",
+                    flush=True,
                 )
 
             # Handle down projection weights with MXFP4 decoding
             if "down" in found:
                 down_weight = found["down"]
+                print(
+                    f"[FusedMoEWrapper] Found down weight: {down_weight.shape}, dtype: {down_weight.dtype}"
+                )
 
                 # Check for MXFP4 scale tensor and decode if found
                 if "down_scale" in found:
                     print(
-                        f"[FusedMoEWrapper] Found MXFP4 scale for down: {found['down_scale'].shape}"
+                        f"[FusedMoEWrapper] Found MXFP4 scale for down: {found['down_scale'].shape} -- {found['down_scale'].dtype}"
                     )
-                    # Down proj should unpack to hidden_size = 2880
-                    target_dim = 2880  # hidden_size
-                    down_weight = self._decode_mxfp4_weight(
-                        down_weight, found["down_scale"], target_dim
+                    # Use proper MXFP4 conversion for down_proj
+                    # Assumes D = 2880 (hidden_size), will be inferred from shapes
+                    D = down_weight.shape[1]  # Should be 2880
+                    down_weight = self._convert_down_proj(
+                        down_weight, found["down_scale"], D
                     )
                 else:
-                    # No scale found, just convert to bfloat16
-                    down_weight = down_weight.to(torch.bfloat16)
+                    # No scale found, use legacy approach
+                    target_dim = 2880  # hidden_size
+                    down_weight = self._decode_mxfp4_weight(
+                        down_weight, None, target_dim
+                    )
 
                 self.down_proj = torch.nn.Parameter(down_weight)
                 print(
-                    f"[FusedMoEWrapper] Set down_proj: {self.down_proj.shape}, dtype: {self.down_proj.dtype}"
+                    f"[FusedMoEWrapper] Set down_proj: {self.down_proj.shape}, dtype: {self.down_proj.dtype} -- {self.down_proj}",
+                    flush=True,
                 )
             else:
                 self.down_proj = None
@@ -666,7 +813,8 @@ class FusedMoEWrapper(_SparseForwardMixin, nn.Module):
             if "down_bias" in found:
                 self.down_proj_bias = found["down_bias"]
                 print(
-                    f"[FusedMoEWrapper] Set down_proj_bias: {self.down_proj_bias.shape}"
+                    f"[FusedMoEWrapper] Set down_proj_bias: {self.down_proj_bias.shape} -- {self.down_proj_bias}",
+                    flush=True,
                 )
 
         except Exception as e:

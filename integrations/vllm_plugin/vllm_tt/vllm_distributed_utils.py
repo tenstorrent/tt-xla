@@ -11,6 +11,7 @@ import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
 from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sparse_mlp import A2aSparseMLP
 from vllm.model_executor.layers.linear import (
     ColumnParallelLinear,
     MergedColumnParallelLinear,
@@ -269,27 +270,18 @@ def partition_vocab_parallel_embedding(
 def partition_vllm_a2a_sparse_mlp(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
-    logger.info(f"Partitioning VllmA2aSparseMLP: {layer}")
-    assert isinstance(layer, VllmA2aSparseMLP)
+    logger.info(f"Partitioning A2aSparseMLP: {layer}")
+    assert isinstance(layer, A2aSparseMLP)
     logger.debug("Applied parallel sharding to %s", layer)
     logger.info(f"layer: {layer}")
-    logger.info(f"layer.core_mlp: {layer.core_mlp}")
-    logger.info(f"layer.core_mlp.experts: {layer.core_mlp.experts}")
-    # logger.info(f"layer.core_mlp.experts.weights: {layer.core_mlp.experts.weights}")
+    logger.info(f"layer.experts: {layer.experts}")
+    # logger.info(f"layer.experts.weights: {layer.experts.weights}")
     logger.info(f"Sharding expert dimensions across mesh {mesh}")
     # Shard expert dimension (first dim) across 'model' axis
-    xs.mark_sharding(
-        layer.core_mlp.experts.gate_up_proj, mesh, (("batch", "model"), None, None)
-    )
-    xs.mark_sharding(
-        layer.core_mlp.experts.gate_up_proj_bias, mesh, (("batch", "model"), None)
-    )
-    xs.mark_sharding(
-        layer.core_mlp.experts.down_proj, mesh, (("batch", "model"), None, None)
-    )
-    xs.mark_sharding(
-        layer.core_mlp.experts.down_proj_bias, mesh, (("batch", "model"), None)
-    )
+    xs.mark_sharding(layer.experts.gate_up_proj, mesh, (("batch", "model"), None, None))
+    xs.mark_sharding(layer.experts.gate_up_proj_bias, mesh, (("batch", "model"), None))
+    xs.mark_sharding(layer.experts.down_proj, mesh, (("batch", "model"), None, None))
+    xs.mark_sharding(layer.experts.down_proj_bias, mesh, (("batch", "model"), None))
 
     return layer
 
@@ -298,7 +290,7 @@ def partition_rmsnorm_layer(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.M
     assert isinstance(layer, TTRMSNorm)
     logger.debug("Applied parallel sharding to %s", layer)
     logger.info(f"layer.weight.shape={layer.weight.shape}")
-    xs.mark_sharding(layer.weight, mesh, ("batch",))
+    xs.mark_sharding(layer.weight, mesh, ("model",))
     # Apply sharding constraint to the output of the layer.
     # hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     # layer.register_forward_hook(hook_forward)
@@ -313,7 +305,7 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
-        ("VllmA2aSparseMLP", partition_vllm_a2a_sparse_mlp),
+        ("A2aSparseMLP", partition_vllm_a2a_sparse_mlp),
         ("TTRMSNorm", partition_rmsnorm_layer),
     ]
 )

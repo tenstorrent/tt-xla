@@ -510,10 +510,22 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
     print(f"hidden_states shape: {hidden_states.shape}", flush=True)
-    print(f"gate_up_proj weight shape: {mlp.experts.gate_up_proj.shape}", flush=True)
-    print(f"gate_up_proj bias shape: {mlp.experts.gate_up_proj_bias.shape}", flush=True)
-    print(f"down_proj weight shape: {mlp.experts.down_proj.shape}", flush=True)
-    print(f"down_proj bias shape: {mlp.experts.down_proj_bias.shape}", flush=True)
+    print(
+        f"gate_up_proj weight shape: {mlp.experts.gate_up_proj.shape} -- {mlp.experts.gate_up_proj}",
+        flush=True,
+    )
+    print(
+        f"gate_up_proj bias shape: {mlp.experts.gate_up_proj_bias.shape} -- {mlp.experts.gate_up_proj_bias}",
+        flush=True,
+    )
+    print(
+        f"down_proj weight shape: {mlp.experts.down_proj.shape} -- {mlp.experts.down_proj}",
+        flush=True,
+    )
+    print(
+        f"down_proj bias shape: {mlp.experts.down_proj_bias.shape} -- {mlp.experts.down_proj_bias}",
+        flush=True,
+    )
 
     if arch in ("llmbox", "galaxy"):
         batch_size = 2 if arch == "llmbox" else 4

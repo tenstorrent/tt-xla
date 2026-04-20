@@ -39,20 +39,27 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         self.moe_quant_config = None
         self.moe_mk = None  # TT backend doesn't use modular kernel
 
-        logger.info(f"Using TT-compatible MXFP4 MoE backend: {self.mxfp4_backend}")
+        logger.warning(f"Using TT-compatible MXFP4 MoE backend: {self.mxfp4_backend}")
 
     def create_weights(self, layer: nn.Module, **kwargs):
         """Create quantized weights for MoE layer."""
         # Extract parameters from kwargs that vLLM passes
+        print(f"DEBUG: create_weights called with kwargs: {kwargs}")
         num_experts = kwargs.get("num_experts", getattr(layer, "num_experts", 32))
+        hidden_size = kwargs.get("hidden_size", getattr(layer, "hidden_size", 1440))
+        hidden_size = 1440  # Force hidden size to match checkpoint for TT compatibility
+        intermediate_size = kwargs.get(
+            "intermediate_size", getattr(layer, "intermediate_size", 2880)
+        )
+        params_dtype = torch.uint8  # Default to uint8 for quantized weights
+        print(
+            f"DEBUG: Creating weights for {num_experts} experts with kwargs: {kwargs}"
+        )
+        print(
+            f"DEBUG: layer: {layer} -- {hasattr(layer, 'w13_weight')} -- {hasattr(layer, 'w2_weight')}"
+        )
 
-        # Use the actual GPT-OSS-20B model dimensions (determined from checkpoint analysis)
-        # The passed parameters are incorrect for this specific model
-        hidden_size = 1440  # Actual hidden dimension from checkpoint
-        intermediate_size = 2880  # Actual intermediate dimension from checkpoint
-        params_dtype = kwargs.get("params_dtype", torch.bfloat16)
-
-        logger.info(
+        logger.warning(
             f"Creating TT-compatible MoE weights with corrected dimensions: experts={num_experts}, "
             f"hidden={hidden_size}, intermediate={intermediate_size}, dtype={params_dtype}"
         )
@@ -169,7 +176,7 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         setattr(layer, "w2_weight_scale", w2_weight_scale)
         setattr(layer, "w2_bias", w2_bias)
 
-        logger.info("TT-compatible MoE weights created successfully")
+        logger.warning("TT-compatible MoE weights created successfully")
 
     def apply(
         self,
@@ -245,16 +252,18 @@ class TTMxfp4Config(Mxfp4Config):
     def __init__(self):
         """Initialize TT-compatible MXFP4 config without calling parent __init__ to avoid backend checks."""
         # Initialize without calling super().__init__() to avoid GPU backend validation
-        logger.info("Initializing TT-compatible MXFP4 config")
+        logger.warning("Initializing TT-compatible MXFP4 config")
 
     def get_quant_method(self, layer: nn.Module, prefix: str) -> Optional[Any]:
         """Override to return TT-compatible quantization methods."""
-        logger.info(
+        logger.warning(
             f"TTMxfp4Config.get_quant_method called for layer type: {type(layer)} with prefix: {prefix}"
         )
 
         if isinstance(layer, FusedMoE):
-            logger.info(f"Creating TT-compatible MXFP4 MoE method for layer: {prefix}")
+            logger.warning(
+                f"Creating TT-compatible MXFP4 MoE method for layer: {prefix}"
+            )
 
             # Handle case where layer.moe_config might not exist
             moe_config = getattr(layer, "moe_config", {})
@@ -267,13 +276,13 @@ class TTMxfp4Config(Mxfp4Config):
             return TTMxfp4MoEMethod(moe_config)
         else:
             # For non-MoE layers, try the standard method or return None to disable quantization
-            logger.info(
+            logger.warning(
                 f"Non-MoE layer {type(layer)}, attempting standard quantization or fallback"
             )
             try:
                 # Try to call parent method but catch any backend-related errors
                 result = super().get_quant_method(layer, prefix)
-                logger.info(f"Standard quantization method succeeded for {prefix}")
+                logger.warning(f"Standard quantization method succeeded for {prefix}")
                 return result
             except Exception as e:
                 logger.warning(
@@ -290,7 +299,7 @@ def get_tt_compatible_quant_config(original_config) -> Optional[TTMxfp4Config]:
 
     # Check if it's an MXFP4 config by class type
     if isinstance(original_config, Mxfp4Config):
-        logger.info(f"Converting {type(original_config)} to TT-compatible version")
+        logger.warning(f"Converting {type(original_config)} to TT-compatible version")
         # Create TT-compatible config with same parameters
         tt_config = TTMxfp4Config()
 
@@ -306,10 +315,10 @@ def get_tt_compatible_quant_config(original_config) -> Optional[TTMxfp4Config]:
                 except (AttributeError, TypeError) as e:
                     logger.debug(f"Could not copy attribute {attr}: {e}")
 
-        logger.info(f"Created TT-compatible config: {type(tt_config)}")
+        logger.warning(f"Created TT-compatible config: {type(tt_config)}")
         return tt_config
 
-    logger.info(
+    logger.warning(
         f"Quantization config type {type(original_config)} is already TT-compatible"
     )
     return original_config
@@ -318,7 +327,7 @@ def get_tt_compatible_quant_config(original_config) -> Optional[TTMxfp4Config]:
 def override_quantization_for_tt(vllm_config):
     """Override quantization configuration to use TT-compatible implementations."""
     if vllm_config.quant_config is not None:
-        logger.info(
+        logger.warning(
             f"Original quant config: {type(vllm_config.quant_config)} at {id(vllm_config.quant_config)}"
         )
 
@@ -328,7 +337,7 @@ def override_quantization_for_tt(vllm_config):
         # Ensure we actually replaced it with a new object
         if new_config is not vllm_config.quant_config:
             vllm_config.quant_config = new_config
-            logger.info(
+            logger.warning(
                 f"Successfully replaced with TT-compatible quant config: {type(vllm_config.quant_config)} at {id(vllm_config.quant_config)}"
             )
         else:
@@ -336,10 +345,10 @@ def override_quantization_for_tt(vllm_config):
 
         # Double-check the replacement worked
         if hasattr(vllm_config.quant_config, "get_quant_method"):
-            logger.info(
+            logger.warning(
                 "TT quantization config has get_quant_method - ready for model loading"
             )
         else:
             logger.error("TT quantization config missing get_quant_method!")
     else:
-        logger.info("No quantization config to override")
+        logger.warning("No quantization config to override")

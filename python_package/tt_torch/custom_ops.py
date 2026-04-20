@@ -213,8 +213,8 @@ def scaled_dot_product_attention(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
-    sliding_window_size: int = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
 
     assert (
@@ -316,8 +316,8 @@ def scaled_dot_product_attention(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
-    sliding_window_size: int = None,
+    scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -335,7 +335,7 @@ def scaled_dot_product_attention_decode(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
 
     assert (
@@ -435,7 +435,7 @@ def scaled_dot_product_attention_decode_fake(
     attn_mask: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     is_causal: bool = True,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -792,7 +792,7 @@ def paged_scaled_dot_product_attention_decode(
     attn_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     device = query.device
 
@@ -905,7 +905,7 @@ def paged_scaled_dot_product_attention_decode_fake(
     attention_mask: torch.Tensor = None,
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
-    scale: float = None,
+    scale: Optional[float] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
