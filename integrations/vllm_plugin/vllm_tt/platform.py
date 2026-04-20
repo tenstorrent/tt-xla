@@ -72,6 +72,9 @@ class TTConfig:
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
+    # Enable tt-xla execution trace (caches compiled program for faster decode)
+    enable_trace: bool = False
+
     # Override number of hidden layers (0 = use model default)
     # For debugging and testing purposes, we allow overriding the number of hidden
     # layers in the model config to enable testing with smaller models or to
