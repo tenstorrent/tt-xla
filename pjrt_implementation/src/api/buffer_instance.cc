@@ -147,14 +147,26 @@ void BufferInstance::deleteData() {
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
-    EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
-                                          tt_pjrt_status::kSuccess);
-
     // TODO(mrakita): Revert.
     // https://github.com/openxla/xla/issues/25172
     TT_FATAL(m_done_with_host_buffer_event->isIndestructible(),
              "Expected done_with_host_buffer_event to be indestructible");
-    delete m_done_with_host_buffer_event;
+
+    // Hack on top a hack, as now markAsReadyAndCallback always runs callbacks
+    // on a separate thread, it is theorethically possible for this function to
+    // finish before the callback is executed. So, the delete has to happen in a
+    // callback on the event. As we push_back onto a vector and schedule in
+    // iteration order, the delete callback is always last.
+    TT_FATAL(!m_done_with_host_buffer_event->isReady(),
+             "Expected done_with_host_buffer_event to not be ready");
+    m_done_with_host_buffer_event->onReady(
+        [](PJRT_Error *error, void *user_arg) {
+          delete reinterpret_cast<EventInstance *>(user_arg);
+        },
+        m_done_with_host_buffer_event);
+
+    EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
+                                          tt_pjrt_status::kSuccess);
   }
 }
 

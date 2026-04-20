@@ -143,13 +143,19 @@ class ProxyModule(ModuleType):
 
     def __init__(self, package_name: str):
         super().__init__(package_name)
-        self._package_name = package_name
+        object.__setattr__(self, "_package_name", package_name)
 
     def __getattr__(self, name):
         original = sys.modules.get(f"{self._package_name}._original")
         if original is None:
             raise AttributeError(f"module '{self.__name__}' has no attribute '{name}'")
         return getattr(original, name)
+
+    def __setattr__(self, name, value):
+        object.__setattr__(self, name, value)
+        original = sys.modules.get(f"{self._package_name}._original")
+        if original is not None and original is not self:
+            setattr(original, name, value)
 
 
 @contextmanager
