@@ -59,23 +59,25 @@ def test_topk_index_correctness(shape, k, device):
     vals_dev_cpu = vals_dev.cpu()
     idx_dev_cpu = idx_dev.cpu()
 
-    # Values should match closely.
+    # Correct comparator: gather original values using each set of indices and
+    # compare. topk does not guarantee ordering among the top-k, so direct
+    # index exact-match is not a valid assertion (CPU may return [0,1,2,3]
+    # while device returns [3,2,1,0] — both are valid). Per feedback from
+    # Het Shah, ttnn.topk is not expected to have the same index bug as
+    # ttnn.sort.
     vals_gathered_cpu = torch.gather(x_cpu, -1, idx_cpu)
     vals_gathered_dev = torch.gather(x_cpu, -1, idx_dev_cpu)
     cos_sim = torch.nn.functional.cosine_similarity(
         vals_gathered_cpu.flatten().unsqueeze(0).float(),
         vals_gathered_dev.flatten().unsqueeze(0).float(),
     )
-    print(f"\n  values cosine_sim={cos_sim.item():.6f}")
-    assert cos_sim > 0.99, f"topk values wrong: cosine_sim={cos_sim.item():.6f}"
-
-    # Indices must be exact.
     idx_match = (idx_cpu == idx_dev_cpu).float().mean().item()
-    print(f"  index exact-match={idx_match:.4f} ({int(idx_match * k)}/{k} correct)")
-    assert idx_match > 0.99, (
-        f"topk index mismatch: {idx_match:.4f} "
-        f"({int(idx_match * k)}/{k} correct) — TT runtime bug"
+    print(
+        f"\n  values cosine_sim={cos_sim.item():.6f}  "
+        f"index exact-match={idx_match:.4f} ({int(idx_match * k)}/{k})"
+        f"  (note: non-1.0 index match is expected — topk ordering is non-deterministic)"
     )
+    assert cos_sim > 0.99, f"topk values wrong: cosine_sim={cos_sim.item():.6f}"
 
 
 # ---------------------------------------------------------------------------
