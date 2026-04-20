@@ -3,34 +3,61 @@
 # SPDX-License-Identifier: Apache-2.0
 """Regression tests for TT device bugs affecting non-greedy vLLM sampling.
 
-Bug 1: torch.topk returns correct VALUES but wrong INDICES on TT device
-        for shape [batch, 32768], k=32 (the chunk size used in vLLM sampling).
-        Discovered via test_sampling_pipeline.py: stage1 index exact-match=0.61.
+These tests go through the torch.compile / TT compilation flow (via
+run_op_test with Framework.TORCH) rather than eager execution, per
+recommendation from Het Shah — eager execution does not insert the composite
+op lowerings used in production.
 
-Bug 2: torch.gather on int64 index tensors returns wrong values on TT device.
-        Discovered via test_sampling_pipeline.py: stage5 cpu=74658 dev=74752.
+Bug 1 (topk wrong indices): Per Het Shah, ttnn.topk does not have the same
+index bug as ttnn.sort. The correct test uses gathered values for comparison,
+not exact index match (topk ordering is non-deterministic).
 
-Both bugs are in tt-metal / tt-mlir and must be fixed there.
-These tests serve as reproducers to track when they are resolved.
+Bug 2 (gather int64): Original eager test showed mismatch. Converted to
+compiled execution per Het Shah — if this still fails it indicates a bug in
+the stablehlo.gather → ttnn.gather lowering in tt-mlir.
 
-Related: vllm_sampling_tt_bugs.md
+Related: vllm_sampling_tt_bugs.md, tt-xla issue #4329
 """
 
 import pytest
 import torch
-import torch_xla.core.xla_model as xm
+from infra import Framework, run_op_test
 
 SEED = 42
 
 
-@pytest.fixture
-def device():
-    return xm.xla_device()
+# ---------------------------------------------------------------------------
+# topk: correct values selected, ordering non-deterministic
+# ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# Bug 1: torch.topk returns wrong indices for [batch, 32768], k=32
-# ---------------------------------------------------------------------------
+def topk_values_comparator(device_output, golden_output, args, kwargs):
+    """Correct topk comparator: gathered values must match, not exact indices.
+
+    torch.topk does not guarantee ordering among the top-k elements.
+    CPU may return [0,1,2,3], device [3,2,1,0] — both are valid.
+    """
+    device_vals, device_idx = device_output
+    golden_vals, golden_idx = golden_output
+    input_tensor = args[0]
+
+    device_idx = device_idx.cpu()
+    golden_idx = golden_idx.cpu()
+
+    device_gathered = torch.gather(input_tensor, -1, device_idx)
+    golden_gathered = torch.gather(input_tensor, -1, golden_idx)
+    cos_sim = torch.nn.functional.cosine_similarity(
+        device_gathered.flatten().unsqueeze(0).float(),
+        golden_gathered.flatten().unsqueeze(0).float(),
+    )
+    idx_match = (device_idx == golden_idx).float().mean().item()
+    k = device_idx.shape[-1]
+    print(
+        f"\n  values_cos_sim={cos_sim.item():.6f}"
+        f"  index_exact_match={idx_match:.3f} ({int(idx_match * k)}/{k})"
+        f"  (ordering non-deterministic — only values matter)"
+    )
+    assert cos_sim > 0.99, f"topk gathered values wrong: cos_sim={cos_sim.item():.6f}"
 
 
 @pytest.mark.single_device
@@ -43,46 +70,51 @@ def device():
         pytest.param((1, 65536), 32, id="65536-k32"),
     ],
 )
-def test_topk_index_correctness(shape, k, device):
-    """torch.topk should return the same indices on TT device as on CPU.
+def test_topk_values_correct(shape, k):
+    """torch.topk selects the correct top-k values (ordering may differ)."""
 
-    Known failure: (1, 32768), k=32 returns ~60% correct indices on TT.
-    Values are correct (PCC > 0.99); only the index mapping is broken.
-    """
+    class TopKBoth(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            return torch.topk(x, self.k, dim=-1)
+
     torch.manual_seed(SEED)
     x_cpu = torch.randn(*shape, dtype=torch.float32)
-    x_dev = x_cpu.to(device)
 
-    vals_cpu, idx_cpu = torch.topk(x_cpu, k=k, dim=-1)
-    vals_dev, idx_dev = torch.topk(x_dev, k=k, dim=-1)
-
-    vals_dev_cpu = vals_dev.cpu()
-    idx_dev_cpu = idx_dev.cpu()
-
-    # Correct comparator: gather original values using each set of indices and
-    # compare. topk does not guarantee ordering among the top-k, so direct
-    # index exact-match is not a valid assertion (CPU may return [0,1,2,3]
-    # while device returns [3,2,1,0] — both are valid). Per feedback from
-    # Het Shah, ttnn.topk is not expected to have the same index bug as
-    # ttnn.sort.
-    vals_gathered_cpu = torch.gather(x_cpu, -1, idx_cpu)
-    vals_gathered_dev = torch.gather(x_cpu, -1, idx_dev_cpu)
-    cos_sim = torch.nn.functional.cosine_similarity(
-        vals_gathered_cpu.flatten().unsqueeze(0).float(),
-        vals_gathered_dev.flatten().unsqueeze(0).float(),
+    run_op_test(
+        TopKBoth(k),
+        [x_cpu],
+        framework=Framework.TORCH,
+        custom_comparator=topk_values_comparator,
     )
-    idx_match = (idx_cpu == idx_dev_cpu).float().mean().item()
+
+
+# ---------------------------------------------------------------------------
+# gather int64: compiled execution (per Het Shah recommendation)
+# ---------------------------------------------------------------------------
+
+
+def gather_int64_comparator(device_output, golden_output, args, kwargs):
+    """Comparator for torch.gather on int64 index tensors.
+
+    The gathered value must be an exact int64 match — any mismatch indicates
+    a bug in the stablehlo.gather → ttnn.gather lowering in tt-mlir.
+    """
+    device_value = device_output.cpu().item()
+    golden_value = golden_output.item()
+    local_idx = args[1].item()
     print(
-        f"\n  values cosine_sim={cos_sim.item():.6f}  "
-        f"index exact-match={idx_match:.4f} ({int(idx_match * k)}/{k})"
-        f"  (note: non-1.0 index match is expected — topk ordering is non-deterministic)"
+        f"\n  local_idx={local_idx}  "
+        f"cpu_token={golden_value}  dev_token={device_value}  "
+        f"match={golden_value == device_value}"
     )
-    assert cos_sim > 0.99, f"topk values wrong: cosine_sim={cos_sim.item():.6f}"
-
-
-# ---------------------------------------------------------------------------
-# Bug 2: torch.gather on int64 returns wrong values on TT device
-# ---------------------------------------------------------------------------
+    assert golden_value == device_value, (
+        f"gather int64 mismatch: cpu={golden_value} dev={device_value} "
+        f"(local_idx={local_idx}) — stablehlo.gather lowering bug in tt-mlir"
+    )
 
 
 @pytest.mark.single_device
@@ -93,30 +125,25 @@ def test_topk_index_correctness(shape, k, device):
         pytest.param(128, 128256, id="llama"),
     ],
 )
-def test_gather_int64_correctness(candidates, vocab_size, device):
-    """torch.gather on int64 index tensors should return correct values on TT.
+def test_gather_int64_correctness(candidates, vocab_size):
+    """torch.gather on int64 tensors via compiled execution.
 
-    Known failure: gathering from [1, candidates] int64 with a [1, 1] int64
-    index returns a wrong value on TT device.
+    Uses run_op_test (Framework.TORCH) so the op goes through torch.compile
+    and the TT stablehlo.gather lowering path, per Het Shah's recommendation.
+    If this fails it indicates a bug in the lowering, not in eager execution.
     """
+
+    class GatherInt64(torch.nn.Module):
+        def forward(self, idx, local):
+            return torch.gather(idx, 1, local)
+
     torch.manual_seed(SEED)
-    # Simulate candidate_indices: global vocab positions of top candidates.
     idx_cpu = torch.randperm(vocab_size, dtype=torch.int64)[:candidates].unsqueeze(0)
-    # Local sample index (as would come from argmax).
     local_cpu = torch.randint(0, candidates, (1, 1), dtype=torch.int64)
 
-    idx_dev = idx_cpu.to(device)
-    local_dev = local_cpu.to(device)
-
-    global_cpu = idx_cpu.gather(1, local_cpu).item()
-    global_dev = idx_dev.gather(1, local_dev).cpu().item()
-
-    print(
-        f"\n  local_idx={local_cpu.item()}  "
-        f"cpu_token={global_cpu}  dev_token={global_dev}  "
-        f"match={global_cpu == global_dev}"
-    )
-    assert global_cpu == global_dev, (
-        f"gather int64 mismatch: cpu={global_cpu} dev={global_dev} "
-        f"(local_idx={local_cpu.item()}) — TT runtime bug"
+    run_op_test(
+        GatherInt64(),
+        [idx_cpu, local_cpu],
+        framework=Framework.TORCH,
+        custom_comparator=gather_int64_comparator,
     )
