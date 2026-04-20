@@ -1834,6 +1834,361 @@ def test_deepseek_v3_1_full_sparse_moe():
         ).evaluate(tt_res, cpu_res)
 
 
+@pytest.mark.llmbox
+def test_deepseek_v3_1_decode_static_cache():
+    """Autoregressive greedy decode on TT using the module-buffer cache path —
+    compile-friendly, one compile per input shape (prefill + decode).
+
+    Gates:
+      - 4.1: Prefill TT top-1 == ' pearl' (matches full_sparse_moe baseline).
+      - 4.2: No recompile between decode steps 1..N.
+      - 4.3: 10 decode steps complete.
+      - 4.4: First 3 decode tokens match CPU with PCC > 0.99.
+    """
+    import torch._dynamo  # noqa: F401
+    import torch_xla.distributed.spmd as xs
+    from transformers import AutoTokenizer
+    from tt_torch.sparse_mlp import A2aSparseMLP
+
+    t_start = time.perf_counter()
+
+    # Enable Shardy (same as TorchWorkload.enable_spmd). Without this, the GSPMD
+    # pipeline trips on "presharded argument missing @SPMDFullToShardShape" when
+    # the cache buffers are sharded.
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    batch_size = 32
+    prompt_seq_len = 32
+    n_decode = 10
+
+    repo_id = DEEPSEEK_V3_1_REPO
+    args = load_deepseek_config(repo_id)
+    args.n_layers = int(os.environ.get("DEEPSEEK_N_LAYERS", args.n_dense_layers + 1))
+    args.max_batch_size = batch_size
+    args.max_seq_len = args.original_seq_len + 1  # = 4097, activates YaRN
+    print(
+        f"[config] n_layers={args.n_layers}, max_seq_len={args.max_seq_len}",
+        flush=True,
+    )
+
+    t0 = time.perf_counter()
+    print(f"[timing] config + init: {t0 - t_start:.1f}s", flush=True)
+
+    with torch.device("meta"):
+        model = ModifiedTransformer(args)
+
+    t1 = time.perf_counter()
+    print(f"[timing] model construction (meta): {t1 - t0:.1f}s", flush=True)
+
+    mesh_shape = (4, 8)
+    post_sparse_dir = _post_sparse_cache_dir_for(repo_id, args.n_layers)
+    use_post_sparse = _has_cache(post_sparse_dir)
+
+    if use_post_sparse:
+        print(f"[weights] loading post-sparse cache from {post_sparse_dir}", flush=True)
+        enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+        for _, mod in model.named_modules():
+            if isinstance(mod, A2aSparseMLP):
+                object.__setattr__(mod, "_original_mlp", None)
+            if hasattr(mod, "original_experts"):
+                mod.original_experts = nn.ModuleList()
+        state_dict = _load_cache_chunked(post_sparse_dir)
+        model.load_state_dict(state_dict, strict=False, assign=True)
+        _fix_meta_buffers(model, args)
+        model.eval()
+    else:
+        _load_modified_dequantized_weights(
+            model,
+            repo_id=repo_id,
+            n_layers=args.n_layers,
+            n_dense_layers=args.n_dense_layers,
+        )
+        _fix_meta_buffers(model, args)
+        model.eval()
+        enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+
+    t2 = time.perf_counter()
+    print(f"[timing] weight load + sparse enable: {t2 - t1:.1f}s", flush=True)
+
+    # ===== Tokenize prompt =====
+    tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
+    prompt_text = (
+        "Tenstorrent is a company that builds AI accelerators. "
+        "Their chips are designed to"
+    )
+    encoded = tokenizer(
+        prompt_text,
+        return_tensors="pt",
+        max_length=prompt_seq_len,
+        truncation=True,
+        padding="max_length",
+    )
+    tokens_single = encoded["input_ids"][:, :prompt_seq_len]  # (1, 32)
+    prompt_len = tokens_single.shape[1]
+    tokens_cpu = tokens_single.repeat(batch_size, 1)  # (B, 32)
+    print(
+        f"[prompt] {prompt_len} tokens x{batch_size}: "
+        f"{tokenizer.decode(tokens_single[0])!r}",
+        flush=True,
+    )
+
+    # ===== CPU eager reference (int-path, matches existing wrapper test baseline) =====
+    print("[cpu] running prefill + decode eagerly (int path)...", flush=True)
+    t_cpu_start = time.perf_counter()
+    cpu_logits_list = []
+    cpu_token_ids = []
+    with torch.no_grad():
+        logits = model(tokens_cpu, start_pos=0)  # (B, V)
+        cpu_logits_list.append(logits[0].detach().clone())
+        next_id_scalar = int(logits[0].argmax(dim=-1).item())
+        cpu_token_ids.append(next_id_scalar)
+        for step in range(n_decode - 1):
+            next_tokens = torch.full(
+                (batch_size, 1), next_id_scalar, dtype=tokens_cpu.dtype
+            )
+            logits = model(next_tokens, start_pos=prompt_len + step)
+            cpu_logits_list.append(logits[0].detach().clone())
+            next_id_scalar = int(logits[0].argmax(dim=-1).item())
+            cpu_token_ids.append(next_id_scalar)
+    t_cpu_end = time.perf_counter()
+    cpu_tokens_decoded = [tokenizer.decode([t]) for t in cpu_token_ids]
+    print(f"[timing] CPU prefill+decode: {t_cpu_end - t_cpu_start:.1f}s", flush=True)
+    print(f"[CPU tokens] {cpu_tokens_decoded}", flush=True)
+    print(
+        f"[CPU full]   "
+        f"{tokenizer.decode(tokens_single[0].tolist() + cpu_token_ids)!r}",
+        flush=True,
+    )
+
+    # Reset model buffers before TT run.
+    for layer in model.layers:
+        layer.attn.kv_cache.zero_()
+        layer.attn.pe_cache.zero_()
+        if layer.attn.indexer is not None:
+            layer.attn.indexer.k_cache.zero_()
+
+    # ===== TT path (manual orchestration, 2 compiles: prefill + decode-reused) =====
+    torch._dynamo.reset()
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+    device = torch_xla.device()
+
+    # Set compiler options and wrap model with torch.compile BEFORE moving to
+    # device — matches `run_graph_test` order. `torch.compile` is lazy, so no
+    # tracing happens yet; the first forward call is what traces+compiles.
+    torch_xla.set_custom_compile_options(
+        CompilerConfig(experimental_weight_dtype="bfp8").to_torch_compile_options()
+    )
+    compiled_model = torch.compile(model, backend="tt")
+
+    # Move model weights (which include the cache buffers) to device (in-place).
+    t_mv_start = time.perf_counter()
+    model = model.to(device)
+    # Move input tensors.
+    tokens_device = tokens_cpu.to(device)
+    cache_position_prefill = torch.arange(prompt_len, dtype=torch.long).to(device)
+    attn_mask_prefill = _build_prefill_attention_mask(
+        batch_size, prompt_len, args.max_seq_len, dtype=torch.bfloat16
+    ).to(device)
+    t_mv_end = time.perf_counter()
+    print(f"[timing] move to device: {t_mv_end - t_mv_start:.1f}s", flush=True)
+
+    # Mark sharding. Following test_deepseek_v3_1_full_sparse_moe, we shard
+    # tokens on _axis_1 (batch dim) to match the sharding of downstream hidden
+    # states. cache_position / attention_mask stay replicated.
+    xs.mark_sharding(tokens_device, mesh, ("_axis_1", None))
+    xs.mark_sharding(model.embed.weight, mesh, (None, "_axis_0"))
+    for layer in model.layers:
+        attn = layer.attn
+        xs.mark_sharding(attn.wq_b.weight, mesh, ("_axis_0", None))
+        xs.mark_sharding(attn.wkv_b.weight, mesh, ("_axis_0", None))
+        xs.mark_sharding(attn.wo.weight, mesh, (None, "_axis_0"))
+        xs.mark_sharding(attn.wq_a.weight, mesh, (None, "_axis_0"))
+        xs.mark_sharding(attn.wkv_a.weight, mesh, (None, "_axis_0"))
+        # Cache sharding — same spec as test_deepseek_v3_1_full_sparse_moe
+        # (("_axis_1", None, None))  — batch-dim sharded.
+        shard_cache = os.environ.get("TT_DECODE_SHARD_CACHE", "1") == "1"
+        if shard_cache:
+            xs.mark_sharding(attn.kv_cache, mesh, ("_axis_1", None, None))
+            xs.mark_sharding(attn.pe_cache, mesh, ("_axis_1", None, None))
+        ffn = layer.ffn
+        if hasattr(ffn, "mlp"):
+            mlp = ffn.mlp
+            xs.mark_sharding(mlp.router.gate.weight, mesh, (None, "_axis_0"))
+            xs.mark_sharding(
+                mlp.experts.gate_proj, mesh, (("_axis_0", "_axis_1"), None, None)
+            )
+            xs.mark_sharding(
+                mlp.experts.up_proj, mesh, (("_axis_0", "_axis_1"), None, None)
+            )
+            xs.mark_sharding(
+                mlp.experts.down_proj, mesh, (("_axis_0", "_axis_1"), None, None)
+            )
+            xs.mark_sharding(
+                mlp.experts.gate_proj_bias, mesh, (("_axis_0", "_axis_1"), None)
+            )
+            xs.mark_sharding(
+                mlp.experts.up_proj_bias, mesh, (("_axis_0", "_axis_1"), None)
+            )
+            xs.mark_sharding(
+                mlp.experts.down_proj_bias, mesh, (("_axis_0", "_axis_1"), None)
+            )
+            shared = getattr(ffn, "shared_experts", None)
+            if shared is not None:
+                xs.mark_sharding(shared.w1.weight, mesh, (None, "_axis_0"))
+                xs.mark_sharding(shared.w3.weight, mesh, (None, "_axis_0"))
+                xs.mark_sharding(shared.w2.weight, mesh, ("_axis_0", None))
+        else:
+            xs.mark_sharding(ffn.w1.weight, mesh, ("_axis_1", "_axis_0"))
+            xs.mark_sharding(ffn.w3.weight, mesh, ("_axis_1", "_axis_0"))
+            xs.mark_sharding(ffn.w2.weight, mesh, ("_axis_0", "_axis_1"))
+        xs.mark_sharding(layer.attn_norm.weight, mesh, ("_axis_0",))
+        xs.mark_sharding(layer.ffn_norm.weight, mesh, ("_axis_0",))
+
+    xs.mark_sharding(model.norm.weight, mesh, ("_axis_0",))
+    xs.mark_sharding(model.head.weight, mesh, (None, "_axis_0"))
+
+    # ===== Prefill (compile #1) =====
+    print("[tt] running prefill (compile #1)...", flush=True)
+    t_pf_start = time.perf_counter()
+    with torch.no_grad():
+        tt_logits_prefill = compiled_model(
+            tokens_device,
+            cache_position=cache_position_prefill,
+            attention_mask=attn_mask_prefill,
+        )
+    t_pf_end = time.perf_counter()
+    print(
+        f"[timing] TT prefill compile + run: {t_pf_end - t_pf_start:.1f}s", flush=True
+    )
+
+    tt_logits_prefill_cpu = tt_logits_prefill.to("cpu").detach()
+    tt_logits_list = [tt_logits_prefill_cpu[0].clone()]
+    tt_token_ids = [int(tt_logits_prefill_cpu[0].argmax(dim=-1).item())]
+    print(f"[tt] prefill top-1: {tokenizer.decode([tt_token_ids[0]])!r}", flush=True)
+
+    # ===== Decode loop (compile #2, reused) =====
+    for step in range(n_decode - 1):
+        pos = prompt_len + step
+        next_tokens = torch.full(
+            (batch_size, 1), tt_token_ids[-1], dtype=tokens_cpu.dtype
+        ).to(device)
+        cache_position_decode = torch.tensor([pos], dtype=torch.long).to(device)
+        attn_mask_decode = _build_decode_attention_mask(
+            batch_size, pos + 1, args.max_seq_len, dtype=torch.bfloat16
+        ).to(device)
+
+        t_dec_start = time.perf_counter()
+        with torch.no_grad():
+            tt_logits = compiled_model(
+                next_tokens,
+                cache_position=cache_position_decode,
+                attention_mask=attn_mask_decode,
+            )
+        tt_logits_cpu = tt_logits.to("cpu").detach()
+        t_dec_end = time.perf_counter()
+
+        tt_logits_list.append(tt_logits_cpu[0].clone())
+        tt_token_ids.append(int(tt_logits_cpu[0].argmax(dim=-1).item()))
+        print(
+            f"[tt] decode step {step + 1}/{n_decode - 1}: "
+            f"time={t_dec_end - t_dec_start:.2f}s "
+            f"tok={tokenizer.decode([tt_token_ids[-1]])!r}",
+            flush=True,
+        )
+
+    tt_tokens_decoded = [tokenizer.decode([t]) for t in tt_token_ids]
+    print(f"[TT tokens]  {tt_tokens_decoded}", flush=True)
+    print(
+        f"[TT full]    {tokenizer.decode(tokens_single[0].tolist() + tt_token_ids)!r}",
+        flush=True,
+    )
+
+    # ===== Per-step PCC =====
+    print("\n[pcc] per-step logits PCC (TT vs CPU):", flush=True)
+    step_pccs = []
+    for step, (tt_l, cpu_l) in enumerate(zip(tt_logits_list, cpu_logits_list)):
+        x = tt_l.to(torch.float64).numpy().flatten()
+        y = cpu_l.to(torch.float64).numpy().flatten()
+        vx = x - x.mean()
+        vy = y - y.mean()
+        denom = float(np.linalg.norm(vx) * np.linalg.norm(vy))
+        pcc = float("nan") if denom == 0 else float(np.dot(vx, vy) / denom)
+        step_pccs.append(pcc)
+        tt_tok = tt_token_ids[step]
+        cpu_tok = cpu_token_ids[step]
+        match = "OK" if tt_tok == cpu_tok else "MISMATCH"
+        print(
+            f"  step {step}: pcc={pcc:.4f}  tt_tok={tt_tok!r:>10} "
+            f"cpu_tok={cpu_tok!r:>10}  [{match}]",
+            flush=True,
+        )
+
+    print(
+        f"\n[pcc] min={min(step_pccs):.4f}, max={max(step_pccs):.4f}, "
+        f"avg={sum(step_pccs)/len(step_pccs):.4f}",
+        flush=True,
+    )
+
+    matches = sum(1 for a, b in zip(tt_token_ids, cpu_token_ids) if a == b)
+    print(f"[tokens] TT==CPU match: {matches}/{len(tt_token_ids)}", flush=True)
+
+    # Gate 4.1: prefill top-1 must match the `' pearl'` baseline (only meaningful at 4 layers).
+    if args.n_layers == 4:
+        expected_prefill_token = tokenizer.encode(" pearl", add_special_tokens=False)
+        if expected_prefill_token:
+            print(
+                f"[gate 4.1] expected prefill token = "
+                f"{tokenizer.decode(expected_prefill_token)!r} (ids={expected_prefill_token})",
+                flush=True,
+            )
+
+    print(
+        f"[pcc] overall (min across steps) = {min(step_pccs):.4f}  "
+        f"(required_pcc = 0.99, assert_on_failure = False)",
+        flush=True,
+    )
+
+
+def _build_prefill_attention_mask(
+    batch_size, prompt_len, max_cache_len, dtype=torch.bfloat16
+):
+    """Build (B, 1, prompt_len, max_cache_len) mask.
+
+    Positions 0..q_pos are allowed (0.0), others are -inf. Positions >= prompt_len
+    are -inf for all query positions.
+    """
+    mask = torch.full(
+        (batch_size, 1, prompt_len, max_cache_len),
+        float("-inf"),
+        dtype=dtype,
+    )
+    for q_pos in range(prompt_len):
+        mask[:, :, q_pos, : q_pos + 1] = 0.0
+    return mask
+
+
+def _build_decode_attention_mask(
+    batch_size, current_pos_inclusive, max_cache_len, dtype=torch.bfloat16
+):
+    """Build (B, 1, 1, max_cache_len) mask for a single decode step.
+
+    `current_pos_inclusive` = number of valid slots (== cache_position + 1). All
+    positions in [0, current_pos_inclusive) allowed, others -inf.
+    """
+    mask = torch.full(
+        (batch_size, 1, 1, max_cache_len),
+        float("-inf"),
+        dtype=dtype,
+    )
+    mask[:, :, :, :current_pos_inclusive] = 0.0
+    return mask
+
+
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 @pytest.mark.parametrize("prefill_seq_len", [32, 128, 512, 2048])
 def test_dsa_optimized_decode_flow_compared_to_original(batch_size, prefill_seq_len):

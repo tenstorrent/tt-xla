@@ -712,8 +712,9 @@ class MLA(nn.Module):
         softmax_scale (float): Scaling factor for softmax in attention computation.
     """
 
-    def __init__(self, args: ModelArgs, haddamard_matrix):
+    def __init__(self, args: ModelArgs, haddamard_matrix, layer_idx: int = 0):
         super().__init__()
+        self.layer_idx = layer_idx
         self.dim = args.dim
         self.n_heads = args.n_heads
         self.n_local_heads = args.n_heads // world_size
@@ -768,19 +769,27 @@ class MLA(nn.Module):
         freqs_cis: torch.Tensor,
         mask: Optional[torch.Tensor],
         use_optimized_decode_flow: bool = True,
+        cache_position: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
     ):
-        """
-        Forward pass for the Multi-Head Latent Attention (MLA) Layer.
+        """MLA forward with two paths.
 
-        Args:
-            x (torch.Tensor): Input tensor of shape (batch_size, seq_len, dim).
-            start_pos (int): Starting position in the sequence for caching.
-            freqs_cis (torch.Tensor): Precomputed complex exponential values for rotary embeddings.
-            mask (Optional[torch.Tensor]): Mask tensor to exclude certain positions from attention.
+        1. Legacy int path (default — `cache_position is None`): writes to
+           `self.kv_cache` / `self.pe_cache` via int-slice and runs either
+           `_optimized_mla_forward` or `_original_mla_forward`.
 
-        Returns:
-            torch.Tensor: Output tensor with the same shape as the input.
+        2. Cache path (`cache_position is not None`): writes to the same
+           buffers via `index_copy_` and runs attention against the full
+           `max_cache_len`, gated by the additive `attention_mask`. This is
+           the compile-friendly path used by `test_deepseek_v3_1_decode_static_cache`.
         """
+        if cache_position is not None:
+            return self._forward_with_cache(
+                x,
+                freqs_cis,
+                cache_position,
+                attention_mask,
+            )
         bsz, seqlen, _ = x.size()
         end_pos = start_pos + seqlen
         qr = self.q_norm(self.wq_a(x))
@@ -856,6 +865,98 @@ class MLA(nn.Module):
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
         x = self.wo(x.flatten(2))
         return x
+
+    def _forward_with_cache(
+        self,
+        x: torch.Tensor,
+        freqs_cis_step: torch.Tensor,
+        cache_position: torch.Tensor,
+        attention_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        """Cache-path MLA forward using the module-local `self.kv_cache` /
+        `self.pe_cache` buffers (shared with the int path).
+
+        Writes are tensor-indexed (`index_copy_`), so this is safe under
+        `torch.compile` + `torch_xla` SPMD — no Python-int specialization, no
+        per-step recompile. Reads span the full `max_cache_len`; the additive
+        `attention_mask` masks positions beyond `cache_position.max()`.
+        """
+        bsz, seqlen, _ = x.size()
+
+        qr = self.q_norm(self.wq_a(x))
+        q = self.wq_b(qr)
+        q = q.view(bsz, seqlen, self.n_local_heads, self.qk_head_dim)
+        q_nope, q_pe = torch.split(
+            q, [self.qk_nope_head_dim, self.qk_rope_head_dim], dim=-1
+        )
+        q_pe = apply_rotary_emb(q_pe, freqs_cis_step)
+
+        kv = self.wkv_a(x)
+        kv, k_pe = torch.split(kv, [self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
+        kv = self.kv_norm(kv)  # (B, seqlen, kv_lora_rank)
+        k_pe = apply_rotary_emb(
+            k_pe.unsqueeze(2), freqs_cis_step
+        )  # (B, seqlen, 1, qk_rope_head_dim)
+
+        if self.dtype == "fp8":
+            kv_fp8, kv_scale = act_quant(kv, block_size, self.scale_fmt)
+            kv = (
+                (kv_fp8.view(-1, block_size).float() * kv_scale.view(-1, 1))
+                .to(kv.dtype)
+                .view_as(kv)
+            )
+
+        # Functional cache update: express the tensor-indexed write as a
+        # `torch.where(mask, scatter_pad(kv), cache)` where `scatter_pad(kv)` is
+        # computed as a matmul against a one-hot position matrix. This avoids
+        # `index_put`/`scatter` lowering (unsupported by TT-MLIR on sharded
+        # buffers).
+        #
+        # Important: the result of `torch.where` is a *new* tensor — reassigning
+        # `self.kv_cache = ...` would lose the mark_sharding annotation on the
+        # module buffer, which in turn forces Shardy to propagate sharding
+        # backwards through the A2A-dispatch custom_call's tuple output inside
+        # MoE (which it can't handle). Instead, write back with `.copy_()` so the
+        # module buffer keeps its identity and sharding.
+        k_pe_flat = k_pe.squeeze(2)  # (B, seqlen, qk_rope_head_dim)
+        max_cache_len = self.kv_cache.size(1)
+        slot_range = torch.arange(max_cache_len, device=kv.device)
+        E = (cache_position.unsqueeze(1) == slot_range.unsqueeze(0)).to(kv.dtype)
+        kv_padded = torch.einsum("bsr,sc->bcr", kv, E)
+        k_pe_padded = torch.einsum("bsr,sc->bcr", k_pe_flat, E)
+        mask = (E.sum(dim=0) > 0).view(1, max_cache_len, 1)
+        self.kv_cache.copy_(torch.where(mask, kv_padded, self.kv_cache))
+        self.pe_cache.copy_(torch.where(mask, k_pe_padded, self.pe_cache))
+
+        kv_full = self.kv_cache  # (B, max_cache_len, kv_lora_rank)
+        pe_full = self.pe_cache  # (B, max_cache_len, qk_rope_head_dim)
+
+        if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
+            self.dequant_wkv_b = weight_dequant(self.wkv_b.weight, self.wkv_b.scale)
+        wkv_b = self.wkv_b.weight if self.dequant_wkv_b is None else self.dequant_wkv_b
+        wkv_b = wkv_b.view(self.n_local_heads, -1, self.kv_lora_rank)
+
+        q_nope_latent = torch.einsum(
+            "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
+        )  # (B, seqlen, n_heads, kv_lora_rank)
+
+        scores = (
+            torch.einsum("bshc,btc->bsht", q_nope_latent, kv_full)
+            + torch.einsum("bshr,btr->bsht", q_pe, pe_full)
+        ) * self.softmax_scale  # (B, seqlen, n_heads, max_cache_len)
+
+        # attention_mask: (B, 1, seqlen, max_cache_len) -> (B, seqlen, 1, max_cache_len)
+        scores = scores + attention_mask.permute(0, 2, 1, 3)
+        scores = scores.softmax(dim=-1)
+
+        attn_latent = torch.einsum(
+            "bsht,btc->bshc", scores, kv_full
+        )  # (B, seqlen, n_heads, kv_lora_rank)
+        attn_out = torch.einsum(
+            "bshc,hdc->bshd", attn_latent, wkv_b[:, -self.v_head_dim :]
+        )  # (B, seqlen, n_heads, v_head_dim)
+
+        return self.wo(attn_out.flatten(2))
 
     def original_decode_flow(
         self, x, q_nope, q_pe, bsz, end_pos, qr, start_pos, freqs_cis, mask, wkv_b
@@ -1188,7 +1289,8 @@ class Block(nn.Module):
             hadamard_matrix (torch.Tensor): Precomputed Hadamard matrix.
         """
         super().__init__()
-        self.attn = MLA(args, hadamard_matrix)
+        self.layer_id = layer_id
+        self.attn = MLA(args, hadamard_matrix, layer_idx=layer_id)
         self.ffn = (
             MLP(args.dim, args.inter_dim)
             if layer_id < args.n_dense_layers
@@ -1204,24 +1306,23 @@ class Block(nn.Module):
         start_pos: int,
         freqs_cis: torch.Tensor,
         mask: Optional[torch.Tensor],
+        cache_position: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """
-        Forward pass for the Transformer block.
-
-        Args:
-            x (torch.Tensor): Input tensor.
-            start_pos (int): Starting position in the sequence.
-            freqs_cis (torch.Tensor): Precomputed complex exponential values for rotary embeddings.
-            mask (Optional[torch.Tensor]): Mask tensor to exclude certain positions from attention.
-
-        Returns:
-            torch.Tensor: Output tensor after block computation.
-        """
+        """Block forward. When `cache_position is not None`, takes the
+        compile-friendly cache path; else the legacy int path."""
         if residual is None:
             x, residual = self.attn_norm(x), x
         else:
             x, residual = self.attn_norm(x, residual)
-        x = self.attn(x, start_pos, freqs_cis, mask)
+        x = self.attn(
+            x,
+            start_pos,
+            freqs_cis,
+            mask,
+            cache_position=cache_position,
+            attention_mask=attention_mask,
+        )
         x, residual = self.ffn_norm(x, residual)
         x = self.ffn(x)
         return x, residual
@@ -1296,8 +1397,45 @@ class Transformer(nn.Module):
 
         self.register_buffer("freqs_cis", freqs_cis, persistent=False)
 
-    def forward(self, tokens: torch.Tensor, start_pos: int = 0):
+    def forward(
+        self,
+        tokens: torch.Tensor,
+        start_pos: int = 0,
+        cache_position: Optional[torch.Tensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+    ):
+        """Two-path Transformer forward.
+
+        - When `cache_position is not None`, runs the compile-friendly path:
+          `freqs_cis` is tensor-indexed via `index_select(cache_position)`,
+          blocks write to the module-local `self.kv_cache` / `self.pe_cache`
+          buffers via `index_copy_`, and the additive `attention_mask` masks
+          cache slots beyond the current position.
+
+        - Otherwise (legacy int path), `start_pos` + int slice of `freqs_cis`.
+        """
         seqlen = tokens.size(1)
+        if cache_position is not None:
+            freqs_cis = self.freqs_cis.index_select(0, cache_position)
+            h, residual = self.embed(tokens), None
+            for layer in self.layers:
+                h, residual = layer(
+                    h,
+                    residual,
+                    0,
+                    freqs_cis,
+                    None,
+                    cache_position=cache_position,
+                    attention_mask=attention_mask,
+                )
+            h, _ = self.norm(h, residual)
+            logits = self.head(h[:, -1].float())
+            if world_size > 1:
+                all_logits = [torch.empty_like(logits) for _ in range(world_size)]
+                dist.all_gather(all_logits, logits)
+                logits = torch.cat(all_logits, dim=-1)
+            return logits
+
         freqs_cis = self.freqs_cis[start_pos : start_pos + seqlen]
         mask = (
             torch.full(

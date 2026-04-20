@@ -325,13 +325,14 @@ def fix_meta_buffers(model, args):
             )
 
 
-def generate(model, tokenizer, prompt, max_new_tokens=10, max_prompt_len=32):
+def generate(model, tokenizer, prompt, max_new_tokens=10, max_prompt_len=32, pad=False):
     """Autoregressive greedy generation using the modified model."""
     encoded = tokenizer(
         prompt,
         return_tensors="pt",
         max_length=max_prompt_len,
         truncation=True,
+        padding="max_length" if pad else False,
     )
     tokens = encoded["input_ids"][:, :max_prompt_len]
     seq_len = tokens.shape[1]
@@ -388,6 +389,11 @@ def main():
     parser.add_argument("--max-tokens", type=int, default=10)
     parser.add_argument("--max-prompt-len", type=int, default=32)
     parser.add_argument(
+        "--pad",
+        action="store_true",
+        help="Pad prompt to max-prompt-len (matches the decode test setup).",
+    )
+    parser.add_argument(
         "--n-layers", type=int, default=None, help="Number of layers (default: all 61)"
     )
     parser.add_argument(
@@ -438,6 +444,7 @@ def main():
         args.prompt,
         max_new_tokens=args.max_tokens,
         max_prompt_len=args.max_prompt_len,
+        pad=args.pad,
     )
 
 
