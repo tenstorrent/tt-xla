@@ -88,20 +88,19 @@ def test_llama_step(run_mode):
         dtype=torch.bfloat16,
     )
 
-    cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
+    seq_len: int = inputs.input_ids.shape[1]
+    position_ids: torch.Tensor = torch.arange(0, seq_len).unsqueeze(0)
     input_args = {
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
-        "cache_position": cache_position,
+        "position_ids": position_ids,
         "use_cache": True,
     }
 
-    # In decode mode, use only the first token and reset cache position
+    # In decode mode, use only the first token at position 0
     if run_mode == LLMRunMode.DECODE:
-        input_args["input_ids"] = input_args["input_ids"][
-            :, :1
-        ]  # Take first token, keep batch dim
-        input_args["cache_position"] = torch.tensor([0])  # Set cache position to [0]
+        input_args["input_ids"] = input_args["input_ids"][:, :1]
+        input_args["position_ids"] = torch.tensor([[0]])
 
     # CPU comparison for validation
     cpu_output_logits: List[torch.Tensor] = []
@@ -112,18 +111,22 @@ def test_llama_step(run_mode):
         cpu_tok = tokenizer.decode(cpu_logits[:, -1].argmax(dim=-1))
         print("Cpu tok: ", cpu_tok)
 
-    # Move model and inputs to device.
+    # Move model and inputs to device. Reset cumulative_length so CPU run state
+    # doesn't corrupt the TT run (CPU run incremented it to seq_len).
     for layer in static_cache.layers:
+        layer.cumulative_length.zero_()
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        layer.cumulative_length = layer.cumulative_length.to(device)
+        layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
-    input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["position_ids"] = input_args["position_ids"].to(device)
 
     model = model.to(device)
 
     # Mark shardings on model and inputs.
     xs.mark_sharding(input_args["input_ids"], mesh, (None, None))
-    xs.mark_sharding(input_args["cache_position"], mesh, (None,))
+    xs.mark_sharding(input_args["position_ids"], mesh, (None, None))
 
     kv_cache_key_shard_specs = []
     kv_cache_value_shard_specs = []
@@ -167,9 +170,10 @@ def test_llama_step(run_mode):
         next_token = output_logits[:, -1].argmax(dim=-1).unsqueeze(-1)
         input_args["input_ids"] = next_token.to(device)
 
-        host_cache_pos = input_args["cache_position"].to("cpu")
-        host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
-        input_args["cache_position"] = host_cache_pos.to(device)
+        host_pos = input_args["position_ids"].to("cpu")
+        input_args["position_ids"] = torch.tensor([[host_pos[0, -1].item() + 1]]).to(
+            device
+        )
 
     # Assert that KV cache shard specs are preserved after execution
     for i, layer in enumerate(input_args["past_key_values"].layers):
