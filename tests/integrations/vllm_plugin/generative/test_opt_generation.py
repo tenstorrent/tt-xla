@@ -67,9 +67,9 @@ def test_opt_generation_large_batch(batch_size):
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=16)
     llm_args = {
         "model": "facebook/opt-125m",
-        "max_num_batched_tokens": batch_size * 128,
+        "max_num_batched_tokens": batch_size * 32,
         "max_num_seqs": batch_size,
-        "max_model_len": 128,
+        "max_model_len": 32,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
             "enable_const_eval": False,
