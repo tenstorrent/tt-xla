@@ -18,8 +18,9 @@ from infra.utilities.torch_multichip_utils import (
     get_mesh,
     get_mesh_shape_for_device_count,
 )
+import pytest
 
-
+@pytest.mark.push
 def test_simple_distributed_addition():
     """
     Verifies basic distributed tensor addition across multiple hosts.
@@ -61,6 +62,7 @@ def test_simple_distributed_addition():
     comparator.evaluate(output.cpu(), expected_output)
 
 
+@pytest.mark.push
 def test_matmul_contracting_dim_sharded():
     """
     Matmul A @ B with contracting dimension (K) sharded across model axis.
@@ -110,7 +112,7 @@ def test_matmul_contracting_dim_sharded():
     comparator = TorchComparisonEvaluator(comparison_config)
     comparator.evaluate(output.cpu(), expected)
 
-
+@pytest.mark.push
 def test_matmul_batch_sharded():
     """
     Matmul A @ B with A sharded on batch. Each device holds a batch slice,
