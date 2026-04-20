@@ -3,9 +3,6 @@ name: Check and Build tt-xla
 # Implements artifact caching to avoid unnecessary rebuilds.
 # Artifacts are reused only when: not a PR, no mlir_override, and exact name match exists.
 # Naming: "xla-whl-{release|explorer}[-commit_sha]" (SHA added for individual commits only).
-#
-# Artifact reuse: when artifact_sha is provided, artifacts built for that commit are reused
-# without rebuilding. Falls back to a normal build if any artifact is missing or expired.
 
 on:
   workflow_call:
@@ -36,10 +33,6 @@ on:
         required: false
         type: string
         default: ${{ github.sha }}
-      artifact_sha:
-        description: 'tt-xla commit SHA to reuse pre-built artifacts from. If artifacts are not found the workflow builds normally.'
-        required: false
-        type: string
     outputs:
       artifacts_run_id:
         description: 'Run ID of the workflow that produced the existing artifact(s)'
@@ -67,21 +60,14 @@ jobs:
         id: generate-name
         shell: bash
         run: |
-          # Caller provided a SHA to reuse artifacts from (e.g. PR base commit or a manual override).
-          if [[ "${{ inputs.force_rebuild }}" != "true" && \
-                -n "${{ inputs.artifact_sha }}" ]]; then
-            sha="${{ inputs.artifact_sha }}"
-            artifact_suffix="-${sha:0:7}"
-            echo "reusable_artifact=true" >> "$GITHUB_OUTPUT"
-            echo "Looking for artifacts from SHA ${sha}, suffix: ${artifact_suffix}"
           # Add commit SHA to artifact name only when all conditions are met:
           # - Not a pull request event
           # - Not a merge commit (has exactly 1 parent)
           # - No MLIR override specified
-          elif [[ "${{ inputs.force_rebuild }}" != "true" && \
-                  "${{ github.event_name }}" != "pull_request" && \
-                  $(git cat-file -p HEAD | grep -c "^parent ") -eq 1 && \
-                  "${{ inputs.mlir_override }}" == "" ]]; then
+          if [[ "${{ inputs.force_rebuild }}" != "true" && \
+                "${{ github.event_name }}" != "pull_request" && \
+                $(git cat-file -p HEAD | grep -c "^parent ") -eq 1 && \
+                "${{ inputs.mlir_override }}" == "" ]]; then
             artifact_suffix="-$(git rev-parse --short HEAD)"
             echo "reusable_artifact=true" >> "$GITHUB_OUTPUT"
             echo "Reusable artifact suffix: ${artifact_suffix}"
@@ -151,7 +137,6 @@ jobs:
             echo "artifacts_run_id=" >> "$GITHUB_OUTPUT"
             echo "Not all artifacts exist, build required"
           fi
-
 
   build-ttxla-release:
     needs: check-existing-artifact
