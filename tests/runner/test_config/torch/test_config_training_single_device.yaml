@@ -1380,7 +1380,6 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   unet_for_conditional_generation/pytorch-Base-single_device-training:
-    markers: [large]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Out of Memory: Not enough space to allocate 6710886400 B DRAM buffer across 8 banks, where each bank needs to store 838860800 B"
