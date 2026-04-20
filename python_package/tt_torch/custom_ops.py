@@ -1260,6 +1260,115 @@ def all_to_all_dispatch_fake(
     return dispatched, metadata
 
 
+def _a2a_dispatch_setup_context(ctx, inputs, output):
+    input_tensor = inputs[0]
+    expert_indices = inputs[1]
+    expert_mapping = inputs[2]
+    num_devices = inputs[3]
+    cluster_axis = inputs[4]
+
+    ctx.save_for_backward(expert_indices, expert_mapping)
+    ctx.input_shape = tuple(input_tensor.shape)
+    ctx.num_devices = int(num_devices)
+    ctx.cluster_axis = int(cluster_axis)
+
+    _, metadata = output
+    ctx.mark_non_differentiable(metadata)
+
+
+def _a2a_dispatch_backward(ctx, grad_dispatched, grad_metadata):
+    """Adjoint of all_to_all_dispatch implemented via all_to_all_combine.
+
+    On XLA (multi-chip), combine is the reverse all-to-all of dispatch. We
+    call combine with the same routing (metadata rebuilt from user-supplied
+    expert_indices, same expert_mapping/num_devices/cluster_axis) then sum
+    over K to get the per-token gradient.
+
+    For combine's kernel to accept the input we need E_local == E / D (same
+    shape convention the MoE forward uses, see sparse_mlp.py). We materialize
+    that by tiling grad_dispatched along a new leading E_local dim, in the
+    [E_local, 1, BD*S, H] layout that the kernel and the SPMD sharding
+    pattern expect.
+
+    CPU / single-device: combine's CPU fallback is a local gather-with-clamp
+    that doesn't realise the adjoint for our shape; we fall back to the math
+    adjoint (sum over D copies).
+    """
+    expert_indices, expert_mapping = ctx.saved_tensors
+    input_shape = ctx.input_shape
+    D = ctx.num_devices
+    cluster_axis = ctx.cluster_axis
+
+    input_was_3d = len(input_shape) == 3
+    if input_was_3d:
+        B, S, H = input_shape
+    else:
+        B, _, S, H = input_shape
+
+    # combine needs SPMD + proper mesh sharding; without them the TTNN
+    # kernel crashes in fabric setup. Fall back to the math adjoint whenever
+    # we're on CPU, num_devices==1, or SPMD isn't enabled on this run.
+    _use_combine = False
+    if D > 1 and grad_dispatched.device.type == "xla":
+        try:
+            import torch_xla.runtime as _xr  # local import — avoid at module top
+
+            _use_combine = _xr.is_spmd()
+        except Exception:
+            _use_combine = False
+
+    if not _use_combine:
+        g = grad_dispatched.reshape(1, D, B, S, H).sum(dim=1)
+        g = g.permute(1, 0, 2, 3).contiguous()
+        if input_was_3d:
+            g = g.reshape(B, S, H)
+        return g, None, None, None, None
+
+    K = expert_indices.shape[-1]
+    E = expert_mapping.shape[2]
+    assert E % D == 0, f"E ({E}) must be divisible by num_devices ({D}) for combine-based dispatch bwd"
+    E_local = E // D
+
+    # Build combine's metadata [1, 1, BD*S, K] from expert_indices (user
+    # input) — NOT from the forward's tuple output, which would chain the
+    # dispatch tuple into the backward graph and trip Shardy.
+    ei = expert_indices
+    if ei.dim() == 2:
+        ei = ei.reshape(B, S, K).unsqueeze(1)
+    elif ei.dim() == 3:
+        ei = ei.unsqueeze(1)
+    metadata_flat = ei.permute(1, 0, 2, 3)
+    if D > 1:
+        metadata_flat = metadata_flat.repeat(1, D, 1, 1)
+    metadata_flat = metadata_flat.reshape(1, 1, B * D * S, K).contiguous()
+
+    # Reshape grad_dispatched [1, BD, S, H] → [1, 1, BD*S, H] and tile the
+    # leading dim to E_local so combine's kernel sees its expected layout.
+    g_flat = grad_dispatched.reshape(1, 1, B * D * S, H)
+    g_tiled = g_flat.expand(E_local, 1, B * D * S, H).contiguous()
+
+    combined = torch.ops.tt.all_to_all_combine(
+        g_tiled,  # [E_local, 1, BD*S, H]
+        metadata_flat,  # [1, 1, BD*S, K]
+        expert_mapping,  # [1, 1, E, D]
+        num_devices=D,
+        cluster_axis=cluster_axis,
+        num_experts_per_tok=K,
+        output_shard_dim=2,  # [K, 1, B*S, H]
+    )
+    # combined: [K, 1, B*S, H]. Sum K → per-token gradient.
+    d_input = combined.sum(dim=0).reshape(B, S, H)
+    if not input_was_3d:
+        d_input = d_input.reshape(B, 1, S, H)
+    return d_input, None, None, None, None
+
+
+all_to_all_dispatch.register_autograd(
+    _a2a_dispatch_backward,
+    setup_context=_a2a_dispatch_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::all_to_all_combine", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1402,6 +1511,89 @@ def all_to_all_combine_fake(
     raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
 
 
+def _a2a_combine_setup_context(ctx, inputs, output):
+    # inputs: (input_tensor, expert_metadata, expert_mapping, num_devices,
+    #          cluster_axis, num_experts_per_tok, output_shard_dim)
+    input_tensor = inputs[0]
+    expert_metadata = inputs[1]
+    num_devices = inputs[3]
+    K = inputs[5]
+    output_shard_dim = inputs[6]
+
+    ctx.save_for_backward(expert_metadata)
+    ctx.input_shape = tuple(input_tensor.shape)
+    ctx.num_devices = int(num_devices)
+    ctx.K = int(K)
+    ctx.output_shard_dim = int(output_shard_dim)
+
+
+def _a2a_combine_backward(ctx, grad_combined):
+    """Adjoint of all_to_all_combine.
+
+    Forward: combined[k, tok, :] = input_flat[metadata[tok, k], tok, :] * valid(tok, k).
+    Adjoint: d_input_flat[e, tok, :] = sum_{k: metadata[tok, k]==e and valid} d_combined[k, tok, :].
+
+    Implemented with torch's native scatter_add — no new custom op is
+    introduced. On multi-chip hardware the compiler is responsible for
+    inserting the appropriate cross-device collective if the expert dim is
+    sharded; under replicated execution the scatter is self-contained per
+    chip and produces the same result everywhere.
+    """
+    (expert_metadata,) = ctx.saved_tensors
+    input_shape = ctx.input_shape
+    num_devices = ctx.num_devices
+    K = ctx.K
+    output_shard_dim = ctx.output_shard_dim
+
+    E_local = input_shape[0]
+    tokens = expert_metadata.shape[2]
+    H = input_shape[-1]
+    tokens_per_device = tokens // num_devices
+
+    # Undo shard_dim insertion from forward to recover [K, tpd, H].
+    if output_shard_dim == 1:
+        g = grad_combined.squeeze(2)
+    elif output_shard_dim == 2:
+        g = grad_combined.squeeze(1)
+    else:
+        raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
+
+    metadata_indices = expert_metadata[0, 0, :tokens_per_device].long()  # [tpd, K]
+    expert_ids_KT = metadata_indices.transpose(0, 1).contiguous()  # [K, tpd]
+    valid_KT = (expert_ids_KT >= 0) & (expert_ids_KT < E_local)
+    expert_ids_clamped = expert_ids_KT.clamp(0, E_local - 1)
+
+    g_masked = g * valid_KT.unsqueeze(-1).to(g.dtype)
+
+    idx = expert_ids_clamped.unsqueeze(-1).expand(K, tokens_per_device, H)
+    partial = torch.zeros(
+        E_local, tokens_per_device, H, dtype=g.dtype, device=g.device
+    )
+    partial.scatter_add_(0, idx, g_masked)
+
+    if tokens > tokens_per_device:
+        zero_pad = torch.zeros(
+            E_local,
+            tokens - tokens_per_device,
+            H,
+            dtype=g.dtype,
+            device=g.device,
+        )
+        d_input_flat = torch.cat([partial, zero_pad], dim=1)
+    else:
+        d_input_flat = partial
+
+    d_input = d_input_flat.reshape(input_shape)
+
+    return d_input, None, None, None, None, None, None
+
+
+all_to_all_combine.register_autograd(
+    _a2a_combine_backward,
+    setup_context=_a2a_combine_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::moe_expert_token_remap", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1528,6 +1720,87 @@ def moe_expert_token_remap_fake(
         device=topk_tensor.device,
     )
     return mapping, reduced
+
+
+def _moe_remap_setup_context(ctx, inputs, output):
+    # inputs: (topk_tensor, expert_mapping, expert_metadata, num_devices, reduction_size)
+    topk_tensor = inputs[0]
+    expert_metadata = inputs[2]
+    num_devices = inputs[3]
+
+    ctx.save_for_backward(expert_metadata)
+    ctx.topk_shape = tuple(topk_tensor.shape)
+    ctx.num_devices = int(num_devices)
+
+    # `reduced` is a 0/1 sparsity indicator built from integer ops; no grad flows through it.
+    _mapping, reduced = output
+    ctx.mark_non_differentiable(reduced)
+
+
+def _moe_remap_backward(ctx, grad_mapping, grad_reduced):
+    """Adjoint of moe_expert_token_remap.
+
+    Forward (after canonicalizing topk to [1, 1, tokens, E]):
+        mapping[0, 0, tok, e] = topk[tok, e]  if e ∈ {metadata[tok, k] : k in [K)}
+                                      else 0
+        reduced[...] = 0/1 sparsity (integer-only; no float gradient)
+
+    Adjoint w.r.t. the canonicalized topk:
+        d_topk[tok, e] = d_mapping[0, 0, tok, e]  if e is selected for tok
+                                 else 0
+
+    We realize this as: gather d_mapping values at the K selected positions
+    per token, scatter them into a zero tensor of shape [tokens, E]. Then
+    undo the canonicalization (squeeze/unsqueeze + reduce over the num_devices
+    replication) to restore the original topk shape.
+    """
+    (expert_metadata,) = ctx.saved_tensors
+    topk_shape = ctx.topk_shape
+    num_devices = ctx.num_devices
+
+    # Strip leading [1, 1] from grad_mapping → [tokens, E]
+    g = grad_mapping[0, 0]
+
+    indices = expert_metadata[0, 0].long()  # [tokens, K]
+    scores = torch.gather(g, dim=-1, index=indices)  # [tokens, K]
+    d_topk_flat = torch.zeros_like(g)
+    d_topk_flat.scatter_(-1, indices, scores)  # [tokens, E]
+
+    # Undo the forward's shape canonicalization.
+    E = topk_shape[-1]
+    if len(topk_shape) == 2:
+        # Forward: [BS, E] → unsqueeze → repeat(D) → unsqueeze → [1, 1, tokens, E]
+        BS = topk_shape[0]
+        if num_devices > 1:
+            d_topk = d_topk_flat.reshape(num_devices, BS, E).sum(dim=0)
+        else:
+            d_topk = d_topk_flat
+    elif len(topk_shape) == 3:
+        # Forward: [A, B, E] → repeat(D) on dim 1 → unsqueeze → [1, A, D*B, E]
+        A = topk_shape[0]
+        B = topk_shape[1]
+        tokens = d_topk_flat.shape[0]
+        # [tokens, E] is actually flattened [A, D*B, E] when A != 1, or just [D*B, E] when A==1.
+        if A * B * num_devices != tokens:
+            raise ValueError(
+                f"topk_shape {topk_shape} inconsistent with tokens={tokens}, D={num_devices}"
+            )
+        reshaped = d_topk_flat.reshape(A, num_devices, B, E)
+        d_topk = reshaped.sum(dim=1) if num_devices > 1 else reshaped.squeeze(1)
+    elif len(topk_shape) == 4:
+        # Forward: already [1, BD, S, E] (legacy pre-repeated); just reshape back.
+        d_topk = d_topk_flat.reshape(topk_shape)
+    else:
+        raise ValueError(f"Unsupported topk rank: {len(topk_shape)}")
+
+    # Return grads for: (topk_tensor, expert_mapping, expert_metadata, num_devices, reduction_size)
+    return d_topk, None, None, None, None
+
+
+moe_expert_token_remap.register_autograd(
+    _moe_remap_backward,
+    setup_context=_moe_remap_setup_context,
+)
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow
