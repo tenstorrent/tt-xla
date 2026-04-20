@@ -1348,6 +1348,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logger.info(
                 f"input_ids_run: {input_ids.shape} -- {input_ids[0, :].to('cpu')}"
             )
+            logger.info(
+                f"positions: {self.position_ids.shape} -- {self.position_ids[0, :].to('cpu')}"
+            )
             logger.info(f"hidden_states shape: {hidden_states.shape}")
             logger.info(f"hidden_states: {hidden_states.to('cpu')[0, :, :]}")
             # sys.exit(0)
@@ -1393,9 +1396,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
+                # self.device,
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            logger.info(f"grammer_output: {grammar_output}")
             if grammar_output is not None:
                 (
                     require_struct_decoding,
@@ -2305,6 +2310,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
         All operations run on CPU to avoid compiling a device sampling graph.
         """
+        logger.info(
+            f"Asif:: Sampling on CPU with logits shape {logits.shape} and metadata {sampling_metadata}."
+        )
+        logger.info(f"Asif:: Sampling on CPU with logits dtype {logits.dtype}.")
+        # logits_device = logits.device
         logits = logits.cpu()
 
         if not sampling_metadata.no_penalties:
