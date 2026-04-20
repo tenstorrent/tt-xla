@@ -1420,6 +1420,8 @@ def moe_gpt(
     gate_up_proj_bias: torch.Tensor,
     down_proj: torch.Tensor,
     down_proj_bias: torch.Tensor,
+    fused_w0_w1: Optional[torch.Tensor] = None,
+    fused_w2: Optional[torch.Tensor] = None,
     num_experts_per_tok: int = 2,
     num_devices: int = 1,
     cluster_axis: int = 0,
@@ -1431,9 +1433,18 @@ def moe_gpt(
     and the final selective combine step. The tuple ordering mirrors the
     tt-metal fused decode pipeline so `selective_reduce_combine` can consume the
     `moe_gpt` bundle directly in the composite decomposition.
+
+    When ``fused_w0_w1`` / ``fused_w2`` are provided, they are forwarded as
+    extra custom-call operands so the tt-MLIR backend can consume the
+    already-preprocessed 6D fused kernel weight layout directly.
     """
     device = input_tensor.device
-    E = expert_mapping.shape[2]
+    # expert_mapping follows tt-metal's [1, 1, D_total, E] layout.
+    # gate_up_proj's leading dim is the authoritative global expert count
+    # (it remains E even though tt-metal's demo carries the mapping with a
+    # repeated row per mesh device, so reading shape[-1] of the mapping
+    # would also work here).
+    E = gate_up_proj.shape[0]
     _, BD, S, H = input_tensor.shape
     combine_metadata_shape = list(expert_mapping.shape)
     indices_shape = list(expert_indices.shape)
@@ -1441,23 +1452,30 @@ def moe_gpt(
     aux_shape = list(expert_scores.shape)
     expert_output_shape = [E, S, BD, H]
 
+    has_fused = fused_w0_w1 is not None and fused_w2 is not None
+
     if device.type == "xla":
         frontend_attributes = {
             "num_experts_per_tok": str(num_experts_per_tok),
             "num_devices": str(num_devices),
             "cluster_axis": str(cluster_axis),
+            "has_fused_weights": "true" if has_fused else "false",
         }
+        operands = [
+            input_tensor,
+            expert_indices,
+            expert_scores,
+            expert_mapping,
+            gate_up_proj,
+            gate_up_proj_bias,
+            down_proj,
+            down_proj_bias,
+        ]
+        if has_fused:
+            operands.extend([fused_w0_w1, fused_w2])
+
         return stablehlo_custom_call.stablehlo_custom_call(
-            [
-                input_tensor,
-                expert_indices,
-                expert_scores,
-                expert_mapping,
-                gate_up_proj,
-                gate_up_proj_bias,
-                down_proj,
-                down_proj_bias,
-            ],
+            operands,
             "tt.moe_gpt",
             [
                 combine_metadata_shape,
@@ -1499,11 +1517,13 @@ def moe_gpt_fake(
     gate_up_proj_bias: torch.Tensor,
     down_proj: torch.Tensor,
     down_proj_bias: torch.Tensor,
+    fused_w0_w1: Optional[torch.Tensor] = None,
+    fused_w2: Optional[torch.Tensor] = None,
     num_experts_per_tok: int = 2,
     num_devices: int = 1,
     cluster_axis: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    E = expert_mapping.shape[2]
+    E = gate_up_proj.shape[0]
     _, BD, S, H = input_tensor.shape
     combine_metadata = torch.zeros_like(expert_mapping)
     bundled_indices = torch.zeros_like(expert_indices)
@@ -1758,13 +1778,23 @@ def moe_expert_token_remap(
     expert_metadata: torch.Tensor,
     num_devices: int = 1,
     reduction_size: int = 32,
+    ring_size: Optional[int] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """
     Convert global expert routing to local device expert mapping and sparsity.
 
     Accepts flexible topk_tensor formats:
-        - [B*S, E] (2D): router scores, internally repeated for num_devices
+        - [B*S, E] (2D): router scores, internally repeated for ring_size
         - [1, BD, S, E] (4D): pre-repeated (legacy)
+
+    ``num_devices`` must match ``expert_mapping.shape[-1]`` and, for the
+    new tt-metal API, equals the total mesh device count (the kernel reads
+    it via ``mesh_view.num_devices()``). ``ring_size`` controls how many
+    times ``topk_tensor`` is replicated along the token dim so it lines up
+    with ``expert_metadata``, which is produced by the ring-only
+    ``all_to_all_dispatch`` and therefore has ``B * ring_size * S`` tokens.
+    When ``ring_size`` is omitted it defaults to ``num_devices`` (legacy
+    behaviour where the dispatch ring spans the whole mesh).
 
     Returns:
         mapping: [1, BD, S, E], bfloat16
@@ -1773,6 +1803,7 @@ def moe_expert_token_remap(
     import math
 
     device = topk_tensor.device
+    repeat_factor = ring_size if ring_size is not None else num_devices
 
     if device.type == "xla":
         # metadata is [1, 1, tokens, K] where tokens = BD*S.
@@ -1784,12 +1815,12 @@ def moe_expert_token_remap(
         if topk_tensor.dim() == 2:
             BS = topk_tensor.shape[0]
             topk_tensor = topk_tensor.unsqueeze(0)  # [1, B*S, E]
-            if num_devices > 1:
-                topk_tensor = topk_tensor.repeat(1, num_devices, 1)  # [1, BD*S, E]
+            if repeat_factor > 1:
+                topk_tensor = topk_tensor.repeat(1, repeat_factor, 1)  # [1, BD*S, E]
             topk_tensor = topk_tensor.unsqueeze(0)  # [1, 1, tokens, E]
         elif topk_tensor.dim() == 3:
-            if num_devices > 1:
-                topk_tensor = topk_tensor.repeat(1, num_devices, 1)
+            if repeat_factor > 1:
+                topk_tensor = topk_tensor.repeat(1, repeat_factor, 1)
             topk_tensor = topk_tensor.unsqueeze(0)
 
         output_shapes = [
@@ -1822,12 +1853,12 @@ def moe_expert_token_remap(
     if topk_tensor.dim() == 2:
         BS = topk_tensor.shape[0]
         topk_tensor = topk_tensor.unsqueeze(0)  # [1, B*S, E]
-        if num_devices > 1:
-            topk_tensor = topk_tensor.repeat(1, num_devices, 1)
+        if repeat_factor > 1:
+            topk_tensor = topk_tensor.repeat(1, repeat_factor, 1)
         topk_tensor = topk_tensor.unsqueeze(0)  # [1, 1, tokens, E]
     elif topk_tensor.dim() == 3:
-        if num_devices > 1:
-            topk_tensor = topk_tensor.repeat(1, num_devices, 1)
+        if repeat_factor > 1:
+            topk_tensor = topk_tensor.repeat(1, repeat_factor, 1)
         topk_tensor = topk_tensor.unsqueeze(0)
 
     D, _, tokens_dim, E = topk_tensor.shape
@@ -1858,6 +1889,7 @@ def moe_expert_token_remap_fake(
     expert_metadata: torch.Tensor,
     num_devices: int = 1,
     reduction_size: int = 32,
+    ring_size: Optional[int] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     import math
 

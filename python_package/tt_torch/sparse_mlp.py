@@ -93,9 +93,7 @@ def _prepare_w0_w1_tensor(
         num_cores, L, E, groups_per_core, 2, K, 2 * _TILE_SIZE
     )
     pair_2_tiles = pair_2_tiles.permute(0, 1, 2, 3, 5, 4, 6)
-    paired = pair_2_tiles.reshape(
-        num_cores, L, E, groups_per_core, K, 4 * _TILE_SIZE
-    )
+    paired = pair_2_tiles.reshape(num_cores, L, E, groups_per_core, K, 4 * _TILE_SIZE)
     return paired
 
 
@@ -180,25 +178,17 @@ def _prepare_w2_tensor(
         pad_flag = 1 if ring_pos in _FUSED_PAD_CORES else 0
 
         if pad_flag:
-            each_shard.append(
-                torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
-            )
+            each_shard.append(torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE])
             start_col += 4 * _TILE_SIZE
-            each_shard.append(
-                torch_w2[:, :, :, start_col : start_col + 3 * _TILE_SIZE]
-            )
+            each_shard.append(torch_w2[:, :, :, start_col : start_col + 3 * _TILE_SIZE])
             start_col += 3 * _TILE_SIZE
             each_shard.append(
                 torch.zeros(L, E, N, 1 * _TILE_SIZE, dtype=torch_w2.dtype)
             )
         else:
-            each_shard.append(
-                torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
-            )
+            each_shard.append(torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE])
             start_col += 4 * _TILE_SIZE
-            each_shard.append(
-                torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE]
-            )
+            each_shard.append(torch_w2[:, :, :, start_col : start_col + 4 * _TILE_SIZE])
             start_col += 4 * _TILE_SIZE
 
     reordered = torch.cat(each_shard, dim=-1)
@@ -206,9 +196,7 @@ def _prepare_w2_tensor(
     all_groups = all_groups.permute(3, 0, 1, 4, 2, 5)
 
     Nt = N // _TILE_SIZE
-    N_grouped = all_groups.view(
-        num_cores, L, E, 2, Nt, _TILE_SIZE, 4 * _TILE_SIZE
-    )
+    N_grouped = all_groups.view(num_cores, L, E, 2, Nt, _TILE_SIZE, 4 * _TILE_SIZE)
 
     core_chunk_order = torch.tensor(list(reversed(range(num_cores)))).roll(1)
     chunk_sizes = [_tiles_for_core(i) for i in range(num_cores)]
@@ -230,9 +218,7 @@ def _prepare_w2_tensor(
         each_shard.append(torch.cat(each_chunk, dim=3))
         core_chunk_order = core_chunk_order.roll(1)
 
-    N_reordered = torch.stack(each_shard).view(
-        num_cores, L, E, 2, -1, 4 * _TILE_SIZE
-    )
+    N_reordered = torch.stack(each_shard).view(num_cores, L, E, 2, -1, 4 * _TILE_SIZE)
     return N_reordered
 
 
@@ -287,9 +273,7 @@ def _prepare_w2_b2_tensor(
 
     Nt_all = N_new // _TILE_SIZE
     Nt_weight = N // _TILE_SIZE
-    N_grouped = all_groups.view(
-        num_cores, L, E, 2, Nt_all, _TILE_SIZE, 4 * _TILE_SIZE
-    )
+    N_grouped = all_groups.view(num_cores, L, E, 2, Nt_all, _TILE_SIZE, 4 * _TILE_SIZE)
 
     # Split weight tile rows and bias tile row
     N_weight = N_grouped[:, :, :, :, :Nt_weight, :, :]
@@ -318,9 +302,7 @@ def _prepare_w2_b2_tensor(
         each_shard.append(torch.cat(each_chunk, dim=3))
         core_chunk_order = core_chunk_order.roll(1)
 
-    N_reordered = torch.stack(each_shard).view(
-        num_cores, L, E, 2, -1, 4 * _TILE_SIZE
-    )
+    N_reordered = torch.stack(each_shard).view(num_cores, L, E, 2, -1, 4 * _TILE_SIZE)
     return N_reordered
 
 
@@ -411,9 +393,7 @@ def preprocess_fused_moe_weights(
             w0_w1_cols.append(
                 _prepare_w0_b0_w1_b1_tensor(w0_d, b0_d, w1_d, b1_d, L, E, K, N)
             )
-            w2_cols.append(
-                _prepare_w2_b2_tensor(w2_d, b2_d, L, E, N, K)
-            )
+            w2_cols.append(_prepare_w2_b2_tensor(w2_d, b2_d, L, E, N, K))
         w0_w1_rows.append(torch.cat(w0_w1_cols, dim=1))  # cat cols on dim 1
         w2_rows.append(torch.cat(w2_cols, dim=1))
 
@@ -776,6 +756,98 @@ def build_expert_mapping(num_experts, num_devices, mesh_shape=None):
     return mapping
 
 
+def build_expert_mapping_linearized(
+    num_experts, num_mesh_devices, mesh_shape, cluster_axis
+):
+    """
+    Build expert-to-device mapping tensor in tt-metal's fused MoE format.
+
+    Matches `gen_expert_mapping` used by tt-metal's fused decode path in
+    models/demos/gpt_oss/tt/experts_throughput/config.py. Every mesh device
+    holds an identical copy of the mapping; mapping[d, e] stores the
+    linearized global device id that owns expert e (same for every source
+    row d, so the tensor is a broadcasted repeat of a single row).
+
+    The linearized coordinate encodes (row_id * mesh_cols + col_id) for the
+    device that owns expert e. `cluster_axis` selects which mesh axis acts
+    as the dispatch ring:
+      - cluster_axis == 0: the ring runs down rows, so each column holds a
+        distinct expert group; expert_id // experts_per_cluster picks the
+        column (cluster_id) and `within // experts_per_device` picks the
+        row within the column.
+      - cluster_axis == 1: the ring runs across columns; experts are
+        distributed as `expert_id // experts_per_device` globally.
+
+    Args:
+        num_experts: Total number of experts (E).
+        num_mesh_devices: Total number of mesh devices (D_total).
+        mesh_shape: (rows, cols) tuple describing the mesh.
+        cluster_axis: 0 or 1 — axis the dispatch ring runs along.
+
+    Returns:
+        Tensor of shape [1, 1, num_mesh_devices, num_experts] with int64
+        linearized device ids. The leading [1, 1] keeps the rank aligned
+        with the existing 4D mapping convention used by the composite.
+    """
+    assert (
+        num_experts % num_mesh_devices == 0
+    ), f"num_experts ({num_experts}) must be divisible by num_mesh_devices ({num_mesh_devices})"
+    rows, cols = mesh_shape
+    assert (
+        rows * cols == num_mesh_devices
+    ), f"mesh_shape {mesh_shape} does not match num_mesh_devices {num_mesh_devices}"
+    assert cluster_axis in (0, 1), f"cluster_axis must be 0 or 1, got {cluster_axis}"
+
+    experts_per_device = num_experts // num_mesh_devices
+    num_replicated_devices = cols if cluster_axis == 0 else rows
+    experts_per_cluster = num_experts // num_replicated_devices
+
+    row = torch.zeros(num_experts, dtype=torch.int64)
+    for e in range(num_experts):
+        if cluster_axis == 0:
+            cluster_id = e // experts_per_cluster
+            within = e % experts_per_cluster
+            dev_in_cluster = within // experts_per_device
+            linear = dev_in_cluster * num_replicated_devices + cluster_id
+        else:
+            linear = e // experts_per_device
+        row[e] = linear
+
+    mapping = row.unsqueeze(0).repeat(num_mesh_devices, 1)
+    return mapping.unsqueeze(0).unsqueeze(0)
+
+
+def build_expert_mapping_full_mesh(
+    num_experts, num_mesh_devices, mesh_shape, cluster_axis
+):
+    """
+    One-hot expert-to-device mapping over the full mesh.
+
+    Shape: ``[1, 1, num_experts, num_mesh_devices]``, where
+    ``mapping[0, 0, e, d] == 1`` iff expert ``e`` lives on the linearized
+    mesh device ``d``. Used by ``ttnn.moe_expert_token_remap`` whose
+    validator requires ``mapping_shape[-1] == mesh_view.num_devices()`` and
+    derives ``num_local_experts = num_experts / num_devices``, i.e. the
+    kernel expects experts to be partitioned across the entire mesh, not
+    just the dispatch ring.
+
+    The expert-to-device assignment reuses the linearized mapping used by
+    the fused MoE decode composite (see ``build_expert_mapping_linearized``)
+    so both the prefill (``moe_expert_token_remap``) and decode
+    (``all_to_all_dispatch_metadata``/``moe_gpt``) paths agree on where
+    each expert lives.
+    """
+    linearized = build_expert_mapping_linearized(
+        num_experts, num_mesh_devices, mesh_shape, cluster_axis
+    )
+    expert_to_device = linearized[0, 0, 0, :]  # [num_experts], linear device id per expert
+    mapping = torch.zeros(
+        1, 1, num_experts, num_mesh_devices, dtype=torch.int64
+    )
+    mapping[0, 0, torch.arange(num_experts), expert_to_device] = 1
+    return mapping
+
+
 class FusedExpertsWrapper(_SparseForwardMixin, nn.Module):
     """Wraps an experts module that has gate_up_proj and adds sparse_forward().
 
@@ -915,6 +987,9 @@ def _moe_gpt_decode_fallback(
 
     # Mirror tt-metal's fused decode sequence:
     # dispatch_metadata -> moe_gpt(metadata bundle) -> selective_reduce_combine.
+    # When the caller supplies preprocessed 6D fused weights (tt-metal kernel
+    # layout) we forward them as additional operands so the backend can bind
+    # them directly to ttir.moe_gpt's 6D weight inputs.
     moe_gpt_outputs = torch.ops.tt.moe_gpt(
         dispatched,
         metadata_indices,
@@ -924,6 +999,8 @@ def _moe_gpt_decode_fallback(
         gate_up_proj_bias,
         down_proj,
         down_proj_bias,
+        fused_w0_w1=fused_w0_w1,
+        fused_w2=fused_w2,
         num_experts_per_tok=num_experts_per_tok,
         num_devices=num_devices,
         cluster_axis=cluster_axis,
@@ -1050,6 +1127,8 @@ def _composite_moe_gpt_decode(
         intermediate_size=intermediate_size,
         alpha=alpha,
         limit=limit,
+        fused_w0_w1=fused_w0_w1 if has_fused else None,
+        fused_w2=fused_w2 if has_fused else None,
     )
     output = builder.mark_outputs(output)
     return output
@@ -1085,6 +1164,7 @@ class A2aSparseMLP(nn.Module):
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
+        mesh_shape: Optional[tuple] = None,
     ):
         super().__init__()
 
@@ -1092,10 +1172,18 @@ class A2aSparseMLP(nn.Module):
         self.num_experts_per_tok = num_experts_per_tok
         self.cluster_axis = cluster_axis
         self.activation_type = activation_type
+        self.mesh_shape = mesh_shape
 
-        # num_devices: total mesh devices (for expert_mapping D dimension)
-        # dispatch_devices: devices along cluster_axis (for BD = B * dispatch_devices)
-        # When dispatch_devices is None, defaults to num_devices (single-axis or flat mesh)
+        # num_devices: total mesh devices (used by fused weight preprocessing
+        # and other code that needs the full mesh size for mesh_cols etc.)
+        # dispatch_devices: devices along cluster_axis — this is the ring size
+        # the all_to_all_{dispatch,combine} kernels and the moe_gpt_decode
+        # composite operate over, and therefore the D dimension the TTIR-level
+        # verifier expects on expert_mapping (see
+        # ttir.MoeGPTDecodeOp::verify: "mapping D dimensions must match
+        # num_devices").
+        # When dispatch_devices is None, defaults to num_devices (single-axis
+        # or flat mesh).
         self.num_devices = num_devices
         self.dispatch_devices = (
             dispatch_devices if dispatch_devices is not None else num_devices
@@ -1129,11 +1217,33 @@ class A2aSparseMLP(nn.Module):
         self.alpha = getattr(self.experts, "alpha", 1.702)
         self.limit = getattr(self.experts, "limit", 7.0)
 
-        # Expert-to-device mapping [1, 1, E, D] where D = num_devices (total)
-        # Maps each expert to its owning device. When cluster_axis=0, the dispatch
-        # kernel derives the target row from the device_id in the mapping.
-        mapping = build_expert_mapping(num_experts, num_devices)
+        # Expert-to-device mapping [1, 1, E, D] where D = dispatch_devices
+        # (devices along cluster_axis, i.e. the dispatch ring size).
+        # The TTIR verifier for ttir.moe_gpt_decode / all_to_all_dispatch
+        # requires D == num_devices attribute, and we pass self.dispatch_devices
+        # as num_devices to both the kernels and the composite, so build the
+        # mapping with the same D.
+        mapping = build_expert_mapping(num_experts, self.dispatch_devices)
         self.register_buffer("expert_mapping", mapping)
+
+        # Full-mesh expert mapping [1, 1, E, num_devices] used by
+        # ``ttnn.moe_expert_token_remap``. The new kernel API validates
+        # ``mapping_shape[-1] == mesh_view.num_devices()`` and derives
+        # ``num_local_experts = E / num_devices``, so the mapping must span
+        # the whole mesh (not just the dispatch ring). ``mesh_shape`` is
+        # required to place experts on the same devices the weights are
+        # sharded onto. When it's unavailable (single-axis / flat mesh)
+        # the ring mapping doubles as the full-mesh mapping.
+        if mesh_shape is not None and self.num_devices != self.dispatch_devices:
+            full_mesh_mapping = build_expert_mapping_full_mesh(
+                num_experts,
+                self.num_devices,
+                mesh_shape,
+                self.cluster_axis,
+            )
+        else:
+            full_mesh_mapping = mapping.clone()
+        self.register_buffer("expert_mapping_full_mesh", full_mesh_mapping)
 
     @torch.compiler.disable
     def _cpu_forward(self, hidden_states):
@@ -1279,11 +1389,18 @@ class A2aSparseMLP(nn.Module):
 
         else:
             # ===== Fused moe_expert_token_remap path =====
+            # The tt-metal kernel requires mapping_shape[-1] == whole-mesh
+            # device count and derives num_local_experts = E / num_devices
+            # (see moe_expert_token_remap_device_operation.cpp). Pass the
+            # full-mesh mapping and num_devices = mesh size, while keeping
+            # ring_size = dispatch_devices so the internal topk replication
+            # still lines up with the ring-local metadata tensor.
             _, sparsity_remap = torch.ops.tt.moe_expert_token_remap(
                 router_scores,
-                self.expert_mapping,
+                self.expert_mapping_full_mesh,
                 metadata,
-                num_devices=effective_dispatch,
+                num_devices=self.num_devices,
+                ring_size=effective_dispatch,
             )
 
             down_out = self.experts.sparse_forward(
@@ -1322,6 +1439,9 @@ class A2aSparseMLP(nn.Module):
         else:
             topk_weights = topk_weights.view(batch_size, seq_len, K)
             topk_weights = topk_weights.permute(2, 0, 1).unsqueeze(-1)  # [K, B, S, 1]
+            # combined is flattened as [K, 1, B*S, H]; unflatten to [K, B, S, H]
+            # so it broadcasts cleanly with topk_weights.
+            combined = combined.view(K, batch_size, seq_len, hidden_size)
             output = (combined * topk_weights).sum(dim=0)  # [B, S, H]
 
         return output.to(hidden_states.dtype), router_scores
@@ -1345,12 +1465,30 @@ class SparseMOEGPT(A2aSparseMLP):
         mesh_shape: Optional[tuple] = None,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, mesh_shape=mesh_shape, **kwargs)
         self.use_decode_composite = fused_decode
-        # tt-metal keeps separate routing tables for dispatch and moe_gpt.
-        # They currently carry the same mapping data but participate in
-        # different stages of the fused decode flow.
+        # The fused decode path routes through tt-metal's
+        # all_to_all_dispatch_metadata / moe_gpt kernels, which expect the
+        # expert mapping in [num_mesh_devices, num_experts] layout with
+        # linearized global device ids (see tt-metal's gen_expert_mapping in
+        # models/demos/gpt_oss/tt/experts_throughput/config.py).
+        # The legacy [1, 1, E, D_ring] one-hot format registered by
+        # A2aSparseMLP is still required by the dense A2A path (used for
+        # prefill), so keep it as `expert_mapping` and add separate buffers
+        # for the fused decode composite.
         self.register_buffer("moe_gpt_mapping", self.expert_mapping.clone())
+        if fused_decode and mesh_shape is not None:
+            linearized = build_expert_mapping_linearized(
+                self.num_experts,
+                self.num_devices,
+                mesh_shape,
+                self.cluster_axis,
+            )
+            self.register_buffer("dispatch_mapping_linearized", linearized)
+            self.register_buffer("moe_gpt_mapping_linearized", linearized.clone())
+        else:
+            self.dispatch_mapping_linearized = None
+            self.moe_gpt_mapping_linearized = None
 
         # Preprocess weights into fused kernel layout when explicitly requested.
         self._has_fused_weights = False
@@ -1371,12 +1509,25 @@ class SparseMOEGPT(A2aSparseMLP):
             self._has_fused_weights = True
 
     def forward(self, hidden_states):
-        if (
-            not self.use_decode_composite
-            or hidden_states.device.type != "xla"
-            or hidden_states.shape[1] != 1
-        ):
+        # Non-XLA (CPU) or composite disabled: fall back to A2aSparseMLP,
+        # which already handles the CPU golden path and the legacy A2A
+        # sparse path used when fused_decode=False.
+        if hidden_states.device.type != "xla" or not self.use_decode_composite:
             return super().forward(hidden_states)
+
+        # Prefill path on XLA (S > 1): bypass the A2A sparse remap entirely
+        # and run the original reference MLP. The sparse remap
+        # (torch.ops.tt.moe_expert_token_remap) hurts PCC at B*S >> 1
+        # (observed 0.928 vs 0.94 threshold on gpt-oss-120b @ batch=128
+        # prefill), and the decode composite does not depend on it.
+        # Weights remain sharded via xs.mark_sharding, so XLA/SPMD will
+        # insert the collectives required to make the reference forward
+        # correct on multi-device meshes.
+        if hidden_states.shape[1] != 1:
+            result = self._original_mlp(hidden_states)
+            if isinstance(result, tuple):
+                return result
+            return result, None
 
         batch_size, seq_len, hidden_size = hidden_states.shape
         router_bias = getattr(self.router, "bias", None)
@@ -1391,21 +1542,32 @@ class SparseMOEGPT(A2aSparseMLP):
         # Reshape to 4D BEFORE entering the composite so the batch
         # sharding is already applied and no CCL ops leak inside.
         hidden_4d = hidden_states.view(batch_size, 1, seq_len, hidden_size)
-        indices_4d = topk_indices.view(
-            batch_size, 1, seq_len, self.num_experts_per_tok
-        )
-        scores_4d = topk_scores.view(
-            batch_size, 1, seq_len, self.num_experts_per_tok
-        )
+        indices_4d = topk_indices.view(batch_size, 1, seq_len, self.num_experts_per_tok)
+        scores_4d = topk_scores.view(batch_size, 1, seq_len, self.num_experts_per_tok)
 
         # Build keyword args for the composite; include preprocessed fused
         # weights when available so tt-MLIR can consume them directly.
+        # Prefer the tt-metal-compatible linearized mapping
+        # ([1, 1, D_total, E] with global device ids) when available. It
+        # matches what ttnn.all_to_all_dispatch_metadata and ttnn.moe_gpt
+        # require at the kernel level. Falls back to the legacy one-hot
+        # mapping for older setups that haven't plumbed the mesh shape.
+        dispatch_mapping = (
+            self.dispatch_mapping_linearized
+            if self.dispatch_mapping_linearized is not None
+            else self.expert_mapping
+        )
+        moe_gpt_mapping = (
+            self.moe_gpt_mapping_linearized
+            if self.moe_gpt_mapping_linearized is not None
+            else self.moe_gpt_mapping
+        )
         composite_kwargs = dict(
             hidden_states=hidden_4d,
             topk_indices=indices_4d,
             topk_scores=scores_4d,
-            dispatch_mapping=self.expert_mapping,
-            moe_gpt_mapping=self.moe_gpt_mapping,
+            dispatch_mapping=dispatch_mapping,
+            moe_gpt_mapping=moe_gpt_mapping,
             gate_up_proj=self.experts.gate_up_proj,
             gate_up_proj_bias=self.experts.gate_up_proj_bias,
             down_proj=self.experts.down_proj,
@@ -2078,11 +2240,10 @@ def enable_sparse_mlp(
             module.experts = FusedExpertsWrapper(module.experts)
 
         sparse_mlp_cls = SparseMOEGPT if "gptoss" in module_type_name else A2aSparseMLP
-        extra_kwargs = {}
+        extra_kwargs = {"mesh_shape": mesh}
         if sparse_mlp_cls is SparseMOEGPT:
             extra_kwargs["fused_decode"] = fused_decode
             extra_kwargs["preprocess_fused_weights"] = preprocess_fused_weights
-            extra_kwargs["mesh_shape"] = mesh
         sparse_mlp = sparse_mlp_cls(
             module,
             num_experts=num_experts,
@@ -2166,10 +2327,20 @@ def get_moe_shard_specs(
                 fused_dim0 = mesh_names[cluster_axis]
                 fused_dim1 = mesh_names[1 - cluster_axis]
                 shard_specs[mlp.fused_w0_w1] = (
-                    fused_dim0, fused_dim1, None, None, None, None
+                    fused_dim0,
+                    fused_dim1,
+                    None,
+                    None,
+                    None,
+                    None,
                 )
                 shard_specs[mlp.fused_w2] = (
-                    fused_dim0, fused_dim1, None, None, None, None
+                    fused_dim0,
+                    fused_dim1,
+                    None,
+                    None,
+                    None,
+                    None,
                 )
 
     return shard_specs

@@ -1739,6 +1739,16 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
         shard_specs[layer.input_layernorm.weight] = (None,)
         shard_specs[layer.post_attention_layernorm.weight] = (None,)
 
+        # Fused MoE decode weights (SparseMOEGPT with preprocess_fused_weights=True).
+        # Global shape: (ring_devices*12, mesh_cols, E_per_dev, groups, K+32, 128).
+        # ring_devices is the "batch" axis (rows=4 on 4x8 galaxy) and mesh_cols is
+        # the "model" axis (cols=8). Per-device shape becomes (12, 1, ...), which
+        # matches what MoeGpt kernel expects (dim 0 == num DRAM-bank matmul cores).
+        mlp = layer.mlp
+        if hasattr(mlp, "fused_w0_w1") and hasattr(mlp, "fused_w2"):
+            shard_specs[mlp.fused_w0_w1] = ("batch", "model", None, None, None, None)
+            shard_specs[mlp.fused_w2] = ("batch", "model", None, None, None, None)
+
     return shard_specs
 
 
@@ -1766,15 +1776,15 @@ def test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128(
         request=request,
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
-        decode_only=True,
+        #decode_only=True,
         batch_size=128,
         arch="wormhole_galaxy",
-        optimization_level=1,
+        optimization_level=0,
         mesh_config_fn=_galaxy_mesh_config_fn,
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
-        trace_enabled=True,
+        trace_enabled=False,
         inject_custom_moe=True,
         custom_moe_cluster_axis=0,
         gpt_oss_fused_decode=gpt_oss_fused_decode,
