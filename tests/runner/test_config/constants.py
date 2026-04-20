@@ -59,7 +59,7 @@ PARALLELISMS_LLM = (
     "fsdp-dp-tensor_parallel",
     "megatron-dp-tensor_parallel",
 )
-LLM_MESH_SHAPES = ("mesh_default", "mesh_1x8", "mesh_2x4")
+LLM_MESH_SHAPES = ("mesh_default", "mesh_1x8", "mesh_2x4", "mesh_4x8")
 
 # Run modes
 RUN_MODES_STANDARD = ("inference", "training")

@@ -294,3 +294,17 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     markers: [nightly]
+
+  # ============================================================================
+  # Llama 3.1 8B Instruct - Prefill tensor-parallel on Galaxy 6U (mesh 4x8)
+  #  - batch_X is per-device batch size.
+  #  - Revisits cases that DRAM OOM on n300-llmbox mesh_2x4; the 4x8 Galaxy
+  #    mesh has 4x the aggregate DRAM so the same workload is expected to fit.
+  # ============================================================================
+
+  # --- Megatron, mesh 4x8, no DP ---
+  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-no_dp-tensor_parallel-mesh_4x8-inference:
+    supported_archs: ["galaxy-wh-6u"]
+    required_pcc: 0.99
+    status: EXPECTED_PASSING
+    markers: [nightly]
