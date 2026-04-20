@@ -88,10 +88,16 @@ def to_device(x, device, depth=5, moved=None):
     elif hasattr(x, "__dict__"):
         new_obj = copy.copy(x)
         for attr_name in list(x.__dict__):
-            setattr(new_obj, attr_name, to_device(getattr(x, attr_name), device, depth - 1, moved))
+            setattr(
+                new_obj,
+                attr_name,
+                to_device(getattr(x, attr_name), device, depth - 1, moved),
+            )
         # Sync the 'device' attribute (str or torch.device) to the target device
         # so it stays consistent with any tensors that were just moved.
-        if "device" in new_obj.__dict__ and isinstance(new_obj.__dict__["device"], (str, torch.device)):
+        if "device" in new_obj.__dict__ and isinstance(
+            new_obj.__dict__["device"], (str, torch.device)
+        ):
             new_obj.device = device
         moved[obj_id] = new_obj
         return new_obj
