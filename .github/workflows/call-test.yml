@@ -379,13 +379,13 @@ jobs:
         MARKS="${{ matrix.build.test-mark }}"
         MARKS_ARG=""
         if [[ -n "$MARKS" ]]; then
-          MARKS_ARG="-m \"$MARKS\""
+          MARKS_ARG="-m '$MARKS'"
         fi
 
         CONTAINS="${{ matrix.build.contains }}"
         CONTAINS_ARG=""
         if [[ -n "$CONTAINS" ]]; then
-          CONTAINS_ARG="-k \"$CONTAINS\""
+          CONTAINS_ARG="-k '$CONTAINS'"
         fi
 
         if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
