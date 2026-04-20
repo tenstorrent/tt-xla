@@ -158,6 +158,12 @@ test_config:
     reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
+  glm/causal_lm/jax-4_9B-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory:  Not enough space to allocate 448790528 B DRAM buffer across 8 banks - https://github.com/tenstorrent/tt-xla/issues/4320"
+    bringup_status: FAILED_RUNTIME
+    markers: [large]
+
   gpt2/causal_lm/jax-Base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push, nightly]
