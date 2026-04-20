@@ -31,15 +31,14 @@ def test_llama3_3b_generation():
 
 @pytest.mark.nightly
 @pytest.mark.single_device
-def test_llama3_3b_generation_opt_level_1():
-    prompts = [
-        "Tell me a story.",
-    ]
+@pytest.mark.parametrize("batch_size", [1, 2], ids=["batch1", "batch2"])
+def test_llama3_3b_generation_opt_level_1(batch_size):
+    prompts = ["Tell me a story."] * batch_size
     sampling_params = vllm.SamplingParams(temperature=0.8, max_tokens=64)
     llm_args = {
         "model": "meta-llama/Llama-3.2-3B",
-        "max_num_batched_tokens": 128,
-        "max_num_seqs": 1,
+        "max_num_batched_tokens": 128 * batch_size,
+        "max_num_seqs": batch_size,
         "max_model_len": 128,
         "gpu_memory_utilization": 0.002,
         "additional_config": {
@@ -50,5 +49,6 @@ def test_llama3_3b_generation_opt_level_1():
     }
     llm = vllm.LLM(**llm_args)
 
-    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
-    print(f"prompt: {prompts[0]}, output: {output_text}")
+    outputs = llm.generate(prompts, sampling_params)
+    for i, out in enumerate(outputs):
+        print(f"prompt: {prompts[i]}, output: {out.outputs[0].text}")
