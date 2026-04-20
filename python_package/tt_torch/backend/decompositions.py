@@ -289,6 +289,19 @@ def boolean_bitwise_or(input: torch.Tensor, other: torch.Tensor) -> torch.Tensor
     return NotImplemented
 
 
+def sum_dim_IntList(
+    input: torch.Tensor,
+    dim: Optional[List[int]] = None,
+    keepdim: bool = False,
+    dtype: Optional[torch.dtype] = None,
+) -> torch.Tensor:
+    if dim is not None and len(dim) == 0:
+        return torch.sum(
+            input, dim=list(range(input.ndim)), keepdim=keepdim, dtype=dtype
+        )
+    return NotImplemented
+
+
 def copy_default(
     dst: torch.Tensor, src: torch.Tensor, non_blocking: bool = False
 ) -> torch.Tensor:
@@ -315,6 +328,27 @@ def copy_default(
     return src_converted.expand(dst.shape).clone()
 
 
+def masked_scatter(
+    data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
+) -> torch.Tensor:
+    # Custom decomposition for masked_scatter
+    # Decomposes masked_scatter into basic operations: broadcast, reshape, cumsum, clamp, gather, where
+    mask, data = torch.broadcast_tensors(mask, data)
+
+    mask_f = mask.reshape(-1)
+    data_flat = data.reshape(-1)
+    source_flat = source.reshape(-1)
+
+    mask_i = mask_f.long()
+    source_idx = torch.cumsum(mask_i, 0) - 1
+    source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
+
+    gathered = source_flat[source_idx]
+    result_flat = torch.where(mask_f, gathered, data_flat)
+
+    return result_flat.view_as(data)
+
+
 # TODO: DO we ever need this?
 def _get_default_decomposition_ops() -> DecompositionOpsList:
     aten = torch.ops.aten
@@ -331,7 +365,10 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
         aten.addmm,
         aten.squeeze.dims,
         # decompositions for miscellaneous ops that are not handled in torch-mlir but have available decompositions
-        aten.grid_sampler_2d,
+        # NOTE: aten.grid_sampler_2d removed — the default decomposition lowers to
+        # stablehlo.gather with massive index tensors that exceed DRAM capacity.
+        # grid_sample is now wrapped as a tenstorrent.grid_sample composite in
+        # composite_ops.py so tt-mlir can lower it to ttnn.grid_sample directly.
         aten._adaptive_avg_pool2d,
         aten.full,
         aten._log_softmax,
@@ -376,6 +413,8 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.prims.squeeze.default: squeeze,
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
+        aten.masked_scatter.default: masked_scatter,
+        aten.sum.dim_IntList: sum_dim_IntList,
     }
 
 
