@@ -437,7 +437,7 @@ def run_wan_pipeline(
 ):
     torch_xla.set_custom_compile_options({"optimization_level": 1})
     torch_xla.set_custom_compile_options(
-        {"experimental_enable_dram_space_saving_optimization": True}
+        {"experimental-enable-dram-space-saving-optimization": True}
     )
 
     config = WanConfig(device="cpu")
