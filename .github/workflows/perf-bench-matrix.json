@@ -322,15 +322,13 @@
         "name": "llama_3_1_8b_instruct_accuracy",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b",
-        "accuracy-testing": true,
-        "batch-size": 16
+        "accuracy-testing": true
       },
       {
         "name": "mistral_7b_accuracy",
         "pyreq": "datasets loguru pytest requests torch==2.9.0 tqdm transformers==5.2.0 protobuf sentencepiece",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b",
-        "accuracy-testing": true,
-        "batch-size": 8
+        "accuracy-testing": true
       },
       {
         "name": "qwen_2_5_7b_instruct_accuracy",
@@ -354,15 +352,13 @@
         "name": "microsoft_phi-1_accuracy",
         "pyreq": "datasets loguru pytest requests torch==2.9.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_phi1",
-        "accuracy-testing": true,
-        "batch-size": 16
+        "accuracy-testing": true
       },
       {
         "name": "microsoft_phi-1_5_accuracy",
         "pyreq": "datasets loguru pytest requests torch==2.9.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_phi1_5",
-        "accuracy-testing": true,
-        "batch-size": 16
+        "accuracy-testing": true
       },
       {
         "name": "microsoft_phi-2_accuracy",
@@ -386,8 +382,7 @@
         "name": "tiiuae_falcon3-7b-base_accuracy",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 torchvision==0.24.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b",
-        "accuracy-testing": true,
-        "batch-size": 4
+        "accuracy-testing": true
       },
       {
         "name": "qwen_2_5_0_5b_instruct_accuracy",
@@ -405,8 +400,7 @@
         "name": "qwen_2_5_3b_instruct_accuracy",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 torchvision==0.24.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_3b",
-        "accuracy-testing": true,
-        "batch-size": 16
+        "accuracy-testing": true
       },
       {
         "name": "qwen_3_0_6b_accuracy",
@@ -457,8 +451,7 @@
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_instruct_tp",
         "runs-on": "n300-llmbox",
-        "accuracy-testing": true,
-        "batch-size": 16
+        "accuracy-testing": true
       },
       {
         "name": "ministral_8b_tp_accuracy",
