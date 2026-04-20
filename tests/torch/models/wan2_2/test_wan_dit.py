@@ -15,10 +15,13 @@ IN:  hidden_states (1, 48, latent_frames, latent_h, latent_w)
 OUT: velocity (1, 48, latent_frames, latent_h, latent_w)
 """
 
-import pytest
 import torch
+import torch_xla
+import torch_xla.runtime as xr
+from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 
-from .shared import RESOLUTIONS, compare_cpu_tt, load_dit, shard_dit_weights
+from .shared import RESOLUTIONS, load_dit, shard_dit_specs, wan22_mesh
 
 
 class WanDiTWrapper(torch.nn.Module):
@@ -37,50 +40,47 @@ class WanDiTWrapper(torch.nn.Module):
         )[0]
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_wan_dit_480p():
     _run(resolution="480p", sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_wan_dit_720p():
     _run(resolution="720p", sharded=False)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_wan_dit_480p_sharded():
     _run(resolution="480p", sharded=True)
 
 
-@pytest.mark.nightly
-@pytest.mark.single_device
 def test_wan_dit_720p_sharded():
     _run(resolution="720p", sharded=True)
 
 
 def _run(resolution: str, sharded: bool):
+    xr.set_device_type("TT")
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
+    torch_xla.set_custom_compile_options(
+        {"experimental-enable-dram-space-saving-optimization": True}
+    )
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
     t, h, w = shapes["latent_frames"], shapes["latent_h"], shapes["latent_w"]
 
-    wrapper = WanDiTWrapper(load_dit())
+    wrapper = WanDiTWrapper(load_dit()).eval().bfloat16()
 
-    hidden_states = torch.randn(1, 48, t, h, w)
+    hidden_states = torch.randn(1, 48, t, h, w, dtype=torch.bfloat16)
     num_patches = t * (h // 2) * (w // 2)  # patchify stride (1, 2, 2)
-    timestep = torch.full((1, num_patches), 500.0)
-    encoder_hidden_states = torch.randn(1, 512, 4096)
+    timestep = torch.full((1, num_patches), 500.0, dtype=torch.bfloat16)
+    encoder_hidden_states = torch.randn(1, 512, 4096, dtype=torch.bfloat16)
 
-    shard_fn = None
-    if sharded:
+    mesh = wan22_mesh() if sharded else None
+    shard_spec_fn = (lambda m: shard_dit_specs(m.dit)) if sharded else None
 
-        def shard_fn(model, mesh):
-            shard_dit_weights(model.dit, mesh)
-
-    compare_cpu_tt(
+    run_graph_test(
         wrapper,
         [hidden_states, timestep, encoder_hidden_states],
-        shard_fn=shard_fn,
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=shard_spec_fn,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.99)),
     )
