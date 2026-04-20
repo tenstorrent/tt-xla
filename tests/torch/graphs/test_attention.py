@@ -2604,7 +2604,9 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
     static_cache.early_initialization(
         batch_size=batch_size,
         num_heads=getattr(config, "num_key_value_heads", config.num_attention_heads),
-        head_dim=getattr(config, "head_dim", config.hidden_size // config.num_attention_heads),
+        head_dim=getattr(
+            config, "head_dim", config.hidden_size // config.num_attention_heads
+        ),
         dtype=torch.bfloat16,
         device="cpu",
     )
