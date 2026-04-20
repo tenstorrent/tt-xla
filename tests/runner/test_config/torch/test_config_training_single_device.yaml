@@ -1623,20 +1623,15 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   falcon/pytorch-3_7B_Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
         bringup_status: FAILED_RUNTIME
-        reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+        reason: "RuntimeError: function '_has_torch_function' already has a docstring"
       p150:
         status: EXPECTED_PASSING
         assert_pcc: false
   gemma/pytorch-2_27B_IT-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    markers: [large, notimeout]
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1763,9 +1758,6 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   qwen_2_5_coder/pytorch-7B-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate DRAM buffer"
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
