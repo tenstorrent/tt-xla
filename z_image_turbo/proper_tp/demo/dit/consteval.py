@@ -655,7 +655,7 @@ def run_const_evals(inputs: list, device) -> dict:
     )]
 
     # ce_208: eps=[1e-6, 1e-6, 1e-6] F32 — RMS norm epsilon for 3 norm sites
-    #   [0] var_11: large-seq (1056 token) image RMS norm
+    #   [0] var_11: large-seq (IMG_PATCHES + CAP_TOKENS) RMS norm
     #   [1] var_12: caption token (2560-dim) RMS norm
     #   [2] var_13: QK norm (head_dim-128) RMS norm
     cache["main_const_eval_208"] = [_sf32(1e-6), _sf32(1e-6), _sf32(1e-6)]
@@ -675,27 +675,30 @@ def run_const_evals(inputs: list, device) -> dict:
     cache["main_const_eval_88"] = [_sf32(1.0 / 2560.0)]
 
     # ── Position ID tensors ────────────────────────────────────────────────────
-    # Caption: 32 real tokens, no padding needed (32 % SEQ_MULTI_OF == 0).
-    # pos_start=(1, 0, 0): caption F-positions are 1..32; H/W positions are 0.
-    # With cap_len=32, image pos_start=(cap_len+1, 0, 0) = (33, 0, 0).
-    cap_f_ids = list(range(1, 33))                   # [1..32] — 32 values
-    cap_hw_ids = [0] * 32                             # all H/W positions = 0
+    from dit.model_ttnn import CAP_TOKENS as _CAP
+    cap_len = _CAP
+
+    # Caption: cap_len tokens.
+    # pos_start=(1, 0, 0): caption F-positions are 1..cap_len; H/W positions are 0.
+    cap_f_ids = list(range(1, cap_len + 1))
+    cap_hw_ids = [0] * cap_len
 
     # Image: latent [16, 1, 64, 64] with patch_size=2, f_patch_size=1 →
     #   F_t=1, H_t=32, W_t=32 → 1024 tokens, no padding (1024 % 32 == 0).
-    # pos_start=(cap_len+1, 0, 0) = (33, 0, 0).
-    img_f_ids = [33] * 1024
+    # pos_start=(cap_len+1, 0, 0).
+    img_f_start = cap_len + 1
+    img_f_ids = [img_f_start] * 1024
     img_h_ids = [h for h in range(32) for _ in range(32)]  # row 0..31, each ×32
     img_w_ids = list(range(32)) * 32                         # col 0..31 cycling ×32
 
-    # ce_96: caption F position IDs [1, 32] UINT32 — lookup into freqs_F table
+    # ce_96: caption F position IDs [1, cap_len] UINT32 — lookup into freqs_F
     cache["main_const_eval_96"] = [_ids(cap_f_ids)]
 
     # ce_158: image + caption position IDs — [F_ids, H_ids, W_ids, cap_HW_ids]
     #   [0] var_8[0]: image F IDs [1, 1024] — lookup into freqs_F
     #   [1] var_8[1]: image H IDs [1, 1024] — lookup into freqs_H
     #   [2] var_8[2]: image W IDs [1, 1024] — lookup into freqs_W
-    #   [3] var_9:    caption H/W IDs [1, 32] — lookup into freqs_H and freqs_W
+    #   [3] var_9:    caption H/W IDs [1, cap_len] — lookup into freqs_H and freqs_W
     cache["main_const_eval_158"] = [
         _ids(img_f_ids),
         _ids(img_h_ids),

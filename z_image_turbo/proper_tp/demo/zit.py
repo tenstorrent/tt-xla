@@ -38,7 +38,7 @@ from vae.model_ttnn import VaeDecoderTTNN
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 MODEL_ID = "Tongyi-MAI/Z-Image-Turbo"
-CAP_TOKENS = 32
+CAP_TOKENS = 128
 IMG_LATENT_H = 64
 IMG_LATENT_W = 64
 LATENT_CHANNELS = 16

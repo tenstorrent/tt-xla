@@ -38,7 +38,7 @@ from dit.model_ttnn import ZImageTransformerTTNN
 from vae.model_ttnn import VaeDecoderTTNN
 
 MODEL_ID        = "Tongyi-MAI/Z-Image-Turbo"
-CAP_TOKENS      = 32    # caption tokens (baked into compiled model)
+CAP_TOKENS      = 128   # caption tokens (baked into compiled model)
 IMG_LATENT_H    = 64    # 512 px / 8 (VAE scale)
 IMG_LATENT_W    = 64
 LATENT_CHANNELS = 16
