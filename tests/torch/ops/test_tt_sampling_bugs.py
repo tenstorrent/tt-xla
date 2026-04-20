@@ -19,6 +19,7 @@ Related: vllm_sampling_tt_bugs.md
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
+from infra import Framework, run_op_test
 
 SEED = 42
 
@@ -83,6 +84,26 @@ def test_topk_index_correctness(shape, k, device):
 # ---------------------------------------------------------------------------
 
 
+def gather_int64_comparator(device_output, golden_output, args, kwargs):
+    """Comparator for torch.gather on int64 index tensors.
+
+    The gathered value must be an exact int64 match — any mismatch indicates
+    the TT runtime bug on int64 gather.
+    """
+    device_value = device_output.cpu().item()
+    golden_value = golden_output.item()
+    local_idx = args[1].item()
+    print(
+        f"\n  local_idx={local_idx}  "
+        f"cpu_token={golden_value}  dev_token={device_value}  "
+        f"match={golden_value == device_value}"
+    )
+    assert golden_value == device_value, (
+        f"gather int64 mismatch: cpu={golden_value} dev={device_value} "
+        f"(local_idx={local_idx}) — TT runtime bug"
+    )
+
+
 @pytest.mark.single_device
 @pytest.mark.parametrize(
     "candidates,vocab_size",
@@ -91,30 +112,26 @@ def test_topk_index_correctness(shape, k, device):
         pytest.param(128, 128256, id="llama"),
     ],
 )
-def test_gather_int64_correctness(candidates, vocab_size, device):
+def test_gather_int64_correctness(candidates, vocab_size):
     """torch.gather on int64 index tensors should return correct values on TT.
 
     Known failure: gathering from [1, candidates] int64 with a [1, 1] int64
     index returns a wrong value on TT device.
     """
+
+    class GatherInt64(torch.nn.Module):
+        def forward(self, idx, local):
+            return torch.gather(idx, 1, local)
+
     torch.manual_seed(SEED)
     # Simulate candidate_indices: global vocab positions of top candidates.
     idx_cpu = torch.randperm(vocab_size, dtype=torch.int64)[:candidates].unsqueeze(0)
     # Local sample index (as would come from argmax).
     local_cpu = torch.randint(0, candidates, (1, 1), dtype=torch.int64)
 
-    idx_dev = idx_cpu.to(device)
-    local_dev = local_cpu.to(device)
-
-    global_cpu = idx_cpu.gather(1, local_cpu).item()
-    global_dev = idx_dev.gather(1, local_dev).cpu().item()
-
-    print(
-        f"\n  local_idx={local_cpu.item()}  "
-        f"cpu_token={global_cpu}  dev_token={global_dev}  "
-        f"match={global_cpu == global_dev}"
-    )
-    assert global_cpu == global_dev, (
-        f"gather int64 mismatch: cpu={global_cpu} dev={global_dev} "
-        f"(local_idx={local_cpu.item()}) — TT runtime bug"
+    run_op_test(
+        GatherInt64(),
+        [idx_cpu, local_cpu],
+        framework=Framework.TORCH,
+        custom_comparator=gather_int64_comparator,
     )
