@@ -573,7 +573,7 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
          tt::runtime::flatbuffer::EnumNameFabricConfig(
              fabric_config.globalConfig));
 
-  tt::runtime::setFabricConfig(fabric_config.globalConfig);
+  tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
   m_fabric_config = fabric_config;
 
   // TODO(odjuricicTT, #1485): This is a temporary way to disable program cache

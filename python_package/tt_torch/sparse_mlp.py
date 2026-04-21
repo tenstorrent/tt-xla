@@ -474,10 +474,16 @@ class A2aSparseMLP(nn.Module):
         self.use_dense_matmul = use_dense_matmul
         # When True, uses the corrected down-proj reshape (permute E to front
         # directly from `activated` instead of the buggy view-swap dance).
-        # Old path scrambles the (E, M) axes via `permute(0,1,3,2,4).reshape(
-        # dim_a*dim_b*M, E, I)` which doesn't preserve semantics. New tests
-        # set this True; existing callers keep the legacy behaviour.
-        self.correct_down_proj_reshape = False
+        # The legacy path `view(dim_a,dim_b,M,E,H) → view(dim_a,dim_b,E,M,H)`
+        # scrambles the E/M axes by reinterpreting the buffer, which also
+        # confuses Shardy: the down-proj bias (shape [E, H]) gets broadcast
+        # onto a wrongly-aligned dim (S, which may alias E's size), so Shardy
+        # falls back to fully gathering the bias on E and propagates the
+        # gather into combine's input → kernel `input[0] == E/num_devices`
+        # assert. The corrected path keeps E on dim 0 throughout so no gather
+        # is needed. We enable it by default under the dense-matmul path
+        # (the only path that reaches this reshape anyway).
+        self.correct_down_proj_reshape = use_dense_matmul
 
         # Keep original MLP for CPU golden path.
         # cpu_forward_module overrides original_mlp when the adapter wrapping
@@ -730,6 +736,15 @@ class A2aSparseMLP(nn.Module):
             )
 
         # sparse_forward returns [E, 1, BD*S, H] — combine with output_shard_dim=2.
+        #
+        # TODO: tt-mlir's sharding rule for tt.all_to_all_combine
+        # (RegisterCustomShardingRule.cpp:getAllToAllCombineShardingRule, E
+        # factor at lines ~711-713) declares E as kPassThrough → kNullDim,
+        # which makes Shardy all_gather E on every mesh axis before this op —
+        # tripping the kernel's `input_shape[0] == experts/num_devices`
+        # assertion under 2D meshes. A frontend sharding_constraint cannot
+        # override this. Fix needs to happen in the tt-mlir rule (add
+        # isBlocked=true or drop the first E factor entirely).
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
             metadata,

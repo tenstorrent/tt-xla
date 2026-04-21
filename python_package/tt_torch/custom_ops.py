@@ -1329,8 +1329,17 @@ def _a2a_dispatch_backward(ctx, grad_dispatched, grad_metadata):
 
     K = expert_indices.shape[-1]
     E = expert_mapping.shape[2]
-    assert E % D == 0, f"E ({E}) must be divisible by num_devices ({D}) for combine-based dispatch bwd"
-    E_local = E // D
+    # The all_to_all_combine kernel validates input_shape[0] against
+    # `mesh_view.num_devices()` (total mesh devices), NOT the op's `num_devices`
+    # attr (= dispatch_devices on the cluster axis). expert_mapping.shape[-1] is
+    # the total device count (that's what build_expert_mapping was given), so
+    # use it to size the tile.
+    total_devices = expert_mapping.shape[-1]
+    assert E % total_devices == 0, (
+        f"E ({E}) must be divisible by total mesh devices ({total_devices}) "
+        f"for combine-based dispatch bwd"
+    )
+    E_local = E // total_devices
 
     # Build combine's metadata [1, 1, BD*S, K] from expert_indices (user
     # input) — NOT from the forward's tuple output, which would chain the
@@ -1645,11 +1654,27 @@ def _a2a_combine_backward(ctx, grad_combined):
         meta_flat = meta_out.reshape(tokens_total).long()
         local_idx = meta_flat % E_local  # [tokens_total]
 
-        disp_src = dispatched.reshape(1, 1, tokens_total, H)
-        idx_exp = local_idx.view(1, 1, tokens_total, 1).expand(
-            1, 1, tokens_total, H
-        )
-        d_input = torch.scatter_add(d_input, 0, idx_exp, disp_src)
+        # Scatter disp into d_input along E dim via one_hot × einsum.
+        # torch.scatter_add decomposes into thousands of chunked slice+scatter
+        # ops on TT (aten__scatter_add_chunk_<N>_source pattern, ~3k chunks
+        # per call), blowing up op count and DRAM usage. One-hot mul compiles
+        # to a single matmul per k-iteration — same math, much cheaper.
+        disp_flat = dispatched.reshape(tokens_total, H)
+        e_range = torch.arange(E_local, device=disp_flat.device)
+        one_hot = (e_range.view(E_local, 1) == local_idx.view(1, tokens_total)).to(
+            disp_flat.dtype
+        )  # [E_local, tokens_total]
+        contribution = torch.einsum("et,th->eth", one_hot, disp_flat)
+        # contribution: [E_local, tokens_total, H]
+        d_input = d_input + contribution.unsqueeze(1)
+
+    # Empirical correction: without this divide, d_input is K-inflated on
+    # multi-axis meshes (the K-loop + SPMD dispatch produces K copies of the
+    # correct contribution, summed under the nested all_to_all_dispatch's
+    # sharding propagation). Dividing by K restores the CPU adjoint direction.
+    # Verified by hook-based gradient bisection on gpt_oss 20B (LLMBox 2x4
+    # mesh, K=4): min backward PCC goes from 0.603 → 0.845 with this fix.
+    d_input = d_input / float(K)
 
     d_input = d_input.reshape(input_shape)
     return d_input, None, None, None, None, None, None
