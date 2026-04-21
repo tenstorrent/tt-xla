@@ -1380,7 +1380,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
+            selected_token_ids = self.sample_from_logits_func(
+                logits, tpu_sampling_metadata
+            )
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -2177,9 +2179,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         This function mainly exists as a workaround for https://github.com/tenstorrent/tt-xla/issues/3610.
         Only support greedy sampling for now to reduce maintenance overhead.
         """
+        device = logits.device
         logits = logits.cpu()
         out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
-        return out_tokens
+        return out_tokens.to(device)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
