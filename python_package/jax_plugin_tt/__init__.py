@@ -8,6 +8,7 @@ from pathlib import Path
 import jax._src.xla_bridge as xb
 from pjrt_plugin_tt import (
     get_library_path,
+    register_shutdown_hook,
     setup_tt_metal_home,
     setup_tt_pjrt_plugin_dir,
 )
@@ -26,5 +27,7 @@ def initialize():
         library_path=str(library_path),
         options=None,
     )
+
+    register_shutdown_hook()
 
     setup_monkey_patches()

@@ -17,8 +17,15 @@ CallbackWorker::CallbackWorker(size_t queue_capacity)
     : m_queue(queue_capacity),
       m_worker_thread(&CallbackWorker::workerLoop, this) {}
 
-CallbackWorker::~CallbackWorker() {
-  m_shutdown.store(true, std::memory_order_release);
+CallbackWorker::~CallbackWorker() { shutdown(); }
+
+void CallbackWorker::shutdown() {
+  bool expected = false;
+  if (!m_shutdown.compare_exchange_strong(expected, true,
+                                          std::memory_order_acq_rel)) {
+    return;
+  }
+
   m_work_available.release();
 
   if (m_worker_thread.joinable()) {
@@ -28,6 +35,14 @@ CallbackWorker::~CallbackWorker() {
 
 void CallbackWorker::enqueue(PJRT_Event_OnReadyCallback callback_function,
                              void *user_arg, PJRT_Error *error) {
+  if (m_shutdown.load(std::memory_order_acquire)) {
+    // Worker thread has exited; execute synchronously on the caller's
+    // thread so the callback is not lost. Hit during Python finalization
+    // after `shutdown()` has drained the worker.
+    callback_function(error, user_arg);
+    return;
+  }
+
   CallbackWorkItem item{callback_function, user_arg, error};
 
   while (!m_queue.tryPush(std::move(item))) {

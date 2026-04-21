@@ -52,8 +52,20 @@ public:
   // Enqueue a callback for asynchronous execution on the worker thread.
   // Lock-free for producers. If the queue is full, this call sleeps briefly
   // and retries until the item is successfully enqueued.
+  //
+  // Once `shutdown()` has completed, the worker thread is gone, so the
+  // callback is executed synchronously on the caller's thread instead of
+  // being enqueued. This handles enqueues that arrive during Python
+  // finalization after the shutdown hook has already drained the worker.
   void enqueue(PJRT_Event_OnReadyCallback callback_function, void *user_arg,
                PJRT_Error *error);
+
+  // Drains any pending callbacks, signals the worker thread to exit, and
+  // joins it. Idempotent. After this returns, `enqueue` will run callbacks
+  // synchronously on the caller's thread. Intended to be invoked from a
+  // Python `atexit` hook so the worker can finish its work while the host
+  // interpreter (GIL + modules) is still alive.
+  void shutdown();
 
 private:
   // Worker thread main loop.

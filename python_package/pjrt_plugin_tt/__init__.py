@@ -9,12 +9,16 @@ This package contains the actual PJRT plugin binary and tt-mlir dependencies.
 Both JAX and PyTorch/XLA plugins reference this package.
 """
 
+import atexit
+import ctypes
 import os
 from pathlib import Path
 
 from ttxla_tools.logging import logger
 
 TT_PJRT_PLUGIN_NAME = "pjrt_plugin_tt.so"
+
+_shutdown_hook_registered = False
 
 
 def setup_tt_pjrt_plugin_dir():
@@ -125,3 +129,29 @@ def get_library_path() -> Path:
         )
 
     return library_path
+
+
+def register_shutdown_hook():
+    """
+    Register a Python `atexit` handler that drives controlled shutdown of
+    plugin-owned resources (currently the internal `CallbackWorker` thread)
+    before the interpreter tears down modules and destroys the GIL.
+
+    The handler invokes the exported `tt_pjrt_shutdown` C symbol via ctypes.
+    ctypes releases the GIL around foreign calls, allowing the worker thread
+    to drain any pending event callbacks (which may re-enter Python, e.g.
+    torch `TensorImpl` destructors) against a live interpreter.
+
+    Safe to call multiple times; the hook is registered at most once.
+    """
+    global _shutdown_hook_registered
+    if _shutdown_hook_registered:
+        return
+
+    library_path = get_library_path()
+    lib = ctypes.CDLL(str(library_path))
+    lib.tt_pjrt_shutdown.restype = None
+    lib.tt_pjrt_shutdown.argtypes = []
+
+    atexit.register(lib.tt_pjrt_shutdown)
+    _shutdown_hook_registered = True
