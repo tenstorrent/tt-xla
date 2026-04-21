@@ -29,7 +29,7 @@ Common misconception is that different mlir modules are graph breaks. This is no
 ## Running user's model script
 1. Do `source venv/activate` (not source venv/bin/activate)
 2. If the build type is not debug, do `cmake --preset debug && cmake --build build`
-3. Run the user's script in format `TTXLA_LOGGER_LEVEL=DEBUG TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG XLA_HLO_DEBUG=1 TORCH_LOGS="+dynamo python userscript.py &> userscript.log`
+3. Run the user's script in format `TTXLA_LOGGER_LEVEL=DEBUG TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG XLA_HLO_DEBUG=1 TORCH_LOGS="+dynamo" python userscript.py &> userscript.log`
 
 ## Steps
 
