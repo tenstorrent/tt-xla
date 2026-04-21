@@ -288,8 +288,8 @@ void BufferInstance::copyFromHost(
 
     if (cached_owned_host_tensor) {
       LOG_F(INFO,
-            "Buffer runtime tensor cache hit for host_buffer=%p logical_id=%lld",
-            host_buffer, static_cast<long long>(logical_id.value_or(-1)));
+            "Buffer runtime tensor cache hit for host_buffer=%p logical_id=%lld, shape %s",
+            host_buffer, static_cast<long long>(logical_id.value_or(-1)), toShapeStr().c_str());
       runtime_tensor =
           tt::runtime::createUnsafeBorrowedHostTensor(*cached_owned_host_tensor);
       should_create_owned_host_tensor = false;
@@ -298,8 +298,8 @@ void BufferInstance::copyFromHost(
     } else {
       LOG_F(
           INFO,
-          "Buffer runtime tensor cache miss for host_buffer=%p logical_id=%lld",
-          host_buffer, static_cast<long long>(logical_id.value_or(-1)));
+          "Buffer runtime tensor cache miss for host_buffer=%p logical_id=%lld, shape %s",
+          host_buffer, static_cast<long long>(logical_id.value_or(-1)), toShapeStr().c_str());
       should_insert_runtime_tensor_cache = true;
     }
   }

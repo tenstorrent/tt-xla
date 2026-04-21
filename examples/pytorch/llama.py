@@ -86,7 +86,7 @@ def llama(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
+            batch_size: int = 1
             user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
@@ -321,7 +321,7 @@ def run_generate(
     device: torch.device,
     mesh: Mesh = None,
     is_spmd: bool = True,
-    max_tokens_to_generate: int = 128,
+    max_tokens_to_generate: int = 3,
     input_prompt: List[str] = [""],
     is_interactive: bool = False,
 ):
