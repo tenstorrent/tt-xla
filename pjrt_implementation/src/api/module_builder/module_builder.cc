@@ -60,6 +60,7 @@
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
+#include "ttmlir/Dialect/TTNN/Utils/MathFidelityParser.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
@@ -1097,6 +1098,32 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
   options.meshTopology = fabricConfigToMeshTopology(
       client_instance->computeFabricConfig(devices_mesh_shape));
+  LOG_F(INFO,
+        "MLIR pipeline options:\n"
+        "  optimizationLevel = %d\n"
+        "  experimentalWeightDtype = %d\n"
+        "  computeCfgMathFidelity = %s\n"
+        "  computeCfgFp32DestAccEn = %d\n"
+        "  enableFusingConv2dWithMultiplyPattern = %d\n"
+        "  enablePermuteMatmulFusion = %d\n"
+        "  enableTrace = %d\n"
+        "  enableConstEval = %d\n"
+        "  enableCPUHoistedConstEval = %d\n"
+        "  meshShape = [%ld, %ld]\n"
+        "  systemDescPath = %s",
+        (int)options.optimizationLevel,
+        static_cast<int>(options.experimentalWeightDtype.getValue()),
+        mlir::tt::ttnn::stringifyOptionalMathFidelity(
+            options.computeCfgMathFidelity)
+            .str()
+            .c_str(),
+        (int)options.computeCfgFp32DestAccEn,
+        (int)options.enableFusingConv2dWithMultiplyPattern,
+        (int)options.enablePermuteMatmulFusion, (int)options.enableTrace,
+        (int)options.enableConstEval, (int)options.enableCPUHoistedConstEval,
+        (long)options.meshShape[0], (long)options.meshShape[1],
+        options.systemDescPath.c_str());
+
   mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
