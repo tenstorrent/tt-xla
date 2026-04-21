@@ -15,7 +15,7 @@ Usage:
     model = enable_sparse_mlp(model)  # Replace MLP layers with SparseMLP
 """
 
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 import torch
 import torch.nn as nn
@@ -447,6 +447,7 @@ class A2aSparseMLP(nn.Module):
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
+        mesh_axis_names: Optional[Tuple[str, ...]] = None,
     ):
         super().__init__()
 
@@ -454,6 +455,10 @@ class A2aSparseMLP(nn.Module):
         self.num_experts_per_tok = num_experts_per_tok
         self.cluster_axis = cluster_axis
         self.activation_type = activation_type
+        # When set, used to emit an sdy.sharding_constraint on combine's input
+        # forcing E sharded only on cluster_axis (drops compound sharding so
+        # the all_to_all_combine kernel sees E_local = E / mesh[cluster_axis]).
+        self.mesh_axis_names = mesh_axis_names
 
         # num_devices: total mesh devices (for expert_mapping D dimension)
         # dispatch_devices: devices along cluster_axis (for BD = B * dispatch_devices)
@@ -680,6 +685,20 @@ class A2aSparseMLP(nn.Module):
             )
 
         # sparse_forward returns [E, 1, BD*S, H] — combine with output_shard_dim=2.
+        # If experts are compound-sharded across the 2D mesh, force E onto
+        # cluster_axis only before combine. The all_to_all_combine kernel
+        # asserts input[0] == E / mesh[cluster_axis]; without this the Shardy
+        # pass over-gathers and fully replicates E (E_local = E), tripping the
+        # assert. The post-combine all_reduce on the non-cluster axis (inserted
+        # in StableHLOToTTIR) handles the dropped non-cluster sharding.
+        if self.mesh_axis_names is not None and len(self.mesh_axis_names) == 2:
+            cluster_axis_name = self.mesh_axis_names[self.cluster_axis]
+            sdy_sharding = (
+                f'#sdy.sharding_per_value<[<@mesh, '
+                f'[{{"{cluster_axis_name}"}}, {{}}, {{}}, {{}}]>]>'
+            )
+            down_out = torch.ops.tt.sharding_constraint(down_out, sdy_sharding)
+
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
             metadata,
@@ -1079,9 +1098,15 @@ def enable_sparse_mlp(
     target_classes: Optional[List[Type]] = None,
     verbose: bool = False,
     config: Optional[object] = None,
+    mesh_axis_names: Optional[Tuple[str, ...]] = None,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
+
+    mesh_axis_names: optional tuple of axis names matching `mesh`. If provided
+    and experts are compound-sharded across both mesh axes, A2aSparseMLP will
+    emit an sdy.sharding_constraint before all_to_all_combine forcing E onto
+    cluster_axis only — required for the combine kernel's input[0] assert.
     """
     replaced_count = 0
 
@@ -1151,6 +1176,7 @@ def enable_sparse_mlp(
             config=config,
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
+            mesh_axis_names=mesh_axis_names,
         )
 
         setattr(parent, name, sparse_mlp)
@@ -1193,28 +1219,32 @@ def enable_sparse_mlp(
 def get_moe_shard_specs(
     model: nn.Module, original_spec_fn, mesh_names: tuple
 ) -> Dict[str, Any]:
+    """Wrap the loader's shard_spec with compound sharding for A2aSparseMLP
+    expert weights. Only fills in entries the loader didn't specify — loaders
+    that set their own expert sharding (matching their cluster_axis choice)
+    take precedence."""
     shard_specs = original_spec_fn(model)
     for layer in model.model.layers:
         if isinstance(layer.mlp, A2aSparseMLP):
             experts = layer.mlp.experts
             compound = (mesh_names[0], mesh_names[1])
 
+            def _set_default(param, spec):
+                if param is not None and param not in shard_specs:
+                    shard_specs[param] = spec
+
             if hasattr(experts, "gate_up_proj"):
                 # Fused gate_up (e.g. GPT-OSS via FusedExpertsWrapper)
-                shard_specs[experts.gate_up_proj] = (compound, None, None)
-                if experts.gate_up_proj_bias is not None:
-                    shard_specs[experts.gate_up_proj_bias] = (compound, None)
+                _set_default(experts.gate_up_proj, (compound, None, None))
+                _set_default(experts.gate_up_proj_bias, (compound, None))
             else:
                 # Separate gate/up (e.g. Deepseek via StackedExperts)
-                shard_specs[experts.gate_proj] = (compound, None, None)
-                shard_specs[experts.up_proj] = (compound, None, None)
-                if experts.gate_proj_bias is not None:
-                    shard_specs[experts.gate_proj_bias] = (compound, None)
-                if experts.up_proj_bias is not None:
-                    shard_specs[experts.up_proj_bias] = (compound, None)
+                _set_default(experts.gate_proj, (compound, None, None))
+                _set_default(experts.up_proj, (compound, None, None))
+                _set_default(experts.gate_proj_bias, (compound, None))
+                _set_default(experts.up_proj_bias, (compound, None))
 
-            shard_specs[experts.down_proj] = (compound, None, None)
-            if experts.down_proj_bias is not None:
-                shard_specs[experts.down_proj_bias] = (compound, None)
+            _set_default(experts.down_proj, (compound, None, None))
+            _set_default(experts.down_proj_bias, (compound, None))
 
     return shard_specs

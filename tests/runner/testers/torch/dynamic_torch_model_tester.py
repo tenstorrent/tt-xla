@@ -289,7 +289,22 @@ class DynamicTorchModelTester(TorchModelTester):
         mesh_info = self._workload.mesh.shape()
         mesh_shape = tuple(mesh_info.values())
         mesh_names = tuple(mesh_info.keys())
-        enable_sparse_mlp(model, mesh=mesh_shape)
+        # cluster_axis defines the all_to_all dispatch/combine axis. Loaders
+        # whose expert weights aren't sharded on the default axis (0) must
+        # declare it via get_moe_cluster_axis(); the all_to_all_combine kernel
+        # asserts input[0] == E / mesh[cluster_axis].
+        loader = self.dynamic_loader.loader
+        cluster_axis = (
+            loader.get_moe_cluster_axis()
+            if hasattr(loader, "get_moe_cluster_axis")
+            else 0
+        )
+        enable_sparse_mlp(
+            model,
+            mesh=mesh_shape,
+            cluster_axis=cluster_axis,
+            mesh_axis_names=mesh_names,
+        )
         shard_spec_fn = self._workload.shard_spec_fn
         if shard_spec_fn:
 
