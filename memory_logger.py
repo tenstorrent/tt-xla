@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # pip install psutil matplotlib
 # python memory_logger.py --pid 12345 --interval 0.1 --csv rss.csv --png rss.png
+# python memory_logger.py --name my_process --interval 0.1 --csv rss.csv --png rss.png
 
 import argparse
 import csv
@@ -19,11 +20,56 @@ def bytes_to_mib(num_bytes: int) -> float:
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Log RSS for a specific PID and plot it.")
-    parser.add_argument("--pid", type=int, required=True, help="Target process ID")
+    target_group = parser.add_mutually_exclusive_group(required=True)
+    target_group.add_argument("--pid", type=int, help="Target process ID")
+    target_group.add_argument(
+        "--name",
+        type=str,
+        help="Attach to first process whose name/cmdline contains this string",
+    )
     parser.add_argument("--interval", type=float, default=1.0, help="Sampling interval seconds")
+    parser.add_argument(
+        "--poll-interval",
+        type=float,
+        default=0.5,
+        help="How often to poll for process name matches",
+    )
     parser.add_argument("--csv", type=Path, default=Path("pid_rss.csv"), help="CSV output path")
     parser.add_argument("--png", type=Path, default=Path("pid_rss.png"), help="PNG output path")
     return parser.parse_args()
+
+
+def find_process_by_name(name_substring: str):
+    needle = name_substring.lower()
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            info = proc.info
+            proc_name = (info.get("name") or "").lower()
+            cmdline = " ".join(info.get("cmdline") or []).lower()
+            if needle in proc_name or needle in cmdline:
+                return proc
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return None
+
+
+def resolve_target_process(args):
+    if args.pid is not None:
+        try:
+            return psutil.Process(args.pid)
+        except psutil.NoSuchProcess:
+            print(f"PID {args.pid} does not exist.")
+            return None
+
+    print(
+        f"Waiting for process matching name '{args.name}' "
+        f"(poll every {args.poll_interval}s)..."
+    )
+    while True:
+        proc = find_process_by_name(args.name)
+        if proc is not None:
+            return proc
+        time.sleep(args.poll_interval)
 
 
 def generate_plot(csv_path: Path, png_path: Path):
@@ -59,20 +105,23 @@ def generate_plot(csv_path: Path, png_path: Path):
 
 def main():
     args = parse_args()
-
     try:
-        proc = psutil.Process(args.pid)
-        proc_name = proc.name()
-    except psutil.NoSuchProcess:
-        print(f"PID {args.pid} does not exist.")
+        proc = resolve_target_process(args)
+    except KeyboardInterrupt:
+        print("\nStopped before attaching to a process.")
         return
+    if proc is None:
+        return
+    target_pid = proc.pid
+    proc_name = proc.name()
+    target_create_time = proc.create_time()
 
     with args.csv.open("w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["timestamp_utc", "pid", "process_name", "rss_bytes", "rss_mib"])
 
         print(
-            f"Sampling RSS for PID={args.pid} ({proc_name}) every {args.interval}s.\n"
+            f"Sampling RSS for PID={target_pid} ({proc_name}) every {args.interval}s.\n"
             f"Writing CSV: {args.csv}\nPress Ctrl+C to stop and generate {args.png}."
         )
 
@@ -80,15 +129,18 @@ def main():
             while True:
                 # Process may exit between iterations
                 try:
+                    if not proc.is_running() or proc.create_time() != target_create_time:
+                        print(f"PID {target_pid} exited/restarted; stopping sampler.")
+                        break
                     rss_bytes = proc.memory_info().rss
                 except psutil.NoSuchProcess:
-                    print(f"PID {args.pid} exited; stopping sampler.")
+                    print(f"PID {target_pid} exited; stopping sampler.")
                     break
 
                 ts = datetime.now(timezone.utc).isoformat()
                 writer.writerow([
                     ts,
-                    args.pid,
+                    target_pid,
                     proc_name,
                     rss_bytes,
                     round(bytes_to_mib(rss_bytes), 3),
