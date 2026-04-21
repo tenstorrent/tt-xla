@@ -3,17 +3,25 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import os
+import sys
 
 import torch
-import torch_xla
-import tt_torch  # registers "tt" backend for torch.compile
 from pjrt_plugin_tt import (
     get_library_path,
     setup_tt_metal_home,
     setup_tt_pjrt_plugin_dir,
 )
-from torch_xla.experimental.plugins import DevicePlugin
 from ttxla_tools.logging import logger
+
+# When torch_xla loads this module as a plugin entry point during its own
+# __init__.py execution (via register_installed_plugins), torch_xla.experimental.plugins
+# is already in sys.modules (imported at line 269, before register_installed_plugins
+# at line 275). Access it directly to avoid a circular import where importing
+# torch_xla would re-trigger register_installed_plugins before TTPlugin is defined.
+if "torch_xla.experimental.plugins" in sys.modules:
+    DevicePlugin = sys.modules["torch_xla.experimental.plugins"].DevicePlugin
+else:
+    from torch_xla.experimental.plugins import DevicePlugin
 
 
 class TTPlugin(DevicePlugin):
@@ -38,7 +46,10 @@ class TTPlugin(DevicePlugin):
         logger.warning(
             "TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly."
         )
-        torch_xla._XLAC._set_xla_all_numbers_special_scalars(True)
+        import torch_xla as _torch_xla  # noqa: PLC0415 - lazy import avoids circular dependency
+        import tt_torch  # noqa: F401, PLC0415 - registers "tt" backend for torch.compile
+
+        _torch_xla._XLAC._set_xla_all_numbers_special_scalars(True)
 
     def library_path(self) -> str:
         """Return the path to the TT PJRT plugin binary."""
