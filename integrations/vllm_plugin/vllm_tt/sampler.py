@@ -20,23 +20,17 @@ _TOPK_K_PER_CHUNK = 32  # candidates kept per chunk
 
 
 def _next_power_of_2(n: int) -> int:
-    p = 1
-    while p < n:
-        p <<= 1
-    return p
+    return 1 << (n - 1).bit_length()
 
 
-def _get_topk_split_params(vocab_size: int) -> tuple[int, int, int, int]:
-    """Return (num_chunks, chunk_size, padded_chunk_size, pad_size) for vocab."""
+def _get_topk_split_params(vocab_size: int) -> tuple[int, int]:
+    """Return (chunk_size, padded_chunk_size) for chunked topk."""
     num_chunks = math.ceil(vocab_size / _TOPK_MAX_CHUNK_SIZE)
     chunk_size = math.ceil(vocab_size / num_chunks)
-    padded_chunk_size = _next_power_of_2(chunk_size)
-    pad_size = padded_chunk_size - chunk_size
-    return num_chunks, chunk_size, padded_chunk_size, pad_size
+    return chunk_size, _next_power_of_2(chunk_size)
+
 
 _SAMPLING_EPS = 1e-5
-
-_logged_sampling_modes: set = set()
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -172,13 +166,6 @@ class Sampler(nn.Module):
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
     ) -> torch.Tensor:
-        # mode_key = (_USE_TTNN_SAMPLING, bool(sampling_metadata.all_random))
-        # if mode_key not in _logged_sampling_modes:
-        #     _logged_sampling_modes.add(mode_key)
-        #     sampler = "ttnn.sampling" if _USE_TTNN_SAMPLING else "cpu/scatter"
-        #     greedy = "non-greedy" if sampling_metadata.all_random else "greedy (or mixed)"
-        #     print(f"[sampler] {greedy}, sampler={sampler}", flush=True)
-
         # Apply allowed_token_ids mask (sets disallowed tokens to -inf).
         if not sampling_metadata.no_allowed_token_ids:
             logits = logits + sampling_metadata.allowed_token_ids_mask
@@ -236,9 +223,7 @@ class Sampler(nn.Module):
         # If seeded sampling, gather q_samples at candidate positions.
         q_samples_reduced = None
         if sampling_metadata.q_samples is not None:
-            q_samples_reduced = sampling_metadata.q_samples.gather(
-                1, candidate_indices
-            )
+            q_samples_reduced = sampling_metadata.q_samples.gather(1, candidate_indices)
 
         random_sampled_local = self.random_sample(
             probs, sampling_metadata.generators, q_samples_reduced
@@ -340,15 +325,6 @@ class Sampler(nn.Module):
                     q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
 
-        #     # exponential_() is not supported on TT XLA device — generate on
-        #     # CPU then move to device. Transfer is tiny (~128 floats).
-        #     q = torch.empty_like(probs, device="cpu").exponential_()
-        #     if generators:
-        #         for i, generator in generators.items():
-        #             q[i].exponential_(generator=generator)
-        #     q = q.to(probs.device)
-        # return probs.div_(q).argmax(dim=-1).view(-1)
-
 
 def apply_top_k_top_p_fast(
     logits: torch.Tensor,
@@ -366,10 +342,8 @@ def apply_top_k_top_p_fast(
     The top-k and top-p filters are applied on the small candidate set
     (~128 tokens) rather than the full vocab.
     """
-    batch, vocab_size = logits.shape
-    num_chunks, chunk_size, padded_chunk_size, pad_size = _get_topk_split_params(
-        vocab_size
-    )
+    vocab_size = logits.shape[-1]
+    chunk_size, padded_chunk_size = _get_topk_split_params(vocab_size)
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)
@@ -411,50 +385,3 @@ def apply_top_k_top_p_fast(
             all_values = all_values.masked_fill(probs < top_p_cutoff, -float("inf"))
 
     return all_values, all_indices
-
-
-def apply_top_k_top_p(
-    logits: torch.Tensor,
-    k: torch.Tensor | None,
-    p: torch.Tensor | None,
-) -> torch.Tensor:
-    """
-    Apply top-k and top-p optimized for TPU.
-
-    This algorithm avoids using torch.scatter which is extremely slow on TPU.
-    This is achieved by finding a "cut-off" element in the original logit, and
-    after thresholding the logit using this cut-off, the remaining elements
-    shall constitute the top-p set.
-
-    Note: in the case of tie (i.e. multiple cut-off elements present in the
-    logit), all tie elements are included in the top-p set. In other words,
-    this function does not break ties. Instead, these tie tokens have equal
-    chance of being chosen during final sampling, so we can consider the tie
-    being broken then.
-    """
-    probs = logits.softmax(dim=-1)
-    probs_sort, _ = probs.sort(dim=-1, descending=False)
-
-    if k is not None:
-        top_k_count = probs_sort.size(1) - k.to(torch.long)  # shape: (batch, )
-        top_k_count = top_k_count.clamp(max=probs_sort.size(1) - 1).unsqueeze(dim=1)
-        top_k_cutoff = probs_sort.gather(-1, top_k_count)
-
-        # Make sure the disabled top-k rows (k<=0 or k==vocab_size) are no-op.
-        no_top_k_mask = ((k <= 0) | (k == logits.shape[1])).unsqueeze(dim=1)
-        top_k_cutoff.masked_fill_(no_top_k_mask, -float("inf"))
-
-        elements_to_discard = probs < top_k_cutoff
-        logits.masked_fill_(elements_to_discard, -float("inf"))
-
-    if p is not None:
-        cumprob = torch.cumsum(probs_sort, dim=-1)
-        top_p_mask = cumprob <= 1 - p.unsqueeze(dim=1)
-        top_p_mask[:, -1] = False  # at least one
-
-        top_p_count = top_p_mask.sum(dim=-1).unsqueeze(1)
-        top_p_cutoff = probs_sort.gather(-1, top_p_count)
-        elements_to_discard = probs < top_p_cutoff
-        logits.masked_fill_(elements_to_discard, -float("inf"))
-
-    return logits
