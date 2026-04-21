@@ -18,6 +18,10 @@ import torch_xla
 import torch_xla.runtime as xr
 import tt_torch  # registers the "tt" torch.compile backend and torch.ops.tt.*
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from tt_torch.attention_backend import (
+    TT_ATTENTION_BACKEND_NAME,
+    register_tt_attention_backend,
+)
 from tt_torch.moe_backend import (
     REDUCTION_SIZE,
     TT_MOE_BACKEND_NAME,
@@ -48,6 +52,7 @@ def main() -> None:
     # fits in device DRAM.
     torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
     register_tt_moe_backend()
+    register_tt_attention_backend()
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     if tokenizer.pad_token_id is None:
@@ -74,10 +79,13 @@ def main() -> None:
         ).logits.clone()
     del cpu_model
 
-    # --- Same model on card with the tt_moe backend. ---
-    print("Running on TT card with tt_moe backend...", flush=True)
+    # --- Same model on card with the tt_moe experts + tt_sdpa attention. ---
+    print("Running on TT card with tt_moe + tt_sdpa backends...", flush=True)
     card_model = AutoModelForCausalLM.from_pretrained(
-        MODEL_ID, dtype=torch.bfloat16, experts_implementation=TT_MOE_BACKEND_NAME
+        MODEL_ID,
+        dtype=torch.bfloat16,
+        experts_implementation=TT_MOE_BACKEND_NAME,
+        attn_implementation=TT_ATTENTION_BACKEND_NAME,
     ).eval()
     device = torch_xla.device()
     card_model = card_model.to(device)
