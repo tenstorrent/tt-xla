@@ -240,10 +240,12 @@ def _decode_and_save(vae, latents: torch.Tensor, out_path: Path) -> None:
     ).to(latents.dtype)
     latents_unscaled = latents / latents_std + latents_mean
 
+    # VAE decoder has bf16 weights — cast at the boundary (same pattern as
+    # the DiT call in _denoise). Unscaling happens in float32 for precision.
     decoder_wrapper = VAEDecoderWrapper(vae).eval().bfloat16()
     pixels = run_component(
         decoder_wrapper,
-        [latents_unscaled],
+        [latents_unscaled.to(torch.bfloat16)],
         on_tt=TT_VAE_DECODER,
         shard_spec_fn=(lambda m: shard_vae_decoder_specs(m.vae)),
     )
