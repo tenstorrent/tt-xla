@@ -53,3 +53,21 @@ test_config:
   llama_lora/causal_lm/pytorch-Tinyllama_v1.1-llm_prefill-seq_128-batch_2-single_device-training:
     status: EXPECTED_PASSING
     required_pcc: 0.98
+
+  gemma_lora/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_1-single_device-training:
+    status: EXPECTED_PASSING
+
+  gemma_lora/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_2-single_device-training:
+    status: EXPECTED_PASSING
+
+  phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-training:
+    status: EXPECTED_PASSING
+
+  phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_2-single_device-training:
+    status: EXPECTED_PASSING
+
+  qwen_2_5_lora/causal_lm/pytorch-1.5B-llm_prefill-seq_128-batch_1-single_device-training:
+    status: EXPECTED_PASSING
+
+  qwen_2_5_lora/causal_lm/pytorch-1.5B-llm_prefill-seq_128-batch_2-single_device-training:
+    status: EXPECTED_PASSING
