@@ -73,8 +73,8 @@ def test_gpt_oss_moe_multichip_backward():
     torch_xla.sync(wait=True)
 
     # Verify gradients exist.
-    missing = [
-        name for name, param in model.model.named_parameters()
-        if param.requires_grad and param.grad is None
-    ]
+    trainable = [(name, p) for name, p in model.model.named_parameters() if p.requires_grad]
+    missing = [name for name, p in trainable if p.grad is None]
+
+    assert trainable, "No trainable parameters found."
     assert not missing, f"Missing gradients for: {missing}"
