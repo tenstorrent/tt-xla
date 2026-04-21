@@ -3,6 +3,7 @@
 """Sampler layer implementing XLA supported operations."""
 
 import math
+import os
 
 import torch
 import torch.nn as nn
@@ -34,9 +35,17 @@ def _get_topk_split_params(vocab_size: int) -> tuple[int, int, int, int]:
     pad_size = padded_chunk_size - chunk_size
     return num_chunks, chunk_size, padded_chunk_size, pad_size
 
+
 _SAMPLING_EPS = 1e-5
 
 _logged_sampling_modes: set = set()
+
+# When set, use threshold-based masking instead of gather to map sampled
+# local candidate index back to global vocab.  Avoids the composite gather op
+# entirely: chunked topk gives the threshold (min top-k value), full-vocab
+# logits are masked below it, and Gumbel-max runs on the full vocab.
+# Trade-off: full-vocab softmax/argmax instead of 128-candidate versions.
+_USE_THRESHOLD_SAMPLING = os.environ.get("TT_USE_THRESHOLD_SAMPLING", "") == "1"
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -220,33 +229,51 @@ class Sampler(nn.Module):
         if sampling_metadata.min_p is not None:
             logits = self.apply_min_p(logits, sampling_metadata.min_p)
 
-        # Apply top_k and/or top_p using multi-core topk pre-filtering.
-        # This splits vocab into power-of-2 chunks (<= 32768) to trigger
-        # multi-core ttnn.topk (0.18ms per chunk vs 9ms single-core), then
-        # applies top-k/top-p on the small candidate set.
-        filtered_logits, candidate_indices = apply_top_k_top_p_fast(
-            logits,
-            sampling_metadata.top_k,
-            sampling_metadata.top_p,
-        )
-
-        # Random sample on reduced candidate set.
-        probs = filtered_logits.softmax(dim=-1, dtype=torch.float32)
-
-        # If seeded sampling, gather q_samples at candidate positions.
-        q_samples_reduced = None
-        if sampling_metadata.q_samples is not None:
-            q_samples_reduced = sampling_metadata.q_samples.gather(
-                1, candidate_indices
+        if _USE_THRESHOLD_SAMPLING:
+            # Threshold-based alternative: avoids gather entirely.
+            # chunked topk VALUES are correct on TT; use their minimum as a
+            # threshold to mask the full logits, then softmax + argmax on the
+            # full vocab returns a global index directly.
+            # Trade-off: full-vocab softmax/argmax instead of 128-candidate.
+            topk_values, _ = apply_top_k_top_p_fast(
+                logits,
+                sampling_metadata.top_k,
+                sampling_metadata.top_p,
+            )
+            threshold = topk_values.min(dim=-1, keepdim=True).values
+            masked_logits = logits.masked_fill(logits < threshold, float("-inf"))
+            probs = masked_logits.softmax(dim=-1, dtype=torch.float32)
+            random_sampled = self.random_sample(
+                probs, sampling_metadata.generators, sampling_metadata.q_samples
+            )
+        else:
+            # Apply top_k and/or top_p using multi-core topk pre-filtering.
+            # This splits vocab into power-of-2 chunks (<= 32768) to trigger
+            # multi-core ttnn.topk (0.18ms per chunk vs 9ms single-core), then
+            # applies top-k/top-p on the small candidate set.
+            filtered_logits, candidate_indices = apply_top_k_top_p_fast(
+                logits,
+                sampling_metadata.top_k,
+                sampling_metadata.top_p,
             )
 
-        random_sampled_local = self.random_sample(
-            probs, sampling_metadata.generators, q_samples_reduced
-        )
-        # Map local candidate index back to global vocab index.
-        random_sampled = candidate_indices.gather(
-            1, random_sampled_local.unsqueeze(-1)
-        ).squeeze(-1)
+            # Random sample on reduced candidate set.
+            probs = filtered_logits.softmax(dim=-1, dtype=torch.float32)
+
+            # If seeded sampling, gather q_samples at candidate positions.
+            q_samples_reduced = None
+            if sampling_metadata.q_samples is not None:
+                q_samples_reduced = sampling_metadata.q_samples.gather(
+                    1, candidate_indices
+                )
+
+            random_sampled_local = self.random_sample(
+                probs, sampling_metadata.generators, q_samples_reduced
+            )
+            # Map local candidate index back to global vocab index.
+            random_sampled = candidate_indices.gather(
+                1, random_sampled_local.unsqueeze(-1)
+            ).squeeze(-1)
 
         sampled = torch.where(
             sampling_metadata.temperature < _SAMPLING_EPS,
