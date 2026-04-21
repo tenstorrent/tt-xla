@@ -570,10 +570,9 @@ def test_deepseek_v3_1_full_sparse_moe():
     t1 = time.perf_counter()
     print(f"[timing] model build + weight load: {t1 - t0:.1f}s", flush=True)
 
-    tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
-    # Left-pad: the model predicts the token *after* the final real token, so
-    # padding must be to the left so position N-1 is "to", not <eos>.
-    tokenizer.padding_side = "left"
+    tokenizer = AutoTokenizer.from_pretrained(
+        repo_id, trust_remote_code=True, add_bos_token=True, padding_side="left"
+    )
     prompt_text = (
         "Tenstorrent is a company that builds AI accelerators. "
         "Their chips are designed to"
@@ -700,9 +699,10 @@ def test_deepseek_v3_1_decode_static_cache():
     t1 = time.perf_counter()
     print(f"[timing] model build + weight load: {t1 - t0:.1f}s", flush=True)
 
-    tokenizer = AutoTokenizer.from_pretrained(repo_id, trust_remote_code=True)
-    tokenizer.padding_side = "left"
-    prompt_text = "Tell me a short story. "
+    tokenizer = AutoTokenizer.from_pretrained(
+        repo_id, trust_remote_code=True, add_bos_token=True, padding_side="left"
+    )
+    prompt_text = "Tell me a short story."
     encoded = tokenizer(
         prompt_text,
         return_tensors="pt",
