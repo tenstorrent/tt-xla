@@ -155,7 +155,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     LOG_F(INFO, "%s", log_stream.str().c_str());
   }
   
-  size_t group_idx = 0;
   for (const auto &[host_base, buffers] : borrowed_host_base_ptr_to_buffers) {
     if (buffers.empty()) {
       continue;
@@ -174,25 +173,13 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     // tensor, so we only hold one copy of the data on the worker side.
     tt::runtime::Tensor owned_tensor =
         tt::runtime::createOwnedHostTensor(host_base, desc);
-    LOG_F(INFO,
-          "Group %zu: created owned host tensor (copied from host_base=%p)",
-          group_idx, host_base);
 
     for (size_t i = 0; i < buffers.size(); ++i) {
       BufferInstance *buffer = buffers[i];
 
-      const bool is_first = (i == 0);
       tt::runtime::Tensor worker_runtime_tensor =
-          is_first ? owned_tensor
+          (i == 0) ? owned_tensor
                    : tt::runtime::createUnsafeBorrowedHostTensor(owned_tensor);
-
-      LOG_F(INFO,
-            "Group %zu: replacing runtime tensor for buffer uid=%lu ptr=%p "
-            "shape=(%s) with %s tensor (i=%zu/%zu)",
-            group_idx, buffer->getUID(),
-            static_cast<const void *>(buffer),
-            buffer->toShapeStr().c_str(),
-            is_first ? "owned" : "unsafe-borrowed", i, buffers.size());
 
       // Inplace replacement: rebuilds the BufferInstance's PjrtTensor around
       // the new runtime tensor and updates m_pjrt_tensor via setPjrtTensor.
@@ -200,8 +187,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
       PjrtTensor::from_runtime_tensor({buffer},
                                       std::move(worker_runtime_tensor));
     }
-
-    ++group_idx;
   }
 
 
