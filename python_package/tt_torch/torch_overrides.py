@@ -35,9 +35,11 @@ def _router_forward(self, hidden_states):
     router_top_value = torch.nn.functional.softmax(
         router_top_value, dim=1, dtype=router_top_value.dtype
     )
-    router_scores = torch.zeros_like(router_logits).scatter_(
-        1, router_indices, router_top_value
-    )
+    num_experts = router_logits.shape[-1]
+    expert_mask = torch.nn.functional.one_hot(
+        router_indices, num_classes=num_experts
+    ).to(router_top_value.dtype)
+    router_scores = (expert_mask * router_top_value.unsqueeze(-1)).sum(dim=1)
     return router_logits, router_scores, router_indices
 
 
