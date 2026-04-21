@@ -366,21 +366,35 @@ def benchmark_llm_torch_xla(
     if not accuracy_testing:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
         cpu_wrapper.eval()
-        cpu_output_logits, _ = generate_and_benchmark(
+
+        # Iter 0: prefill. After this, input_args holds the post-prefill decode
+        # state (input_ids=next_token_0, cache_position=[prompt_len]).
+        prefill_logits, _ = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
-            2,
+            1,
             verbose=False,
             collect_logits=True,
         )
 
         if decode_only:
-            # Save post-prefill state: CPU prefill populated the KV cache and
-            # updated input_ids to the next token and cache_position to prompt_len.
+            # Snapshot first-decode inputs before CPU iter 1 advances them.
             decode_only_input_ids = input_args["input_ids"].clone()
             decode_only_cache_position = input_args["cache_position"].clone()
             decode_only_cache = input_args["past_key_values"]
+
+        # Iter 1: first decode. Provides the PCC reference for device first decode.
+        decode_logits, _ = generate_and_benchmark(
+            cpu_wrapper,
+            input_args,
+            torch.device("cpu"),
+            1,
+            verbose=False,
+            collect_logits=True,
+        )
+
+        cpu_output_logits = prefill_logits + decode_logits
 
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
@@ -470,6 +484,8 @@ def benchmark_llm_torch_xla(
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
+    warmup_kv_cache = None
+
     # Warmup run (skip in decode-only mode)
     if not decode_only:
         # Construct inputs for warmup run
@@ -482,6 +498,7 @@ def benchmark_llm_torch_xla(
             input_prompt_tokens=(
                 token_accuracy.input_prompt if accuracy_testing else None
             ),
+            use_mla_cache=use_mla_cache,
         )
         input_args = transfer_to_device(input_args, device)
         print("Warming up...")
@@ -496,6 +513,8 @@ def benchmark_llm_torch_xla(
         )
         print("Warmup complete")
 
+        warmup_kv_cache = input_args["past_key_values"]
+
         tracy.signpost("warmup_complete")
 
     # Reconstruct inputs for the perf benchmark run
@@ -504,7 +523,7 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=(decode_only_cache if decode_only else None),
+        past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
@@ -563,6 +582,7 @@ def benchmark_llm_torch_xla(
         past_key_values=decode_only_cache if decode_only else None,
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        use_mla_cache=use_mla_cache,
     )
 
     if decode_only:
