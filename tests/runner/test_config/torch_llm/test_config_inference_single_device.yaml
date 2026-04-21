@@ -266,3 +266,12 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "DRAM OOM"
     markers: [nightly]
+
+  phi1/causal_lm/pytorch-Phi_1-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
+    status: UNSPECIFIED
+
+  phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-mesh_default-inference:
+    status: UNSPECIFIED
+
+  phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_4-single_device-mesh_default-inference:
+    status: UNSPECIFIED

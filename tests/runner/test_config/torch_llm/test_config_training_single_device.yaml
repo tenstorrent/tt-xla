@@ -60,7 +60,13 @@ test_config:
   gemma_lora/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
 
+  phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
+    status: EXPECTED_PASSING
+
   phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
+    status: EXPECTED_PASSING
+
+  phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
     status: EXPECTED_PASSING
 
   phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
