@@ -71,40 +71,40 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
           m_executable_image->getInputSharding(arg_index), num_devices);
 
   // Log the buffers being introduced for debugging
-  {
-    std::ostringstream log_stream;
-    log_stream << "Arg buffers introduced for arg_index=" << arg_index << ": ";
-    for (size_t i = 0; i < arg_buffers.size(); ++i) {
-      const BufferInstance* buf = arg_buffers[i];
-      log_stream << "[i=" << i;
-      if (buf) {
-        log_stream << " ptr=" << buf
-                   << " borrowed_host_base=" << buf->borrowedHostBasePointer()
-                   << " shape=(";
-        const std::string shape = buf->toShapeStr();
-        log_stream << shape;
-        log_stream << ")";
-      } else {
-        log_stream << " null";
-      }
-      log_stream << "] ";
-    }
+  // {
+  //   std::ostringstream log_stream;
+  //   log_stream << "Arg buffers introduced for arg_index=" << arg_index << ": ";
+  //   for (size_t i = 0; i < arg_buffers.size(); ++i) {
+  //     const BufferInstance* buf = arg_buffers[i];
+  //     log_stream << "[i=" << i;
+  //     if (buf) {
+  //       log_stream << " ptr=" << buf
+  //                  << " borrowed_host_base=" << buf->borrowedHostBasePointer()
+  //                  << " shape=(";
+  //       const std::string shape = buf->toShapeStr();
+  //       log_stream << shape;
+  //       log_stream << ")";
+  //     } else {
+  //       log_stream << " null";
+  //     }
+  //     log_stream << "] ";
+  //   }
 
-    log_stream << " | Strategy {";
-    if (mlir::succeeded(strategy)) {
-      const auto& strat_map = *strategy;
-      size_t n = 0;
-      for (const auto& [k, v] : strat_map) {
-        log_stream << k << "=" << v;
-        if (++n < strat_map.size()) log_stream << ", ";
-      }
-    } else {
-      log_stream << "FAILED strategy";
-    }
-    log_stream << "}";
+  //   log_stream << " | Strategy {";
+  //   if (mlir::succeeded(strategy)) {
+  //     const auto& strat_map = *strategy;
+  //     size_t n = 0;
+  //     for (const auto& [k, v] : strat_map) {
+  //       log_stream << k << "=" << v;
+  //       if (++n < strat_map.size()) log_stream << ", ";
+  //     }
+  //   } else {
+  //     log_stream << "FAILED strategy";
+  //   }
+  //   log_stream << "}";
 
-    LOG_F(INFO, "%s", log_stream.str().c_str());
-  }
+  //   LOG_F(INFO, "%s", log_stream.str().c_str());
+  // }
 
          
   if (mlir::failed(strategy)) {
