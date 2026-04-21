@@ -382,18 +382,7 @@ def benchmark_llm_torch_xla(
             decode_only_cache_position = input_args["cache_position"].clone()
             decode_only_cache = input_args["past_key_values"]
 
-    # Transfer model and inputs to device
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        past_key_values=decode_only_cache if decode_only else None,
-        use_mla_cache=use_mla_cache,
-    )
-    input_args = transfer_to_device(input_args, device)
+    # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
 
     # Shard model if shard spec function is provided
@@ -465,8 +454,12 @@ def benchmark_llm_torch_xla(
             logger.info(
                 f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
             )
+
+    # ========================================================
     # PERFORMANCE BENCHMARK
-    # No logits returned to avoid OOM.
+    # ========================================================
+
+    # No logits returned to maximize performance and avoid device DRAM OOM.
     perf_wrapper = LLMSamplingWrapper(
         model,
         read_logits_fn,
@@ -479,6 +472,18 @@ def benchmark_llm_torch_xla(
 
     # Warmup run (skip in decode-only mode)
     if not decode_only:
+        # Construct inputs for warmup run
+        input_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            input_prompt=custom_input_prompt,
+            input_prompt_tokens=(
+                token_accuracy.input_prompt if accuracy_testing else None
+            ),
+        )
+        input_args = transfer_to_device(input_args, device)
         print("Warming up...")
         warmup_tokens = min(MIN_STEPS, max_output_tokens)
         _, _ = generate_and_benchmark(
@@ -489,6 +494,7 @@ def benchmark_llm_torch_xla(
             verbose=False,
             collect_logits=False,
         )
+        print("Warmup complete")
 
         tracy.signpost("warmup_complete")
 
@@ -498,9 +504,7 @@ def benchmark_llm_torch_xla(
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=(
-            input_args["past_key_values"] if not decode_only else decode_only_cache
-        ),
+        past_key_values=(decode_only_cache if decode_only else None),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
@@ -508,18 +512,19 @@ def benchmark_llm_torch_xla(
 
     if decode_only:
         # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids
-        input_args["cache_position"] = decode_only_cache_position
+        input_args["input_ids"] = decode_only_input_ids.clone()
+        input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
-    # Run perf benchmark
-    print(f"\nStarting performance benchmark...")
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
+
+    # Run perf benchmark
+    print(f"\nStarting performance benchmark...")
     _, iteration_times = generate_and_benchmark(
         compiled_perf_model,
         input_args,
@@ -530,65 +535,73 @@ def benchmark_llm_torch_xla(
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
     )
+    print("\nPerformance benchmark complete")
 
-    # ACCURACY BENCHMARK
-    # Logits moved to CPU each step to avoid OOM.
-    if not decode_only:
-        accuracy_wrapper = LLMSamplingWrapper(
-            model,
-            read_logits_fn,
-            return_logits=True,
-            mesh=mesh,
-            output_sharding_spec=input_output_sharding_spec,
-        )
-        accuracy_wrapper.eval()
-        compiled_accuracy = torch.compile(accuracy_wrapper, backend="tt")
+    # ========================================================
+    # PCC/TOPK BENCHMARK
+    # ========================================================
 
-        accuracy_steps = max_output_tokens
+    # Return logits to calculate PCC/TOPK
+    logits_wrapper = LLMSamplingWrapper(
+        model,
+        read_logits_fn,
+        return_logits=True,
+        mesh=mesh,
+        output_sharding_spec=input_output_sharding_spec,
+    )
+    logits_wrapper.eval()
+    compiled_logits = torch.compile(logits_wrapper, backend="tt")
 
-        # Reconstruct inputs for accuracy run
-        input_args = construct_inputs(
-            tokenizer,
-            model.config,
-            batch_size,
-            max_cache_len,
-            past_key_values=input_args["past_key_values"],
-            input_prompt=custom_input_prompt,
-            input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
-            ),
-            use_mla_cache=use_mla_cache,
-        )
-        input_args = transfer_to_device(input_args, device)
-        if input_output_sharding_spec:
-            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+    logits_steps = max_output_tokens
 
-        print(
-            f"\nStarting accuracy benchmark "
-            f"({accuracy_steps} step{'s' if accuracy_steps > 1 else ''})..."
-        )
-        output_logits, _ = generate_and_benchmark(
-            compiled_accuracy,
-            input_args,
-            device,
-            accuracy_steps,
-            verbose=False,
-            ground_truth_tokens=ground_truth_for_benchmark,
-            collect_logits=True,
-        )
+    # Reconstruct inputs for PCC/TOPK run
+    input_args = construct_inputs(
+        tokenizer,
+        model.config,
+        batch_size,
+        max_cache_len,
+        past_key_values=decode_only_cache if decode_only else None,
+        input_prompt=custom_input_prompt,
+        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+    )
+
+    if decode_only:
+        # Reset to post-prefill decode state (single token input)
+        input_args["input_ids"] = decode_only_input_ids.clone()
+        input_args["cache_position"] = decode_only_cache_position.clone()
+
+    input_args = transfer_to_device(input_args, device)
+    if input_output_sharding_spec:
+        xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+
+    print("\nStarting PCC/TOPK benchmark...")
+    output_logits, _ = generate_and_benchmark(
+        compiled_logits,
+        input_args,
+        device,
+        logits_steps,
+        verbose=False,
+        ground_truth_tokens=ground_truth_for_benchmark,
+        collect_logits=True,
+    )
+    print("\nPCC/TOPK benchmark complete")
 
     # Post-processing: derive predicted tokens for accuracy testing
     if accuracy_testing:
-        predicted_tokens = [logits.argmax(dim=-1)[0].item() for logits in output_logits]
+        predicted_tokens = [
+            logits[:, -1, :].argmax(dim=-1)[0].item() for logits in output_logits
+        ]
 
+    # Calculate Time to First Token (TTFT)
     ttft_ns = iteration_times[0] if not decode_only else 0.0
     ttft_ms = ttft_ns / 1e6
 
+    # Calculate decode time
     decode_iteration_times = iteration_times[1:]
     decode_total_time_ns = sum(decode_iteration_times)
     decode_total_time = decode_total_time_ns / 1e9
 
-    # Calculate metrics (ignore first iteration for samples/sec)
+    # Calculate tokens per second per user
     decode_total_tokens = len(decode_iteration_times)
     tokens_per_second = (
         (decode_total_tokens / decode_total_time) if decode_total_time > 0 else 0.0
@@ -657,7 +670,15 @@ def benchmark_llm_torch_xla(
             ]
         )
     elif decode_only:
-        print("PCC verification skipped in decode-only mode")
+        decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
+        assert (
+            decode_pcc_value >= required_pcc
+        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
+        print(
+            "First decode PCC verification passed with PCC={:.6f}".format(
+                decode_pcc_value
+            )
+        )
     else:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
@@ -666,16 +687,18 @@ def benchmark_llm_torch_xla(
         ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
         print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
         # Check PCC for first decode token
-        if len(output_logits) > 1 and len(cpu_output_logits) > 1:
-            decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
-            assert (
-                decode_pcc_value >= required_pcc
-            ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
-            print(
-                "First decode PCC verification passed with PCC={:.6f}".format(
-                    decode_pcc_value
-                )
+        assert (
+            len(output_logits) > 1 and len(cpu_output_logits) > 1
+        ), "Not enough logits to check PCC"
+        decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+        assert (
+            decode_pcc_value >= required_pcc
+        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
+        print(
+            "First decode PCC verification passed with PCC={:.6f}".format(
+                decode_pcc_value
             )
+        )
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()
