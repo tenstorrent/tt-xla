@@ -7,6 +7,17 @@ import torch
 from transformers.cache_utils import StaticCache, StaticLayer, StaticSlidingWindowLayer
 from transformers.masking_utils import create_sliding_window_causal_mask
 
+_orig_static_layer_lazy_init = StaticLayer.lazy_initialization
+
+
+def _patched_lazy_initialization(
+    self, key_states: torch.Tensor, value_states: Optional[torch.Tensor] = None
+) -> None:
+    return _orig_static_layer_lazy_init(self, key_states)
+
+
+StaticLayer.lazy_initialization = _patched_lazy_initialization
+
 
 def override_gpt_oss_sliding_window_causal_mask():
     """
@@ -19,6 +30,32 @@ def override_gpt_oss_sliding_window_causal_mask():
     import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_mod
 
     gpt_oss_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
+
+
+def override_olmo3_sliding_window_causal_mask():
+    """
+    Override olmo3's modeling so that its
+    create_sliding_window_causal_mask points to the TT-friendly version.
+    """
+    import transformers.models.olmo3.modeling_olmo3 as olmo3_mod
+
+    olmo3_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
+
+
+def override_ministral_sliding_window_causal_mask():
+    """
+    Override ministral's modeling so that its
+    create_sliding_window_causal_mask points to the TT-friendly version.
+
+    Note: ministral (mistralai/Ministral-*) uses a separate module
+    transformers.models.ministral.modeling_ministral, distinct from
+    transformers.models.mistral.modeling_mistral.
+    """
+    import transformers.models.ministral.modeling_ministral as ministral_mod
+
+    ministral_mod.create_sliding_window_causal_mask = (
+        tt_create_sliding_window_causal_mask
+    )
 
 
 def override_cache_sliding_window_layers(
@@ -43,14 +80,14 @@ def override_cache_sliding_window_layers(
         tt_layer.dtype = layer.dtype
         tt_layer.max_batch_size = layer.max_batch_size
         tt_layer.num_heads = layer.num_heads
-        tt_layer.v_head_dim = layer.v_head_dim
-        tt_layer.k_head_dim = layer.k_head_dim
+        tt_layer.k_head_dim = getattr(layer, "k_head_dim", layer.head_dim)
+        tt_layer.v_head_dim = getattr(layer, "v_head_dim", layer.head_dim)
         cache.layers[i] = tt_layer
 
 
 def tt_create_sliding_window_causal_mask(
     config,
-    inputs_embeds: torch.Tensor,
+    input_embeds: torch.Tensor,
     attention_mask: Optional[torch.Tensor],
     cache_position: torch.Tensor,
     past_key_values=None,
@@ -67,7 +104,7 @@ def tt_create_sliding_window_causal_mask(
     if past_key_values is None:
         return create_sliding_window_causal_mask(
             config,
-            inputs_embeds,
+            input_embeds,
             attention_mask,
             cache_position,
             past_key_values,
@@ -81,11 +118,13 @@ def tt_create_sliding_window_causal_mask(
         layer_idx = past_key_values.is_sliding.index(True)
     else:
         layer_idx = 0
-    sliding_window = past_key_values.layers[layer_idx].max_cache_len
+    _layer = past_key_values.layers[layer_idx]
+    # DynamicSlidingWindowLayer exposes .sliding_window; static layers use .max_cache_len
+    sliding_window = getattr(_layer, "sliding_window", None) or _layer.max_cache_len
 
-    batch_size = inputs_embeds.shape[0]
+    batch_size = input_embeds.shape[0]
     query_length = cache_position.shape[0]
-    dtype = inputs_embeds.dtype
+    dtype = input_embeds.dtype
     device = cache_position.device
     min_val = torch.finfo(dtype).min
 
@@ -150,7 +189,7 @@ class TTStaticSlidingWindowLayer(StaticLayer):
         cache_kwargs: Optional[dict[str, Any]] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if not self.is_initialized:
-            self.lazy_initialization(key_states)
+            self.lazy_initialization(key_states, value_states)
 
         n = key_states.shape[-2]
 
@@ -180,7 +219,47 @@ class TTStaticSlidingWindowLayer(StaticLayer):
         """Return constant (kv_length, kv_offset) — used by create_causal_mask."""
         return self.max_cache_len, 0
 
+    @torch.compiler.disable
     def get_seq_length(self) -> int:
         if not self.is_initialized:
             return 0
-        return (self.keys[0, 0].any(dim=-1)).sum().item()
+        return (self.keys[0, 0].cpu().any(dim=-1)).sum().item()
+
+
+def _init_static_cache(
+    cache, config, batch_size, dtype=torch.bfloat16, device=torch.device("cpu")
+):
+    """Per-layer cache init for models with mixed head dimensions (e.g. Gemma4)."""
+    text_config = (
+        config.get_text_config(decoder=True)
+        if hasattr(config, "get_text_config")
+        else config
+    )
+    layer_types = getattr(
+        text_config, "layer_types", ["full_attention"] * len(cache.layers)
+    )
+
+    num_kv_shared = getattr(text_config, "num_kv_shared_layers", 0)
+    if num_kv_shared:
+        layer_types = layer_types[:-num_kv_shared]
+
+    for layer, layer_type in zip(cache.layers, layer_types):
+        if layer_type == "full_attention" and getattr(
+            text_config, "global_head_dim", None
+        ):
+            hd = text_config.global_head_dim
+            nh = (
+                getattr(text_config, "num_global_key_value_heads", None)
+                or text_config.num_key_value_heads
+            )
+        else:
+            hd = getattr(
+                text_config,
+                "head_dim",
+                text_config.hidden_size // text_config.num_attention_heads,
+            )
+            nh = text_config.num_key_value_heads
+
+        fake_kv = torch.zeros((batch_size, nh, 0, hd), dtype=dtype, device=device)
+        layer.lazy_initialization(fake_kv, fake_kv)
+        
