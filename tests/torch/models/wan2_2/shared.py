@@ -14,12 +14,19 @@ Exposes:
     functions returning dict[Tensor, partition_spec] for run_graph_test.
 """
 
+import html
+
+import regex as re
 import torch
 import torch.nn as nn
 from infra.utilities import Mesh
 from infra.utilities.torch_multichip_utils import get_mesh
 
 MODEL_ID = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+
+# Matches WanTransformer3DModel.config.in_channels for TI2V-5B
+# (= VAE z_dim = 48). Named here so the denoise loop avoids a magic number.
+LATENT_CHANNELS = 48
 
 # Pixel and latent shapes per resolution. Latent dims are:
 #   latent_frames = (num_frames - 1) // 4 + 1   (VAE temporal stride 4)
@@ -42,6 +49,30 @@ RESOLUTIONS = {
         "latent_w": 80,
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Prompt cleaning — matches diffusers/pipeline_wan.py:78-93 and Wan repo.
+# ---------------------------------------------------------------------------
+
+
+def _basic_clean(text: str) -> str:
+    try:
+        import ftfy
+
+        text = ftfy.fix_text(text)
+    except ImportError:
+        pass
+    return html.unescape(html.unescape(text)).strip()
+
+
+def _whitespace_clean(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def prompt_clean(text: str) -> str:
+    """Normalize prompt text the same way diffusers.WanPipeline does."""
+    return _whitespace_clean(_basic_clean(text))
 
 
 # ---------------------------------------------------------------------------
