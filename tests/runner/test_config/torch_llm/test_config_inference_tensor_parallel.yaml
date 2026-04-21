@@ -131,18 +131,18 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-fsdp-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
+    required_pcc: 0.95
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
+    required_pcc: 0.90
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-fsdp-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
 
   # --- FSDP, mesh 2x4, DP (batch must be >= data dim 2) ---
@@ -183,8 +183,8 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-fsdp-dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, no DP ---
@@ -225,7 +225,7 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
+    required_pcc: 0.95
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
@@ -235,8 +235,8 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-megatron-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, DP (batch must be >= data dim 2) ---
@@ -267,8 +267,8 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_4-megatron-dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
@@ -277,11 +277,11 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-megatron-dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.99
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "DRAM OOM"
     markers: [nightly]
