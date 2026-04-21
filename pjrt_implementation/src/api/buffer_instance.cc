@@ -197,7 +197,8 @@ void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
     const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
-    EventInstance **out_done_with_host_buffer_event) {
+    EventInstance **out_done_with_host_buffer_event,
+    std::optional<std::int64_t> logical_id) {
 
   TT_FATAL(
       data_type == m_data_type,
@@ -221,6 +222,10 @@ void BufferInstance::copyFromHost(
       EventInstance::createInstance();
 
   tt::runtime::Tensor runtime_tensor;
+  if (logical_id.has_value()) {
+    DLOG_F(LOG_DEBUG, "BufferInstance::copyFromHost logical id=%lld",
+           static_cast<long long>(*logical_id));
+  }
 
   // In distributed runtime, we always create owned host tensor because we
   // cannot alias the host buffer.

@@ -912,12 +912,12 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   size_t effective_num_dims = args->num_dims;
   const std::int64_t *effective_byte_strides = args->byte_strides;
   size_t effective_num_byte_strides = args->num_byte_strides;
-
+  std::optional<int64_t> logical_id;
   if (args->num_dims > 0 && args->num_byte_strides > 0 &&
       args->num_byte_strides == args->num_dims &&
       args->byte_strides[args->num_byte_strides - 1] == -1) {
-    const std::int64_t logical_id = args->dims[args->num_dims - 1];
-    LOG_F(INFO, "logical id: %lld", static_cast<long long>(logical_id));
+     logical_id = args->dims[args->num_dims - 1];
+    LOG_F(INFO, "logical id: %lld", static_cast<long long>(logical_id.value()));
     effective_num_dims = args->num_dims - 1;
     effective_num_byte_strides = args->num_byte_strides - 1;
   }
@@ -953,7 +953,8 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   buffer->copyFromHost(
       args->data, args->type, effective_dims, effective_num_dims,
       effective_byte_strides, effective_num_byte_strides, args->host_buffer_semantics,
-      reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
+      reinterpret_cast<EventInstance **>(&args->done_with_host_buffer),
+      logical_id);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
