@@ -108,12 +108,21 @@ def test_stage3_gather(fixture, device):
     q = torch.empty_like(probs_cpu).exponential_()
     local_idx = probs_cpu.div(q).argmax(dim=-1)  # [1]
 
-    # Test gather with native XLA int64 tensors (never transferred from CPU).
+    # Test gather through torch.compile — Het's composite gather fix only
+    # applies to the compiled path, not eager mode.
+    class Gather(torch.nn.Module):
+        def forward(self, idx, local):
+            return idx.gather(1, local)
+
+    compiled_gather = torch.compile(Gather(), backend="tt", dynamic=False)
+
     idx_dev = idx_cpu.to(device)
     local_dev = local_idx.to(device)
 
     global_cpu = idx_cpu.gather(1, local_idx.unsqueeze(-1)).squeeze(-1).item()
-    global_dev = idx_dev.gather(1, local_dev.unsqueeze(-1)).squeeze(-1).cpu().item()
+    global_dev = (
+        compiled_gather(idx_dev, local_dev.unsqueeze(-1)).squeeze(-1).cpu().item()
+    )
 
     print(
         f"\n  local_idx={local_idx.item()}  "
