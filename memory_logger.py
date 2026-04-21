@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # pip install psutil matplotlib
 # python memory_logger.py --pid 12345 --interval 0.1 --csv rss.csv --png rss.png
-# python memory_logger.py --name my_process --interval 0.1 --csv rss.csv --png rss.png
+# python memory_logger.py --name worker --interval 0.1 --csv rss.csv --png rss.png
 
 import argparse
 import csv
@@ -25,7 +25,7 @@ def parse_args():
     target_group.add_argument(
         "--name",
         type=str,
-        help="Attach to first process whose name/cmdline contains this string",
+        help="Attach to first process whose name exactly matches this string",
     )
     parser.add_argument("--interval", type=float, default=1.0, help="Sampling interval seconds")
     parser.add_argument(
@@ -39,14 +39,12 @@ def parse_args():
     return parser.parse_args()
 
 
-def find_process_by_name(name_substring: str):
-    needle = name_substring.lower()
-    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+def find_process_by_name_exact(name_exact: str):
+    for proc in psutil.process_iter(["pid", "name"]):
         try:
             info = proc.info
-            proc_name = (info.get("name") or "").lower()
-            cmdline = " ".join(info.get("cmdline") or []).lower()
-            if needle in proc_name or needle in cmdline:
+            proc_name = info.get("name") or ""
+            if proc_name == name_exact:
                 return proc
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
@@ -62,11 +60,11 @@ def resolve_target_process(args):
             return None
 
     print(
-        f"Waiting for process matching name '{args.name}' "
+        f"Waiting for process with exact name '{args.name}' "
         f"(poll every {args.poll_interval}s)..."
     )
     while True:
-        proc = find_process_by_name(args.name)
+        proc = find_process_by_name_exact(args.name)
         if proc is not None:
             return proc
         time.sleep(args.poll_interval)
