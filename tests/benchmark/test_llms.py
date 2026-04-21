@@ -14,7 +14,7 @@ from utils import create_model_loader, resolve_display_name
 
 # Defaults for all llms
 DEFAULT_OPTIMIZATION_LEVEL = 2
-DEFAULT_TP_OPTIMIZATION_LEVEL = 1
+DEFAULT_TP_OPTIMIZATION_LEVEL = 2
 DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
 DEFAULT_TRACE_ENABLED = True
 DEFAULT_BATCH_SIZE = 32
@@ -1060,6 +1060,7 @@ def test_ministral_8b_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
+        optimization_level=1,
     )
 
 
@@ -1088,6 +1089,7 @@ def test_mistral_nemo_instruct_2407_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1144,6 +1146,7 @@ def test_qwen_2_5_14b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1200,6 +1203,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1312,6 +1316,7 @@ def test_qwen_3_14b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1509,6 +1514,7 @@ def test_gpt_oss_20b_tp(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
+        optimization_level=1,
     )
 
 
@@ -1539,6 +1545,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
+        optimization_level=1,
     )
 
 
@@ -1568,6 +1575,7 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
+        optimization_level=1,
     )
 
 
