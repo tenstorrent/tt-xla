@@ -414,7 +414,8 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
 # Mesh shapes that support explicit FSDP/Megatron sharding strategies.
 #   n300-llmbox (8 chips):   (1, 8), (2, 4)
 #   galaxy-wh-6u (32 chips): (4, 8)
-_EXPLICIT_STRATEGY_MESH_SHAPES = {(1, 8), (2, 4), (4, 8)}
+#   qb2-blackhole (4 chips): (1, 4), (2, 2)
+_EXPLICIT_STRATEGY_MESH_SHAPES = {(1, 4), (2, 2), (1, 8), (2, 4), (4, 8)}
 
 
 def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
@@ -461,7 +462,7 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
 )
 @pytest.mark.parametrize(
     "mesh_shape",
-    [None, (1, 8), (2, 4), (4, 8)],
+    [None, (1, 4), (2, 2), (1, 8), (2, 4), (4, 8)],
     ids=_generate_mesh_shape_id,
 )
 @pytest.mark.parametrize(

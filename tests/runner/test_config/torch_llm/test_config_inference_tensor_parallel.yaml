@@ -130,22 +130,19 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
 
   # --- FSDP, mesh 2x4, DP (batch must be >= data dim 2) ---
@@ -185,10 +182,9 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, no DP ---
@@ -228,10 +224,9 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
@@ -239,10 +234,9 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
 
   # --- Megatron, mesh 2x4, DP (batch must be >= data dim 2) ---
@@ -272,10 +266,9 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_4-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
@@ -283,27 +276,11 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
+    status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
-    required_pcc: 0.99
-    status: NOT_SUPPORTED_SKIP
-    reason: "DRAM OOM"
-    markers: [nightly]
-
-  # ============================================================================
-  # Llama 3.1 8B Instruct - Prefill tensor-parallel on Galaxy 6U (mesh 4x8)
-  #  - batch_X is per-device batch size.
-  #  - Revisits cases that DRAM OOM on n300-llmbox mesh_2x4; the 4x8 Galaxy
-  #    mesh has 4x the aggregate DRAM so the same workload is expected to fit.
-  # ============================================================================
-
-  # --- Megatron, mesh 4x8, no DP ---
-  llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
