@@ -50,3 +50,6 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Tracy profiling files
 /tracy_artifacts/
+
+# Wan 2.2 e2e test generated videos
+tests/torch/models/wan2_2/generated/

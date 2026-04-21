@@ -1,0 +1,287 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Wan 2.2 TI2V-5B end-to-end smoke test.
+
+Runs the full pipeline (text + optional first-frame image -> video) and
+writes a playable .mp4 under `tests/torch/models/wan2_2/generated/`.
+No quality assertions; the only check is that the output file exists
+and is non-empty.
+
+Edit the module-level constants below to change behavior. Each TT_*
+flag routes one component onto TT hardware; all default to CPU.
+"""
+
+from pathlib import Path
+
+import torch
+
+from .shared import (
+    RESOLUTIONS,
+    UMT5Wrapper,
+    VAEDecoderWrapper,
+    VAEEncoderWrapper,
+    WanDiTWrapper,
+    load_dit,
+    load_tokenizer,
+    load_umt5,
+    load_vae,
+    run_component,
+    shard_dit_specs,
+    shard_umt5_specs,
+    shard_vae_decoder_specs,
+    shard_vae_encoder_specs,
+)
+
+# ---------------------------------------------------------------------------
+# Configuration — edit these and re-run.
+# ---------------------------------------------------------------------------
+
+MODE = "t2v"  # "t2v" or "i2v"
+RESOLUTION = "480p"  # "480p" or "720p"
+NUM_STEPS = 4  # denoising steps
+GUIDANCE_SCALE = 1.0  # 1.0 disables classifier-free guidance
+
+TT_TEXT_ENCODER = False
+TT_VAE_ENCODER = False  # only used when MODE == "i2v"
+TT_DIT = False
+TT_VAE_DECODER = False
+
+PROMPT = (
+    "A gentle ocean wave rolling across a quiet sandy beach at sunrise, "
+    "cinematic, high detail"
+)
+NEGATIVE_PROMPT = "low quality, blurry, distorted, watermark, text"
+SEED = 42
+FPS = 16
+
+# ---------------------------------------------------------------------------
+# Output path
+# ---------------------------------------------------------------------------
+
+_OUT_DIR = Path(__file__).parent / "generated"
+
+
+def _devtag() -> str:
+    flags = {
+        "textenc": TT_TEXT_ENCODER,
+        "vaeenc": TT_VAE_ENCODER and MODE == "i2v",
+        "dit": TT_DIT,
+        "vaedec": TT_VAE_DECODER,
+    }
+    on = [name for name, v in flags.items() if v]
+    if not on:
+        return "cpu"
+    if len(on) == 4 or (MODE == "t2v" and len(on) == 3 and "vaeenc" not in on):
+        return "tt-all"
+    return "tt-" + "-".join(on)
+
+
+def _output_path() -> Path:
+    name = f"wan22_{MODE}_{RESOLUTION}_steps{NUM_STEPS}_{_devtag()}.mp4"
+    return _OUT_DIR / name
+
+
+# ---------------------------------------------------------------------------
+# Test
+# ---------------------------------------------------------------------------
+
+
+def _encode_prompt(tokenizer, encoder_wrapper, text: str) -> torch.Tensor:
+    ids = tokenizer(
+        text,
+        padding="max_length",
+        max_length=512,
+        truncation=True,
+        return_tensors="pt",
+    )
+    input_ids = ids["input_ids"]
+    attention_mask = ids["attention_mask"]
+    return run_component(
+        encoder_wrapper,
+        [input_ids, attention_mask],
+        on_tt=TT_TEXT_ENCODER,
+        shard_spec_fn=(lambda m: shard_umt5_specs(m.encoder)),
+    )
+
+
+def _init_latents(shapes: dict, generator: torch.Generator) -> torch.Tensor:
+    return torch.randn(
+        1,
+        48,
+        shapes["latent_frames"],
+        shapes["latent_h"],
+        shapes["latent_w"],
+        dtype=torch.bfloat16,
+        generator=generator,
+    )
+
+
+def _make_first_frame(shapes: dict, generator: torch.Generator) -> torch.Tensor:
+    """Return a deterministic RGB first-frame image as (1, 3, 1, H, W) in [-1, 1]."""
+    h, w = shapes["video_h"], shapes["video_w"]
+    x = torch.randn(1, 3, 1, h, w, dtype=torch.bfloat16, generator=generator)
+    # Clamp to a sane image-like range; values outside [-1, 1] confuse the VAE.
+    return x.clamp(-1.0, 1.0)
+
+
+def _encode_first_frame(vae, image: torch.Tensor) -> torch.Tensor:
+    enc_wrapper = VAEEncoderWrapper(vae).eval().bfloat16()
+    return run_component(
+        enc_wrapper,
+        [image],
+        on_tt=TT_VAE_ENCODER,
+        shard_spec_fn=(lambda m: shard_vae_encoder_specs(m.vae)),
+    )
+
+
+def _denoise(
+    dit_wrapper: WanDiTWrapper,
+    latents: torch.Tensor,
+    prompt_embeds: torch.Tensor,
+    negative_embeds,
+    scheduler,
+    shapes: dict,
+    image_latent: torch.Tensor | None,
+) -> torch.Tensor:
+    t_dim, h_dim, w_dim = (
+        shapes["latent_frames"],
+        shapes["latent_h"],
+        shapes["latent_w"],
+    )
+    num_patches = t_dim * (h_dim // 2) * (w_dim // 2)
+
+    for t in scheduler.timesteps:
+        timestep = torch.full((1, num_patches), float(t), dtype=torch.bfloat16)
+
+        v_pos = run_component(
+            dit_wrapper,
+            [latents, timestep, prompt_embeds],
+            on_tt=TT_DIT,
+            shard_spec_fn=(lambda m: shard_dit_specs(m.dit)),
+        )
+        if negative_embeds is not None:
+            v_neg = run_component(
+                dit_wrapper,
+                [latents, timestep, negative_embeds],
+                on_tt=TT_DIT,
+                shard_spec_fn=(lambda m: shard_dit_specs(m.dit)),
+            )
+            velocity = v_neg + GUIDANCE_SCALE * (v_pos - v_neg)
+        else:
+            velocity = v_pos
+
+        latents = scheduler.step(velocity, t, latents).prev_sample
+
+        if image_latent is not None:
+            # Wan 2.2 TI2V convention: the first latent frame is fixed to
+            # the conditioning image and should not be denoised.
+            latents[:, :, 0:1, :, :] = image_latent
+
+    return latents
+
+
+def _decode_and_save(vae, latents: torch.Tensor, out_path: Path) -> None:
+    import numpy as np
+    from diffusers.utils import export_to_video
+
+    latents_mean = (
+        torch.tensor(vae.config.latents_mean)
+        .view(1, vae.config.z_dim, 1, 1, 1)
+        .to(latents.dtype)
+    )
+    latents_std = 1.0 / torch.tensor(vae.config.latents_std).view(
+        1, vae.config.z_dim, 1, 1, 1
+    ).to(latents.dtype)
+    latents_unscaled = latents / latents_std + latents_mean
+
+    decoder_wrapper = VAEDecoderWrapper(vae).eval().bfloat16()
+    pixels = run_component(
+        decoder_wrapper,
+        [latents_unscaled],
+        on_tt=TT_VAE_DECODER,
+        shard_spec_fn=(lambda m: shard_vae_decoder_specs(m.vae)),
+    )
+
+    pixels = pixels.float().clamp(-1.0, 1.0)
+    pixels = (pixels + 1.0) / 2.0
+    # (1, 3, T, H, W) -> (T, H, W, 3)
+    frames = pixels[0].permute(1, 2, 3, 0).contiguous().cpu().numpy()
+    frames = (frames * 255.0).round().astype(np.uint8)
+    frames_list = [frames[i] for i in range(frames.shape[0])]
+
+    export_to_video(frames_list, str(out_path), fps=FPS)
+
+
+def test_wan22_e2e():
+    out_path = _output_path()
+    _OUT_DIR.mkdir(parents=True, exist_ok=True)
+    if out_path.exists():
+        out_path.unlink()
+
+    _run(out_path)
+
+    assert out_path.exists(), f"Output video not produced at {out_path}"
+    assert out_path.stat().st_size > 0, f"Output video is empty: {out_path}"
+
+
+def _run(out_path: Path) -> None:
+    from diffusers import FlowMatchEulerDiscreteScheduler
+
+    from .shared import MODEL_ID
+
+    torch.manual_seed(SEED)
+    generator = torch.Generator().manual_seed(SEED)
+    shapes = RESOLUTIONS[RESOLUTION]
+
+    tokenizer = load_tokenizer()
+    text_encoder = UMT5Wrapper(load_umt5()).eval().bfloat16()
+
+    prompt_embeds = _encode_prompt(tokenizer, text_encoder, PROMPT)
+    assert prompt_embeds.shape == (1, 512, 4096)
+
+    if GUIDANCE_SCALE > 1.0:
+        negative_embeds = _encode_prompt(tokenizer, text_encoder, NEGATIVE_PROMPT)
+    else:
+        negative_embeds = None
+
+    del text_encoder  # free memory before loading DiT
+
+    latents = _init_latents(shapes, generator)
+
+    image_latent = None
+    if MODE == "i2v":
+        vae_for_encode = load_vae()
+        image = _make_first_frame(shapes, generator)
+        image_latent = _encode_first_frame(vae_for_encode, image)
+        assert image_latent.shape == (
+            1,
+            48,
+            1,
+            shapes["latent_h"],
+            shapes["latent_w"],
+        ), image_latent.shape
+        latents[:, :, 0:1, :, :] = image_latent
+        del vae_for_encode
+
+    scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
+        MODEL_ID, subfolder="scheduler"
+    )
+    scheduler.set_timesteps(num_inference_steps=NUM_STEPS)
+
+    dit_wrapper = WanDiTWrapper(load_dit()).eval().bfloat16()
+    latents = _denoise(
+        dit_wrapper,
+        latents,
+        prompt_embeds,
+        negative_embeds,
+        scheduler,
+        shapes,
+        image_latent,
+    )
+    del dit_wrapper
+
+    vae = load_vae()
+    _decode_and_save(vae, latents, out_path)

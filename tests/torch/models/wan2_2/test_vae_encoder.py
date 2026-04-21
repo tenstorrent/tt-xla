@@ -20,18 +20,13 @@ from infra.evaluators import ComparisonConfig, PccConfig
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .shared import RESOLUTIONS, load_vae, shard_vae_encoder_specs, wan22_mesh
-
-
-class VAEEncoderWrapper(torch.nn.Module):
-    """Run encoder and return the deterministic mean latent."""
-
-    def __init__(self, vae):
-        super().__init__()
-        self.vae = vae
-
-    def forward(self, x):
-        return self.vae.encode(x).latent_dist.mean
+from .shared import (
+    RESOLUTIONS,
+    VAEEncoderWrapper,
+    load_vae,
+    shard_vae_encoder_specs,
+    wan22_mesh,
+)
 
 
 def test_vae_encoder_480p():

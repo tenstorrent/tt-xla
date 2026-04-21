@@ -23,23 +23,7 @@ from infra.evaluators import ComparisonConfig, PccConfig
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .shared import RESOLUTIONS, load_dit, shard_dit_specs, wan22_mesh
-
-
-class WanDiTWrapper(torch.nn.Module):
-    """Return the velocity tensor from the diffusers output tuple."""
-
-    def __init__(self, dit):
-        super().__init__()
-        self.dit = dit
-
-    def forward(self, hidden_states, timestep, encoder_hidden_states):
-        return self.dit(
-            hidden_states=hidden_states,
-            timestep=timestep,
-            encoder_hidden_states=encoder_hidden_states,
-            return_dict=False,
-        )[0]
+from .shared import RESOLUTIONS, WanDiTWrapper, load_dit, shard_dit_specs, wan22_mesh
 
 
 def test_wan_dit_480p():

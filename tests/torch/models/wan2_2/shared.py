@@ -102,6 +102,69 @@ def load_dit(max_blocks: int = 0):
     return dit.eval()
 
 
+def load_tokenizer():
+    """Load the UMT5 tokenizer used by Wan 2.2 TI2V-5B."""
+    from transformers import AutoTokenizer
+
+    return AutoTokenizer.from_pretrained(MODEL_ID, subfolder="tokenizer")
+
+
+# ---------------------------------------------------------------------------
+# Component wrappers (reused by component tests and the e2e test)
+# ---------------------------------------------------------------------------
+
+
+class UMT5Wrapper(nn.Module):
+    """Return last_hidden_state as a plain tensor (not a model output object)."""
+
+    def __init__(self, encoder):
+        super().__init__()
+        self.encoder = encoder
+
+    def forward(self, input_ids, attention_mask):
+        return self.encoder(
+            input_ids=input_ids, attention_mask=attention_mask
+        ).last_hidden_state
+
+
+class VAEEncoderWrapper(nn.Module):
+    """Run encoder and return the deterministic mean latent."""
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+
+    def forward(self, x):
+        return self.vae.encode(x).latent_dist.mean
+
+
+class VAEDecoderWrapper(nn.Module):
+    """Run decoder and return the reconstructed sample tensor."""
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+
+    def forward(self, z):
+        return self.vae.decode(z, return_dict=False)[0]
+
+
+class WanDiTWrapper(nn.Module):
+    """Return the velocity tensor from the diffusers output tuple."""
+
+    def __init__(self, dit):
+        super().__init__()
+        self.dit = dit
+
+    def forward(self, hidden_states, timestep, encoder_hidden_states):
+        return self.dit(
+            hidden_states=hidden_states,
+            timestep=timestep,
+            encoder_hidden_states=encoder_hidden_states,
+            return_dict=False,
+        )[0]
+
+
 # ---------------------------------------------------------------------------
 # SPMD mesh
 # ---------------------------------------------------------------------------
@@ -254,3 +317,55 @@ def shard_dit_specs(dit) -> dict:
         specs[block.ffn.net[2].bias] = ("batch",)
 
     return specs
+
+
+# ---------------------------------------------------------------------------
+# Component runner (CPU or TT)
+# ---------------------------------------------------------------------------
+
+
+def run_component(
+    wrapper: nn.Module,
+    inputs: list,
+    on_tt: bool,
+    shard_spec_fn=None,
+) -> torch.Tensor:
+    """Run a component wrapper on CPU or TT and return the CPU output tensor.
+
+    CPU path: calls wrapper(*inputs) directly.
+
+    TT path: moves wrapper + inputs to the XLA device, optionally applies
+    `xs.mark_sharding` using `shard_spec_fn(wrapper)` and the mesh returned
+    by `wan22_mesh()`, runs forward, `xm.mark_step()`, and moves the output
+    back to CPU.
+
+    `inputs` is a list of positional tensors (matches the signature of
+    each wrapper's `forward`).
+    """
+    if not on_tt:
+        with torch.no_grad():
+            return wrapper(*inputs)
+
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.spmd as xs
+    import torch_xla.runtime as xr
+
+    xr.set_device_type("TT")
+    device = xm.xla_device()
+
+    wrapper_on_device = wrapper.to(device)
+    if hasattr(wrapper_on_device, "tie_weights"):
+        wrapper_on_device.tie_weights()
+    inputs_on_device = [t.to(device) for t in inputs]
+
+    if shard_spec_fn is not None:
+        mesh = wan22_mesh()
+        if len(mesh.device_ids) > 1:
+            shard_specs = shard_spec_fn(wrapper_on_device)
+            for tensor, spec in shard_specs.items():
+                xs.mark_sharding(tensor, mesh, spec)
+
+    with torch.no_grad():
+        out = wrapper_on_device(*inputs_on_device)
+    xm.mark_step()
+    return out.to("cpu")
