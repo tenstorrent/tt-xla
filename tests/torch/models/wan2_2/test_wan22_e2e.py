@@ -43,18 +43,23 @@ from .shared import (
 
 MODE = "t2v"  # "t2v" or "i2v"
 RESOLUTION = "480p"  # "480p" or "720p"
-NUM_STEPS = 4  # denoising steps
-GUIDANCE_SCALE = 1.0  # 1.0 disables classifier-free guidance
+NUM_STEPS = 4  # denoising steps (bump to 50 for quality check)
+GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
 
 TT_TEXT_ENCODER = False
 TT_VAE_ENCODER = False  # only used when MODE == "i2v"
 TT_DIT = False
 TT_VAE_DECODER = False
 
-PROMPT = (
-    "A gentle ocean wave rolling across a quiet sandy beach at sunrise, "
-    "cinematic, high detail"
-)
+# Simple single-subject prompt for smoke-test readability. Failure is
+# immediately obvious by eye; success is unambiguous. Fallback options
+# (if quality seems poor) documented in the design spec:
+#   "A cat sitting on grass"
+#   "A dog running on a beach"
+#   Wan 2.2 README canonical (complex):
+#   "Two anthropomorphic cats in comfy boxing gear and bright gloves fight
+#    intensely on a spotlighted stage."
+PROMPT = "A red apple on a white table"
 NEGATIVE_PROMPT = "low quality, blurry, distorted, watermark, text"
 SEED = 42
 FPS = 16
