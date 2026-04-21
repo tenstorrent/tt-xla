@@ -228,7 +228,7 @@ def test_wan22_e2e():
 
 
 def _run(out_path: Path) -> None:
-    from diffusers import FlowMatchEulerDiscreteScheduler
+    from diffusers import UniPCMultistepScheduler
 
     from .shared import MODEL_ID
 
@@ -266,9 +266,7 @@ def _run(out_path: Path) -> None:
         latents[:, :, 0:1, :, :] = image_latent
         del vae_for_encode
 
-    scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
-        MODEL_ID, subfolder="scheduler"
-    )
+    scheduler = UniPCMultistepScheduler.from_pretrained(MODEL_ID, subfolder="scheduler")
     scheduler.set_timesteps(num_inference_steps=NUM_STEPS)
 
     dit_wrapper = WanDiTWrapper(load_dit()).eval().bfloat16()
