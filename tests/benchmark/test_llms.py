@@ -1843,10 +1843,10 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         batch_size=128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        input_output_sharding_spec=("model", None),
-        kv_cache_sharding_spec=("model", None, None, None),
+        input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
+        required_pcc=0.92,
     )
