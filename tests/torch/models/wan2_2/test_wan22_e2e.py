@@ -127,11 +127,11 @@ def _encode_prompt(tokenizer, encoder_wrapper, text: str) -> torch.Tensor:
 def _init_latents(shapes: dict, generator: torch.Generator) -> torch.Tensor:
     return torch.randn(
         1,
-        48,
+        LATENT_CHANNELS,
         shapes["latent_frames"],
         shapes["latent_h"],
         shapes["latent_w"],
-        dtype=torch.bfloat16,
+        dtype=torch.float32,
         generator=generator,
     )
 
@@ -275,7 +275,7 @@ def _run(out_path: Path) -> None:
         image_latent = _encode_first_frame(vae_for_encode, image)
         assert image_latent.shape == (
             1,
-            48,
+            LATENT_CHANNELS,
             1,
             shapes["latent_h"],
             shapes["latent_w"],
