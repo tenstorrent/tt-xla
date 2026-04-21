@@ -259,27 +259,49 @@ void BufferInstance::copyFromHost(
   // the buffer cannot be borrowed.
   const bool is_distributed_runtime =
       ::tt::runtime::getCurrentHostRuntime() ==
-      tt::runtime::HostRuntime::Distributed || true;
-  const bool should_create_owned_host_tensor =
+      tt::runtime::HostRuntime::Distributed;
+  const bool is_supported_data_type =
+      ::tt::runtime::utils::isSupportedDataType(runtime_data_type);
+  bool should_create_owned_host_tensor =
       is_distributed_runtime ||
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type);
+      !is_supported_data_type;
+  bool should_insert_runtime_tensor_cache = false;
+  std::size_t runtime_tensor_cache_key = 0;
 
-  if (is_distributed_runtime) {
-    const auto cache_key =
+  if (is_distributed_runtime && is_supported_data_type) {
+    runtime_tensor_cache_key =
         computeBufferRuntimeTensorCacheKey(host_buffer, logical_id);
+    std::shared_ptr<const tt::runtime::Tensor> cached_owned_host_tensor;
     {
       std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
-      const bool cache_hit =
-          s_buffer_runtime_tensor_cache.find(cache_key) !=
-          s_buffer_runtime_tensor_cache.end();
-      LOG_F(INFO,
-            "Buffer runtime tensor cache %s for host_buffer=%p logical_id=%lld",
-            cache_hit ? "hit" : "miss", host_buffer,
-            static_cast<long long>(logical_id.value_or(-1)));
+      auto it = s_buffer_runtime_tensor_cache.find(runtime_tensor_cache_key);
+      if (it != s_buffer_runtime_tensor_cache.end()) {
+        cached_owned_host_tensor = it->second.lock();
+        if (!cached_owned_host_tensor) {
+          // Weak entry expired, treat as a cache miss.
+          s_buffer_runtime_tensor_cache.erase(it);
+        }
+      }
     }
 
+    if (cached_owned_host_tensor) {
+      LOG_F(INFO,
+            "Buffer runtime tensor cache hit for host_buffer=%p logical_id=%lld",
+            host_buffer, static_cast<long long>(logical_id.value_or(-1)));
+      runtime_tensor =
+          tt::runtime::createUnsafeBorrowedHostTensor(*cached_owned_host_tensor);
+      should_create_owned_host_tensor = false;
+      EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                            tt_pjrt_status::kSuccess);
+    } else {
+      LOG_F(
+          INFO,
+          "Buffer runtime tensor cache miss for host_buffer=%p logical_id=%lld",
+          host_buffer, static_cast<long long>(logical_id.value_or(-1)));
+      should_insert_runtime_tensor_cache = true;
+    }
   }
 
   if (should_create_owned_host_tensor) {
@@ -289,7 +311,7 @@ void BufferInstance::copyFromHost(
     // Memory is copied; caller may release the original host buffer immediately.
     EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                           tt_pjrt_status::kSuccess);
-  } else {
+  } else if (!(is_distributed_runtime && is_supported_data_type)) {
     // Otherwise when input host buffer has other semantic we are allowed to
     // alias it, so we can create borrowed host which doesn't copy any data and
     // instead uses direct pointer to existing data. Since we are holding a
@@ -315,13 +337,11 @@ void BufferInstance::copyFromHost(
   }
 
   PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
-  if (is_distributed_runtime) {
-    const auto cache_key =
-        computeBufferRuntimeTensorCacheKey(host_buffer, logical_id);
+  if (should_insert_runtime_tensor_cache) {
     std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
-    if (s_buffer_runtime_tensor_cache.find(cache_key) ==
+    if (s_buffer_runtime_tensor_cache.find(runtime_tensor_cache_key) ==
         s_buffer_runtime_tensor_cache.end()) {
-      s_buffer_runtime_tensor_cache.emplace(cache_key,
+      s_buffer_runtime_tensor_cache.emplace(runtime_tensor_cache_key,
                                             m_pjrt_tensor.runtimeTensorWeak());
     }
   }
