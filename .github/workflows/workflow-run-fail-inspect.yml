@@ -371,6 +371,7 @@ jobs:
           cp -r .github/scripts/* .bisect-run/
           source venv/activate >/dev/null
           found=false
+          onlyskipped=false
 
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
           while true; do
@@ -412,8 +413,7 @@ jobs:
               *"There are only 'skip'ped commits left to test."*)
                 echo "Bisect inconclusive: only skipped commits left."
                 echo "Last bisect output: $first_line"
-                bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
-                title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
+                onlyskipped=true
                 break
                 ;;
               "")
@@ -456,6 +456,13 @@ jobs:
             echo "title=$title" >> $GITHUB_OUTPUT
           else
             echo "code=RED" >> $GITHUB_OUTPUT
+            if [ "$onlyskipped" = true ]; then
+              echo "note=Bisect inconclusive: only commits without build are left to test. This likely means the test is flaky" >> $GITHUB_OUTPUT
+              echo "Bisect result: Inconclusive, only skipped commits left."
+            else
+              echo "note=Bisect did not find a bad commit and there are no skipped commits left to test. This likely means the test is flaky" >> $GITHUB_OUTPUT
+              echo "Bisect result: Inconclusive, no bad commit found."
+            fi
             echo "note=Bisect did not find a bad commit. This likely means the test if flaky" >> $GITHUB_OUTPUT
             echo "Bisect result: No conclusive bad commit identified."
             echo "found=false" >> $GITHUB_OUTPUT
