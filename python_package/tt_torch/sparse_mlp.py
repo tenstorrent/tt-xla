@@ -730,20 +730,6 @@ class A2aSparseMLP(nn.Module):
             )
 
         # sparse_forward returns [E, 1, BD*S, H] — combine with output_shard_dim=2.
-        # If experts are compound-sharded across the 2D mesh, force E onto
-        # cluster_axis only before combine. The all_to_all_combine kernel
-        # asserts input[0] == E / mesh[cluster_axis]; without this the Shardy
-        # pass over-gathers and fully replicates E (E_local = E), tripping the
-        # assert. The post-combine all_reduce on the non-cluster axis (inserted
-        # in StableHLOToTTIR) handles the dropped non-cluster sharding.
-        if self.mesh_axis_names is not None and len(self.mesh_axis_names) == 2:
-            cluster_axis_name = self.mesh_axis_names[self.cluster_axis]
-            sdy_sharding = (
-                f'#sdy.sharding_per_value<[<@mesh, '
-                f'[{{"{cluster_axis_name}"}}, {{}}, {{}}, {{}}]>]>'
-            )
-            down_out = torch.ops.tt.sharding_constraint(down_out, sdy_sharding)
-
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
             metadata,
