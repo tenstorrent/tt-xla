@@ -253,7 +253,7 @@ jobs:
 
           # check if commits are the same
           if [ "$curr_head_sha" == "$prev_head_sha" ]; then
-            echo "msg=\"No commits between last 2 nightly runs\"" >> $GITHUB_OUTPUT
+            echo "msg=No commits between last 2 nightly runs" >> $GITHUB_OUTPUT
             echo "success=false" >> $GITHUB_OUTPUT
             echo "No commits between last 2 nightly runs. Exiting."
             exit 0
@@ -282,7 +282,7 @@ jobs:
           rm -rf log-out
           mkdir -p log-out
           if ! python .github/scripts/new_failed_tests_bymachine.py log-a log-b log-out $prev_head_sha $curr_head_sha "${{ inputs.test_filter }}" "${{ inputs.num_runs || 1 }}"; then
-            echo "msg=\"No newly failed tests found between last 2 nightly runs\"" >> $GITHUB_OUTPUT
+            echo "msg=No newly failed tests found between last 2 nightly runs" >> $GITHUB_OUTPUT
             echo "success=false" >> $GITHUB_OUTPUT
             echo "No new tests failed"
             exit 0
@@ -306,9 +306,6 @@ jobs:
           webhook-type: webhook-trigger
           payload: |
             text: "${{ steps.success-failed.outputs.msg }}"
-            job_link: ""
-            unfurl_links: false
-            unfurl_media: false
 
   build-image:
     needs: inspect
@@ -374,6 +371,7 @@ jobs:
           cp -r .github/scripts/* .bisect-run/
           source venv/activate >/dev/null
           found=false
+          onlyskipped=false
 
           git bisect start ${{ matrix.build.toc }} ${{ matrix.build.fromc }}
           while true; do
@@ -415,8 +413,7 @@ jobs:
               *"There are only 'skip'ped commits left to test."*)
                 echo "Bisect inconclusive: only skipped commits left."
                 echo "Last bisect output: $first_line"
-                bad_commit=$(echo "$first_line" | grep -oP '[0-9a-f]{40}' | head -n1)
-                title=$(git log -1 --pretty=%s "$bad_commit" | tr '\n' ' ')
+                onlyskipped=true
                 break
                 ;;
               "")
@@ -459,6 +456,13 @@ jobs:
             echo "title=$title" >> $GITHUB_OUTPUT
           else
             echo "code=RED" >> $GITHUB_OUTPUT
+            if [ "$onlyskipped" = true ]; then
+              echo "note=Bisect inconclusive: only commits without build are left to test. This likely means the test is flaky" >> $GITHUB_OUTPUT
+              echo "Bisect result: Inconclusive, only skipped commits left."
+            else
+              echo "note=Bisect did not find a bad commit and there are no skipped commits left to test. This likely means the test is flaky" >> $GITHUB_OUTPUT
+              echo "Bisect result: Inconclusive, no bad commit found."
+            fi
             echo "note=Bisect did not find a bad commit. This likely means the test if flaky" >> $GITHUB_OUTPUT
             echo "Bisect result: No conclusive bad commit identified."
             echo "found=false" >> $GITHUB_OUTPUT

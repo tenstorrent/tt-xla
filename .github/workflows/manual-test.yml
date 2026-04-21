@@ -37,6 +37,10 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
+      forge_models_override:
+        description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
+        required: false
+        type: string
       manylinux_build:
         description: 'Build and use manylinux wheel'
         required: false
@@ -52,6 +56,10 @@ on:
         required: false
         type: string
         default: ''
+      artifact_sha:
+        description: 'tt-xla commit SHA to reuse pre-built artifacts from instead of building (leave empty to build fresh)'
+        required: false
+        type: string
 
 permissions:
   actions: write
@@ -78,6 +86,7 @@ jobs:
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       mlir_override: ${{ inputs.mlir_override }}
       build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+      artifact_sha: ${{ inputs.artifact_sha }}
 
   test:
     if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
@@ -92,6 +101,7 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
+      forge_models_override: ${{ inputs.forge_models_override }}
 
   test-multihost-dualt3k:
     if: always() && !cancelled() && !failure() && inputs.run_multihost_dualt3k

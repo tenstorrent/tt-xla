@@ -394,10 +394,6 @@ test_config:
     status: EXPECTED_PASSING
     reason: "PCC comparison failed. Calculated: pcc=0.9714103734933311. Required: pcc=0.98."
 
-  dla/pytorch-34.in1k-data_parallel-inference:
-    supported_archs: [n300]
-    status: EXPECTED_PASSING
-
   unet/pytorch-Carvana_Unet-data_parallel-inference:
     supported_archs: [n300]
     status: EXPECTED_PASSING

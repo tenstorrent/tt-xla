@@ -21,7 +21,9 @@ class ComparisonEvaluator(Evaluator):
         """Initialize the comparison evaluator with comparison configuration."""
         self._comparison_config = comparison_config
 
-    def evaluate(self, device_out: Tensor, golden_out: Tensor) -> ComparisonResult:
+    def evaluate(
+        self, device_out: Tensor, golden_out: Tensor, *, pcc_mask: Tensor | None = None
+    ) -> ComparisonResult:
         """
         Compares device output with golden output based on ComparisonConfig provided
         during creation.
@@ -49,7 +51,10 @@ class ComparisonEvaluator(Evaluator):
             device_output, golden_output, self._comparison_config.atol
         )
         _comparison_result.pcc = self._compare_pcc(
-            device_output, golden_output, self._comparison_config.pcc
+            device_output,
+            golden_output,
+            self._comparison_config.pcc,
+            pcc_mask=pcc_mask,
         )
         _comparison_result.allclose = self._compare_allclose(
             device_output, golden_output, self._comparison_config.allclose
@@ -173,10 +178,15 @@ class ComparisonEvaluator(Evaluator):
 
     @abstractmethod
     def _compare_pcc(
-        self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        pcc_config: PccConfig,
+        pcc_mask: Tensor | None = None,
     ) -> float:
         """
-        Compares PCC metric between device and golden output.
+        Compares PCC metric between device and golden output, with optional
+        masking for padded tokens.
         Returns the calculated PCC value.
         """
         raise NotImplementedError("Subclasses must implement this method")
