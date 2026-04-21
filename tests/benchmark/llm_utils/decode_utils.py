@@ -82,7 +82,9 @@ class LLMSamplingWrapper(torch.nn.Module):
             logits_out = logits
             if self.mesh and self.output_sharding_spec:
                 # Ensure logits are replicated for transfer to CPU.
-                replicate_spec = tuple(None for _ in self.output_sharding_spec)
+                # Use tensor rank (not output_sharding_spec length) since logits may be
+                # rank 3 [batch, seq_len, vocab] while output_sharding_spec is rank 2.
+                replicate_spec = tuple(None for _ in range(logits_out.dim()))
                 logits_out = sharding_constraint_tensor(
                     logits, self.mesh, replicate_spec
                 )
