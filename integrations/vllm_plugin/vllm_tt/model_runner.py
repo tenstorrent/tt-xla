@@ -448,13 +448,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.tt_config.cpu_sampling:
             self.sample_from_logits_func = self.sample_from_logits_cpu
-        elif not self.enable_tensor_parallel:
-            self.sample_from_logits_func = torch.compile(
-                self.sample_from_logits,
-                backend="tt",
-                fullgraph=True,
-                dynamic=False,
-            )
         else:
             self.sample_from_logits_func = self.sample_from_logits
 
@@ -1364,7 +1357,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
-            tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
                 sampling_device,
@@ -1380,16 +1373,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            selected_token_ids = self.sample_from_logits_func(
-                logits, tpu_sampling_metadata
-            )
+            selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
             # sure `sample_from_logits` does not modify the logits in-place.
             logprobs = (
                 self.gather_logprobs(logits, selected_token_ids)
-                if tpu_sampling_metadata.logprobs
+                if sampling_metadata.logprobs
                 else None
             )
 
@@ -1397,13 +1388,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
 
             combined_selected_tokens.append(selected_token_ids)
-            if tpu_sampling_metadata.logprobs:
+            if sampling_metadata.logprobs:
                 combined_logprobs.append(logprobs.tolists())
 
             start_index = end_index
 
         selected_token_ids = torch.cat(combined_selected_tokens, dim=0)
-        if tpu_sampling_metadata.logprobs:
+        if sampling_metadata.logprobs:
             logprobs_lists = LogprobsLists(
                 logprob_token_ids=np.concatenate(
                     [lp.logprob_token_ids for lp in combined_logprobs]
