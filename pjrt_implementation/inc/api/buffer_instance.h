@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 // PJRT C API includes
@@ -272,6 +273,11 @@ private:
   // Metal+Program Cache is not thread safe when untilizing on device, so
   //  even different bufferInstances may not be concurrently copied to host.
   static std::mutex s_copy_to_host_internal_mutex;
+
+  // Cache from host buffer/logical id key to weak tensor owner.
+  static std::unordered_map<std::size_t, std::weak_ptr<const tt::runtime::Tensor>>
+      s_buffer_runtime_tensor_cache;
+  static std::mutex s_buffer_runtime_tensor_cache_mutex;
 
   // Pjrt tensor reference.
   PjrtTensorRef m_pjrt_tensor;

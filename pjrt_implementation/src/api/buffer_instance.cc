@@ -12,6 +12,7 @@
 
 // c++ standard library includes
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -45,6 +46,21 @@
 namespace tt::pjrt {
 
 std::mutex BufferInstance::s_copy_to_host_internal_mutex;
+std::unordered_map<std::size_t, std::weak_ptr<const tt::runtime::Tensor>>
+    BufferInstance::s_buffer_runtime_tensor_cache;
+std::mutex BufferInstance::s_buffer_runtime_tensor_cache_mutex;
+
+namespace {
+
+std::size_t computeBufferRuntimeTensorCacheKey(
+    const void *host_buffer, std::optional<std::int64_t> logical_id) {
+  const auto host_buffer_hash = std::hash<const void *>{}(host_buffer);
+  const auto logical_id_hash = std::hash<std::int64_t>{}(logical_id.value_or(-1));
+  return host_buffer_hash ^ (logical_id_hash + 0x9e3779b9 + (host_buffer_hash << 6) +
+                             (host_buffer_hash >> 2));
+}
+
+} // namespace
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
@@ -241,25 +257,44 @@ void BufferInstance::copyFromHost(
   // supported by runtime/ttnn, then we must create an owned tensor as runtime
   // must case the data inside the host buffer into a supported data type. Thus,
   // the buffer cannot be borrowed.
-  if (::tt::runtime::getCurrentHostRuntime() ==
-          tt::runtime::HostRuntime::Distributed ||
+  const bool is_distributed_runtime =
+      ::tt::runtime::getCurrentHostRuntime() ==
+      tt::runtime::HostRuntime::Distributed || true;
+  const bool should_create_owned_host_tensor =
+      is_distributed_runtime ||
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type);
 
+  if (is_distributed_runtime) {
+    const auto cache_key =
+        computeBufferRuntimeTensorCacheKey(host_buffer, logical_id);
+    {
+      std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
+      const bool cache_hit =
+          s_buffer_runtime_tensor_cache.find(cache_key) !=
+          s_buffer_runtime_tensor_cache.end();
+      LOG_F(INFO,
+            "Buffer runtime tensor cache %s for host_buffer=%p logical_id=%lld",
+            cache_hit ? "hit" : "miss", host_buffer,
+            static_cast<long long>(logical_id.value_or(-1)));
+    }
+
+  }
+
+  if (should_create_owned_host_tensor) {
     runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
     // Memory is copied; caller may release the original host buffer immediately.
     EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                           tt_pjrt_status::kSuccess);
-  }
-  // Otherwise when input host buffer has other semantic we are allowed to alias
-  // it, so we can create borrowed host which doesn't copy any data and instead
-  // uses direct pointer to existing data. Since we are holding a pointer to the
-  // original data we can't mark the event as ready yet, so we remember it and
-  // mark it as ready once the buffer is destroyed.
-  else {
+  } else {
+    // Otherwise when input host buffer has other semantic we are allowed to
+    // alias it, so we can create borrowed host which doesn't copy any data and
+    // instead uses direct pointer to existing data. Since we are holding a
+    // pointer to the original data we can't mark the event as ready yet, so we
+    // remember it and mark it as ready once the buffer is destroyed.
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
@@ -280,6 +315,16 @@ void BufferInstance::copyFromHost(
   }
 
   PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
+  if (is_distributed_runtime) {
+    const auto cache_key =
+        computeBufferRuntimeTensorCacheKey(host_buffer, logical_id);
+    std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
+    if (s_buffer_runtime_tensor_cache.find(cache_key) ==
+        s_buffer_runtime_tensor_cache.end()) {
+      s_buffer_runtime_tensor_cache.emplace(cache_key,
+                                            m_pjrt_tensor.runtimeTensorWeak());
+    }
+  }
 
   markAsDataReady();
 
