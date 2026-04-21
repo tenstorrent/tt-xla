@@ -62,7 +62,9 @@ def test_gather_indices(batch_size, seq_len):
     x = torch.randn(batch_size, seq_len, kv_lora_rank, dtype=torch.bfloat16)
     topk_indices = torch.stack(
         [torch.randperm(seq_len)[:index_topk] for _ in range(batch_size)]
-    ).unsqueeze(1)  # (batch_size, 1, index_topk)
+    ).unsqueeze(
+        1
+    )  # (batch_size, 1, index_topk)
 
     gather_indices = GatherIndices(topk_indices)
     gather_indices_fancy = GatherIndicesFancy(topk_indices)
@@ -100,12 +102,8 @@ def _build_shard_spec(rank, strategy):
     ],
     ids=["2d_dim1", "2d_dim0", "3d_dim1", "3d_dim2", "4d_dim2"],
 )
-@pytest.mark.parametrize(
-    "input_shard", ["replicated", "shard_batch", "shard_model"]
-)
-@pytest.mark.parametrize(
-    "index_shard", ["replicated", "shard_batch", "shard_model"]
-)
+@pytest.mark.parametrize("input_shard", ["replicated", "shard_batch", "shard_model"])
+@pytest.mark.parametrize("index_shard", ["replicated", "shard_batch", "shard_model"])
 def test_gather_simple(input_shape, index_shape, dim, input_shard, index_shard):
     xr.set_device_type("TT")
 
