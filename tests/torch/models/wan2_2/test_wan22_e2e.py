@@ -19,6 +19,7 @@ from pathlib import Path
 import torch
 
 from .shared import (
+    LATENT_CHANNELS,
     RESOLUTIONS,
     UMT5Wrapper,
     VAEDecoderWrapper,
@@ -28,6 +29,7 @@ from .shared import (
     load_tokenizer,
     load_umt5,
     load_vae,
+    prompt_clean,
     run_component,
     shard_dit_specs,
     shard_umt5_specs,
@@ -91,19 +93,34 @@ def _output_path() -> Path:
 
 def _encode_prompt(tokenizer, encoder_wrapper, text: str) -> torch.Tensor:
     ids = tokenizer(
-        text,
+        prompt_clean(text),
         padding="max_length",
         max_length=512,
         truncation=True,
+        add_special_tokens=True,
+        return_attention_mask=True,
         return_tensors="pt",
     )
     input_ids = ids["input_ids"]
     attention_mask = ids["attention_mask"]
-    return run_component(
+    seq_lens = attention_mask.gt(0).sum(dim=1).long()
+
+    embeds = run_component(
         encoder_wrapper,
         [input_ids, attention_mask],
         on_tt=TT_TEXT_ENCODER,
         shard_spec_fn=(lambda m: shard_umt5_specs(m.encoder)),
+    )
+
+    # Zero out positions past the real token length. UMT5 produces non-zero
+    # values at pad positions via residuals/FFN; DiT cross-attention is
+    # trained expecting zero there. Mirrors diffusers _get_t5_prompt_embeds
+    # (pipeline_wan.py:186-190) and Wan repo T5EncoderModel.__call__.
+    max_len = embeds.shape[1]
+    trimmed = [e[:n] for e, n in zip(embeds, seq_lens)]
+    return torch.stack(
+        [torch.cat([e, e.new_zeros(max_len - e.size(0), e.size(1))]) for e in trimmed],
+        dim=0,
     )
 
 
