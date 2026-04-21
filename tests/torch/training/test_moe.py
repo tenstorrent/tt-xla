@@ -70,7 +70,11 @@ def test_gpt_oss_moe_multichip_backward():
     loss_value = loss.item()
     assert loss_value > 0, f"Loss should be positive, got {loss_value}."
 
+    torch_xla.sync(wait=True)
+
     # Verify gradients exist.
-    assert (
-        model.model.layers[0].self_attn.q_proj.weight.grad is not None
-    ), "Gradients not computed."
+    missing = [
+        name for name, param in model.model.named_parameters()
+        if param.requires_grad and param.grad is None
+    ]
+    assert not missing, f"Missing gradients for: {missing}"
