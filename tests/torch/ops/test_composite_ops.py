@@ -110,9 +110,6 @@ def test_patched_rms_norm_functional_single_device(
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(
-    reason="Skipping test, issue: https://github.com/tenstorrent/tt-xla/issues/4256"
-)
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize(
