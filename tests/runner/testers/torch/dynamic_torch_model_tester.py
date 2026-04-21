@@ -299,11 +299,21 @@ class DynamicTorchModelTester(TorchModelTester):
             if hasattr(loader, "get_moe_cluster_axis")
             else 0
         )
+        # Training requires dense-matmul (sparse_matmul has no autograd). The
+        # dense path also triggers A2aSparseMLP to de-interleave fused
+        # gate_up_proj into gate_proj/up_proj, avoiding the strided-slice
+        # backward miscompile.
+        use_dense_matmul = (
+            loader.get_moe_use_dense_matmul()
+            if hasattr(loader, "get_moe_use_dense_matmul")
+            else self._run_mode == RunMode.TRAINING
+        )
         enable_sparse_mlp(
             model,
             mesh=mesh_shape,
             cluster_axis=cluster_axis,
             mesh_axis_names=mesh_names,
+            use_dense_matmul=use_dense_matmul,
         )
         shard_spec_fn = self._workload.shard_spec_fn
         if shard_spec_fn:

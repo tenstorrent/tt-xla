@@ -448,6 +448,7 @@ class A2aSparseMLP(nn.Module):
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
         mesh_axis_names: Optional[Tuple[str, ...]] = None,
+        use_dense_matmul: bool = False,
     ):
         super().__init__()
 
@@ -468,8 +469,9 @@ class A2aSparseMLP(nn.Module):
             dispatch_devices if dispatch_devices is not None else num_devices
         )
         # When True, uses dense torch.matmul instead of sparse_matmul.
-        # Skips remap (no sparsity mask needed). Demo-style approach.
-        self.use_dense_matmul = False
+        # Skips remap (no sparsity mask needed). Dense path also supports
+        # autograd (sparse_matmul doesn't), so training requires dense.
+        self.use_dense_matmul = use_dense_matmul
         # When True, uses the corrected down-proj reshape (permute E to front
         # directly from `activated` instead of the buggy view-swap dance).
         # Old path scrambles the (E, M) axes via `permute(0,1,3,2,4).reshape(
@@ -491,6 +493,18 @@ class A2aSparseMLP(nn.Module):
         # Copy references to original module's components
         self.router = original_mlp.router
         self.experts = original_mlp.experts
+        # Under dense-matmul path, split fused gate_up_proj into separate
+        # gate_proj/up_proj so the forward can use two bmms instead of the
+        # strided slice `gate_up_proj[..., ::2]`. The strided-slice backward
+        # miscompiles on TT XLA (PCC cratered to ~0.4 on expert gradients
+        # without this). Sparse path (use_dense_matmul=False) keeps the fused
+        # layout since sparse_matmul is expected to consume it.
+        if (
+            self.use_dense_matmul
+            and hasattr(self.experts, "gate_up_proj")
+            and not hasattr(self.experts, "gate_proj")
+        ):
+            self._deinterleave_fused_experts(self.experts)
         self.intermediate_size = self.experts.intermediate_size
 
         if config is not None and hasattr(config, "hidden_size"):
@@ -507,6 +521,37 @@ class A2aSparseMLP(nn.Module):
         # kernel derives the target row from the device_id in the mapping.
         mapping = build_expert_mapping(num_experts, num_devices)
         self.register_buffer("expert_mapping", mapping)
+
+    @staticmethod
+    def _deinterleave_fused_experts(experts: nn.Module) -> None:
+        """Split experts.gate_up_proj [E, H, 2*inter] into separate
+        experts.gate_proj [E, H, inter] and experts.up_proj [E, H, inter]
+        by de-interleaving the last dim ([..., ::2] / [..., 1::2]). Same for
+        gate_up_proj_bias. Deletes the fused buffers afterward.
+
+        This mirrors tt_forge_models/gpt_oss/pytorch/overrides.py:_deinterleave_expert_weights
+        but is invoked unconditionally here so A2aSparseMLP always sees the
+        layout its forward/backward path was tuned for.
+        """
+        with torch.no_grad():
+            gate_data = experts.gate_up_proj.data[..., ::2].contiguous()
+            up_data = experts.gate_up_proj.data[..., 1::2].contiguous()
+            gate_bias_data = None
+            up_bias_data = None
+            if getattr(experts, "gate_up_proj_bias", None) is not None:
+                gate_bias_data = experts.gate_up_proj_bias.data[..., ::2].contiguous()
+                up_bias_data = experts.gate_up_proj_bias.data[..., 1::2].contiguous()
+
+        del experts.gate_up_proj
+        if hasattr(experts, "gate_up_proj_bias"):
+            del experts.gate_up_proj_bias
+
+        experts.gate_proj = nn.Parameter(gate_data)
+        experts.up_proj = nn.Parameter(up_data)
+        if gate_bias_data is not None:
+            experts.gate_proj_bias = nn.Parameter(gate_bias_data)
+        if up_bias_data is not None:
+            experts.up_proj_bias = nn.Parameter(up_bias_data)
 
     @torch.compiler.disable
     def _cpu_forward(self, hidden_states):
@@ -1099,6 +1144,7 @@ def enable_sparse_mlp(
     verbose: bool = False,
     config: Optional[object] = None,
     mesh_axis_names: Optional[Tuple[str, ...]] = None,
+    use_dense_matmul: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
@@ -1107,6 +1153,12 @@ def enable_sparse_mlp(
     and experts are compound-sharded across both mesh axes, A2aSparseMLP will
     emit an sdy.sharding_constraint before all_to_all_combine forcing E onto
     cluster_axis only — required for the combine kernel's input[0] assert.
+
+    use_dense_matmul: when True, A2aSparseMLP uses dense torch.bmm (autograd
+    supported) instead of sparse_matmul (no autograd). Also triggers de-
+    interleaving of fused gate_up_proj into separate gate_proj/up_proj in
+    A2aSparseMLP.__init__ to avoid the strided-slice backward miscompile.
+    Required for training.
     """
     replaced_count = 0
 
@@ -1159,9 +1211,13 @@ def enable_sparse_mlp(
         num_experts, num_experts_per_tok = moe_config
 
         # Wrap fused experts (e.g. GptOssExperts) with FusedExpertsWrapper
-        # so they have sparse_forward() like StackedExperts
+        # so they have sparse_forward() like StackedExperts. Skip when the
+        # dense-matmul path is requested — A2aSparseMLP de-interleaves the
+        # fused weight in its __init__, which would invalidate the wrapper's
+        # gate_up_proj-based properties.
         if (
-            hasattr(module, "experts")
+            not use_dense_matmul
+            and hasattr(module, "experts")
             and hasattr(module.experts, "gate_up_proj")
             and not hasattr(module.experts, "sparse_forward")
         ):
@@ -1177,6 +1233,7 @@ def enable_sparse_mlp(
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
             mesh_axis_names=mesh_axis_names,
+            use_dense_matmul=use_dense_matmul,
         )
 
         setattr(parent, name, sparse_mlp)
