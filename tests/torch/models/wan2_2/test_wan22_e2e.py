@@ -14,6 +14,7 @@ Edit the module-level constants below to change behavior. Each TT_*
 flag routes one component onto TT hardware; all default to CPU.
 """
 
+import time
 from pathlib import Path
 
 import torch
@@ -36,6 +37,12 @@ from .shared import (
     shard_vae_decoder_specs,
     shard_vae_encoder_specs,
 )
+
+
+def _log(msg: str) -> None:
+    """Single-line progress print; flush so it shows up under pytest capture."""
+    print(f"[wan22] {msg}", flush=True)
+
 
 # ---------------------------------------------------------------------------
 # Configuration — edit these and re-run.
@@ -186,8 +193,10 @@ def _denoise(
         ts_mask = None
 
     latents_fp32 = latents  # keep float32 authoritative copy
+    total_steps = len(scheduler.timesteps)
 
-    for t in scheduler.timesteps:
+    for i, t in enumerate(scheduler.timesteps):
+        step_start = time.perf_counter()
         if ts_mask is not None:
             timestep = (ts_mask * float(t)).unsqueeze(0)
         else:
@@ -222,6 +231,12 @@ def _denoise(
         if image_latent is not None:
             # Keep the conditioning frame fixed across iterations.
             latents_fp32[:, :, 0:1, :, :] = image_latent.to(torch.float32)
+
+        cfg_tag = " +cfg" if negative_embeds is not None else ""
+        _log(
+            f"  step {i + 1}/{total_steps} "
+            f"t={float(t):.1f}{cfg_tag} ({time.perf_counter() - step_start:.1f}s)"
+        )
 
     return latents_fp32
 
@@ -277,30 +292,59 @@ def _run(out_path: Path) -> None:
 
     from .shared import MODEL_ID
 
+    t_total = time.perf_counter()
+    _log(
+        f"mode={MODE} res={RESOLUTION} steps={NUM_STEPS} "
+        f"guidance={GUIDANCE_SCALE} device={_devtag()} seed={SEED}"
+    )
+    _log(f"prompt: {PROMPT!r}")
+    if GUIDANCE_SCALE > 1.0:
+        _log(f"negative: {NEGATIVE_PROMPT!r}")
+
     torch.manual_seed(SEED)
     generator = torch.Generator().manual_seed(SEED)
     shapes = RESOLUTIONS[RESOLUTION]
+    _log(
+        f"shapes: video={shapes['video_h']}x{shapes['video_w']} "
+        f"frames={shapes['num_frames']} "
+        f"latent={shapes['latent_frames']}x{shapes['latent_h']}x{shapes['latent_w']}"
+    )
 
+    t = time.perf_counter()
     tokenizer = load_tokenizer()
     text_encoder = UMT5Wrapper(load_umt5()).eval().bfloat16()
+    _log(f"text encoder loaded ({time.perf_counter() - t:.1f}s)")
 
+    t = time.perf_counter()
     prompt_embeds = _encode_prompt(tokenizer, text_encoder, PROMPT)
     assert prompt_embeds.shape == (1, 512, 4096)
+    _log(
+        f"prompt encoded ({time.perf_counter() - t:.1f}s) "
+        f"shape={tuple(prompt_embeds.shape)} dtype={prompt_embeds.dtype}"
+    )
 
     if GUIDANCE_SCALE > 1.0:
+        t = time.perf_counter()
         negative_embeds = _encode_prompt(tokenizer, text_encoder, NEGATIVE_PROMPT)
+        _log(f"negative encoded ({time.perf_counter() - t:.1f}s)")
     else:
         negative_embeds = None
 
     del text_encoder  # free memory before loading DiT
 
     latents = _init_latents(shapes, generator)
+    _log(f"latents init shape={tuple(latents.shape)} dtype={latents.dtype}")
 
     image_latent = None
     if MODE == "i2v":
+        t = time.perf_counter()
         vae_for_encode = load_vae()
         image = _make_first_frame(shapes, generator)
         image_latent = _encode_first_frame(vae_for_encode, image)
+        _log(
+            f"i2v first-frame encoded ({time.perf_counter() - t:.1f}s) "
+            f"shape={tuple(image_latent.shape)}"
+        )
         assert image_latent.shape == (
             1,
             LATENT_CHANNELS,
@@ -313,8 +357,21 @@ def _run(out_path: Path) -> None:
 
     scheduler = UniPCMultistepScheduler.from_pretrained(MODEL_ID, subfolder="scheduler")
     scheduler.set_timesteps(num_inference_steps=NUM_STEPS)
+    _log(
+        f"scheduler={type(scheduler).__name__} "
+        f"flow_shift={scheduler.config.flow_shift} "
+        f"timesteps={[round(float(x), 1) for x in scheduler.timesteps]}"
+    )
 
+    t = time.perf_counter()
     dit_wrapper = WanDiTWrapper(load_dit()).eval().bfloat16()
+    _log(
+        f"DiT loaded ({time.perf_counter() - t:.1f}s) "
+        f"blocks={len(dit_wrapper.dit.blocks)}"
+    )
+
+    t = time.perf_counter()
+    _log(f"denoising {NUM_STEPS} steps...")
     latents = _denoise(
         dit_wrapper,
         latents,
@@ -324,7 +381,17 @@ def _run(out_path: Path) -> None:
         shapes,
         image_latent,
     )
+    _log(f"denoise done ({time.perf_counter() - t:.1f}s)")
     del dit_wrapper
 
+    t = time.perf_counter()
     vae = load_vae()
+    _log(f"VAE loaded ({time.perf_counter() - t:.1f}s), decoding...")
+    t = time.perf_counter()
     _decode_and_save(vae, latents, out_path)
+    size_kb = out_path.stat().st_size / 1024
+    _log(
+        f"decode+save done ({time.perf_counter() - t:.1f}s) "
+        f"output={out_path.name} ({size_kb:.0f} KB)"
+    )
+    _log(f"total: {time.perf_counter() - t_total:.1f}s")
