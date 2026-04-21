@@ -20,6 +20,7 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
+
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .shared import RESOLUTIONS, load_dit, shard_dit_specs, wan22_mesh
