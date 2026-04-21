@@ -1575,6 +1575,7 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
+        optimization_level=1,
     )
 
 
