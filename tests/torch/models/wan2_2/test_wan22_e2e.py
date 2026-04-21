@@ -170,19 +170,38 @@ def _denoise(
     )
     num_patches = t_dim * (h_dim // 2) * (w_dim // 2)
 
+    # For i2v (Wan 2.2 TI2V expand_timesteps=True): first latent frame is
+    # the conditioning image and should receive timestep 0, not t. Mirrors
+    # diffusers pipeline_wan_i2v.py:757-764 — first_frame_mask[0][0][:,::2,::2]*t.
+    if image_latent is not None:
+        ts_mask = torch.ones(t_dim, h_dim // 2, w_dim // 2, dtype=torch.float32)
+        ts_mask[0] = 0
+        ts_mask = ts_mask.flatten()  # shape (num_patches,)
+    else:
+        ts_mask = None
+
+    latents_fp32 = latents  # keep float32 authoritative copy
+
     for t in scheduler.timesteps:
-        timestep = torch.full((1, num_patches), float(t), dtype=torch.bfloat16)
+        if ts_mask is not None:
+            timestep = (ts_mask * float(t)).unsqueeze(0)
+        else:
+            timestep = torch.full((1, num_patches), float(t), dtype=torch.float32)
+
+        # DiT has bf16 weights — cast latents at the boundary; keep the
+        # float32 copy for scheduler.step precision.
+        latents_bf16 = latents_fp32.to(torch.bfloat16)
 
         v_pos = run_component(
             dit_wrapper,
-            [latents, timestep, prompt_embeds],
+            [latents_bf16, timestep, prompt_embeds],
             on_tt=TT_DIT,
             shard_spec_fn=(lambda m: shard_dit_specs(m.dit)),
         )
         if negative_embeds is not None:
             v_neg = run_component(
                 dit_wrapper,
-                [latents, timestep, negative_embeds],
+                [latents_bf16, timestep, negative_embeds],
                 on_tt=TT_DIT,
                 shard_spec_fn=(lambda m: shard_dit_specs(m.dit)),
             )
@@ -190,14 +209,16 @@ def _denoise(
         else:
             velocity = v_pos
 
-        latents = scheduler.step(velocity, t, latents).prev_sample
+        # Cast velocity back to float32 for numerically-careful scheduler.step.
+        latents_fp32 = scheduler.step(
+            velocity.to(torch.float32), t, latents_fp32
+        ).prev_sample
 
         if image_latent is not None:
-            # Wan 2.2 TI2V convention: the first latent frame is fixed to
-            # the conditioning image and should not be denoised.
-            latents[:, :, 0:1, :, :] = image_latent
+            # Keep the conditioning frame fixed across iterations.
+            latents_fp32[:, :, 0:1, :, :] = image_latent.to(torch.float32)
 
-    return latents
+    return latents_fp32
 
 
 def _decode_and_save(vae, latents: torch.Tensor, out_path: Path) -> None:
