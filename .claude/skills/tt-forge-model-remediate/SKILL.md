@@ -50,15 +50,15 @@ Example:
 - Before: `tests/runner/test_models.py::test_all_models_torch[dreamshaper_xl/pytorch-v2.1-Turbo-DPM-SDE-single_device-inference]`
 - After: `tests/runner/test_models.py::test_all_models_torch[dreamshaper_xl/pytorch-v2.1-Turbo-DPM-SDE-tensor_parallel-inference]`
 
-If the model is too large to run in either of these configs, then we skip step 3
-and straight to step 4 to log the model is too large.
+If the model is too large to run in either of these configs, then we skip step 4
+and straight to step 5 to log the model is too large.
 
 ## Phase 4. Run the model & Diagnose and resolve all failures.
 
 Run the model with the run script: `scripts/run.sh $0`
 
-If the test exits normally then there is nothing to do and we're done!
-Goto phase 4.
+If the test exits normally and "PASSED" is shown in the output, then there is nothing
+to do and we're done! Goto phase 5.
 
 If the test fails because of a python dependency issue please update (or create) the
 requirements.txt file that lives next to the test.
@@ -76,10 +76,11 @@ test.  In a loop let's:
 - Run `source scripts/activate && pre-commit run --all-files` to reformat the code.
 - Git commit the changes to checkpoint our progress with a short commit message.
   Describing the fix made for this single issue.
-- If the remediation fails after 20 attempts goto phase 4.
 - Git push (potentially with `-u origin HEAD` if the remote branch doesn't yet
   exist) all of the changes once it's done.
-- Once the test is passing go to phase 4.
+- If the remediation fails after 20 attempts goto phase 5.
+- Once the test is passing (exits normally and "PASSED" is shown in the output) go to phase 5.
+  If you have not reached 20 attempts, and the model hasn't passed, stay in this phase!
 
 ## Phase 5. Log status
 
