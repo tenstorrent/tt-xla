@@ -171,6 +171,9 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        layer.cumulative_length.zero_()
+        layer.cumulative_length = layer.cumulative_length.to(device)
+        layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
