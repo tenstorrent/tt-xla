@@ -44,7 +44,7 @@ Both references truncate each embed to `mask.gt(0).sum(dim=1)` and re-pad with e
 
 **H3. Latents sampled in bfloat16 instead of float32** — `test_wan22_e2e.py:110-119` (`_init_latents`)
 Both references sample in `float32` (diffusers: `randn_tensor(..., dtype=torch.float32)`; Wan repo: `torch.randn(..., dtype=torch.float32)`). bf16's ~8-bit mantissa noticeably quantizes a Gaussian and drifts the denoising trajectory.
-- **Fix:** sample in `float32`. Keep latents in float32 through the denoise loop; DiT wrapper accepts any input dtype.
+- **Fix:** sample latents in `float32` and keep them float32 throughout the denoise loop. The DiT wrapper has bf16 weights, so cast `latents.to(torch.bfloat16)` at DiT call boundaries (mirrors diffusers: `latent_model_input = latents.to(transformer_dtype)` then `scheduler.step(velocity, t, latents)` with velocity cast back to float32). Matches reference exactly.
 
 **H4. Timestep tensor in bfloat16** — `test_wan22_e2e.py:157`
 `torch.full((1, num_patches), float(t), dtype=torch.bfloat16)`. Since `t` can reach ~1000, bf16 quantizes to ~8-unit increments — wrong sinusoidal time embeddings.
