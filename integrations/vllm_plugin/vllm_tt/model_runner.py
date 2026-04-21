@@ -1377,6 +1377,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
+            _capture_path = os.environ.get("TT_CAPTURE_LOGITS_PATH", "")
+            if _capture_path and not os.path.exists(_capture_path):
+                _logits_cpu = logits.detach().cpu().float()
+                torch.save(
+                    {
+                        "logits": _logits_cpu,
+                        "greedy_token": int(_logits_cpu.argmax(dim=-1).item()),
+                    },
+                    _capture_path,
+                )
+                logger.warning("Captured logits to %s", _capture_path)
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
