@@ -50,7 +50,7 @@ def _log(msg: str) -> None:
 
 MODE = "t2v"  # "t2v" or "i2v"
 RESOLUTION = "480p"  # "480p" or "720p"
-NUM_STEPS = 4  # denoising steps (bump to 50 for quality check)
+NUM_STEPS = 50  # denoising steps (bump to 50 for quality check)
 GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
 
 TT_TEXT_ENCODER = False
@@ -395,3 +395,87 @@ def _run(out_path: Path) -> None:
         f"output={out_path.name} ({size_kb:.0f} KB)"
     )
     _log(f"total: {time.perf_counter() - t_total:.1f}s")
+
+
+# ---------------------------------------------------------------------------
+# Reference test — diffusers.WanPipeline end-to-end for side-by-side
+# comparison against the hand-rolled pipeline above. Same config constants
+# (PROMPT, SEED, NUM_STEPS, ...) so outputs are directly comparable.
+# ---------------------------------------------------------------------------
+
+
+def _hf_output_path() -> Path:
+    name = f"wan22_hf_{MODE}_{RESOLUTION}_steps{NUM_STEPS}.mp4"
+    return _OUT_DIR / name
+
+
+def test_wan22_hf_pipeline():
+    """Reference run via diffusers.WanPipeline. CPU only, t2v only."""
+    assert MODE == "t2v", "HF reference test currently supports MODE='t2v' only"
+
+    out_path = _hf_output_path()
+    _OUT_DIR.mkdir(parents=True, exist_ok=True)
+    if out_path.exists():
+        out_path.unlink()
+
+    _run_hf_pipeline(out_path)
+
+    assert out_path.exists(), f"Output video not produced at {out_path}"
+    assert out_path.stat().st_size > 0, f"Output video is empty: {out_path}"
+
+
+def _run_hf_pipeline(out_path: Path) -> None:
+    from diffusers import AutoencoderKLWan, WanPipeline
+    from diffusers.utils import export_to_video
+
+    from .shared import MODEL_ID
+
+    t_total = time.perf_counter()
+    _log(
+        f"[hf] mode={MODE} res={RESOLUTION} steps={NUM_STEPS} "
+        f"guidance={GUIDANCE_SCALE} seed={SEED}"
+    )
+    _log(f"[hf] prompt: {PROMPT!r}")
+    _log(f"[hf] negative: {NEGATIVE_PROMPT!r}")
+
+    shapes = RESOLUTIONS[RESOLUTION]
+    _log(
+        f"[hf] shapes: video={shapes['video_h']}x{shapes['video_w']} "
+        f"frames={shapes['num_frames']}"
+    )
+
+    # Follow the example in diffusers/pipelines/wan/pipeline_wan.py docstring:
+    # VAE in float32, transformer + text encoder in bf16.
+    t = time.perf_counter()
+    vae = AutoencoderKLWan.from_pretrained(
+        MODEL_ID, subfolder="vae", torch_dtype=torch.float32
+    )
+    pipe = WanPipeline.from_pretrained(MODEL_ID, vae=vae, torch_dtype=torch.bfloat16)
+    _log(
+        f"[hf] pipeline loaded ({time.perf_counter() - t:.1f}s) "
+        f"scheduler={type(pipe.scheduler).__name__}"
+    )
+
+    generator = torch.Generator().manual_seed(SEED)
+
+    t = time.perf_counter()
+    output = pipe(
+        prompt=PROMPT,
+        negative_prompt=NEGATIVE_PROMPT,
+        height=shapes["video_h"],
+        width=shapes["video_w"],
+        num_frames=shapes["num_frames"],
+        num_inference_steps=NUM_STEPS,
+        guidance_scale=GUIDANCE_SCALE,
+        generator=generator,
+    ).frames[0]
+    _log(f"[hf] pipeline call done ({time.perf_counter() - t:.1f}s)")
+
+    t = time.perf_counter()
+    export_to_video(output, str(out_path), fps=FPS)
+    size_kb = out_path.stat().st_size / 1024
+    _log(
+        f"[hf] saved ({time.perf_counter() - t:.1f}s) "
+        f"output={out_path.name} ({size_kb:.0f} KB)"
+    )
+    _log(f"[hf] total: {time.perf_counter() - t_total:.1f}s")
