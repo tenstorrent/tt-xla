@@ -59,7 +59,11 @@ def test_wan_dit_720p_sharded():
 
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
-    compiler_config = CompilerConfig(optimization_level=1)
+    compiler_config = CompilerConfig(
+        optimization_level=0,
+        export_path="model",
+        export_model_name="wan_dit"
+    )
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
     t, h, w = shapes["latent_frames"], shapes["latent_h"], shapes["latent_w"]
