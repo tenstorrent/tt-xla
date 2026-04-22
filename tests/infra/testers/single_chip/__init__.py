@@ -5,9 +5,9 @@
 """Minimal single-chip tester exports."""
 
 try:
+    from .model.jax_model_tester import JaxModelTester
     from .model.model_tester import RunMode
     from .model.torch_model_tester import TorchModelTester
-    from .model.jax_model_tester import JaxModelTester
 except Exception:
     RunMode = None
     TorchModelTester = None

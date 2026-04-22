@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Any, Dict, Tuple, Union
 
 import torch
+
 try:
     import jax
     from flax import linen, nnx
@@ -18,6 +19,7 @@ except ImportError:
     nnx = None
     jax_pytree = Any
 from torch.utils._pytree import PyTree as torch_pytree
+
 try:
     from torch_xla.distributed.spmd import Mesh as TorchXLAMesh
 except ImportError:

@@ -87,6 +87,7 @@ def _run_model_test_impl(
     print(f"[DEBUG] ModelLoader.__module__={ModelLoader.__module__}", flush=True)
     try:
         import inspect
+
         print(f"[DEBUG] load_config source={inspect.getfile(ModelLoader)}", flush=True)
     except TypeError:
         print(f"[DEBUG] load_config source=<built-in class>", flush=True)

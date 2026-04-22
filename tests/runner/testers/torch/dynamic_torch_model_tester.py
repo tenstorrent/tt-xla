@@ -8,6 +8,7 @@ import collections
 from typing import Any
 
 import torch
+
 try:
     import torch_xla.runtime as xr
     from infra.utilities.torch_multichip_utils import get_mesh
@@ -19,6 +20,7 @@ from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model.model_tester import RunMode
 from infra.testers.single_chip.model.torch_model_tester import TorchModelTester
 from loguru import logger
+
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism

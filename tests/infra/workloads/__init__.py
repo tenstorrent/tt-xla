@@ -4,6 +4,7 @@
 
 from .torch_workload import TorchWorkload
 from .workload import Workload
+
 try:
     from .jax_workload import JaxMultichipWorkload
 except Exception:

@@ -18,6 +18,7 @@ from typing import Any, List, Optional
 import numpy as np
 import pytest
 import torch
+
 try:
     import torch_xla
     import torch_xla.core.xla_model as xm

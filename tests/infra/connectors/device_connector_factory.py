@@ -6,6 +6,7 @@ from infra.utilities import Framework
 
 from .device_connector import DeviceConnector
 from .torch_device_connector import TorchDeviceConnector, torch_device_connector
+
 jax_device_connector = None
 
 

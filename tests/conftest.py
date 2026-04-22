@@ -18,6 +18,7 @@ from pathlib import Path
 import psutil
 import pytest
 import torch
+
 try:
     import torch_xla.runtime as xr
 except ImportError:

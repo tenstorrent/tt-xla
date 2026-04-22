@@ -10,6 +10,7 @@ from typing import Any, Callable, Mapping, Optional, Sequence
 
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities.types import Framework, Mesh, Model
+
 try:
     import torch_xla.runtime as xr
 except ImportError:

@@ -4,6 +4,7 @@
 
 """Minimal evaluator exports."""
 
+from .comparison_evaluator import ComparisonEvaluator
 from .evaluation_config import (
     AllcloseConfig,
     AtolConfig,
@@ -13,7 +14,6 @@ from .evaluation_config import (
     QualityConfig,
 )
 from .evaluator import ComparisonResult, EvaluationResult, Evaluator, QualityResult
-from .comparison_evaluator import ComparisonEvaluator
 
 try:
     from .evaluator_factory import EvaluatorFactory

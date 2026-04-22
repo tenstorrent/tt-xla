@@ -123,9 +123,7 @@ def pytest_collection_modifyitems(config, items):
     # Merge torch and jax test configs once outside the loop
     from tests.runner.test_config.jax import test_config as jax_test_config
     from tests.runner.test_config.torch import test_config as torch_test_config
-    from tests.runner.test_config.torch_llm import (
-        test_config as torch_llm_test_config,
-    )
+    from tests.runner.test_config.torch_llm import test_config as torch_llm_test_config
 
     combined_test_config = torch_test_config | jax_test_config | torch_llm_test_config
 

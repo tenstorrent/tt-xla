@@ -5,6 +5,7 @@ import os
 from typing import Tuple
 
 import numpy as np
+
 try:
     import torch_xla.runtime as xr
     from torch_xla.distributed.spmd import Mesh

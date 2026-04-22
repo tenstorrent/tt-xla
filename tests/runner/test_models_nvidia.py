@@ -8,16 +8,18 @@ from dataclasses import dataclass
 
 import pytest
 import torch
-
 from infra.testers.single_chip.model.model_tester import RunMode
+
 from tests.infra.evaluators.evaluator import Evaluator
+from tests.infra.utilities.types import Framework
 from tests.runner.requirements import RequirementsManager
-from tests.runner.test_utils import record_model_test_properties, update_test_metadata_for_exception
+from tests.runner.test_utils import (
+    record_model_test_properties,
+    update_test_metadata_for_exception,
+)
 from tests.runner.testers import DynamicTorchCudaModelTester
 from tests.runner.utils import DynamicLoader, TorchDynamicLoader
-from tests.infra.utilities.types import Framework
 from third_party.tt_forge_models.config import Parallelism
-
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 

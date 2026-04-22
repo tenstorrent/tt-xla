@@ -9,6 +9,7 @@ import torch
 from infra.runners.utils import run_on_cpu
 from infra.utilities.types import Framework, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload
+
 try:
     import jax
     import jax.numpy as jnp
