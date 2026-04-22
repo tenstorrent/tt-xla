@@ -1772,7 +1772,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128(
         ModelLoader,
         variant,
         output_file,
-        num_layers=1,
+        num_layers=num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,

@@ -15,7 +15,7 @@ import time
 from typing import Optional
 
 import torch
-import tracy
+# import tracy
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
 
@@ -265,7 +265,7 @@ def generate_and_benchmark(
 
     with torch.no_grad():
         for step in range(max_tokens_to_generate):
-            tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
+            # tracy.signpost("prefill_start" if step == 0 else f"decode_{step}_start")
             start = time.perf_counter_ns()
 
             output = model(**input_args)
@@ -294,7 +294,7 @@ def generate_and_benchmark(
                     generated_texts[i] += decoded[i]
 
             end = time.perf_counter_ns()
-            tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
+            # tracy.signpost("prefill_end" if step == 0 else f"decode_{step}_end")
             iteration_times.append(end - start)
             if verbose:
                 print(

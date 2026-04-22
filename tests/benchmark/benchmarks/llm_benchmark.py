@@ -18,7 +18,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-import tracy
+# import tracy
 import transformers
 from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
 from llm_utils.decode_utils import LLMSamplingWrapper
@@ -598,12 +598,12 @@ def benchmark_llm_torch_xla(
             input_args,
             device,
             warmup_tokens,
-            verbose=False,
+            verbose=True,
             collect_logits=False,
         )
         log_memory("warmup:end")
 
-        tracy.signpost("warmup_complete")
+        # tracy.signpost("warmup_complete")
 
     # Reconstruct inputs for the perf benchmark run.
     input_args = construct_inputs(
@@ -774,11 +774,21 @@ def benchmark_llm_torch_xla(
     elif decode_only:
         print("PCC verification skipped in decode-only mode")
     else:
-        # Check PCC
+        # Check PCC for prefill
         pcc_value = compute_pcc(
             output_logits[0][0], cpu_output_logits[0][0], required_pcc=required_pcc
         )
-        print("PCC verification passed with PCC={:.6f}".format(pcc_value))
+        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
+        # Check PCC for first decode token
+        if len(output_logits) > 1 and len(cpu_output_logits) > 1:
+            decode_pcc_value = compute_pcc(
+                output_logits[1][0], cpu_output_logits[1][0], required_pcc=required_pcc
+            )
+            print(
+                "First decode PCC verification passed with PCC={:.6f}".format(
+                    decode_pcc_value
+                )
+            )
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()
