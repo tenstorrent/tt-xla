@@ -198,7 +198,7 @@ def main() -> None:
         MODEL_ID,
         dtype=torch.bfloat16,
         experts_implementation=TT_MOE_BACKEND_NAME,
-        attn_implementation=TT_ATTENTION_BACKEND_NAME,  # commenting this out brings up PCC from ~0.25(bad!) to ~0.93(we've seen worse in LLMs there were still coherent-ish)
+        attn_implementation=TT_ATTENTION_BACKEND_NAME,  # commenting this out brings up PCC from ~0.25(bad!) to ~0.93(we've seen worse in LLMs there were still coherent-ish, also this is bfp8 vs bf16)
     ).eval()
     device = torch_xla.device()
     card_model = cast(Any, card_model).to(device)
