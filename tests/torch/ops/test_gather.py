@@ -71,14 +71,53 @@ def test_gather_replicated(input_shape, index_shape, dim):
     )
 
 
+# Sharded torch.gather patterns that are supported by tt-mlir.
 @pytest.mark.parametrize(
-    "input_shape,index_shape,dim",
+    "input_shape,index_shape,dim,input_spec,index_spec",
     [
-        ((8, 32), (8, 16), 0),
+        # 2D: gather on dim 0; shard the non-gather dim with matched sizes on
+        # both operands across the "batch" axis (factor 2).
+        pytest.param(
+            (8, 16),
+            (8, 16),
+            0,
+            (None, "batch"),
+            (None, "batch"),
+            id="2d_dim0_aligned_batch",
+        ),
+        # Same shape-alignment idea but sharded across the "model" axis
+        # (factor 4 on 8 devices) to exercise a larger shard factor.
+        pytest.param(
+            (8, 16),
+            (8, 16),
+            0,
+            (None, "model"),
+            (None, "model"),
+            id="2d_dim0_aligned_model",
+        ),
+        # 3D, gather on the middle dim; shard the leading (batch) dim with
+        # matched sizes on both operands. Common for per-sample gathers.
+        pytest.param(
+            (4, 8, 16),
+            (4, 4, 16),
+            1,
+            ("batch", None, None),
+            ("batch", None, None),
+            id="3d_dim1_shard_batch",
+        ),
+        # Gather on the last dim; shard the leading non-gather dim with
+        # matched sizes. Common for per-row selection (e.g. top-k values).
+        pytest.param(
+            (8, 16),
+            (8, 8),
+            -1,
+            ("batch", None),
+            ("batch", None),
+            id="2d_negdim_shard_leading",
+        ),
     ],
-    ids=["2d_dim1"],
 )
-def test_gather_sharded(input_shape, index_shape, dim):
+def test_gather_sharded(input_shape, index_shape, dim, input_spec, index_spec):
     xr.set_device_type("TT")
 
     # Setup mesh and shard spec
@@ -90,8 +129,8 @@ def test_gather_sharded(input_shape, index_shape, dim):
     def get_shard_spec(module, args, kwargs):
         input, index = args
         return {
-            input: (None, "batch"),
-            index: (None, "batch"),
+            input: input_spec,
+            index: index_spec,
         }
 
     input = torch.randn(*input_shape, dtype=torch.bfloat16)
@@ -102,6 +141,59 @@ def test_gather_sharded(input_shape, index_shape, dim):
         SimpleGather(dim),
         [input, index],
         framework=Framework.TORCH,
-        # mesh=mesh,
-        # shard_spec_fn=get_shard_spec,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+# Gather pattern that shows up in Deepseek Sparse Attention.
+# Here x is the kv_cache tensor.
+@pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
+@pytest.mark.parametrize("seq_len", [32, 128, 512, 1024, 2048])
+def test_gather_indices(batch_size, seq_len):
+    xr.set_device_type("TT")
+
+    class GatherIndices(nn.Module):
+        def __init__(self, topk_indices: torch.Tensor):
+            super().__init__()
+
+        def forward(self, x, topk_indices):
+            gather_idx = topk_indices.squeeze(1)  # (bsz, topk)
+            index = gather_idx.unsqueeze(-1).expand(
+                -1, -1, x.size(-1)
+            )  # (bsz, topk, kv_lora_rank)
+            gathered_x = torch.gather(x, 1, index)  # (bsz, topk, kv_lora_rank)
+            return gathered_x
+
+    # Setup mesh
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, 4)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(gather_module, args, kwargs):
+        mesh_batch_axis_size = mesh.shape()["batch"]
+        # Conditionally shard weights that involve batch axis
+        batch_axis = "batch" if batch_size >= mesh_batch_axis_size else None
+        shard_specs = {}
+        shard_specs[args[0]] = (batch_axis, None, None)  # x
+        shard_specs[args[1]] = (batch_axis, None, None)  # topk_indices
+        # shard_specs[gather_module.topk_indices] = (batch_axis, None, None)
+        return shard_specs
+
+    kv_lora_rank = 512
+    index_topk = 16
+    x = torch.randn(batch_size, seq_len, kv_lora_rank, dtype=torch.bfloat16)
+    topk_indices = torch.stack(
+        [torch.randperm(seq_len)[:index_topk] for _ in range(batch_size)]
+    ).unsqueeze(
+        1
+    )  # (batch_size, 1, index_topk)
+
+    run_graph_test(
+        GatherIndices(topk_indices),
+        [x, topk_indices],
+        framework=Framework.TORCH,
+        shard_spec_fn=get_shard_spec,
+        mesh=mesh,
     )
