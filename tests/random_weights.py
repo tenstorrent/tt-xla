@@ -127,9 +127,8 @@ def _patch_transformers_models():
         # returns a top-level config but the model class expects a sub-config
         # like text_config). Extract the sub-config when there's a mismatch.
         expected_config_class = getattr(cls, "config_class", None)
-        if (
-            expected_config_class is not None
-            and not isinstance(config, expected_config_class)
+        if expected_config_class is not None and not isinstance(
+            config, expected_config_class
         ):
             if hasattr(config, "get_text_config"):
                 text_config = config.get_text_config()

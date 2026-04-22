@@ -6,7 +6,7 @@ import math
 from abc import abstractmethod
 from typing import Tuple
 
-from infra.utilities import PyTree, Tensor
+from infra.utilities.types import PyTree, Tensor
 
 from .evaluation_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
 from .evaluator import ComparisonResult, Evaluator

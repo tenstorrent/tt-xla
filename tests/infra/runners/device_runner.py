@@ -5,9 +5,9 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from infra.connectors import DeviceConnector, DeviceType
-from infra.utilities import Device, Tensor
-from infra.workloads import Workload
+from infra.connectors.device_connector import DeviceConnector, DeviceType
+from infra.utilities.types import Device, Tensor
+from infra.workloads.workload import Workload
 
 
 class DeviceRunner(ABC):
@@ -28,6 +28,10 @@ class DeviceRunner(ABC):
     def run_on_tt_device(self, workload: Workload, device_num: int = 0) -> Tensor:
         """Runs `workload` on TT device."""
         return self.run_on_device(workload, DeviceType.TT, device_num)
+
+    def run_on_cuda_device(self, workload: Workload, device_num: int = 0) -> Tensor:
+        """Runs `workload` on CUDA device."""
+        return self.run_on_device(workload, DeviceType.CUDA, device_num)
 
     def run_on_device(
         self, workload: Workload, device_type: DeviceType, device_num: int = 0

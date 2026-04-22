@@ -8,12 +8,18 @@ from contextlib import contextmanager
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Set, Tuple
 
 import torch
-import torch_xla
-import torch_xla.runtime as xr
+
+try:
+    import torch_xla
+    import torch_xla.runtime as xr
+except ImportError:
+    torch_xla = None
+    xr = None
 from infra.evaluators import ComparisonConfig
-from infra.utilities import Framework, compile_torch_workload_for_tt_device
-from infra.workloads import TorchWorkload, Workload
-from tt_torch.sharding import sharding_constraint_tensor
+from infra.utilities.types import Framework
+from infra.utilities.utils import compile_torch_workload_for_tt_device
+from infra.workloads.torch_workload import TorchWorkload
+from infra.workloads.workload import Workload
 from ttxla_tools.logging import logger
 
 from tests.infra.evaluators import ComparisonResult
@@ -90,8 +96,10 @@ class TorchModelTester(ModelTester):
         )
         # Set custom compile options if provided.
         # Use explicit API for passing compiler options.
-        if compiler_config is not None and not os.environ.get(
-            "TT_COMPILE_ONLY_SYSTEM_DESC"
+        if (
+            compiler_config is not None
+            and not os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC")
+            and torch_xla is not None
         ):
             torch_xla.set_custom_compile_options(
                 compiler_config.to_torch_compile_options()
@@ -215,6 +223,7 @@ class TorchModelTester(ModelTester):
         For tensor parallel training, gradients must be sharded identically to parameters.
         This method marks gradient tensors with the same shard specs as their parameters.
         """
+        from tt_torch.sharding import sharding_constraint_tensor
 
         assert (
             self._workload.shard_spec_fn is not None
@@ -241,6 +250,8 @@ class TorchModelTester(ModelTester):
             )
 
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
+        if torch_xla is None:
+            raise RuntimeError("torch_xla is required for TT training tests")
         # Initialize XLA computation client to properly set up autograd engine device queues
         # before any backward passes. See: https://github.com/pytorch/xla/issues/4174
         torch_xla._XLAC._init_computation_client()

@@ -5,7 +5,7 @@
 from functools import wraps
 from typing import Callable
 
-from infra.utilities import Framework
+from infra.utilities.types import Framework
 from infra.workloads.workload import Workload
 
 from .device_runner_factory import DeviceRunnerFactory
@@ -22,6 +22,23 @@ def run_on_tt_device(framework: Framework):
             )
             runner = DeviceRunnerFactory.create_runner(framework)
             return runner.run_on_tt_device(workload)
+
+        return wrapper
+
+    return decorator
+
+
+def run_on_cuda_device(framework: Framework):
+    """Runs any decorated function `f` on CUDA device."""
+
+    def decorator(f: Callable):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            workload = Workload(
+                framework=framework, executable=f, args=args, kwargs=kwargs
+            )
+            runner = DeviceRunnerFactory.create_runner(framework)
+            return runner.run_on_cuda_device(workload)
 
         return wrapper
 

@@ -6,13 +6,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from infra.utilities import Framework
+from infra.utilities.types import Framework
 
 from .comparison_evaluator import ComparisonEvaluator
 from .evaluation_config import ComparisonConfig, QualityConfig
 from .evaluator import Evaluator
 from .jax_comparison_evaluator import JaxComparisonEvaluator
-from .quality_evaluator import QualityEvaluator
 from .torch_comparison_evaluator import TorchComparisonEvaluator
 
 
@@ -93,7 +92,7 @@ class EvaluatorFactory:
         quality_config: Optional[QualityConfig],
         metric_names: Optional[List[str]],
         metric_kwargs: Optional[Dict[str, Dict[str, Any]]],
-    ) -> QualityEvaluator:
+    ) -> "QualityEvaluator":
         """
         Create QualityEvaluator with specified metrics.
 
@@ -109,6 +108,8 @@ class EvaluatorFactory:
             raise ValueError("metric_names is required for quality evaluators")
         if quality_config is None:
             quality_config = QualityConfig()
+
+        from .quality_evaluator import QualityEvaluator
 
         return QualityEvaluator(
             metric_names=metric_names,

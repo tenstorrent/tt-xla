@@ -11,8 +11,12 @@ import jax.lax as jlx
 import jax.numpy as jnp
 import pytest
 import torch
-import torch_xla
-from infra import Framework
+
+try:
+    import torch_xla
+except ImportError:
+    torch_xla = None
+from infra.utilities.types import Framework
 
 
 class StrEnum(Enum):
@@ -192,6 +196,8 @@ def is_galaxy(request):
 
 def get_torch_device_arch() -> TTArch:
     """Returns the architecture of the connected TT device."""
+    if torch_xla is None:
+        raise RuntimeError("torch_xla is required to query TT device architecture")
     device_kind = torch_xla._XLAC._xla_device_kind("xla")
     if "Wormhole_b0" in device_kind:
         return TTArch.WORMHOLE_B0

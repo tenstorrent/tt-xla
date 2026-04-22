@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import torch
-from infra.runners import run_on_cpu
-from infra.utilities import Framework, PyTree
+from infra.runners.utils import run_on_cpu
+from infra.utilities.types import Framework, PyTree
 from torch.utils._pytree import tree_flatten, tree_map
 from transformers import Cache, DynamicCache, EncoderDecoderCache
 

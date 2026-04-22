@@ -5,17 +5,28 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, Tuple, Union
+from typing import Any, Dict, Tuple, Union
 
-import jax
 import torch
-from flax import linen, nnx
-from jaxtyping import PyTree as jax_pytree
+
+try:
+    import jax
+    from flax import linen, nnx
+    from jaxtyping import PyTree as jax_pytree
+except ImportError:
+    jax = None
+    linen = None
+    nnx = None
+    jax_pytree = Any
 from torch.utils._pytree import PyTree as torch_pytree
-from torch_xla.distributed.spmd import Mesh
+
+try:
+    from torch_xla.distributed.spmd import Mesh as TorchXLAMesh
+except ImportError:
+    TorchXLAMesh = Any
 
 # Convenience alias. Used to jointly represent tensors from different frameworks.
-Tensor = Union[jax.Array, torch.Tensor]
+Tensor = Union[(jax.Array if jax is not None else Any), torch.Tensor]
 
 # Convenience alias. Used to jointly represent models (commonly called NN modules) from
 # different frameworks.
@@ -23,16 +34,20 @@ Tensor = Union[jax.Array, torch.Tensor]
 # huggingface models.
 # NOTE FlaxPreTrainedModel was removed from transformers 5.x (Flax support dropped).
 # EasyDel models (nnx.Module subclasses) and custom linen.Module models cover all JAX cases.
-Model = Union[nnx.Module, linen.Module, torch.nn.Module]
+Model = Union[
+    (nnx.Module if nnx is not None else Any),
+    (linen.Module if linen is not None else Any),
+    torch.nn.Module,
+]
 
 # Convenience alias. Used to jointly represent physical HW/device from different
 # frameworks.
-Device = Union[jax.Device, torch.device]
+Device = Union[(jax.Device if jax is not None else Any), torch.device]
 
 # Convenience alias.
 PyTree = Union[jax_pytree, torch_pytree]
 
-Mesh = Mesh
+Mesh = TorchXLAMesh
 
 ShardSpec = Dict[Tensor, Tuple[str, ...]]
 

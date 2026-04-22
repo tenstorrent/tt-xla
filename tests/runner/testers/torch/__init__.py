@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from .dynamic_torch_cuda_model_tester import DynamicTorchCudaModelTester
 from .dynamic_torch_model_tester import DynamicTorchModelTester
 
 __all__ = [
+    "DynamicTorchCudaModelTester",
     "DynamicTorchModelTester",
 ]

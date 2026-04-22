@@ -15,7 +15,8 @@ from infra.evaluators import (
     QualityConfig,
 )
 from infra.runners import DeviceRunner, DeviceRunnerFactory
-from infra.utilities import Framework, sanitize_test_name
+from infra.utilities.types import Framework
+from infra.utilities.utils import sanitize_test_name
 
 from tests.infra.utilities.filecheck_utils import (
     run_filecheck,

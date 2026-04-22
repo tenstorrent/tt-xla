@@ -5,12 +5,16 @@
 import inspect
 
 import torch
-import torch_xla.distributed.spmd as xs
 from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
 from torch.utils._pytree import tree_map
+
+try:
+    import torch_xla.distributed.spmd as xs
+except ImportError:
+    xs = None
 
 from .device_runner import DeviceRunner
 
@@ -169,6 +173,8 @@ class TorchDeviceRunner(DeviceRunner):
         )
 
         if shard_specs is not None and is_multichip and device.type != "cpu":
+            if xs is None:
+                raise RuntimeError("torch_xla is required for multichip torch sharding")
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 

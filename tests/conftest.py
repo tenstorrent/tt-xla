@@ -18,8 +18,13 @@ from pathlib import Path
 import psutil
 import pytest
 import torch
-import torch_xla.runtime as xr
-from infra import DeviceConnectorFactory, Framework
+
+try:
+    import torch_xla.runtime as xr
+except ImportError:
+    xr = None
+from infra.connectors.device_connector_factory import DeviceConnectorFactory
+from infra.utilities.types import Framework
 from loguru import logger
 
 from third_party.tt_forge_models.config import ModelInfo
@@ -479,7 +484,10 @@ def initialize_device_connectors():
 
     Done to make sure it is executed before any other jax command during tests.
     """
-    DeviceConnectorFactory.create_connector(Framework.JAX)
+    try:
+        DeviceConnectorFactory.create_connector(Framework.JAX)
+    except Exception as e:
+        logger.info(f"Skipping JAX connector initialization: {e}")
     DeviceConnectorFactory.create_connector(Framework.TORCH)
 
 
@@ -531,7 +539,10 @@ def _release_dynamo_bridge_tensors():
     objects and their parent caches survive, holding all model-weight XLA tensors
     (~26 GB for 8B TP). We find these by type and clear their parent dicts.
     """
-    from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
+    try:
+        from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
+    except ImportError:
+        return
 
     for obj in gc.get_objects():
         try:
@@ -567,6 +578,8 @@ def clear_torchxla_computation_cache():
     This helps avoid consteval-associated DRAM leaks as described in https://github.com/tenstorrent/tt-xla/issues/1940
     """
     yield
+    if xr is None:
+        return
     try:
         xr.clear_computation_cache()
     except Exception as e:

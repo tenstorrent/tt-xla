@@ -18,13 +18,21 @@ from typing import Any, List, Optional
 import numpy as np
 import pytest
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
+
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.runtime as xr
+    from infra.utilities.torch_multichip_utils import get_mesh
+    from torch_xla.distributed.spmd import Mesh
+except ImportError:
+    torch_xla = None
+    xm = None
+    xr = None
+    get_mesh = None
+    Mesh = None
 from infra import ComparisonConfig, RunMode, TorchModelTester
 from infra.utilities.failing_reasons import FailingReasons, FailingReasonsFinder
-from infra.utilities.torch_multichip_utils import get_mesh
-from torch_xla.distributed.spmd import Mesh
 
 from tests.utils import BringupStatus, Category
 from third_party.tt_forge_models.config import Parallelism
@@ -695,7 +703,7 @@ def get_xla_device_arch():
     Returns:
         str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
     """
-    if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
+    if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC") or xr is None:
         return ""
 
     all_attributes = xr.global_runtime_device_attributes()

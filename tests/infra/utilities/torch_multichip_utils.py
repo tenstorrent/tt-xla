@@ -5,8 +5,13 @@ import os
 from typing import Tuple
 
 import numpy as np
-import torch_xla.runtime as xr
-from torch_xla.distributed.spmd import Mesh
+
+try:
+    import torch_xla.runtime as xr
+    from torch_xla.distributed.spmd import Mesh
+except ImportError:
+    xr = None
+    Mesh = None
 
 
 def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
@@ -18,7 +23,8 @@ def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
     Returns:
         Mesh or None: A Mesh object if mesh_shape is provided, otherwise None.
     """
-
+    if xr is None or Mesh is None:
+        raise RuntimeError("torch_xla is required for torch multichip mesh creation")
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
@@ -33,6 +39,8 @@ def enable_spmd():
     Note:
         - This cannot be disabled once set. See: https://github.com/pytorch/xla/issues/9578
     """
+    if xr is None:
+        raise RuntimeError("torch_xla is required for torch multichip SPMD")
     # In the pytorch-xla fork this enables the ConvertStableHloToSdy pass.
     # The tt-mlir stablehlo compiler pipeline expects input shlo from pytorch/xla to contain shardy annotations.
     os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"

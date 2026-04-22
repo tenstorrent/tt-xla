@@ -9,13 +9,14 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Sequence
 
-from infra.utilities import Device
+from infra.utilities.types import Device
 
 
 class DeviceType(Enum):
     """Supported devices."""
 
     CPU = "cpu"
+    CUDA = "cuda"
     TT = "tt"
 
 
@@ -86,3 +87,7 @@ class DeviceConnector(ABC):
     def get_number_of_cpus(self) -> int:
         """Returns number of available CPUs."""
         return self._number_of_devices(DeviceType.CPU)
+
+    def get_number_of_cuda_devices(self) -> int:
+        """Returns number of available CUDA devices."""
+        return self._number_of_devices(DeviceType.CUDA)
