@@ -439,13 +439,14 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
 
     # When the non-model mesh dim is 1, FSDP collapses to Megatron, so we keep
     # only megatron-no_dp to avoid redundant tests.
-    if mesh_shape == (1, 8):
+    if mesh_shape == (1, 8) or mesh_shape == (1, 4):
         if strategy != ShardingStrategy.MEGATRON or shard_inputs:
             return (
-                "For mesh_1x8, only megatron-no_dp is kept because fsdp-no_dp is "
-                "effectively equivalent here (non-model mesh dimension is size 1). "
-                "Use strategy=megatron with shard_inputs=False, or switch to mesh_2x4 "
-                "if you want distinct fsdp behavior."
+                f"For mesh_{mesh_shape[0]}x{mesh_shape[1]}, only megatron-no_dp is kept "
+                "because fsdp-no_dp is effectively equivalent here (non-model mesh "
+                "dimension is size 1). Use strategy=megatron with shard_inputs=False, "
+                "or switch to a mesh with non-model dim > 1 if you want distinct fsdp "
+                "behavior."
             )
 
     return None
