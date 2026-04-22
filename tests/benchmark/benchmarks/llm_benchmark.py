@@ -47,9 +47,12 @@ MODULE_EXPORT_PATH = "modules"
 
 # Models incompatible with shared-CL tensor aliasing.
 # Even with no write inside the compiled graph, READ aliasing of a tensor shared
-# across 24+ layers triggers INTERNAL: Error code: 13 on these models.
+# across 24+ layers triggers INTERNAL: Error code: 13 (qwen_2_5_0_5b, qwen_3_8b)
+# or a native segfault in dynamo_bridge.py (llama_3_2_1b, llama_3_2_3b).
 # Confirmed via isolation test: removing add_() entirely still crashes the same way.
-SHARED_CL_DENYLIST = frozenset({"qwen_2_5_0_5b", "qwen_3_8b"})
+SHARED_CL_DENYLIST = frozenset(
+    {"qwen_2_5_0_5b", "qwen_3_8b", "llama_3_2_1b", "llama_3_2_3b"}
+)
 
 
 def setup_model_and_tokenizer(
