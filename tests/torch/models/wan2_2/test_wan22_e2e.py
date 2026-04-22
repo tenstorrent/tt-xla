@@ -50,12 +50,12 @@ def _log(msg: str) -> None:
 
 MODE = "t2v"  # "t2v" or "i2v"
 RESOLUTION = "480p"  # "480p" or "720p"
-NUM_STEPS = 50  # denoising steps (bump to 50 for quality check)
+NUM_STEPS = 40  # denoising steps (bump to 50 for quality check)
 GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
 
 TT_TEXT_ENCODER = False
 TT_VAE_ENCODER = False  # only used when MODE == "i2v"
-TT_DIT = False
+TT_DIT = True
 TT_VAE_DECODER = False
 
 # Simple single-subject prompt for smoke-test readability. Failure is
@@ -97,6 +97,69 @@ def _output_path() -> Path:
     name = f"wan22_{MODE}_{RESOLUTION}_steps{NUM_STEPS}_{_devtag()}.mp4"
     return _OUT_DIR / name
 
+
+# ---------------------------------------------------------------------------
+# Monkey patches
+# ---------------------------------------------------------------------------
+
+
+def _patch_apply_lora_scale() -> None:
+    """Make `@apply_lora_scale` a pass-through.
+
+    `diffusers.utils.peft_utils.apply_lora_scale` wraps the DiT forward in
+    a helper that calls `scale_lora_layers` + `unscale_lora_layers`, each
+    of which is a graph break. This test loads plain weights via
+    `load_dit()` – no LoRA adapters exist, so the wrapper is pure
+    overhead.
+    """
+    from diffusers.utils import peft_utils
+
+    def noop_decorator(kwargs_name: str = "joint_attention_kwargs"):
+        def decorator(forward_fn):
+            return forward_fn
+
+        return decorator
+
+    peft_utils.apply_lora_scale = noop_decorator
+
+    # The WanTransformer3DModel.forward in diffusers is decorated at class
+    # definition time, so the patch above only affects future imports.
+    # Rebind the already-decorated forward to the underlying function.
+    from diffusers.models.transformers.transformer_wan import WanTransformer3DModel
+
+    wrapped = WanTransformer3DModel.forward
+    underlying = getattr(wrapped, "__wrapped__", None)
+    if underlying is not None:
+        WanTransformer3DModel.forward = underlying
+
+
+def _disable_tt_torch_function_override() -> None:
+    """Pop `TorchFunctionOverride` off the global TorchFunctionMode stack.
+
+    `tt_torch/torch_overrides.py` enters a `TorchFunctionMode` at import
+    time. Its body is gated by `torch.compiler.is_compiling()` and does
+    nothing on the compile path, but the mode still sits on dynamo's
+    function-mode stack and forces a `__torch_function__` trace for every
+    matmul / linear encountered during tracing.
+    """
+    try:
+        import tt_torch.torch_overrides as overrides
+    except ImportError:
+        return
+
+    mode = getattr(overrides, "torch_function_override", None)
+    if mode is None:
+        return
+
+    try:
+        mode.__exit__(None, None, None)
+    except Exception:
+        # Mode wasn't on the stack or was already popped – ignore.
+        pass
+
+
+_patch_apply_lora_scale()
+_disable_tt_torch_function_override()
 
 # ---------------------------------------------------------------------------
 # Test
@@ -243,7 +306,9 @@ def _denoise(
 
 def _decode_and_save(vae, latents: torch.Tensor, out_path: Path) -> None:
     import numpy as np
+    from diffusers.image_processor import VaeImageProcessor
     from diffusers.utils import export_to_video
+    from diffusers.video_processor import VideoProcessor
 
     latents_mean = (
         torch.tensor(vae.config.latents_mean)
@@ -265,12 +330,13 @@ def _decode_and_save(vae, latents: torch.Tensor, out_path: Path) -> None:
         shard_spec_fn=(lambda m: shard_vae_decoder_specs(m.vae)),
     )
 
-    pixels = pixels.float().clamp(-1.0, 1.0)
-    pixels = (pixels + 1.0) / 2.0
-    # (1, 3, T, H, W) -> (T, H, W, 3)
-    frames = pixels[0].permute(1, 2, 3, 0).contiguous().cpu().numpy()
-    frames = (frames * 255.0).round().astype(np.uint8)
-    frames_list = [frames[i] for i in range(frames.shape[0])]
+    video_processor = VideoProcessor(
+        vae_scale_factor=VaeImageProcessor().vae_scale_factor
+    )
+    frames_np = video_processor.postprocess_video(pixels.float(), output_type="np")[
+        0
+    ]  # (T, H, W, C), [0,1]
+    frames_list = [(frame * 255.0).round().astype("uint8") for frame in frames_np]
 
     export_to_video(frames_list, str(out_path), fps=FPS)
 

@@ -377,12 +377,22 @@ def run_component(
         with torch.no_grad():
             return wrapper(*inputs)
 
+    import os
+
+    import torch_xla
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.spmd as xs
     import torch_xla.runtime as xr
 
     xr.set_device_type("TT")
     device = xm.xla_device()
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.use_spmd()
+
+    options = {
+        "optimization_level": 1,
+    }
+    torch_xla.set_custom_compile_options(options)
 
     wrapper_on_device = wrapper.to(device)
     if hasattr(wrapper_on_device, "tie_weights"):
