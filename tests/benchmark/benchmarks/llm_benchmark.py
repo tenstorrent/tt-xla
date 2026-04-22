@@ -157,6 +157,47 @@ def get_mesh(model_loader, mesh_config_fn):
     return Mesh(device_ids, mesh_shape, mesh_name)
 
 
+_static_layer_update_patched = False
+
+
+def _patch_static_layer_update_once():
+    """Monkey-patch StaticLayer.update() to skip per-layer cumulative_length.add_().
+
+    In transformers 5.5, each StaticLayer increments its own cumulative_length inside
+    update(). With 16 layers, this produces 16 write_tensor ops per decode step on TT
+    hardware (one CL tensor per layer). By sharing one CL tensor across all layers and
+    skipping the per-layer add_(), we reduce write_tensor ops from 18 to 3.
+
+    The single external increment happens in LLMSamplingWrapper.forward() after the
+    model call, keyed by the _using_shared_cl flag set in transfer_to_device().
+    """
+    global _static_layer_update_patched
+    if _static_layer_update_patched:
+        return
+    from transformers.cache_utils import StaticLayer
+
+    def _update_no_cl_increment(
+        self, key_states: torch.Tensor, value_states: torch.Tensor, *args, **kwargs
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if not self.is_initialized:
+            self.lazy_initialization(key_states, value_states)
+        kv_length = key_states.shape[-2]
+        cache_position = (
+            torch.arange(kv_length, device=self.device) + self.cumulative_length
+        )
+        # Increment is omitted here — managed externally (once per step).
+        try:
+            self.keys.index_copy_(2, cache_position, key_states)
+            self.values.index_copy_(2, cache_position, value_states)
+        except NotImplementedError:
+            self.keys[:, :, cache_position] = key_states
+            self.values[:, :, cache_position] = value_states
+        return self.keys, self.values
+
+    StaticLayer.update = _update_no_cl_increment
+    _static_layer_update_patched = True
+
+
 def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     """
     Transfer inputs to device.
@@ -168,7 +209,13 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     Returns:
         input_args on device
     """
-    for layer in input_args["past_key_values"].layers:
+    # Apply the StaticLayer.update patch before first device run (after CPU prefill).
+    # This skips per-layer CL increments; a single increment fires in
+    # LLMSamplingWrapper.forward() instead, reducing write_tensor ops 18 → 3.
+    _patch_static_layer_update_once()
+
+    layers = input_args["past_key_values"].layers
+    for layer in layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
         # CL must be on device: StaticLayer.update() does
@@ -178,6 +225,15 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
         layer.cumulative_length.zero_()
         layer.cumulative_length = layer.cumulative_length.to(device)
         layer.device = device
+
+    # Share one CL tensor across all layers so XLA only writes it once per step.
+    shared_cl = layers[0].cumulative_length
+    for layer in layers[1:]:
+        layer.cumulative_length = shared_cl
+
+    # Mark cache so LLMSamplingWrapper.forward() knows to increment once externally.
+    input_args["past_key_values"]._using_shared_cl = True
+
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args

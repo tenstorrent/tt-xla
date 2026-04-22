@@ -61,6 +61,11 @@ class LLMSamplingWrapper(torch.nn.Module):
             position_ids=position_ids,
             use_cache=use_cache,
         )
+        # Single CL increment for caches using the shared-CL optimisation
+        # (StaticLayer.update patched to skip per-layer add_()).  Handles
+        # both prefill (kv_length = seq_len) and decode (kv_length = 1).
+        if getattr(past_key_values, "_using_shared_cl", False):
+            past_key_values.layers[0].cumulative_length.add_(input_ids.shape[-1])
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.
         # This is a noop for decode.
