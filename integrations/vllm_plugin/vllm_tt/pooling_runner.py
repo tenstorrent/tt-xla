@@ -94,7 +94,7 @@ from .attention import (
 from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .overrides import replace_modules
-from .platform import TTConfig
+from .platform import TTConfig, resolve_hf_decoder_layer_config
 from .vllm_distributed_utils import shard_model
 from .vllm_utils import determine_mesh_shape
 
@@ -517,16 +517,17 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
-
-        if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
-            logger.info(
-                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
-            )
-            # Store original layer count for weight filtering
-            self._original_num_layers = original_num_layers
-            self._target_num_layers = target_num_layers
+        if target_num_layers > 0:
+            hf_cfg = vllm_config.model_config.hf_config
+            original_num_layers, layer_cfg = resolve_hf_decoder_layer_config(hf_cfg)
+            if target_num_layers < original_num_layers:
+                layer_cfg.num_hidden_layers = target_num_layers
+                logger.info(
+                    f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+                )
+                # Store original layer count for weight filtering
+                self._original_num_layers = original_num_layers
+                self._target_num_layers = target_num_layers
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -1085,11 +1086,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         padded_num_reqs = _get_padded_num_reqs_with_upper_limit(
             num_reqs, self.max_num_reqs
         )
-        # Per-user last-token index within each padded slot.
-        logits_indices = torch.zeros(padded_num_reqs, dtype=torch.int32)
-        logits_indices[: len(num_scheduled_tokens_per_req)] = (
-            torch.from_numpy(num_scheduled_tokens_per_req) - 1
-        )
+        # Indices at which we sample (positions of last token in the sequence).
+        # Padded to avoid recompiling when `num_reqs` varies.
+        logits_indices = self.query_start_loc_cpu[1 : padded_num_reqs + 1] - 1
         logits_indices = logits_indices.to(self.device)
 
         if self.lora_config is not None:

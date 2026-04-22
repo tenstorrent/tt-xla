@@ -1,10 +1,5 @@
 name: Test (call)
 
-permissions:
-  actions: write
-  checks: write
-  contents: read
-
 on:
   workflow_call:
     inputs:
@@ -124,20 +119,6 @@ jobs:
           venv/
           examples/
 
-    - name: Override tt_forge_models ref
-      if: ${{ inputs.forge_models_override != '' }}
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        # Resolve short SHAs/refs via GitHub API, fall back to raw input
-        REF="${{ inputs.forge_models_override }}"
-        RESOLVED=$(gh api repos/tenstorrent/tt-forge-models/commits/$REF --jq .sha 2>/dev/null || echo "$REF")
-        cd third_party/tt_forge_models
-        git fetch --depth=1 origin $RESOLVED
-        git checkout FETCH_HEAD
-        echo "tt_forge_models checked out at $(git rev-parse HEAD)"
-
     - name: Fetch job id
       id: fetch-job-id
       uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
@@ -183,9 +164,9 @@ jobs:
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_galaxy_wh_6u_tests" ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ steps.strings.outputs.artifact_run_id }} \
             --repo ${{ github.repository }} \
@@ -198,16 +179,6 @@ jobs:
         echo "=== Installing wheel ==="
         source venv/activate
         uv pip install wheels/*.whl
-
-    - name: Install custom torch_xla from workflow run
-      if: ${{ inputs.torchxla_build_run_id != '' }}
-      shell: bash
-      run: |
-        echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
-        gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
-        source venv/activate
-        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
-        uv pip show torch_xla
 
     - name: Download and setup alchemist library
       if: ${{ matrix.build.require == 'alchemist' }}
@@ -276,6 +247,8 @@ jobs:
       run: |
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
+        # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
+        # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
         PYTEST_FORKED=""
         for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
@@ -329,7 +302,7 @@ jobs:
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 && inputs.forge_models_override == '' }}
+      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
       shell: bash
       run: |
         source venv/activate
@@ -367,16 +340,16 @@ jobs:
       env:
         HF_HOME: /mnt/dockercache/huggingface
         TORCH_HOME: /mnt/dockercache/torchhub
-        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
       shell: bash
       run: |
         source venv/activate
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_galaxy_wh_6u_tests" ]]; then
           uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
           uv pip freeze
         fi
@@ -387,9 +360,9 @@ jobs:
                2>&1 | tee pytest.log
 
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_galaxy_wh_6u_tests" ]]; then
           uv pip uninstall vllm transformers
           uv pip install -r $(pwd)/venv/requirements-dev.txt
         fi
@@ -409,7 +382,6 @@ jobs:
       with:
         name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: pytest.log
-        if-no-files-found: ignore
 
     - name: Upload Test Report
       uses: actions/upload-artifact@v6
@@ -417,7 +389,6 @@ jobs:
       with:
         name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
-        if-no-files-found: ignore
 
     # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
     - name: Upload Benchmark Report
@@ -440,14 +411,14 @@ jobs:
         continue-on-error: true
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-*" --dir test_reports || echo "No reports found"
           find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
 
       - name: Show consolidated test report
         continue-on-error: true
-        uses: mikepenz/action-junit-report@v6
+        uses: mikepenz/action-junit-report@v5
         if: success() || failure()
         with:
           report_paths: test_reports/report_*.xml

@@ -19,6 +19,57 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if len(args) > 2 and args[2] is not None:
                     res = res + args[2]
                 return res
+        if (
+            func is torch.nn.functional.unfold
+            and not torch.compiler.is_compiling()
+            and args
+            and isinstance(args[0], torch.Tensor)
+            and args[0].device.type == "xla"
+        ):
+            kw = kwargs or {}
+            inp = args[0]
+            kernel_size = args[1] if len(args) > 1 else kw["kernel_size"]
+            dilation = args[2] if len(args) > 2 else kw.get("dilation", 1)
+            padding = args[3] if len(args) > 3 else kw.get("padding", 0)
+            stride = args[4] if len(args) > 4 else kw.get("stride", 1)
+
+            kH, kW = (
+                (kernel_size, kernel_size)
+                if isinstance(kernel_size, int)
+                else tuple(kernel_size)
+            )
+            dH, dW = (
+                (dilation, dilation) if isinstance(dilation, int) else tuple(dilation)
+            )
+            pH, pW = (padding, padding) if isinstance(padding, int) else tuple(padding)
+            sH, sW = (stride, stride) if isinstance(stride, int) else tuple(stride)
+
+            N, C, H, W = inp.shape
+
+            if pH > 0 or pW > 0:
+                inp = torch.nn.functional.pad(inp, (pW, pW, pH, pH))
+                _, _, H, W = inp.shape
+
+            eff_kH = dH * (kH - 1) + 1
+            eff_kW = dW * (kW - 1) + 1
+            out_H = (H - eff_kH) // sH + 1
+            out_W = (W - eff_kW) // sW + 1
+
+            # Build index grids then gather — avoids im2col and Tensor.unfold HLO ops
+            ri = (
+                torch.arange(out_H, device=inp.device).view(-1, 1) * sH
+                + torch.arange(kH, device=inp.device).view(1, -1) * dH
+            )
+            ci = (
+                torch.arange(out_W, device=inp.device).view(-1, 1) * sW
+                + torch.arange(kW, device=inp.device).view(1, -1) * dW
+            )
+
+            # Gather rows then cols: (N, C, out_H*kH, out_W*kW)
+            x = inp[:, :, ri.reshape(-1), :][:, :, :, ci.reshape(-1)]
+            x = x.view(N, C, out_H, kH, out_W, kW)
+            x = x.permute(0, 1, 3, 5, 2, 4).contiguous()
+            return x.view(N, C * kH * kW, out_H * out_W)
         return func(*args, **(kwargs or {}))
 
 
