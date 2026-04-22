@@ -433,7 +433,7 @@ def apply_top_k_top_p_fast(
     The top-k and top-p filters are applied on the small candidate set
     (~128 tokens) rather than the full vocab.
     """
-    vocab_size = logits.shape[-1]
+    batch, vocab_size = logits.shape[0], logits.shape[-1]
     chunk_size, padded_chunk_size = _get_topk_split_params(vocab_size)
 
     # Pad batch to _TTNN_SAMPLING_BATCH_SIZE (32) so topk runs on
