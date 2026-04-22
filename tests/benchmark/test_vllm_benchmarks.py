@@ -196,6 +196,16 @@ SAMPLING_QUALITY_CONFIGS = [
         id="llama3.2-1b-nongreedy-device",
     ),
     pytest.param(
+        VLLMBenchmarkConfig(**_1B_BASE, batch_size=32, additional_config=_QUALITY_OPTS),
+        id="llama3.2-1b-b32-greedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_1B_BASE, batch_size=32, temperature=1.0, additional_config=_QUALITY_OPTS
+        ),
+        id="llama3.2-1b-b32-nongreedy-device",
+    ),
+    pytest.param(
         VLLMBenchmarkConfig(**_3B_BASE, additional_config=_QUALITY_OPTS),
         id="llama3.2-3b-greedy-device",
     ),
