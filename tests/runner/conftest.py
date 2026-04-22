@@ -8,9 +8,6 @@ import pytest
 
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.constants import ALLOWED_ARCHES
-from tests.runner.test_config.jax import test_config as jax_test_config
-from tests.runner.test_config.torch import test_config as torch_test_config
-from tests.runner.test_config.torch_llm import test_config as torch_llm_test_config
 from tests.runner.test_utils import (
     ModelTestConfig,
     ModelTestStatus,
@@ -83,6 +80,12 @@ def pytest_addoption(parser):
         choices=sorted(ALLOWED_ARCHES),
         help="Target architecture (e.g., n150, p150) for which to match via arch_overrides in test_config files",
     )
+    parser.addoption(
+        "--nvidia-cohort-json",
+        action="store",
+        default=None,
+        help="Path to a JSON manifest containing NVIDIA validation cohort rows with tt-xla test_case_id entries.",
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -118,6 +121,12 @@ def pytest_collection_modifyitems(config, items):
     arch = config.getoption("--arch")
 
     # Merge torch and jax test configs once outside the loop
+    from tests.runner.test_config.jax import test_config as jax_test_config
+    from tests.runner.test_config.torch import test_config as torch_test_config
+    from tests.runner.test_config.torch_llm import (
+        test_config as torch_llm_test_config,
+    )
+
     combined_test_config = torch_test_config | jax_test_config | torch_llm_test_config
 
     deselected = []

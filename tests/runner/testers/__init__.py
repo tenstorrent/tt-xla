@@ -2,11 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .jax import DynamicJaxModelTester, DynamicJaxMultiChipModelTester
-from .torch import DynamicTorchModelTester
+try:
+    from .torch import DynamicTorchCudaModelTester, DynamicTorchModelTester
+except Exception:
+    DynamicTorchCudaModelTester = None
+    DynamicTorchModelTester = None
+
+try:
+    from .jax import DynamicJaxModelTester, DynamicJaxMultiChipModelTester
+except Exception:
+    DynamicJaxModelTester = None
+    DynamicJaxMultiChipModelTester = None
 
 __all__ = [
     "DynamicJaxModelTester",
     "DynamicJaxMultiChipModelTester",
+    "DynamicTorchCudaModelTester",
     "DynamicTorchModelTester",
 ]

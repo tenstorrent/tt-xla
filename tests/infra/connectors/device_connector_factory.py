@@ -5,8 +5,8 @@
 from infra.utilities import Framework
 
 from .device_connector import DeviceConnector
-from .jax_device_connector import JaxDeviceConnector, jax_device_connector
 from .torch_device_connector import TorchDeviceConnector, torch_device_connector
+jax_device_connector = None
 
 
 class DeviceConnectorFactory:
@@ -18,6 +18,12 @@ class DeviceConnectorFactory:
     def create_connector(framework: Framework) -> DeviceConnector:
         if framework == Framework.JAX:
             global jax_device_connector
+            try:
+                from .jax_device_connector import JaxDeviceConnector
+            except Exception as e:
+                raise RuntimeError(
+                    "JAX device connector is unavailable in this environment"
+                ) from e
 
             if jax_device_connector is None:
                 jax_device_connector = JaxDeviceConnector()

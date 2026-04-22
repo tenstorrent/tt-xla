@@ -8,11 +8,20 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-import torch_xla.runtime as xr
 from infra.connectors.torch_device_connector import TorchDeviceConnector
-from infra.utilities import Framework, Mesh, Model
-from tt_jax import serialize_compiled_artifacts_to_disk
-from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+from infra.utilities.types import Framework, Mesh, Model
+try:
+    import torch_xla.runtime as xr
+except ImportError:
+    xr = None
+try:
+    from tt_jax import serialize_compiled_artifacts_to_disk
+except ImportError:
+    serialize_compiled_artifacts_to_disk = None
+try:
+    from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+except ImportError:
+    parse_compiled_artifacts_from_cache_to_disk = None
 
 
 class Workload:
@@ -86,6 +95,8 @@ class Workload:
             compiler_options: Optional JAX compiler options dict (ignored for Torch)
         """
         if self.is_jax:
+            if serialize_compiled_artifacts_to_disk is None:
+                raise RuntimeError("tt_jax is required for JAX workload serialization")
             # Get the executable to serialize
             executable = self.model if self.model else self.executable
             if executable is None:
@@ -100,6 +111,10 @@ class Workload:
                 **self.kwargs,
             )
         elif self.is_torch:
+            if xr is None or parse_compiled_artifacts_from_cache_to_disk is None:
+                raise RuntimeError(
+                    "torch_xla and tt_torch are required for torch workload serialization"
+                )
             cache_dir = TorchDeviceConnector.get_cache_dir()
 
             # Clear existing cache files to ensure we get exactly one file

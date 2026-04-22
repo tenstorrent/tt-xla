@@ -11,8 +11,8 @@ from enum import Enum
 from typing import Callable, Optional, Tuple
 
 from infra.evaluators import ComparisonConfig, ComparisonResult
-from infra.utilities import Framework, Mesh, Model, ShardSpec, Tensor
-from infra.workloads import Workload
+from infra.utilities.types import Framework, Mesh, Model, ShardSpec, Tensor
+from infra.workloads.workload import Workload
 
 from tests.infra.testers.compiler_config import CompilerConfig
 

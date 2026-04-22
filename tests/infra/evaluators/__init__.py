@@ -2,7 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .comparison_evaluator import ComparisonEvaluator
+"""Minimal evaluator exports."""
+
 from .evaluation_config import (
     AllcloseConfig,
     AtolConfig,
@@ -12,30 +13,24 @@ from .evaluation_config import (
     QualityConfig,
 )
 from .evaluator import ComparisonResult, EvaluationResult, Evaluator, QualityResult
-from .evaluator_factory import EvaluatorFactory
-from .jax_comparison_evaluator import JaxComparisonEvaluator
-from .quality_evaluator import QualityEvaluator
-from .torch_comparison_evaluator import TorchComparisonEvaluator
+from .comparison_evaluator import ComparisonEvaluator
 
-__all__ = [
-    # Base classes
-    "Evaluator",
-    "EvaluationResult",
-    "ComparisonResult",
-    "QualityResult",
-    # Comparison evaluators
-    "ComparisonEvaluator",
-    "JaxComparisonEvaluator",
-    "TorchComparisonEvaluator",
-    # Quality evaluator
-    "QualityEvaluator",
-    "QualityConfig",
-    "ImageGenQualityConfig",
-    # Factory
-    "EvaluatorFactory",
-    # Config
-    "ComparisonConfig",
-    "PccConfig",
-    "AtolConfig",
-    "AllcloseConfig",
-]
+try:
+    from .evaluator_factory import EvaluatorFactory
+except Exception:
+    EvaluatorFactory = None
+
+try:
+    from .jax_comparison_evaluator import JaxComparisonEvaluator
+except Exception:
+    JaxComparisonEvaluator = None
+
+try:
+    from .torch_comparison_evaluator import TorchComparisonEvaluator
+except Exception:
+    TorchComparisonEvaluator = None
+
+try:
+    from .quality_evaluator import QualityEvaluator
+except Exception:
+    QualityEvaluator = None

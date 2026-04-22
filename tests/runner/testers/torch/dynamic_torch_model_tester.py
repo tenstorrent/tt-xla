@@ -8,14 +8,17 @@ import collections
 from typing import Any
 
 import torch
-import torch_xla.runtime as xr
-from infra.evaluators import ComparisonConfig
+try:
+    import torch_xla.runtime as xr
+    from infra.utilities.torch_multichip_utils import get_mesh
+except ImportError:
+    xr = None
+    get_mesh = None
+from infra.evaluators.evaluation_config import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
-from infra.testers.single_chip.model import RunMode, TorchModelTester
-from infra.utilities.torch_multichip_utils import get_mesh
+from infra.testers.single_chip.model.model_tester import RunMode
+from infra.testers.single_chip.model.torch_model_tester import TorchModelTester
 from loguru import logger
-from tt_torch.sparse_mlp import enable_sparse_mlp, get_moe_shard_specs
-
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
 from third_party.tt_forge_models.config import Parallelism
@@ -140,6 +143,8 @@ class DynamicTorchModelTester(TorchModelTester):
         )
 
         if self.parallelism == Parallelism.DATA_PARALLEL:
+            if xr is None:
+                raise RuntimeError("torch_xla is required for data parallel TT tests")
             num_devices = xr.global_runtime_device_count()
             if isinstance(inputs, collections.abc.Mapping):
                 inputs = {
@@ -175,6 +180,9 @@ class DynamicTorchModelTester(TorchModelTester):
         if self.parallelism == Parallelism.SINGLE_DEVICE:
             return None
 
+        if xr is None or get_mesh is None:
+            raise RuntimeError("torch_xla is required for multi-device TT tests")
+
         num_devices = xr.global_runtime_device_count()
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
@@ -194,6 +202,8 @@ class DynamicTorchModelTester(TorchModelTester):
 
     def _inject_custom_moe(self, model):
         """Injects a custom MoE implementation into the model if specified in test metadata."""
+        from tt_torch.sparse_mlp import enable_sparse_mlp, get_moe_shard_specs
+
         logger.info(
             "Custom MoE injection enabled for this test - using sparse_mlp.py implementation in tt_torch"
         )

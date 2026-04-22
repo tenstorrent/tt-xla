@@ -2,6 +2,25 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from .graph.graph_tester import run_graph_test, run_graph_test_with_random_inputs
-from .model import JaxModelTester, RunMode, TorchModelTester
-from .op.op_tester import run_op_test, run_op_test_with_random_inputs
+"""Minimal single-chip tester exports."""
+
+try:
+    from .model.model_tester import RunMode
+    from .model.torch_model_tester import TorchModelTester
+    from .model.jax_model_tester import JaxModelTester
+except Exception:
+    RunMode = None
+    TorchModelTester = None
+    JaxModelTester = None
+
+try:
+    from .graph.graph_tester import run_graph_test, run_graph_test_with_random_inputs
+except Exception:
+    run_graph_test = None
+    run_graph_test_with_random_inputs = None
+
+try:
+    from .op.op_tester import run_op_test, run_op_test_with_random_inputs
+except Exception:
+    run_op_test = None
+    run_op_test_with_random_inputs = None

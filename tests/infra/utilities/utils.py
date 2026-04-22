@@ -3,17 +3,24 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
-from typing import Tuple, Union
+from typing import Any, Tuple, Union
 
-import jax
-import jax.numpy as jnp
 import torch
-from infra.runners import run_on_cpu
-from infra.utilities import Framework, Tensor
+from infra.runners.utils import run_on_cpu
+from infra.utilities.types import Framework, Tensor
 from infra.workloads import JaxMultichipWorkload, Workload
-from jax._src.typing import DTypeLike
-from jax.experimental.shard_map import shard_map
-from jax.sharding import NamedSharding
+try:
+    import jax
+    import jax.numpy as jnp
+    from jax._src.typing import DTypeLike
+    from jax.experimental.shard_map import shard_map
+    from jax.sharding import NamedSharding
+except ImportError:
+    jax = None
+    jnp = None
+    DTypeLike = Any
+    shard_map = None
+    NamedSharding = None
 
 
 def sanitize_test_name(test_name: str) -> str:
@@ -43,6 +50,8 @@ def sanitize_test_name(test_name: str) -> str:
 
 def random_image(image_size: int, framework: Framework = Framework.JAX) -> Tensor:
     """Create a random input image with the given image size."""
+    if jnp is None:
+        raise RuntimeError("jax is required for random_image")
     return random_tensor(
         (image_size, image_size, 3),
         dtype=jnp.uint8,
@@ -159,6 +168,8 @@ def create_jax_inference_tester(
     model_tester_class, variant_or_args, format: str, compiler_config=None, **kwargs
 ):
     """Generic JAX inference tester creator."""
+    if jnp is None:
+        raise RuntimeError("jax is required for create_jax_inference_tester")
     from infra.testers.compiler_config import CompilerConfig
 
     if format == "float32":
@@ -203,6 +214,8 @@ def create_torch_inference_tester(
 
 def compile_jax_workload_for_cpu(workload: Workload) -> None:
     """Compile JAX workload for CPU using jax.jit."""
+    if jax is None:
+        raise RuntimeError("jax is required for compile_jax_workload_for_cpu")
     workload.compiled_executable = jax.jit(
         workload.executable,
         static_argnames=workload.static_argnames,
@@ -213,6 +226,8 @@ def compile_jax_workload_for_tt_device(
     workload: Workload, compiler_options: dict = None
 ) -> None:
     """Compile JAX workload for TT device using jax.jit with compiler options."""
+    if jax is None:
+        raise RuntimeError("jax is required for compile_jax_workload_for_tt_device")
     workload.compiled_executable = jax.jit(
         workload.executable,
         static_argnames=workload.static_argnames,
@@ -258,3 +273,5 @@ def compile_jax_multichip_workload(
         static_argnames=workload.static_argnames,
         compiler_options=compiler_options or {},
     )
+    if jax is None or jnp is None:
+        raise RuntimeError("jax is required for random_jax_tensor")

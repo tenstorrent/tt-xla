@@ -6,8 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from infra.utilities import Framework, Mesh, Model
-from infra.utilities.torch_multichip_utils import enable_spmd
+from infra.utilities.types import Framework, Mesh, Model
 
 from .workload import Workload
 
@@ -53,4 +52,6 @@ class TorchWorkload(Workload):
         is_multichip = self.mesh and len(self.mesh.device_ids) > 1
 
         if has_shard_specs and is_multichip:
+            from infra.utilities.torch_multichip_utils import enable_spmd
+
             enable_spmd()

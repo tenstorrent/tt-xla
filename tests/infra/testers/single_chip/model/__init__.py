@@ -9,6 +9,14 @@ from tests.runner.utils import (
     TorchDynamicLoader,
 )
 
-from .jax_model_tester import JaxModelTester
 from .model_tester import RunMode
-from .torch_model_tester import TorchModelTester
+
+try:
+    from .torch_model_tester import TorchModelTester
+except Exception:
+    TorchModelTester = None
+
+try:
+    from .jax_model_tester import JaxModelTester
+except Exception:
+    JaxModelTester = None
