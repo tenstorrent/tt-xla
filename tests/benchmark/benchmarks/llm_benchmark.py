@@ -171,12 +171,12 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
-        # Reset CL on CPU. Keep cumulative_length as a CPU tensor so that
-        # mark_static_address (set by StaticLayer.lazy_initialization) stays
-        # intact.  Moving it to device would create a new tensor that loses
-        # the static-address contract, causing the compiled graph to diverge
-        # from the Python attribute and producing a ~10 % SPS regression.
+        # CL must be on device: StaticLayer.update() does
+        # torch.arange(kv_length, device=self.device) + self.cumulative_length,
+        # which fails if CL is on CPU and self.device is XLA.
+        # Zero before moving so the fresh cache starts at position 0.
         layer.cumulative_length.zero_()
+        layer.cumulative_length = layer.cumulative_length.to(device)
         layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
