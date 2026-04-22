@@ -58,11 +58,50 @@ DEFAULT_PROMPTS = [
 # --------------------------------
 # Llama Generation Loop Example
 # --------------------------------
-def llama(interactive: bool = False):
+def describe_tensor(name: str, tensor: torch.Tensor):
+    print(
+        f"{name}: shape={tuple(tensor.shape)}, dtype={tensor.dtype}, device={tensor.device}"
+    )
+
+
+def print_dry_run_tensors(model: torch.nn.Module, input_args: dict):
+    print("\n=== DRY RUN: MODEL STATE DICT TENSORS ===")
+    for name, tensor in model.state_dict().items():
+        describe_tensor(f"state_dict.{name}", tensor)
+
+    print("\n=== DRY RUN: INPUT TENSORS ===")
+    for key, value in input_args.items():
+        if torch.is_tensor(value):
+            describe_tensor(f"inputs.{key}", value)
+
+    static_cache = input_args.get("past_key_values")
+    if isinstance(static_cache, StaticCache):
+        for layer_idx, layer in enumerate(static_cache.layers):
+            describe_tensor(f"inputs.past_key_values.layers.{layer_idx}.keys", layer.keys)
+            describe_tensor(
+                f"inputs.past_key_values.layers.{layer_idx}.values", layer.values
+            )
+
+    print("=== END DRY RUN ===")
+
+
+def llama(interactive: bool = False, dry_run: bool = False):
 
     # Set up config variables.
     max_cache_len: int = 128
     model_name: str = "meta-llama/Llama-3.2-3B"
+
+    # Instantiate model and tokenizer
+    model, tokenizer = setup_model_and_tokenizer(model_name)
+
+    if dry_run:
+        batch_size = 1
+        prompt = DEFAULT_PROMPTS[:batch_size]
+        input_args = construct_inputs(
+            prompt, tokenizer, model.config, batch_size, max_cache_len
+        )
+        print_dry_run_tensors(model, input_args)
+        return
 
     # Determine if SPMD mode should be enabled, if more than 1 device is available.
     # SPMD must be turned off for llama generate on 1x1 mesh - See https://github.com/tenstorrent/tt-xla/issues/1639
@@ -74,9 +113,6 @@ def llama(interactive: bool = False):
     # Connect the device and create an xla mesh.
     device: torch.device = torch_xla.device()
     mesh: Mesh = create_device_mesh()
-
-    # Instantiate model and tokenizer
-    model, tokenizer = setup_model_and_tokenizer(model_name)
 
     while True:
         if interactive:
@@ -115,7 +151,7 @@ def llama(interactive: bool = False):
             device,
             mesh,
             is_spmd,
-            max_tokens_to_generate,
+            3,
             user_prompt,
             interactive,
         )
@@ -383,9 +419,16 @@ if __name__ == "__main__":
         default=False,
         help="Enable interactive mode for entering custom prompts",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Print model state dict and input tensor metadata, then exit",
+    )
     args = parser.parse_args()
 
-    # By default torch_xla uses the CPU device so we have to set it to TT device.
-    xr.set_device_type("TT")
+    if not args.dry_run:
+        # By default torch_xla uses the CPU device so we have to set it to TT device.
+        xr.set_device_type("TT")
 
-    llama(interactive=args.interactive)
+    llama(interactive=args.interactive, dry_run=args.dry_run)
