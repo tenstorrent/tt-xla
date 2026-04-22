@@ -1085,7 +1085,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   // TODO(dmilinkovic): Disable const-eval on CPU for EmitC backend until
-  // CPU hoisting support is added. https://github.com/tenstorrent/tt-mlir/issues/6100
+  // CPU hoisting support is added.
+  // https://github.com/tenstorrent/tt-mlir/issues/6100
   if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     options.enableCPUHoistedConstEval = false;
   }
@@ -1095,7 +1096,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
   options.meshTopology = fabricConfigToMeshTopology(
       client_instance->computeFabricConfig(devices_mesh_shape));
-
 
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
