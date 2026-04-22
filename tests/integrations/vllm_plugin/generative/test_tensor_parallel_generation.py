@@ -120,22 +120,10 @@ def test_tensor_parallel_generation_llmbox_large(
     check_host_memory(model_name)
 
 
-# Gemma-4 is instruction-tuned, so the raw seed prompt "I like taking walks
-# in the" degenerates to repetitive output on both HF and vLLM. Wrapping the
-# prompt in the model's chat template gives the model a context in which it
-# can actually produce a meaningful reply.
+# Gemma-4 is instruction-tuned, so the raw seed prompt degenerates to
+# repetitive output on both HF and vLLM. Feed it through llm.chat() so vLLM
+# wraps the user turn in the model's chat template before generation.
 _GEMMA4_SEED_PROMPT = "I like taking walks in the"
-
-
-def _build_gemma4_chat_prompt(model_name: str) -> str:
-    from transformers import AutoTokenizer
-
-    tok = AutoTokenizer.from_pretrained(model_name)
-    return tok.apply_chat_template(
-        [{"role": "user", "content": _GEMMA4_SEED_PROMPT}],
-        add_generation_prompt=True,
-        tokenize=False,
-    )
 
 
 @pytest.mark.nightly
@@ -153,7 +141,7 @@ def test_tensor_parallel_generation_bhqb_multimodal_31b(
     use_2d_mesh: bool,
 ):
     model_name = "google/gemma-4-31B-it"
-    prompts = [_build_gemma4_chat_prompt(model_name)]
+    messages = [[{"role": "user", "content": _GEMMA4_SEED_PROMPT}]]
     sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=256)
     llm_args = {
         "model": model_name,
@@ -175,8 +163,8 @@ def test_tensor_parallel_generation_bhqb_multimodal_31b(
     }
     llm = vllm.LLM(**llm_args)
 
-    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
-    print(f"prompt: {prompts[0]}, output: {output_text}")
+    output_text = llm.chat(messages, sampling_params)[0].outputs[0].text
+    print(f"prompt: {_GEMMA4_SEED_PROMPT}, output: {output_text}")
 
     check_host_memory(model_name)
 
@@ -185,7 +173,7 @@ def test_tensor_parallel_generation_bhqb_multimodal_31b(
 @pytest.mark.single_device
 def test_generation_single_device_multimodal_e4b():
     model_name = "google/gemma-4-E4B-it"
-    prompts = [_build_gemma4_chat_prompt(model_name)]
+    messages = [[{"role": "user", "content": _GEMMA4_SEED_PROMPT}]]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=256)
     llm_args = {
         "model": model_name,
@@ -205,7 +193,7 @@ def test_generation_single_device_multimodal_e4b():
     }
     llm = vllm.LLM(**llm_args)
 
-    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
-    print(f"prompt: {prompts[0]}, output: {output_text}")
+    output_text = llm.chat(messages, sampling_params)[0].outputs[0].text
+    print(f"prompt: {_GEMMA4_SEED_PROMPT}, output: {output_text}")
 
     check_host_memory(model_name)

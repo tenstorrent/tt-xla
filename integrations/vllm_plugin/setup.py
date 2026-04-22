@@ -51,7 +51,8 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm==0.19.0",
+        "vllm==0.19.1",
+        "transformers==5.5.1",
     ],
     python_requires=">=3.12, <3.13",
     license="Apache-2.0",

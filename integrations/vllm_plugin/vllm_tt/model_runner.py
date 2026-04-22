@@ -1725,9 +1725,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     xs.mark_sharding(input_ids, self.mesh, ("batch", None))
                 xs.mark_sharding(position_ids, self.mesh, ("batch", None))
                 if inputs_embeds is not None:
-                    xs.mark_sharding(
-                        inputs_embeds, self.mesh, ("batch", None, None)
-                    )
+                    xs.mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
             (
                 model_input_ids,
                 model_positions,
