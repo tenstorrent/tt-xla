@@ -5,6 +5,7 @@
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 import torch
@@ -35,17 +36,17 @@ TEST_ENTRY_BY_ID = {
 
 @dataclass
 class NvidiaManifestRow:
-    model_id: str
     test_case_id: str
+    display_name: str
 
 
 class NvidiaModelInfo:
     """Minimal model-info surface for report-property compatibility."""
 
-    def __init__(self, test_case_id: str, model_id: str):
+    def __init__(self, test_case_id: str, display_name: str):
         self.name = test_case_id
-        self.model = model_id
-        self.variant = model_id
+        self.model = display_name
+        self.variant = display_name
         self.group = None
         self.task = "nvidia_validation"
         self.source = "ModelSource.HUGGING_FACE"
@@ -64,17 +65,27 @@ class NvidiaModelInfo:
 
 
 def _load_nvidia_rows(path: str) -> list[NvidiaManifestRow]:
-    obj = json.loads(open(path).read())
+    obj = json.loads(Path(path).read_text())
     models = obj.get("models") or []
     rows = []
     for row in models:
         test_case_id = row.get("test_case_id")
-        model_id = row.get("model_id") or row.get("pretrained_model_name")
-        if not test_case_id or not model_id:
+        display_name = (
+            row.get("display_name")
+            or row.get("model_id")
+            or row.get("pretrained_model_name")
+            or test_case_id
+        )
+        if not test_case_id:
             continue
         if test_case_id not in TEST_ENTRY_BY_ID:
             continue
-        rows.append(NvidiaManifestRow(model_id=model_id, test_case_id=test_case_id))
+        rows.append(
+            NvidiaManifestRow(
+                test_case_id=test_case_id,
+                display_name=display_name,
+            )
+        )
     return rows
 
 
@@ -110,7 +121,7 @@ def _run_model_test_impl_nvidia(
         loader = ModelLoader(variant=variant)
         model_info = NvidiaModelInfo(
             test_case_id=nvidia_row.test_case_id,
-            model_id=nvidia_row.model_id,
+            display_name=nvidia_row.display_name,
         )
 
         succeeded = False
