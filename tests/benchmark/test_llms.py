@@ -65,6 +65,7 @@ def test_llm(
     use_mla_cache: bool = False,
     expected_ops: list = None,
     check_fusions: bool = False,
+    use_indexer_cache: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -163,6 +164,7 @@ def test_llm(
         use_mla_cache=use_mla_cache,
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
+        use_indexer_cache=use_indexer_cache,
     )
 
     if output_file:
@@ -2099,6 +2101,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
+        use_indexer_cache=True,
         arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
