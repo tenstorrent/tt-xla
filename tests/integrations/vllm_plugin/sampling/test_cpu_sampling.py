@@ -41,9 +41,9 @@ def assert_coherent(text: str, label: str) -> None:
     words = text.lower().split()
     assert len(words) >= 3, f"[{label}] Output too short: {text!r}"
     ascii_ratio = sum(1 for c in text if ord(c) < 128) / max(len(text), 1)
-    assert ascii_ratio > 0.8, (
-        f"[{label}] Non-ASCII garbage ({ascii_ratio:.0%}): {text!r}"
-    )
+    assert (
+        ascii_ratio > 0.8
+    ), f"[{label}] Non-ASCII garbage ({ascii_ratio:.0%}): {text!r}"
 
 
 @pytest.mark.single_device
@@ -86,14 +86,12 @@ def test_cpu_sampling_top_k():
 @pytest.mark.nightly
 def test_cpu_sampling_repetition_penalty():
     """Repetition penalty produces coherent output and suppresses loops."""
-    params = vllm.SamplingParams(
-        temperature=0.6, repetition_penalty=1.1, max_tokens=32
-    )
+    params = vllm.SamplingParams(temperature=0.6, repetition_penalty=1.1, max_tokens=32)
     text = llm().generate([PROMPT], params)[0].outputs[0].text
     assert_coherent(text, "rep_penalty=1.1")
     # With penalty active, a tight repetition loop should not fill the output.
     words = text.lower().split()
     most_common = max(set(words), key=words.count)
-    assert words.count(most_common) <= len(words) // 2, (
-        f"Output looks like a repetition loop: {text!r}"
-    )
+    assert (
+        words.count(most_common) <= len(words) // 2
+    ), f"Output looks like a repetition loop: {text!r}"

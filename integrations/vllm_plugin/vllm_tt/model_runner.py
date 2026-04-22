@@ -1358,7 +1358,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
-            logger.warning_once("Sampling on %s (cpu_sampling=%s)", sampling_device, self.tt_config.cpu_sampling)
+            logger.warning_once(
+                "Sampling on %s (cpu_sampling=%s)",
+                sampling_device,
+                self.tt_config.cpu_sampling,
+            )
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
@@ -1904,7 +1908,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
             else:
-                logger.warning("cpu_sampling=True: skipping device sampling precompilation")
+                logger.warning(
+                    "cpu_sampling=True: skipping device sampling precompilation"
+                )
             self._precompile_gather_logprobs()
 
     def profile_run(
@@ -2216,14 +2222,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for i in range(topk_vals.size(0)):
                     p = float(top_p[i].item())
                     if p < 1.0:
-                        sorted_vals, sort_idx = torch.sort(topk_vals[i], descending=True)
+                        sorted_vals, sort_idx = torch.sort(
+                            topk_vals[i], descending=True
+                        )
                         probs = torch.softmax(sorted_vals, dim=-1)
                         mask = torch.cumsum(probs, dim=-1) - probs >= p
-                        sorted_vals[mask] = float('-inf')
+                        sorted_vals[mask] = float("-inf")
                         topk_vals[i].scatter_(0, sort_idx, sorted_vals)
 
             greedy = torch.argmax(topk_vals, dim=-1)
-            gumbel = -torch.log(-torch.log(torch.rand_like(topk_vals.float()) + 1e-20) + 1e-20)
+            gumbel = -torch.log(
+                -torch.log(torch.rand_like(topk_vals.float()) + 1e-20) + 1e-20
+            )
             random = torch.argmax(topk_vals + gumbel, dim=-1)
             sampled_local = torch.where(temp < 1e-6, greedy, random)
             return topk_idx.gather(-1, sampled_local.unsqueeze(-1))
@@ -2234,23 +2244,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     k = int(top_k[i].item())
                     if k > 0 and k < logits.size(1):
                         topk_vals, _ = torch.topk(logits[i], k)
-                        logits[i][logits[i] < topk_vals[-1]] = float('-inf')
+                        logits[i][logits[i] < topk_vals[-1]] = float("-inf")
 
             if has_topp:
                 for i in range(logits.size(0)):
                     p = float(top_p[i].item())
                     if p < 1.0:
-                        sorted_logits, sorted_indices = torch.sort(logits[i], descending=True)
+                        sorted_logits, sorted_indices = torch.sort(
+                            logits[i], descending=True
+                        )
                         probs = torch.softmax(sorted_logits, dim=-1)
                         mask = torch.cumsum(probs, dim=-1) - probs >= p
-                        sorted_logits[mask] = float('-inf')
+                        sorted_logits[mask] = float("-inf")
                         logits[i].scatter_(0, sorted_indices, sorted_logits)
 
             # Gumbel-max: mathematically equivalent to softmax + multinomial
             # but implemented as argmax(logits + Gumbel noise) — avoids
             # torch.multinomial which processes each batch element sequentially.
             greedy = torch.argmax(logits, dim=-1)
-            gumbel = -torch.log(-torch.log(torch.rand_like(logits.float()) + 1e-20) + 1e-20)
+            gumbel = -torch.log(
+                -torch.log(torch.rand_like(logits.float()) + 1e-20) + 1e-20
+            )
             random = torch.argmax(logits + gumbel, dim=-1)
             return torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
 
