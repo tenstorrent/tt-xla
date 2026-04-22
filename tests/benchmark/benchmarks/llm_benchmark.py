@@ -6,7 +6,7 @@
 import os
 import socket
 import sys
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 import torch
@@ -16,7 +16,13 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
 import transformers
-from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
+from infra import MLACache, MLAStaticLayer
+from llm_utils import (
+    generate_and_benchmark,
+    init_accuracy_testing,
+    init_mla_cache,
+    init_static_cache,
+)
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
 from torch_xla.distributed.spmd import Mesh
@@ -79,9 +85,10 @@ def construct_inputs(
     model_config,
     batch_size: int,
     max_cache_len: int,
-    past_key_values: Optional[StaticCache] = None,
+    past_key_values: Optional[Union[StaticCache, MLACache]] = None,
     input_prompt: str = None,
     input_prompt_tokens: Optional[torch.Tensor] = None,
+    use_mla_cache: bool = False,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -128,13 +135,22 @@ def construct_inputs(
     if past_key_values is None:
         # Static cache should be initialized on CPU and separately transferred to device
         # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
-        static_cache = init_static_cache(
-            config=model_config,
-            batch_size=batch_size,
-            max_cache_len=max_cache_len,
-            device="cpu",
-            dtype=torch.bfloat16,
-        )
+        if use_mla_cache:
+            static_cache = init_mla_cache(
+                config=model_config,
+                batch_size=batch_size,
+                max_cache_len=max_cache_len,
+                device="cpu",
+                dtype=torch.bfloat16,
+            )
+        else:
+            static_cache = init_static_cache(
+                config=model_config,
+                batch_size=batch_size,
+                max_cache_len=max_cache_len,
+                device="cpu",
+                dtype=torch.bfloat16,
+            )
     else:
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
@@ -169,8 +185,17 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
         input_args on device
     """
     for layer in input_args["past_key_values"].layers:
-        layer.keys = layer.keys.to(device)
-        layer.values = layer.values.to(device)
+        if isinstance(layer, MLAStaticLayer):
+            layer.compressed_kv = layer.compressed_kv.to(device)
+            layer.k_pe = layer.k_pe.to(device)
+            layer.keys = layer.compressed_kv
+            layer.values = layer.k_pe
+            if not torch.compiler.is_compiling():
+                torch._dynamo.mark_static_address(layer.compressed_kv)
+                torch._dynamo.mark_static_address(layer.k_pe)
+        else:
+            layer.keys = layer.keys.to(device)
+            layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
@@ -221,6 +246,7 @@ def benchmark_llm_torch_xla(
     weight_dtype_overrides: dict = None,
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
+    use_mla_cache: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -252,7 +278,6 @@ def benchmark_llm_torch_xla(
     Returns:
         Benchmark result containing token generation performance metrics and model information
     """
-
     # Enforce bfloat16 only
     if data_format != "bfloat16":
         raise ValueError(
@@ -330,6 +355,7 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        use_mla_cache=use_mla_cache,
     )
 
     # Limit maximum generation count to fit within preallocated static cache
@@ -365,6 +391,7 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         past_key_values=decode_only_cache if decode_only else None,
+        use_mla_cache=use_mla_cache,
     )
     input_args = transfer_to_device(input_args, device)
     model = model.to(device, dtype=torch.bfloat16)
@@ -381,10 +408,18 @@ def benchmark_llm_torch_xla(
         # Also shard KV cache tensors created in input_args
         # This is hardcoded for all TP models, and should be moved to tt-forge-models.
         # https://github.com/tenstorrent/tt-xla/issues/4240
-        kv_spec = kv_cache_sharding_spec or (None, "model", None, None)
+        kv_spec = kv_cache_sharding_spec
         for layer in input_args["past_key_values"].layers:
-            xs.mark_sharding(layer.keys, mesh, kv_spec)
-            xs.mark_sharding(layer.values, mesh, kv_spec)
+            if isinstance(layer, MLAStaticLayer):
+                if kv_spec is None:
+                    kv_spec = ("batch", None, None, None)
+                xs.mark_sharding(layer.compressed_kv, mesh, kv_spec)
+                xs.mark_sharding(layer.k_pe, mesh, kv_spec)
+            else:
+                if kv_spec is None:
+                    kv_spec = (None, "model", None, None)
+                xs.mark_sharding(layer.keys, mesh, kv_spec)
+                xs.mark_sharding(layer.values, mesh, kv_spec)
 
         # Shard input_ids
         if input_output_sharding_spec:
@@ -468,6 +503,7 @@ def benchmark_llm_torch_xla(
         ),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        use_mla_cache=use_mla_cache,
     )
 
     if decode_only:
@@ -521,6 +557,7 @@ def benchmark_llm_torch_xla(
             input_prompt_tokens=(
                 token_accuracy.input_prompt if accuracy_testing else None
             ),
+            use_mla_cache=use_mla_cache,
         )
         input_args = transfer_to_device(input_args, device)
         if input_output_sharding_spec:
