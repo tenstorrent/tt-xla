@@ -172,18 +172,74 @@ def _find_matmul_end_line(lines: list[str], start_line: int) -> int:
     return start_line
 
 
+_BYPASS_HELPERS_MARKER = "# === CPU BYPASS HELPERS ==="
+
+_BYPASS_HELPERS = f'''
+{_BYPASS_HELPERS_MARKER}
+def _bypass_to_host_bf16(t):
+    """Dequant (if bfp4) -> all_gather on every sharded axis -> host torch.bfloat16.
+
+    The emitted bypass uses this for BOTH activation and weight so the CPU
+    matmul sees a full (un-sharded) tensor regardless of the original shard
+    spec. We all-gather both cluster axes unconditionally; axes that were
+    already replicated become no-ops.
+    """
+    import ttnn
+    if t.dtype == ttnn.DataType.BFLOAT4_B:
+        t = ttnn.typecast(
+            t,
+            ttnn.DataType.BFLOAT16,
+            memory_config=ttnn.DRAM_MEMORY_CONFIG,
+        )
+    # Multi-device all-gather on both cluster axes. Wrapped in try/except so
+    # this also works on single-chip where cluster_axis is invalid.
+    for axis in (0, 1):
+        try:
+            t = ttnn.all_gather(
+                input_tensor=t,
+                dim=-1,
+                cluster_axis=axis,
+                memory_config=ttnn.DRAM_MEMORY_CONFIG,
+                topology=ttnn.Topology.Ring,
+            )
+        except Exception:
+            break
+    import torch
+    return ttnn.to_torch(ttnn.from_device(t)).to(torch.bfloat16)
+
+
+def _bypass_from_host_bf16(cpu_tensor, reference_device_tensor):
+    """Push a CPU torch tensor back to device with the same mesh as the reference."""
+    import ttnn
+    return ttnn.from_torch(
+        cpu_tensor,
+        dtype=ttnn.DataType.BFLOAT16,
+        layout=ttnn.Layout.TILE,
+        device=reference_device_tensor.device(),
+        memory_config=ttnn.DRAM_MEMORY_CONFIG,
+    )
+# === END CPU BYPASS HELPERS ===
+'''
+
+
 def generate_cpu_bypass_code(
     main_code: str,
     groups: list[BFP4MatmulGroup],
 ) -> str:
     """Generate a modified main.py with CPU-bypassed bfp4 matmuls.
 
-    The bfp4 weight quantization (in consteval.py) is preserved.
-    Only the matmul computation is moved to CPU.
+    Emitted per-matmul pattern (matches the user's requested flow):
+        W (bfp4 on device)
+          -> ttnn.typecast(..., BFLOAT16)   # on-device dequant
+          -> ttnn.all_gather(axis=0), all_gather(axis=1)   # gather shards
+          -> ttnn.from_device -> ttnn.to_torch -> torch.bfloat16
+          -> torch.matmul(act_host, wt_host)
+          -> ttnn.from_torch back to device
+    The bfp4 weight quantization in consteval.py is preserved (we only
+    substitute the matmul computation).
     """
     lines = main_code.splitlines()
 
-    # Collect line ranges to replace for each group
     replacements: dict[int, tuple[int, str]] = {}  # start_line -> (end_line, new_code)
 
     for idx, group in enumerate(groups):
@@ -195,11 +251,10 @@ def generate_cpu_bypass_code(
         out = group.matmul_output
 
         bypass = f"""{indent}# === CPU BYPASS #{idx} (was ttnn.matmul) ===
-{indent}_torch_act_{idx} = ttnn.to_torch(ttnn.from_device({act})).to(torch.bfloat16)
-{indent}_torch_wt_{idx} = ttnn.to_torch(ttnn.from_device({wt})).to(torch.bfloat16)
+{indent}_torch_act_{idx} = _bypass_to_host_bf16({act})
+{indent}_torch_wt_{idx} = _bypass_to_host_bf16({wt})
 {indent}_cpu_result_{idx} = torch.matmul(_torch_act_{idx}, _torch_wt_{idx})
-{indent}_device_{idx} = {act}.device()
-{indent}{out} = ttnn.from_torch(_cpu_result_{idx}, dtype=ttnn.DataType.BFLOAT16, layout=ttnn.Layout.TILE, device=_device_{idx}, memory_config=ttnn.DRAM_MEMORY_CONFIG)
+{indent}{out} = _bypass_from_host_bf16(_cpu_result_{idx}, {act})
 {indent}# === END CPU BYPASS #{idx} ==="""
 
         replacements[start] = (end, bypass)
@@ -220,6 +275,15 @@ def generate_cpu_bypass_code(
     result = "\n".join(new_lines)
     if "import torch" not in result:
         result = result.replace("import ttnn", "import ttnn\nimport torch", 1)
+    if _BYPASS_HELPERS_MARKER not in result:
+        # Inject helpers right after the imports.
+        lines_out = result.splitlines()
+        insert_at = 0
+        for i, line in enumerate(lines_out):
+            if line.startswith("import ") or line.startswith("from "):
+                insert_at = i + 1
+        lines_out.insert(insert_at, _BYPASS_HELPERS)
+        result = "\n".join(lines_out)
 
     return result
 
