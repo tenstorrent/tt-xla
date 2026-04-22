@@ -1461,6 +1461,7 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
+        optimization_level=1,
     )
 
 
@@ -1575,7 +1576,7 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
