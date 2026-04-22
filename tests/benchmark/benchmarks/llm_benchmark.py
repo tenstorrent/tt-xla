@@ -45,6 +45,12 @@ DEFAULT_INPUT_PROMPT = (
 
 MODULE_EXPORT_PATH = "modules"
 
+# Models incompatible with shared-CL tensor aliasing.
+# Even with no write inside the compiled graph, READ aliasing of a tensor shared
+# across 24+ layers triggers INTERNAL: Error code: 13 on these models.
+# Confirmed via isolation test: removing add_() entirely still crashes the same way.
+SHARED_CL_DENYLIST = frozenset({"qwen_2_5_0_5b", "qwen_3_8b"})
+
 
 def setup_model_and_tokenizer(
     model_loader, model_variant
@@ -161,22 +167,28 @@ _static_layer_update_patched = False
 
 
 def _patch_static_layer_update_once():
-    """Monkey-patch StaticLayer.update() to skip per-layer cumulative_length.add_().
+    """Monkey-patch StaticLayer.update() for shared-CL support.
 
     In transformers 5.5, each StaticLayer increments its own cumulative_length inside
     update(). With 16 layers, this produces 16 write_tensor ops per decode step on TT
-    hardware (one CL tensor per layer). By sharing one CL tensor across all layers and
-    skipping the per-layer add_(), we reduce write_tensor ops from 18 to 3.
+    hardware (one CL tensor per layer). By sharing one CL tensor across pure StaticLayer
+    instances and skipping the per-layer add_(), we reduce write_tensor ops 18 → 3.
 
-    The single external increment happens in LLMSamplingWrapper.forward() after the
-    model call, keyed by the _using_shared_cl flag set in transfer_to_device().
+    Whether the per-layer increment is skipped is controlled by layer._shared_cl_active
+    (set to True by transfer_to_device when enable_shared_cl=True). This per-layer flag
+    is safe across tests in the same pytest session: if a shared-CL model runs first and
+    patches the class, a subsequent denylisted model still gets per-layer increments
+    because its layers never have _shared_cl_active=True.
+
+    When _shared_cl_active is True, the single increment fires in generate_and_benchmark()
+    (eager mode, outside the compiled TT graph), keyed by _using_shared_cl on the cache.
     """
     global _static_layer_update_patched
     if _static_layer_update_patched:
         return
     from transformers.cache_utils import StaticLayer
 
-    def _update_no_cl_increment(
+    def _update_shared_cl_aware(
         self, key_states: torch.Tensor, value_states: torch.Tensor, *args, **kwargs
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if not self.is_initialized:
@@ -185,7 +197,11 @@ def _patch_static_layer_update_once():
         cache_position = (
             torch.arange(kv_length, device=self.device) + self.cumulative_length
         )
-        # Increment is omitted here — managed externally (once per step).
+        # Skip per-layer increment only when shared CL is active for this layer.
+        # Denylisted models (SHARED_CL_DENYLIST) never set _shared_cl_active, so they
+        # get the normal per-layer add_() even after another model patched the class.
+        if not getattr(self, "_shared_cl_active", False):
+            self.cumulative_length.add_(kv_length)
         try:
             self.keys.index_copy_(2, cache_position, key_states)
             self.values.index_copy_(2, cache_position, value_states)
@@ -194,24 +210,28 @@ def _patch_static_layer_update_once():
             self.values[:, :, cache_position] = value_states
         return self.keys, self.values
 
-    StaticLayer.update = _update_no_cl_increment
+    StaticLayer.update = _update_shared_cl_aware
     _static_layer_update_patched = True
 
 
-def transfer_to_device(input_args: dict, device: torch.device) -> dict:
+def transfer_to_device(
+    input_args: dict, device: torch.device, enable_shared_cl: bool = True
+) -> dict:
     """
     Transfer inputs to device.
 
     Args:
         input_args: Input arguments dictionary
         device: Target device
+        enable_shared_cl: Whether to share one CL tensor across pure StaticLayer
+            instances (reduces write_tensor ops 18 → 3). Must be False for models in
+            SHARED_CL_DENYLIST where READ aliasing triggers INTERNAL: Error code: 13.
 
     Returns:
         input_args on device
     """
-    # Apply the StaticLayer.update patch before first device run (after CPU prefill).
-    # This skips per-layer CL increments; a single increment fires in
-    # LLMSamplingWrapper.forward() instead, reducing write_tensor ops 18 → 3.
+    # Always apply the patch so the class method is consistent across tests.
+    # Behavior is controlled per-layer via _shared_cl_active (set below when enabled).
     _patch_static_layer_update_once()
 
     layers = input_args["past_key_values"].layers
@@ -226,13 +246,28 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
         layer.cumulative_length = layer.cumulative_length.to(device)
         layer.device = device
 
-    # Share one CL tensor across all layers so XLA only writes it once per step.
-    shared_cl = layers[0].cumulative_length
-    for layer in layers[1:]:
-        layer.cumulative_length = shared_cl
+    if enable_shared_cl:
+        # Share one CL tensor across pure StaticLayer instances only.
+        # StaticSlidingWindowLayer has its own update() that still increments
+        # cumulative_length internally; aliasing its CL tensor with other layers
+        # causes XLA graph errors (INTERNAL: Error code: 13) on models that mix
+        # regular and sliding-window attention (e.g. Qwen2.5).
+        from transformers.cache_utils import StaticSlidingWindowLayer
 
-    # Mark cache so LLMSamplingWrapper.forward() knows to increment once externally.
-    input_args["past_key_values"]._using_shared_cl = True
+        pure_static_layers = [
+            l for l in layers if type(l) is not StaticSlidingWindowLayer
+        ]
+        if len(pure_static_layers) > 1:
+            shared_cl = pure_static_layers[0].cumulative_length
+            for layer in pure_static_layers[1:]:
+                layer.cumulative_length = shared_cl
+            # Mark each layer so _update_shared_cl_aware skips the per-layer increment.
+            for layer in pure_static_layers:
+                layer._shared_cl_active = True
+            # Store reference so generate_and_benchmark() increments the right tensor
+            # (layers[0] may be a SlidingWindowLayer on mixed-attention models).
+            input_args["past_key_values"]._shared_cl = shared_cl
+            input_args["past_key_values"]._using_shared_cl = True
 
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
@@ -420,6 +455,7 @@ def benchmark_llm_torch_xla(
             decode_only_cache = input_args["past_key_values"]
 
     # Transfer model and inputs to device
+    enable_shared_cl = display_name not in SHARED_CL_DENYLIST
     input_args = construct_inputs(
         tokenizer,
         model.config,
@@ -429,7 +465,9 @@ def benchmark_llm_torch_xla(
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         past_key_values=decode_only_cache if decode_only else None,
     )
-    input_args = transfer_to_device(input_args, device)
+    input_args = transfer_to_device(
+        input_args, device, enable_shared_cl=enable_shared_cl
+    )
     model = model.to(device, dtype=torch.bfloat16)
 
     # Shard model if shard spec function is provided
@@ -538,7 +576,9 @@ def benchmark_llm_torch_xla(
         input_args["input_ids"] = decode_only_input_ids
         input_args["cache_position"] = decode_only_cache_position
 
-    input_args = transfer_to_device(input_args, device)
+    input_args = transfer_to_device(
+        input_args, device, enable_shared_cl=enable_shared_cl
+    )
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
@@ -591,7 +631,9 @@ def benchmark_llm_torch_xla(
                 token_accuracy.input_prompt if accuracy_testing else None
             ),
         )
-        input_args = transfer_to_device(input_args, device)
+        input_args = transfer_to_device(
+            input_args, device, enable_shared_cl=enable_shared_cl
+        )
         if input_output_sharding_spec:
             xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 

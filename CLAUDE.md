@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Active Task
+
+**At the start of every session (including after auto-compaction):**
+1. Read `task.md` in the repo root — phases, validation rules, key paths, build commands, git rules
+2. Fetch the Notion working log: https://www.notion.so/34a32b7acc1181ffab4bca7e18a51988 — this has live findings, test results, and progress that task.md does not. It is the "what has been done so far" record.
+
+Do not rely on memory alone. Both files together restore full context after a compaction.
+
 ## Project Overview
 
 TT-XLA is a PJRT-based backend integration that enables JAX and PyTorch/XLA to run on Tenstorrent AI hardware. It leverages the PJRT (Portable JAX Runtime) interface to connect these frameworks, TT-MLIR compiler, and Tenstorrent hardware, providing StableHLO graphs to the TT-MLIR compiler.

@@ -61,11 +61,10 @@ class LLMSamplingWrapper(torch.nn.Module):
             position_ids=position_ids,
             use_cache=use_cache,
         )
-        # Single CL increment for caches using the shared-CL optimisation
-        # (StaticLayer.update patched to skip per-layer add_()).  Handles
-        # both prefill (kv_length = seq_len) and decode (kv_length = 1).
-        if getattr(past_key_values, "_using_shared_cl", False):
-            past_key_values.layers[0].cumulative_length.add_(input_ids.shape[-1])
+        # NOTE: shared-CL increment is intentionally NOT here. It runs in eager mode
+        # in generate_and_benchmark() after this compiled function returns, to avoid
+        # TT aliasing crash (INTERNAL: Error code: 13) caused by in-place write to a
+        # tensor that is also read N times in the same compiled graph.
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.
         # This is a noop for decode.
@@ -247,6 +246,15 @@ def generate_and_benchmark(
             start = time.perf_counter_ns()
 
             output = model(**input_args)
+
+            # Increment shared CL in eager mode (outside the compiled TT graph).
+            # The shared CL tensor is read by N layers inside the compiled graph.
+            # Running add_() there (write after N reads) triggers INTERNAL: Error code: 13.
+            # Isolation test confirmed even removing add_() entirely still crashes some
+            # models (qwen_2_5_0_5b, qwen_3_8b) — those use SHARED_CL_DENYLIST instead.
+            pkvs = input_args["past_key_values"]
+            if getattr(pkvs, "_using_shared_cl", False):
+                pkvs._shared_cl.add_(input_args["input_ids"].shape[-1])
 
             if collect_logits:
                 (
