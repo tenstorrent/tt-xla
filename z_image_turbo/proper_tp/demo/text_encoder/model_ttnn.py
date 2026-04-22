@@ -734,7 +734,6 @@ class TextEncoderTTNN(LightweightModule):
             memory_config=DRAM_MC,
             num_links=None,
             topology=ttnn.Topology.Ring,
-            compute_kernel_config=REDUCE_KERNEL,
         )  # [1, 1, seq_len, H//4] per device
 
         x = ttnn.reshape(x, [seq_len, H // self.TP], memory_config=DRAM_MC)
