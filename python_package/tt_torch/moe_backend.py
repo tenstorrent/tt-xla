@@ -55,7 +55,6 @@ constraint applies to `dispatch_devices * T`. Pad inputs accordingly.
 
 from __future__ import annotations
 
-import functools
 from typing import Callable, Optional, Tuple
 
 import torch
@@ -97,29 +96,33 @@ def _mesh_info() -> Tuple[int, int, Tuple[int, ...]]:
     return total, dispatch, mesh_shape
 
 
-@functools.lru_cache(maxsize=16)
-def _expert_mapping_cpu(
-    num_experts: int, total_devices: int, mesh_shape: Tuple[int, ...]
+def _expert_mapping(
+    num_experts: int,
+    total_devices: int,
+    mesh_shape: Tuple[int, ...],
+    device: torch.device,
 ) -> torch.Tensor:
-    """Build the `[1, 1, E, D]` one-hot expert-to-device mapping on CPU.
+    """Build the `[1, 1, E, D]` one-hot expert-to-device mapping.
 
     For 2D meshes with `total_devices == rows * cols`, expert `e` is placed at
     mesh position `(e % rows, e // rows)`, matching GSPMD compound sharding
     on `(axis_0, axis_1)`. For other mesh layouts, experts are distributed
     sequentially across devices.
     """
-    mapping = torch.zeros(1, 1, num_experts, total_devices, dtype=torch.int64)
     if len(mesh_shape) == 2 and total_devices == mesh_shape[0] * mesh_shape[1]:
         rows, cols = mesh_shape
-        for i in range(num_experts):
-            device_id = (i % rows) * cols + (i // rows)
-            mapping[0, 0, i, device_id] = 1
+        device_ids_list = [(i % rows) * cols + (i // rows) for i in range(num_experts)]
     else:
         per = max(1, num_experts // total_devices)
-        for i in range(num_experts):
-            device_id = min(i // per, total_devices - 1)
-            mapping[0, 0, i, device_id] = 1
-    return mapping
+        device_ids_list = [min(i // per, total_devices - 1) for i in range(num_experts)]
+
+    device_ids = torch.tensor(device_ids_list, device=device, dtype=torch.int64)
+
+    mapping = (
+        device_ids.unsqueeze(-1)
+        == torch.arange(total_devices, device=device, dtype=torch.int64)
+    ).to(torch.int64)
+    return mapping.view(1, 1, num_experts, total_devices)
 
 
 def _build_routing_scores(
@@ -129,17 +132,24 @@ def _build_routing_scores(
     dtype: torch.dtype,
     device: torch.device,
 ) -> torch.Tensor:
-    """Scatter top-k weights into a full `[T, E]` sparse router-scores tensor."""
-    T = top_k_index.shape[0]
-    scores = torch.zeros(T, num_experts, device=device, dtype=dtype)
-    scores.scatter_(-1, top_k_index, top_k_weights.to(dtype))
-    return scores
+    """Expand top-k weights into a full `[T, E]` sparse router-scores tensor.
+
+    Use a pure functional one_hot + einsum construction here instead of
+    `scatter_`. AOTAutograd's functionalization step under XLA trips over the
+    in-place scatter path during `run_decompositions`, which makes export of
+    the EP backend fail before we ever reach lowering.
+    """
+    one_hot = (
+        top_k_index.unsqueeze(-1) == torch.arange(num_experts, device=device)
+    ).to(dtype)
+    return torch.einsum("tk,tke->te", top_k_weights.to(dtype), one_hot)
 
 
 def _tt_experts_forward_dp(
     self: torch.nn.Module,
     hidden_states: torch.Tensor,
-    routing_scores: torch.Tensor,
+    top_k_index: torch.Tensor,
+    top_k_weights: torch.Tensor,
 ) -> torch.Tensor:
     """Single-device expert compute: two sparse_matmul GEMMs with a scattered
     sparsity mask. No collectives.
@@ -149,22 +159,24 @@ def _tt_experts_forward_dp(
     dtype = hidden_states.dtype
     device = hidden_states.device
 
+    routing_map = torch.zeros(1, 1, T, E, dtype=dtype, device=device)
+    routing_map.view(T, E).scatter_(-1, top_k_index, top_k_weights.to(dtype))
+
     # Reduced binary sparsity mask [1, 1, ceil(T/32), E]: 1 wherever any token
     # in a 32-token tile selects expert e. `moe_expert_token_remap` would
     # produce this in a single op, but it returns a tuple and the single-device
     # path is simpler to reason about (and trace) with plain torch ops.
-    routing_4d = routing_scores.view(1, 1, T, E)
     reduced = (T + REDUCTION_SIZE - 1) // REDUCTION_SIZE
     if T % REDUCTION_SIZE == 0:
         sparsity = (
-            routing_4d.view(1, 1, reduced, REDUCTION_SIZE, E)
+            routing_map.view(1, 1, reduced, REDUCTION_SIZE, E)
             .ne(0)
             .any(dim=3)
             .to(dtype)
         )
     else:
         pad = reduced * REDUCTION_SIZE - T
-        padded = torch.nn.functional.pad(routing_4d, (0, 0, 0, pad))
+        padded = torch.nn.functional.pad(routing_map, (0, 0, 0, pad))
         sparsity = (
             padded.view(1, 1, reduced, REDUCTION_SIZE, E).ne(0).any(dim=3).to(dtype)
         )
@@ -204,7 +216,7 @@ def _tt_experts_forward_dp(
         AB, _, M_tile, Hout = down_out.shape
         down_out = down_out.permute(0, 2, 1, 3).reshape(1, AB * M_tile, E, Hout)
 
-    routing = routing_scores.view(1, T, E, 1).to(down_out.dtype)
+    routing = routing_map.view(1, T, E, 1).to(down_out.dtype)
     combined = (down_out * routing).sum(dim=2).view(T, H)
     return combined.to(dtype)
 
@@ -230,8 +242,10 @@ def _tt_experts_forward_ep(
     device = hidden_states.device
     cluster_axis = _config["cluster_axis"]
 
-    # `[1, 1, E, D]` one-hot mapping lifted into the graph as a constant.
-    expert_mapping = _expert_mapping_cpu(E, total_devices, mesh_shape).to(device)
+    # `[1, 1, E, D]` one-hot mapping lifted into the graph as a pure tensor op
+    # sequence so AOTAutograd/XLA can trace it without CPU copies or in-place
+    # Python-side writes.
+    expert_mapping = _expert_mapping(E, total_devices, mesh_shape, device)
 
     # Dispatch tokens along cluster_axis. Output is a full [1, B*D, T, H]
     # tensor where each of the D slices carries only the tokens its experts
@@ -332,6 +346,11 @@ def tt_experts_forward(
     based on the global torch_xla SPMD mesh and the `cluster_axis` chosen at
     registration time.
     """
+    total_devices, dispatch_devices, mesh_shape = _mesh_info()
+
+    if dispatch_devices <= 1:
+        return _tt_experts_forward_dp(self, hidden_states, top_k_index, top_k_weights)
+
     routing_scores = _build_routing_scores(
         top_k_index,
         top_k_weights,
@@ -339,10 +358,6 @@ def tt_experts_forward(
         hidden_states.dtype,
         hidden_states.device,
     )
-    total_devices, dispatch_devices, mesh_shape = _mesh_info()
-
-    if dispatch_devices <= 1:
-        return _tt_experts_forward_dp(self, hidden_states, routing_scores)
 
     return _tt_experts_forward_ep(
         self,
