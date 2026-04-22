@@ -151,10 +151,11 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
     """
     for node in list(gm.graph.nodes):  # snapshot to allow mid-loop erasure
         if node.op == "call_function":
-            if (
-                node.target in composite_ops.replacements
-                and composite_ops.can_apply_composite(node)
-            ):
+            if node.target in composite_ops.replacements:
+            # if (
+            #     node.target in composite_ops.replacements
+            #     and composite_ops.can_apply_composite(node)
+            # ):
                 replacement = composite_ops.replacements[node.target]
                 if isinstance(replacement, dict):
                     _replace_multi_output_op(gm, node, replacement)
