@@ -214,9 +214,11 @@ void BufferInstance::copyFromHost(
       EventInstance::createInstance();
 
   tt::runtime::Tensor runtime_tensor;
+  const long long logical_id_for_log =
+      static_cast<long long>(logical_id.value_or(-1));
   if (logical_id.has_value()) {
     DLOG_F(LOG_DEBUG, "BufferInstance::copyFromHost logical id=%lld",
-           static_cast<long long>(*logical_id));
+           logical_id_for_log);
   }
 
   // In distributed runtime, we always create owned host tensor because we
@@ -238,19 +240,23 @@ void BufferInstance::copyFromHost(
       tt::runtime::HostRuntime::Distributed;
   const bool is_supported_data_type =
       ::tt::runtime::utils::isSupportedDataType(runtime_data_type);
-  bool should_create_owned_host_tensor =
-      is_distributed_runtime ||
+  const bool must_copy_host_buffer =
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !is_supported_data_type;
+  const bool allow_distributed_runtime_tensor_cache =
+      is_distributed_runtime && is_supported_data_type;
+
+  bool is_cache_hit = false;
   bool should_insert_runtime_tensor_cache = false;
   std::size_t runtime_tensor_cache_key = 0;
 
-  if (is_distributed_runtime && is_supported_data_type) {
+  if (allow_distributed_runtime_tensor_cache) {
     runtime_tensor_cache_key =
         computeBufferRuntimeTensorCacheKey(host_buffer, logical_id);
     std::shared_ptr<const tt::runtime::Tensor> cached_owned_host_tensor;
     {
+      // look up the cache for the host buffer and logical id
       std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
       auto it = s_buffer_runtime_tensor_cache.find(runtime_tensor_cache_key);
       if (it != s_buffer_runtime_tensor_cache.end()) {
@@ -263,23 +269,25 @@ void BufferInstance::copyFromHost(
     }
 
     if (cached_owned_host_tensor) {
+      is_cache_hit = true;
       LOG_F(INFO,
             "Buffer runtime tensor cache hit for host_buffer=%p logical_id=%lld, shape %s",
-            host_buffer, static_cast<long long>(logical_id.value_or(-1)), toShapeStr().c_str());
+            host_buffer, logical_id_for_log, toShapeStr().c_str());
       runtime_tensor =
           tt::runtime::createUnsafeBorrowedHostTensor(*cached_owned_host_tensor);
-      should_create_owned_host_tensor = false;
       EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                             tt_pjrt_status::kSuccess);
     } else {
       LOG_F(
           INFO,
           "Buffer runtime tensor cache miss for host_buffer=%p logical_id=%lld, shape %s",
-          host_buffer, static_cast<long long>(logical_id.value_or(-1)), toShapeStr().c_str());
+          host_buffer, logical_id_for_log, toShapeStr().c_str());
       should_insert_runtime_tensor_cache = true;
     }
   }
 
+  const bool should_create_owned_host_tensor =
+      !is_cache_hit && (is_distributed_runtime || must_copy_host_buffer);
   if (should_create_owned_host_tensor) {
     runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
@@ -287,7 +295,7 @@ void BufferInstance::copyFromHost(
     // Memory is copied; caller may release the original host buffer immediately.
     EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                           tt_pjrt_status::kSuccess);
-  } else if (!(is_distributed_runtime && is_supported_data_type)) {
+  } else if (!is_cache_hit) {
     // Otherwise when input host buffer has other semantic we are allowed to
     // alias it, so we can create borrowed host which doesn't copy any data and
     // instead uses direct pointer to existing data. Since we are holding a
@@ -310,7 +318,10 @@ void BufferInstance::copyFromHost(
     m_done_with_host_buffer_event->setIndestructible();
   }
 
+// PjrtTensor takes ownership of runtime_tensor and binds it to this shard.
   PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
+  
+  // insert the runtime tensor into the cache
   if (should_insert_runtime_tensor_cache) {
     std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
     if (s_buffer_runtime_tensor_cache.find(runtime_tensor_cache_key) ==
