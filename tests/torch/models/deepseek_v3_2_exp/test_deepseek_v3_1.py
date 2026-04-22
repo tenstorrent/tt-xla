@@ -346,23 +346,63 @@ def _fix_meta_buffers(model, args):
 
 
 def _build_prefill_attention_mask(
-    batch_size, prompt_len, max_cache_len, dtype=torch.bfloat16
+    batch_size,
+    prompt_len,
+    max_cache_len,
+    token_attention_mask=None,
+    dtype=torch.bfloat16,
 ):
-    """(B, 1, prompt_len, max_cache_len) additive causal mask."""
+    """(B, 1, prompt_len, max_cache_len) additive causal mask.
+
+    If ``token_attention_mask`` (shape ``(B, prompt_len)``, 1=real, 0=pad) is
+    given, also masks out padding slots in the key dimension so queries don't
+    attend to left-pad tokens. The tokenizer runs with ``padding_side="left"``,
+    so those slots are at the front of the sequence.
+    """
     mask = torch.full(
         (batch_size, 1, prompt_len, max_cache_len), float("-inf"), dtype=dtype
     )
     for q_pos in range(prompt_len):
         mask[:, :, q_pos, : q_pos + 1] = 0.0
+    if token_attention_mask is not None:
+        tam = token_attention_mask.to(dtype=dtype)  # (B, prompt_len)
+        pad_k = torch.where(
+            tam > 0,
+            torch.zeros((), dtype=dtype),
+            torch.full((), float("-inf"), dtype=dtype),
+        )  # 0 at real tokens, -inf at pad
+        mask[:, :, :, :prompt_len] = (
+            mask[:, :, :, :prompt_len] + pad_k[:, None, None, :]
+        )
     return mask
 
 
 def _build_decode_attention_mask(
-    batch_size, current_pos_inclusive, max_cache_len, dtype=torch.bfloat16
+    batch_size,
+    current_pos_inclusive,
+    max_cache_len,
+    token_attention_mask=None,
+    prompt_len=None,
+    dtype=torch.bfloat16,
 ):
-    """(B, 1, 1, max_cache_len) additive mask for a single decode step."""
+    """(B, 1, 1, max_cache_len) additive mask for a single decode step.
+
+    If ``token_attention_mask`` + ``prompt_len`` are given, also masks cache
+    slots ``0..prompt_len-1`` where the prompt was padding, so the decode
+    step doesn't attend to left-pad KV entries that prefill wrote in.
+    """
     mask = torch.full((batch_size, 1, 1, max_cache_len), float("-inf"), dtype=dtype)
     mask[:, :, :, :current_pos_inclusive] = 0.0
+    if token_attention_mask is not None and prompt_len is not None:
+        tam = token_attention_mask.to(dtype=dtype)  # (B, prompt_len)
+        pad_k = torch.where(
+            tam > 0,
+            torch.zeros((), dtype=dtype),
+            torch.full((), float("-inf"), dtype=dtype),
+        )
+        mask[:, :, :, :prompt_len] = (
+            mask[:, :, :, :prompt_len] + pad_k[:, None, None, :]
+        )
     return mask
 
 
@@ -529,7 +569,6 @@ def _pcc(a, b):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.llmbox
 def test_deepseek_v3_1_full_sparse_moe():
     """Prefill-only forward on the (4,8) mesh with A2aSparseMLP. Real input,
     real weights, CPU PCC comparison."""
@@ -654,7 +693,6 @@ def test_deepseek_v3_1_full_sparse_moe():
         print("[pcc] SKIPPED — no CPU reference", flush=True)
 
 
-@pytest.mark.llmbox
 def test_deepseek_v3_1_decode_static_cache():
     """Autoregressive greedy decode on TT using the MLACache path.
 
@@ -713,6 +751,12 @@ def test_deepseek_v3_1_decode_static_cache():
     tokens_single = encoded["input_ids"][:, :prompt_seq_len]
     prompt_len = tokens_single.shape[1]
     tokens_cpu = tokens_single.repeat(batch_size, 1)
+    # Tokenizer attention_mask: 1 for real tokens, 0 for left-pad. Used below
+    # to mask pad slots out of prefill/decode attention (pad=<eos>, so without
+    # this queries silently attend to pad KV entries).
+    token_attn_mask_cpu = encoded["attention_mask"][:, :prompt_seq_len].repeat(
+        batch_size, 1
+    )
     print(
         f"[prompt] {prompt_len} tokens x{batch_size}: "
         f"{tokenizer.decode(tokens_single[0])!r}",
@@ -777,7 +821,11 @@ def test_deepseek_v3_1_decode_static_cache():
     tokens_device = tokens_cpu.to(device)
     cache_position_prefill = torch.arange(prompt_len, dtype=torch.long).to(device)
     attn_mask_prefill = _build_prefill_attention_mask(
-        batch_size, prompt_len, args.max_seq_len, dtype=torch.bfloat16
+        batch_size,
+        prompt_len,
+        args.max_seq_len,
+        token_attention_mask=token_attn_mask_cpu,
+        dtype=torch.bfloat16,
     ).to(device)
     t_mv_end = time.perf_counter()
     print(f"[timing] move to device: {t_mv_end - t_mv_start:.1f}s", flush=True)
@@ -814,7 +862,12 @@ def test_deepseek_v3_1_decode_static_cache():
         ).to(device)
         cache_position_decode = torch.tensor([pos], dtype=torch.long).to(device)
         attn_mask_decode = _build_decode_attention_mask(
-            batch_size, pos + 1, args.max_seq_len, dtype=torch.bfloat16
+            batch_size,
+            pos + 1,
+            args.max_seq_len,
+            token_attention_mask=token_attn_mask_cpu,
+            prompt_len=prompt_len,
+            dtype=torch.bfloat16,
         ).to(device)
         t_dec_start = time.perf_counter()
         with torch.no_grad():
