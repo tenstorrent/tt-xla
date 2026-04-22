@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import gc
 import os
 import socket
 import sys
+import time
 
 # Built-in modules
 from contextlib import contextmanager
@@ -46,6 +48,66 @@ DEFAULT_INPUT_PROMPT = (
 )
 
 MODULE_EXPORT_PATH = "modules"
+
+
+def _read_meminfo_gib() -> dict:
+    """Read a handful of key /proc/meminfo fields as GiB (float)."""
+    fields = {
+        "MemTotal": 0.0,
+        "MemAvailable": 0.0,
+        "Cached": 0.0,
+        "Hugetlb": 0.0,
+        "SwapFree": 0.0,
+        "Committed_AS": 0.0,
+    }
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                key = line.split(":", 1)[0]
+                if key in fields:
+                    kb = int(line.split()[1])
+                    fields[key] = kb / (1024 * 1024)
+    except Exception:
+        pass
+    return fields
+
+
+def _read_self_rss_gib() -> float:
+    """Read current RSS of this process from /proc/self/status, in GiB."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / (1024 * 1024)
+    except Exception:
+        pass
+    return 0.0
+
+
+_MEM_T0 = time.time()
+_MEM_LAST_RSS_GIB = 0.0
+
+
+def log_memory(label: str) -> None:
+    """Print a concise one-line memory snapshot with RSS / MemAvailable / Hugetlb / SwapFree.
+
+    Useful for diagnosing OOM events during long-running benchmark phases. Output format is
+    kept terse on purpose so it can be grep'd after the run.
+    """
+    global _MEM_LAST_RSS_GIB
+    rss = _read_self_rss_gib()
+    info = _read_meminfo_gib()
+    delta = rss - _MEM_LAST_RSS_GIB
+    _MEM_LAST_RSS_GIB = rss
+    elapsed = time.time() - _MEM_T0
+    # flush=True so the line appears even if a downstream call crashes / is SIGKILL'd.
+    print(
+        f"[MEM] t={elapsed:7.1f}s  RSS={rss:6.2f}GiB (Δ{delta:+6.2f})  "
+        f"avail={info['MemAvailable']:6.2f}GiB  cached={info['Cached']:6.2f}GiB  "
+        f"hugetlb={info['Hugetlb']:5.2f}GiB  swap_free={info['SwapFree']:5.2f}GiB  "
+        f"committed={info['Committed_AS']:6.2f}GiB  :: {label}",
+        flush=True,
+    )
 
 
 @contextmanager
@@ -346,6 +408,8 @@ def benchmark_llm_torch_xla(
 
     xr.set_device_type("TT")
 
+    log_memory("enter benchmark_llm_torch_xla")
+
     # Set up for multi-chip if applicable
     if mesh_config_fn is not None and shard_spec_fn is not None:
         is_multichip = xr.global_runtime_device_count() > 1
@@ -367,6 +431,7 @@ def benchmark_llm_torch_xla(
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
     full_model_name = model_loader.get_model_info(variant=model_variant).name
+    log_memory("after setup_model_and_tokenizer (CPU weights loaded)")
 
     # Initialize accuracy testing if enabled
     token_accuracy = None
@@ -388,6 +453,7 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
+    log_memory("after construct_inputs #1 (StaticCache allocated on CPU)")
 
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:
@@ -401,10 +467,11 @@ def benchmark_llm_torch_xla(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
-            1,
+            2,
             verbose=False,
             collect_logits=True,
         )
+        log_memory("after CPU prefill generate_and_benchmark")
 
         if decode_only:
             # Save post-prefill state: CPU prefill populated the KV cache and
@@ -423,6 +490,7 @@ def benchmark_llm_torch_xla(
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         past_key_values=decode_only_cache if decode_only else None,
     )
+    log_memory("after construct_inputs #2 (pre-device)")
     # Inject custom MoE before transferring to device so weight
     # preprocessing runs on CPU tensors.
     mesh = None
@@ -437,9 +505,12 @@ def benchmark_llm_torch_xla(
                 fused_decode=gpt_oss_fused_decode,
                 preprocess_fused_weights=preprocess_fused_weights,
             )
+            log_memory("after _inject_custom_moe")
 
     input_args = transfer_to_device(input_args, device)
+    log_memory("after transfer_to_device (KV cache -> device)")
     model = model.to(device, dtype=torch.bfloat16)
+    log_memory("after model.to(device, bfloat16)")
 
     # Shard model if shard spec function is provided
     if is_multichip:
@@ -492,9 +563,13 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        # Guard with hasattr since not every ForgeModel loader provides this method.
+        try:
+            weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        except TypeError:
+            weight_dtype_config = None
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
             logger.info(
@@ -511,10 +586,12 @@ def benchmark_llm_torch_xla(
     )
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
+    log_memory("after torch.compile(perf_wrapper)")
 
     # Warmup run (skip in decode-only mode)
     if not decode_only:
         print("Warming up...")
+        log_memory("warmup:start")
         warmup_tokens = min(MIN_STEPS, max_output_tokens)
         _, _ = generate_and_benchmark(
             compiled_perf_model,
@@ -524,10 +601,11 @@ def benchmark_llm_torch_xla(
             verbose=False,
             collect_logits=False,
         )
+        log_memory("warmup:end")
 
         tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the perf benchmark run
+    # Reconstruct inputs for the perf benchmark run.
     input_args = construct_inputs(
         tokenizer,
         model.config,
@@ -539,6 +617,7 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
     )
+    log_memory("after construct_inputs #3 (perf benchmark)")
 
     if decode_only:
         # Reset to post-prefill decode state (single token input)
@@ -546,11 +625,13 @@ def benchmark_llm_torch_xla(
         input_args["cache_position"] = decode_only_cache_position
 
     input_args = transfer_to_device(input_args, device)
+    log_memory("after transfer_to_device #2 (perf benchmark)")
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
+    log_memory("perf:start")
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
@@ -564,6 +645,7 @@ def benchmark_llm_torch_xla(
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
     )
+    log_memory("perf:end")
 
     # ACCURACY BENCHMARK
     # Logits moved to CPU each step to avoid OOM.

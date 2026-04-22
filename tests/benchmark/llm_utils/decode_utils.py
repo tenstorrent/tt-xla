@@ -20,6 +20,34 @@ from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
 
 
+# RSS / MemAvailable snapshot per-iteration helper. Controlled via env var so it
+# costs nothing when disabled. Enable with TTXLA_BENCH_LOG_MEM=1.
+_BENCH_LOG_MEM = os.environ.get("TTXLA_BENCH_LOG_MEM", "0") == "1"
+
+
+def _rss_avail_gib() -> tuple[float, float]:
+    """Return (RSS_GiB, MemAvailable_GiB) of this process. Best-effort; 0.0 on failure."""
+    rss_gib = 0.0
+    avail_gib = 0.0
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    rss_gib = int(line.split()[1]) / (1024 * 1024)
+                    break
+    except Exception:
+        pass
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    avail_gib = int(line.split()[1]) / (1024 * 1024)
+                    break
+    except Exception:
+        pass
+    return rss_gib, avail_gib
+
+
 class LLMSamplingWrapper(torch.nn.Module):
     """Wraps an LLM to perform sampling (token selection, cache position update) on device.
 
@@ -272,6 +300,16 @@ def generate_and_benchmark(
                 print(
                     f"Iteration\t{step}/{max_tokens_to_generate}\t"
                     f"took {iteration_times[-1] / 1e6:.04} ms"
+                )
+            if _BENCH_LOG_MEM:
+                # Per-step host RSS snapshot helps catch OOM-leading growth during
+                # the warmup/perf loops (where compile and weight packing happen).
+                rss_gib, avail_gib = _rss_avail_gib()
+                print(
+                    f"[MEM][step {step:>3}/{max_tokens_to_generate}] "
+                    f"RSS={rss_gib:6.2f}GiB  avail={avail_gib:6.2f}GiB  "
+                    f"iter={iteration_times[-1] / 1e6:.2f}ms",
+                    flush=True,
                 )
 
     if tokenizer and verbose:

@@ -1416,12 +1416,9 @@ def moe_gpt(
     expert_indices: torch.Tensor,
     expert_scores: torch.Tensor,
     expert_mapping: torch.Tensor,
-    gate_up_proj: torch.Tensor,
-    gate_up_proj_bias: torch.Tensor,
-    down_proj: torch.Tensor,
-    down_proj_bias: torch.Tensor,
-    fused_w0_w1: Optional[torch.Tensor] = None,
-    fused_w2: Optional[torch.Tensor] = None,
+    fused_w0_w1: torch.Tensor,
+    fused_w2: torch.Tensor,
+    num_experts: int,
     num_experts_per_tok: int = 2,
     num_devices: int = 1,
     cluster_axis: int = 0,
@@ -1429,22 +1426,21 @@ def moe_gpt(
     """
     Fused GPT-OSS decode expert compute.
 
-    This op models the local expert compute between dispatch metadata generation
-    and the final selective combine step. The tuple ordering mirrors the
-    tt-metal fused decode pipeline so `selective_reduce_combine` can consume the
-    `moe_gpt` bundle directly in the composite decomposition.
+    This op models the local expert compute between dispatch metadata
+    generation and the final selective combine step. The tuple ordering
+    mirrors the tt-metal fused decode pipeline so ``selective_reduce_combine``
+    can consume the ``moe_gpt`` bundle directly in the composite
+    decomposition.
 
-    When ``fused_w0_w1`` / ``fused_w2`` are provided, they are forwarded as
-    extra custom-call operands so the tt-MLIR backend can consume the
-    already-preprocessed 6D fused kernel weight layout directly.
+    The op requires preprocessed fused kernel weights (``fused_w0_w1`` /
+    ``fused_w2`` in tt-metal's 6D layout). The original (unfused)
+    ``gate_up_proj`` / ``down_proj`` weights are no longer part of the op
+    interface: the tt-MLIR backend binds the fused inputs directly, and the
+    global expert count is carried as the ``num_experts`` attribute instead
+    of being shape-probed from ``gate_up_proj``.
     """
     device = input_tensor.device
-    # expert_mapping follows tt-metal's [1, 1, D_total, E] layout.
-    # gate_up_proj's leading dim is the authoritative global expert count
-    # (it remains E even though tt-metal's demo carries the mapping with a
-    # repeated row per mesh device, so reading shape[-1] of the mapping
-    # would also work here).
-    E = gate_up_proj.shape[0]
+    E = num_experts
     _, BD, S, H = input_tensor.shape
     combine_metadata_shape = list(expert_mapping.shape)
     indices_shape = list(expert_indices.shape)
@@ -1452,27 +1448,21 @@ def moe_gpt(
     aux_shape = list(expert_scores.shape)
     expert_output_shape = [E, S, BD, H]
 
-    has_fused = fused_w0_w1 is not None and fused_w2 is not None
-
     if device.type == "xla":
         frontend_attributes = {
+            "num_experts": str(num_experts),
             "num_experts_per_tok": str(num_experts_per_tok),
             "num_devices": str(num_devices),
             "cluster_axis": str(cluster_axis),
-            "has_fused_weights": "true" if has_fused else "false",
         }
         operands = [
             input_tensor,
             expert_indices,
             expert_scores,
             expert_mapping,
-            gate_up_proj,
-            gate_up_proj_bias,
-            down_proj,
-            down_proj_bias,
+            fused_w0_w1,
+            fused_w2,
         ]
-        if has_fused:
-            operands.extend([fused_w0_w1, fused_w2])
 
         return stablehlo_custom_call.stablehlo_custom_call(
             operands,
@@ -1513,17 +1503,14 @@ def moe_gpt_fake(
     expert_indices: torch.Tensor,
     expert_scores: torch.Tensor,
     expert_mapping: torch.Tensor,
-    gate_up_proj: torch.Tensor,
-    gate_up_proj_bias: torch.Tensor,
-    down_proj: torch.Tensor,
-    down_proj_bias: torch.Tensor,
-    fused_w0_w1: Optional[torch.Tensor] = None,
-    fused_w2: Optional[torch.Tensor] = None,
+    fused_w0_w1: torch.Tensor,
+    fused_w2: torch.Tensor,
+    num_experts: int,
     num_experts_per_tok: int = 2,
     num_devices: int = 1,
     cluster_axis: int = 0,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    E = gate_up_proj.shape[0]
+    E = num_experts
     _, BD, S, H = input_tensor.shape
     combine_metadata = torch.zeros_like(expert_mapping)
     bundled_indices = torch.zeros_like(expert_indices)
