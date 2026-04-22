@@ -24,9 +24,6 @@
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
-// tt-mlir includes
-#include "tt/runtime/runtime.h"
-
 // tt-xla includes
 #include "api/event_instance.h"
 #include "api/tensor.h"
@@ -102,23 +99,6 @@ public:
   // Returns the logical (untiled) size of the tensor in bytes, computed from
   // the buffer's dimensions and data type.
   size_t logicalTensorSize() const;
-
-  // Base host pointer from PJRT_BufferFromHostBuffer when this buffer uses a
-  // borrowed host tensor (see copyFromHost). Null if the runtime owns a copy
-  // (owned tensor), or if the buffer was not created from a host submission.
-  const void *borrowedHostBasePointer() const {
-    return m_borrowed_host_base_ptr;
-  }
-
-  // True when both buffers borrow host memory with the same client base
-  // address (typical JAX aliasing of the same array).
-  bool aliasesSameBorrowedHostBase(const BufferInstance &other) const;
-
-  // True when both buffers borrow host memory and their naive contiguous spans
-  // [base, base + logicalTensorSize()) overlap. Exact for dense layout; custom
-  // byte_strides may reference bytes outside that span.
-  static bool borrowedHostByteRangesOverlap(const BufferInstance &a,
-                                            const BufferInstance &b);
 
   // Returns a string representation of the buffer's shape in the format
   // [d1,d2,d3,...].
@@ -215,10 +195,6 @@ private:
 
   // Unique identifier for this buffer instance.
   const uint64_t m_uid;
-
-  // PJRT client pointer for borrowed host tensors only; see
-  // borrowedHostBasePointer().
-  const void *m_borrowed_host_base_ptr = nullptr;
 
   // Buffer's data type.
   PJRT_Buffer_Type m_data_type;

@@ -16,14 +16,12 @@
 #include <memory>
 #include <numeric>
 #include <optional>
-#include <stdexcept>
 #include <thread>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
 
 // PJRT C API includes
-#include "api/loaded_executable_instance.h"
 #include "tt/runtime/types.h"
 #include "xla/pjrt/c/pjrt_c_api.h"
 
@@ -141,27 +139,6 @@ size_t BufferInstance::logicalTensorSize() const {
                          });
 }
 
-bool BufferInstance::aliasesSameBorrowedHostBase(
-    const BufferInstance &other) const {
-  const void *a = m_borrowed_host_base_ptr;
-  const void *b = other.m_borrowed_host_base_ptr;
-  return a != nullptr && a == b;
-}
-
-bool BufferInstance::borrowedHostByteRangesOverlap(const BufferInstance &a,
-                                                   const BufferInstance &b) {
-  const void *pa = a.m_borrowed_host_base_ptr;
-  const void *pb = b.m_borrowed_host_base_ptr;
-  if (pa == nullptr || pb == nullptr) {
-    return false;
-  }
-  const auto *ba = static_cast<const std::byte *>(pa);
-  const auto *bb = static_cast<const std::byte *>(pb);
-  const size_t sa = a.logicalTensorSize();
-  const size_t sb = b.logicalTensorSize();
-  return ba < bb + sb && bb < ba + sa;
-}
-
 std::string BufferInstance::toShapeStr() const {
   return tt::pjrt::utils::to_string(m_dimensions);
 }
@@ -223,7 +200,6 @@ void BufferInstance::copyFromHost(
       data_type_utils::getPJRTBufferTypeString(data_type));
 
   m_pjrt_tensor.reset();
-  m_borrowed_host_base_ptr = nullptr;
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -324,8 +300,6 @@ void BufferInstance::copyFromHost(
         const_cast<void *>(host_buffer), shape, strides, element_size,
         runtime_data_type);
 
-    m_borrowed_host_base_ptr = host_buffer;
-
     // Memory is aliased, we need to hold on to host buffer until this buffer is
     // deleted.
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
@@ -356,8 +330,6 @@ void BufferInstance::copyFromHost(
 void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
   TT_FATAL(src_buffer->getPjrtTensor(), "Source buffer has no data.");
-
-  m_borrowed_host_base_ptr = nullptr;
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(

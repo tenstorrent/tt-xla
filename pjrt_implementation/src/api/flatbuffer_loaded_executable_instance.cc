@@ -16,7 +16,6 @@
 
 // tt-xla includes
 #include "api/buffer_instance.h"
-#include "api/error_instance.h"
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
@@ -78,9 +77,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   //     const BufferInstance* buf = arg_buffers[i];
   //     log_stream << "[i=" << i;
   //     if (buf) {
-  //       log_stream << " ptr=" << buf
-  //                  << " borrowed_host_base=" << buf->borrowedHostBasePointer()
-  //                  << " shape=(";
+  //       log_stream << " ptr=" << buf << " shape=(";
   //       const std::string shape = buf->toShapeStr();
   //       log_stream << shape;
   //       log_stream << ")";
