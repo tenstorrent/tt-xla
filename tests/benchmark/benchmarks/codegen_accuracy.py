@@ -195,10 +195,8 @@ def generate_cpu_bypass_code(
         out = group.matmul_output
 
         bypass = f"""{indent}# === CPU BYPASS #{idx} (was ttnn.matmul) ===
-{indent}_host_act_{idx} = ttnn.from_device(ttnn.to_layout({act}, ttnn.Layout.ROW_MAJOR))
-{indent}_host_wt_{idx} = ttnn.from_device(ttnn.to_layout(ttnn.typecast({wt}, ttnn.DataType.BFLOAT16), ttnn.Layout.ROW_MAJOR))
-{indent}_torch_act_{idx} = ttnn.to_torch(_host_act_{idx}).to(torch.bfloat16)
-{indent}_torch_wt_{idx} = ttnn.to_torch(_host_wt_{idx}).to(torch.bfloat16)
+{indent}_torch_act_{idx} = ttnn.to_torch(ttnn.from_device({act})).to(torch.bfloat16)
+{indent}_torch_wt_{idx} = ttnn.to_torch(ttnn.from_device({wt})).to(torch.bfloat16)
 {indent}_cpu_result_{idx} = torch.matmul(_torch_act_{idx}, _torch_wt_{idx})
 {indent}_device_{idx} = {act}.device()
 {indent}{out} = ttnn.from_torch(_cpu_result_{idx}, dtype=ttnn.DataType.BFLOAT16, layout=ttnn.Layout.TILE, device=_device_{idx}, memory_config=ttnn.DRAM_MEMORY_CONFIG)
