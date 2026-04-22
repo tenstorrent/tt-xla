@@ -9,14 +9,10 @@
 
 test_config:
   falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -27,19 +23,14 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -102,9 +93,7 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
