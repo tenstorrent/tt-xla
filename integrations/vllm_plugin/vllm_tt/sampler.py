@@ -33,7 +33,7 @@ def _get_topk_split_params(vocab_size: int) -> tuple[int, int]:
 
 _SAMPLING_EPS = 1e-5
 _TOPK_BEFORE_ARGMAX = os.environ.get("TT_TOPK_BEFORE_ARGMAX", "") == "1"
-_USE_TTNN_SAMPLING = os.environ.get("TT_USE_TTNN_SAMPLING", "") == "1"
+_USE_TTNN_SAMPLING = os.environ.get("TT_USE_TTNN_SAMPLING", "1") != "0"
 _TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
 
 
