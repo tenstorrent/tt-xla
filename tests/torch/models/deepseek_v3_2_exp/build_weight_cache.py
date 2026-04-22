@@ -27,7 +27,7 @@ from safetensors.torch import save_file as safetensors_save_file
 
 # Import the canonical helpers from the test file to stay in sync
 sys.path.insert(0, os.path.dirname(__file__))
-from test_deepseek_v3_2_exp import _rename_hf_key, _weight_dequant
+from test_deepseek_v3_1 import _rename_hf_key, _weight_dequant
 
 DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
 
