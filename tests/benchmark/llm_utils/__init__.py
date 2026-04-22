@@ -7,6 +7,7 @@ from llm_utils.decode_utils import (
     extract_topk,
     generate_and_benchmark,
     init_accuracy_testing,
+    init_indexer_cache,
     init_mla_cache,
     init_static_cache,
 )

@@ -20,6 +20,7 @@ from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
     init_accuracy_testing,
+    init_indexer_cache,
     init_mla_cache,
     init_static_cache,
 )
@@ -247,6 +248,7 @@ def benchmark_llm_torch_xla(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    use_indexer_cache: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -357,6 +359,14 @@ def benchmark_llm_torch_xla(
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
     )
+    if use_indexer_cache:
+        init_indexer_cache(
+            model,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
 
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:
@@ -393,6 +403,14 @@ def benchmark_llm_torch_xla(
         past_key_values=decode_only_cache if decode_only else None,
         use_mla_cache=use_mla_cache,
     )
+    if use_indexer_cache:
+        init_indexer_cache(
+            model,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
     input_args = transfer_to_device(input_args, device)
     model = model.to(device, dtype=torch.bfloat16)
 

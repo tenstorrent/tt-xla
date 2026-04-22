@@ -185,6 +185,42 @@ def init_mla_cache(
     return cache
 
 
+def init_indexer_cache(
+    model,
+    *,
+    batch_size: int,
+    max_cache_len: int,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.bfloat16,
+) -> None:
+    """Initialize Indexer k_caches for all model layers that have an Indexer.
+
+    Analogous to init_mla_cache. Must be called after each construct_inputs()
+    (for both the CPU baseline run and the device run) when the model uses an
+    Indexer whose k_cache is deferred via early_initialization().
+
+    Args:
+        model: The model (e.g. DeepSeekV32ForCausalLM wrapper). Accessed via
+               model.transformer.layers[i].attn.indexer.
+        batch_size: Batch size.
+        max_cache_len: Maximum sequence length to cache (must match MLACache).
+        device: Device to allocate tensors on.
+        dtype: Tensor dtype.
+    """
+    transformer = getattr(model, "transformer", model)
+    layers = getattr(transformer, "layers", [])
+    for layer in layers:
+        attn = getattr(layer, "attn", None)
+        indexer = getattr(attn, "indexer", None) if attn is not None else None
+        if indexer is not None and hasattr(indexer, "early_initialization"):
+            indexer.early_initialization(
+                batch_size=batch_size,
+                max_cache_len=max_cache_len,
+                device=device,
+                dtype=dtype,
+            )
+
+
 def extract_topk(
     logits: torch.Tensor,
     *,
