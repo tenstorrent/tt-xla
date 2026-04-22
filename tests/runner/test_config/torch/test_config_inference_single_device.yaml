@@ -2036,8 +2036,9 @@ test_config:
     status: EXPECTED_PASSING
 
   vilt/masked_lm/pytorch-Mlm-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
 
   mplug_owl2/pytorch-Llama2_7B-single_device-inference:
     supported_archs: ["p150"]
@@ -2195,8 +2196,9 @@ test_config:
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
   vilt/question_answering/pytorch-Vqa-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
 
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
