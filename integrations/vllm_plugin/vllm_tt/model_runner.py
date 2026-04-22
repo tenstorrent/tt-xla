@@ -1545,6 +1545,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     vllm_config=self.vllm_config, model_config=self.model_config
                 ).eval()
                 replace_modules(model)
+
+                # Apply per-layer weight dtype overrides before moving to device
+                if self.tt_config.weight_dtype_overrides:
+                    from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+                    applied = apply_weight_dtype_overrides(
+                        model, self.tt_config.weight_dtype_overrides
+                    )
+                    logger.info(
+                        f"Applied {len(applied)} weight dtype overrides "
+                        f"from TTConfig.weight_dtype_overrides"
+                    )
+
                 model = model.to(self.device)
 
                 if self.enable_tensor_parallel:
