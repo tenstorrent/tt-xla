@@ -952,10 +952,8 @@ def _moe_gpt_decode_fallback(
     topk_scores: torch.Tensor,
     dispatch_mapping: torch.Tensor,
     moe_gpt_mapping: torch.Tensor,
-    gate_up_proj: torch.Tensor,
-    gate_up_proj_bias: torch.Tensor,
-    down_proj: torch.Tensor,
-    down_proj_bias: torch.Tensor,
+    fused_w0_w1: torch.Tensor,
+    fused_w2: torch.Tensor,
     num_devices: int,
     cluster_axis: int,
     num_experts: int,
@@ -963,14 +961,17 @@ def _moe_gpt_decode_fallback(
     intermediate_size: int,
     alpha: float,
     limit: float,
-    fused_w0_w1: Optional[torch.Tensor] = None,
-    fused_w2: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Decode-only GPT-OSS decomposition expressed with SHLO custom ops.
 
     Expects 4D inputs: hidden_states [B, 1, S, H], topk_indices/scores [B, 1, S, K].
     The 3D→4D reshape is done by the caller (outside the composite boundary)
     so that batch sharding propagates cleanly without inserting CCL ops.
+
+    ``moe_gpt`` requires preprocessed fused kernel weights
+    (``fused_w0_w1`` / ``fused_w2``) — the backend binds them directly to
+    ``ttir.moe_gpt``'s 6D weight inputs and no longer supports the
+    legacy unfused path.
     """
     batch_size = hidden_states.shape[0]
 
@@ -987,20 +988,14 @@ def _moe_gpt_decode_fallback(
 
     # Mirror tt-metal's fused decode sequence:
     # dispatch_metadata -> moe_gpt(metadata bundle) -> selective_reduce_combine.
-    # When the caller supplies preprocessed 6D fused weights (tt-metal kernel
-    # layout) we forward them as additional operands so the backend can bind
-    # them directly to ttir.moe_gpt's 6D weight inputs.
     moe_gpt_outputs = torch.ops.tt.moe_gpt(
         dispatched,
         metadata_indices,
         metadata_scores,
         moe_gpt_mapping,
-        gate_up_proj,
-        gate_up_proj_bias,
-        down_proj,
-        down_proj_bias,
-        fused_w0_w1=fused_w0_w1,
-        fused_w2=fused_w2,
+        fused_w0_w1,
+        fused_w2,
+        num_experts=num_experts,
         num_experts_per_tok=num_experts_per_tok,
         num_devices=num_devices,
         cluster_axis=cluster_axis,
@@ -1026,10 +1021,8 @@ def _composite_moe_gpt_decode(
     topk_scores: torch.Tensor,
     dispatch_mapping: torch.Tensor,
     moe_gpt_mapping: torch.Tensor,
-    gate_up_proj: torch.Tensor,
-    gate_up_proj_bias: torch.Tensor,
-    down_proj: torch.Tensor,
-    down_proj_bias: torch.Tensor,
+    fused_w0_w1: torch.Tensor,
+    fused_w2: torch.Tensor,
     num_devices: int,
     cluster_axis: int,
     num_experts: int,
@@ -1037,8 +1030,6 @@ def _composite_moe_gpt_decode(
     intermediate_size: int,
     alpha: float,
     limit: float,
-    fused_w0_w1: Optional[torch.Tensor] = None,
-    fused_w2: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Wrap GPT-OSS decode expert flow into one composite.
@@ -1047,12 +1038,10 @@ def _composite_moe_gpt_decode(
     embedded StableHLO decomposition exposes the GPT-OSS custom calls used for
     sharding propagation.
 
-    When ``fused_w0_w1`` and ``fused_w2`` are provided they are included as
-    additional composite inputs so that tt-MLIR can consume the already-
-    preprocessed fused kernel weight layout directly, avoiding a runtime
-    transformation.
+    Preprocessed fused kernel weights (``fused_w0_w1`` / ``fused_w2``) are
+    required — the tt-MLIR backend binds them directly to ``ttir.moe_gpt``'s
+    6D weight inputs and no runtime weight transformation is performed.
     """
-    has_fused = fused_w0_w1 is not None and fused_w2 is not None
     builder = StableHLOCompositeBuilder(
         name="tenstorrent.moe_gpt_decode",
         attr={
@@ -1063,7 +1052,6 @@ def _composite_moe_gpt_decode(
             "intermediate_size": intermediate_size,
             "alpha": alpha,
             "limit": limit,
-            "has_fused_weights": has_fused,
         },
     )
 
@@ -1073,42 +1061,19 @@ def _composite_moe_gpt_decode(
         topk_scores,
         dispatch_mapping,
         moe_gpt_mapping,
-        gate_up_proj,
-        gate_up_proj_bias,
-        down_proj,
-        down_proj_bias,
+        fused_w0_w1,
+        fused_w2,
     ]
-    if has_fused:
-        inputs.extend([fused_w0_w1, fused_w2])
 
-    marked = builder.mark_inputs(*inputs)
-
-    if has_fused:
-        (
-            hidden_states,
-            topk_indices,
-            topk_scores,
-            dispatch_mapping,
-            moe_gpt_mapping,
-            gate_up_proj,
-            gate_up_proj_bias,
-            down_proj,
-            down_proj_bias,
-            fused_w0_w1,
-            fused_w2,
-        ) = marked
-    else:
-        (
-            hidden_states,
-            topk_indices,
-            topk_scores,
-            dispatch_mapping,
-            moe_gpt_mapping,
-            gate_up_proj,
-            gate_up_proj_bias,
-            down_proj,
-            down_proj_bias,
-        ) = marked
+    (
+        hidden_states,
+        topk_indices,
+        topk_scores,
+        dispatch_mapping,
+        moe_gpt_mapping,
+        fused_w0_w1,
+        fused_w2,
+    ) = builder.mark_inputs(*inputs)
 
     output = _moe_gpt_decode_fallback(
         hidden_states=hidden_states,
@@ -1116,10 +1081,8 @@ def _composite_moe_gpt_decode(
         topk_scores=topk_scores,
         dispatch_mapping=dispatch_mapping,
         moe_gpt_mapping=moe_gpt_mapping,
-        gate_up_proj=gate_up_proj,
-        gate_up_proj_bias=gate_up_proj_bias,
-        down_proj=down_proj,
-        down_proj_bias=down_proj_bias,
+        fused_w0_w1=fused_w0_w1,
+        fused_w2=fused_w2,
         num_devices=num_devices,
         cluster_axis=cluster_axis,
         num_experts=num_experts,
@@ -1127,8 +1090,6 @@ def _composite_moe_gpt_decode(
         intermediate_size=intermediate_size,
         alpha=alpha,
         limit=limit,
-        fused_w0_w1=fused_w0_w1 if has_fused else None,
-        fused_w2=fused_w2 if has_fused else None,
     )
     output = builder.mark_outputs(output)
     return output
@@ -1512,7 +1473,14 @@ class SparseMOEGPT(A2aSparseMLP):
         # Non-XLA (CPU) or composite disabled: fall back to A2aSparseMLP,
         # which already handles the CPU golden path and the legacy A2A
         # sparse path used when fused_decode=False.
-        if hidden_states.device.type != "xla" or not self.use_decode_composite:
+        # The decode composite also requires preprocessed fused kernel weights
+        # (``self.fused_w0_w1`` / ``fused_w2``); ``torch.ops.tt.moe_gpt`` no
+        # longer accepts the unfused ``gate_up_proj`` / ``down_proj`` path.
+        if (
+            hidden_states.device.type != "xla"
+            or not self.use_decode_composite
+            or not self._has_fused_weights
+        ):
             return super().forward(hidden_states)
 
         # Prefill path on XLA (S > 1): bypass the A2A sparse remap entirely
@@ -1545,8 +1513,6 @@ class SparseMOEGPT(A2aSparseMLP):
         indices_4d = topk_indices.view(batch_size, 1, seq_len, self.num_experts_per_tok)
         scores_4d = topk_scores.view(batch_size, 1, seq_len, self.num_experts_per_tok)
 
-        # Build keyword args for the composite; include preprocessed fused
-        # weights when available so tt-MLIR can consume them directly.
         # Prefer the tt-metal-compatible linearized mapping
         # ([1, 1, D_total, E] with global device ids) when available. It
         # matches what ttnn.all_to_all_dispatch_metadata and ttnn.moe_gpt
@@ -1562,16 +1528,19 @@ class SparseMOEGPT(A2aSparseMLP):
             if self.moe_gpt_mapping_linearized is not None
             else self.moe_gpt_mapping
         )
-        composite_kwargs = dict(
+
+        # Composite returns combined [K, S, B, H] from selective_reduce_combine.
+        # Weighted sum with topk_scores is done outside the composite so that
+        # topk_scores (batch-sharded) is not pulled into the composite where
+        # dispatch needs it replicated — avoids arg identity conflict in reoutline.
+        combined = _composite_moe_gpt_decode(
             hidden_states=hidden_4d,
             topk_indices=indices_4d,
             topk_scores=scores_4d,
             dispatch_mapping=dispatch_mapping,
             moe_gpt_mapping=moe_gpt_mapping,
-            gate_up_proj=self.experts.gate_up_proj,
-            gate_up_proj_bias=self.experts.gate_up_proj_bias,
-            down_proj=self.experts.down_proj,
-            down_proj_bias=self.experts.down_proj_bias,
+            fused_w0_w1=self.fused_w0_w1,
+            fused_w2=self.fused_w2,
             num_devices=self.dispatch_devices,
             cluster_axis=self.cluster_axis,
             num_experts=self.num_experts,
@@ -1580,15 +1549,6 @@ class SparseMOEGPT(A2aSparseMLP):
             alpha=self.alpha,
             limit=self.limit,
         )
-        if self._has_fused_weights:
-            composite_kwargs["fused_w0_w1"] = self.fused_w0_w1
-            composite_kwargs["fused_w2"] = self.fused_w2
-
-        # Composite returns combined [K, S, B, H] from selective_reduce_combine.
-        # Weighted sum with topk_scores is done outside the composite so that
-        # topk_scores (batch-sharded) is not pulled into the composite where
-        # dispatch needs it replicated — avoids arg identity conflict in reoutline.
-        combined = _composite_moe_gpt_decode(**composite_kwargs)
 
         topk_weights = topk_scores.view(batch_size, self.num_experts_per_tok)
         topk_weights = topk_weights.permute(1, 0).unsqueeze(-1)
