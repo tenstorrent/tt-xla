@@ -169,7 +169,7 @@ _8B_BASE = dict(
 _QUALITY_OPTS = dict(
     enable_const_eval=True,
     cpu_sampling=False,
-    # optimization_level=1 corrupts non-greedy output — use default (0)
+    optimization_level=1,
     experimental_weight_dtype="bfp_bf8",
     enable_trace=False,
 )
