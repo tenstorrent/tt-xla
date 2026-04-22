@@ -206,12 +206,15 @@ class Sampler(nn.Module):
             # ttnn.sampling handles temperature internally (multiplies by
             # 1/temperature), so skip apply_temperature and run topk on
             # raw logits. Pass None for k/p — ttnn.sampling handles them
-            # internally, and passing them here would break shape assumptions
-            # after the batch=32 padding in apply_top_k_top_p_fast.
+            # internally. Disable pad-to-32 here: _ttnn_sampling_padded
+            # already pads the candidate set to 32 for the kernel, and
+            # batched topk on [32, vocab] with -inf dummy rows can return
+            # different index sets for row 0 vs [1, vocab] topk.
             filtered_logits, candidate_indices = apply_top_k_top_p_fast(
                 logits,
                 None,
                 None,
+                pad_to_batch=False,
             )
             random_sampled_padded = self._ttnn_sampling_padded(
                 filtered_logits,
@@ -421,6 +424,7 @@ def apply_top_k_top_p_fast(
     logits: torch.Tensor,
     k: torch.Tensor | None,
     p: torch.Tensor | None,
+    pad_to_batch: bool = True,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Top-k/top-p filtering via multi-core ttnn.topk.
 
@@ -443,7 +447,9 @@ def apply_top_k_top_p_fast(
     # Only pad when k/p filtering is skipped (k=None, p=None) — if actual
     # k/p tensors are passed they have shape [batch] and won't broadcast
     # against the padded [32, ...] topk outputs.
-    _pad_for_topk = k is None and p is None and batch < _TTNN_SAMPLING_BATCH_SIZE
+    _pad_for_topk = (
+        pad_to_batch and k is None and p is None and batch < _TTNN_SAMPLING_BATCH_SIZE
+    )
     if _pad_for_topk:
         logits = torch.nn.functional.pad(
             logits,
