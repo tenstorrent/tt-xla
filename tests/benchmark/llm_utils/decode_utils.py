@@ -54,10 +54,11 @@ class LLMSamplingWrapper(torch.nn.Module):
         self.output_sharding_spec = output_sharding_spec
 
     def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
+        position_ids = cache_position.unsqueeze(0)
         output = self.model(
             input_ids=input_ids,
             past_key_values=past_key_values,
-            cache_position=cache_position,
+            position_ids=position_ids,
             use_cache=use_cache,
         )
         logits = self.read_logits_fn(output)

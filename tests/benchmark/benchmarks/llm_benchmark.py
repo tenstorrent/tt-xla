@@ -171,8 +171,12 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        # Reset CL on CPU. Keep cumulative_length as a CPU tensor so that
+        # mark_static_address (set by StaticLayer.lazy_initialization) stays
+        # intact.  Moving it to device would create a new tensor that loses
+        # the static-address contract, causing the compiled graph to diverge
+        # from the Python attribute and producing a ~10 % SPS regression.
         layer.cumulative_length.zero_()
-        layer.cumulative_length = layer.cumulative_length.to(device)
         layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
@@ -513,13 +517,19 @@ def benchmark_llm_torch_xla(
 
         accuracy_steps = max_output_tokens
 
-        # Reconstruct inputs for accuracy run
+        # Reconstruct inputs for accuracy run with a fresh cache.
+        # Reusing the perf cache leaves cumulative_length at a non-zero value
+        # even after zero_() because of async TT device operations still
+        # running at the point transfer_to_device is called (CL ends up at
+        # an intermediate value, e.g. 77 instead of 0, causing cache
+        # position mis-writes and PCC ~0.4).  A new cache always starts at
+        # CL=0 and avoids the race entirely.
         input_args = construct_inputs(
             tokenizer,
             model.config,
             batch_size,
             max_cache_len,
-            past_key_values=input_args["past_key_values"],
+            past_key_values=None,
             input_prompt=custom_input_prompt,
             input_prompt_tokens=(
                 token_accuracy.input_prompt if accuracy_testing else None
