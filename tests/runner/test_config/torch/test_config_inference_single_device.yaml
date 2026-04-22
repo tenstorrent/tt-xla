@@ -2143,16 +2143,19 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
   panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_1x_COCO-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
 
   panoptic_segmentation/pytorch-ResNet50_Backbone_3x_COCO-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
+    status: EXPECTED_PASSING
+    # status: NOT_SUPPORTED_SKIP
+    # reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
 
   sam/pytorch-Vit_Huge-single_device-inference:
     status: EXPECTED_PASSING
