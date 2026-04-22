@@ -98,31 +98,29 @@ def _mesh_info() -> Tuple[int, int, Tuple[int, ...]]:
 
 def _expert_mapping(
     num_experts: int,
-    total_devices: int,
-    mesh_shape: Tuple[int, ...],
+    num_devices: int,
     device: torch.device,
 ) -> torch.Tensor:
     """Build the `[1, 1, E, D]` one-hot expert-to-device mapping.
 
-    For 2D meshes with `total_devices == rows * cols`, expert `e` is placed at
-    mesh position `(e % rows, e // rows)`, matching GSPMD compound sharding
-    on `(axis_0, axis_1)`. For other mesh layouts, experts are distributed
-    sequentially across devices.
+    Experts are sharded only along the selected dispatch axis. Keep the mapping
+    aligned with that single-axis placement by assigning contiguous expert
+    ranges to each device on the axis.
     """
-    if len(mesh_shape) == 2 and total_devices == mesh_shape[0] * mesh_shape[1]:
-        rows, cols = mesh_shape
-        device_ids_list = [(i % rows) * cols + (i // rows) for i in range(num_experts)]
-    else:
-        per = max(1, num_experts // total_devices)
-        device_ids_list = [min(i // per, total_devices - 1) for i in range(num_experts)]
+    assert (
+        num_experts % num_devices == 0
+    ), f"num_experts ({num_experts}) must be divisible by num_devices ({num_devices})"
+
+    experts_per_device = num_experts // num_devices
+    device_ids_list = [i // experts_per_device for i in range(num_experts)]
 
     device_ids = torch.tensor(device_ids_list, device=device, dtype=torch.int64)
 
     mapping = (
         device_ids.unsqueeze(-1)
-        == torch.arange(total_devices, device=device, dtype=torch.int64)
+        == torch.arange(num_devices, device=device, dtype=torch.int64)
     ).to(torch.int64)
-    return mapping.view(1, 1, num_experts, total_devices)
+    return mapping.view(1, 1, num_experts, num_devices)
 
 
 def _build_routing_scores(
@@ -227,9 +225,7 @@ def _tt_experts_forward_ep(
     top_k_index: torch.Tensor,
     top_k_weights: torch.Tensor,
     routing_scores: torch.Tensor,
-    total_devices: int,
     dispatch_devices: int,
-    mesh_shape: Tuple[int, ...],
 ) -> torch.Tensor:
     """Expert-parallel compute: dispatch tokens to the devices holding their
     selected experts, run the sparse_matmul chain on the dispatched layout,
@@ -245,7 +241,7 @@ def _tt_experts_forward_ep(
     # `[1, 1, E, D]` one-hot mapping lifted into the graph as a pure tensor op
     # sequence so AOTAutograd/XLA can trace it without CPU copies or in-place
     # Python-side writes.
-    expert_mapping = _expert_mapping(E, total_devices, mesh_shape, device)
+    expert_mapping = _expert_mapping(E, dispatch_devices, device)
 
     # Dispatch tokens along cluster_axis. Output is a full [1, B*D, T, H]
     # tensor where each of the D slices carries only the tokens its experts
@@ -346,7 +342,7 @@ def tt_experts_forward(
     based on the global torch_xla SPMD mesh and the `cluster_axis` chosen at
     registration time.
     """
-    total_devices, dispatch_devices, mesh_shape = _mesh_info()
+    _, dispatch_devices, _ = _mesh_info()
 
     if dispatch_devices <= 1:
         return _tt_experts_forward_dp(self, hidden_states, top_k_index, top_k_weights)
@@ -365,9 +361,7 @@ def tt_experts_forward(
         top_k_index,
         top_k_weights,
         routing_scores,
-        total_devices,
         dispatch_devices,
-        mesh_shape,
     )
 
 

@@ -9,12 +9,13 @@ CPU reference forward with the stock `eager` backend, then runs the same
 prompt on the card under `torch.compile(backend="tt")` with `tt_moe` and
 reports the PCC between the two logits tensors.
 
-When more than one TT device is visible, the example installs a 1D SPMD
-mesh and shards each `AfmoeExperts` module's `gate_up_proj` / `down_proj`
-across the expert axis. `tt_experts_forward` then picks up the global mesh
-and emits `all_to_all_dispatch` / `all_to_all_combine` around the
-`sparse_matmul` chain, giving a real end-to-end expert-parallel execution
-without any model-specific module surgery.
+When two TT devices are visible, the example installs a 2D `(1, 2)` SPMD mesh
+named `("batch", "model")`. Both tensor parallelism (attention projections)
+and expert parallelism (routed experts only) run over the mesh's `model`
+axis. `tt_experts_forward` picks up that global mesh and emits
+`all_to_all_dispatch` / `all_to_all_combine` around the `sparse_matmul`
+chain, while the rest of the decoder is annotated with explicit sharding so
+the compiler sees a coherent TP+EP layout end to end.
 
 Usage:
     # Single-device (data-parallel expert compute):
@@ -25,6 +26,7 @@ Usage:
 """
 
 import os
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -47,7 +49,9 @@ from tt_torch.moe_backend import (
 MODEL_ID = "arcee-ai/Trinity-Nano-Preview"
 PROMPT = "Explain in one sentence what a mixture-of-experts model is."
 SEQ_LEN = 64  # multiple of tt::sparse_matmul's REDUCTION_SIZE
-EXPERT_AXIS = "experts"
+BATCH_AXIS = "batch"
+MODEL_AXIS = "model"
+MODEL_AXIS_INDEX = 1
 
 
 def pcc(a: torch.Tensor, b: torch.Tensor) -> float:
@@ -59,28 +63,74 @@ def pcc(a: torch.Tensor, b: torch.Tensor) -> float:
     return float((a @ b) / (a.norm() * b.norm()))
 
 
-def _build_ep_mesh(num_devices: int) -> Mesh:
-    """1D mesh whose only axis is the expert-parallel axis (cluster_axis=0)."""
-    device_ids = np.array(range(num_devices))
-    return Mesh(device_ids, (num_devices,), (EXPERT_AXIS,))
+def _build_tp_ep_mesh(num_devices: int) -> Mesh:
+    """Build the `(1, 2)` mesh required by the current compiler."""
+    if num_devices != 2:
+        raise ValueError(
+            f"This demo expects exactly 2 TT devices for mesh shape (1, 2), got {num_devices}."
+        )
+    device_ids = np.arange(num_devices)
+    return Mesh(device_ids, (1, 2), (BATCH_AXIS, MODEL_AXIS))
 
 
-def _shard_experts(model: torch.nn.Module, mesh: Mesh) -> int:
-    """Shard every AfmoeExperts module's `gate_up_proj` / `down_proj` on the
-    expert dim. Returns the number of MoE layers sharded.
-    """
-    count = 0
+def _mark_replicated(tensor: Any, mesh: Mesh) -> None:
+    xs.mark_sharding(tensor, mesh, (None,) * tensor.dim())
+
+
+def _mark_optional(tensor: Any, mesh: Mesh, spec: tuple) -> None:
+    if tensor is not None:
+        xs.mark_sharding(tensor, mesh, spec)
+
+
+def _shard_model(model: Any, mesh: Mesh) -> int:
+    """Apply TP shardings to attention and EP shardings to routed experts."""
+    _mark_replicated(model.model.embed_tokens.weight, mesh)
+    _mark_replicated(model.model.norm.weight, mesh)
+    _mark_replicated(model.lm_head.weight, mesh)
+
+    moe_layers = 0
     for layer in model.model.layers:
-        mlp = getattr(layer, "mlp", None)
-        experts = getattr(mlp, "experts", None) if mlp is not None else None
-        if experts is None or not hasattr(experts, "gate_up_proj"):
+        attn = layer.self_attn
+        xs.mark_sharding(attn.q_proj.weight, mesh, (MODEL_AXIS, None))
+        _mark_optional(attn.q_proj.bias, mesh, (MODEL_AXIS,))
+        xs.mark_sharding(attn.k_proj.weight, mesh, (MODEL_AXIS, None))
+        _mark_optional(attn.k_proj.bias, mesh, (MODEL_AXIS,))
+        xs.mark_sharding(attn.v_proj.weight, mesh, (MODEL_AXIS, None))
+        _mark_optional(attn.v_proj.bias, mesh, (MODEL_AXIS,))
+        xs.mark_sharding(attn.gate_proj.weight, mesh, (MODEL_AXIS, None))
+        xs.mark_sharding(attn.o_proj.weight, mesh, (None, MODEL_AXIS))
+        _mark_optional(attn.o_proj.bias, mesh, (None,))
+        _mark_replicated(attn.q_norm.weight, mesh)
+        _mark_replicated(attn.k_norm.weight, mesh)
+
+        _mark_replicated(layer.input_layernorm.weight, mesh)
+        _mark_replicated(layer.post_attention_layernorm.weight, mesh)
+        _mark_replicated(layer.pre_mlp_layernorm.weight, mesh)
+        _mark_replicated(layer.post_mlp_layernorm.weight, mesh)
+
+        mlp = layer.mlp
+        experts = getattr(mlp, "experts", None)
+        if experts is None:
+            _mark_replicated(mlp.gate_proj.weight, mesh)
+            _mark_replicated(mlp.up_proj.weight, mesh)
+            _mark_replicated(mlp.down_proj.weight, mesh)
             continue
-        # gate_up_proj: [E, 2*I, H] — shard E on the expert axis.
-        xs.mark_sharding(experts.gate_up_proj, mesh, (EXPERT_AXIS, None, None))
-        # down_proj:    [E, H,   I] — same treatment.
-        xs.mark_sharding(experts.down_proj, mesh, (EXPERT_AXIS, None, None))
-        count += 1
-    return count
+
+        router = mlp.router
+        _mark_replicated(router.gate.weight, mesh)
+        _mark_replicated(mlp.expert_bias, mesh)
+
+        shared = mlp.shared_experts
+        _mark_replicated(shared.gate_proj.weight, mesh)
+        _mark_replicated(shared.up_proj.weight, mesh)
+        _mark_replicated(shared.down_proj.weight, mesh)
+
+        # EP shards only the routed-expert bank along the expert dimension.
+        xs.mark_sharding(experts.gate_up_proj, mesh, (MODEL_AXIS, None, None))
+        xs.mark_sharding(experts.down_proj, mesh, (MODEL_AXIS, None, None))
+        moe_layers += 1
+
+    return moe_layers
 
 
 def main() -> None:
@@ -97,9 +147,12 @@ def main() -> None:
         # required for `xs.mark_sharding` annotations to reach the compiler.
         os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
         xr.use_spmd()
-        mesh = _build_ep_mesh(num_devices)
+        mesh = _build_tp_ep_mesh(num_devices)
         xs.set_global_mesh(mesh)
-        print(f"EP enabled: {num_devices} devices, axis={EXPERT_AXIS!r}")
+        print(
+            f"TP+EP enabled: mesh_shape={mesh.mesh_shape}, axes={mesh.axis_names}, "
+            f"cluster_axis={MODEL_AXIS_INDEX}"
+        )
     else:
         mesh = None
         print("Single-device run (no EP)")
@@ -107,7 +160,7 @@ def main() -> None:
     # MoE models are large; cast matmul weights to bfp_bf8 so the whole model
     # fits in device DRAM.
     torch_xla.set_custom_compile_options({"experimental_weight_dtype": "bfp_bf8"})
-    register_tt_moe_backend(cluster_axis=0)
+    register_tt_moe_backend(cluster_axis=MODEL_AXIS_INDEX)
     register_tt_attention_backend()
 
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
@@ -148,17 +201,22 @@ def main() -> None:
         attn_implementation=TT_ATTENTION_BACKEND_NAME,
     ).eval()
     device = torch_xla.device()
-    card_model = card_model.to(device)
+    card_model = cast(Any, card_model).to(device)
 
     if mesh is not None:
-        moe_layers = _shard_experts(card_model, mesh)
-        print(f"Sharded experts on {moe_layers} MoE layers")
+        moe_layers = _shard_model(card_model, mesh)
+        print(f"Applied TP+EP shardings across {moe_layers} MoE layers")
 
     compiled = torch.compile(card_model, backend="tt")
+    tt_input_ids = input_ids.to(device)
+    tt_attention_mask = attention_mask.to(device)
+    if mesh is not None:
+        xs.mark_sharding(tt_input_ids, mesh, (None, None))
+        xs.mark_sharding(tt_attention_mask, mesh, (None, None))
     with torch.no_grad():
         logits_card = compiled(
-            input_ids=input_ids.to(device),
-            attention_mask=attention_mask.to(device),
+            input_ids=tt_input_ids,
+            attention_mask=tt_attention_mask,
             use_cache=False,
         ).logits.to("cpu")
 
