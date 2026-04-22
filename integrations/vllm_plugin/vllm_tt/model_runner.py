@@ -2183,29 +2183,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits = logits.cpu()
 
         if not sampling_metadata.no_penalties:
-            output_counts = sampling_metadata.output_token_counts.cpu()
+            output_counts = sampling_metadata.output_token_counts
             occurred_output = output_counts > 0
-            prompt_mask = sampling_metadata.prompt_token_mask.cpu()
-            rep_pen = sampling_metadata.repetition_penalties.cpu().unsqueeze(1)
+            prompt_mask = sampling_metadata.prompt_token_mask
+            rep_pen = sampling_metadata.repetition_penalties.unsqueeze(1)
             rep_mask = occurred_output | prompt_mask
             penalty_factor = torch.where(logits > 0, torch.reciprocal(rep_pen), rep_pen)
             logits = torch.where(rep_mask, logits * penalty_factor, logits)
-            freq_pen = sampling_metadata.frequency_penalties.cpu().unsqueeze(1)
+            freq_pen = sampling_metadata.frequency_penalties.unsqueeze(1)
             logits -= freq_pen * output_counts.to(logits.dtype)
-            pres_pen = sampling_metadata.presence_penalties.cpu().unsqueeze(1)
+            pres_pen = sampling_metadata.presence_penalties.unsqueeze(1)
             logits -= pres_pen * occurred_output.to(logits.dtype)
 
         if sampling_metadata.all_greedy:
             return torch.argmax(logits, dim=-1, keepdim=True)
 
-        temp = sampling_metadata.temperature.cpu()
+        temp = sampling_metadata.temperature
         temp = torch.where(temp < 1e-6, torch.ones_like(temp), temp)
         logits = logits / temp.unsqueeze(1)
 
         has_topk = sampling_metadata.top_k is not None
         has_topp = sampling_metadata.top_p is not None
-        top_k = sampling_metadata.top_k.cpu() if has_topk else None
-        top_p = sampling_metadata.top_p.cpu() if has_topp else None
+        top_k = sampling_metadata.top_k if has_topk else None
+        top_p = sampling_metadata.top_p if has_topp else None
 
         # Fast path: all requests share the same k > 0 — single batched topk
         # reduces vocab from 128K to k before top-p sort.
