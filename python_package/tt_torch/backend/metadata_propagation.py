@@ -185,7 +185,6 @@ def _find_enclosing_function(
 def _extract_source_and_module_hierarchy_info(
     node: torch.fx.Node, op_index: int = -1
 ) -> EmitLoc:
-    return EmitLoc.make_unknown() # seems to be taking a while, let's skip the entire function for now
     if "stack_trace" not in node.meta or not node.meta["stack_trace"]:
         return EmitLoc.make_unknown()
 
