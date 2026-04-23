@@ -27,6 +27,9 @@
 
 #if TTXLA_ENABLE_EMITPY_EXECUTION
 #include <tools/tt-alchemist/python_runner/python_runner.hpp>
+
+constexpr static char MODULE_NAME[] = "main";
+constexpr static char ENTRYPOINT_NAME[] = "main_for_test";
 #endif
 
 namespace tt::pjrt {
@@ -134,7 +137,7 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
     // Execute the generated Python code via PythonModelRunner.
     tt::alchemist::PythonModelRunner runner;
     runner.addToSysPath(options.export_path.value());
-    runner.loadModule("main", "main_for_test");
+    runner.loadModule(MODULE_NAME, ENTRYPOINT_NAME);
 
     std::vector<tt::runtime::Tensor> output_tensors =
         runner.forward(input_tensors, *runtime_device);
