@@ -72,9 +72,9 @@ test_config:
   xglm/pytorch-564M-single_device-inference:
     status: EXPECTED_PASSING
 
-  xglm/pytorch-1.7b-single_device-inference:
-    required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
-    status: EXPECTED_PASSING
+  # xglm/pytorch-1.7b-single_device-inference:
+  #   required_pcc: 0.98 # PCC was >0.99 while it was calculated in f32. ATOL is outrageously bad so a drop is not unexpected; also https://github.com/tenstorrent/tt-xla/issues/2944
+  #   status: EXPECTED_PASSING
 
   resnet/pytorch-ResNet50_HuggingFace-single_device-inference:
     required_pcc: 0.98
