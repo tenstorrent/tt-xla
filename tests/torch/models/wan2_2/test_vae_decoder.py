@@ -19,6 +19,7 @@ from infra.evaluators import ComparisonConfig, PccConfig
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
+from .monkey_patch import _patch_tt_torch_getitem_clamp
 from .shared import (
     RESOLUTIONS,
     VAEDecoderWrapper,
@@ -27,6 +28,15 @@ from .shared import (
     wan22_mesh,
 )
 
+# ---------------------------------------------------------------------------
+# Monkey patches
+# ---------------------------------------------------------------------------
+
+_patch_tt_torch_getitem_clamp()
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 def test_vae_decoder_480p():
     _run(resolution="480p", sharded=False)
@@ -46,7 +56,11 @@ def test_vae_decoder_720p_sharded():
 
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
-    compiler_config = CompilerConfig(optimization_level=1)
+    compiler_config = CompilerConfig(
+        optimization_level=1,
+        export_path="model",
+        export_model_name="vae_decoder",
+    )
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
 
