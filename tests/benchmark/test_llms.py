@@ -1689,11 +1689,6 @@ def test_llama_3_1_70b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_TP_OPTIMIZATION_LEVEL
-        ),
         weight_dtype_overrides={
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
@@ -1750,11 +1745,6 @@ def test_gpt_oss_20b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_TP_OPTIMIZATION_LEVEL
-        ),
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
@@ -1787,11 +1777,6 @@ def test_gpt_oss_20b_tp_batch_size_1(
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_TP_OPTIMIZATION_LEVEL
-        ),
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
@@ -1825,11 +1810,6 @@ def test_llama_3_1_70b_tp_galaxy(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_TP_OPTIMIZATION_LEVEL
-        ),
         arch="wormhole_galaxy",
         optimization_level=1,
     )
@@ -1860,11 +1840,11 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=optimization_level if optimization_level is not None else 1,
         batch_size=(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
+        optimization_level=1,
     )
 
 
@@ -1893,11 +1873,11 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=optimization_level if optimization_level is not None else 1,
         batch_size=(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
+        optimization_level=1,
         weight_dtype_overrides={
             "model.layers.*.mlp.router.weight": "bfp_bf4",
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
@@ -1974,9 +1954,9 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=optimization_level if optimization_level is not None else 1,
         batch_size=128,
         arch="wormhole_galaxy",
+        optimization_level=1,
         mesh_config_fn=_galaxy_mesh_config_fn,
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
@@ -2033,9 +2013,9 @@ def test_gpt_oss_120b_tp_qb2(
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=optimization_level if optimization_level is not None else 1,
         batch_size=batch_size if batch_size is not None else 8,
         arch="qb2-blackhole",
+        optimization_level=1,
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
         weight_dtype_overrides={

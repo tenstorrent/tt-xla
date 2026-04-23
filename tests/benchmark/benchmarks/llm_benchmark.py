@@ -201,6 +201,21 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     return input_args
 
 
+def _shard_kv_cache(past_key_values, mesh, kv_cache_sharding_spec):
+    kv_spec = kv_cache_sharding_spec
+    for layer in past_key_values.layers:
+        if isinstance(layer, MLAStaticLayer):
+            if kv_spec is None:
+                kv_spec = ("batch", None, None, None)
+            xs.mark_sharding(layer.compressed_kv, mesh, kv_spec)
+            xs.mark_sharding(layer.k_pe, mesh, kv_spec)
+        else:
+            if kv_spec is None:
+                kv_spec = (None, "model", None, None)
+            xs.mark_sharding(layer.keys, mesh, kv_spec)
+            xs.mark_sharding(layer.values, mesh, kv_spec)
+
+
 def check_transformers_version():
     """
     Check that transformers version is = 5.2.0.
@@ -408,26 +423,6 @@ def benchmark_llm_torch_xla(
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, mesh, shard_spec)
 
-        # Also shard KV cache tensors created in input_args
-        # This is hardcoded for all TP models, and should be moved to tt-forge-models.
-        # https://github.com/tenstorrent/tt-xla/issues/4240
-        kv_spec = kv_cache_sharding_spec
-        for layer in input_args["past_key_values"].layers:
-            if isinstance(layer, MLAStaticLayer):
-                if kv_spec is None:
-                    kv_spec = ("batch", None, None, None)
-                xs.mark_sharding(layer.compressed_kv, mesh, kv_spec)
-                xs.mark_sharding(layer.k_pe, mesh, kv_spec)
-            else:
-                if kv_spec is None:
-                    kv_spec = (None, "model", None, None)
-                xs.mark_sharding(layer.keys, mesh, kv_spec)
-                xs.mark_sharding(layer.values, mesh, kv_spec)
-
-        # Shard input_ids
-        if input_output_sharding_spec:
-            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
-
         # Apply sharding constraint on lm_head output to all_gather logits
         if hasattr(model, "lm_head") and model.lm_head is not None:
             hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
@@ -501,6 +496,12 @@ def benchmark_llm_torch_xla(
             use_mla_cache=use_mla_cache,
         )
         input_args = transfer_to_device(input_args, device)
+        if is_multichip:
+            _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
+            if input_output_sharding_spec:
+                xs.mark_sharding(
+                    input_args["input_ids"], mesh, input_output_sharding_spec
+                )
         print("Warming up...")
         warmup_tokens = min(MIN_STEPS, max_output_tokens)
         _, _ = generate_and_benchmark(
@@ -535,6 +536,8 @@ def benchmark_llm_torch_xla(
         input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
+    if is_multichip and decode_only:
+        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
@@ -591,6 +594,8 @@ def benchmark_llm_torch_xla(
         input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
+    if is_multichip:
+        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
