@@ -617,7 +617,7 @@ class A2aSparseMLP(nn.Module):
                     activated = (up_out + 1) * glu
 
             # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
-            act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
+            act_per_expert = activated.reshape(
                 dim_a * dim_b * M, E, self.intermediate_size
             )
             act_per_expert = act_per_expert.permute(
