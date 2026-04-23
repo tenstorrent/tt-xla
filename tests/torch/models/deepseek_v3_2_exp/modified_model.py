@@ -11,41 +11,68 @@ import torch.nn.functional as F
 from torch import nn
 from transformers.cache_utils import Cache
 
-from tests.torch.models.kimi_k2.utils import MLAStaticLayer
 
+class MLAStaticLayerModule(nn.Module):
+    """nn.Module-owning MLA cache layer, duck-typed for HF's
+    ``CacheLayerMixin`` interface so it drops into ``Cache(layers=[...])``.
 
-class MLAStaticLayerModule(nn.Module, MLAStaticLayer):
-    """nn.Module wrapper around ``MLAStaticLayer`` so its ``compressed_kv`` /
-    ``k_pe`` tensors are registered buffers and move with ``model.to(device)``.
+    Re-implements the small surface (``update``, ``get_seq_length``,
+    ``get_mask_sizes``, ``get_max_cache_shape``, ``is_initialized``) rather
+    than inheriting from ``MLAStaticLayer``. The reason is ownership of the
+    tensors: kimi_k2's ``MLAStaticLayer`` stores ``compressed_kv`` / ``k_pe``
+    as plain Python attributes, so ``model.to(device)`` wouldn't move them.
+    Here they're registered buffers on an nn.Module, which PyTorch traverses
+    normally.
 
-    ``MLAStaticLayer`` stores them as plain Python attributes in
-    ``lazy_initialization``, which is fine for kimi_k2's graph tests (the
-    cache is passed in as a top-level arg) but not for us — Transformer owns
-    the cache and needs standard nn.Module semantics.
+    ``dtype`` and ``device`` are derived from the live buffer so they can
+    never drift out of sync after a ``.to()`` call.
     """
 
-    def __init__(self, max_cache_len: int):
-        nn.Module.__init__(self)
-        MLAStaticLayer.__init__(self, max_cache_len=max_cache_len)
+    is_compileable = True
+    is_sliding = False
 
-    def lazy_initialization(self, compressed_kv: torch.Tensor, k_pe: torch.Tensor):
-        self.max_batch_size, _, _, self.kv_lora_rank = compressed_kv.shape
-        _, _, _, self.pe_rank = k_pe.shape
+    def __init__(self, max_cache_len: int):
+        super().__init__()
+        self.max_cache_len = max_cache_len
+        self.is_initialized = False
+
+    @property
+    def dtype(self) -> torch.dtype:
+        return self.compressed_kv.dtype
+
+    @property
+    def device(self) -> torch.device:
+        return self.compressed_kv.device
+
+    def early_initialization(
+        self,
+        batch_size: int,
+        kv_lora_rank: int,
+        pe_rank: int,
+        dtype: torch.dtype,
+        device: torch.device,
+    ) -> None:
+        """Allocate the cache buffers up-front. Scalar signature, no fake
+        shape-prime tensors — preferred over ``lazy_initialization``.
+        """
+        self.max_batch_size = batch_size
+        self.kv_lora_rank = kv_lora_rank
+        self.pe_rank = pe_rank
         self.register_buffer(
             "compressed_kv",
             torch.zeros(
-                (self.max_batch_size, 1, self.max_cache_len, self.kv_lora_rank),
-                dtype=compressed_kv.dtype,
-                device=compressed_kv.device,
+                (batch_size, 1, self.max_cache_len, kv_lora_rank),
+                dtype=dtype,
+                device=device,
             ),
             persistent=False,
         )
         self.register_buffer(
             "k_pe",
             torch.zeros(
-                (self.max_batch_size, 1, self.max_cache_len, self.pe_rank),
-                dtype=k_pe.dtype,
-                device=k_pe.device,
+                (batch_size, 1, self.max_cache_len, pe_rank),
+                dtype=dtype,
+                device=device,
             ),
             persistent=False,
         )
@@ -53,6 +80,52 @@ class MLAStaticLayerModule(nn.Module, MLAStaticLayer):
             torch._dynamo.mark_static_address(self.compressed_kv)
             torch._dynamo.mark_static_address(self.k_pe)
         self.is_initialized = True
+
+    def lazy_initialization(
+        self, compressed_kv: torch.Tensor, k_pe: torch.Tensor
+    ) -> None:
+        """Back-compat with HF's tensor-based init path. Extracts scalars
+        from sample tensors and delegates to ``early_initialization``.
+        """
+        batch_size, _, _, kv_lora_rank = compressed_kv.shape
+        _, _, _, pe_rank = k_pe.shape
+        self.early_initialization(
+            batch_size=batch_size,
+            kv_lora_rank=kv_lora_rank,
+            pe_rank=pe_rank,
+            dtype=compressed_kv.dtype,
+            device=compressed_kv.device,
+        )
+
+    def update(
+        self,
+        compressed_kv: torch.Tensor,
+        k_pe: torch.Tensor,
+        cache_kwargs: Optional[dict] = None,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        if not self.is_initialized:
+            self.lazy_initialization(compressed_kv, k_pe)
+        cache_position = (
+            cache_kwargs.get("cache_position") if cache_kwargs is not None else None
+        )
+        if cache_position is None:
+            cache_position = torch.arange(
+                compressed_kv.shape[-2], device=self.compressed_kv.device
+            )
+        self.compressed_kv.index_copy_(2, cache_position, compressed_kv)
+        self.k_pe.index_copy_(2, cache_position, k_pe)
+        return self.compressed_kv, self.k_pe
+
+    def get_seq_length(self) -> int:
+        if not self.is_initialized:
+            return 0
+        return (self.compressed_kv[0, 0].any(dim=-1)).sum()
+
+    def get_mask_sizes(self, cache_position: torch.Tensor) -> Tuple[int, int]:
+        return self.max_cache_len, 0
+
+    def get_max_cache_shape(self) -> int:
+        return self.max_cache_len
 
 
 # from kernel import act_quant, fp8_gemm, fp8_index
@@ -840,6 +913,11 @@ class MLA(nn.Module):
            Used by ``test_deepseek_v3_1_decode_static_cache``.
         """
         if cache_position is not None:
+            # Cache path doesn't consume start_pos / mask — guard against silent
+            # misuse (e.g., caller leaving stale legacy args on a cache call).
+            assert (
+                start_pos == 0 and mask is None
+            ), "cache path ignores start_pos/mask; pass cache_position+attention_mask only"
             return self._forward_with_cache(
                 x,
                 freqs_cis,
@@ -847,6 +925,9 @@ class MLA(nn.Module):
                 attention_mask,
                 past_key_value,
             )
+        assert (
+            attention_mask is None
+        ), "legacy path ignores attention_mask; pass mask (causal triangle) instead"
         cache_layer = past_key_value.layers[self.layer_idx]
         kv_cache = cache_layer.compressed_kv
         pe_cache = cache_layer.k_pe
@@ -949,6 +1030,14 @@ class MLA(nn.Module):
         logically-equivalent 3D `(B, T, D)` form currently fails TTIR
         legalization.
         """
+        assert (
+            attention_mask is not None
+        ), "cache path requires attention_mask; additive (B, 1, S, max_cache_len) mask"
+        # TODO(deepseek-v3.2): indexer is not yet wired through the cache path.
+        # The legacy int path runs it; skipping silently here would diverge.
+        assert (
+            self.indexer is None
+        ), "cache path does not yet support the v3.2 indexer — use the legacy path"
         bsz, seqlen, _ = x.size()
 
         qr = self.q_norm(self.wq_a(x))
@@ -974,9 +1063,9 @@ class MLA(nn.Module):
                 .view_as(kv)
             )
 
-        # HF-style cache update. index_copy_ runs inside MLAStaticLayer.update
-        # on a 4D cache sharded only on batch dim; kv/k_pe are unsqueezed on
-        # dim 1 to match (B, 1, seqlen, D).
+        # HF-style cache update. index_copy_ runs inside
+        # MLAStaticLayerModule.update on a 4D cache sharded only on batch dim;
+        # kv/k_pe are unsqueezed on dim 1 to match (B, 1, seqlen, D).
         compressed_kv_full, k_pe_full = past_key_value.update(
             kv.unsqueeze(1),
             k_pe.squeeze(2).unsqueeze(1),
@@ -1107,7 +1196,8 @@ class Gate(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Routing weights and selected expert indices.
         """
-        # fp32 linear has accuracy issues — keep in bf16 for Gate routing.
+        # TODO(tt-xla#XXXX): fp32 linear hits an accuracy issue in the XLA
+        # lowering path on TT; keep bf16 for Gate routing until fixed.
         scores = linear(x, self.weight)
         if self.score_func == "softmax":
             scores = scores.softmax(dim=-1)
@@ -1122,20 +1212,11 @@ class Gate(nn.Module):
                 group_scores = scores.amax(dim=-1)
             else:
                 group_scores = scores.topk(2, dim=-1)[0].sum(dim=-1)
-            group_indices = group_scores.topk(self.topk_groups, dim=-1)[1]
-            # Use one_hot + any instead of scatter_ to avoid SPMD partitioning
-            # bug where scatter indices are not adjusted after all_gather.
-            group_range = torch.arange(
-                self.n_groups, device=scores.device, dtype=group_indices.dtype
+            indices = group_scores.topk(self.topk_groups, dim=-1)[1]
+            mask = scores.new_ones(x.size(0), self.n_groups, dtype=bool).scatter_(
+                1, indices, False
             )
-            selected_groups = (group_indices.unsqueeze(-1) == group_range).any(
-                dim=1
-            )  # [BS, n_groups]
-            scores = torch.where(
-                selected_groups.unsqueeze(-1).expand_as(scores),
-                scores,
-                torch.tensor(float("-inf"), dtype=scores.dtype, device=scores.device),
-            ).flatten(1)
+            scores = scores.masked_fill_(mask.unsqueeze(-1), float("-inf")).flatten(1)
         indices = scores.topk(self.topk, dim=-1)[1]
         weights = original_scores.gather(1, indices)
         if self.score_func == "sigmoid":
@@ -1386,10 +1467,19 @@ class Transformer(nn.Module):
 
         self.register_buffer("freqs_cis", freqs_cis, persistent=False)
 
-        # HF-style shared cache, one MLAStaticLayer per block. Held as an
-        # nn.ModuleList so buffers move with ``.to(device)``; the Cache
-        # wrapper exposes the standard HF ``update(...)`` API used by MLA.
+        # HF-style shared cache. Two attributes, same underlying layer
+        # instances (no copy — both hold references to the same
+        # MLAStaticLayerModule objects):
+        #   * self._cache_layers  -> nn.ModuleList, gives PyTorch module
+        #                            traversal so buffers ride along with
+        #                            .to(device), state_dict, etc.
+        #   * self.past_key_values -> HF Cache wrapper, gives the update(...)
+        #                            API that MLA._forward_with_cache calls.
+        # Cache itself is not an nn.Module, so we need the ModuleList as well;
+        # don't "clean up" one of them.
         mla = self.layers[0].attn
+        cache_dtype = mla.wkv_a.weight.dtype
+        cache_device = mla.wkv_a.weight.device
         self._cache_layers = nn.ModuleList(
             [
                 MLAStaticLayerModule(max_cache_len=args.max_seq_len)
@@ -1397,17 +1487,12 @@ class Transformer(nn.Module):
             ]
         )
         for cache_layer in self._cache_layers:
-            cache_layer.lazy_initialization(
-                torch.zeros(
-                    args.max_batch_size, 1, 1, mla.kv_lora_rank, dtype=torch.bfloat16
-                ),
-                torch.zeros(
-                    args.max_batch_size,
-                    1,
-                    1,
-                    mla.qk_rope_head_dim,
-                    dtype=torch.bfloat16,
-                ),
+            cache_layer.early_initialization(
+                batch_size=args.max_batch_size,
+                kv_lora_rank=mla.kv_lora_rank,
+                pe_rank=mla.qk_rope_head_dim,
+                dtype=cache_dtype,
+                device=cache_device,
             )
         self.past_key_values = Cache(layers=list(self._cache_layers))
 
