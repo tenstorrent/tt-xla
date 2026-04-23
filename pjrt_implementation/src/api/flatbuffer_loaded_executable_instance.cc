@@ -143,36 +143,39 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   }
 
   if (m_executable_image->getCompileOptions().dry_run) {
-    return createDefaultOutputBuffers(args->output_lists, args->num_devices);
-  }
+    status = createDefaultOutputBuffers(args->output_lists, args->num_devices);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
+  } else {
+    FlatbufferExecutableImage *executable_image =
+        static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
-  FlatbufferExecutableImage *executable_image =
-      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+    auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
+                                    executable_image->getFlatbufferBinary(),
+                                    program_index, input_tensors);
 
-  auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
-                                  executable_image->getFlatbufferBinary(),
-                                  program_index, input_tensors);
+    if (!r) {
+      m_client_instance->closeMeshDevice();
+      return tt_pjrt_status::kInternal;
+    }
 
-  if (!r) {
-    m_client_instance->closeMeshDevice();
-    return tt_pjrt_status::kInternal;
-  }
+    std::vector<tt::runtime::Tensor> &output_tensors = *r;
 
-  std::vector<tt::runtime::Tensor> &output_tensors = *r;
+    if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+      LOG_F(ERROR,
+            "Runtime produced different number of output tensors (%zu) than "
+            "the compiler estimated number of outputs (%zu)",
+            output_tensors.size(), m_executable_image->getNumOutputs());
+      return tt_pjrt_status::kInternal;
+    }
 
-  if (output_tensors.size() != m_executable_image->getNumOutputs()) {
-    LOG_F(ERROR,
-          "Runtime produced different number of output tensors (%zu) than the "
-          "compiler estimated number of outputs (%zu)",
-          output_tensors.size(), m_executable_image->getNumOutputs());
-    return tt_pjrt_status::kInternal;
-  }
-
-  status =
-      fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
-                          m_executable_image->getOutputTypes());
-  if (!tt_pjrt_status_is_ok(status)) {
-    return status;
+    status = fillPJRTOutputLists(output_tensors, args->num_devices,
+                                 args->output_lists,
+                                 m_executable_image->getOutputTypes());
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
   }
 
   if (args->device_complete_events) {
