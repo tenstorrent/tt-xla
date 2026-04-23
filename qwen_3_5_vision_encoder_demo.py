@@ -5,17 +5,103 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from transformers import Qwen3_5VisionModel
+from transformers.models.qwen3_5.configuration_qwen3_5 import Qwen3_5VisionConfig
+
+
+def patch_qwen_vision_single_sequence_attention() -> None:
+    """Avoid varlen Python list conversion for single-sequence demos."""
+    from transformers.models.qwen3_5 import modeling_qwen3_5 as qwen_modeling
+
+    if getattr(
+        qwen_modeling.Qwen3_5VisionAttention.forward,
+        "_ttxla_single_sequence_patch",
+        False,
+    ):
+        return
+
+    original_forward = qwen_modeling.Qwen3_5VisionAttention.forward
+
+    def patched_forward(
+        self,
+        hidden_states: torch.Tensor,
+        cu_seqlens: torch.Tensor,
+        rotary_pos_emb: torch.Tensor | None = None,
+        position_embeddings: tuple[torch.Tensor, torch.Tensor] | None = None,
+        **kwargs,
+    ) -> torch.Tensor:
+        if (
+            not qwen_modeling.is_flash_attention_requested(self.config)
+            and cu_seqlens.numel() == 2
+        ):
+            seq_length = hidden_states.shape[0]
+            query_states, key_states, value_states = (
+                self.qkv(hidden_states)
+                .reshape(seq_length, 3, self.num_heads, -1)
+                .permute(1, 0, 2, 3)
+                .unbind(0)
+            )
+            cos, sin = position_embeddings
+            query_states, key_states = qwen_modeling.apply_rotary_pos_emb_vision(
+                query_states, key_states, cos, sin
+            )
+
+            query_states = query_states.transpose(0, 1).unsqueeze(0)
+            key_states = key_states.transpose(0, 1).unsqueeze(0)
+            value_states = value_states.transpose(0, 1).unsqueeze(0)
+
+            attention_interface = qwen_modeling.ALL_ATTENTION_FUNCTIONS.get_interface(
+                self.config._attn_implementation,
+                qwen_modeling.eager_attention_forward,
+            )
+            attn_output, _ = attention_interface(
+                self,
+                query_states,
+                key_states,
+                value_states,
+                attention_mask=None,
+                scaling=self.scaling,
+                dropout=0.0 if not self.training else self.attention_dropout,
+                is_causal=False,
+                **kwargs,
+            )
+
+            attn_output = attn_output.reshape(seq_length, -1).contiguous()
+            return self.proj(attn_output)
+
+        return original_forward(
+            self,
+            hidden_states,
+            cu_seqlens,
+            rotary_pos_emb=rotary_pos_emb,
+            position_embeddings=position_embeddings,
+            **kwargs,
+        )
+
+    patched_forward._ttxla_single_sequence_patch = True
+    qwen_modeling.Qwen3_5VisionAttention.forward = patched_forward
+
 
 xr.set_device_type("TT")
 device = torch_xla.device()
 
 model_id = "Qwen/Qwen3.5-27B"
 
+patch_qwen_vision_single_sequence_attention()
+
+# -- real model --
 vision_encoder = Qwen3_5VisionModel.from_pretrained(
     model_id, torch_dtype=torch.bfloat16, attn_implementation="eager"
 )
-
 config = vision_encoder.config
+
+# -- fake model with variable hidden size and random weights --
+# Load config and reduce hidden_size to shrink Conv3d output channels
+# config = Qwen3_5VisionConfig.from_pretrained(model_id)
+# config.hidden_size = 1152  # Reduced from 1152 (halves Conv3d size)
+
+# # Initialize with modified config (random weights, not pretrained)
+# vision_encoder = Qwen3_5VisionModel(config).to(torch.bfloat16)
+
 patch_dim = (
     config.in_channels
     * config.temporal_patch_size
