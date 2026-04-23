@@ -1470,7 +1470,8 @@ def _a2a_combine_setup_context(ctx, inputs, output):
 
 
 def _a2a_combine_backward(ctx, grad_combined):
-    """
+    """Adjoint of all_to_all_combine.
+
     Forward (per device d, with tpd = BD*S / D tokens on d):
         combined[k, tok_local, :] = input[metadata[d*tpd+tok_local, k],
                                           d*tpd+tok_local, :]
@@ -1478,9 +1479,9 @@ def _a2a_combine_backward(ctx, grad_combined):
         d_input[metadata[d*tpd+tok_local, k], d*tpd+tok_local, :]
             += grad_combined[k, tok_local, :]
 
-    Implemented as a one-hot/einsum contraction so it lowers to a single
-    matmul instead of a scatter — the native scatter path decomposes to
-    ~15k ttnn ops per call on TT, which blows up the backward compile.
+    Uses a one-hot/einsum contraction rather than torch.scatter_add_ — scatter
+    lowers to a per-chunk decomposition on TT that multiplies the ttnn op
+    count by ~15000 per scatter, stalling the backward compile.
     """
     (expert_metadata,) = ctx.saved_tensors[:1]
     input_shape = ctx.input_shape

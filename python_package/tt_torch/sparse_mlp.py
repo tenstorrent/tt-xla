@@ -464,9 +464,8 @@ class A2aSparseMLP(nn.Module):
         self.dispatch_devices = (
             dispatch_devices if dispatch_devices is not None else num_devices
         )
-        # When True, uses dense torch.matmul instead of sparse_matmul.
-        # Skips remap (no sparsity mask needed). Dense path also supports
-        # autograd (sparse_matmul doesn't), so training requires dense.
+        # When True, uses dense torch.matmul instead of sparse_matmul. Dense
+        # path skips the sparsity mask and supports autograd.
         self.use_dense_matmul = use_dense_matmul
 
         # Keep original MLP for CPU golden path.
@@ -1111,14 +1110,11 @@ def enable_sparse_mlp(
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
 
     use_dense_matmul: when True, A2aSparseMLP uses dense torch.bmm (autograd
-    supported) instead of sparse_matmul (no autograd). Required for training.
+    supported) instead of sparse_matmul (no autograd).
 
     deinterleave_fused_experts: when True, A2aSparseMLP splits fused
     `gate_up_proj` into separate `gate_proj`/`up_proj` at init so the dense
-    forward does two bmms instead of a strided slice. The strided-slice
-    backward miscompiles on TT XLA, so training sets this True. Leaves the
-    fused layout (and its matching legacy down-proj reshape) untouched when
-    False.
+    forward does two bmms instead of a strided slice.
     """
     replaced_count = 0
 
