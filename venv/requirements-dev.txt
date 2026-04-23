@@ -46,6 +46,7 @@ matplotlib
 
 seaborn
 diffusers
+gguf>=0.10.0
 scikit-image>=0.24
 pycocotools
 
