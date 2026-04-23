@@ -1470,8 +1470,7 @@ def _a2a_combine_setup_context(ctx, inputs, output):
 
 
 def _a2a_combine_backward(ctx, grad_combined):
-    """Adjoint of all_to_all_combine.
-
+    """
     Forward (per device d, with tpd = BD*S / D tokens on d):
         combined[k, tok_local, :] = input[metadata[d*tpd+tok_local, k],
                                           d*tpd+tok_local, :]
@@ -1502,8 +1501,7 @@ def _a2a_combine_backward(ctx, grad_combined):
     else:
         raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
 
-    # Device-local metadata slice: each device sees its own tokens' expert
-    # choices under SPMD sharding on the tokens dim.
+    # Device-local metadata slice: each device sees its own tokens' expert.
     metadata_local = expert_metadata[0, 0, :tpd, :].long()  # [tpd, K]
 
     expert_ids_KT = metadata_local.transpose(0, 1).contiguous()  # [K, tpd]
