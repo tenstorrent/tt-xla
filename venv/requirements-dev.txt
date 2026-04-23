@@ -6,6 +6,8 @@ datasets==4.5.0
 einops
 flax==0.10.4
 fsspec
+jax==0.7.1
+jaxlib==0.7.1
 jaxtyping
 
 # pin exact versions for librosa dependencies to avoid conflicts
