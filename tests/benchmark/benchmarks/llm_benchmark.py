@@ -16,7 +16,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
 import transformers
-from infra import MLACache, MLAStaticLayer
+from llm_utils.torch_mla_cache import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
     init_accuracy_testing,
