@@ -170,9 +170,9 @@ def _run_model_test_impl(
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
-                # Trigger assertion after comparison_result is cached, and
-                #     fallthrough to finally block on failure.
-                if comparison_config.assert_on_failure:
+                # assert_on_failure is disabled by default, don't assert if
+                # all subcomponets are disabled
+                if not comparison_config.all_disabled():
                     Evaluator._assert_on_results(comparison_result)
 
         except Exception as e:

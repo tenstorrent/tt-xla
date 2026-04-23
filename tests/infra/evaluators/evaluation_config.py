@@ -74,6 +74,16 @@ class ComparisonConfig:
         self.allclose.disable()
         self.pcc.disable()
 
+    def all_disabled(self) -> bool:
+        return not any(
+            [
+                self.equal.enabled,
+                self.atol.enabled,
+                self.allclose.enabled,
+                self.pcc.enabled,
+            ]
+        )
+
 
 @dataclass
 class QualityConfig:
