@@ -276,240 +276,6 @@ jobs:
       run: |
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
-        # NOTE: Forked not used for multichip machines until https://github.com/tenstorrent/tt-xla/issues/1824
-        # is fixed. This is accomplished by specifically excluding run_forge_models_multichip from the list here.
-        PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
-          if [[ "${{ matrix.build.name }}" == "$n" ]]; then
-            PYTEST_FORKED="--forked"; break
-          fi
-        done
-
-        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
-        if [[ -n "$PYTEST_FORKED" ]]; then
-          VERBOSITY="-vv"
-        else
-          VERBOSITY="-sv"
-        fi
-
-        # Pass arch to forge models tests to resolve arch_overrides in test_config files.
-        ARCH=""
-        if [[ "${{ steps.strings.outputs.forge-models-test }}" == "true" ]]; then
-          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
-        fi
-
-        MARKS="${{ matrix.build.test-mark }}"
-
-        if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
-          echo "Only running previously failed tests"
-          PYTEST_SPLITS=""
-        else
-          echo "Running all tests"
-          PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
-            --group ${{ matrix.build.group-id || 1}} \
-            --splitting-algorithm least_duration"
-        fi
-
-        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
-          --durations=0 \
-          ${{ matrix.build.dir }} \
-          $ARCH \
-          -m \"$MARKS\" ${{ matrix.build.args }} \
-          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
-          $PYTEST_SPLITS"
-
-        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
-        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
-
-    - name: Install System Deps for Forge Models Tests
-      if: ${{ steps.strings.outputs.forge-models-test == 'true' }}
-      shell: bash
-      run: |
-        apt-get update
-        apt install -y libgl1 libglx-mesa0
-
-    # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
-    # but still run tests even in case of failure here, will still treat overall job as failed.
-    - name: Validate Forge Models Tests test config file
-      if: ${{ steps.strings.outputs.forge-models-test == 'true' && strategy.job-index == 0 }}
-      shell: bash
-      run: |
-        source venv/activate
-        uv pip install pyyaml
-        python3 tests/runner/validate_test_config.py
-
-    - name: Collect Tests
-      id: collect-tests
-      shell: bash
-      run: |
-        source venv/activate
-        echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
-        cat collected_tests.txt
-
-        # Check if any collected tests have notimeout marker
-        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
-        if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
-          echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
-          ESTIMATED_DURATION=240
-        else
-          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
-            --collected-output collected_tests.txt \
-            --durations-file .test_durations \
-            --default-timeout 240)
-          echo "$SCRIPT_OUTPUT"
-          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
-        fi
-
-        echo "Estimated duration: $ESTIMATED_DURATION minutes"
-        echo "timeout-minutes=$ESTIMATED_DURATION" >> "$GITHUB_OUTPUT"
-
-    - name: Run tests
-      timeout-minutes: ${{ fromJson(steps.collect-tests.outputs.timeout-minutes) }}
-      env:
-        HF_HOME: /mnt/dockercache/huggingface
-        TORCH_HOME: /mnt/dockercache/torchhub
-        GITHUB_TOKEN: ${{ github.token }}
-        HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        ENABLE_BRINGUP_STAGE_LOGGING: 1
-      shell: bash
-      run: |
-        source venv/activate
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
-          uv pip freeze
-        fi
-        python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
-               --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
-               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
-               2>&1 | tee pytest.log
-
-        if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
-          uv pip uninstall vllm transformers
-          uv pip install -r $(pwd)/venv/requirements-dev.txt
-        fi
-
-    # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
-    # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
-    - name: Sanitize test_mark
-      id: sanitize
-      shell: bash
-      run: echo "test_mark=${TEST_MARK// /_}" >> $GITHUB_OUTPUT
-      env:
-        TEST_MARK: ${{ matrix.build.test-mark }}
-
-    - name: Upload Test Log
-      uses: actions/upload-artifact@v6
-      if: success() || failure()
-      with:
-        name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: pytest.log
-
-    - name: Upload Test Report
-      uses: actions/upload-artifact@v6
-      if: success() || failure()
-      with:
-        name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: ${{ steps.strings.outputs.test_report_path }}
-
-    # If no perf tests ran, this step will emit a warning (no files to upload) but won't fail the job.
-    - name: Upload Benchmark Report
-      uses: actions/upload-artifact@v6
-      if: success() || failure()
-      with:
-        name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
-        path: ${{ steps.strings.outputs.perf_report_dir }}
-        # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
-        if-no-files-found: 'ignore'
-
-
-  test-summary:
-    runs-on: ubuntu-latest
-    needs: [ generate-matrix-test, run-tests ]
-    if: success() || failure()
-    steps:
-      - uses: actions/checkout@v6
-      - name: Process test summary
-        continue-on-error: true
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-*" --dir test_reports || echo "No reports found"
-          find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
-
-    - name: Download and setup alchemist library
-      if: ${{ matrix.build.require == 'alchemist' }}
-      shell: bash
-      run: |
-        if [[ -n "${{ steps.strings.outputs.alchemist_artifact_name }}" ]]; then
-          echo "=== Downloading alchemist artifact ==="
-          mkdir -p alchemist_artifact
-          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
-            --repo ${{ github.repository }} \
-            --dir alchemist_artifact \
-            --name ${{ steps.strings.outputs.alchemist_artifact_name }} || echo "Alchemist artifact not found, codegen tests will be skipped"
-          # Set up the directory structure that venv/activate expects for TT_MLIR_HOME
-          mkdir -p third_party/tt-mlir/src/tt-mlir/build
-          if [[ -d alchemist_artifact/lib ]]; then
-            mv alchemist_artifact/lib third_party/tt-mlir/src/tt-mlir/build/
-          fi
-          if [[ -d alchemist_artifact/tools ]]; then
-            mv alchemist_artifact/tools third_party/tt-mlir/src/tt-mlir/build/
-          fi
-        fi
-
-    - name: Check for re-run attempt
-      id: check-rerun-attempt
-      shell: bash
-      run: |
-        source venv/activate
-        rm -f .pytest_tests_to_run
-        if [ "${{ github.run_attempt }}" -gt 1 ]; then
-          echo "Rerun attempt detected"
-          attempt=$((${{ github.run_attempt }} - 1))
-          rm -rf old-reports
-          mkdir old-reports
-          set +e
-          result=1
-          while [ $attempt -ge 1 ]; do
-            echo "Downloading test reports from attempt $attempt"
-            gh run download ${{ github.run_id }} \
-              --repo ${{ github.repository }} \
-              --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-$attempt.${{ strategy.job-index }}-*" \
-              -D old-reports
-            result=$?
-            if [ $result -eq 0 ]; then
-              break
-            fi
-            attempt=$((attempt - 1))
-          done
-          if [ $result -ne 0 ]; then
-            echo "No previous test reports found"
-          else
-            echo "Found test reports from attempt $attempt"
-            python .github/scripts/find_all_failed_tests.py old-reports
-            if [ -f ".pytest_tests_to_run" ]; then
-              echo "There are tests to rerun"
-              echo "rerun_attempt=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "All tests will rerun"
-            fi
-          fi
-        else
-          echo "First attempt"
-        fi
-
-    - name: Set pytest command
-      shell: bash
-      run: |
-        # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
-        # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
         for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_llm_multichip run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
@@ -663,16 +429,10 @@ jobs:
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
 
-      - name: Upload Test Report
-        uses: actions/upload-artifact@v6
-        if: success() || failure()
-        with:
-          name: test-reports-system-desc-${{ github.run_attempt }}.${{ github.run_id }}-n150-${{ steps.fetch-job-id.outputs.job_id }}
-          path: ${{ steps.strings.outputs.test_report_path }}
 
   test-summary:
     runs-on: ubuntu-latest
-    needs: [ run-tests ]
+    needs: [ generate-matrix-test, run-tests ]
     if: success() || failure()
     steps:
       - uses: actions/checkout@v6
@@ -682,8 +442,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-system-desc-*" --dir test_reports || echo "No reports found"
-          find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \; 2>/dev/null || true
+          gh run download ${{ github.run_id }} --repo ${{ github.repository }} --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-*" --dir test_reports || echo "No reports found"
+          find test_reports -name "report_*.xml" -type f -exec mv {} test_reports/ \;
 
       - name: Show consolidated test report
         continue-on-error: true
@@ -691,7 +451,7 @@ jobs:
         if: success() || failure()
         with:
           report_paths: test_reports/report_*.xml
-          check_name: TT-XLA system_desc example
+          check_name: TT-XLA ${{ needs.generate-matrix-test.outputs.test_matrix_name }}
           detailed_summary: true
           include_passed: ${{ inputs.include_passed }}
           group_suite: true
