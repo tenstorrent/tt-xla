@@ -40,6 +40,7 @@ def main():
             "input": conversation,
             "stream": True,
             "max_output_tokens": 256,
+            "temperature": 0,
         }
 
         try:
