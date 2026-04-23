@@ -196,6 +196,13 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
         else:
             layer.keys = layer.keys.to(device)
             layer.values = layer.values.to(device)
+            # CL must be on device: StaticLayer.update() does
+            # torch.arange(kv_length, device=self.device) + self.cumulative_length,
+            # which fails if CL is on CPU and self.device is XLA.
+            # Zero before moving so the fresh cache starts at position 0.
+            layer.cumulative_length.zero_()
+            layer.cumulative_length = layer.cumulative_length.to(device)
+            layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
@@ -203,18 +210,18 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
 
 def check_transformers_version():
     """
-    Check that transformers version is = 5.2.0.
+    Check that transformers version is = 5.5.0.
     Raises RuntimeError if version is incompatible.
     """
     import packaging.version
 
     current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("5.2.0")
+    max_version = packaging.version.parse("5.5.0")
 
     if current_version != max_version:
         raise RuntimeError(
             f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version 5.2.0"
+            f"Please use version 5.5.0"
         )
 
 
@@ -492,15 +499,24 @@ def benchmark_llm_torch_xla(
 
         tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the perf benchmark run
+    # Reconstruct inputs for the perf benchmark run.
+    existing_cache = (
+        input_args["past_key_values"] if not decode_only else decode_only_cache
+    )
+    
+    # Reset cumulative_length to 0 on CPU
+    for layer in existing_cache.layers:
+        if hasattr(layer, "cumulative_length"):
+            if layer.cumulative_length.device.type != "cpu":
+                layer.cumulative_length = layer.cumulative_length.cpu()
+            layer.cumulative_length.zero_()
+
     input_args = construct_inputs(
         tokenizer,
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=(
-            input_args["past_key_values"] if not decode_only else decode_only_cache
-        ),
+        past_key_values=existing_cache,
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
@@ -546,13 +562,23 @@ def benchmark_llm_torch_xla(
 
         accuracy_steps = max_output_tokens
 
-        # Reconstruct inputs for accuracy run
+        existing_cache = (
+            input_args["past_key_values"] if not decode_only else decode_only_cache
+        )
+
+        for layer in existing_cache.layers:
+            if hasattr(layer, "cumulative_length"):
+                if layer.cumulative_length.device.type != "cpu":
+                    layer.cumulative_length = layer.cumulative_length.cpu()
+                layer.cumulative_length.zero_()
+
+        # Reconstruct inputs for accuracy run with a fresh cache.
         input_args = construct_inputs(
             tokenizer,
             model.config,
             batch_size,
             max_cache_len,
-            past_key_values=input_args["past_key_values"],
+            past_key_values=existing_cache,
             input_prompt=custom_input_prompt,
             input_prompt_tokens=(
                 token_accuracy.input_prompt if accuracy_testing else None

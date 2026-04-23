@@ -326,7 +326,15 @@ def test_llama_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    # Pre-initialize the cache so lazy_initialization doesn't fire inside the TT trace,
+    # which would cause scatter to compile into the graph and hit paged_update_cache failures.
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=num_key_value_heads,
+        head_dim=config.head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     run_graph_test(
         attention,
@@ -335,7 +343,6 @@ def test_llama_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -779,7 +786,15 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    # Pre-initialize the cache so lazy_initialization doesn't fire inside the TT trace,
+    # which would cause scatter to compile into the graph and hit paged_update_cache failures.
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=getattr(config, "num_key_value_heads", config.num_attention_heads),
+        head_dim=config.head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     run_graph_test(
         attention,
@@ -788,7 +803,6 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -1462,7 +1476,15 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    # Pre-initialize the cache so lazy_initialization doesn't fire inside the TT trace,
+    # which would cause scatter to compile into the graph and hit paged_update_cache failures.
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=getattr(config, "num_key_value_heads", config.num_attention_heads),
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     run_graph_test(
         attention,
@@ -1471,7 +1493,6 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -1876,7 +1897,15 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    # Pre-initialize the cache so lazy_initialization doesn't fire inside the TT trace,
+    # which would cause scatter to compile into the graph and hit paged_update_cache failures.
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=num_key_value_heads,
+        head_dim=config.head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     run_graph_test(
         attention,
@@ -1885,7 +1914,6 @@ def test_gemma_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -2177,7 +2205,15 @@ def test_mistral_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    # Pre-initialize the cache so lazy_initialization doesn't fire inside the TT trace,
+    # which would cause scatter to compile into the graph and hit paged_update_cache failures.
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=getattr(config, "num_key_value_heads", config.num_attention_heads),
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -2204,7 +2240,6 @@ def test_mistral_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -2564,7 +2599,17 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    # Pre-initialize the cache so lazy_initialization doesn't fire inside the TT trace,
+    # which would cause scatter to compile into the graph and hit paged_update_cache failures.
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=getattr(config, "num_key_value_heads", config.num_attention_heads),
+        head_dim=getattr(
+            config, "head_dim", config.hidden_size // config.num_attention_heads
+        ),
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     run_graph_test(
         attention,
@@ -2573,7 +2618,6 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,
@@ -2688,7 +2732,15 @@ def test_glm_4_attention_decode(variant, variant_config, arch):
     )
     past_key_states = static_cache
 
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    # Pre-initialize the cache so lazy_initialization doesn't fire inside the TT trace,
+    # which would cause scatter to compile into the graph and hit paged_update_cache failures.
+    static_cache.early_initialization(
+        batch_size=batch_size,
+        num_heads=getattr(config, "num_key_value_heads", config.num_attention_heads),
+        head_dim=head_dim,
+        dtype=torch.bfloat16,
+        device="cpu",
+    )
 
     if arch == "llmbox":
         num_devices = xr.global_runtime_device_count()
@@ -2718,7 +2770,6 @@ def test_glm_4_attention_decode(variant, variant_config, arch):
             position_embeddings,
             attention_mask,
             past_key_states,
-            cache_positions,
         ],
         framework=Framework.TORCH,
         mesh=mesh,

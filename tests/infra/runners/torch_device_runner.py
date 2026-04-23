@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 import inspect
 
 import torch
@@ -74,16 +75,32 @@ def to_device(x, device, depth=5, moved=None):
         if isinstance(x, type):
             return x
         result = x.to(device)
+        # If .to() returned the same object (already on target device), clone it so
+        # in-place mutations on the result don't affect the original (e.g. StaticCache
+        # cumulative_length.add_() would otherwise corrupt the workload's source state).
+        if result is x and isinstance(x, torch.Tensor):
+            result = result.clone()
         moved[obj_id] = result
         return result
     # Handle objects with attributes by recursively processing all fields.
-    # This is done in-place.
+    # Use copy.copy to avoid mutating the original object (e.g. StaticCache.cumulative_length
+    # would otherwise accumulate across multiple runs of the same workload).
     elif hasattr(x, "__dict__"):
-        for attr_name in x.__dict__:
-            attr_value = getattr(x, attr_name)
-            setattr(x, attr_name, to_device(attr_value, device, depth - 1, moved))
-        moved[obj_id] = x
-        return x
+        new_obj = copy.copy(x)
+        for attr_name in list(x.__dict__):
+            setattr(
+                new_obj,
+                attr_name,
+                to_device(getattr(x, attr_name), device, depth - 1, moved),
+            )
+        # Sync the 'device' attribute (str or torch.device) to the target device
+        # so it stays consistent with any tensors that were just moved.
+        if "device" in new_obj.__dict__ and isinstance(
+            new_obj.__dict__["device"], (str, torch.device)
+        ):
+            new_obj.device = device
+        moved[obj_id] = new_obj
+        return new_obj
     else:
         return x
 
