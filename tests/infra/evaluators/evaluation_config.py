@@ -38,9 +38,16 @@ class AllcloseConfig(ConfigBase):
     atol: float = 1e-2
 
 
+def _default_required_pcc() -> float:
+    import os
+
+    val = os.environ.get("TTXLA_REQUIRED_PCC")
+    return float(val) if val is not None else 0.99
+
+
 @dataclass
 class PccConfig(ConfigBase):
-    required_pcc: float = 0.99
+    required_pcc: float = field(default_factory=_default_required_pcc)
     # When tensors are too close, pcc will output NaN values. To prevent that, we do
     # allclose comparison in that case. For each test it should be possible to
     # separately tune the allclose config for which pcc won't be calculated and
@@ -73,6 +80,16 @@ class ComparisonConfig:
         self.atol.disable()
         self.allclose.disable()
         self.pcc.disable()
+
+    def all_disabled(self) -> bool:
+        return not any(
+            [
+                self.equal.enabled,
+                self.atol.enabled,
+                self.allclose.enabled,
+                self.pcc.enabled,
+            ]
+        )
 
 
 @dataclass
