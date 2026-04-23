@@ -127,7 +127,11 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
 
   if (options.dry_run || options.backend != BackendRuntime::TTNNCodegenPy) {
     // dry_run mode or non-Python codegen: return zero-filled output buffers.
-    createDefaultOutputBuffers(args->output_lists, args->num_devices);
+    tt_pjrt_status status =
+        createDefaultOutputBuffers(args->output_lists, args->num_devices);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
   } else {
 #if !TTXLA_ENABLE_EMITPY_EXECUTION
     LOG_F(ERROR, "EmitPy execution requested, but this build does not include "
@@ -150,8 +154,12 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       return tt_pjrt_status::kInternal;
     }
 
-    fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
-                        m_executable_image->getOutputTypes());
+    tt_pjrt_status status = fillPJRTOutputLists(
+        output_tensors, args->num_devices, args->output_lists,
+        m_executable_image->getOutputTypes());
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
 #endif
   }
   if (args->device_complete_events) {

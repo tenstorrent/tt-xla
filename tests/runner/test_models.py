@@ -163,8 +163,6 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
-                emitpy_enabled = request.config.getoption("--emitpy", default=False)
-
                 comparison_result, tt_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
@@ -176,6 +174,7 @@ def _run_model_test_impl(
 
                 # EmitPy verification: re-run via codegen_py and compare
                 # against flatbuffer result. Only for passing torch inference tests.
+                emitpy_enabled = request.config.getoption("--emitpy", default=False)
                 if emitpy_enabled and succeeded:
                     print(
                         f"Running EmitPy verification for {request.node.nodeid}",

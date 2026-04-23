@@ -213,7 +213,7 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
   return tt_pjrt_status::kSuccess;
 }
 
-std::vector<std::uint32_t>
+std::optional<std::vector<std::uint32_t>>
 LoadedExecutableInstance::getOutputShape(size_t output_index) const {
   std::vector<std::uint32_t> output_shape =
       m_executable_image->getOutputShape(output_index);
@@ -228,29 +228,39 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) const {
   }
 
   llvm::SmallVector<int64_t> shard_shape = output_sharding.getShardShape();
-  TT_FATAL(shard_shape.size() == output_shape.size(),
-           "Output sharding shape doesn't match the output shape: "
-           "shard_shape.size()={}, output_shape.size()={}",
-           shard_shape.size(), output_shape.size());
+  if (shard_shape.size() != output_shape.size()) {
+    LOG_F(ERROR,
+          "Output sharding shape doesn't match the output shape: "
+          "shard_shape.size()=%zu, output_shape.size()=%zu",
+          shard_shape.size(), output_shape.size());
+    return std::nullopt;
+  }
 
   for (size_t i = 0; i < output_shape.size(); ++i) {
-    TT_FATAL(output_shape[i] % shard_shape[i] == 0,
-             "Output shape is not divisible by the sharding shape: "
-             "dim={}, output_shape[dim]={}, shard_shape[dim]={}",
-             i, output_shape[i], shard_shape[i]);
+    if (output_shape[i] % shard_shape[i] != 0) {
+      LOG_F(ERROR,
+            "Output shape is not divisible by the sharding shape: "
+            "dim=%zu, output_shape[dim]=%u, shard_shape[dim]=%lld",
+            i, output_shape[i], static_cast<long long>(shard_shape[i]));
+      return std::nullopt;
+    }
     output_shape[i] /= shard_shape[i];
   }
 
   return output_shape;
 }
 
-void LoadedExecutableInstance::createDefaultOutputBuffers(
+tt_pjrt_status LoadedExecutableInstance::createDefaultOutputBuffers(
     PJRT_Buffer **const *output_lists, size_t num_devices) {
   ZoneScoped;
   size_t num_outputs = m_executable_image->getNumOutputs();
 
   for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-    std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+    std::optional<std::vector<std::uint32_t>> output_shape =
+        getOutputShape(output_index);
+    if (!output_shape.has_value()) {
+      return tt_pjrt_status::kInternal;
+    }
     PJRT_Buffer_Type output_type =
         m_executable_image->getOutputTypes()[output_index];
     ::tt::target::DataType runtime_data_type =
@@ -260,13 +270,13 @@ void LoadedExecutableInstance::createDefaultOutputBuffers(
 
     // Row-major strides: last stride is 1, each preceding stride is the
     // product of all following dimension sizes.
-    std::vector<std::uint32_t> strides(output_shape.size());
-    std::exclusive_scan(output_shape.rbegin(), output_shape.rend(),
+    std::vector<std::uint32_t> strides(output_shape->size());
+    std::exclusive_scan(output_shape->rbegin(), output_shape->rend(),
                         strides.rbegin(), std::uint32_t(1),
                         std::multiplies<>());
 
     tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
-        nullptr, output_shape, strides, element_size, runtime_data_type);
+        nullptr, *output_shape, strides, element_size, runtime_data_type);
 
     std::vector<BufferInstance *> shards;
     shards.reserve(num_devices);
@@ -274,7 +284,7 @@ void LoadedExecutableInstance::createDefaultOutputBuffers(
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              std::vector<std::uint32_t>(output_shape),
+              std::vector<std::uint32_t>(*output_shape),
               m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               output_type, device_index);
@@ -288,9 +298,10 @@ void LoadedExecutableInstance::createDefaultOutputBuffers(
 
     PjrtTensor::from_runtime_tensor(shards, std::move(host_tensor));
   }
+  return tt_pjrt_status::kSuccess;
 }
 
-void LoadedExecutableInstance::fillPJRTOutputLists(
+tt_pjrt_status LoadedExecutableInstance::fillPJRTOutputLists(
     const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
     PJRT_Buffer **const *output_lists,
     const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
@@ -304,11 +315,15 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
     shards.reserve(num_devices);
 
     for (int device_index = 0; device_index < num_devices; ++device_index) {
-      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
+      std::optional<std::vector<std::uint32_t>> output_shape =
+          getOutputShape(output_index);
+      if (!output_shape.has_value()) {
+        return tt_pjrt_status::kInternal;
+      }
 
       std::unique_ptr<BufferInstance> output_buffer =
           BufferInstance::createOutputBufferInstance(
-              std::move(output_shape), m_addressable_devices[device_index],
+              std::move(*output_shape), m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index], device_index);
       DLOG_F(LOG_DEBUG,
@@ -327,6 +342,7 @@ void LoadedExecutableInstance::fillPJRTOutputLists(
 
     PjrtTensor::from_runtime_tensor(shards, std::move(output_tensor));
   }
+  return tt_pjrt_status::kSuccess;
 }
 
 mlir::FailureOr<std::unordered_map<std::string, std::string>>

@@ -143,8 +143,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   }
 
   if (m_executable_image->getCompileOptions().dry_run) {
-    createDefaultOutputBuffers(args->output_lists, args->num_devices);
-    return tt_pjrt_status::kSuccess;
+    return createDefaultOutputBuffers(args->output_lists, args->num_devices);
   }
 
   FlatbufferExecutableImage *executable_image =
@@ -169,8 +168,12 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
-  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
-                      m_executable_image->getOutputTypes());
+  status =
+      fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
+                          m_executable_image->getOutputTypes());
+  if (!tt_pjrt_status_is_ok(status)) {
+    return status;
+  }
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
