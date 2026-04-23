@@ -94,6 +94,42 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
 
+  dispatch_process_dumped_irs:
+    runs-on: ubuntu-latest
+    needs: [ build-image, build-ttxla, test_forge_models_xfail, test_forge_models_passing ]
+    if: success() || failure()
+    steps:
+      - name: Check for dumped IRs and dispatch processing workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Checking for dumped IR artifacts in run ${{ github.run_id }}"
+
+          # Get artifacts for this run
+          artifacts_json=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)
+
+          # Check if any artifacts match the pattern "dumped-irs-*"
+          ir_count=$(echo "$artifacts_json" | jq '[.artifacts[] | select(.name | startswith("dumped-irs-"))] | length')
+
+          echo "Found $ir_count dumped IR artifacts"
+
+          if [ "$ir_count" -gt 0 ]; then
+            echo "Found dumped IR artifacts, dispatching processing workflow"
+            gh workflow run "call-process-dumped-irs.yml" \
+              --repo ${{ github.repository }} \
+              --ref ${{ github.ref }} \
+              -f docker_image="${{ needs.build-image.outputs.docker-image }}" \
+              -f artifact_release_run_id="${{ needs.build-ttxla.outputs.artifacts_run_id }}" \
+              -f wheel_artifact_name="${{ needs.build-ttxla.outputs.wheel_artifact_name }}" \
+              -f dumped_irs_run_id="${{ github.run_id }}"
+            echo "IR processing workflow dispatched successfully"
+          else
+            echo "No dumped IR artifacts found, skipping IR processing"
+          fi
+
   release:
     uses: ./.github/workflows/call-release.yml
     needs: [ build-ttxla ]

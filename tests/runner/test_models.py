@@ -91,9 +91,12 @@ def _run_model_test_impl(
     with RequirementsManager.for_loader(loader_path, framework=str(framework)):
 
         ir_dump_path = ""
-        # Dump all collected IRs if --dump-irs option is enabled
-        if request.config.getoption("--dump-irs", default=False):
-            ir_dump_path = os.path.join(PROJECT_ROOT, "collected_irs", model_info.name)
+        # Dump collected IRs if --dump-irs option is enabled
+        dump_irs_mode = request.config.getoption("--dump-irs", default=None)
+        if dump_irs_mode:
+            ir_dump_path = os.path.join(
+                PROJECT_ROOT, "collected_irs", model_info.name.replace("/", "_")
+            )
 
         if compiler_config is None:
             compiler_config = CompilerConfig()
@@ -189,6 +192,15 @@ def _run_model_test_impl(
             model_size = None
             if framework == Framework.TORCH and tester is not None:
                 model_size = getattr(tester, "_model_size", None)
+
+            # Clean up dumped IRs for passing tests when using 'on-fail' mode
+            if (
+                dump_irs_mode == "on-fail"
+                and succeeded
+                and ir_dump_path
+                and os.path.exists(ir_dump_path)
+            ):
+                shutil.rmtree(ir_dump_path)
 
             # If we mark tests with xfail at collection time, then this isn't hit.
             # Always record properties and handle skip/xfail cases uniformly

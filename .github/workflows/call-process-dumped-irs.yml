@@ -1,0 +1,235 @@
+name: Process Dumped IRs
+
+run-name: "Process IRs from run ${{ inputs.dumped_irs_run_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      docker_image:
+        description: 'Docker image to use for processing (e.g., ghcr.io/tenstorrent/tt-xla/tt-xla-ci-ubuntu-22-04:latest)'
+        required: true
+        type: string
+      artifact_release_run_id:
+        description: 'Run ID of the workflow that contains the wheel artifacts'
+        required: true
+        type: string
+      wheel_artifact_name:
+        description: 'Name of the wheel artifact (e.g., xla-whl-release)'
+        required: true
+        type: string
+      dumped_irs_run_id:
+        description: 'Run ID of the workflow that generated dumped IRs (usually the same as nightly run ID)'
+        required: true
+        type: string
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
+  TT_XLA_CI: 1
+
+jobs:
+  process_dumped_irs:
+
+    # TODO do we know oll ops can run on n150?
+
+    runs-on: tt-ubuntu-2204-n150-stable
+    strategy:
+      fail-fast: false
+      matrix:
+
+        # TODO why 5 jobs? shoukld this be dynamic based on number of dumped irs?
+        # NOTE: Keep this in sync with TOTAL_PARALLEL_JOBS below (indices should be 0 to TOTAL_PARALLEL_JOBS-1)
+        # job_index: [0, 1, 2, 3, 4]
+        job_index: [0]
+
+    env:
+      # TOTAL_PARALLEL_JOBS: 5
+      TOTAL_PARALLEL_JOBS: 1
+
+    name: "process_dumped_irs (job ${{ matrix.job_index }})"
+
+    container:
+      image: ${{ inputs.docker_image }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory /__w/tt-xla/tt-xla
+          git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Fetch job ID
+        id: fetch-job-id
+        uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+        with:
+          job_name: "process_dumped_irs (job ${{ matrix.job_index }})"
+
+      - name: Set reusable strings
+        id: strings
+        shell: bash
+        run: |
+          echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
+          echo "wheel_artifact_name=${{ inputs.wheel_artifact_name }}" >> "$GITHUB_OUTPUT"
+          echo "artifact_run_id=${{ inputs.artifact_release_run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Download and install tt-xla wheel
+        shell: bash
+        run: |
+          echo "=== Downloading wheel ==="
+          gh run download ${{ steps.strings.outputs.artifact_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name ${{ steps.strings.outputs.wheel_artifact_name }}
+          echo "Downloaded wheel files:"
+          ls -la wheels
+
+          echo "=== Installing wheel ==="
+          source venv/activate
+          pip install wheels/*.whl
+
+      # TODO if we dont need to build mlir we can remove
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          create-symlink: true
+          key: "nightly-op-by-op-build"
+
+      # TODO why we need to build tt-mlir here instead of using a pre-built version from the tt-xla wheel?
+
+      - name: Build tt-mlir with Python bindings
+        shell: bash
+        run: |
+          source venv/activate
+
+          echo "=== Building tt-mlir with Python bindings ==="
+          # Build tt-mlir via tt-xla with Python bindings enabled
+          # This automatically passes -DTTMLIR_ENABLE_STABLEHLO=ON and -DTTMLIR_ENABLE_RUNTIME=ON
+          # to tt-mlir (see third_party/CMakeLists.txt)
+          cmake -G Ninja -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTTMLIR_ENABLE_BINDINGS_PYTHON=ON \
+            -DTTXLA_ENABLE_PJRT_TESTS=OFF
+
+          # Build the tt-mlir external project target
+          cmake --build build --target tt-mlir
+
+          echo "=== Verifying op_by_op_infra build ==="
+          find third_party/tt-mlir -name "op_by_op_infra" -type d
+
+      # TODO we are splitting the flow in multiple jobs, should each one download all irs dumps or can we do better?
+
+      - name: Download dumped IR artifacts
+        shell: bash
+        run: |
+          echo "=== Downloading dumped IRs from workflow run ${{ inputs.dumped_irs_run_id }} ==="
+          gh run download ${{ inputs.dumped_irs_run_id }} \
+            --repo ${{ github.repository }} \
+            --pattern "dumped-irs-*" \
+            --dir collected_irs
+
+      - name: Verify downloaded IRs
+        shell: bash
+        run: |
+          echo "=== Contents of collected_irs ==="
+          set +o pipefail
+          find collected_irs -type f -name "*.mlir" | head -20
+          set -o pipefail
+
+    # TODO how long does one run take, do we need to split? what if we start processing irs in separate workflow and it can take longer
+
+      - name: Split IRs for parallel processing
+        shell: bash
+        run: |
+          echo "=== Splitting IRs for job ${{ matrix.job_index }} of ${{ env.TOTAL_PARALLEL_JOBS }} ==="
+
+          # Get all model directories (first-level subdirectories)
+          cd collected_irs
+          model_dirs=($(ls -d */ 2>/dev/null | sed 's:/$::' | sort))
+          total_models=${#model_dirs[@]}
+
+          echo "Total models found: $total_models"
+          echo "Model directories: ${model_dirs[@]}"
+
+          # Calculate which models this job should process
+          job_index=${{ matrix.job_index }}
+          total_jobs=${{ env.TOTAL_PARALLEL_JOBS }}
+          models_per_job=$(( (total_models + total_jobs - 1) / total_jobs ))
+          start_idx=$((job_index * models_per_job))
+          end_idx=$(((job_index + 1) * models_per_job))
+
+          if [ $end_idx -gt $total_models ]; then
+            end_idx=$total_models
+          fi
+
+          echo "This job will process models from index $start_idx to $((end_idx - 1))"
+
+          # Create a new directory with only this job's models
+          cd ..
+          mkdir -p collected_irs_job_$job_index
+
+          for i in $(seq $start_idx $((end_idx - 1))); do
+            if [ $i -lt $total_models ]; then
+              model="${model_dirs[$i]}"
+              echo "Including model: $model"
+              mv "collected_irs/$model" "collected_irs_job_$job_index/"
+            fi
+          done
+
+          # Replace collected_irs with the filtered version
+          rm -rf collected_irs
+          mv collected_irs_job_$job_index collected_irs
+
+          echo "=== Final IRs for this job ==="
+          ls -la collected_irs/
+
+      - name: Generate system descriptor
+        shell: bash
+        run: |
+          source venv/activate
+          echo "=== Generating system descriptor ==="
+          ttrt query --save-artifacts
+          ls -la ttrt-artifacts/
+
+      # TODO why we need descriptor here, how is ttrt-artifacts used in the op-by-op tests?
+
+      - name: Run op-by-op tests
+        shell: bash
+        run: |
+          source venv/activate
+
+          # Set PYTHONPATH to include op_by_op_infra
+          export PYTHONPATH="${{ steps.strings.outputs.work-dir }}/third_party/tt-mlir/build/python_packages:${PYTHONPATH}"
+
+          # Suppress unnecessary runtime logs
+          export TTRT_LOGGER_LEVEL=ERROR
+
+          echo "=== Verifying op_by_op_infra is importable ==="
+          python3 -c "import op_by_op_infra; print(f'op_by_op_infra found at: {op_by_op_infra.__file__}')"
+
+          echo "=== Running op-by-op tests ==="
+          python3 -m pytest -svv tests/op_by_op/op_by_op_test.py::test_op_by_op \
+            --folder=collected_irs \
+            --ir-file-prefix="irs/shlo_compiler" \
+            --json-report \
+            --json-report-file=op_by_op_report.json \
+            || echo "Op-by-op test completed with failures"
+
+      - name: Upload op-by-op test report
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: op-by-op-report-${{ matrix.job_index }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: op_by_op_report.json
+          if-no-files-found: 'warn'
