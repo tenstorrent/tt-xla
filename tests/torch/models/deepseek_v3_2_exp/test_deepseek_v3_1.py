@@ -323,19 +323,19 @@ def _fix_meta_buffers(model, args):
     model.hadamard_matrix = hadamard
     # Re-materialize the MLA cache layers on CPU so they're real tensors (not
     # meta) before mark_sharding / .to(device). Each layer holds its own
-    # compressed_kv / k_pe buffers, already lazy-initialized in Transformer
+    # compressed_kv / k_pe buffers, already initialized in Transformer
     # __init__ — but if the model was built on meta, those buffers landed on
-    # meta too. Re-run lazy_initialization with concrete sample tensors.
+    # meta too. Re-run early_initialization directly on CPU.
     mla0 = model.layers[0].attn
+    cache_dtype = mla0.wkv_a.weight.dtype
     for cache_layer in model._cache_layers:
         cache_layer.is_initialized = False
-        cache_layer.lazy_initialization(
-            torch.zeros(
-                args.max_batch_size, 1, 1, mla0.kv_lora_rank, dtype=torch.bfloat16
-            ),
-            torch.zeros(
-                args.max_batch_size, 1, 1, mla0.qk_rope_head_dim, dtype=torch.bfloat16
-            ),
+        cache_layer.early_initialization(
+            batch_size=args.max_batch_size,
+            kv_lora_rank=mla0.kv_lora_rank,
+            pe_rank=mla0.qk_rope_head_dim,
+            dtype=cache_dtype,
+            device=torch.device("cpu"),
         )
     for layer in model.layers:
         attn = layer.attn
