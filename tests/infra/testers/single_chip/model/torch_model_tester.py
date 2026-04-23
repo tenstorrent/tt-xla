@@ -355,7 +355,6 @@ class TorchModelTester(ModelTester):
             }
             torch_xla.set_custom_compile_options(emitpy_options)
 
-            # Recompile with legacy compile to avoid _run_cached_graph.
             self._compile_for_tt_device(
                 self._workload, options={"tt_legacy_compile": True}
             )
