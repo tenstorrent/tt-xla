@@ -290,6 +290,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             min_token_size=self.tt_config.min_context_len,
             max_token_size=self.max_model_len,
         )
+        if self.tt_config.decode_only:
+            # Restrict all num_tokens bucketing to the decode shape so every
+            # precompile pass (and anything else that reads
+            # self.num_tokens_paddings) only compiles num_tokens=1.
+            self.num_tokens_paddings = [1]
+            logger.info("decode_only=True; restricting num_tokens_paddings to [1].")
 
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
         # padded max value to pre-allocate data structures and pre-compile.
@@ -1899,9 +1905,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Precompile all the subgraphs with possible input shapes.
         """
         torch._dynamo.config.dynamic_shapes = False
+        decode_only = self.tt_config.decode_only
         with self.maybe_setup_dummy_loras(self.lora_config):
-            self._precompile_mm_encoder()
             self._precompile_backbone()
+            if self.tt_config.decode_only:
+                return
+            self._precompile_mm_encoder()
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
@@ -1917,6 +1926,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
+        if self.tt_config.decode_only:
+            return
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
