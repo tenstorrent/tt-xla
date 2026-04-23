@@ -11,8 +11,11 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
+#include <atomic>
+#include <filesystem>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -78,6 +81,65 @@ PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
 
 void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
                                const tt::runtime::Layout &layout) {
+
+  // --- Serialization experiment: round-trip multi-device host tensors ---
+  // Detect multi-device host tensors by checking shard count.
+  // When strategy != "identity", rt_tensor_from_strategy creates a
+  // multi-device host tensor from multiple shard tensors, so
+  // m_shards.size() > 1 reliably indicates a multi-device tensor.
+  if (m_shards.size() > 1) {
+    static std::atomic<uint64_t> serial_counter{0};
+    uint64_t counter = serial_counter.fetch_add(1, std::memory_order_relaxed);
+
+    // Build shape string for filename metadata (e.g. "32x784").
+    std::vector<std::uint32_t> shape =
+        tt::runtime::getTensorShape(m_runtime_tensor);
+    std::ostringstream shape_ss;
+    for (size_t i = 0; i < shape.size(); ++i) {
+      if (i > 0)
+        shape_ss << "x";
+      shape_ss << shape[i];
+    }
+
+    std::filesystem::path dump_dir("/tmp/tt_serialize_exp");
+    std::filesystem::create_directories(dump_dir);
+    std::string filename = "tensor_" + std::to_string(counter) + "_" +
+                           shape_ss.str() + ".tensorbin";
+    std::filesystem::path filepath = dump_dir / filename;
+
+    LOG_F(INFO,
+          "[SerializeExp] Dumping multi-device host tensor (uid=%lu, "
+          "shards=%zu, shape=%s) to %s",
+          static_cast<unsigned long>(m_uid), m_shards.size(),
+          shape_ss.str().c_str(), filepath.c_str());
+
+    // Preserve the retain flag across serialization.
+    const bool retain = tt::runtime::getTensorRetain(m_runtime_tensor);
+
+    // Serialize the original multi-device host tensor to disk.
+    tt::runtime::dumpTensor(m_runtime_tensor, filepath.string());
+
+    // Load tensor back from disk (no device = host tensor).
+    tt::runtime::Tensor loaded = tt::runtime::loadTensor(filepath.string());
+    tt::runtime::setTensorRetain(loaded, retain);
+
+    // Verify loaded tensor shape matches.
+    std::vector<std::uint32_t> loaded_shape =
+        tt::runtime::getTensorShape(loaded);
+    LOG_F(INFO,
+          "[SerializeExp] Loaded tensor from %s (original_shape=%s, "
+          "loaded_shape_size=%zu)",
+          filepath.c_str(), shape_ss.str().c_str(), loaded_shape.size());
+
+    // Replace m_runtime_tensor with the deserialized version.
+    m_runtime_tensor = std::move(loaded);
+
+    LOG_F(INFO,
+          "[SerializeExp] Replaced m_runtime_tensor with deserialized tensor "
+          "(counter=%lu)",
+          static_cast<unsigned long>(counter));
+  }
+  // --- End serialization experiment ---
 
   if (tt::runtime::hasLayout(m_runtime_tensor, layout))
     return;
