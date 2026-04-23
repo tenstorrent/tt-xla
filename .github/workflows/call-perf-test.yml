@@ -92,6 +92,7 @@ jobs:
         sparse-checkout: |
           .github/
           tests/benchmark/
+          tests/infra/
           third_party/
           pytest.ini
           python_package/requirements.txt
