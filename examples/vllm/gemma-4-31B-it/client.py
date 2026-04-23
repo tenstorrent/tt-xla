@@ -9,15 +9,28 @@ Usage:
        $ bash examples/vllm/gemma-4-31B-it/service.sh
 
     2. Run this client (in a separate shell):
-       $ python examples/vllm/gemma-4-31B-it/client.py
+       $ python examples/vllm/gemma-4-31B-it/client.py [--max-tokens N]
 """
 
+import argparse
 import json
+import time
 
 import requests
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Streaming chat client for Gemma-4 31B-it vLLM server"
+    )
+    parser.add_argument(
+        "--max-tokens",
+        type=int,
+        default=256,
+        help="Maximum tokens to generate (default: 256)",
+    )
+    args = parser.parse_args()
+
     url = "http://localhost:8000/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
     # Gemma-4 chat template does not accept the "system" role, so the
@@ -26,7 +39,8 @@ def main():
         "model": "google/gemma-4-31B-it",
         "messages": [],
         "stream": True,
-        "max_tokens": 256,
+        "max_tokens": args.max_tokens,
+        "temperature": 0,
     }
 
     while True:
@@ -42,6 +56,9 @@ def main():
 
         try:
             full_response = ""
+            token_count = 0
+            ttft = None
+            t_start = time.perf_counter()
             with requests.post(
                 url, headers=headers, json=data, stream=True
             ) as response:
@@ -52,16 +69,24 @@ def main():
                     chunk = chunk.removeprefix("data: ")
                     if chunk:
                         if "[DONE]" in chunk:
-                            print("\nResponse completed.")
                             break
 
                         token = json.loads(chunk)["choices"][0]["delta"].get(
                             "content", ""
                         )
                         if token:
+                            if ttft is None:
+                                ttft = time.perf_counter() - t_start
                             print(token, end="", flush=True)
                             full_response += token
-                data["messages"].append({"role": "assistant", "content": full_response})
+                            token_count += 1
+
+            elapsed = time.perf_counter() - t_start
+            toks_per_sec = token_count / elapsed if elapsed > 0 else 0
+            print(
+                f"\n[TTFT: {ttft * 1000:.0f} ms | {token_count} tokens | {toks_per_sec:.1f} tok/s]"
+            )
+            data["messages"].append({"role": "assistant", "content": full_response})
         except Exception as e:
             if isinstance(e, requests.exceptions.ConnectionError):
                 print(

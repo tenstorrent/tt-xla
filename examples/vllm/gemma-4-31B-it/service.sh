@@ -23,4 +23,4 @@ vllm serve google/gemma-4-31B-it \
     --max-num-seqs 1 \
     --no-enable-prefix-caching \
     --gpu-memory-utilization 0.1 \
-    --additional-config "{\"enable_const_eval\": true, \"min_context_len\": 32, \"enable_tensor_parallel\": true, \"use_2d_mesh\": false, \"cpu_sampling\": false}"
+    --additional-config "{\"enable_const_eval\": true, \"min_context_len\": 32, \"enable_tensor_parallel\": true, \"use_2d_mesh\": false, \"cpu_sampling\": false, \"optimization_level\": 0, \"experimental_weight_dtype\": \"bfp_bf8\"}"
