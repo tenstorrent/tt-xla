@@ -461,6 +461,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.tt_config.cpu_sampling:
+            logger.warning("cpu_sampling=True: using CPU sampling path")
             self.sample_from_logits_func = self.sample_from_logits_cpu
         else:
             # sample_from_logits is already @torch.compile decorated
@@ -1443,6 +1444,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
+            logger.warning_once(
+                "Sampling on %s (cpu_sampling=%s)",
+                sampling_device,
+                self.tt_config.cpu_sampling,
+            )
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
@@ -2038,6 +2044,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
+            else:
+                logger.warning(
+                    "cpu_sampling=True: skipping device sampling precompilation"
+                )
             self._precompile_gather_logprobs()
 
     def profile_run(
@@ -2304,13 +2314,96 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Sample on CPU instead of compiling a device sampling graph.
 
-        This function mainly exists as a workaround for https://github.com/tenstorrent/tt-xla/issues/3610.
-        Only support greedy sampling for now to reduce maintenance overhead.
+        Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
+        All operations run on CPU to avoid compiling a device sampling graph.
         """
-        device = logits.device
         logits = logits.cpu()
-        out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
-        return out_tokens.to(device)
+
+        if not sampling_metadata.no_penalties:
+            output_counts = sampling_metadata.output_token_counts
+            occurred_output = output_counts > 0
+            prompt_mask = sampling_metadata.prompt_token_mask
+            rep_pen = sampling_metadata.repetition_penalties.unsqueeze(1)
+            rep_mask = occurred_output | prompt_mask
+            penalty_factor = torch.where(logits > 0, torch.reciprocal(rep_pen), rep_pen)
+            logits = torch.where(rep_mask, logits * penalty_factor, logits)
+            freq_pen = sampling_metadata.frequency_penalties.unsqueeze(1)
+            logits -= freq_pen * output_counts.to(logits.dtype)
+            pres_pen = sampling_metadata.presence_penalties.unsqueeze(1)
+            logits -= pres_pen * occurred_output.to(logits.dtype)
+
+        if sampling_metadata.all_greedy:
+            return torch.argmax(logits, dim=-1, keepdim=True)
+
+        temp = sampling_metadata.temperature
+        temp = torch.where(temp < 1e-6, torch.ones_like(temp), temp)
+        logits = logits / temp.unsqueeze(1)
+
+        has_topk = sampling_metadata.top_k is not None
+        has_topp = sampling_metadata.top_p is not None
+        top_k = sampling_metadata.top_k if has_topk else None
+        top_p = sampling_metadata.top_p if has_topp else None
+
+        # Fast path: all requests share the same k > 0 — single batched topk
+        # reduces vocab from 128K to k before top-p sort.
+        uniform_k = 0
+        if has_topk:
+            k = int(top_k[0].item())
+            if 0 < k < logits.size(1) and (top_k == k).all():
+                uniform_k = k
+
+        if uniform_k > 0:
+            topk_vals, topk_idx = torch.topk(logits, uniform_k, dim=-1)
+
+            if has_topp:
+                for i in range(topk_vals.size(0)):
+                    p = float(top_p[i].item())
+                    if p < 1.0:
+                        sorted_vals, sort_idx = torch.sort(
+                            topk_vals[i], descending=True
+                        )
+                        probs = torch.softmax(sorted_vals, dim=-1)
+                        mask = torch.cumsum(probs, dim=-1) - probs >= p
+                        sorted_vals[mask] = float("-inf")
+                        topk_vals[i].scatter_(0, sort_idx, sorted_vals)
+
+            greedy = torch.argmax(topk_vals, dim=-1)
+            gumbel = -torch.log(
+                -torch.log(torch.rand_like(topk_vals.float()) + 1e-20) + 1e-20
+            )
+            random = torch.argmax(topk_vals + gumbel, dim=-1)
+            sampled_local = torch.where(temp < 1e-6, greedy, random)
+            return topk_idx.gather(-1, sampled_local.unsqueeze(-1))
+        else:
+            # Slow path: mixed k values or k=0 — per-request filtering on full vocab.
+            if has_topk:
+                for i in range(logits.size(0)):
+                    k = int(top_k[i].item())
+                    if k > 0 and k < logits.size(1):
+                        topk_vals, _ = torch.topk(logits[i], k)
+                        logits[i][logits[i] < topk_vals[-1]] = float("-inf")
+
+            if has_topp:
+                for i in range(logits.size(0)):
+                    p = float(top_p[i].item())
+                    if p < 1.0:
+                        sorted_logits, sorted_indices = torch.sort(
+                            logits[i], descending=True
+                        )
+                        probs = torch.softmax(sorted_logits, dim=-1)
+                        mask = torch.cumsum(probs, dim=-1) - probs >= p
+                        sorted_logits[mask] = float("-inf")
+                        logits[i].scatter_(0, sorted_indices, sorted_logits)
+
+            # Gumbel-max: mathematically equivalent to softmax + multinomial
+            # but implemented as argmax(logits + Gumbel noise) — avoids
+            # torch.multinomial which processes each batch element sequentially.
+            greedy = torch.argmax(logits, dim=-1)
+            gumbel = -torch.log(
+                -torch.log(torch.rand_like(logits.float()) + 1e-20) + 1e-20
+            )
+            random = torch.argmax(logits + gumbel, dim=-1)
+            return torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
