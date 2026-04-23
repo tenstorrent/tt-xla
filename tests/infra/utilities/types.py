@@ -12,7 +12,10 @@ import torch
 from flax import linen, nnx
 from jaxtyping import PyTree as jax_pytree
 from torch.utils._pytree import PyTree as torch_pytree
-from torch_xla.distributed.spmd import Mesh
+try:
+    from torch_xla.distributed.spmd import Mesh
+except ImportError:
+    Mesh = None
 
 # Convenience alias. Used to jointly represent tensors from different frameworks.
 Tensor = Union[jax.Array, torch.Tensor]
