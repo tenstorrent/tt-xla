@@ -17,20 +17,7 @@ from infra.evaluators import ComparisonConfig, PccConfig
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .shared import RESOLUTIONS, load_umt5, shard_umt5_specs, wan22_mesh
-
-
-class UMT5Wrapper(torch.nn.Module):
-    """Return last_hidden_state as a plain tensor (not a model output object)."""
-
-    def __init__(self, encoder):
-        super().__init__()
-        self.encoder = encoder
-
-    def forward(self, input_ids, attention_mask):
-        return self.encoder(
-            input_ids=input_ids, attention_mask=attention_mask
-        ).last_hidden_state
+from .shared import RESOLUTIONS, UMT5Wrapper, load_umt5, shard_umt5_specs, wan22_mesh
 
 
 def test_umt5_480p():  # OOM on single device

@@ -19,18 +19,13 @@ from infra.evaluators import ComparisonConfig, PccConfig
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .shared import RESOLUTIONS, load_vae, shard_vae_decoder_specs, wan22_mesh
-
-
-class VAEDecoderWrapper(torch.nn.Module):
-    """Run decoder and return the reconstructed sample tensor."""
-
-    def __init__(self, vae):
-        super().__init__()
-        self.vae = vae
-
-    def forward(self, z):
-        return self.vae.decode(z, return_dict=False)[0]
+from .shared import (
+    RESOLUTIONS,
+    VAEDecoderWrapper,
+    load_vae,
+    shard_vae_decoder_specs,
+    wan22_mesh,
+)
 
 
 def test_vae_decoder_480p():

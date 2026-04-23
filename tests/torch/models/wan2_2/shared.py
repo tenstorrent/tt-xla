@@ -14,12 +14,22 @@ Exposes:
     functions returning dict[Tensor, partition_spec] for run_graph_test.
 """
 
+import html
+from typing import Callable, Optional
+
+import regex as re
 import torch
 import torch.nn as nn
 from infra.utilities import Mesh
-from infra.utilities.torch_multichip_utils import get_mesh
+from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 
 MODEL_ID = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+
+# Matches WanTransformer3DModel.config.in_channels for TI2V-5B
+# (= VAE z_dim = 48). Named here so the denoise loop avoids a magic number.
+LATENT_CHANNELS = 48
+# Wan 2.2 TI2V-5B VAE scale factor
+VAE_SCALE_FACTOR = 16
 
 # Pixel and latent shapes per resolution. Latent dims are:
 #   latent_frames = (num_frames - 1) // 4 + 1   (VAE temporal stride 4)
@@ -42,6 +52,30 @@ RESOLUTIONS = {
         "latent_w": 80,
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Prompt cleaning — matches diffusers/pipeline_wan.py:78-93 and Wan repo.
+# ---------------------------------------------------------------------------
+
+
+def _basic_clean(text: str) -> str:
+    try:
+        import ftfy
+
+        text = ftfy.fix_text(text)
+    except ImportError:
+        pass
+    return html.unescape(html.unescape(text)).strip()
+
+
+def _whitespace_clean(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def prompt_clean(text: str) -> str:
+    """Normalize prompt text the same way diffusers.WanPipeline does."""
+    return _whitespace_clean(_basic_clean(text))
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +134,69 @@ def load_dit(max_blocks: int = 0):
     if max_blocks > 0 and len(dit.blocks) > max_blocks:
         dit.blocks = nn.ModuleList(list(dit.blocks[:max_blocks]))
     return dit.eval()
+
+
+def load_tokenizer():
+    """Load the UMT5 tokenizer used by Wan 2.2 TI2V-5B."""
+    from transformers import AutoTokenizer
+
+    return AutoTokenizer.from_pretrained(MODEL_ID, subfolder="tokenizer")
+
+
+# ---------------------------------------------------------------------------
+# Component wrappers (reused by component tests and the e2e test)
+# ---------------------------------------------------------------------------
+
+
+class UMT5Wrapper(nn.Module):
+    """Return last_hidden_state as a plain tensor (not a model output object)."""
+
+    def __init__(self, encoder):
+        super().__init__()
+        self.encoder = encoder
+
+    def forward(self, input_ids, attention_mask):
+        return self.encoder(
+            input_ids=input_ids, attention_mask=attention_mask
+        ).last_hidden_state
+
+
+class VAEEncoderWrapper(nn.Module):
+    """Run encoder and return the deterministic mean latent."""
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+
+    def forward(self, x):
+        return self.vae.encode(x).latent_dist.mean
+
+
+class VAEDecoderWrapper(nn.Module):
+    """Run decoder and return the reconstructed sample tensor."""
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+
+    def forward(self, z):
+        return self.vae.decode(z, return_dict=False)[0]
+
+
+class WanDiTWrapper(nn.Module):
+    """Return the velocity tensor from the diffusers output tuple."""
+
+    def __init__(self, dit):
+        super().__init__()
+        self.dit = dit
+
+    def forward(self, hidden_states, timestep, encoder_hidden_states):
+        return self.dit(
+            hidden_states=hidden_states,
+            timestep=timestep,
+            encoder_hidden_states=encoder_hidden_states,
+            return_dict=False,
+        )[0]
 
 
 # ---------------------------------------------------------------------------
@@ -254,3 +351,77 @@ def shard_dit_specs(dit) -> dict:
         specs[block.ffn.net[2].bias] = ("batch",)
 
     return specs
+
+
+# ---------------------------------------------------------------------------
+# Component runner (CPU or TT)
+# ---------------------------------------------------------------------------
+
+
+def run_component(
+    wrapper: nn.Module,
+    inputs: list,
+    on_tt: bool,
+    *,
+    mesh: Optional[Mesh] = None,
+    shard_module: Optional[nn.Module] = None,
+    shard_fn: Optional[Callable[[nn.Module], dict]] = None,
+) -> torch.Tensor:
+    """Run a component wrapper on CPU or TT and return the CPU output tensor.
+
+    CPU path (`on_tt=False`): calls ``wrapper(*inputs)`` under ``torch.no_grad()``.
+
+    TT path (`on_tt=True`): moves ``wrapper`` and ``inputs`` onto the XLA
+    device, optionally applies ``xs.mark_sharding`` using
+    ``shard_fn(shard_module)`` and ``mesh``, then ``torch.compile(..., backend="tt")``
+    and runs. Returns ``.to("cpu")`` of the result.
+
+    Sharding is applied iff ``shard_fn`` is provided and ``mesh`` has more than
+    one device. For a single-device mesh the shard branch is a silent no-op so
+    the same call site works on 1-device and N-device setups. When
+    ``shard_fn`` is provided, ``shard_module`` is required — it is the
+    submodule whose device-resident parameters get sharded (e.g. ``wrapper.dit``).
+    """
+    if not on_tt:
+        with torch.no_grad():
+            return wrapper(*inputs)
+
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.spmd as xs
+    import torch_xla.runtime as xr
+
+    use_sharding = (
+        shard_fn is not None and mesh is not None and len(mesh.device_ids) > 1
+    )
+
+    if use_sharding:
+        # Must run before any XLA op: sets CONVERT_SHLO_TO_SHARDY=1 and
+        # xr.use_spmd(). Both are idempotent across calls.
+        enable_spmd()
+
+    xr.set_device_type("TT")
+    device = xm.xla_device()
+
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
+
+    # Move the raw wrapper and inputs to device first. shard_fn needs to see
+    # XLA tensors, so sharding must happen *after* this move.
+    wrapper_on_device = wrapper.to(device)
+    if hasattr(wrapper_on_device, "tie_weights"):
+        wrapper_on_device.tie_weights()
+    inputs_on_device = [t.to(device) for t in inputs]
+
+    if use_sharding:
+        assert shard_module is not None, "shard_fn requires shard_module"
+        specs = shard_fn(shard_module)
+        for tensor, spec in specs.items():
+            xs.mark_sharding(tensor, mesh, spec)
+
+    # Compile after the move + annotations so torch.compile traces the
+    # on-device, already-sharded module on its first call.
+    compiled = torch.compile(wrapper_on_device, backend="tt")
+
+    with torch.no_grad():
+        out = compiled(*inputs_on_device)
+    return out.to("cpu")

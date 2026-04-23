@@ -23,23 +23,19 @@ from infra.evaluators import ComparisonConfig, PccConfig
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .shared import RESOLUTIONS, load_dit, shard_dit_specs, wan22_mesh
+from .monkey_patch import _disable_tt_torch_function_override, _patch_apply_lora_scale
+from .shared import RESOLUTIONS, WanDiTWrapper, load_dit, shard_dit_specs, wan22_mesh
 
+# ---------------------------------------------------------------------------
+# Monkey patches
+# ---------------------------------------------------------------------------
 
-class WanDiTWrapper(torch.nn.Module):
-    """Return the velocity tensor from the diffusers output tuple."""
+_patch_apply_lora_scale()
+_disable_tt_torch_function_override()
 
-    def __init__(self, dit):
-        super().__init__()
-        self.dit = dit
-
-    def forward(self, hidden_states, timestep, encoder_hidden_states):
-        return self.dit(
-            hidden_states=hidden_states,
-            timestep=timestep,
-            encoder_hidden_states=encoder_hidden_states,
-            return_dict=False,
-        )[0]
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
 
 def test_wan_dit_480p():
