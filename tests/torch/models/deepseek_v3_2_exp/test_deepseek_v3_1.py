@@ -321,22 +321,24 @@ def _fix_meta_buffers(model, args):
         scipy.linalg.hadamard(args.index_head_dim), dtype=torch.bfloat16
     ) * (args.index_head_dim**-0.5)
     model.hadamard_matrix = hadamard
+    # Re-materialize the MLA cache layers on CPU so they're real tensors (not
+    # meta) before mark_sharding / .to(device). Each layer holds its own
+    # compressed_kv / k_pe buffers, already lazy-initialized in Transformer
+    # __init__ — but if the model was built on meta, those buffers landed on
+    # meta too. Re-run lazy_initialization with concrete sample tensors.
+    mla0 = model.layers[0].attn
+    for cache_layer in model._cache_layers:
+        cache_layer.is_initialized = False
+        cache_layer.lazy_initialization(
+            torch.zeros(
+                args.max_batch_size, 1, 1, mla0.kv_lora_rank, dtype=torch.bfloat16
+            ),
+            torch.zeros(
+                args.max_batch_size, 1, 1, mla0.qk_rope_head_dim, dtype=torch.bfloat16
+            ),
+        )
     for layer in model.layers:
         attn = layer.attn
-        attn.kv_cache = torch.zeros(
-            args.max_batch_size,
-            1,
-            args.max_seq_len,
-            attn.kv_lora_rank,
-            dtype=torch.bfloat16,
-        )
-        attn.pe_cache = torch.zeros(
-            args.max_batch_size,
-            1,
-            args.max_seq_len,
-            attn.qk_rope_head_dim,
-            dtype=torch.bfloat16,
-        )
         attn.hadamard_matrix = hadamard
         if attn.indexer is not None:
             attn.indexer.k_cache = torch.zeros(
@@ -419,8 +421,9 @@ def _apply_shard_specs(model, mesh, args, batch_size, tokens_device):
         xs.mark_sharding(attn.wo.weight, mesh, (None, "_axis_0"))
         xs.mark_sharding(attn.wq_a.weight, mesh, (None, "_axis_0"))
         xs.mark_sharding(attn.wkv_a.weight, mesh, (None, "_axis_0"))
-        xs.mark_sharding(attn.kv_cache, mesh, ("_axis_1", None, None, None))
-        xs.mark_sharding(attn.pe_cache, mesh, ("_axis_1", None, None, None))
+        cache_layer = model.past_key_values.layers[layer.layer_id]
+        xs.mark_sharding(cache_layer.compressed_kv, mesh, ("_axis_1", None, None, None))
+        xs.mark_sharding(cache_layer.k_pe, mesh, ("_axis_1", None, None, None))
         ffn = layer.ffn
         if hasattr(ffn, "mlp"):
             mlp = ffn.mlp
@@ -550,9 +553,10 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
 
 
 def _reset_caches(model):
+    for cache_layer in model.past_key_values.layers:
+        cache_layer.compressed_kv.zero_()
+        cache_layer.k_pe.zero_()
     for layer in model.layers:
-        layer.attn.kv_cache.zero_()
-        layer.attn.pe_cache.zero_()
         if layer.attn.indexer is not None:
             layer.attn.indexer.k_cache.zero_()
 
