@@ -19,17 +19,41 @@ Infer from the user's request — don't ask unless ambiguous.
 
 ## Step 1: Gather information
 
-**Do not proceed until all four are answered. Ask for all missing ones at once.**
+**Do not proceed until 1, 2, and 4 are answered. Ask for all missing ones at once. Strategy (3) is optional.**
 
 1. **Model** — HuggingFace model ID (e.g. `meta-llama/Llama-3.1-8B`)
 2. **Component** — `attention`, `mlp`, `moe`, `full model`, etc.
-3. **Strategy** — `megatron`, `data parallel`, etc.
+3. **Strategy** *(optional)* — `megatron`, `fsdp`, `data parallel`, etc. If not provided, auto-select per the strategy selection logic below.
 4. **Hardware**
    - `llmbox` — 8 chips, mesh `(1, 8)`, axes `("batch", "model")`
    - `galaxy` — 32 chips, mesh `(4, 8)`, axes `("batch", "model")`
    - `single_device` — 1 chip, no sharding needed
    - Raw count: 2→`(1,2)`, 4→`(1,4)`, 8→`(1,8)`, 32→`(4,8)`
    - Fall back to batch splitting if heads aren't divisible by the model-axis size
+
+---
+
+## Strategy Selection Logic
+
+When the user does **not** specify a strategy, apply this rule:
+
+> **Default to Megatron** (tensor parallelism). It produces fewer collective communication operations (CCLs) than FSDP, making it more efficient when it fits in memory. **Warn the user** that Megatron shards weights across the model axis and may cause OOM on very large models — if they hit OOM, switch to FSDP.
+
+Decision tree:
+1. User provided a strategy → use it as-is, skip auto-selection.
+2. User mentioned OOM using **Megatron** → try **FSDP**.
+3. Component is `moe` or model has MoE layers → see **MoE / Expert Parallelism note** below, then apply rule 4.
+4. Otherwise → use **Megatron**, and emit the following note to the user:
+
+> **Strategy chosen: Megatron** (tensor parallelism) — selected because it generates fewer CCL ops than FSDP. If you hit OOM when running the full model, ask me to regenerate with FSDP.
+
+**MoE / Expert Parallelism (EP) note:** When a model has MoE layers, Expert Parallelism is an additional strategy to consider alongside Megatron and FSDP. EP assigns whole experts to devices (each device owns `num_experts / num_devices` experts) rather than sharding each expert's weight matrices. This avoids intra-expert weight communication but introduces All-to-All token routing between devices.
+
+- If `num_experts` is cleanly divisible by `num_devices` → flag EP as viable and mention it to the user as an alternative worth exploring.
+- Default is still Megatron (it also works on MoE by applying column/row-parallel rules to each expert's weights).
+- See `references/expert_parallel_example.py` for the EP shard-spec pattern (to be filled in).
+
+Always state the chosen strategy and the reason **before** generating the spec.
 
 ---
 
