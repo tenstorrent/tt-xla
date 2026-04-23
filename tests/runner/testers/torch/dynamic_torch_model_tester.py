@@ -5,6 +5,7 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
+import os
 from typing import Any
 
 import torch
@@ -175,7 +176,12 @@ class DynamicTorchModelTester(TorchModelTester):
         if self.parallelism == Parallelism.SINGLE_DEVICE:
             return None
 
-        num_devices = xr.global_runtime_device_count()
+        try:
+            num_devices = xr.global_runtime_device_count()
+        except RuntimeError:
+            if not os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
+                raise
+            num_devices = 8
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
         else:

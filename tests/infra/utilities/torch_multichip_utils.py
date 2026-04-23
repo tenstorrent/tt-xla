@@ -19,7 +19,12 @@ def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
         Mesh or None: A Mesh object if mesh_shape is provided, otherwise None.
     """
 
-    num_devices = xr.global_runtime_device_count()
+    try:
+        num_devices = xr.global_runtime_device_count()
+    except RuntimeError:
+        if not os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
+            raise
+        num_devices = 8
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
     print(f"Created device mesh: {mesh_shape} with {num_devices} devices.")
