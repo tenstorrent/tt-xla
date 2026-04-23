@@ -284,6 +284,7 @@ def scaled_dot_product_attention(
                 sliding_window_size > 0
             ), f"sliding_window_size must be a positive integer, but is {sliding_window_size}"
             frontend_attributes["sliding_window_size"] = str(sliding_window_size)
+        # print(f"custom_ops::sdpa::attrs: {frontend_attributes}")
 
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
@@ -790,6 +791,7 @@ def paged_scaled_dot_product_attention_decode(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
     device = query.device
 
@@ -811,6 +813,14 @@ def paged_scaled_dot_product_attention_decode(
 
         if scale is not None:
             attrs["scale"] = str(scale)
+        # print(f"custom_ops::sliding_window_size: {sliding_window_size}")
+
+        if sliding_window_size is not None:
+            assert (
+                sliding_window_size > 0
+            ), f"sliding_window_size must be a positive integer, but is {sliding_window_size}"
+            # attrs["sliding_window_size"] = str(sliding_window_size)
+        # print(f"custom_ops::paged_sdpa_decode::attrs: {attrs}")
 
         inputs = [query, key, value, page_table]
         if attn_mask is not None:
@@ -903,6 +913,7 @@ def paged_scaled_dot_product_attention_decode_fake(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: Optional[float] = None,
+    sliding_window_size: Optional[int] = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 

@@ -214,6 +214,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
+        self.counter = 0
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
@@ -1303,7 +1304,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
-        logger.info(f"sample_tokens")
+        logger.info(f"sample_tokens: {self.counter}")
+        self.counter += 1
         scheduler_output = self.scheduler_output
         mm_embed_inputs = self.mm_embed_inputs
         self.scheduler_output = None
@@ -1432,6 +1434,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
+            logger.info(f"final_selected_token_ids: {selected_token_ids}")
 
             combined_selected_tokens.append(selected_token_ids)
             if sampling_metadata.logprobs:
@@ -1532,6 +1535,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
         self._verify_num_xla_graphs("execute_model")
+        # if self.counter == 3:
+        #    sys.exit(0)
 
         return model_runner_output
 
@@ -1850,7 +1855,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
-            # break
+            break
         logger.info(
             f"Asif:: Finished dummy runs for backbone with num_tokens={num_tokens}."
         )
@@ -2026,11 +2031,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        return
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
-            return
-            self._precompile_mm_encoder()
+            # self._precompile_mm_encoder()
             self._precompile_backbone()
+            return
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()

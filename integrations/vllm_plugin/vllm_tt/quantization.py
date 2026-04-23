@@ -39,7 +39,7 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         self.moe_quant_config = None
         self.moe_mk = None  # TT backend doesn't use modular kernel
 
-        logger.warning(f"Using TT-compatible MXFP4 MoE backend: {self.mxfp4_backend}")
+        # logger.warning(f"Using TT-compatible MXFP4 MoE backend: {self.mxfp4_backend}")
 
     def create_weights(self, layer: nn.Module, **kwargs):
         """Create quantized weights for MoE layer."""
@@ -59,10 +59,10 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
             f"DEBUG: layer: {layer} -- {hasattr(layer, 'w13_weight')} -- {hasattr(layer, 'w2_weight')}"
         )
 
-        logger.warning(
-            f"Creating TT-compatible MoE weights with corrected dimensions: experts={num_experts}, "
-            f"hidden={hidden_size}, intermediate={intermediate_size}, dtype={params_dtype}"
-        )
+        # logger.warning(
+        #    f"Creating TT-compatible MoE weights with corrected dimensions: experts={num_experts}, "
+        #    f"hidden={hidden_size}, intermediate={intermediate_size}, dtype={params_dtype}"
+        # )
 
         # For TT compatibility, we'll create standard weights without quantization
         # Match the parameter names expected by the original MXFP4 implementation
@@ -90,7 +90,7 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
                         )
                         param.data.copy_(loaded_weight)
                 except Exception as e:
-                    logger.warning(f"Weight loading failed for {weight_name}: {e}")
+                    # logger.warning(f"Weight loading failed for {weight_name}: {e}")
                     # Fallback: try to copy what we can
                     try:
                         param.data.copy_(loaded_weight)
@@ -176,7 +176,7 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         setattr(layer, "w2_weight_scale", w2_weight_scale)
         setattr(layer, "w2_bias", w2_bias)
 
-        logger.warning("TT-compatible MoE weights created successfully")
+        # logger.warning("TT-compatible MoE weights created successfully")
 
     def apply(
         self,
@@ -187,10 +187,6 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
         **kwargs,
     ) -> torch.Tensor:
         """Apply TT-compatible MoE forward pass."""
-        logger.debug(
-            f"TTMxfp4MoEMethod.apply called with x.shape={x.shape}, topk_weights.shape={topk_weights.shape}, topk_ids.shape={topk_ids.shape}"
-        )
-
         # Implement a simple MoE without complex quantized operations
         # This is a simplified version for TT compatibility
         batch_size, seq_len, hidden_size = x.shape
@@ -236,7 +232,7 @@ class TTMxfp4MoEMethod(FusedMoEMethodBase):
             outputs.append(expert_output * weight)
 
         result = sum(outputs)
-        logger.debug(f"TTMxfp4MoEMethod.apply output shape: {result.shape}")
+        # logger.debug(f"TTMxfp4MoEMethod.apply output shape: {result.shape}")
         return result
 
     def get_fused_moe_quant_config(self, layer: torch.nn.Module):
@@ -252,43 +248,43 @@ class TTMxfp4Config(Mxfp4Config):
     def __init__(self):
         """Initialize TT-compatible MXFP4 config without calling parent __init__ to avoid backend checks."""
         # Initialize without calling super().__init__() to avoid GPU backend validation
-        logger.warning("Initializing TT-compatible MXFP4 config")
+        # logger.warning("Initializing TT-compatible MXFP4 config")
 
     def get_quant_method(self, layer: nn.Module, prefix: str) -> Optional[Any]:
         """Override to return TT-compatible quantization methods."""
-        logger.warning(
-            f"TTMxfp4Config.get_quant_method called for layer type: {type(layer)} with prefix: {prefix}"
-        )
+        # logger.warning(
+        #    f"TTMxfp4Config.get_quant_method called for layer type: {type(layer)} with prefix: {prefix}"
+        # )
 
         if isinstance(layer, FusedMoE):
-            logger.warning(
-                f"Creating TT-compatible MXFP4 MoE method for layer: {prefix}"
-            )
+            # logger.warning(
+            #    f"Creating TT-compatible MXFP4 MoE method for layer: {prefix}"
+            # )
 
             # Handle case where layer.moe_config might not exist
             moe_config = getattr(layer, "moe_config", {})
             if not moe_config:
-                logger.warning(
-                    f"Layer {prefix} has no moe_config, using default config"
-                )
+                # logger.warning(
+                #    f"Layer {prefix} has no moe_config, using default config"
+                # )
                 moe_config = {"num_experts": 8}  # Default fallback
 
             return TTMxfp4MoEMethod(moe_config)
         else:
             # For non-MoE layers, try the standard method or return None to disable quantization
-            logger.warning(
-                f"Non-MoE layer {type(layer)}, attempting standard quantization or fallback"
-            )
+            # logger.warning(
+            #    f"Non-MoE layer {type(layer)}, attempting standard quantization or fallback"
+            # )
             try:
                 # Try to call parent method but catch any backend-related errors
                 result = super().get_quant_method(layer, prefix)
-                logger.warning(f"Standard quantization method succeeded for {prefix}")
+                # logger.warning(f"Standard quantization method succeeded for {prefix}")
                 return result
             except Exception as e:
-                logger.warning(
-                    f"Standard quantization failed for {prefix}: {str(e)[:100]}..."
-                )
-                logger.warning("Using TT-compatible fallback (no quantization)")
+                # logger.warning(
+                #    f"Standard quantization failed for {prefix}: {str(e)[:100]}..."
+                # )
+                # logger.warning("Using TT-compatible fallback (no quantization)")
                 return None
 
 
@@ -299,7 +295,7 @@ def get_tt_compatible_quant_config(original_config) -> Optional[TTMxfp4Config]:
 
     # Check if it's an MXFP4 config by class type
     if isinstance(original_config, Mxfp4Config):
-        logger.warning(f"Converting {type(original_config)} to TT-compatible version")
+        # logger.warning(f"Converting {type(original_config)} to TT-compatible version")
         # Create TT-compatible config with same parameters
         tt_config = TTMxfp4Config()
 
@@ -311,25 +307,25 @@ def get_tt_compatible_quant_config(original_config) -> Optional[TTMxfp4Config]:
                 try:
                     value = getattr(original_config, attr)
                     setattr(tt_config, attr, value)
-                    logger.debug(f"Copied attribute {attr}: {value}")
+                    # logger.debug(f"Copied attribute {attr}: {value}")
                 except (AttributeError, TypeError) as e:
                     logger.debug(f"Could not copy attribute {attr}: {e}")
 
-        logger.warning(f"Created TT-compatible config: {type(tt_config)}")
+        # logger.warning(f"Created TT-compatible config: {type(tt_config)}")
         return tt_config
 
-    logger.warning(
-        f"Quantization config type {type(original_config)} is already TT-compatible"
-    )
+    # logger.warning(
+    #    f"Quantization config type {type(original_config)} is already TT-compatible"
+    # )
     return original_config
 
 
 def override_quantization_for_tt(vllm_config):
     """Override quantization configuration to use TT-compatible implementations."""
     if vllm_config.quant_config is not None:
-        logger.warning(
-            f"Original quant config: {type(vllm_config.quant_config)} at {id(vllm_config.quant_config)}"
-        )
+        # logger.warning(
+        #    f"Original quant config: {type(vllm_config.quant_config)} at {id(vllm_config.quant_config)}"
+        # )
 
         # Force replacement with TT-compatible version
         new_config = get_tt_compatible_quant_config(vllm_config.quant_config)
@@ -337,18 +333,18 @@ def override_quantization_for_tt(vllm_config):
         # Ensure we actually replaced it with a new object
         if new_config is not vllm_config.quant_config:
             vllm_config.quant_config = new_config
-            logger.warning(
-                f"Successfully replaced with TT-compatible quant config: {type(vllm_config.quant_config)} at {id(vllm_config.quant_config)}"
-            )
+            # logger.warning(
+            #    f"Successfully replaced with TT-compatible quant config: {type(vllm_config.quant_config)} at {id(vllm_config.quant_config)}"
+            # )
         else:
             logger.warning(f"Failed to replace quantization config - using same object")
 
         # Double-check the replacement worked
-        if hasattr(vllm_config.quant_config, "get_quant_method"):
+        """if hasattr(vllm_config.quant_config, "get_quant_method"):
             logger.warning(
                 "TT quantization config has get_quant_method - ready for model loading"
             )
         else:
-            logger.error("TT quantization config missing get_quant_method!")
+            logger.error("TT quantization config missing get_quant_method!")"""
     else:
         logger.warning("No quantization config to override")

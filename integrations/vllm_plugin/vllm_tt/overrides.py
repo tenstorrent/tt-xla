@@ -16,6 +16,21 @@ from .logger import tt_init_logger
 
 logger = tt_init_logger(__name__)
 
+# Global counter for tracking RMSNorm invocations
+_RMSNORM_INVOCATION_COUNTER = 0
+
+
+def reset_rmsnorm_counter():
+    """Reset the RMSNorm invocation counter. Useful for starting fresh test runs."""
+    global _RMSNORM_INVOCATION_COUNTER
+    _RMSNORM_INVOCATION_COUNTER = 0
+    logger.info("Reset RMSNorm invocation counter to 0")
+
+
+def get_rmsnorm_counter():
+    """Get the current RMSNorm invocation counter value."""
+    return _RMSNORM_INVOCATION_COUNTER
+
 
 class TTRMSNorm(nn.Module):
     """TT-compatible RMSNorm replacement for vLLM's RMSNorm.
@@ -37,6 +52,7 @@ class TTRMSNorm(nn.Module):
         self.variance_size_override = layer.variance_size_override
         self.has_weight = layer.has_weight
         self.weight = layer.weight
+        # logger.info(f"Initialized TTRMSNorm with hidden_size={self.hidden_size}, variance_epsilon={self.variance_epsilon}, variance_size_override={self.variance_size_override}, has_weight={self.has_weight}, weight_shape={self.weight.shape}")
 
         if hasattr(layer, "rocm_norm_func") and hasattr(
             layer, "rocm_norm_func_with_add"
@@ -50,14 +66,39 @@ class TTRMSNorm(nn.Module):
         residual: torch.Tensor | None = None,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
 
+        # Increment global invocation counter
+        """global _RMSNORM_INVOCATION_COUNTER
+        _RMSNORM_INVOCATION_COUNTER += 1
+        invocation_idx = _RMSNORM_INVOCATION_COUNTER
+
+        # Create dump directory
+        import os
+        os.makedirs("tt-dump-rmsnorm-steps", exist_ok=True)
+
+        # Dump initial inputs with invocation index
+        torch.save(x[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step0_input_x.pt")
+        if residual is not None:
+            torch.save(residual[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step0_input_residual.pt")
+        if self.has_weight and self.weight is not None:
+            torch.save(self.weight.detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step0_input_weight.pt")
+        """
+
         orig_dtype = x.dtype
         x = x.to(torch.float32)
+
+        # Dump after dtype conversion
+        # torch.save(x[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step1_x_float32.pt")
+
         if residual is not None:
             # residual promoted f16->f32 automatically,
             # otherwise Inductor eliminates the casts to and from f16,
             # increasing memory usage (and complicating pattern matching)
             x = x + residual
             residual = x.to(orig_dtype)
+
+            # Dump after residual addition
+            # torch.save(x[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step2_x_plus_residual.pt")
+            # torch.save(residual[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step2_updated_residual.pt")
 
         if x.shape[-1] != self.hidden_size:
             raise ValueError(
@@ -75,15 +116,54 @@ class TTRMSNorm(nn.Module):
 
             x_var = x[:, :, : self.variance_size_override]
 
+        # Dump variance input
+        # torch.save(x_var[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step3_x_var.pt")
+
         variance = x_var.pow(2).mean(dim=-1, keepdim=True)
 
+        # Dump variance
+        # torch.save(variance[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step4_variance.pt")
+
         x = x * torch.rsqrt(variance + self.variance_epsilon)
+
+        # Dump after normalization (before weight)
+        # torch.save(x[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step5_x_normalized.pt")
+
         x = x.to(orig_dtype)
         if self.has_weight and self.weight is not None:
             x = x * self.weight
+
+        # Dump final output
+        # torch.save(x[0].detach().cpu(), f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_step6_final_output.pt")
+
+        # Create invocation summary
+        """
+        invocation_info = {
+            'invocation_idx': invocation_idx,
+            'input_shape': list(x.shape),
+            'residual_shape': list(residual.shape) if residual is not None else None,
+            'weight_shape': list(self.weight.shape) if self.has_weight and self.weight is not None else None,
+            'hidden_size': self.hidden_size,
+            'variance_epsilon': self.variance_epsilon,
+            'variance_size_override': self.variance_size_override,
+            'has_weight': self.has_weight,
+            'orig_dtype': str(orig_dtype),
+            'has_residual': residual is not None
+        }
+
+        # Save invocation metadata
+        torch.save(invocation_info, f"tt-dump-rmsnorm-steps/inv{invocation_idx:03d}_metadata.pt")
+
+        # Log invocation details
+        # logger.info(f"RMSNorm invocation #{invocation_idx}: x_shape={x.shape}, has_residual={residual is not None}, hidden_size={self.hidden_size}")
+        """
+
         if residual is None:
+            # logger.info(f"RMSNorm: x: {x.shape} -- {x[0, :]}")
             return x
         else:
+            # logger.info(f"RMSNorm: x: {x.shape} -- {x[0, :]}")
+            # logger.info(f"RMSNorm: residual: {residual.shape} -- {residual[0, :]}")
             return x, residual
 
 

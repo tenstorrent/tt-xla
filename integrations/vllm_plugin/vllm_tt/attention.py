@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import List, Optional
 
+import numpy as np
 import torch
 import torch_xla.core.xla_builder as xb
 import torch_xla.distributed.spmd as xs
@@ -256,6 +257,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         self.sliding_window = sliding_window
         self.logits_soft_cap = logits_soft_cap
         self.kv_sharing_target_layer_name = kv_sharing_target_layer_name
+        # logger.info(f"TTAttn: sliding_window={sliding_window}, self.sliding_window={self.sliding_window}")
 
         self.num_queries_per_kv = self.num_heads // self.num_kv_heads
         if alibi_slopes is not None:
@@ -281,10 +283,20 @@ class TTAttentionBackendImpl(AttentionImpl):
         # Store raw sinks - will be prepared with mesh from metadata during forward pass
         self.sinks = sinks
         if self.sinks is not None:
+            self.sinks = (
+                self.sinks / self.scale
+            )  # Pre-scale the sinks to avoid doing it every forward pass
             assert self.sinks.shape[0] == num_heads, (
                 "Sinks must have the same number of heads as the number of "
                 "heads in the layer"
             )
+            if not self.sinks.device.type == "xla":
+                self.sinks = self.sinks.to("xla")
+
+            mesh_shape = (2, 4)
+            device_ids = np.array(range(8))
+            mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            xs.mark_sharding(self.sinks, mesh, ("batch",))
 
     def _prepare_sinks(
         self, sinks: Optional[torch.Tensor], mesh: Optional["xs.Mesh"]
@@ -363,6 +375,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         # - is_prefill=True: Full attention (prefill phase for generative models,
         #                    or single-pass attention for pooling models)
         # - is_prefill=False: Paged decode attention (generative models only)
+        # logger.info(f"TTattn: sliding_window in forward={self.sliding_window}")
         if inputs.is_prefill:
             # assert self.sinks is None, "Attention sink is unsupported in SDPA prefill"
             output = self._compute_full_attention(inputs, attn_metadata)
@@ -590,21 +603,31 @@ class TTAttentionBackendImpl(AttentionImpl):
         query_for_sdpa = inputs.query.transpose(-3, -2)
         key_for_sdpa = inputs.key.transpose(-3, -2)
         value_for_sdpa = inputs.value.transpose(-3, -2)
-        sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
+        # sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
+        sink = self.sinks
         sink = sink.view(1, -1, 1, 1)
 
         # Dump tensors to files (excluded from compilation)
         # _dump_tensors_to_file(query_for_sdpa, key_for_sdpa, value_for_sdpa, sink, logger)
+        sdpa_kwargs = {
+            "is_causal": attn_metadata.is_causal,
+            # "attn_mask": attn_metadata.attn_mask,
+            # "attention_sink": sink,
+            "scale": self.scale,
+        }
+        if self.sliding_window is not None:
+            sdpa_kwargs["sliding_window_size"] = self.sliding_window
 
         output = torch.ops.tt.scaled_dot_product_attention(
             query_for_sdpa,
             key_for_sdpa,
             value_for_sdpa,
-            is_causal=attn_metadata.is_causal,
+            # is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
             attention_sink=sink,
-            scale=self.scale,
-            sliding_window_size=self.sliding_window,
+            # scale=self.scale,
+            # sliding_window_size=self.sliding_window,
+            **sdpa_kwargs,
         ).transpose(
             -3, -2
         )  # Back to [users, tokens, num_heads, head_size]
@@ -624,8 +647,18 @@ class TTAttentionBackendImpl(AttentionImpl):
         query_for_decode = inputs.query.transpose(0, 1)
 
         # Use sink from self.sinks, prepared with mesh from metadata
-        sink = self._prepare_sinks(self.sinks, attn_metadata.mesh)
+        sink = self.sinks
         sink = sink.unsqueeze(-1)
+
+        # sdpa_kwargs = {
+        #   "is_causal": attn_metadata.is_causal,
+        # "attn_mask": attn_metadata.attn_mask,
+        # "attention_sink": sink,
+        #  "scale": self.scale,
+        # "cur_pos_tensor": attn_metadata.cache_position,
+        # }
+        # if self.sliding_window is not None:
+        #   sdpa_kwargs["sliding_window_size"] = self.sliding_window
 
         out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
             query_for_decode,
@@ -636,6 +669,8 @@ class TTAttentionBackendImpl(AttentionImpl):
             is_causal=attn_metadata.is_causal,
             attn_mask=attn_metadata.attn_mask,
             attention_sink=sink,
+            sliding_window_size=self.sliding_window,
+            # **sdpa_kwargs,
         )
         # out: [query_num_tokens, users, num_heads, head_size]
         out = out.transpose(0, 1)  # [users, query_num_tokens, num_heads, head_size]
