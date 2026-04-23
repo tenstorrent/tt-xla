@@ -325,12 +325,14 @@ def _fix_meta_buffers(model, args):
         attn = layer.attn
         attn.kv_cache = torch.zeros(
             args.max_batch_size,
+            1,
             args.max_seq_len,
             attn.kv_lora_rank,
             dtype=torch.bfloat16,
         )
         attn.pe_cache = torch.zeros(
             args.max_batch_size,
+            1,
             args.max_seq_len,
             attn.qk_rope_head_dim,
             dtype=torch.bfloat16,
@@ -417,8 +419,8 @@ def _apply_shard_specs(model, mesh, args, batch_size, tokens_device):
         xs.mark_sharding(attn.wo.weight, mesh, (None, "_axis_0"))
         xs.mark_sharding(attn.wq_a.weight, mesh, (None, "_axis_0"))
         xs.mark_sharding(attn.wkv_a.weight, mesh, (None, "_axis_0"))
-        xs.mark_sharding(attn.kv_cache, mesh, ("_axis_1", None, None))
-        xs.mark_sharding(attn.pe_cache, mesh, ("_axis_1", None, None))
+        xs.mark_sharding(attn.kv_cache, mesh, ("_axis_1", None, None, None))
+        xs.mark_sharding(attn.pe_cache, mesh, ("_axis_1", None, None, None))
         ffn = layer.ffn
         if hasattr(ffn, "mlp"):
             mlp = ffn.mlp

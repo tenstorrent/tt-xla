@@ -775,12 +775,14 @@ class MLA(nn.Module):
 
         self.register_buffer(
             "kv_cache",
-            torch.zeros(args.max_batch_size, args.max_seq_len, self.kv_lora_rank),
+            torch.zeros(args.max_batch_size, 1, args.max_seq_len, self.kv_lora_rank),
             persistent=False,
         )
         self.register_buffer(
             "pe_cache",
-            torch.zeros(args.max_batch_size, args.max_seq_len, self.qk_rope_head_dim),
+            torch.zeros(
+                args.max_batch_size, 1, args.max_seq_len, self.qk_rope_head_dim
+            ),
             persistent=False,
         )
         self.dequant_wkv_b = None
@@ -801,10 +803,9 @@ class MLA(nn.Module):
            MHA prefill branch or the MQA decode branch inline.
 
         2. Cache path (``cache_position is not None``): writes to the same
-           buffers via a functional scatter-pad and runs attention against
-           the full ``max_cache_len``, gated by the additive
-           ``attention_mask``. This is the compile-friendly path used by
-           ``test_deepseek_v3_1_decode_static_cache``.
+           buffers via ``index_copy_`` and runs attention against the full
+           ``max_cache_len``, gated by the additive ``attention_mask``. Used
+           by ``test_deepseek_v3_1_decode_static_cache``.
         """
         if cache_position is not None:
             return self._forward_with_cache(
@@ -834,8 +835,8 @@ class MLA(nn.Module):
                 .to(kv.dtype)
                 .view_as(kv)
             )
-        self.kv_cache[:bsz, start_pos:end_pos] = kv
-        self.pe_cache[:bsz, start_pos:end_pos] = k_pe.squeeze(2)
+        self.kv_cache[:bsz, 0, start_pos:end_pos] = kv
+        self.pe_cache[:bsz, 0, start_pos:end_pos] = k_pe.squeeze(2)
         if mask is not None:  # MHA prefill
             q = torch.cat([q_nope, q_pe], dim=-1)
             kv = self.wkv_b(kv)
@@ -873,8 +874,8 @@ class MLA(nn.Module):
                 "bshd,hdc->bshc", q_nope, wkv_b[:, : self.qk_nope_head_dim]
             )
             scores = (
-                torch.einsum("bshc,btc->bsht", q_nope, self.kv_cache[:bsz, :end_pos])
-                + torch.einsum("bshr,btr->bsht", q_pe, self.pe_cache[:bsz, :end_pos])
+                torch.einsum("bshc,btc->bsht", q_nope, self.kv_cache[:bsz, 0, :end_pos])
+                + torch.einsum("bshr,btr->bsht", q_pe, self.pe_cache[:bsz, 0, :end_pos])
             ) * self.softmax_scale
 
             # indexer
@@ -886,7 +887,7 @@ class MLA(nn.Module):
                 scores += index_mask.unsqueeze(2)
 
             scores = scores.softmax(dim=-1)
-            x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, :end_pos])
+            x = torch.einsum("bsht,btc->bshc", scores, self.kv_cache[:bsz, 0, :end_pos])
             x = torch.einsum("bshc,hdc->bshd", x, wkv_b[:, -self.v_head_dim :])
         x = self.wo(x.flatten(2))
         return x
@@ -905,6 +906,12 @@ class MLA(nn.Module):
         `torch.compile` + `torch_xla` SPMD — no Python-int specialization, no
         per-step recompile. Reads span the full `max_cache_len`; the additive
         `attention_mask` masks positions beyond `cache_position.max()`.
+
+        Buffers are shaped `(B, 1, T, D)` — the leading unit dim is
+        vestigial (MLA caches a single shared latent across heads), but
+        TT-MLIR legalizes `stablehlo.scatter` on the 4D layout while the
+        logically-equivalent 3D `(B, T, D)` form currently fails TTIR
+        legalization.
         """
         bsz, seqlen, _ = x.size()
 
@@ -931,30 +938,13 @@ class MLA(nn.Module):
                 .view_as(kv)
             )
 
-        # Functional cache update: express the tensor-indexed write as a
-        # `torch.where(mask, scatter_pad(kv), cache)` where `scatter_pad(kv)` is
-        # computed as a matmul against a one-hot position matrix. This avoids
-        # `index_put`/`scatter` lowering (unsupported by TT-MLIR on sharded
-        # buffers).
-        #
-        # Important: the result of `torch.where` is a *new* tensor — reassigning
-        # `self.kv_cache = ...` would lose the mark_sharding annotation on the
-        # module buffer, which in turn forces Shardy to propagate sharding
-        # backwards through the A2A-dispatch custom_call's tuple output inside
-        # MoE (which it can't handle). Instead, write back with `.copy_()` so the
-        # module buffer keeps its identity and sharding.
-        k_pe_flat = k_pe.squeeze(2)  # (B, seqlen, qk_rope_head_dim)
-        max_cache_len = self.kv_cache.size(1)
-        slot_range = torch.arange(max_cache_len, device=kv.device)
-        E = (cache_position.unsqueeze(1) == slot_range.unsqueeze(0)).to(kv.dtype)
-        kv_padded = torch.einsum("bsr,sc->bcr", kv, E)
-        k_pe_padded = torch.einsum("bsr,sc->bcr", k_pe_flat, E)
-        mask = (E.sum(dim=0) > 0).view(1, max_cache_len, 1)
-        self.kv_cache.copy_(torch.where(mask, kv_padded, self.kv_cache))
-        self.pe_cache.copy_(torch.where(mask, k_pe_padded, self.pe_cache))
+        # In-place index_copy_ on a 4D cache sharded only on batch dim.
+        # kv: (B, seqlen, D) -> unsqueeze(1) to (B, 1, seqlen, D) for the scatter.
+        self.kv_cache.index_copy_(2, cache_position, kv.unsqueeze(1))
+        self.pe_cache.index_copy_(2, cache_position, k_pe.squeeze(2).unsqueeze(1))
 
-        kv_full = self.kv_cache  # (B, max_cache_len, kv_lora_rank)
-        pe_full = self.pe_cache  # (B, max_cache_len, qk_rope_head_dim)
+        kv_full = self.kv_cache.squeeze(1)  # (B, max_cache_len, kv_lora_rank)
+        pe_full = self.pe_cache.squeeze(1)  # (B, max_cache_len, qk_rope_head_dim)
 
         if self.dequant_wkv_b is None and self.wkv_b.scale is not None:
             self.dequant_wkv_b = weight_dequant(self.wkv_b.weight, self.wkv_b.scale)
