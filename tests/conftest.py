@@ -18,7 +18,10 @@ from pathlib import Path
 import psutil
 import pytest
 import torch
-import torch_xla.runtime as xr
+try:
+    import torch_xla.runtime as xr
+except ImportError:
+    xr = None
 from infra import DeviceConnectorFactory, Framework
 from loguru import logger
 
@@ -531,7 +534,10 @@ def _release_dynamo_bridge_tensors():
     objects and their parent caches survive, holding all model-weight XLA tensors
     (~26 GB for 8B TP). We find these by type and clear their parent dicts.
     """
-    from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
+    try:
+        from torch_xla._dynamo.dynamo_bridge import GraphInputMatcher
+    except ImportError:
+        return
 
     for obj in gc.get_objects():
         try:
@@ -568,7 +574,8 @@ def clear_torchxla_computation_cache():
     """
     yield
     try:
-        xr.clear_computation_cache()
+        if xr is not None:
+            xr.clear_computation_cache()
     except Exception as e:
         logger.warning(f"Failed to clear TorchXLA computation cache: {e}")
         logger.warning(
