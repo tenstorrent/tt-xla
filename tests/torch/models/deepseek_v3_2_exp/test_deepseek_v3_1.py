@@ -28,6 +28,7 @@ import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from huggingface_hub import hf_hub_download
+from infra.testers.compiler_config import CompilerConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from modified_model import precompute_freqs_cis
@@ -37,8 +38,6 @@ from safetensors.torch import save_file as safetensors_save_file
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
-
-from tests.infra.testers.compiler_config import CompilerConfig
 
 DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
 
