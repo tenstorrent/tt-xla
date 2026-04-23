@@ -1,15 +1,13 @@
-name: On nightly Experimental
+name: On weekly Experimental
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 4 * * *'
+    - cron: '0 8 * * 6'
 
 permissions:
-  actions: write
   packages: write
   checks: write
-  contents: read
 
 jobs:
   build-image:
@@ -24,26 +22,12 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  # This is a single test job that runs all experimental/unknown status tt-forge-models tests.
-  test_forge_models_experimental:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    if: success() || failure()
-    with:
-      test_suite: model-test-experimental.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      include_passed: true
-
   test_forge_models_lb_blackhole:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
-    if: success() || failure()
     with:
-      test_suite: model-test-lb-blackhole-nightly.json
+      test_suite: model-test-lb-blackhole-weekly.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
@@ -52,7 +36,6 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - test_forge_models_experimental
       - test_forge_models_lb_blackhole
       - build-image
       - build-ttxla
@@ -77,13 +60,23 @@ jobs:
     runs-on: Ubuntu-latest
     steps:
       - name: Send Fail Notification
-        if: ${{ needs.fail-notify.outputs.is-main == 'true' }}
+        if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' }}
         uses: slackapi/slack-github-action@v3.0.1
         with:
-          webhook: ${{ secrets.SLACK_EXPERIMENTAL_NIGHTLY }}
+          webhook: ${{ secrets.SLACK_WEEKLY_FAIL }}
           webhook-type: webhook-trigger
           payload: |
-            text: "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}"
-            result: "${{ needs.fail-notify.outputs.failed == 'true' && 'FAILED' || 'SUCCEEDED' }}"
+            text: "Bad bad Experimental weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>"
+            unfurl_links: false
+            unfurl_media: false
+
+      - name: Send Success Notification
+        if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          webhook: ${{ secrets.SLACK_WEEKLY_SUCCESS }}
+          webhook-type: webhook-trigger
+          payload: |
+            text: "Good Experimental weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>"
             unfurl_links: false
             unfurl_media: false

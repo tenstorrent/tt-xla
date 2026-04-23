@@ -5,25 +5,25 @@
 
 test_config:
   falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   falcon/pytorch-3_10B_Base-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
     assert_pcc: false
     required_pcc: 0.98
 
   qwen_2_5/causal_lm/pytorch-14B_Instruct-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-32B_Instruct-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "trisc2 compile failure - https://github.com/tenstorrent/tt-xla/issues/2958"
@@ -33,19 +33,19 @@ test_config:
     status: EXPECTED_PASSING
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   gemma/pytorch-2_9B_IT-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   gemma/pytorch-2_27B_IT-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-3.1_70B-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
@@ -57,7 +57,7 @@ test_config:
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-3.1_405B-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on galaxy"
     bringup_status: FAILED_RUNTIME
@@ -67,23 +67,23 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-14B-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "trisc2 compile failure - https://github.com/tenstorrent/tt-xla/issues/2958"
 
   qwen_3/causal_lm/pytorch-32B-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "trisc2 compile failure - https://github.com/tenstorrent/tt-xla/issues/2958"
 
   qwen_3/causal_lm/pytorch-30B_A3b-llm_decode-seq_1-batch_1-tensor_parallel-mesh_default-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     status: NOT_SUPPORTED_SKIP
     reason: "Needs bringup on n300-llmbox"
     bringup_status: FAILED_RUNTIME
@@ -95,37 +95,37 @@ test_config:
 
   # --- FSDP, mesh 2x4, no DP ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_4-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_4-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_4-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.95
     status: EXPECTED_PASSING
     markers: [nightly]
@@ -147,38 +147,38 @@ test_config:
 
   # --- FSDP, mesh 2x4, DP (batch must be >= data dim 2) ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_4-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_4-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_4-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: KNOWN_FAILURE_XFAIL
     reason: "Test hangs and times out after 240 minutes in CI - https://github.com/tenstorrent/tt-xla/issues/4378"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.90
     status: EXPECTED_PASSING
     markers: [nightly]
@@ -190,37 +190,37 @@ test_config:
 
   # --- Megatron, mesh 2x4, no DP ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_4-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_4-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_4-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.95
     status: EXPECTED_PASSING
     markers: [nightly]
@@ -230,7 +230,7 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.90
     status: EXPECTED_PASSING
     markers: [nightly]
@@ -242,27 +242,27 @@ test_config:
 
   # --- Megatron, mesh 2x4, DP (batch must be >= data dim 2) ---
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_128-batch_4-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_1024-batch_4-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
     markers: [nightly]
@@ -272,7 +272,7 @@ test_config:
     reason: "DRAM OOM"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
-    supported_archs: ["n300-llmbox"]
+    supported_archs: ["n300-llmbox", "lb-blackhole"]
     required_pcc: 0.95
     status: EXPECTED_PASSING
     markers: [nightly]
