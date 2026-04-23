@@ -262,3 +262,19 @@ test_config:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
     enable_weight_bfp8_conversion: true
+
+  coherlabs/pytorch-Coherelabs_c4ai_command_r_v01-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  coherlabs/pytorch-Coherelabs_c4ai_command_r_plus_08_2024-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+
+  coherlabs/pytorch-Coherelabs_aya_expanse_32b-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  coherlabs/pytorch-Coherlabs_aya_23_35b-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
