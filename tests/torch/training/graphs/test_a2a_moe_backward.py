@@ -58,7 +58,6 @@ def _wrap_with_a2a(mlp, config, num_devices: int) -> A2aSparseMLP:
         cluster_axis=1,
         config=config,
         use_dense_matmul=True,
-        deinterleave_fused_experts=True,
     )
     return a2a
 

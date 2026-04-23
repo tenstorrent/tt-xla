@@ -95,7 +95,6 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
             cluster_axis=cluster_axis,
             config=config,
             use_dense_matmul=True,
-            deinterleave_fused_experts=True,
         )
 
     hidden_states = torch.randn(

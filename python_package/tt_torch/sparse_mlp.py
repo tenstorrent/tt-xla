@@ -448,7 +448,6 @@ class A2aSparseMLP(nn.Module):
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
         use_dense_matmul: bool = False,
-        deinterleave_fused_experts: bool = False,
     ):
         super().__init__()
 
@@ -482,12 +481,6 @@ class A2aSparseMLP(nn.Module):
         # Copy references to original module's components
         self.router = original_mlp.router
         self.experts = original_mlp.experts
-        if (
-            deinterleave_fused_experts
-            and hasattr(self.experts, "gate_up_proj")
-            and not hasattr(self.experts, "gate_proj")
-        ):
-            self._deinterleave_fused_experts(self.experts)
         self.intermediate_size = self.experts.intermediate_size
 
         if config is not None and hasattr(config, "hidden_size"):
@@ -504,33 +497,6 @@ class A2aSparseMLP(nn.Module):
         # kernel derives the target row from the device_id in the mapping.
         mapping = build_expert_mapping(num_experts, num_devices)
         self.register_buffer("expert_mapping", mapping)
-
-    @staticmethod
-    def _deinterleave_fused_experts(experts: nn.Module) -> None:
-        """Split experts.gate_up_proj [E, H, 2*inter] into separate
-        experts.gate_proj [E, H, inter] and experts.up_proj [E, H, inter]
-        by de-interleaving the last dim ([..., ::2] / [..., 1::2]). Same for
-        gate_up_proj_bias. Deletes the fused buffers afterward.
-        """
-        with torch.no_grad():
-            gate_data = experts.gate_up_proj.data[..., ::2].contiguous()
-            up_data = experts.gate_up_proj.data[..., 1::2].contiguous()
-            gate_bias_data = None
-            up_bias_data = None
-            if getattr(experts, "gate_up_proj_bias", None) is not None:
-                gate_bias_data = experts.gate_up_proj_bias.data[..., ::2].contiguous()
-                up_bias_data = experts.gate_up_proj_bias.data[..., 1::2].contiguous()
-
-        del experts.gate_up_proj
-        if hasattr(experts, "gate_up_proj_bias"):
-            del experts.gate_up_proj_bias
-
-        experts.gate_proj = nn.Parameter(gate_data)
-        experts.up_proj = nn.Parameter(up_data)
-        if gate_bias_data is not None:
-            experts.gate_proj_bias = nn.Parameter(gate_bias_data)
-        if up_bias_data is not None:
-            experts.up_proj_bias = nn.Parameter(up_bias_data)
 
     @torch.compiler.disable
     def _cpu_forward(self, hidden_states):
@@ -651,39 +617,28 @@ class A2aSparseMLP(nn.Module):
                     glu = gate_out * torch.sigmoid(gate_out * self.alpha)
                     activated = (up_out + 1) * glu
 
-            # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H].
-            if has_fused:
-                act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
-                    dim_a * dim_b * M, E, self.intermediate_size
-                )
-                act_per_expert = act_per_expert.permute(
-                    1, 0, 2
-                )  # [E, dim_a*dim_b*M, inter]
-                down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-                down_out = torch.bmm(
-                    act_per_expert, down_per_expert
-                )  # [E, dim_a*dim_b*M, H]
-                down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
-                down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
+            # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
+            act_per_expert = activated.reshape(
+                dim_a * dim_b * M, E, self.intermediate_size
+            )
+            act_per_expert = act_per_expert.permute(
+                1, 0, 2
+            )  # [E, dim_a*dim_b*M, inter]
+            down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
+            down_out = torch.bmm(
+                act_per_expert, down_per_expert
+            )  # [E, dim_a*dim_b*M, H]
+            down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
+            down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
 
-                # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
-                down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-                down_out = down_out.permute(0, 1, 3, 2, 4)
-                if down_bias is not None:
-                    down_out = down_out + down_bias
-                down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
-                down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
-            else:
-                act_per_expert = activated.permute(3, 0, 1, 2, 4).reshape(
-                    E, dim_a * dim_b * M, self.intermediate_size
-                )
-                down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-                down_out = torch.bmm(
-                    act_per_expert, down_per_expert
-                )  # [E, T, H]
-                if down_bias is not None:
-                    down_out = down_out + down_bias[:, None, :]
-                down_out = down_out.view(E, 1, BD * seq_len, hidden_size)
+            # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
+            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
+            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
+            if down_bias is not None:
+                down_out = down_out + down_bias
+            # E to front, merge all spatial dims into one token dim
+            down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
+            down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
 
         else:
             # ===== Fused moe_expert_token_remap path =====
@@ -1104,17 +1059,12 @@ def enable_sparse_mlp(
     verbose: bool = False,
     config: Optional[object] = None,
     use_dense_matmul: bool = False,
-    deinterleave_fused_experts: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
 
     use_dense_matmul: when True, A2aSparseMLP uses dense torch.bmm (autograd
     supported) instead of sparse_matmul (no autograd).
-
-    deinterleave_fused_experts: when True, A2aSparseMLP splits fused
-    `gate_up_proj` into separate `gate_proj`/`up_proj` at init so the dense
-    forward does two bmms instead of a strided slice.
     """
     replaced_count = 0
 
@@ -1167,10 +1117,9 @@ def enable_sparse_mlp(
         num_experts, num_experts_per_tok = moe_config
 
         # Wrap fused experts (e.g. GptOssExperts) with FusedExpertsWrapper
-        # so they have sparse_forward() like StackedExperts. Skip when the
-        # dense-matmul path is requested — A2aSparseMLP de-interleaves the
-        # fused weight in its __init__, which would invalidate the wrapper's
-        # gate_up_proj-based properties.
+        # so they have sparse_forward() like StackedExperts. The dense-matmul
+        # path uses experts directly (no sparse_forward), so the wrapper
+        # is unused and skipped.
         if (
             not use_dense_matmul
             and hasattr(module, "experts")
@@ -1189,7 +1138,6 @@ def enable_sparse_mlp(
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
             use_dense_matmul=use_dense_matmul,
-            deinterleave_fused_experts=deinterleave_fused_experts,
         )
 
         setattr(parent, name, sparse_mlp)
