@@ -5,6 +5,7 @@ import os
 from typing import Tuple
 
 import numpy as np
+import torch_xla
 import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 
@@ -19,12 +20,11 @@ def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
         Mesh or None: A Mesh object if mesh_shape is provided, otherwise None.
     """
 
-    try:
-        num_devices = xr.global_runtime_device_count()
-    except RuntimeError:
-        if not os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
-            raise
+    compile_only = os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC")
+    if compile_only and not torch_xla._XLAC._xla_computation_cache_is_initialized():
         num_devices = 8
+    else:
+        num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, mesh_names) if mesh_shape is not None else None
     print(f"Created device mesh: {mesh_shape} with {num_devices} devices.")

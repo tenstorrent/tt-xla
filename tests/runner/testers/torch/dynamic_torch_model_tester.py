@@ -9,6 +9,7 @@ import os
 from typing import Any
 
 import torch
+import torch_xla
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig
 from infra.testers.compiler_config import CompilerConfig
@@ -176,12 +177,11 @@ class DynamicTorchModelTester(TorchModelTester):
         if self.parallelism == Parallelism.SINGLE_DEVICE:
             return None
 
-        try:
-            num_devices = xr.global_runtime_device_count()
-        except RuntimeError:
-            if not os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
-                raise
+        compile_only = os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC")
+        if compile_only and not torch_xla._XLAC._xla_computation_cache_is_initialized():
             num_devices = 8
+        else:
+            num_devices = xr.global_runtime_device_count()
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
         else:
