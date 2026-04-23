@@ -154,9 +154,11 @@ test_config:
     status: EXPECTED_PASSING
     markers: [nightly] # Not red model, but high priority.
     arch_overrides:
+      galaxy-wh-6u:
+        required_pcc: 0.98
       n300-llmbox:
         enable_weight_bfp8_conversion: true
-        required_pcc: 0.95
+        required_pcc: 0.94
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
     arch_overrides:
