@@ -238,7 +238,7 @@ def benchmark_vllm(
         custom_measurements=custom_measurements,
         optimization_level=config.additional_config.get("optimization_level", 0),
         program_cache_enabled=True,
-        trace_enabled=False,
+        trace_enabled=config.additional_config.get("enable_trace", False),
         experimental_weight_dtype=(
             "bfp_bf8"
             if config.additional_config.get(
