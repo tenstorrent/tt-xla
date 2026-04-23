@@ -16,7 +16,7 @@ from typing import Optional
 
 import torch
 import tracy
-from .torch_mla_cache import MLACache
+from infra import MLACache
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
 
