@@ -47,10 +47,6 @@ def _experts_forward(self, hidden_states, router_indices=None, routing_weights=N
     CPU path uses per-expert loop (memory-efficient, serves as PCC golden reference).
     Device path uses dense bmm (static graph for torch.compile).
 
-    Supports both the fused-interleaved layout (self.gate_up_proj, gate_up_proj_bias)
-    and the de-interleaved layout (self.gate_proj / self.up_proj and their biases)
-    produced by A2aSparseMLP._deinterleave_fused_experts.
-
     Args:
         hidden_states: [T, H] or [B, S, H]
         router_indices: [T, K]
@@ -59,8 +55,6 @@ def _experts_forward(self, hidden_states, router_indices=None, routing_weights=N
     batch_size = hidden_states.shape[0]
     num_experts = routing_weights.shape[1]
     hidden_states = hidden_states.reshape(-1, self.hidden_size)
-
-    deinterleaved = not hasattr(self, "gate_up_proj")
 
     if hidden_states.device.type == "cpu":
         next_states = torch.zeros_like(hidden_states)
@@ -77,21 +71,11 @@ def _experts_forward(self, hidden_states, router_indices=None, routing_weights=N
             with torch.no_grad():
                 _, token_idx = torch.where(expert_mask[expert_idx])
             current_state = hidden_states[token_idx]
-            if deinterleaved:
-                gate = (
-                    current_state @ self.gate_proj[expert_idx]
-                    + self.gate_proj_bias[expert_idx]
-                )
-                up = (
-                    current_state @ self.up_proj[expert_idx]
-                    + self.up_proj_bias[expert_idx]
-                )
-            else:
-                gate_up = (
-                    current_state @ self.gate_up_proj[expert_idx]
-                    + self.gate_up_proj_bias[expert_idx]
-                )
-                gate, up = gate_up[..., ::2], gate_up[..., 1::2]
+            gate_up = (
+                current_state @ self.gate_up_proj[expert_idx]
+                + self.gate_up_proj_bias[expert_idx]
+            )
+            gate, up = gate_up[..., ::2], gate_up[..., 1::2]
             gate = gate.clamp(min=None, max=self.limit)
             up = up.clamp(min=-self.limit, max=self.limit)
             glu = gate * torch.sigmoid(gate * self.alpha)
@@ -106,21 +90,11 @@ def _experts_forward(self, hidden_states, router_indices=None, routing_weights=N
     else:
         hidden_states = hidden_states.repeat(num_experts, 1)
         hidden_states = hidden_states.view(num_experts, -1, self.hidden_size)
-        if deinterleaved:
-            gate = (
-                torch.bmm(hidden_states, self.gate_proj)
-                + self.gate_proj_bias[..., None, :]
-            )
-            up = (
-                torch.bmm(hidden_states, self.up_proj)
-                + self.up_proj_bias[..., None, :]
-            )
-        else:
-            gate_up = (
-                torch.bmm(hidden_states, self.gate_up_proj)
-                + self.gate_up_proj_bias[..., None, :]
-            )
-            gate, up = gate_up[..., ::2], gate_up[..., 1::2]
+        gate_up = (
+            torch.bmm(hidden_states, self.gate_up_proj)
+            + self.gate_up_proj_bias[..., None, :]
+        )
+        gate, up = gate_up[..., ::2], gate_up[..., 1::2]
         gate = gate.clamp(min=None, max=self.limit)
         up = up.clamp(min=-self.limit, max=self.limit)
         glu = gate * torch.sigmoid(gate * self.alpha)

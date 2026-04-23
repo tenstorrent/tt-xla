@@ -289,48 +289,7 @@ class DynamicTorchModelTester(TorchModelTester):
         mesh_info = self._workload.mesh.shape()
         mesh_shape = tuple(mesh_info.values())
         mesh_names = tuple(mesh_info.keys())
-        # cluster_axis defines the all_to_all dispatch/combine axis. Loaders
-        # whose expert weights aren't sharded on the default axis (0) must
-        # declare it via get_moe_cluster_axis(); the all_to_all_combine kernel
-        # asserts input[0] == E / mesh[cluster_axis].
-        loader = self.dynamic_loader.loader
-        cluster_axis = (
-            loader.get_moe_cluster_axis()
-            if hasattr(loader, "get_moe_cluster_axis")
-            else 0
-        )
-        # Training requires dense-matmul (sparse_matmul has no autograd). The
-        # dense path also triggers A2aSparseMLP to de-interleave fused
-        # gate_up_proj into gate_proj/up_proj, avoiding the strided-slice
-        # backward miscompile.
-        use_dense_matmul = (
-            loader.get_moe_use_dense_matmul()
-            if hasattr(loader, "get_moe_use_dense_matmul")
-            else self._run_mode == RunMode.TRAINING
-        )
-        enable_sparse_mlp(
-            model,
-            mesh=mesh_shape,
-            cluster_axis=cluster_axis,
-            use_dense_matmul=use_dense_matmul,
-        )
-        # Freeze embed_tokens — its gradient is dominated by a scatter-based
-        # embedding_backward workaround that accumulates incorrectly on TT and
-        # is not the target of this bring-up. Excludes it from the grad PCC
-        # comparison (no grad produced → filtered by _extract_grads).
-        if hasattr(model, "model") and hasattr(model.model, "embed_tokens"):
-            model.model.embed_tokens.weight.requires_grad_(False)
-        # Freeze routers — their grad comes out literally zero on XLA regardless
-        # of formulation (fp32, full-softmax+mask, unsharded weight all tested).
-        # Autograd path through router is severed somewhere in the SPMD
-        # lowering. Separate bug, excluded from comparison for now.
-        if hasattr(model, "model") and hasattr(model.model, "layers"):
-            for layer in model.model.layers:
-                mlp = getattr(layer, "mlp", None)
-                router = getattr(mlp, "router", None) if mlp is not None else None
-                if router is not None:
-                    for p in router.parameters():
-                        p.requires_grad_(False)
+        enable_sparse_mlp(model, mesh=mesh_shape)
         shard_spec_fn = self._workload.shard_spec_fn
         if shard_spec_fn:
 
