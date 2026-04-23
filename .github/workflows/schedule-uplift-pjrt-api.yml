@@ -109,7 +109,7 @@ jobs:
         with:
           branch: pjrt-api-uplift
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: "acicovicTT <acicovicTT@tenstorrent.com>"
+          author: "acicovicTT <acicovic@tenstorrent.com>"
           base: main
           commit-message: "Uplift PJRT C API header from v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"
           title: "Uplift PJRT C API header from v${{ steps.compare-versions.outputs.local_major }}.${{ steps.compare-versions.outputs.local_minor }} to v${{ steps.compare-versions.outputs.upstream_major }}.${{ steps.compare-versions.outputs.upstream_minor }}"

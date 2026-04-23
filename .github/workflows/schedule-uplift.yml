@@ -84,7 +84,7 @@ jobs:
         with:
           branch: uplift
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: "acicovicTT <acicovicTT@tenstorrent.com>"
+          author: "acicovicTT <acicovic@tenstorrent.com>"
           base: main
           commit-message: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
           title: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
