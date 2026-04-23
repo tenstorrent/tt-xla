@@ -5,7 +5,6 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
-import inspect
 from typing import Any
 
 import torch
@@ -186,28 +185,22 @@ class DynamicTorchModelTester(TorchModelTester):
         if loader_shard_spec_fn is None:
             return None
 
-        supports_strategy_kwargs = False
-        try:
-            # TODO(umales): Remove inspect check, once we migrate to custom loader class for
-            # Focus models.
-            signature = inspect.signature(self.dynamic_loader.loader.load_shard_spec)
-            params = signature.parameters
-            supports_strategy_kwargs = "strategy" in params and "batch_axis" in params
-        except (TypeError, ValueError):
-            supports_strategy_kwargs = False
+        # Lazy import to match the namespace of dynamically loaded model
+        # modules, so isinstance checks see the same class object.
+        from tt_forge_models.base import ForgeFocusModel
 
         # Build the weight shard spec function.
         # When shard_inputs is on, the mesh uses ("data", "model") axes, so FSDP
         # specs must use "data" instead of "batch" — handled by batch_axis arg.
         # (Megatron ignores batch_axis — its non-model axis is always None.)
         batch_axis = "data" if shard_inputs else "batch"
-        if supports_strategy_kwargs:
+        if isinstance(self.dynamic_loader.loader, ForgeFocusModel):
             weight_fn = lambda model: self.dynamic_loader.loader.load_shard_spec(
                 model, strategy=str(strategy), batch_axis=batch_axis
             )
         else:
-            # Backward-compat fallback: ignore explicit strategy if loader does
-            # not support strategy kwargs.
+            # Backward-compat fallback: ignore explicit strategy if loader is
+            # not a ForgeFocusModel (its load_shard_spec has no strategy kwargs).
             weight_fn = loader_shard_spec_fn
 
         if shard_inputs:
