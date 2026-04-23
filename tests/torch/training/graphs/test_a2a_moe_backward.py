@@ -59,7 +59,6 @@ def _wrap_with_a2a(mlp, config, num_devices: int) -> A2aSparseMLP:
         config=config,
     )
     a2a.use_dense_matmul = True  # sparse_matmul has no autograd yet
-    a2a.correct_down_proj_reshape = True  # avoid the legacy (E,M) scrambling
     return a2a
 
 
@@ -76,11 +75,10 @@ def _shard_a2a_mlp(mlp: A2aSparseMLP, mesh: Mesh) -> None:
 @pytest.mark.push
 @pytest.mark.dual_chip
 def test_a2a_sparse_mlp_backward_pcc():
-    """A2aSparseMLP forward+backward on N300 (1x2 mesh) vs CPU, PCC ≥ 0.99.
+    """A2aSparseMLP forward+backward on N300 (1x2 mesh) vs CPU.
 
     Uses the de-interleaved GPT-OSS layout (separate gate_proj / up_proj) to
-    avoid the strided-slice [..., ::2] backward miscompile on TT XLA. Uses
-    A2aSparseMLP.correct_down_proj_reshape=True for the fixed down-proj path.
+    avoid the strided-slice [..., ::2] backward miscompile on TT XLA.
     """
     mesh, mesh_shape, device, num_devices = _setup_mesh()
     batch_size, seq_len = 2, 32

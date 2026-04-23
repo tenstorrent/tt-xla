@@ -312,7 +312,6 @@ class DynamicTorchModelTester(TorchModelTester):
             model,
             mesh=mesh_shape,
             cluster_axis=cluster_axis,
-            mesh_axis_names=mesh_names,
             use_dense_matmul=use_dense_matmul,
         )
         # Freeze embed_tokens — its gradient is dominated by a scatter-based

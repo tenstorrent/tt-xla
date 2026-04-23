@@ -15,7 +15,7 @@ Usage:
     model = enable_sparse_mlp(model)  # Replace MLP layers with SparseMLP
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, List, Optional, Type
 
 import torch
 import torch.nn as nn
@@ -447,7 +447,6 @@ class A2aSparseMLP(nn.Module):
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
-        mesh_axis_names: Optional[Tuple[str, ...]] = None,
         use_dense_matmul: bool = False,
     ):
         super().__init__()
@@ -456,10 +455,6 @@ class A2aSparseMLP(nn.Module):
         self.num_experts_per_tok = num_experts_per_tok
         self.cluster_axis = cluster_axis
         self.activation_type = activation_type
-        # When set, used to emit an sdy.sharding_constraint on combine's input
-        # forcing E sharded only on cluster_axis (drops compound sharding so
-        # the all_to_all_combine kernel sees E_local = E / mesh[cluster_axis]).
-        self.mesh_axis_names = mesh_axis_names
 
         # num_devices: total mesh devices (for expert_mapping D dimension)
         # dispatch_devices: devices along cluster_axis (for BD = B * dispatch_devices)
@@ -472,18 +467,6 @@ class A2aSparseMLP(nn.Module):
         # Skips remap (no sparsity mask needed). Dense path also supports
         # autograd (sparse_matmul doesn't), so training requires dense.
         self.use_dense_matmul = use_dense_matmul
-        # When True, uses the corrected down-proj reshape (permute E to front
-        # directly from `activated` instead of the buggy view-swap dance).
-        # The legacy path `view(dim_a,dim_b,M,E,H) → view(dim_a,dim_b,E,M,H)`
-        # scrambles the E/M axes by reinterpreting the buffer, which also
-        # confuses Shardy: the down-proj bias (shape [E, H]) gets broadcast
-        # onto a wrongly-aligned dim (S, which may alias E's size), so Shardy
-        # falls back to fully gathering the bias on E and propagates the
-        # gather into combine's input → kernel `input[0] == E/num_devices`
-        # assert. The corrected path keeps E on dim 0 throughout so no gather
-        # is needed. We enable it by default under the dense-matmul path
-        # (the only path that reaches this reshape anyway).
-        self.correct_down_proj_reshape = use_dense_matmul
 
         # Keep original MLP for CPU golden path.
         # cpu_forward_module overrides original_mlp when the adapter wrapping
@@ -678,44 +661,17 @@ class A2aSparseMLP(nn.Module):
                     glu = gate_out * torch.sigmoid(gate_out * self.alpha)
                     activated = (up_out + 1) * glu
 
-            # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
-            if self.correct_down_proj_reshape:
-                # Put E to front first, then flatten (dim_a, dim_b, M) to T.
-                # activated: [dim_a, dim_b, M, E, inter] → [E, T, inter]
-                act_per_expert = activated.permute(3, 0, 1, 2, 4).reshape(
-                    E, dim_a * dim_b * M, self.intermediate_size
-                )
-                down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-                down_out = torch.bmm(
-                    act_per_expert, down_per_expert
-                )  # [E, T, H]
-                if down_bias is not None:
-                    down_out = down_out + down_bias[:, None, :]
-                down_out = down_out.view(E, 1, BD * seq_len, hidden_size)
-            else:
-                # Legacy path — keeps the prior (buggy) E↔M reshape behaviour
-                # so existing demo-style tests continue to match.
-                act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
-                    dim_a * dim_b * M, E, self.intermediate_size
-                )
-                act_per_expert = act_per_expert.permute(
-                    1, 0, 2
-                )  # [E, dim_a*dim_b*M, inter]
-                down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-                down_out = torch.bmm(
-                    act_per_expert, down_per_expert
-                )  # [E, dim_a*dim_b*M, H]
-                down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
-                down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
-
-                # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
-                down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-                down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
-                if down_bias is not None:
-                    down_out = down_out + down_bias
-                # E to front, merge all spatial dims into one token dim
-                down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
-                down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
+            # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H].
+            # Put E to front first, then flatten (dim_a, dim_b, M) to T.
+            # activated: [dim_a, dim_b, M, E, inter] → [E, T, inter].
+            act_per_expert = activated.permute(3, 0, 1, 2, 4).reshape(
+                E, dim_a * dim_b * M, self.intermediate_size
+            )
+            down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
+            down_out = torch.bmm(act_per_expert, down_per_expert)  # [E, T, H]
+            if down_bias is not None:
+                down_out = down_out + down_bias[:, None, :]
+            down_out = down_out.view(E, 1, BD * seq_len, hidden_size)
 
         else:
             # ===== Fused moe_expert_token_remap path =====
@@ -736,15 +692,6 @@ class A2aSparseMLP(nn.Module):
             )
 
         # sparse_forward returns [E, 1, BD*S, H] — combine with output_shard_dim=2.
-        #
-        # TODO: tt-mlir's sharding rule for tt.all_to_all_combine
-        # (RegisterCustomShardingRule.cpp:getAllToAllCombineShardingRule, E
-        # factor at lines ~711-713) declares E as kPassThrough → kNullDim,
-        # which makes Shardy all_gather E on every mesh axis before this op —
-        # tripping the kernel's `input_shape[0] == experts/num_devices`
-        # assertion under 2D meshes. A frontend sharding_constraint cannot
-        # override this. Fix needs to happen in the tt-mlir rule (add
-        # isBlocked=true or drop the first E factor entirely).
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
             metadata,
@@ -1144,16 +1091,10 @@ def enable_sparse_mlp(
     target_classes: Optional[List[Type]] = None,
     verbose: bool = False,
     config: Optional[object] = None,
-    mesh_axis_names: Optional[Tuple[str, ...]] = None,
     use_dense_matmul: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
-
-    mesh_axis_names: optional tuple of axis names matching `mesh`. If provided
-    and experts are compound-sharded across both mesh axes, A2aSparseMLP will
-    emit an sdy.sharding_constraint before all_to_all_combine forcing E onto
-    cluster_axis only — required for the combine kernel's input[0] assert.
 
     use_dense_matmul: when True, A2aSparseMLP uses dense torch.bmm (autograd
     supported) instead of sparse_matmul (no autograd). Also triggers de-
@@ -1233,7 +1174,6 @@ def enable_sparse_mlp(
             config=config,
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
-            mesh_axis_names=mesh_axis_names,
             use_dense_matmul=use_dense_matmul,
         )
 
@@ -1277,32 +1217,28 @@ def enable_sparse_mlp(
 def get_moe_shard_specs(
     model: nn.Module, original_spec_fn, mesh_names: tuple
 ) -> Dict[str, Any]:
-    """Wrap the loader's shard_spec with compound sharding for A2aSparseMLP
-    expert weights. Only fills in entries the loader didn't specify — loaders
-    that set their own expert sharding (matching their cluster_axis choice)
-    take precedence."""
     shard_specs = original_spec_fn(model)
     for layer in model.model.layers:
         if isinstance(layer.mlp, A2aSparseMLP):
             experts = layer.mlp.experts
             compound = (mesh_names[0], mesh_names[1])
 
-            def _set_default(param, spec):
-                if param is not None and param not in shard_specs:
-                    shard_specs[param] = spec
-
             if hasattr(experts, "gate_up_proj"):
                 # Fused gate_up (e.g. GPT-OSS via FusedExpertsWrapper)
-                _set_default(experts.gate_up_proj, (compound, None, None))
-                _set_default(experts.gate_up_proj_bias, (compound, None))
+                shard_specs[experts.gate_up_proj] = (compound, None, None)
+                if experts.gate_up_proj_bias is not None:
+                    shard_specs[experts.gate_up_proj_bias] = (compound, None)
             else:
                 # Separate gate/up (e.g. Deepseek via StackedExperts)
-                _set_default(experts.gate_proj, (compound, None, None))
-                _set_default(experts.up_proj, (compound, None, None))
-                _set_default(experts.gate_proj_bias, (compound, None))
-                _set_default(experts.up_proj_bias, (compound, None))
+                shard_specs[experts.gate_proj] = (compound, None, None)
+                shard_specs[experts.up_proj] = (compound, None, None)
+                if experts.gate_proj_bias is not None:
+                    shard_specs[experts.gate_proj_bias] = (compound, None)
+                if experts.up_proj_bias is not None:
+                    shard_specs[experts.up_proj_bias] = (compound, None)
 
-            _set_default(experts.down_proj, (compound, None, None))
-            _set_default(experts.down_proj_bias, (compound, None))
+            shard_specs[experts.down_proj] = (compound, None, None)
+            if experts.down_proj_bias is not None:
+                shard_specs[experts.down_proj_bias] = (compound, None)
 
     return shard_specs
