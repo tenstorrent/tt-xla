@@ -382,8 +382,7 @@ def test_all_models_jax(
 # original test names in test_all_models_torch and no need for collection-time deselection logic.
 
 # Build list of (test_entry, run_phase) pairs based on loader capabilities.
-# Focus loaders are dedicated to the prefill phase; regular (non-focus) loaders
-# provide decode (and, for legacy non-focus loaders, prefill via hasattr).
+# Focus loaders own the prefill phase; regular ModelLoaders provide decode.
 _llm_test_params = []
 for entry in test_entries_torch:
     ModelLoader = entry.variant_info[1]
@@ -392,8 +391,6 @@ for entry in test_entries_torch:
         continue
     if hasattr(ModelLoader, "load_inputs_decode"):
         _llm_test_params.append((entry, RunPhase.LLM_DECODE))
-    if hasattr(ModelLoader, "load_inputs_prefill"):
-        _llm_test_params.append((entry, RunPhase.LLM_PREFILL))
 
 
 def _generate_llm_test_id(param_tuple):
