@@ -57,8 +57,9 @@ def _wrap_with_a2a(mlp, config, num_devices: int) -> A2aSparseMLP:
         dispatch_devices=num_devices,
         cluster_axis=1,
         config=config,
+        use_dense_matmul=True,  # sparse_matmul has no autograd yet
+        deinterleave_fused_experts=True,  # training path (correct down-proj reshape)
     )
-    a2a.use_dense_matmul = True  # sparse_matmul has no autograd yet
     return a2a
 
 
