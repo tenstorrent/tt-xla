@@ -270,6 +270,33 @@ def composite_scaled_dot_product_attention(
     return output
 
 
+def composite_gather(
+    input: Tensor,
+    dim: int,
+    index: Tensor,
+    *,
+    sparse_grad: bool = False,
+    out: Tensor | None = None,
+) -> Tensor:
+    """
+    Creates a composite gather operation for torch-xla using StableHLOCompositeBuilder.
+    Name of the composite op will be "tenstorrent.gather"
+
+    Args:
+        input: tensor to gather from
+        dim: axis along which to index
+        index: tensor with integer dtype which contains the indices to gather
+        sparse_grad: optional bool, if true the gradient computation will be sparse
+        out: preallocated output tensor, will be ignored when generating composite op
+    """
+    attrs = {"dim": dim, "sparse_grad": sparse_grad}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.gather_dim", attr=attrs)
+    input, index = builder.mark_inputs(input, index)
+    output = torch.gather(input, dim, index, sparse_grad=sparse_grad)
+    output = builder.mark_outputs(output)
+    return output
+
+
 ################# module replacements #################
 
 
@@ -459,6 +486,7 @@ replacements = {
         frozenset({0}): composite_topk_values,
         frozenset({1}): composite_topk_indices,
     },
+    torch.gather: composite_gather,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
@@ -473,4 +501,5 @@ The mapped function must be a key in `replacements` for the rewrite to apply.
 """
 method_name_to_function = {
     "topk": torch.topk,
+    "gather": torch.gather,
 }
