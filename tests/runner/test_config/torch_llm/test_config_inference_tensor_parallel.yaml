@@ -174,7 +174,8 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_2048-batch_4-fsdp-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
     required_pcc: 0.99
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Test hangs and times out after 240 minutes in CI - https://github.com/tenstorrent/tt-xla/issues/4378"
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox"]
