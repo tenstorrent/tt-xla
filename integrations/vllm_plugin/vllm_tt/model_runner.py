@@ -1364,7 +1364,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            logger.info(
+                "DEBUG model output hidden_states shape: %s, dtype: %s",
+                hidden_states.shape,
+                hidden_states.dtype,
+            )
             hidden_states = self._normalize_hidden_states_for_logits(hidden_states)
+            logger.info(
+                f"DEBUG normalized hidden_states dtype: {hidden_states.shape}, {hidden_states.dtype}"
+            )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1598,9 +1606,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
 
         if self.enforce_eager:
-            logger.info("Skipping tt torch.compile because enforce_eager=True.")
+            logger.info(
+                "Skipping tt torch.compile because enforce_eager=True. Eager execution may not perform well. Set enforce_eager=False to enable tt torch.compile."
+            )
         else:
-            self.model.compile(backend="tt", dynamic=False)
+            self.model.compile(
+                backend="tt", dynamic=False, options={"tt_legacy_compile": True}
+            )
         self.sampler = Sampler()
         logger.info(f"Initialized model: \n{self.model}")
 
@@ -1942,6 +1954,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        return
         torch._dynamo.config.dynamic_shapes = False
         decode_only = self.tt_config.decode_only
         with self.maybe_setup_dummy_loras(self.lora_config):
@@ -1967,6 +1980,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.tt_config.decode_only:
             return
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
+        return
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:

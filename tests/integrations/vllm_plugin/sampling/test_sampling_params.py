@@ -79,7 +79,6 @@ def vllm_single_device():
         gpu_memory_utilization=0.001,
         enable_prefix_caching=False,
         disable_log_stats=True,
-        enforce_eager=True,
         additional_config={
             "enable_const_eval": False,
             "min_context_len": 32,
