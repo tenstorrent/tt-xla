@@ -31,8 +31,27 @@ else()
     add_subdirectory(pjrt_c_api)
 
     # ----- tt-mlir -----
-    set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
-    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
+    set(TTMLIR_SOURCE_DIR_OVERRIDE "" CACHE PATH
+        "Path to an existing tt-mlir checkout. When set, bypasses the git clone/update in ExternalProject_Add; the user is responsible for keeping the checkout at a compatible revision.")
+
+    if(TTMLIR_SOURCE_DIR_OVERRIDE)
+        message(STATUS "Using override tt-mlir source: ${TTMLIR_SOURCE_DIR_OVERRIDE}")
+        set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR_OVERRIDE}/build")
+        set(TTMLIR_SOURCE_ARGS
+            SOURCE_DIR ${TTMLIR_SOURCE_DIR_OVERRIDE}
+            DOWNLOAD_COMMAND ""
+            UPDATE_COMMAND ""
+        )
+    else()
+        set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
+        set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
+        set(TTMLIR_SOURCE_ARGS
+            GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
+            GIT_TAG ${TT_MLIR_VERSION}
+            GIT_PROGRESS ON
+        )
+    endif()
+
     set(WITH_METAL_RUNTIME_ROOT_SET "")
     if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
@@ -79,9 +98,7 @@ else()
           -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
           -DTTMLIR_ENABLE_DOCS=OFF
           -DTT_USE_SYSTEM_SFPI=${TT_USE_SYSTEM_SFPI}
-        GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
-        GIT_TAG ${TT_MLIR_VERSION}
-        GIT_PROGRESS ON
+        ${TTMLIR_SOURCE_ARGS}
     )
 
     if(TTXLA_ENABLE_EXPLORER)
