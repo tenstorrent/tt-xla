@@ -1,0 +1,44 @@
+{
+  "skill_name": "ci-benchmark-analyzer",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "Analyze the latest nightly CI benchmark run and write a report",
+      "expected_output": "A markdown report file with: dependency commit chain (tt-xla, tt-mlir, tt-metal), summary of passed/failed jobs, error details for failed perf jobs with Glean context, and a performance metrics table grouped by device type",
+      "files": [],
+      "assertions": [
+        {"name": "report-file-exists", "type": "file_check", "description": "Report file exists and has substantial content (>500 chars)"},
+        {"name": "has-commit-chain", "type": "content_check", "description": "Report contains dependency chain with tt-xla, tt-mlir, and tt-metal commit SHAs"},
+        {"name": "has-perf-table", "type": "content_check", "description": "Report contains a performance metrics table with samples/sec data"},
+        {"name": "has-run-url", "type": "content_check", "description": "Report includes the GitHub Actions run URL"}
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "Can you analyze this benchmark run? https://github.com/tenstorrent/tt-xla/actions/runs/23750430329",
+      "expected_output": "A markdown report for the manual Performance Benchmark run. All perf jobs succeeded, so the report should focus on metrics tables (samples/sec, TTFT) grouped by device type, plus the commit chain",
+      "files": [],
+      "assertions": [
+        {"name": "report-file-exists", "type": "file_check", "description": "Report file exists and has substantial content (>500 chars)"},
+        {"name": "has-commit-chain", "type": "content_check", "description": "Report contains dependency chain with tt-xla, tt-mlir, and tt-metal commit SHAs"},
+        {"name": "has-perf-table", "type": "content_check", "description": "Report contains a performance metrics table with samples/sec data"},
+        {"name": "has-run-url", "type": "content_check", "description": "Report includes the GitHub Actions run URL"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Analyze CI run 23774094450 — I want to understand why some perf benchmarks failed in the nightly",
+      "expected_output": "A markdown report highlighting the failed perf benchmark jobs with extracted error messages and Glean context, plus performance tables for the successful jobs",
+      "files": [],
+      "assertions": [
+        {"name": "report-file-exists", "type": "file_check", "description": "Report file exists and has substantial content (>500 chars)"},
+        {"name": "has-commit-chain", "type": "content_check", "description": "Report contains dependency chain with tt-xla, tt-mlir, and tt-metal commit SHAs"},
+        {"name": "has-perf-table", "type": "content_check", "description": "Report contains a performance metrics table with samples/sec data"},
+        {"name": "has-run-url", "type": "content_check", "description": "Report includes the GitHub Actions run URL"},
+        {"name": "has-failure-section", "type": "content_check", "description": "Report contains a dedicated section analyzing failed jobs"},
+        {"name": "has-error-details", "type": "content_check", "description": "Report includes actual error messages extracted from logs, not just 'failed'"},
+        {"name": "has-glean-context", "type": "content_check", "description": "Report mentions Glean search results or explicitly notes no prior context found"}
+      ]
+    }
+  ]
+}
