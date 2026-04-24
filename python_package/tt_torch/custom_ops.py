@@ -1291,11 +1291,16 @@ def topk_router_gpt(
         if router_bias is not None:
             inputs.append(router_bias)
 
+        # Declare uint16 indices directly so the composite contract matches the
+        # tt-metal kernel output. Keeping the composite boundary at ui16 avoids
+        # a ui16 -> i64 -> si32 -> ui16 round-trip that otherwise shows up when
+        # the i64 composite contract is bridged back to the ttir.topk_router_gpt
+        # ui16 result via a typecast (see StableHLOLegalizeCompositePass).
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
             "tt.topk_router_gpt",
             [output_shape, output_shape],
-            [torch.int64, hidden_states.dtype],
+            [torch.uint16, hidden_states.dtype],
             frontend_attributes={"k": str(k)},
         )
 
@@ -1303,7 +1308,8 @@ def topk_router_gpt(
         router_logits = F.linear(hidden_states, router_weight, router_bias)
         topk_scores, topk_indices = torch.topk(router_logits, k, dim=-1)
         topk_scores = F.softmax(topk_scores, dim=-1, dtype=topk_scores.dtype)
-        return topk_indices, topk_scores
+        # Match XLA contract: indices are uint16 (expert IDs are always < 2**16).
+        return topk_indices.to(torch.uint16), topk_scores
 
     raise ValueError(f"Unsupported device type: {device.type}")
 
@@ -1316,8 +1322,9 @@ def topk_router_gpt_fake(
     k: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     output_shape = list(hidden_states.shape[:-1]) + [k]
+    # ui16 indices — see topk_router_gpt() XLA branch for rationale.
     topk_indices = torch.zeros(
-        output_shape, dtype=torch.int64, device=hidden_states.device
+        output_shape, dtype=torch.uint16, device=hidden_states.device
     )
     topk_scores = torch.zeros(
         output_shape, dtype=hidden_states.dtype, device=hidden_states.device
@@ -1365,11 +1372,15 @@ def all_to_all_dispatch_metadata(
             "cluster_axis": str(cluster_axis),
         }
 
+        # Pin dispatched indices dtype to uint16 so the composite contract
+        # stays ui16 end-to-end (topk_router_gpt → dispatch → moe_gpt). This
+        # avoids an ui16 → i64 → si32 → ui16 round-trip that the TTIR
+        # decomposition would otherwise have to insert.
         return stablehlo_custom_call.stablehlo_custom_call(
             [input_tensor, expert_indices, expert_scores, expert_mapping],
             "tt.all_to_all_dispatch_metadata",
             [[1, BD, S, H], [1, BD, S, K], [1, BD, S, K]],
-            [input_tensor.dtype, expert_indices.dtype, expert_scores.dtype],
+            [input_tensor.dtype, torch.uint16, expert_scores.dtype],
             frontend_attributes=frontend_attributes,
         )
 
@@ -1381,7 +1392,8 @@ def all_to_all_dispatch_metadata(
             x = x.repeat(1, num_devices, 1, 1)
             indices = indices.repeat(1, num_devices, 1, 1)
             scores = scores.repeat(1, num_devices, 1, 1)
-        return x.clone(), indices.clone(), scores.clone()
+        # Match XLA contract: dispatched indices are uint16.
+        return x.clone(), indices.clone().to(torch.uint16), scores.clone()
 
     raise ValueError(f"Unsupported device type: {device.type}")
 
@@ -1401,8 +1413,9 @@ def all_to_all_dispatch_metadata_fake(
     dispatched = torch.zeros(
         [1, BD, S, H], dtype=input_tensor.dtype, device=input_tensor.device
     )
+    # ui16 indices — see XLA branch for rationale.
     metadata_indices = torch.zeros(
-        [1, BD, S, K], dtype=expert_indices.dtype, device=expert_indices.device
+        [1, BD, S, K], dtype=torch.uint16, device=expert_indices.device
     )
     metadata_scores = torch.zeros(
         [1, BD, S, K], dtype=expert_scores.dtype, device=expert_scores.device
@@ -1464,6 +1477,8 @@ def moe_gpt(
             fused_w2,
         ]
 
+        # Pin bundled_indices to uint16 so the moe_gpt composite outputs match
+        # the tt-metal kernel contract and avoid dtype round-trips in TTIR.
         return stablehlo_custom_call.stablehlo_custom_call(
             operands,
             "tt.moe_gpt",
@@ -1476,7 +1491,7 @@ def moe_gpt(
             ],
             [
                 expert_mapping.dtype,
-                expert_indices.dtype,
+                torch.uint16,
                 expert_scores.dtype,
                 expert_scores.dtype,
                 input_tensor.dtype,
@@ -1486,7 +1501,8 @@ def moe_gpt(
 
     if device.type == "cpu":
         combine_metadata = expert_mapping.clone()
-        bundled_indices = expert_indices.clone()
+        # Match XLA contract: bundled indices are uint16.
+        bundled_indices = expert_indices.clone().to(torch.uint16)
         bundled_scores = expert_scores.clone()
         aux = expert_scores.clone()
         expert_output = torch.zeros(
@@ -1513,7 +1529,10 @@ def moe_gpt_fake(
     E = num_experts
     _, BD, S, H = input_tensor.shape
     combine_metadata = torch.zeros_like(expert_mapping)
-    bundled_indices = torch.zeros_like(expert_indices)
+    # ui16 bundled indices — see moe_gpt() XLA branch for rationale.
+    bundled_indices = torch.zeros(
+        expert_indices.shape, dtype=torch.uint16, device=expert_indices.device
+    )
     bundled_scores = torch.zeros_like(expert_scores)
     aux = torch.zeros_like(expert_scores)
     expert_output = torch.zeros(

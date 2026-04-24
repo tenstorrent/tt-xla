@@ -31,13 +31,25 @@ def _router_forward(self, hidden_states):
     routing weights (matching 4.57.1 behavior), instead of compact [T, K]."""
     hidden_states = hidden_states.reshape(-1, self.hidden_dim)
     router_logits = torch.nn.functional.linear(hidden_states, self.weight, self.bias)
+    num_experts = self.weight.shape[0]
     router_top_value, router_indices = torch.topk(router_logits, self.top_k, dim=-1)
     router_top_value = torch.nn.functional.softmax(
         router_top_value, dim=1, dtype=router_top_value.dtype
     )
-    router_scores = torch.zeros_like(router_logits).scatter_(
-        1, router_indices, router_top_value
-    )
+    
+    if hidden_states.device.type == "cpu":
+        router_scores = torch.zeros_like(router_logits).scatter_(
+            1, router_indices, router_top_value
+        )
+    else:
+        # router_scores[t, e] = sum_k one_hot[t, k, e] * router_top_value[t, k]
+        router_scores = torch.einsum(
+            "tke,tk->te",
+            torch.nn.functional.one_hot(router_indices, num_classes=num_experts).to(
+                router_top_value.dtype
+            ),
+            router_top_value,
+        )
     return router_logits, router_scores, router_indices
 
 
