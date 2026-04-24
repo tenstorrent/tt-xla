@@ -420,7 +420,7 @@ jobs:
       if: inputs.perf_regression_check
       shell: bash
       run: |
-        echo "model_name=$(cat ${{ steps.strings.outputs.perf_report_json_file }} | jq -r '.model')" >> $GITHUB_OUTPUT
+        echo "display_name=$(cat ${{ steps.strings.outputs.perf_report_json_file }} | jq -r '.config.display_name')" >> $GITHUB_OUTPUT
 
         workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
           -H "Accept: application/vnd.github.v3+json" \
@@ -446,7 +446,7 @@ jobs:
       uses: ./.github/actions/superset-api
       with:
         query: 'benchmarks/last_measurement'
-        query_params: '{"project":"tt-forge/tt-xla","ml_model_name":"${{ steps.set-query-strings.outputs.model_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
+        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
 
     - name: Check perf regression
       if: inputs.perf_regression_check
@@ -461,8 +461,8 @@ jobs:
 
         prev_perf_report='${{ steps.prev-perf.outputs.response }}'
 
-        prev_total_samples=$(echo "$prev_perf_report" | jq -r '.[] | select(.name == "total_samples") | .last_value')
-        prev_total_time=$(echo "$prev_perf_report" | jq -r '.[] | select(.name == "total_time") | .last_value')
+        prev_total_samples=$(echo "$prev_perf_report" | jq -r '.[] | select(.NAME == "total_samples") | .LAST_VALUE')
+        prev_total_time=$(echo "$prev_perf_report" | jq -r '.[] | select(.NAME == "total_time") | .LAST_VALUE')
         prev_samples_per_sec=$(echo "scale=6; $prev_total_samples / $prev_total_time" | bc -l)
 
         current_perf_report_file=${{ steps.strings.outputs.perf_report_json_file }}
