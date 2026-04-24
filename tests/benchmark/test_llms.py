@@ -1784,7 +1784,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128(
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
-        trace_enabled=False,
+        trace_enabled=True,
         inject_custom_moe=True,
         custom_moe_cluster_axis=0,
         gpt_oss_fused_decode=gpt_oss_fused_decode,
