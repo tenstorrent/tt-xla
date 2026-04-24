@@ -23,6 +23,7 @@ from .codegen import codegen_cpp, codegen_py
 # HF transformers MoE experts backend that lowers to torch.ops.tt.sparse_matmul
 from .moe_backend import (
     TT_MOE_BACKEND_NAME,
+    get_tt_moe_shard_specs,
     register_tt_moe_backend,
     tt_experts_forward,
 )

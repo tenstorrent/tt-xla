@@ -55,9 +55,10 @@ constraint applies to `dispatch_devices * T`. Pad inputs accordingly.
 
 from __future__ import annotations
 
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import torch
+import torch.nn as nn
 from transformers.integrations.moe import ALL_EXPERTS_FUNCTIONS, ExpertsInterface
 from transformers.modeling_utils import PreTrainedModel
 
@@ -66,6 +67,26 @@ from . import custom_ops  # noqa: F401
 
 TT_MOE_BACKEND_NAME = "tt_moe"
 REDUCTION_SIZE = 32
+
+# This is pure tech debt.
+#
+# When True, the DP path emits a per-token sparsity mask `[1, 1, T, E]`
+# instead of the default tile-reduced `[1, 1, ⌈T/32⌉, E]`. Reproduces the
+# legacy `sparse_mlp.SparseMLP` shape so the two paths can be A/B'd.
+#
+# The matmul systolic array runs 32 rows in lock-step; the per-token bit
+# can't trigger any compute skipping below the 32-row tile — it can only
+# act as a multiplicative post-gate, which is redundant with the
+# downstream `down_out * top_k_weights` zero-multiply in the combine. On
+# TT the kernel does lower this path (the stablehlo_custom_call accepts
+# `M=1` single-token tile mode), but it runs ≈2.3× slower than the
+# tile-reduced default across T ∈ {32..512}, because each "tile" holds
+# one real token row padded with 31 zero rows and the tile-level skip
+# set is larger (per-token tiles each carry only K active experts, so
+# total `(tile, expert)` computed cells is T·K vs (T/32)·|active_set|).
+# On CPU the difference is ≤5% either way — CPU BLAS doesn't tile-round.
+# See `tmp/sparsity_bench/` for the numbers. Delete when nobody's asking.
+USE_LEGACY_PER_TOKEN_SPARSITY = False
 
 # Populated by `register_tt_moe_backend`. Module-level (rather than stashed on
 # `self`) because cluster_axis is a property of the mesh, not of a specific
@@ -94,6 +115,19 @@ def _mesh_info() -> Tuple[int, int, Tuple[int, ...]]:
     ax = _config["cluster_axis"]
     dispatch = mesh_shape[ax] if 0 <= ax < len(mesh_shape) else 1
     return total, dispatch, mesh_shape
+
+
+def _as_sparse_matmul_weight(weight: torch.Tensor, is_transposed: bool) -> torch.Tensor:
+    """Return weight in the `[1, E, in_features, out_features]` layout that
+    `sparse_matmul` expects, respecting HF's `is_transposed` convention.
+
+    `is_transposed=True`  → weight stored as [E, in, out] (e.g. GptOss).
+    `is_transposed=False` → weight stored as [E, out, in] (e.g. Olmoe,
+                                                           Qwen3-MoE).
+    """
+    if is_transposed:
+        return weight.unsqueeze(0).contiguous()
+    return weight.transpose(-2, -1).unsqueeze(0).contiguous()
 
 
 def _expert_mapping(
@@ -133,9 +167,10 @@ def _build_routing_scores(
     """Expand top-k weights into a full `[T, E]` sparse router-scores tensor.
 
     Use a pure functional one_hot + einsum construction here instead of
-    `scatter_`. AOTAutograd's functionalization step under XLA trips over the
-    in-place scatter path during `run_decompositions`, which makes export of
-    the EP backend fail before we ever reach lowering.
+    `scatter_`. `torch.export.export` functionalizes the in-place scatter
+    without error, but the resulting graph fails to lower on the TT PJRT
+    device — see `tmp/moe_scatter/scatter_repro.py` for evidence. Going
+    functional here and in the DP path sidesteps the lowering failure.
     """
     one_hot = (
         top_k_index.unsqueeze(-1) == torch.arange(num_experts, device=device)
@@ -149,40 +184,50 @@ def _tt_experts_forward_dp(
     top_k_index: torch.Tensor,
     top_k_weights: torch.Tensor,
 ) -> torch.Tensor:
-    """Single-device expert compute: two sparse_matmul GEMMs with a scattered
-    sparsity mask. No collectives.
+    """Single-device expert compute: two sparse_matmul GEMMs with a binary
+    sparsity mask. No collectives, no in-place scatter — fully functional so
+    the graph survives AOTAutograd functionalization under XLA export.
     """
     T, H = hidden_states.shape
     E = self.num_experts
     dtype = hidden_states.dtype
     device = hidden_states.device
 
-    routing_map = torch.zeros(1, 1, T, E, dtype=dtype, device=device)
-    routing_map.view(T, E).scatter_(-1, top_k_index, top_k_weights.to(dtype))
+    # Binary per-token mask [T, E]: `one_hot + any` over the top-K axis —
+    # functional (no scatter_, AOT-safe) and ones-valued (weight-valued masks
+    # would silently drop experts whose router weight is exactly zero).
+    one_hot = top_k_index.unsqueeze(-1) == torch.arange(
+        E, device=device
+    )  # [T, K, E] bool
+    per_token = one_hot.any(dim=1)  # [T, E] bool — expert picked by any of K
 
-    # Reduced binary sparsity mask [1, 1, ceil(T/32), E]: 1 wherever any token
-    # in a 32-token tile selects expert e. `moe_expert_token_remap` would
-    # produce this in a single op, but it returns a tuple and the single-device
-    # path is simpler to reason about (and trace) with plain torch ops.
-    reduced = (T + REDUCTION_SIZE - 1) // REDUCTION_SIZE
-    if T % REDUCTION_SIZE == 0:
-        sparsity = (
-            routing_map.view(1, 1, reduced, REDUCTION_SIZE, E)
-            .ne(0)
-            .any(dim=3)
-            .to(dtype)
-        )
+    if USE_LEGACY_PER_TOKEN_SPARSITY:
+        # Pure tech debt — see toggle definition above. Per-token mask
+        # `[1, 1, T, E]` matching the deleted sparse_mlp.SparseMLP shape.
+        # On TT it's rejected at MLIR lowering (the kernel requires M=32 tile
+        # mode, not M=1); on CPU it runs at roughly the same speed as the
+        # tile-reduced default. Kept only for A/B regression checks against
+        # history.
+        sparsity = per_token.view(1, 1, T, E).to(dtype)
     else:
-        pad = reduced * REDUCTION_SIZE - T
-        padded = torch.nn.functional.pad(routing_map, (0, 0, 0, pad))
+        # Tile-reduced binary sparsity mask [1, 1, ceil(T/32), E]: 1 wherever
+        # any token in a 32-token tile selects expert e. This is the only
+        # shape the on-device sparse_matmul kernel accepts for the M dim.
+        reduced = (T + REDUCTION_SIZE - 1) // REDUCTION_SIZE
+        if T % REDUCTION_SIZE != 0:
+            pad = reduced * REDUCTION_SIZE - T
+            per_token = torch.nn.functional.pad(per_token, (0, 0, 0, pad))
         sparsity = (
-            padded.view(1, 1, reduced, REDUCTION_SIZE, E).ne(0).any(dim=3).to(dtype)
-        )
+            per_token.view(1, 1, reduced, REDUCTION_SIZE, E).any(dim=3).to(dtype)
+        )  # [1, 1, ceil(T/32), E]
 
     # Fused gate/up projection via block-sparse batched GEMM.
-    # HF stores gate_up_proj as [E, 2*I, H]; the op expects [1, E, H, 2*I].
+    # sparse_matmul expects input_b as [1, E, in_features, out_features].
+    # HF stores weights one of two ways (@use_experts_implementation metadata):
+    #   is_transposed=True  → [E, in, out] = [E, H, 2I], ready as-is.
+    #   is_transposed=False → [E, out, in] = [E, 2I, H], needs a transpose.
     input_a = hidden_states.view(1, 1, T, H)
-    gate_up_w = self.gate_up_proj.transpose(-2, -1).unsqueeze(0).contiguous()
+    gate_up_w = _as_sparse_matmul_weight(self.gate_up_proj, self.is_transposed)
     gate_up_out = torch.ops.tt.sparse_matmul(
         input_a,
         gate_up_w,
@@ -190,16 +235,28 @@ def _tt_experts_forward_dp(
         nnz=0,
         is_input_a_sparse=False,
         is_input_b_sparse=True,
-    )  # XLA: 5D tiled [A=1, B=T/M, E, M, 2I]; CPU: unpacked to [1, T, E, 2I]
+    )  # 5D tiled [A=1, B=T/M, E, M, 2I] on both XLA and CPU.
 
-    activated = self._apply_gate(gate_up_out)  # same rank, last dim -> I
+    gate_up_bias = getattr(self, "gate_up_proj_bias", None)
+    if gate_up_bias is not None:
+        gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, 1, -1)
+
+    activated = self._apply_gate(gate_up_out)  # same rank as gate_up_out
 
     # Flatten tiled output to canonical 4D so the down GEMM isn't re-detected
-    # as MoE-shape (which would re-tile).
+    # as MoE-shape (which would re-tile). On the default tile-reduced path
+    # `activated` is 5D `[A, B, E, M, I]` with M=32. With the legacy per-token
+    # toggle ON, M=1 and sparse_matmul's `squeeze(-2)` collapses the M dim,
+    # yielding 4D `[A, B, E, I]`; restore an explicit M=1 before reshape so
+    # the down GEMM sees canonical 4D input.
     if activated.dim() == 5:
         A, B, _, M_tile, _ = activated.shape
-        activated = activated.reshape(A * B, E, M_tile, activated.shape[-1])
-    down_w = self.down_proj.transpose(-2, -1).unsqueeze(0).contiguous()
+    else:  # 4D, M=1 collapsed (legacy per-token)
+        A, B, _, _ = activated.shape
+        M_tile = 1
+        activated = activated.unsqueeze(3)
+    activated = activated.reshape(A * B, E, M_tile, activated.shape[-1])
+    down_w = _as_sparse_matmul_weight(self.down_proj, self.is_transposed)
     down_out = torch.ops.tt.sparse_matmul(
         activated,
         down_w,
@@ -207,16 +264,27 @@ def _tt_experts_forward_dp(
         nnz=0,
         is_input_a_sparse=True,
         is_input_b_sparse=False,
-    )  # Canonical: [A*B, E, M, H]; CPU auto-unpack: [1, T, E, H]
+    )  # [A*B, E, M, H]
 
-    # Untile back to [1, T, E, H] for routing-weight combination.
-    if down_out.dim() == 4 and down_out.shape[1] == E:
-        AB, _, M_tile, Hout = down_out.shape
-        down_out = down_out.permute(0, 2, 1, 3).reshape(1, AB * M_tile, E, Hout)
+    down_bias = getattr(self, "down_proj_bias", None)
+    if down_bias is not None:
+        down_out = down_out + down_bias.view(1, E, 1, -1)
 
-    routing = routing_map.view(1, T, E, 1).to(down_out.dtype)
-    combined = (down_out * routing).sum(dim=2).view(T, H)
-    return combined.to(dtype)
+    # Untile to [1, T, E, H] for per-expert gather. A*B and M are adjacent
+    # so this is a permute + reshape, no copy.
+    AB, _, M_tile, Hout = down_out.shape
+    down_out = down_out.permute(0, 2, 1, 3).reshape(1, AB * M_tile, E, Hout)
+
+    # Combine: gather the K expert outputs per token and weight-sum.
+    # down_out: [1, T, E, H] → gather on E with top_k_index → [T, K, H].
+    # This is O(T*K*H) vs the naive dense sum-over-E O(T*E*H), and needs no
+    # dense routing_map (and thus no scatter_).
+    Hout = down_out.shape[-1]
+    idx = top_k_index.unsqueeze(-1).expand(-1, -1, Hout)  # [T, K, H]
+    gathered = down_out.view(T, E, Hout).gather(1, idx)  # [T, K, H]
+    weights = top_k_weights.to(gathered.dtype).unsqueeze(-1)  # [T, K, 1]
+    output = (gathered * weights).sum(dim=1)  # [T, H]
+    return output.to(dtype)
 
 
 def _tt_experts_forward_ep(
@@ -271,7 +339,7 @@ def _tt_experts_forward_ep(
     )  # sparsity: [1, 1, ceil(BD*T/32), E]
 
     # Fused gate/up projection.
-    gate_up_w = self.gate_up_proj.transpose(-2, -1).unsqueeze(0).contiguous()
+    gate_up_w = _as_sparse_matmul_weight(self.gate_up_proj, self.is_transposed)
     gate_up_out = torch.ops.tt.sparse_matmul(
         dispatched,
         gate_up_w,
@@ -281,13 +349,20 @@ def _tt_experts_forward_ep(
         is_input_b_sparse=True,
     )  # 5D tiled: [BD, T/M, E, M, 2I]  (decode tiles on BD instead of T)
 
+    gate_up_bias = getattr(self, "gate_up_proj_bias", None)
+    if gate_up_bias is not None:
+        if gate_up_out.dim() == 5:
+            gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, 1, -1)
+        else:
+            gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, -1)
+
     activated = self._apply_gate(gate_up_out)
 
     # Flatten to canonical 4D before down GEMM.
     if activated.dim() == 5:
         A, B, _, M_tile, _ = activated.shape
         activated = activated.reshape(A * B, E, M_tile, activated.shape[-1])
-    down_w = self.down_proj.transpose(-2, -1).unsqueeze(0).contiguous()
+    down_w = _as_sparse_matmul_weight(self.down_proj, self.is_transposed)
     down_out = torch.ops.tt.sparse_matmul(
         activated,
         down_w,
@@ -296,6 +371,11 @@ def _tt_experts_forward_ep(
         is_input_a_sparse=True,
         is_input_b_sparse=False,
     )  # [A*B, E, M, H]
+
+    # Per-expert bias [E, H] on canonical [A*B, E, M, H].
+    down_bias = getattr(self, "down_proj_bias", None)
+    if down_bias is not None:
+        down_out = down_out + down_bias.view(1, E, 1, -1)
 
     # Reshape to the layout combine expects: experts on dim 0, all tokens on
     # one axis. A*B and M are adjacent so this is a permute + reshape, no copy.
@@ -342,6 +422,22 @@ def tt_experts_forward(
     based on the global torch_xla SPMD mesh and the `cluster_axis` chosen at
     registration time.
     """
+    # Fail fast with a clear error rather than a cryptic AttributeError mid-
+    # forward when the Experts module doesn't follow the HF canonical layout.
+    for _attr in (
+        "num_experts",
+        "gate_up_proj",
+        "down_proj",
+        "_apply_gate",
+        "is_transposed",
+    ):
+        if not hasattr(self, _attr):
+            raise RuntimeError(
+                f"tt_moe backend requires the Experts module to expose "
+                f"{_attr!r}. Got {type(self).__name__}. Is "
+                f"@use_experts_implementation applied to this class?"
+            )
+
     _, dispatch_devices, _ = _mesh_info()
 
     if dispatch_devices <= 1:
@@ -407,3 +503,54 @@ def register_tt_moe_backend(cluster_axis: int = 0) -> None:
         return _original_validator(self, requested_experts)
 
     PreTrainedModel.get_correct_experts_implementation = patched_validator
+
+
+def get_tt_moe_shard_specs(
+    model: nn.Module,
+    original_spec_fn: Callable[[nn.Module], Dict[Any, Any]],
+    mesh_names: Tuple[str, str],
+) -> Dict[Any, Any]:
+    """Compound-shard expert weights across both mesh axes.
+
+    Starts from `original_spec_fn(model)`, then for every transformer layer
+    whose `mlp.experts` follows the HF canonical layout, shards `gate_up_proj`
+    and `down_proj` (and their biases when present) with compound sharding
+    `(mesh_names[0], mesh_names[1])` on the expert (first) dimension.
+
+    The expected expert weight shapes are the HF canonical ones:
+        gate_up_proj: [E, 2*I, H]
+        down_proj:    [E, H, I]
+    and biases:
+        gate_up_proj_bias: [E, 2*I]
+        down_proj_bias:    [E, H]
+    """
+    shard_specs = original_spec_fn(model)
+    compound = (mesh_names[0], mesh_names[1])
+
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if layers is None:
+        return shard_specs
+
+    for layer in layers:
+        mlp = getattr(layer, "mlp", None)
+        if mlp is None:
+            continue
+        experts = getattr(mlp, "experts", None)
+        if experts is None or not (
+            hasattr(experts, "num_experts")
+            and hasattr(experts, "gate_up_proj")
+            and hasattr(experts, "down_proj")
+        ):
+            continue
+
+        shard_specs[experts.gate_up_proj] = (compound, None, None)
+        shard_specs[experts.down_proj] = (compound, None, None)
+
+        gate_up_bias = getattr(experts, "gate_up_proj_bias", None)
+        if gate_up_bias is not None:
+            shard_specs[gate_up_bias] = (compound, None)
+        down_bias = getattr(experts, "down_proj_bias", None)
+        if down_bias is not None:
+            shard_specs[down_bias] = (compound, None)
+
+    return shard_specs

@@ -1066,8 +1066,12 @@ def sparse_matmul(
                 out_e = torch.matmul(input_tensor_a, input_b_casted[0, e])
                 output[:, :, 0, e, :, :] = out_e * mask_e.unsqueeze(-1).unsqueeze(-1)
             if _tiled:
-                output = output.squeeze(2).permute(0, 1, 3, 2, 4).contiguous()
-                output = output.view(BD, S, E, N)
+                # Match XLA's 5D tiled layout [A, B, E, M, N] exactly so callers
+                # don't need CPU-vs-XLA shape branching. The previous CPU code
+                # permuted+collapsed to [BD, S, E, N] which (a) diverged from
+                # XLA and (b) tripped the MoE-detect heuristic in the down GEMM
+                # when num_experts == seq_len (e.g. Olmoe's 64 experts w/ T=64).
+                output = output.squeeze(2)  # [A, B, E, M, N]
             return output.to(orig_dtype)
 
         elif is_input_a_sparse and not is_input_b_sparse:
@@ -1078,10 +1082,7 @@ def sparse_matmul(
                 mask_e = sparsity[0, 0, :, e]
                 out_e = torch.matmul(input_tensor_a[:, e], input_b_casted[0, e])
                 output[:, e] = out_e * mask_e.unsqueeze(-1).unsqueeze(-1)
-            if _tiled:
-                output = output.view(BD, S // M, E, M, N)
-                output = output.permute(0, 1, 3, 2, 4).contiguous()
-                output = output.view(BD, S, E, N)
+            # Always canonical [A, E, M, N] regardless of _tiled — match XLA.
             return output.to(orig_dtype)
 
         else:
@@ -1130,7 +1131,12 @@ def sparse_matmul_fake(
             B = S // M if split_seq else S
             output_shape = [A, B, E, M, N]
         else:
-            output_shape = [BD, S, E, N]
+            # Down: canonical [A*B, E, M, N] to match XLA output exactly.
+            # (Previously returned [BD, S, E, N] which diverged from XLA.)
+            split_seq = S % M == 0 and S >= M
+            A = BD if split_seq else BD // M
+            B = S // M if split_seq else S
+            output_shape = [A * B, E, M, N]
     elif is_input_a_sparse and is_input_b_sparse:
         output_shape = list(input_tensor_a.shape)
         output_shape[-1] = N
