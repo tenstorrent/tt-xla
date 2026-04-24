@@ -218,9 +218,17 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
   // Set the device runtime based on the flatbuffer binary format so the
-  // runtime dispatches to the correct backend (TTNN vs TTMetal).
-  tt::runtime::setCompatibleDeviceRuntime(
-      executable_image->getFlatbufferBinary());
+  // runtime dispatches to the correct backend (TTNN vs TTMetal). Only do this
+  // for the TTMetal path: the default runtime is already TTNN, and calling
+  // `setCompatibleDeviceRuntime` on a binary whose identifier is not plain
+  // TTNN/TTMetal (e.g. in distributed mode where
+  // `TT_RUNTIME_ENABLE_DISTRIBUTED=1` is set) would `LOG_FATAL` and abort the
+  // subprocess, surfacing as a SIGSEGV in the multi-host pytest runner.
+  if (executable_image->getCompileOptions().backend ==
+      BackendRuntime::TTMetalFlatbuffer) {
+    tt::runtime::setCompatibleDeviceRuntime(
+        executable_image->getFlatbufferBinary());
+  }
 
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
