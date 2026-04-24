@@ -286,12 +286,21 @@ Expected:
 
 Requires a working TT-XLA Python environment with `torch_xla`.
 
-Run the proposed IR comparison script:
+Run the IR comparison script:
 
 ```bash
 python3 scripts/compare_quetzal_rewrite_ir.py \
   --case all \
   --output-dir /tmp/quetzal-ir
+```
+
+For no-device compile-only inspection, provide a saved system descriptor:
+
+```bash
+python3 scripts/compare_quetzal_rewrite_ir.py \
+  --case all \
+  --output-dir /tmp/quetzal-ir \
+  --system-desc /path/to/system_desc.ttsys
 ```
 
 Expected:
