@@ -122,19 +122,17 @@ def _sparse_mlp_forward(self, hidden_states):
     return routed_out, router_scores
 
 
-# Monkey patch to restore 4.57.1 interfaces:
-# - Router returns full [T, E] sparse routing weights
-# - Experts has CPU per-expert loop + device dense bmm
-# - Bypasses @use_experts_implementation decorator dispatch
-try:
-    from transformers.models.gpt_oss.modeling_gpt_oss import (
-        GptOssExperts,
-        GptOssMLP,
-        GptOssTopKRouter,
-    )
-
-    GptOssTopKRouter.forward = _router_forward
-    GptOssExperts.forward = _experts_forward
-    GptOssMLP.forward = _sparse_mlp_forward
-except ImportError:
-    pass
+# DISABLED — this monkey-patch existed to bridge a transformers 4.x → 5.x
+# incompatibility (old GptOssExperts.forward signature, router returning a
+# full `[T, E]` sparse routing_weights tensor, etc.). Now that we're on
+# transformers ≥ 5.x and the HF `@use_experts_implementation` dispatch path
+# is healthy, the patch actively breaks the tt_moe backend: overwriting
+# `GptOssExperts.forward` at class level erases the decorator's dispatcher,
+# so `config._experts_implementation = "tt_moe"` silently has no effect.
+# The `_router_forward` / `_experts_forward` / `_sparse_mlp_forward`
+# implementations above are kept for reference only.
+#
+# TODO(sgligorijevic): re-verify that GPT-OSS performance/memory benchmarks
+# have not regressed without these overrides (the device-side `_experts_forward`
+# was a hand-tuned dense-bmm fused path; HF's mainline equivalent may compile
+# to a different graph). Track via the nightly GPT-OSS perf job.

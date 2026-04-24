@@ -32,9 +32,6 @@ from .serialization import (
     parse_compiled_artifacts_from_cache_to_disk,
 )
 from .sharding import sharding_constraint_hook
-
-# Sparse MLP for MoE models
-from .sparse_mlp import A2aSparseMLP, SparseMLP, enable_sparse_mlp
 from .tools import mark_module_user_inputs
 from .weight_dtype import (
     apply_weight_dtype_overrides,

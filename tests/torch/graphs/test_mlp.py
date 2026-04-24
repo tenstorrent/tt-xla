@@ -19,7 +19,7 @@ from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
-from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
+from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, register_tt_moe_backend
 
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
@@ -500,6 +500,12 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     batch_size = 1
     seq_len = 128
 
+    # Register + select tt_moe BEFORE from_config so the HF Experts decorator
+    # reads `config._experts_implementation` at forward-dispatch time.
+    if mlp_type == "sparse":
+        register_tt_moe_backend(cluster_axis=0)
+        config._experts_implementation = TT_MOE_BACKEND_NAME
+
     model = AutoModelForCausalLM.from_config(
         config, trust_remote_code=True, torch_dtype=torch.bfloat16
     )
@@ -516,8 +522,6 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-        if mlp_type == "sparse":
-            mlp = enable_sparse_mlp(mlp, mesh=mesh_shape, cluster_axis=0)
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
@@ -558,55 +562,6 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     )
 
 
-@pytest.mark.nightly
-def test_a2a_sparse_mlp_cpu_parity():
-    """Verify A2aSparseMLP produces the same results as the original MLP on CPU.
-
-    Tests with num_devices=1 (no E0/E1 reshape) and num_devices>1 (E0/E1 reshape active).
-    On CPU, dispatch/combine are no-ops regardless of num_devices, so outputs should match.
-    PCC checks internally because we don't have support for cpu vs cpu comparison in our current test infra.
-    """
-    loader = GPTOSSModelLoader(num_layers=1)
-    model = loader.load_model()
-    config = loader.load_config()
-    inputs = loader.load_inputs()
-
-    batch_size = inputs["input_ids"].shape[0]
-    seq_len = inputs["input_ids"].shape[1]
-
-    original_mlp = model.model.layers[0].mlp
-
-    hidden_states = torch.randn(
-        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
-    )
-
-    # Run original BEFORE creating A2aSparseMLP (init reshapes shared experts)
-    with torch.no_grad():
-        original_out, original_scores = original_mlp(hidden_states)
-
-    a2a_mlp = A2aSparseMLP(
-        original_mlp,
-        num_experts=config.num_local_experts,
-        num_experts_per_tok=config.num_experts_per_tok,
-        num_devices=8,
-        dispatch_devices=2,
-        cluster_axis=0,
-        config=config,
-    )
-
-    with torch.no_grad():
-        a2a_out, a2a_scores = a2a_mlp(hidden_states)
-
-    def compute_pcc(x, y):
-        x_flat, y_flat = x.flatten().float(), y.flatten().float()
-        vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
-        denom = vx.norm() * vy.norm()
-        if denom == 0:
-            return 1.0 if torch.allclose(x_flat, y_flat) else 0.0
-        return float((vx @ vy) / denom)
-
-    pcc_out = compute_pcc(original_out, a2a_out)
-    pcc_scores = compute_pcc(original_scores, a2a_scores)
-
-    assert pcc_out > 0.99, f"Output PCC too low: {pcc_out:.6f}"
-    assert pcc_scores > 0.99, f"Router scores PCC too low: {pcc_scores:.6f}"
+# test_a2a_sparse_mlp_cpu_parity removed: the equivalent semantic coverage
+# (tt_moe backend vs HF eager on CPU for GPT-OSS) now lives in
+# tests/torch/moe/test_tt_moe_backend.py::test_tt_moe_full_decoder_dp[gpt_oss_20b].

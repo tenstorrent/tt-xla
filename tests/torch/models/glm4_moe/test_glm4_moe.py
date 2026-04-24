@@ -17,7 +17,7 @@ from transformers.models.glm4_moe.modeling_glm4_moe import (
     Glm4MoeDecoderLayer,
     Glm4MoeModel,
 )
-from tt_torch.sparse_mlp import enable_sparse_mlp
+from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, register_tt_moe_backend
 
 
 @pytest.mark.nightly
@@ -25,22 +25,29 @@ from tt_torch.sparse_mlp import enable_sparse_mlp
 @pytest.mark.parametrize("batch_size", [32])
 @pytest.mark.parametrize("seq_len", [1, 32, 128])
 def test_glm4_moe_layer_sparse_moe(batch_size, seq_len):
-    """Test single MoE decoder layer with A2aSparseMLP on (2,4) mesh."""
+    """Single MoE decoder layer via tt_moe backend on (2,4) mesh.
+
+    GLM4's `Glm4MoeNaiveMoe` follows the HF canonical Experts layout
+    (@use_experts_implementation, gate_up_proj/down_proj Parameters), so
+    apply_tt_moe_to_module rebinds its forward directly — no wrapper
+    module, `layer.mlp.experts` keeps its original identity.
+    """
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
+    register_tt_moe_backend(cluster_axis=0)
     config = Glm4MoeConfig.from_pretrained("zai-org/GLM-4.7")
     # first_k_dense_replace=3, so need at least 4 layers for MoE
     config.num_hidden_layers = 4
     config.use_cache = False
     config._attn_implementation = "eager"
+    config._experts_implementation = TT_MOE_BACKEND_NAME
 
     # layer_idx=3 >= first_k_dense_replace=3 -> MoE layer
     layer = Glm4MoeDecoderLayer(config, layer_idx=3)
     layer = layer.eval().to(torch.bfloat16)
 
     mesh_shape = (2, 4)
-    enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
@@ -73,16 +80,14 @@ def test_glm4_moe_layer_sparse_moe(batch_size, seq_len):
             shard_specs[attn.k_proj.bias] = ("_axis_0",)
             shard_specs[attn.v_proj.bias] = ("_axis_0",)
 
-        # MoE (A2aSparseMLPWithSharedExperts)
-        mlp_wrapper = layer.mlp
-        mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
-        shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
-        shard_specs[mlp.experts.gate_proj] = (
-            ("_axis_0", "_axis_1"),
-            None,
-            None,
-        )
-        shard_specs[mlp.experts.up_proj] = (
+        # MoE: tt_moe backend rebinds layer.mlp.experts.forward in place,
+        # so `mlp` keeps its Glm4MoeMoE identity and canonical attributes
+        # (gate_up_proj [E, 2I, H], down_proj [E, H, I]) are directly on
+        # layer.mlp.experts (Glm4MoeNaiveMoe). Router stays under mlp.gate
+        # with HF's original naming (no .gate indirection).
+        mlp = layer.mlp
+        shard_specs[mlp.gate.weight] = (None, "_axis_0")
+        shard_specs[mlp.experts.gate_up_proj] = (
             ("_axis_0", "_axis_1"),
             None,
             None,
@@ -92,15 +97,9 @@ def test_glm4_moe_layer_sparse_moe(batch_size, seq_len):
             None,
             None,
         )
-        if mlp.experts.gate_proj_bias is not None:
-            shard_specs[mlp.experts.gate_proj_bias] = (("_axis_0", "_axis_1"), None)
-        if mlp.experts.up_proj_bias is not None:
-            shard_specs[mlp.experts.up_proj_bias] = (("_axis_0", "_axis_1"), None)
-        if mlp.experts.down_proj_bias is not None:
-            shard_specs[mlp.experts.down_proj_bias] = (("_axis_0", "_axis_1"), None)
 
-        # Shared experts
-        shared = getattr(mlp_wrapper, "shared_experts", None)
+        # Shared experts: Glm4MoeMLP with individual nn.Linear layers.
+        shared = getattr(mlp, "shared_experts", None)
         if shared is not None:
             shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
             shard_specs[shared.up_proj.weight] = (None, "_axis_0")

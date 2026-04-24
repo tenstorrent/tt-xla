@@ -15,7 +15,11 @@ from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from loguru import logger
-from tt_torch.sparse_mlp import enable_sparse_mlp, get_moe_shard_specs
+from tt_torch.moe_backend import (
+    TT_MOE_BACKEND_NAME,
+    get_tt_moe_shard_specs,
+    register_tt_moe_backend,
+)
 
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
@@ -282,18 +286,36 @@ class DynamicTorchModelTester(TorchModelTester):
         return self.dynamic_loader.unpack_forward_output(output)
 
     def _inject_custom_moe(self, model):
-        """Injects a custom MoE implementation into the model if specified in test metadata."""
+        """Route the model's HF MoE experts through the tt_moe backend.
+
+        Sets `model.config._experts_implementation = TT_MOE_BACKEND_NAME` so
+        HF's `@use_experts_implementation` decorator dispatches Experts.forward
+        to `tt_experts_forward` at call time. Only works on models whose
+        Experts class follows the HF canonical layout (e.g. GPT-OSS,
+        Qwen3-MoE, GLM4); ModuleList-based MoE layers (e.g. the old vendored
+        DeepseekV3) are untouched until a stacked-weight adapter lands.
+        """
         logger.info(
-            "Custom MoE injection enabled for this test - using sparse_mlp.py implementation in tt_torch"
+            "Custom MoE injection enabled for this test - using tt_moe HF "
+            "ExpertsInterface backend (python_package/tt_torch/moe_backend.py)"
         )
         mesh_info = self._workload.mesh.shape()
-        mesh_shape = tuple(mesh_info.values())
         mesh_names = tuple(mesh_info.keys())
-        enable_sparse_mlp(model, mesh=mesh_shape)
+        register_tt_moe_backend(cluster_axis=0)
+
+        # Propagate the flag so any already-constructed Experts instance picks
+        # it up at forward time (decorator reads self.config._experts_implementation).
+        if getattr(model, "config", None) is not None:
+            model.config._experts_implementation = TT_MOE_BACKEND_NAME
+        for sub in model.modules():
+            cfg = getattr(sub, "config", None)
+            if cfg is not None:
+                cfg._experts_implementation = TT_MOE_BACKEND_NAME
+
         shard_spec_fn = self._workload.shard_spec_fn
         if shard_spec_fn:
 
             def combined_shard_spec_fn(model, _fn=shard_spec_fn, _names=mesh_names):
-                return get_moe_shard_specs(model, _fn, _names)
+                return get_tt_moe_shard_specs(model, _fn, _names)
 
             self._workload.shard_spec_fn = combined_shard_spec_fn

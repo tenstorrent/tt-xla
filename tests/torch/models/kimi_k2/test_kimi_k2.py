@@ -11,8 +11,11 @@ import torch_xla.runtime as xr
 from infra import Framework, MLACache, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
-from transformers import DynamicCache
-from tt_torch.sparse_mlp import enable_sparse_mlp
+from transformers import AutoConfig, DynamicCache
+from transformers.models.deepseek_v3.modeling_deepseek_v3 import (
+    DeepseekV3DecoderLayer as HFDeepseekV3DecoderLayer,
+)
+from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, register_tt_moe_backend
 
 from tests.utils import failed_ttmlir_compilation
 from third_party.tt_forge_models.kimi_k2.pytorch.configuration_deepseek import (
@@ -326,68 +329,71 @@ def test_kimi_k2_layer():
 @pytest.mark.parametrize("batch_size", [32])
 @pytest.mark.parametrize("seq_len", [1, 32])
 def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
+    """Single MoE decoder layer via tt_moe backend on (2,4) mesh.
+
+    Uses HF mainline `DeepseekV3` (its `DeepseekV3NaiveMoe` follows the
+    canonical Experts layout with `@use_experts_implementation`) rather than
+    the locally vendored `modeling_deepseek.py` (ModuleList experts, no
+    decorator). Attention is patched to a no-op so the test isolates MoE MLP
+    correctness — MLA cache and rotary plumbing are exercised elsewhere in
+    this file.
+    """
+    import types
+
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    loader = ModelLoader()
-    config = loader._load_config(num_layers=2)
+    # Build ONLY the one MoE decoder layer we actually test — not the full
+    # DeepseekV3ForCausalLM (its 129280 × 7168 embed_tokens + lm_head + the
+    # dense layers we don't touch add ~4 GB of weights that would otherwise
+    # be allocated on device, tripping DRAM OOM on llmbox).
+    # `@use_experts_implementation` reads `config._experts_implementation` at
+    # forward-dispatch time, so setting it on the config before constructing
+    # the layer is sufficient for `tt_moe` to kick in.
+    register_tt_moe_backend(cluster_axis=0)
+    config = AutoConfig.from_pretrained(
+        "deepseek-ai/DeepSeek-V3", trust_remote_code=False
+    )
+    # Cast YaRN rope_parameters numeric fields to float — some shipped configs
+    # store them as int, which makes HF's validator emit warnings at build time.
+    rp = getattr(config, "rope_parameters", None)
+    if isinstance(rp, dict):
+        for k in ("factor", "beta_fast", "beta_slow", "mscale", "mscale_all_dim"):
+            if k in rp:
+                rp[k] = float(rp[k])
+    config.use_cache = False
     config._attn_implementation = "eager"
+    config._experts_implementation = TT_MOE_BACKEND_NAME
 
-    layer = DeepseekV3DecoderLayer(config, layer_idx=1)
+    # layer_idx >= first_k_dense_replace (=3) -> this layer's .mlp is a MoE.
+    layer = HFDeepseekV3DecoderLayer(config, layer_idx=config.first_k_dense_replace)
     layer = layer.eval().to(torch.bfloat16)
 
-    max_cache_len = 1024
+    # Zero attention so this test only measures MoE correctness.
+    def _attn_noop(self, hidden_states, *a, **k):
+        return torch.zeros_like(hidden_states), None
+
+    layer.self_attn.forward = types.MethodType(_attn_noop, layer.self_attn)
+
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(
-        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
-    )
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+
     num_devices = xr.global_runtime_device_count()
     mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
-    enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
-
-    position_ids = torch.arange(seq_len).unsqueeze(0)
-    static_cache = MLACache(
-        config=config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
-        device="cpu",
-        dtype=torch.bfloat16,
-    )
-    past_key_states = static_cache
-
-    num_devices = xr.global_runtime_device_count()
-    device_ids = np.array(range(num_devices))
 
     def get_shard_spec(layer, args, kwargs):
         shard_specs = {}
 
+        # Input hidden_states
         shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
-        shard_specs[args[1]] = ("_axis_1", None, None, None)
-        shard_specs[args[3].layers[1].compressed_kv] = ("_axis_1", None, None, None)
-        shard_specs[args[3].layers[1].k_pe] = ("_axis_1", None, None, None)
 
-        shard_specs[layer.self_attn.q_b_proj.weight] = ("_axis_0", None)
-        shard_specs[layer.self_attn.kv_b_proj.weight] = ("_axis_0", None)
-        shard_specs[layer.self_attn.o_proj.weight] = (None, "_axis_0")
-
-        shard_specs[layer.self_attn.q_a_proj.weight] = (None, "_axis_0")
-        shard_specs[layer.self_attn.kv_a_proj_with_mqa.weight] = (None, "_axis_0")
-
-        # A2aSparseMLP: experts compound-sharded (axis_0, axis_1)
-        mlp_wrapper = layer.mlp
-        mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
-        shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
-        shard_specs[mlp.experts.gate_proj] = (
-            ("_axis_0", "_axis_1"),
-            None,
-            None,
-        )
-        shard_specs[mlp.experts.up_proj] = (
+        # MoE experts: canonical compound sharding on the expert axis.
+        mlp = layer.mlp
+        shard_specs[mlp.gate.weight] = (None, "_axis_0")
+        shard_specs[mlp.experts.gate_up_proj] = (
             ("_axis_0", "_axis_1"),
             None,
             None,
@@ -398,14 +404,13 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
             None,
         )
 
-        # Shared experts (if present, on wrapper not on inner A2aSparseMLP)
-        shared = getattr(mlp_wrapper, "shared_experts", None)
+        # Shared experts: DeepseekV3MLP with individual nn.Linear layers.
+        shared = getattr(mlp, "shared_experts", None)
         if shared is not None:
             shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
             shard_specs[shared.up_proj.weight] = (None, "_axis_0")
             shard_specs[shared.down_proj.weight] = ("_axis_0", None)
 
-        # Layernorm: hidden replicated → weight not sharded
         shard_specs[layer.input_layernorm.weight] = ("_axis_0",)
         shard_specs[layer.post_attention_layernorm.weight] = ("_axis_0",)
 
@@ -417,15 +422,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
 
     run_graph_test(
         layer,
-        [
-            hidden_states,
-            attention_mask,
-            position_ids,
-            past_key_states,
-            False,
-            True,
-            cache_positions,
-        ],
+        [hidden_states],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
