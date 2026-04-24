@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
+import torch.fx
 from torch.overrides import TorchFunctionMode
 
 
@@ -10,6 +11,13 @@ class TorchFunctionOverride(TorchFunctionMode):
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
+            # Skip during torch.fx symbolic tracing: args are Proxies, whose
+            # .shape is itself a Proxy with no __len__, which would crash the
+            # len() check below. This path fires when torch.fx.subgraph_rewriter
+            # traces pattern functions that call torch.matmul (e.g. quetzal
+            # SDPA pattern_scaled_method).
+            if any(isinstance(a, torch.fx.Proxy) for a in args):
+                return func(*args, **(kwargs or {}))
             if len(args[0].shape) >= 4 or len(args[1].shape) >= 4:
                 if func.__name__ == "linear":
                     # Linear function transposes args[1]
