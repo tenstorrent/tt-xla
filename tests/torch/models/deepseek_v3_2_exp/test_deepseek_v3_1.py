@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """DeepSeek v3.1 tests on TT (Galaxy 4x8).
@@ -18,7 +18,7 @@ below.
 """
 import json
 import os
-import re
+import sys
 import time
 
 import numpy as np
@@ -32,62 +32,27 @@ from infra.testers.compiler_config import CompilerConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from modified_model import precompute_freqs_cis
-from safetensors import safe_open
 from safetensors.torch import load_file as safetensors_load_file
-from safetensors.torch import save_file as safetensors_save_file
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
 
+# Import shard-streaming + cache helpers from the builder script (single source of truth)
+sys.path.insert(0, os.path.dirname(__file__))
+from build_weight_cache import (
+    _dequant_cache_dir,
+    _has_cache,
+    _post_sparse_cache_dir,
+    build_cache,
+    build_post_sparse_cache,
+)
+
 DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
 
-FP8_BLOCK_SIZE = 128
-
 
 # ---------------------------------------------------------------------------
-# Weight loading / dequantization / cache
+# Weight loading / cache
 # ---------------------------------------------------------------------------
-
-
-def _rename_hf_key(ckpt_key, n_dense_layers=1):
-    """Rename a HuggingFace checkpoint key to match modified_model.py naming."""
-    key = ckpt_key
-    if key.startswith("model."):
-        key = key[len("model.") :]
-    if "weight_scale_inv" in key:
-        return None
-    key = key.replace("lm_head.", "head.")
-    key = key.replace("embed_tokens.", "embed.")
-    key = re.sub(r"(layers\.\d+\.)input_layernorm\.", r"\1attn_norm.", key)
-    key = re.sub(r"(layers\.\d+\.)post_attention_layernorm\.", r"\1ffn_norm.", key)
-    key = key.replace("self_attn.indexer.", "attn.indexer.")
-    key = key.replace("self_attn.q_a_proj.", "attn.wq_a.")
-    key = key.replace("self_attn.q_b_proj.", "attn.wq_b.")
-    key = key.replace("self_attn.q_a_layernorm.", "attn.q_norm.")
-    key = key.replace("self_attn.kv_a_proj_with_mqa.", "attn.wkv_a.")
-    key = key.replace("self_attn.kv_b_proj.", "attn.wkv_b.")
-    key = key.replace("self_attn.kv_a_layernorm.", "attn.kv_norm.")
-    key = key.replace("self_attn.o_proj.", "attn.wo.")
-    key = re.sub(r"mlp\.experts\.(\d+)\.gate_proj\.", r"ffn.experts.\1.w1.", key)
-    key = re.sub(r"mlp\.experts\.(\d+)\.down_proj\.", r"ffn.experts.\1.w2.", key)
-    key = re.sub(r"mlp\.experts\.(\d+)\.up_proj\.", r"ffn.experts.\1.w3.", key)
-    key = key.replace("mlp.shared_experts.gate_proj.", "ffn.shared_experts.w1.")
-    key = key.replace("mlp.shared_experts.down_proj.", "ffn.shared_experts.w2.")
-    key = key.replace("mlp.shared_experts.up_proj.", "ffn.shared_experts.w3.")
-    key = key.replace("mlp.gate.e_score_correction_bias", "mlp.gate.bias")
-    key = key.replace("mlp.gate.", "ffn.gate.")
-    layer_m = re.match(r"layers\.(\d+)\.", key)
-    if layer_m:
-        layer_id = int(layer_m.group(1))
-        if layer_id < n_dense_layers:
-            key = key.replace("mlp.gate_proj.", "ffn.w1.")
-            key = key.replace("mlp.down_proj.", "ffn.w2.")
-            key = key.replace("mlp.up_proj.", "ffn.w3.")
-        elif (
-            "mlp.gate_proj." in key or "mlp.down_proj." in key or "mlp.up_proj." in key
-        ):
-            return None
-    return key
 
 
 def load_deepseek_config(repo_id=DEEPSEEK_V3_1_REPO):
@@ -95,109 +60,39 @@ def load_deepseek_config(repo_id=DEEPSEEK_V3_1_REPO):
     config_path = hf_hub_download(repo_id, "config.json")
     with open(config_path) as f:
         hf_cfg = json.load(f)
-    rope_scaling = hf_cfg.get("rope_scaling", {})
+    rope_scaling = hf_cfg["rope_scaling"]
     return ModelArgs(
         vocab_size=hf_cfg["vocab_size"],
         dim=hf_cfg["hidden_size"],
         inter_dim=hf_cfg["intermediate_size"],
         moe_inter_dim=hf_cfg["moe_intermediate_size"],
         n_layers=hf_cfg["num_hidden_layers"],
-        n_dense_layers=hf_cfg.get("first_k_dense_replace", 1),
+        n_dense_layers=hf_cfg["first_k_dense_replace"],
         n_heads=hf_cfg["num_attention_heads"],
-        n_routed_experts=hf_cfg.get("n_routed_experts", 256),
-        n_shared_experts=hf_cfg.get("n_shared_experts", 1),
-        n_activated_experts=hf_cfg.get("num_experts_per_tok", 8),
-        n_expert_groups=hf_cfg.get("n_group", 8),
-        n_limited_groups=hf_cfg.get("topk_group", 4),
-        score_func=hf_cfg.get("scoring_func", "sigmoid"),
-        route_scale=hf_cfg.get("routed_scaling_factor", 2.5),
-        q_lora_rank=hf_cfg.get("q_lora_rank", 1536),
-        kv_lora_rank=hf_cfg.get("kv_lora_rank", 512),
-        qk_nope_head_dim=hf_cfg.get("qk_nope_head_dim", 128),
-        qk_rope_head_dim=hf_cfg.get("qk_rope_head_dim", 64),
-        v_head_dim=hf_cfg.get("v_head_dim", 128),
-        original_seq_len=rope_scaling.get("original_max_position_embeddings", 4096),
-        rope_theta=hf_cfg.get("rope_theta", 10000.0),
-        rope_factor=rope_scaling.get("factor", 40),
-        beta_fast=rope_scaling.get("beta_fast", 32),
-        beta_slow=rope_scaling.get("beta_slow", 1),
-        mscale=rope_scaling.get("mscale", 1.0),
+        n_routed_experts=hf_cfg["n_routed_experts"],
+        n_shared_experts=hf_cfg["n_shared_experts"],
+        n_activated_experts=hf_cfg["num_experts_per_tok"],
+        n_expert_groups=hf_cfg["n_group"],
+        n_limited_groups=hf_cfg["topk_group"],
+        score_func=hf_cfg["scoring_func"],
+        route_scale=hf_cfg["routed_scaling_factor"],
+        q_lora_rank=hf_cfg["q_lora_rank"],
+        kv_lora_rank=hf_cfg["kv_lora_rank"],
+        qk_nope_head_dim=hf_cfg["qk_nope_head_dim"],
+        qk_rope_head_dim=hf_cfg["qk_rope_head_dim"],
+        v_head_dim=hf_cfg["v_head_dim"],
+        original_seq_len=rope_scaling["original_max_position_embeddings"],
+        rope_theta=hf_cfg["rope_theta"],
+        rope_factor=rope_scaling["factor"],
+        beta_fast=rope_scaling["beta_fast"],
+        beta_slow=rope_scaling["beta_slow"],
+        mscale=rope_scaling["mscale"],
+        # index_* keys are V3.2-exp only (sparse-attention indexer); absent in
+        # V3.1. Defaults here correspond to the indexer being disabled.
         index_n_heads=hf_cfg.get("index_n_heads", 0),
         index_head_dim=hf_cfg.get("index_head_dim", 128),
         index_topk=hf_cfg.get("index_topk", 2048),
     )
-
-
-def _weight_dequant(weight, scale_inv, block_size=FP8_BLOCK_SIZE):
-    """Dequantize FP8 weight: bf16 = fp8 * weight_scale_inv (block-wise)."""
-    orig_shape = weight.shape
-    assert weight.dim() == 2
-    rows, cols = orig_shape
-    pad_rows = (block_size - rows % block_size) % block_size
-    pad_cols = (block_size - cols % block_size) % block_size
-    if pad_rows or pad_cols:
-        weight = torch.nn.functional.pad(weight, (0, pad_cols, 0, pad_rows))
-    padded_rows, padded_cols = weight.shape
-    n_br = padded_rows // block_size
-    n_bc = padded_cols // block_size
-    weight = (
-        weight.view(n_br, block_size, n_bc, block_size)
-        .transpose(1, 2)
-        .contiguous()
-        .view(-1, block_size * block_size)
-    )
-    weight = (
-        (weight.float() * scale_inv.view(-1, 1).float())
-        .to(torch.bfloat16)
-        .view(n_br, n_bc, block_size, block_size)
-        .transpose(1, 2)
-        .contiguous()
-        .view(padded_rows, padded_cols)
-    )
-    return weight[:rows, :cols]
-
-
-def _cache_dir_for(repo_id, n_layers):
-    """Per-model BF16 safetensors cache directory (shared with build_weight_cache.py)."""
-    repo_slug = repo_id.replace("/", "--")
-    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    return os.path.join(base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers")
-
-
-def _post_sparse_cache_dir_for(repo_id, n_layers):
-    return _cache_dir_for(repo_id, n_layers) + "_post_sparse"
-
-
-def _has_cache(cache_dir):
-    return os.path.isdir(cache_dir) and any(
-        f.endswith(".safetensors") for f in os.listdir(cache_dir)
-    )
-
-
-def _save_cache_chunked(state_dict, cache_dir):
-    """Save state_dict as per-layer + shared safetensors chunks."""
-    os.makedirs(cache_dir, exist_ok=True)
-    layer_dicts = {}
-    shared = {}
-    for key, tensor in state_dict.items():
-        m = re.match(r"layers\.(\d+)\.", key)
-        if m:
-            layer_dicts.setdefault(int(m.group(1)), {})[key] = tensor
-        else:
-            shared[key] = tensor
-    total_bytes = 0
-    if shared:
-        path = os.path.join(cache_dir, "shared.safetensors")
-        safetensors_save_file(shared, path)
-        total_bytes += os.path.getsize(path)
-    for layer_idx in sorted(layer_dicts):
-        path = os.path.join(cache_dir, f"layer_{layer_idx:04d}.safetensors")
-        safetensors_save_file(layer_dicts[layer_idx], path)
-        sz = os.path.getsize(path)
-        total_bytes += sz
-        del layer_dicts[layer_idx]
-        print(f"  [cache] saved layer {layer_idx} ({sz / 1e9:.1f} GB)", flush=True)
-    return total_bytes
 
 
 def _load_cache_chunked(cache_dir):
@@ -211,93 +106,23 @@ def _load_cache_chunked(cache_dir):
     return state_dict
 
 
-def _dequantize_from_shards(repo_id, n_layers, n_dense_layers):
-    """Read FP8 shards, dequantize, rename keys. Returns a BF16 state_dict."""
-    index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
-    with open(index_path) as f:
-        index = json.load(f)
-    weight_map = index["weight_map"]
-
-    weight_keys = {}
-    scale_keys = {}
-    scale_shards = {}
-    for ckpt_key, shard_file in weight_map.items():
-        layer_m = re.match(r"model\.layers\.(\d+)\.", ckpt_key)
-        if layer_m and int(layer_m.group(1)) >= n_layers:
-            continue
-        if "weight_scale_inv" in ckpt_key:
-            w_key = ckpt_key.replace(".weight_scale_inv", ".weight")
-            scale_keys[w_key] = ckpt_key
-            scale_shards[ckpt_key] = shard_file
-        else:
-            weight_keys[ckpt_key] = shard_file
-
-    all_shards = set(weight_keys.values()) | set(scale_shards.values())
-    raw = {}
-    for idx, shard_name in enumerate(sorted(all_shards)):
-        shard_path = hf_hub_download(repo_id, shard_name)
-        with safe_open(shard_path, framework="pt", device="cpu") as f:
-            for key in f.keys():
-                if key in weight_keys or key in scale_shards:
-                    raw[key] = f.get_tensor(key)
-        print(
-            f"  shard {idx + 1}/{len(all_shards)}: {shard_name} "
-            f"({len(raw)} tensors so far)",
-            flush=True,
-        )
-
-    dequantized = {}
-    n_dequant = 0
-    for ckpt_key in weight_keys:
-        tensor = raw.get(ckpt_key)
-        if tensor is None:
-            continue
-        if tensor.dtype == torch.float8_e4m3fn:
-            scale_key = scale_keys.get(ckpt_key)
-            scale_inv = raw.get(scale_key) if scale_key else None
-            if scale_inv is not None:
-                tensor = _weight_dequant(tensor, scale_inv)
-                n_dequant += 1
-            else:
-                tensor = tensor.to(torch.bfloat16)
-        dequantized[ckpt_key] = tensor
-    del raw
-    print(f"[weights] dequantized {n_dequant} FP8 tensors")
-
-    state_dict = {}
-    for ckpt_key, tensor in dequantized.items():
-        model_key = _rename_hf_key(ckpt_key, n_dense_layers)
-        if model_key is None:
-            continue
-        if model_key == "head.weight":
-            tensor = tensor.to(torch.float32)
-        elif tensor.dtype != torch.bfloat16:
-            tensor = tensor.to(torch.bfloat16)
-        state_dict[model_key] = tensor
-    del dequantized
-    return state_dict
-
-
 def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=1):
-    """Dequantize FP8 safetensors -> BF16, cache them, load into ``model``."""
-    cache_dir = _cache_dir_for(repo_id, n_layers)
-    if _has_cache(cache_dir):
-        t0 = time.perf_counter()
-        print(f"[weights] loading cached BF16 weights from {cache_dir}", flush=True)
-        state_dict = _load_cache_chunked(cache_dir)
-        t1 = time.perf_counter()
-        print(
-            f"[timing] cache load (mmap): {t1 - t0:.1f}s ({len(state_dict)} tensors)",
-            flush=True,
-        )
-    else:
+    """Load the dequant cache into ``model``, self-healing it from FP8 shards if absent."""
+    cache_dir = _dequant_cache_dir(repo_id, n_layers)
+    if not _has_cache(cache_dir):
         print(
             f"[weights] no cache at {cache_dir} — dequantizing from FP8...", flush=True
         )
-        state_dict = _dequantize_from_shards(repo_id, n_layers, n_dense_layers)
-        _save_cache_chunked(state_dict, cache_dir)
-        del state_dict
-        state_dict = _load_cache_chunked(cache_dir)
+        build_cache(repo_id, n_layers, n_dense_layers)
+
+    t0 = time.perf_counter()
+    print(f"[weights] loading cached BF16 weights from {cache_dir}", flush=True)
+    state_dict = _load_cache_chunked(cache_dir)
+    print(
+        f"[timing] cache load (mmap): {time.perf_counter() - t0:.1f}s "
+        f"({len(state_dict)} tensors)",
+        flush=True,
+    )
 
     missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
     print(
@@ -493,10 +318,17 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
     with torch.device("meta"):
         model = ModifiedTransformer(args)
     mesh_shape = (4, 8)
-    post_sparse_dir = _post_sparse_cache_dir_for(repo_id, args.n_layers)
-    dequant_dir = _cache_dir_for(repo_id, args.n_layers)
+    post_sparse_dir = _post_sparse_cache_dir(repo_id, args.n_layers)
+    dequant_dir = _dequant_cache_dir(repo_id, args.n_layers)
 
     def _load_post_sparse():
+        if not _has_cache(post_sparse_dir):
+            print(
+                f"[weights] post-sparse cache not found at {post_sparse_dir}, "
+                "building... (self-heals pre-sparse if absent)",
+                flush=True,
+            )
+            build_post_sparse_cache(repo_id, args.n_layers, args.n_dense_layers)
         print(f"[weights] loading post-sparse cache from {post_sparse_dir}", flush=True)
         enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
         for _, mod in model.named_modules():
@@ -522,32 +354,26 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
         enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
 
     if prefer_cpu_capable:
-        if _has_cache(dequant_dir):
-            _load_dequant()
-            return model, mesh_shape
-        if _has_cache(post_sparse_dir):
+        if _has_cache(post_sparse_dir) and not _has_cache(dequant_dir):
             print(
                 "[weights] prefer_cpu_capable=True but dequant cache missing; "
                 "falling back to post-sparse cache (CPU forward will be broken)",
                 flush=True,
             )
             _load_post_sparse()
-            return model, mesh_shape
+        else:
+            _load_dequant()
     else:
-        if _has_cache(post_sparse_dir):
-            _load_post_sparse()
-            return model, mesh_shape
-        if _has_cache(dequant_dir):
+        if _has_cache(dequant_dir) and not _has_cache(post_sparse_dir):
             print(
                 "[weights] post-sparse cache missing; falling back to "
                 "dequant cache (slower — runtime expert stacking)",
                 flush=True,
             )
             _load_dequant()
-            return model, mesh_shape
+        else:
+            _load_post_sparse()
 
-    # Neither cache exists — dequantize from FP8 shards (populates dequant cache).
-    _load_dequant()
     return model, mesh_shape
 
 

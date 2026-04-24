@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 """Build a chunked BF16 weight cache for DeepSeek V3.1, one layer at a time.
@@ -16,7 +16,6 @@ import argparse
 import json
 import os
 import re
-import sys
 import time
 
 import torch
@@ -25,23 +24,119 @@ from safetensors import safe_open
 from safetensors.torch import load_file as safetensors_load_file
 from safetensors.torch import save_file as safetensors_save_file
 
-# Import the canonical helpers from the test file to stay in sync
-sys.path.insert(0, os.path.dirname(__file__))
-from test_deepseek_v3_1 import _rename_hf_key, _weight_dequant
-
 DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
+FP8_BLOCK_SIZE = 128
+
+
+def _dequant_cache_dir(repo_id, n_layers):
+    """Per-model BF16 safetensors cache directory."""
+    repo_slug = repo_id.replace("/", "--")
+    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    return os.path.join(base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers")
+
+
+def _post_sparse_cache_dir(repo_id, n_layers):
+    return _dequant_cache_dir(repo_id, n_layers) + "_post_sparse"
+
+
+def _has_cache(cache_dir):
+    return os.path.isdir(cache_dir) and any(
+        f.endswith(".safetensors") for f in os.listdir(cache_dir)
+    )
+
+
+def _rename_hf_key(ckpt_key, n_dense_layers=1):
+    """Rename a HuggingFace checkpoint key to match modified_model.py naming."""
+    key = ckpt_key
+    if key.startswith("model."):
+        key = key[len("model.") :]
+    if "weight_scale_inv" in key:
+        return None
+    key = key.replace("lm_head.", "head.")
+    key = key.replace("embed_tokens.", "embed.")
+    key = re.sub(r"(layers\.\d+\.)input_layernorm\.", r"\1attn_norm.", key)
+    key = re.sub(r"(layers\.\d+\.)post_attention_layernorm\.", r"\1ffn_norm.", key)
+    key = key.replace("self_attn.indexer.", "attn.indexer.")
+    key = key.replace("self_attn.q_a_proj.", "attn.wq_a.")
+    key = key.replace("self_attn.q_b_proj.", "attn.wq_b.")
+    key = key.replace("self_attn.q_a_layernorm.", "attn.q_norm.")
+    key = key.replace("self_attn.kv_a_proj_with_mqa.", "attn.wkv_a.")
+    key = key.replace("self_attn.kv_b_proj.", "attn.wkv_b.")
+    key = key.replace("self_attn.kv_a_layernorm.", "attn.kv_norm.")
+    key = key.replace("self_attn.o_proj.", "attn.wo.")
+    key = re.sub(r"mlp\.experts\.(\d+)\.gate_proj\.", r"ffn.experts.\1.w1.", key)
+    key = re.sub(r"mlp\.experts\.(\d+)\.down_proj\.", r"ffn.experts.\1.w2.", key)
+    key = re.sub(r"mlp\.experts\.(\d+)\.up_proj\.", r"ffn.experts.\1.w3.", key)
+    key = key.replace("mlp.shared_experts.gate_proj.", "ffn.shared_experts.w1.")
+    key = key.replace("mlp.shared_experts.down_proj.", "ffn.shared_experts.w2.")
+    key = key.replace("mlp.shared_experts.up_proj.", "ffn.shared_experts.w3.")
+    key = key.replace("mlp.gate.e_score_correction_bias", "mlp.gate.bias")
+    key = key.replace("mlp.gate.", "ffn.gate.")
+    layer_m = re.match(r"layers\.(\d+)\.", key)
+    if layer_m:
+        layer_id = int(layer_m.group(1))
+        if layer_id < n_dense_layers:
+            key = key.replace("mlp.gate_proj.", "ffn.w1.")
+            key = key.replace("mlp.down_proj.", "ffn.w2.")
+            key = key.replace("mlp.up_proj.", "ffn.w3.")
+        elif (
+            "mlp.gate_proj." in key or "mlp.down_proj." in key or "mlp.up_proj." in key
+        ):
+            return None
+    return key
+
+
+def _weight_dequant(weight, scale_inv, block_size=FP8_BLOCK_SIZE):
+    """Dequantize FP8 weight: bf16 = fp8 * weight_scale_inv (block-wise)."""
+    orig_shape = weight.shape
+    assert weight.dim() == 2
+    rows, cols = orig_shape
+    pad_rows = (block_size - rows % block_size) % block_size
+    pad_cols = (block_size - cols % block_size) % block_size
+    if pad_rows or pad_cols:
+        weight = torch.nn.functional.pad(weight, (0, pad_cols, 0, pad_rows))
+    padded_rows, padded_cols = weight.shape
+    n_br = padded_rows // block_size
+    n_bc = padded_cols // block_size
+    weight = (
+        weight.view(n_br, block_size, n_bc, block_size)
+        .transpose(1, 2)
+        .contiguous()
+        .view(-1, block_size * block_size)
+    )
+    weight = (
+        (weight.float() * scale_inv.view(-1, 1).float())
+        .to(torch.bfloat16)
+        .view(n_br, n_bc, block_size, block_size)
+        .transpose(1, 2)
+        .contiguous()
+        .view(padded_rows, padded_cols)
+    )
+    return weight[:rows, :cols]
+
+
+def _group_by_shard(ckpt_keys, key_to_shard):
+    shard_to_keys = {}
+    for k in ckpt_keys:
+        shard_to_keys.setdefault(key_to_shard[k], []).append(k)
+    return shard_to_keys
+
+
+def _load_tensors(shard_to_keys, repo_id):
+    """Return {ckpt_key: tensor} for all requested keys, opening each shard once."""
+    out = {}
+    for shard_name, keys in shard_to_keys.items():
+        shard_path = hf_hub_download(repo_id, shard_name)
+        with safe_open(shard_path, framework="pt", device="cpu") as f:
+            for key in keys:
+                out[key] = f.get_tensor(key)
+    return out
 
 
 def build_cache(repo_id, n_layers, n_dense_layers=1):
-    repo_slug = repo_id.replace("/", "--")
-    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    cache_dir = os.path.join(
-        base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers"
-    )
+    cache_dir = _dequant_cache_dir(repo_id, n_layers)
 
-    if os.path.isdir(cache_dir) and any(
-        f.endswith(".safetensors") for f in os.listdir(cache_dir)
-    ):
+    if _has_cache(cache_dir):
         print(f"Cache already exists at {cache_dir}, skipping.")
         print(f"  Files: {sorted(os.listdir(cache_dir))}")
         print("  Delete the directory to rebuild.")
@@ -89,25 +184,12 @@ def build_cache(repo_id, n_layers, n_dense_layers=1):
         t_group_start = time.perf_counter()
         ckpt_to_model = groups[group_name]
 
-        # Determine which shards we need for this group
-        needed_shard_files = set()
-        for ckpt_key in ckpt_to_model:
-            needed_shard_files.add(all_key_to_shard[ckpt_key])
-            if ckpt_key in scale_keys:
-                needed_shard_files.add(all_key_to_shard[scale_keys[ckpt_key]])
-
-        # Load only the tensors we need from those shards
-        raw = {}
         needed_ckpt_keys = set(ckpt_to_model.keys())
         needed_scale_keys = {scale_keys[k] for k in ckpt_to_model if k in scale_keys}
-        all_needed = needed_ckpt_keys | needed_scale_keys
-
-        for shard_name in sorted(needed_shard_files):
-            shard_path = hf_hub_download(repo_id, shard_name)
-            with safe_open(shard_path, framework="pt", device="cpu") as f:
-                for key in f.keys():
-                    if key in all_needed:
-                        raw[key] = f.get_tensor(key)
+        shard_to_keys = _group_by_shard(
+            needed_ckpt_keys | needed_scale_keys, all_key_to_shard
+        )
+        raw = _load_tensors(shard_to_keys, repo_id)
 
         # Dequantize and rename
         state_dict = {}
@@ -222,25 +304,17 @@ def build_post_sparse_cache(repo_id, n_layers, n_dense_layers):
     to match the StackedExperts layout, and saves. Peak memory is ~46 GB
     (one layer of mmap'd per-expert weights + one layer of stacked tensors).
     """
-    repo_slug = repo_id.replace("/", "--")
-    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    pre_dir = os.path.join(
-        base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers"
-    )
-    post_dir = os.path.join(
-        base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers_post_sparse"
-    )
+    pre_dir = _dequant_cache_dir(repo_id, n_layers)
+    post_dir = _post_sparse_cache_dir(repo_id, n_layers)
 
-    if not os.path.isdir(pre_dir):
+    if not _has_cache(pre_dir):
         print(
-            f"Pre-sparse cache not found at {pre_dir}.\n"
-            "Run without --post-sparse first."
+            f"Pre-sparse cache not found at {pre_dir}, building it first...",
+            flush=True,
         )
-        sys.exit(1)
+        build_cache(repo_id, n_layers, n_dense_layers)
 
-    if os.path.isdir(post_dir) and any(
-        f.endswith(".safetensors") for f in os.listdir(post_dir)
-    ):
+    if _has_cache(post_dir):
         print(f"Post-sparse cache already exists at {post_dir}, skipping.")
         print(f"  Files: {sorted(os.listdir(post_dir))}")
         print("  Delete the directory to rebuild.")
@@ -307,7 +381,7 @@ if __name__ == "__main__":
         config_path = hf_hub_download(args.repo, "config.json")
         with open(config_path) as f:
             hf_cfg = json.load(f)
-        n_dense_layers = hf_cfg.get("first_k_dense_replace", 1)
+        n_dense_layers = hf_cfg["first_k_dense_replace"]
         print(f"Read n_dense_layers={n_dense_layers} from {args.repo} config")
 
     if args.post_sparse:

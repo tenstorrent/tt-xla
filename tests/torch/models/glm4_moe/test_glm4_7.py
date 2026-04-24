@@ -21,7 +21,6 @@ import torch_xla
 import torch_xla.runtime as xr
 from huggingface_hub import hf_hub_download
 from infra.testers.compiler_config import CompilerConfig
-from safetensors import safe_open
 from safetensors.torch import load_file as safetensors_load_file
 from torch import nn
 from torch_xla.distributed.spmd import Mesh, mark_sharding
@@ -33,6 +32,16 @@ from transformers.models.glm4_moe.modeling_glm4_moe import (
     Glm4MoeRotaryEmbedding,
 )
 from tt_torch.sparse_mlp import A2aSparseMLP, build_expert_mapping, enable_sparse_mlp
+
+# Import shard-streaming + cache helpers from the builder script (single source of truth)
+sys.path.insert(0, os.path.dirname(__file__))
+from build_weight_cache_glm import (
+    _group_by_shard,
+    _has_cache,
+    _load_tensors,
+    _post_sparse_cache_dir,
+    build_post_sparse_cache,
+)
 
 GLM_REPO = "zai-org/GLM-4.7"
 
@@ -59,20 +68,6 @@ def _patch_router_bf16():
 
 
 # ---------- helpers ----------
-def _post_sparse_cache_dir(repo_id, n_layers):
-    repo_slug = repo_id.replace("/", "--")
-    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    return os.path.join(
-        base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers_post_sparse"
-    )
-
-
-def _has_cache(cache_dir):
-    return os.path.isdir(cache_dir) and any(
-        f.endswith(".safetensors") for f in os.listdir(cache_dir)
-    )
-
-
 def _load_cache_chunked(cache_dir):
     state_dict = {}
     for fname in sorted(os.listdir(cache_dir)):
@@ -123,9 +118,15 @@ def _build_and_load_model_post_sparse(config, repo_id, mesh_shape):
     """Meta-init + enable_sparse_mlp + load post-sparse cache. Fast, TT-only."""
     cache_dir = _post_sparse_cache_dir(repo_id, config.num_hidden_layers)
     if not _has_cache(cache_dir):
-        raise RuntimeError(
-            f"Post-sparse cache not found at {cache_dir}. "
-            f"Run: python build_weight_cache_glm.py --n-layers {config.num_hidden_layers}"
+        print(
+            f"[weights] post-sparse cache not found at {cache_dir}, building...",
+            flush=True,
+        )
+        build_post_sparse_cache(
+            repo_id,
+            config.num_hidden_layers,
+            config.first_k_dense_replace,
+            config.n_routed_experts,
         )
 
     print(
@@ -193,36 +194,33 @@ def _load_cpu_state_dict_shard_on_demand(config, repo_id):
         r"^model\.layers\.(\d+)\.mlp\.experts\.(\d+)\.(gate_proj|up_proj|down_proj)\.weight$"
     )
 
-    # Bucket keys by shard for efficient reads.
-    wanted = {}
-    for ckpt_key, shard in weight_map.items():
+    # Filter out keys for layers >= n_layers and any mtp/next-n keys.
+    wanted_keys = []
+    for ckpt_key in weight_map:
         m = re.match(r"model\.layers\.(\d+)\.", ckpt_key)
         if m and int(m.group(1)) >= n_layers:
             continue
         if ckpt_key.startswith("mtp.") or ".mtp." in ckpt_key:
             continue
-        wanted.setdefault(shard, []).append(ckpt_key)
+        wanted_keys.append(ckpt_key)
 
-    # Accumulators for per-expert stacking:
-    # (layer_idx, expert_idx, name) -> tensor
-    expert_tensors = {}
+    shard_to_keys = _group_by_shard(wanted_keys, weight_map)
+    raw = _load_tensors(shard_to_keys, repo_id)
+
+    # Split into per-expert (for fusion below) vs. pass-through.
+    expert_tensors = {}  # (layer_idx, expert_idx, name) -> tensor
     state_dict = {}
-
-    for shard, keys in wanted.items():
-        path = hf_hub_download(repo_id, shard)
-        with safe_open(path, framework="pt", device="cpu") as f:
-            for k in keys:
-                t = f.get_tensor(k).to(torch.bfloat16)
-                m = expert_re.match(k)
-                if m:
-                    layer_idx = int(m.group(1))
-                    if layer_idx < n_dense:
-                        raise RuntimeError(
-                            f"Unexpected per-expert key on dense layer: {k}"
-                        )
-                    expert_tensors[(layer_idx, int(m.group(2)), m.group(3))] = t
-                else:
-                    state_dict[k] = t
+    for k, t in raw.items():
+        t = t.to(torch.bfloat16)
+        m = expert_re.match(k)
+        if m:
+            layer_idx = int(m.group(1))
+            if layer_idx < n_dense:
+                raise RuntimeError(f"Unexpected per-expert key on dense layer: {k}")
+            expert_tensors[(layer_idx, int(m.group(2)), m.group(3))] = t
+        else:
+            state_dict[k] = t
+    del raw
 
     # Fuse per-expert -> gate_up_proj + down_proj per MoE layer.
     moe_layers = sorted({lk[0] for lk in expert_tensors.keys()})
@@ -573,15 +571,9 @@ def test_glm4_7_full_sparse_moe():
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
     device = torch_xla.device()
 
-    # Use "none" (or empty) to skip experimental_weight_dtype and run full bf16.
-    weight_dtype = os.environ.get("GLM_WEIGHT_DTYPE", "bfp_bf8")
-    print(f"[compile] experimental_weight_dtype={weight_dtype}", flush=True)
-    if weight_dtype and weight_dtype.lower() != "none":
-        torch_xla.set_custom_compile_options(
-            CompilerConfig(
-                experimental_weight_dtype=weight_dtype
-            ).to_torch_compile_options()
-        )
+    torch_xla.set_custom_compile_options(
+        CompilerConfig(experimental_weight_dtype="bfp_bf8").to_torch_compile_options()
+    )
 
     # Move to device — use to_empty + load_state_dict for meta path; to() for CPU path.
     t0 = time.perf_counter()
@@ -687,45 +679,15 @@ def test_glm4_7_decode_static_cache():
         "Tenstorrent is a company that builds AI accelerators. "
         "Their chips are designed to"
     )
-    use_chat_template = os.environ.get("GLM_USE_CHAT_TEMPLATE", "0") == "1"
-    if use_chat_template:
-        # GLM-4.7 is instruction + thinking-mode tuned. Raw prompts are OOD.
-        # apply_chat_template produces [gMASK]<sop><|user|>...<|assistant|><think>.
-        # apply_chat_template return type varies by transformers version; render
-        # to a string then tokenize ourselves to be robust.
-        rendered = tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt_text}],
-            add_generation_prompt=True,
-            tokenize=False,
-        )
-        chat_enc = tokenizer(rendered, return_tensors="pt", add_special_tokens=False)
-        chat_ids = chat_enc["input_ids"]  # (1, L)
-        L = chat_ids.shape[1]
-        if L > prompt_seq_len:
-            raise ValueError(
-                f"chat template yielded {L} tokens, exceeds prompt_seq_len={prompt_seq_len}"
-            )
-        # Left-pad with pad_token to prompt_seq_len.
-        pad_id = tokenizer.pad_token_id
-        tokens_single = torch.full((1, prompt_seq_len), pad_id, dtype=chat_ids.dtype)
-        tokens_single[:, prompt_seq_len - L :] = chat_ids
-        attn_single = torch.zeros((1, prompt_seq_len), dtype=torch.long)
-        attn_single[:, prompt_seq_len - L :] = 1
-        print(
-            f"[tokenize] chat template ({L} tokens): "
-            f"{tokenizer.decode(chat_ids[0].tolist())!r}",
-            flush=True,
-        )
-    else:
-        encoded = tokenizer(
-            prompt_text,
-            return_tensors="pt",
-            max_length=prompt_seq_len,
-            truncation=True,
-            padding="max_length",
-        )
-        tokens_single = encoded["input_ids"][:, :prompt_seq_len]
-        attn_single = encoded["attention_mask"][:, :prompt_seq_len]
+    encoded = tokenizer(
+        prompt_text,
+        return_tensors="pt",
+        max_length=prompt_seq_len,
+        truncation=True,
+        padding="max_length",
+    )
+    tokens_single = encoded["input_ids"][:, :prompt_seq_len]
+    attn_single = encoded["attention_mask"][:, :prompt_seq_len]
     tokens_cpu = tokens_single.repeat(batch_size, 1)
     token_attn_mask_cpu = attn_single.repeat(batch_size, 1)
     prompt_real_len = int(token_attn_mask_cpu[0].sum())
@@ -844,14 +806,9 @@ def test_glm4_7_decode_static_cache():
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
     device = torch_xla.device()
 
-    weight_dtype = os.environ.get("GLM_WEIGHT_DTYPE", "bfp_bf8")
-    print(f"[compile] experimental_weight_dtype={weight_dtype}", flush=True)
-    if weight_dtype and weight_dtype.lower() != "none":
-        torch_xla.set_custom_compile_options(
-            CompilerConfig(
-                experimental_weight_dtype=weight_dtype
-            ).to_torch_compile_options()
-        )
+    torch_xla.set_custom_compile_options(
+        CompilerConfig(experimental_weight_dtype="bfp_bf8").to_torch_compile_options()
+    )
 
     # Move model + tokens + fresh KV cache to device
     t0 = time.perf_counter()

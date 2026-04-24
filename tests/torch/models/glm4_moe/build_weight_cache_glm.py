@@ -27,7 +27,6 @@ import argparse
 import json
 import os
 import re
-import sys
 import time
 
 import torch
@@ -38,11 +37,17 @@ from safetensors.torch import save_file as safetensors_save_file
 GLM_REPO = "zai-org/GLM-4.7"
 
 
-def _cache_dir_for(repo_id, n_layers):
+def _post_sparse_cache_dir(repo_id, n_layers):
     repo_slug = repo_id.replace("/", "--")
     base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
     return os.path.join(
         base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers_post_sparse"
+    )
+
+
+def _has_cache(cache_dir):
+    return os.path.isdir(cache_dir) and any(
+        f.endswith(".safetensors") for f in os.listdir(cache_dir)
     )
 
 
@@ -160,11 +165,9 @@ def _process_moe_layer(layer_idx, n_experts, weight_map, repo_id):
 
 
 def build_post_sparse_cache(repo_id, n_layers, n_dense_layers, n_experts):
-    cache_dir = _cache_dir_for(repo_id, n_layers)
+    cache_dir = _post_sparse_cache_dir(repo_id, n_layers)
 
-    if os.path.isdir(cache_dir) and any(
-        f.endswith(".safetensors") for f in os.listdir(cache_dir)
-    ):
+    if _has_cache(cache_dir):
         print(f"Cache already exists at {cache_dir}, skipping.")
         print(f"  Files: {sorted(os.listdir(cache_dir))}")
         print("  Delete the directory to rebuild.")
@@ -231,8 +234,8 @@ if __name__ == "__main__":
     config_path = hf_hub_download(args.repo, "config.json")
     with open(config_path) as f:
         cfg = json.load(f)
-    n_dense_layers = cfg.get("first_k_dense_replace", 3)
-    n_experts = cfg.get("n_routed_experts", 160)
+    n_dense_layers = cfg["first_k_dense_replace"]
+    n_experts = cfg["n_routed_experts"]
     print(
         f"Repo: {args.repo}\n"
         f"  n_layers={args.n_layers}, n_dense_layers={n_dense_layers}, "
