@@ -89,9 +89,16 @@ REDUCTION_SIZE = 32
 USE_LEGACY_PER_TOKEN_SPARSITY = False
 
 # Populated by `register_tt_moe_backend`. Module-level (rather than stashed on
-# `self`) because cluster_axis is a property of the mesh, not of a specific
-# Experts instance, and HF gives no hook to thread it through from_pretrained.
-_config: dict = {"cluster_axis": 0}
+# `self`) because these axes are properties of the mesh, not of a specific
+# Experts instance, and HF gives no hook to thread them through from_pretrained.
+#
+# `cluster_axis`: mesh axis that shards the expert dimension (EP).
+# `tp_axis`:      optional mesh axis that shards the packed intermediate
+#                 dimension of `gate_up_proj` / `down_proj` (Megatron-style TP
+#                 on `I`). Forward is unaware of TP — the sharding propagates
+#                 from `mark_sharding` on the weights. Callers must supply
+#                 weights in a TP-compatible packed layout (see `get_tt_moe_shard_specs`).
+_config: dict = {"cluster_axis": 0, "tp_axis": None}
 
 
 class _ExpertsModule(Protocol):
@@ -154,9 +161,10 @@ def _expert_mapping(
     ), f"num_experts ({num_experts}) must be divisible by num_devices ({num_devices})"
 
     experts_per_device = num_experts // num_devices
-    device_ids_list = [i // experts_per_device for i in range(num_experts)]
-
-    device_ids = torch.tensor(device_ids_list, device=device, dtype=torch.int64)
+    device_ids = (
+        torch.arange(num_experts, device=device, dtype=torch.int64)
+        // experts_per_device
+    )
 
     mapping = (
         device_ids.unsqueeze(-1)
@@ -332,7 +340,7 @@ def _tt_experts_forward_dp(
         down_out = down_out + down_bias.view(1, E, 1, -1)
 
     # Merge tile axis into token axis: [A*B, E, M, H] → [T, E, H].
-    # A*B and M are adjacent so this is a permute + reshape, no copy.
+    # Permute makes A*B and M adjacent, then reshape collapses them.
     down_out = down_out.permute(0, 2, 1, 3).reshape(T, E, H)
 
     # Gather the K expert outputs per token and weight-sum — O(T*K*H) vs
@@ -415,7 +423,7 @@ def _tt_experts_forward_ep(
         nnz=0,
         is_input_a_sparse=False,
         is_input_b_sparse=True,
-    )  # 5D tiled: [BD, T/M, E, M, 2I]  (decode tiles on BD instead of T).
+    )  # 5D tiled: [BD, T/M, E, M, 2I]
     # T is a multiple of 32 post-pad, so M=32 is always reached; no
     # M=1-squeezed 4D case here (contrast the DP path).
 
@@ -443,7 +451,7 @@ def _tt_experts_forward_ep(
         down_out = down_out + down_bias.view(1, E, 1, -1)
 
     # Combine expects experts on dim 0 with all tokens flattened onto one
-    # axis. A*B and M are adjacent so this is a permute + reshape, no copy.
+    # axis. Permute makes A*B and M adjacent, then reshape collapses them.
     down_out = down_out.permute(1, 0, 2, 3).reshape(E, 1, -1, H)
 
     combined = torch.ops.tt.all_to_all_combine(
@@ -520,7 +528,9 @@ def tt_experts_forward(
 _original_validator: Optional[Callable] = None
 
 
-def register_tt_moe_backend(cluster_axis: int = 0) -> None:
+def register_tt_moe_backend(
+    cluster_axis: int = 0, tp_axis: Optional[int] = None
+) -> None:
     """Register the `tt_moe` experts backend globally.
 
     Idempotent. Also patches
@@ -529,13 +539,27 @@ def register_tt_moe_backend(cluster_axis: int = 0) -> None:
     hatch. `ExpertsInterface` itself is already extensible via `register()`.
 
     Args:
-        cluster_axis: Mesh axis along which experts are sharded. Read at
+        cluster_axis: Mesh axis along which experts are sharded (EP). Read at
             trace time from the global torch_xla SPMD mesh; ignored when no
             mesh is set. Calling this function again updates the value.
+        tp_axis: Optional mesh axis along which the intermediate dimension
+            `I` is sharded (Megatron-style TP on the MoE MLP). Must differ
+            from `cluster_axis`. When set, `get_tt_moe_shard_specs` compound-
+            shards `gate_up_proj` / `down_proj` so XLA SPMD propagates TP
+            through the expert compute without explicit collectives. Callers
+            are responsible for providing `gate_up_proj` in a packed layout
+            whose contiguous TP shards yield per-rank `[local_gate,
+            local_up]` — see `get_tt_moe_shard_specs`.
     """
+    if tp_axis is not None and tp_axis == cluster_axis:
+        raise ValueError(
+            f"tp_axis ({tp_axis}) must differ from cluster_axis ({cluster_axis})"
+        )
+
     global _original_validator
 
     _config["cluster_axis"] = cluster_axis
+    _config["tp_axis"] = tp_axis
     ExpertsInterface.register(TT_MOE_BACKEND_NAME, tt_experts_forward)
     assert TT_MOE_BACKEND_NAME in ALL_EXPERTS_FUNCTIONS, "registration did not stick"
 
@@ -567,24 +591,44 @@ def get_tt_moe_shard_specs(
     original_spec_fn: Callable[[nn.Module], Dict[Any, Any]],
     mesh_names: Tuple[str, ...],
 ) -> Dict[Any, Any]:
-    """Shard expert weights only along the backend's selected cluster axis.
+    """Shard expert weights across the backend's selected EP (and optional TP) axes.
 
     Starts from `original_spec_fn(model)`, then for every transformer layer
-    whose `mlp.experts` follows the HF canonical layout, shards `gate_up_proj`
-    and `down_proj` (and their biases when present) on the expert (first)
-    dimension using the same mesh axis that `_expert_mapping()` dispatches
-    across. This keeps parameter sharding aligned with the expert-to-device
-    mapping used by the EP collectives.
+    whose `mlp.experts` follows the HF canonical layout, shards
+    `gate_up_proj` / `down_proj` (and their biases when present) on the
+    expert dimension along `cluster_axis`, and — when `tp_axis` was passed
+    to `register_tt_moe_backend` — additionally shards the packed
+    intermediate dimension on `tp_axis` (Megatron-style TP on `I`).
 
-    The expected expert weight shapes are the HF canonical ones:
-        gate_up_proj: [E, 2*I, H]
-        down_proj:    [E, H, I]
+    Weight layout conventions:
+        is_transposed=False (Olmoe, Qwen3-MoE, Afmoe, ...):
+            gate_up_proj: [E, 2*I, H]   -> (expert, tp, None)
+            down_proj:    [E, H, I]     -> (expert, None, tp)
+        is_transposed=True (GptOss):
+            gate_up_proj: [E, H, 2*I]   -> (expert, None, tp)
+            down_proj:    [E, I, H]     -> (expert, tp, None)
     and biases:
-        gate_up_proj_bias: [E, 2*I]
-        down_proj_bias:    [E, H]
+            gate_up_proj_bias: [E, 2*I] -> (expert, tp)
+            down_proj_bias:    [E, H]   -> (expert, None)
+
+    TP correctness requires that a contiguous shard of `2*I` along `tp_axis`
+    yields per-rank `[local_gate, local_up]`. The HF chunked packing
+    (first half gate, second half up) does NOT satisfy this — callers must
+    either apply HF's `PackedColwiseParallel` weight transform at load time
+    or pre-permute the fused tensor. See `tmp/tp_smoke/tp_i_shard.py` for a
+    reference permutation.
     """
     shard_specs = original_spec_fn(model)
     expert_axis = _selected_mesh_axis_name(mesh_names)
+
+    tp_axis_idx = _config["tp_axis"]
+    tp_axis: Optional[str] = None
+    if tp_axis_idx is not None:
+        if not 0 <= tp_axis_idx < len(mesh_names):
+            raise ValueError(
+                f"tp_axis={tp_axis_idx} is out of range for mesh_names={mesh_names}"
+            )
+        tp_axis = mesh_names[tp_axis_idx]
 
     layers = getattr(getattr(model, "model", None), "layers", None)
     if layers is None:
@@ -602,12 +646,22 @@ def get_tt_moe_shard_specs(
         ):
             continue
 
-        shard_specs[experts.gate_up_proj] = (expert_axis, None, None)
-        shard_specs[experts.down_proj] = (expert_axis, None, None)
+        is_transposed = bool(getattr(experts, "is_transposed", False))
+        # Place TP axis on the packed-intermediate dim; which slot depends on
+        # is_transposed. With tp_axis=None these both collapse to the
+        # expert-only spec (legacy EP behavior).
+        if is_transposed:
+            # gate_up: [E, H, 2*I]  ; down: [E, I, H]
+            shard_specs[experts.gate_up_proj] = (expert_axis, None, tp_axis)
+            shard_specs[experts.down_proj] = (expert_axis, tp_axis, None)
+        else:
+            # gate_up: [E, 2*I, H]  ; down: [E, H, I]
+            shard_specs[experts.gate_up_proj] = (expert_axis, tp_axis, None)
+            shard_specs[experts.down_proj] = (expert_axis, None, tp_axis)
 
         gate_up_bias = getattr(experts, "gate_up_proj_bias", None)
         if gate_up_bias is not None:
-            shard_specs[gate_up_bias] = (expert_axis, None)
+            shard_specs[gate_up_bias] = (expert_axis, tp_axis)
         down_bias = getattr(experts, "down_proj_bias", None)
         if down_bias is not None:
             shard_specs[down_bias] = (expert_axis, None)

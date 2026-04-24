@@ -87,13 +87,17 @@ def tt_sdpa_attention_forward(
     if attention_mask is not None:
         is_causal = False
 
+    kwargs_tt = {}
+    if scaling is not None:
+        kwargs_tt["scale"] = scaling
+
     attn_output = torch.ops.tt.scaled_dot_product_attention(
         query,
         key,
         value,
         attn_mask=attention_mask,
         is_causal=is_causal,
-        scale=scaling,
+        **kwargs_tt,
     )
     # Transformers expects [B, seq_len, num_heads, head_dim]; the op returns
     # [B, num_heads, seq_len, head_dim] like every other SDPA backend.
