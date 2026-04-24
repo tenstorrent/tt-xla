@@ -188,6 +188,10 @@ def test_compressor_prefill():
     model = make_model(args)
     # Layer 1 has compress_ratio=4
     compressor = model.layers[1].attn.compressor
+    with torch.no_grad():
+        torch.nn.init.normal_(compressor.ape, mean=0.0, std=0.02)
+        torch.nn.init.normal_(compressor.wkv.weight, mean=0.0, std=0.02)
+        torch.nn.init.normal_(compressor.wgate.weight, mean=0.0, std=0.02)
 
     bsz, seqlen = 1, 8  # seqlen = 2 * compress_ratio → 2 compressed positions
     x = torch.randn(bsz, seqlen, args.dim, dtype=torch.bfloat16)
@@ -211,6 +215,10 @@ def test_compressor_decode():
     args = small_args()
     model = make_model(args)
     compressor = model.layers[1].attn.compressor
+    with torch.no_grad():
+        torch.nn.init.normal_(compressor.ape, mean=0.0, std=0.02)
+        torch.nn.init.normal_(compressor.wkv.weight, mean=0.0, std=0.02)
+        torch.nn.init.normal_(compressor.wgate.weight, mean=0.0, std=0.02)
 
     bsz = 1
     x = torch.randn(bsz, 1, args.dim, dtype=torch.bfloat16)
