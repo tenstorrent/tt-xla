@@ -1321,20 +1321,20 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
-  mlir::PassManager runtime_pm(mlir_module.get()->getName());
-  mlir::tt::ttnn::TTNNCommonToRuntimePipelineOptions runtime_options;
-  mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
-                                                    runtime_options);
-  enableVerboseIRPrinting(runtime_pm);
+  // mlir::PassManager runtime_pm(mlir_module.get()->getName());
+  // mlir::tt::ttnn::TTNNCommonToRuntimePipelineOptions runtime_options;
+  // mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
+  //                                                   runtime_options);
+  // enableVerboseIRPrinting(runtime_pm);
 
-  mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
-  if (mlir::failed(mlir_result)) {
-    LOG_F(ERROR, "Failed to run TTNNCommonToRuntime pipeline");
-    return {tt_pjrt_status::kInternal, nullptr};
-  }
+  // mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
+  // if (mlir::failed(mlir_result)) {
+  //   LOG_F(ERROR, "Failed to run TTNNCommonToRuntime pipeline");
+  //   return {tt_pjrt_status::kInternal, nullptr};
+  // }
 
-  printModule(mlir_module, compile_options.export_path, "ttnn_runtime",
-              compile_options.export_model_name);
+  // printModule(mlir_module, compile_options.export_path, "ttnn_runtime",
+  //             compile_options.export_model_name);
 
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
