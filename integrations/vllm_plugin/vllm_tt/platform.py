@@ -129,6 +129,7 @@ class TTPlatform(Platform):
         cls,
         selected_backend: "AttentionBackendEnum",
         attn_selector_config: "AttentionSelectorConfig",
+        num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
             raise NotImplementedError(
@@ -191,13 +192,19 @@ class TTPlatform(Platform):
             )
 
         cache_config = vllm_config.cache_config
+        model_config = vllm_config.model_config
         # For v0, the default block size is 16.
         if cache_config and cache_config.block_size is None:
             cache_config.block_size = cast(BlockSize, 32)
         compilation_config = vllm_config.compilation_config
 
-        # TT only supports DYNAMO_TRACE_ONCE compilation level
-        if compilation_config.mode != CompilationMode.DYNAMO_TRACE_ONCE:
+        # Respect vLLM's enforce_eager handling, which sets mode=NONE before
+        # platform validation. TT should only force DYNAMO_TRACE_ONCE when the
+        # model is actually allowed to compile.
+        if (
+            not (model_config is not None and model_config.enforce_eager)
+            and compilation_config.mode != CompilationMode.DYNAMO_TRACE_ONCE
+        ):
             logger.info(
                 "[TT] Forcing DYNAMO_TRACE_ONCE compilation level, and "
                 "disabling cudagraph."
@@ -221,7 +228,6 @@ class TTPlatform(Platform):
             vllm_config.speculative_config is None
         ), "TT does not support speculative decoding"
 
-        model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
             torch.float16,
             torch.float32,
@@ -272,6 +278,11 @@ class TTPlatform(Platform):
             )
 
     @classmethod
+    def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> None:
+        # TT backend requires a block size divisible by 32 for optimal performance.
+        return 32
+
+    @classmethod
     def is_pin_memory_available(cls):
         logger.warning("Pin memory is not supported on TT.")
         return False
@@ -283,9 +294,8 @@ class TTPlatform(Platform):
     @classmethod
     def validate_request(
         cls,
-        prompt: "PromptType",
-        params: "ParamsType",
         processed_inputs: "ProcessorInputs",
+        params: "ParamsType",
     ) -> None:
         pass
 

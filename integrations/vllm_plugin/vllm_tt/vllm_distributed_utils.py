@@ -61,8 +61,12 @@ class XlaMergedColumnParallelLinear(nn.Module):
     def _load_weights_from_merged_column_parallel_linear(
         self, merged_column_parallel_linear: nn.Module
     ):
-        # The weight is a concatenation of all output weights along the output dimension
-        merged_column_parallel_weight = merged_column_parallel_linear.weight.data.cpu()
+        # The weight is a concatenation of all output weights along the output
+        # dimension. Slice it on CPU first so each shard is a plain tensor
+        # instead of an XLA lazy view on the full merged weight.
+        merged_column_parallel_weight = (
+            merged_column_parallel_linear.weight.detach().cpu()
+        )
 
         start_idx = 0
         for i, output_size in enumerate(self.output_sizes):
@@ -153,8 +157,9 @@ class XlaQKVParallelLinear(nn.Module):
     def _load_weights_from_qkv_linear(self, qkv_linear: nn.Module):
         q_proj_size, k_proj_size, _ = qkv_linear.output_sizes
         # The weight of qkv linear is a concatenation of q, k, and v weights
-        # along the output dimension.
-        qkv_weight = qkv_linear.weight.data.cpu()
+        # along the output dimension. Slice it on CPU first so each shard is a
+        # plain tensor instead of an XLA lazy view on the full merged weight.
+        qkv_weight = qkv_linear.weight.detach().cpu()
         q_weight = Parameter(qkv_weight[:q_proj_size], requires_grad=False)
         k_weight = Parameter(
             qkv_weight[q_proj_size : q_proj_size + k_proj_size], requires_grad=False
@@ -230,6 +235,7 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
+    layer.weight = Parameter(layer.weight.to("xla"), requires_grad=False)
     xs.mark_sharding(layer.weight, mesh, ("batch", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
@@ -239,6 +245,7 @@ def partition_row_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
+    layer.weight = Parameter(layer.weight.to("xla"), requires_grad=False)
     xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
