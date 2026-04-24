@@ -12,7 +12,7 @@ import gc
 import pytest
 import vllm
 
-TEST_TIMEOUT_SECONDS = 180
+TEST_TIMEOUT_SECONDS = 300
 
 _llm_cache: dict[str, vllm.LLM] = {}
 _needs_recreate = False

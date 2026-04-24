@@ -1954,7 +1954,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
-        return
         torch._dynamo.config.dynamic_shapes = False
         decode_only = self.tt_config.decode_only
         with self.maybe_setup_dummy_loras(self.lora_config):
@@ -1980,7 +1979,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.tt_config.decode_only:
             return
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
-        return
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
         if self.supports_mm_inputs:
