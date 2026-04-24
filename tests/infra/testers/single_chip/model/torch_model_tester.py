@@ -262,7 +262,7 @@ class TorchModelTester(ModelTester):
         cpu_grads, cpu_none_grads = self._extract_grads(self._model)
         self._workload.model.zero_grad()
 
-        # Run forward on TT.
+        # Run forward on TT
         compile_options = {
             "tt_legacy_compile": True,
             # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
@@ -273,7 +273,7 @@ class TorchModelTester(ModelTester):
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
 
-        # Force graph break so we can differentiate between forward and backward.
+        # Force graph break so we can differentiate between forward and backward
         # TODO(agobeljicTT): Decide on if we want to keep this after: https://github.com/tenstorrent/tt-xla/issues/3234.
         # torch_xla.sync(wait=True)
 
