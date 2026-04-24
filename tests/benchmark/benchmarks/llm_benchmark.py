@@ -601,6 +601,10 @@ def benchmark_llm_torch_xla(
             verbose=True,
             collect_logits=False,
         )
+        # Flush pending XLA work so device-side warmup buffers are released
+        # before the perf run rebuilds inputs.
+        torch_xla.sync(wait=True)
+        gc.collect()
         log_memory("warmup:end")
 
         # tracy.signpost("warmup_complete")
@@ -645,6 +649,13 @@ def benchmark_llm_torch_xla(
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
     )
+    # Drop the perf wrapper + compiled graph before building the accuracy
+    # wrapper — otherwise both sets of captured device buffers coexist and
+    # push DRAM past the limit on large models.
+    del compiled_perf_model
+    del perf_wrapper
+    torch_xla.sync(wait=True)
+    gc.collect()
     log_memory("perf:end")
 
     # ACCURACY BENCHMARK
@@ -691,6 +702,10 @@ def benchmark_llm_torch_xla(
             ground_truth_tokens=ground_truth_for_benchmark,
             collect_logits=True,
         )
+        del compiled_accuracy
+        del accuracy_wrapper
+        torch_xla.sync(wait=True)
+        gc.collect()
 
     # Post-processing: derive predicted tokens for accuracy testing
     if accuracy_testing:
