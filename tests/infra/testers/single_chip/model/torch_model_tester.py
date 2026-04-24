@@ -274,7 +274,7 @@ class TorchModelTester(ModelTester):
         tt_res = self._unpack_forward_output(tt_res)
 
         # Force graph break so we can differentiate between forward and backward
-        # TODO(agobeljicTT): Decide on if we want to keep this after: https://github.com/tenstorrent/tt-xla/issues/3234.
+        # TODO(agobeljicTT): Decide on if we want to keep this after: https://github.com/tenstorrent/tt-xla/issues/3234
         # torch_xla.sync(wait=True)
 
         # Run backward on TT
