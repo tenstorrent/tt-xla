@@ -48,9 +48,9 @@ Usage:
     )
 
 Shape constraint: `sparse_matmul`'s MoE fast-path tiles the token dimension
-by `REDUCTION_SIZE=32`. On the DP path the total token count `T` must be a
-multiple of 32 (`T < 32` collapses to `M=1`). On the EP path the same
-constraint applies to `dispatch_devices * T`. Pad inputs accordingly.
+by `REDUCTION_SIZE=32`. Inputs are padded to a multiple of 32 tokens
+internally (`_pad_moe_inputs`) and sliced back after the combine. The legacy
+per-token toggle skips padding and runs at `M=1`.
 """
 
 from __future__ import annotations
@@ -190,7 +190,6 @@ def _pad_moe_inputs(
     hidden_states: torch.Tensor,
     top_k_index: torch.Tensor,
     top_k_weights: torch.Tensor,
-    dispatch_devices: int,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
     """Pad token-axis inputs so the per-shard token axis is 32-tile aligned.
 
@@ -258,15 +257,12 @@ def _tt_experts_forward_dp(
     sparsity mask. No collectives, no in-place scatter — fully functional so
     the graph survives AOTAutograd functionalization under XLA export.
     """
-    original_token_count = hidden_states.shape[0]
-    if not USE_LEGACY_PER_TOKEN_SPARSITY:
+    if USE_LEGACY_PER_TOKEN_SPARSITY:
+        # Legacy per-token mask needs no 32-tile alignment: M=1 always.
+        original_token_count = hidden_states.shape[0]
+    else:
         hidden_states, top_k_index, top_k_weights, original_token_count = (
-            _pad_moe_inputs(
-                hidden_states,
-                top_k_index,
-                top_k_weights,
-                dispatch_devices=1,
-            )
+            _pad_moe_inputs(hidden_states, top_k_index, top_k_weights)
         )
 
     experts = cast(_ExpertsModule, self)
@@ -278,30 +274,17 @@ def _tt_experts_forward_dp(
     # Binary per-token mask [T, E]: `one_hot + any` over the top-K axis —
     # functional (no scatter_, AOT-safe) and ones-valued (weight-valued masks
     # would silently drop experts whose router weight is exactly zero).
-    one_hot = top_k_index.unsqueeze(-1) == torch.arange(
-        E, device=device
-    )  # [T, K, E] bool
-    per_token = one_hot.any(dim=1)  # [T, E] bool — expert picked by any of K
+    one_hot = top_k_index.unsqueeze(-1) == torch.arange(E, device=device)
+    per_token = one_hot.any(dim=1)  # [T, E] bool
 
-    if USE_LEGACY_PER_TOKEN_SPARSITY:
-        # Pure tech debt — see toggle definition above. Per-token mask
-        # `[1, 1, T, E]` matching the deleted sparse_mlp.SparseMLP shape.
-        # On TT it's rejected at MLIR lowering (the kernel requires M=32 tile
-        # mode, not M=1); on CPU it runs at roughly the same speed as the
-        # tile-reduced default. Kept only for A/B regression checks against
-        # history.
-        sparsity = per_token.view(1, 1, T, E).to(dtype)
-    else:
-        # Tile-reduced binary sparsity mask [1, 1, ceil(T/32), E]: 1 wherever
-        # any token in a 32-token tile selects expert e. This is the only
-        # shape the on-device sparse_matmul kernel accepts for the M dim.
-        reduced = (T + REDUCTION_SIZE - 1) // REDUCTION_SIZE
-        if T % REDUCTION_SIZE != 0:
-            pad = reduced * REDUCTION_SIZE - T
-            per_token = torch.nn.functional.pad(per_token, (0, 0, 0, pad))
-        sparsity = (
-            per_token.view(1, 1, reduced, REDUCTION_SIZE, E).any(dim=3).to(dtype)
-        )  # [1, 1, ceil(T/32), E]
+    # Bucket the per-token mask into [1, 1, T/tile, E] where a bit is 1 iff
+    # any of its `tile` tokens selects the expert. Default uses 32-wide tiles
+    # aligned to sparse_matmul's M=32 fast path; legacy uses `tile=1` straight
+    # through — pure tech debt, see the module-level toggle comment. T is
+    # pre-padded to a multiple of REDUCTION_SIZE on the default path, so the
+    # view divides cleanly.
+    tile = 1 if USE_LEGACY_PER_TOKEN_SPARSITY else REDUCTION_SIZE
+    sparsity = per_token.view(1, 1, T // tile, tile, E).any(dim=3).to(dtype)
 
     # Fused gate/up projection via block-sparse batched GEMM.
     # sparse_matmul expects input_b as [1, E, in_features, out_features].
@@ -326,9 +309,9 @@ def _tt_experts_forward_dp(
     activated = experts._apply_gate(gate_up_out)
 
     # Restore M if sparse_matmul squeezed it away. `sparse_matmul` emits a
-    # final `.squeeze(-2)` whenever M=1, which happens when either (a) the
-    # legacy per-token toggle is on, or (b) T=1 (decode). The subsequent
-    # reshape needs a 4-axis tile layout regardless.
+    # `.squeeze(-2)` whenever M=1, which only happens on the legacy per-token
+    # path (toggle above): the default path pads T to a multiple of 32
+    # upstream and always reaches M=32.
     if activated.dim() == 4:
         activated = activated.unsqueeze(-2)
     A, B, _, M_tile, I_dim = activated.shape
@@ -373,10 +356,7 @@ def _tt_experts_forward_ep(
     then combine per-expert outputs back to original token positions.
     """
     hidden_states, top_k_index, top_k_weights, original_token_count = _pad_moe_inputs(
-        hidden_states,
-        top_k_index,
-        top_k_weights,
-        dispatch_devices=dispatch_devices,
+        hidden_states, top_k_index, top_k_weights
     )
 
     experts = cast(_ExpertsModule, self)
@@ -435,21 +415,19 @@ def _tt_experts_forward_ep(
         nnz=0,
         is_input_a_sparse=False,
         is_input_b_sparse=True,
-    )  # 5D tiled: [BD, T/M, E, M, 2I]  (decode tiles on BD instead of T)
+    )  # 5D tiled: [BD, T/M, E, M, 2I]  (decode tiles on BD instead of T).
+    # T is a multiple of 32 post-pad, so M=32 is always reached; no
+    # M=1-squeezed 4D case here (contrast the DP path).
 
     gate_up_bias = getattr(self, "gate_up_proj_bias", None)
     if gate_up_bias is not None:
-        if gate_up_out.dim() == 5:
-            gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, 1, -1)
-        else:
-            gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, -1)
+        gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, 1, -1)
 
     activated = experts._apply_gate(gate_up_out)
 
-    # Flatten to canonical 4D before down GEMM.
-    if activated.dim() == 5:
-        A, B, _, M_tile, _ = activated.shape
-        activated = activated.reshape(A * B, E, M_tile, activated.shape[-1])
+    A, B, _, M_tile, I_dim = activated.shape
+    activated = activated.reshape(A * B, E, M_tile, I_dim)
+
     down_w = _as_sparse_matmul_weight(experts.down_proj, experts.is_transposed)
     down_out = torch.ops.tt.sparse_matmul(
         activated,
@@ -460,15 +438,13 @@ def _tt_experts_forward_ep(
         is_input_b_sparse=False,
     )  # [A*B, E, M, H]
 
-    # Per-expert bias [E, H] on canonical [A*B, E, M, H].
     down_bias = getattr(self, "down_proj_bias", None)
     if down_bias is not None:
         down_out = down_out + down_bias.view(1, E, 1, -1)
 
-    # Reshape to the layout combine expects: experts on dim 0, all tokens on
-    # one axis. A*B and M are adjacent so this is a permute + reshape, no copy.
-    AB, E_, M_, Hout = down_out.shape
-    down_out = down_out.permute(1, 0, 2, 3).reshape(E_, 1, AB * M_, Hout)
+    # Combine expects experts on dim 0 with all tokens flattened onto one
+    # axis. A*B and M are adjacent so this is a permute + reshape, no copy.
+    down_out = down_out.permute(1, 0, 2, 3).reshape(E, 1, -1, H)
 
     combined = torch.ops.tt.all_to_all_combine(
         down_out,
