@@ -214,11 +214,15 @@ def _make_model_pair(original_model_module, **overrides):
     )
     _initialize_original_parameters(original_model)
 
+    # Use a different init seed for the modified model so missed state syncs do
+    # not get masked by matching random initialization.
     torch.manual_seed(1)
     modified_args = _make_args(modified_model, **overrides)
     modified = modified_model.Transformer(modified_args).eval()
     modified.embed.weight.data = modified.embed.weight.data.to(torch.bfloat16)
 
+    # Test equivalence should come from explicit state transfer, not from both
+    # models happening to start from the same RNG state.
     _sync_common_state(original_model, modified)
     _prepare_original_model_state(original_model)
     return original_model, modified
