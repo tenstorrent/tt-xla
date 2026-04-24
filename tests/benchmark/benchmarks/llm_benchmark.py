@@ -577,9 +577,15 @@ def benchmark_llm_torch_xla(
             collect_logits=True,
         )
 
-    # Post-processing: derive predicted tokens for accuracy testing
+    # Post-processing: derive predicted tokens for accuracy testing (all users)
     if accuracy_testing:
-        predicted_tokens = [logits.argmax(dim=-1)[0].item() for logits in output_logits]
+        batch_size_for_accuracy = output_logits[0].shape[0]
+        per_user_predictions = []
+        for user_idx in range(batch_size_for_accuracy):
+            user_tokens = [
+                logits.argmax(dim=-1)[user_idx].item() for logits in output_logits
+            ]
+            per_user_predictions.append(user_tokens)
 
     ttft_ns = iteration_times[0] if not decode_only else 0.0
     ttft_ms = ttft_ns / 1e6
@@ -634,11 +640,19 @@ def benchmark_llm_torch_xla(
     ]
 
     if accuracy_testing:
-        # Compute token accuracy from predictions (after generation completes)
-        top1_accuracy, top5_accuracy = token_accuracy.compute_accuracy(predicted_tokens)
+        # Compute token accuracy averaged across all users in the batch
+        all_top1 = []
+        all_top5 = []
+        for user_idx, user_tokens in enumerate(per_user_predictions):
+            user_top1, user_top5 = token_accuracy.compute_accuracy(user_tokens)
+            all_top1.append(user_top1)
+            all_top5.append(user_top5)
+
+        top1_accuracy = sum(all_top1) / len(all_top1)
+        top5_accuracy = sum(all_top5) / len(all_top5)
         print(
-            "Token accuracy: TOP1={:.2f}%, TOP5={:.2f}%".format(
-                top1_accuracy * 100, top5_accuracy * 100
+            "Token accuracy (averaged over {} users): TOP1={:.2f}%, TOP5={:.2f}%".format(
+                len(all_top1), top1_accuracy * 100, top5_accuracy * 100
             )
         )
 
