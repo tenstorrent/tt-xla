@@ -91,7 +91,7 @@ jobs:
         sparse-checkout-cone-mode: false
         sparse-checkout: |
           .github/
-          tests/benchmark/
+          tests/
           third_party/
           pytest.ini
           python_package/requirements.txt

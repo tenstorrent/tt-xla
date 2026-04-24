@@ -411,6 +411,13 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
     return "strategy" in params and "batch_axis" in params
 
 
+# Mesh shapes that support explicit FSDP/Megatron sharding strategies.
+#   n300-llmbox (8 chips):   (1, 8), (2, 4)
+#   galaxy-wh-6u (32 chips): (4, 8)
+#   qb2-blackhole (4 chips): (1, 4), (2, 2)
+_EXPLICIT_STRATEGY_MESH_SHAPES = {(1, 4), (2, 2), (1, 8), (2, 4), (4, 8)}
+
+
 def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
     """Return skip reason for invalid LLM sharding strategy/mesh combinations."""
     strategy = sharding_config.shard_strategy
@@ -424,21 +431,23 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
     if mesh_shape is None:
         return "Explicit sharding strategy requires mesh_shape"
 
-    if mesh_shape == (1, 8):
-        if strategy != ShardingStrategy.MEGATRON or shard_inputs:
-            return (
-                "For mesh_1x8, only megatron-no_dp is kept because fsdp-no_dp is "
-                "effectively equivalent here (non-model mesh dimension is size 1). "
-                "Use strategy=megatron with shard_inputs=False, or switch to mesh_2x4 "
-                "if you want distinct fsdp behavior."
-            )
-        return None
-
-    if mesh_shape != (2, 4):
+    if mesh_shape not in _EXPLICIT_STRATEGY_MESH_SHAPES:
         return (
             f"Unsupported mesh_shape={mesh_shape} for explicit sharding strategy. "
-            "Supported explicit strategy mesh shapes: mesh_1x8 and mesh_2x4."
+            f"Supported: {sorted(_EXPLICIT_STRATEGY_MESH_SHAPES)}"
         )
+
+    # When the non-model mesh dim is 1, FSDP collapses to Megatron, so we keep
+    # only megatron-no_dp to avoid redundant tests.
+    if mesh_shape == (1, 8) or mesh_shape == (1, 4):
+        if strategy != ShardingStrategy.MEGATRON or shard_inputs:
+            return (
+                f"For mesh_{mesh_shape[0]}x{mesh_shape[1]}, only megatron-no_dp is kept "
+                "because fsdp-no_dp is effectively equivalent here (non-model mesh "
+                "dimension is size 1). Use strategy=megatron with shard_inputs=False, "
+                "or switch to a mesh with non-model dim > 1 if you want distinct fsdp "
+                "behavior."
+            )
 
     return None
 
@@ -454,7 +463,7 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
 )
 @pytest.mark.parametrize(
     "mesh_shape",
-    [None, (1, 8), (2, 4)],
+    [None, (1, 4), (2, 2), (1, 8), (2, 4), (4, 8)],
     ids=_generate_mesh_shape_id,
 )
 @pytest.mark.parametrize(

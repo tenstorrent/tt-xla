@@ -12,6 +12,7 @@ ALLOWED_ARCHES = {
     "n300-llmbox",
     "galaxy-wh-6u",
     "qb2-blackhole",
+    "lb-blackhole",
 }
 
 # Allowed fields in test_config YAML entries
@@ -59,7 +60,14 @@ PARALLELISMS_LLM = (
     "fsdp-dp-tensor_parallel",
     "megatron-dp-tensor_parallel",
 )
-LLM_MESH_SHAPES = ("mesh_default", "mesh_1x8", "mesh_2x4")
+LLM_MESH_SHAPES = (
+    "mesh_default",
+    "mesh_1x4",
+    "mesh_2x2",
+    "mesh_1x8",
+    "mesh_2x4",
+    "mesh_4x8",
+)
 
 # Run modes
 RUN_MODES_STANDARD = ("inference", "training")

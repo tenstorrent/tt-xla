@@ -56,7 +56,9 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 
-from .configuration_deepseek import DeepseekV3Config
+from third_party.tt_forge_models.kimi_k2.pytorch.configuration_deepseek import (
+    DeepseekV3Config,
+)
 
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func

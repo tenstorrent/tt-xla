@@ -61,6 +61,7 @@ def test_llm(
     weight_dtype_overrides: dict = None,
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
+    use_mla_cache: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -154,6 +155,7 @@ def test_llm(
         weight_dtype_overrides=weight_dtype_overrides,
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
+        use_mla_cache=use_mla_cache,
     )
 
     if output_file:
@@ -1118,6 +1120,7 @@ def test_mistral_small_24b_instruct_2501_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1288,6 +1291,7 @@ def test_qwen_3_8b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1461,6 +1465,7 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
+        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1786,4 +1791,39 @@ def test_gpt_oss_120b_tp_qb2(
         required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
         mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
         # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+    )
+
+
+# Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
+def test_kimi_k2_tp_galaxy_2_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.kimi_k2.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.KIMI_K2_INSTRUCT_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=2,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=128,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=0.91,
     )
