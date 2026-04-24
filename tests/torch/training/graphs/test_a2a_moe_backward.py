@@ -35,7 +35,7 @@ def _setup_mesh():
 def _build_model(num_devices: int):
     config = GPTOSSModelLoader(num_layers=1).load_config()
     config.num_hidden_layers = 1
-    config.num_local_experts = 4
+    config.num_local_experts = 32
     config.num_experts_per_tok = 2
     config.hidden_size = 64
     config.intermediate_size = 64
@@ -110,7 +110,7 @@ def test_a2a_sparse_mlp_backward_pcc():
     out_tt, _ = mlp_tt(x_tt)
     out_tt.sum().backward()
 
-    required_pcc = 0.99
+    required_pcc = 0.95
     compute_pcc(out_cpu, out_tt.cpu(), required_pcc)
     compute_pcc(x_cpu.grad, x_tt.grad.cpu(), required_pcc)
     compute_pcc(

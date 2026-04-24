@@ -73,12 +73,6 @@ def _shard_decoder_layer(layer, mesh: Mesh, cluster_axis: int):
 @pytest.mark.push
 @pytest.mark.llmbox
 def test_gpt_oss_layer_bwd_pcc_2x4():
-    """
-    Attention sharded 2-way on axis_0, experts compound-sharded across both
-    mesh axes (built via build_expert_mapping with mesh_shape=(2,4)). Input
-    is sharded ``("_axis_1", None, "_axis_0")`` following the same pattern as
-    the deepseek_v3_2 / glm4 2x4 MoE tests.
-    """
     mesh, device, num_devices = _setup_mesh()
     cluster_axis = 0
     batch_size, seq_len = 8, 32
@@ -86,10 +80,10 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
     torch.manual_seed(0)
     layer_cpu, config = _build_layer(num_experts=NUM_EXPERTS)
     torch.manual_seed(0)
-    layer_tt, _ = _build_layer(num_experts=NUM_EXPERTS)
-    layer_tt.load_state_dict(layer_cpu.state_dict())
+    moe_layer, _ = _build_layer(num_experts=NUM_EXPERTS)
+    moe_layer.load_state_dict(layer_cpu.state_dict())
 
-    for layer in (layer_tt, layer_cpu):
+    for layer in (moe_layer, layer_cpu):
         enable_sparse_mlp(
             layer,
             mesh=MESH_SHAPE,
@@ -118,15 +112,15 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
     )
     out_cpu.sum().backward()
 
-    layer_tt = layer_tt.to(device)
-    _shard_decoder_layer(layer_tt, mesh, cluster_axis)
+    moe_layer = moe_layer.to(device)
+    _shard_decoder_layer(moe_layer, mesh, cluster_axis)
 
     x_tt = hidden_states.detach().clone().to(device).requires_grad_(True)
     xs.mark_sharding(x_tt, mesh, ("_axis_1", None, "_axis_0"))
     cos_tt, sin_tt = cos.to(device), sin.to(device)
     pos_tt = position_ids.to(device)
 
-    out_tt = layer_tt(
+    out_tt = moe_layer(
         x_tt,
         attention_mask=None,
         position_ids=pos_tt,
@@ -144,27 +138,27 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
         "dx": (x_cpu.grad, x_tt.grad.cpu()),
         "gate_proj.grad": (
             layer_cpu.mlp.experts.gate_proj.grad,
-            layer_tt.mlp.experts.gate_proj.grad.cpu(),
+            moe_layer.mlp.experts.gate_proj.grad.cpu(),
         ),
         "up_proj.grad": (
             layer_cpu.mlp.experts.up_proj.grad,
-            layer_tt.mlp.experts.up_proj.grad.cpu(),
+            moe_layer.mlp.experts.up_proj.grad.cpu(),
         ),
         "down_proj.grad": (
             layer_cpu.mlp.experts.down_proj.grad,
-            layer_tt.mlp.experts.down_proj.grad.cpu(),
+            moe_layer.mlp.experts.down_proj.grad.cpu(),
         ),
         "router.grad": (
             layer_cpu.mlp.router.weight.grad,
-            layer_tt.mlp.router.weight.grad.cpu(),
+            moe_layer.mlp.router.weight.grad.cpu(),
         ),
         "q_proj.grad": (
             layer_cpu.self_attn.q_proj.weight.grad,
-            layer_tt.self_attn.q_proj.weight.grad.cpu(),
+            moe_layer.self_attn.q_proj.weight.grad.cpu(),
         ),
         "o_proj.grad": (
             layer_cpu.self_attn.o_proj.weight.grad,
-            layer_tt.self_attn.o_proj.weight.grad.cpu(),
+            moe_layer.self_attn.o_proj.weight.grad.cpu(),
         ),
     }
     for name, (g, t) in cases.items():
