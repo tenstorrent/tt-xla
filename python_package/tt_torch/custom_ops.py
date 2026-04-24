@@ -1508,9 +1508,9 @@ def _a2a_combine_backward(ctx, grad_combined):
     valid_KT = (expert_ids_KT >= 0) & (expert_ids_KT < E_local)
     expert_ids_clamped = expert_ids_KT.clamp(0, E_local - 1)
     e_range = torch.arange(E_local, device=g.device)
-    one_hot = (
-        e_range.view(E_local, 1, 1) == expert_ids_clamped.view(1, K, tpd)
-    ).to(g.dtype)  # [E_local, K, tpd]
+    one_hot = (e_range.view(E_local, 1, 1) == expert_ids_clamped.view(1, K, tpd)).to(
+        g.dtype
+    )  # [E_local, K, tpd]
     one_hot = one_hot * valid_KT.unsqueeze(0).to(g.dtype)
     partial = torch.einsum("ekt,kth->eth", one_hot, g)
     if tokens_total > tpd:

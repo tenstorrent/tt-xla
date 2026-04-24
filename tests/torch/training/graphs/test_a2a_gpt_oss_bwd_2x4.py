@@ -10,9 +10,9 @@ import torch_xla.runtime as xr
 from benchmark.utils import compute_pcc
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
-from tt_torch.sparse_mlp import enable_sparse_mlp
 from transformers import AutoConfig
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssDecoderLayer
+from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from third_party.tt_forge_models.gpt_oss.pytorch.overrides import (
     override_gpt_oss_modules,
