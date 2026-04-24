@@ -262,19 +262,20 @@ class TorchModelTester(ModelTester):
         cpu_grads, cpu_none_grads = self._extract_grads(self._model)
         self._workload.model.zero_grad()
 
-        # Run forward on TT
-        compile_options = {"tt_experimental_compile": False}
-
-        # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
-        if self._parallelism == Parallelism.TENSOR_PARALLEL:
-            compile_options["tt_enable_torch_fx_fusion_pass"] = False
+        # Run forward on TT.
+        compile_options = {
+            "tt_legacy_compile": True,
+            # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
+            "tt_enable_torch_fx_fusion_pass": False,
+        }
 
         self._compile_for_tt_device(self._workload, compile_options)
         tt_res = self._run_on_tt_device(self._workload)
         tt_res = self._unpack_forward_output(tt_res)
 
-        # Force graph break so we can differentiate between forward and backward
-        torch_xla.sync(wait=True)
+        # Force graph break so we can differentiate between forward and backward.
+        # TODO(agobeljicTT): Decide on if we want to keep this after: https://github.com/tenstorrent/tt-xla/issues/3234.
+        # torch_xla.sync(wait=True)
 
         # Run backward on TT
         tt_backward_workload = Workload(
