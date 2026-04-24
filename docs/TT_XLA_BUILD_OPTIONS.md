@@ -63,46 +63,60 @@ uv venv --python 3.12 /tmp/quetzal-venv
 source /tmp/quetzal-venv/bin/activate
 ```
 
-### 3. Install TT-XLA wheels from the Tenstorrent index
+### 3. Install the pinned `tt-forge` meta-wheel
+
+`pjrt-plugin-tt` alone resolves poorly against the current Tenstorrent
+index (it declares transitive URL dependencies that confuse `uv pip`).
+The `tt-forge` meta-wheel pins everything compatible — `tt_torch`,
+`torch_xla`, `pjrt_plugin_tt`, `torch_plugin_tt`, `jax_plugin_tt`,
+plus torch 2.9.1+cpu, jax 0.7.1, vllm, etc.:
 
 ```bash
-pip install pjrt-plugin-tt \
-  --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+/tmp/quetzal-venv/bin/python -m ensurepip
+/tmp/quetzal-venv/bin/python -m pip install "tt-forge==1.1.0.dev20260417001937" \
+  --extra-index-url https://pypi.eng.aws.tenstorrent.com/ \
+  --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
-This installs `pjrt_plugin_tt` (the PJRT `.so` + its tt-mlir/tt-metal runtime
-dependencies), plus the thin `jax_plugin_tt` and `torch_plugin_tt` wrappers.
+The pinned version string is from `tt-quetzalcoatlus/scripts/setup.sh`;
+bump it if that repo's pin moves.
 
-### 4. Install the project's Python requirements
+### 4. Selective `tt_torch` overlay (do NOT blanket-overlay `python_package`)
 
-Pin JAX/Torch to match the wheel, plus test tooling:
+The wheel installs its own `tt_torch` (without this branch's quetzal
+additions). You want the branch's version to win. But you do NOT want
+to overlay the whole `python_package` dir — its `pjrt_plugin_tt`
+skeleton has no `.so`, no `lib64/`, and no bundled `tt-metal/`, so
+overlaying it shadows the working wheel-installed plugin and device
+init fails.
+
+Overlay only `tt_torch`:
 
 ```bash
-pip install -r python_package/requirements.txt
-pip install -r venv/requirements-dev.txt
+mkdir -p /tmp/quetzal-overlay
+ln -sfn $(pwd)/python_package/tt_torch /tmp/quetzal-overlay/tt_torch
+export PYTHONPATH=/tmp/quetzal-overlay
 ```
 
-If `torch-xla` is not pulled transitively, install Tenstorrent's custom build
-from the same index:
+Now `import tt_torch` → your checkout. `import pjrt_plugin_tt` →
+the wheel's fully-bundled version.
+
+### 5. Set `LD_LIBRARY_PATH` so the PJRT plugin can resolve its deps
+
+`pjrt_plugin_tt.so` links a vendored libprotobuf that lives in a
+separate `pjrt_plugin_tt.libs/` directory sibling to the package. That
+dir's RPATH lookup via `$ORIGIN/../pjrt_plugin_tt.libs` only works when
+the plugin is loaded from its installed site-packages location; it can
+fail for edge-case dlopen orderings, so setting it explicitly is
+robust. torch_xla's C extension also needs `libpython3.12.so.1.0`
+which uv ships under its managed Python install:
 
 ```bash
-pip install torch-xla \
-  --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+SITE=/tmp/quetzal-venv/lib/python3.12/site-packages
+UV_PY=$(readlink -f $(which python3.12))
+UV_LIB=$(dirname $UV_PY)/../lib
+export LD_LIBRARY_PATH=$SITE/pjrt_plugin_tt.libs:$SITE/pjrt_plugin_tt/lib64:$UV_LIB
 ```
-
-### 5. Put the branch's `tt_torch` on PYTHONPATH
-
-The prebuilt wheel installs `pjrt_plugin_tt`, `jax_plugin_tt`,
-`torch_plugin_tt`. It does **not** contain the in-repo `tt_torch` package,
-which holds the torch backend logic including this branch's additions
-(`quetzal_rewrite.py`, `quetzal_analysis.py`). Overlay it:
-
-```bash
-export PYTHONPATH="$(pwd)/python_package:$(pwd):$(pwd)/tests"
-```
-
-Order matters: `python_package` must come first so `import tt_torch` resolves
-to the checkout, not site-packages.
 
 ### 6. Smoke tests
 
@@ -113,16 +127,17 @@ python -c "import jax; print(jax.devices('tt'))"
 python -c "import torch_xla.core.xla_model as xm; print(xm.get_xla_supported_devices('tt'))"
 ```
 
-Focused quetzal tests (no device required):
+Focused quetzal tests (no device required). Use `--noconftest` to skip the
+tests/ conftest which imports heavy model-infra deps we don't need here:
 
 ```bash
-pytest -svv \
+python -m pytest --noconftest -p no:cacheprovider -svv \
   tests/torch/test_quetzal_rewrite.py \
   tests/torch/test_quetzal_analysis.py \
   tests/torch/test_quetzal_ir_compare.py
 ```
 
-End-to-end IR comparison on a real device:
+End-to-end IR comparison of toy graphs on a real device:
 
 ```bash
 python scripts/compare_quetzal_rewrite_ir.py \
@@ -130,6 +145,19 @@ python scripts/compare_quetzal_rewrite_ir.py \
   --output-dir /tmp/quetzal-ir \
   --strict
 ```
+
+Three-way A/B/C comparison on a real HuggingFace model (requires the
+`tt-quetzalcoatlus` checkout at `$QUETZAL_DIR`, default
+`/localdev/nkapre/tt-quetzalcoatlus`):
+
+```bash
+XLA_PY=/tmp/quetzal-venv/bin/python \
+python scripts/compare_three_way.py meta-llama/Llama-3.1-8B \
+  --seq-len 1 --batch-size 1 --n-runs 5
+```
+
+This runs the model three ways and prints a PCC + runtime + IR-token-count
+table. See the script header for what A/B/C mean.
 
 No-device, compile-only mode requires a `.ttsys` system descriptor produced
 on a machine with real hardware (see `examples/pytorch/system_desc.py`):
