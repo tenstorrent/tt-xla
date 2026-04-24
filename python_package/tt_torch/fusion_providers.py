@@ -232,6 +232,23 @@ class QuetzalFuseGELUProvider(FusionProvider):
         return half_x.mul(tanh_output.add(1.0))
 
     @staticmethod
+    def pattern_method_function_pow(x: Tensor) -> Tensor:
+        # Dynamo traces binary operators (* +) as call_method on a Tensor Proxy,
+        # but leaves named torch.* calls (torch.pow, torch.tanh) as call_function.
+        # HF transformers' NewGELUActivation (GPT-2 et al) uses `0.5 * x` and
+        # `torch.pow(x, 3.0)` — so after dynamo the graph has call_method mul/add
+        # plus a call_function torch.pow. Symbolic_trace of `x.pow(3.0)` would
+        # instead produce a call_method pow, which is why the other method-form
+        # pattern does NOT match a dynamo-captured GELU subgraph.
+        half_x = x.mul(0.5)
+        x_pow_3 = torch.pow(x, 3.0)
+        cubic_term = x_pow_3.mul(0.044715)
+        inner = x.add(cubic_term)
+        tanh_input = inner.mul(0.7978845608028654)
+        tanh_output = torch.tanh(tanh_input)
+        return half_x.mul(tanh_output.add(1.0))
+
+    @staticmethod
     def pattern_operator(x: Tensor) -> Tensor:
         return 0.5 * x * (1.0 + torch.tanh(0.7978845608028654 * (x + 0.044715 * x**3)))
 
@@ -248,6 +265,7 @@ class QuetzalFuseGELUProvider(FusionProvider):
     def get_patterns(self) -> List[tuple]:
         return [
             (self.pattern_method, self.replacement),
+            (self.pattern_method_function_pow, self.replacement),
             (self.pattern_operator, self.replacement),
             (self.pattern_operator_method_pow, self.replacement),
         ]
