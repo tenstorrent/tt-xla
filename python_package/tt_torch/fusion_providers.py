@@ -218,6 +218,10 @@ class QuetzalFuseGELUProvider(FusionProvider):
         return "fuse_gelu"
 
     @staticmethod
+    def pattern(x: Tensor) -> Tensor:
+        return QuetzalFuseGELUProvider.pattern_operator(x)
+
+    @staticmethod
     def pattern_method(x: Tensor) -> Tensor:
         half_x = x.mul(0.5)
         x_pow_3 = x.pow(3.0)
@@ -232,6 +236,12 @@ class QuetzalFuseGELUProvider(FusionProvider):
         return 0.5 * x * (1.0 + torch.tanh(0.7978845608028654 * (x + 0.044715 * x**3)))
 
     @staticmethod
+    def pattern_operator_method_pow(x: Tensor) -> Tensor:
+        return 0.5 * x * (
+            1.0 + torch.tanh(0.7978845608028654 * (x + 0.044715 * x.pow(3.0)))
+        )
+
+    @staticmethod
     def replacement(x: Tensor) -> Tensor:
         return F.gelu(x, approximate="tanh")
 
@@ -239,6 +249,7 @@ class QuetzalFuseGELUProvider(FusionProvider):
         return [
             (self.pattern_method, self.replacement),
             (self.pattern_operator, self.replacement),
+            (self.pattern_operator_method_pow, self.replacement),
         ]
 
 
@@ -250,6 +261,12 @@ class QuetzalReconstructSDPAProvider(FusionProvider):
     @property
     def name(self) -> str:
         return "reconstruct_sdpa"
+
+    @staticmethod
+    def pattern(query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        return QuetzalReconstructSDPAProvider.pattern_unscaled_operator(
+            query, key, value
+        )
 
     @staticmethod
     def pattern_scaled_method(
@@ -291,6 +308,10 @@ class QuetzalReconstructSDPAProvider(FusionProvider):
         return F.scaled_dot_product_attention(
             query, key, value, dropout_p=0.0, is_causal=False
         )
+
+    @staticmethod
+    def replacement(query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        return QuetzalReconstructSDPAProvider.replacement_unscaled(query, key, value)
 
     def get_patterns(self) -> List[tuple]:
         return [

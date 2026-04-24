@@ -35,6 +35,21 @@ def test_run_selected_fusion_passes_fuses_tanh_gelu():
     assert torch.nn.functional.gelu in targets
 
 
+def test_run_selected_fusion_passes_fuses_tanh_gelu_method_pow():
+    def decomposed_gelu(x: torch.Tensor) -> torch.Tensor:
+        return 0.5 * x * (
+            1.0 + torch.tanh(0.7978845608028654 * (x + 0.044715 * x.pow(3.0)))
+        )
+
+    gm = torch.fx.symbolic_trace(decomposed_gelu)
+    replacements = run_selected_fusion_passes(gm, ["fuse_gelu"])
+
+    assert replacements == {"fuse_gelu": 1}
+
+    targets = [node.target for node in gm.graph.nodes if node.op == "call_function"]
+    assert torch.nn.functional.gelu in targets
+
+
 def test_run_selected_fusion_passes_reconstructs_sdpa():
     def manual_sdpa(
         q: torch.Tensor, k: torch.Tensor, v: torch.Tensor
