@@ -10,6 +10,8 @@ endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
+set(TILELANG_VERSION "264efe2d36802e5e84a77ff11f59e46c86cbec11")
+
 if (TOOLCHAIN STREQUAL "ON")
     cmake_minimum_required(VERSION 3.20)
     project(ttmlir-toolchain LANGUAGES CXX C)
@@ -129,5 +131,33 @@ else()
         GIT_TAG ${LOGURU_VERSION}
         GIT_PROGRESS ON
     )
+
+    if(TTXLA_ENABLE_TILELANG)
+        set(TILELANG_LLVM_CONFIG "${TTMLIR_TOOLCHAIN_DIR}/bin/llvm-config" CACHE FILEPATH "llvm-config used to build tilelang's bundled TVM")
+        set(TILELANG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tilelang/src/tilelang")
+        set(TILELANG_BUILD_DIR "${TILELANG_SOURCE_DIR}/build")
+        ExternalProject_Add(
+            tilelang
+            PREFIX ${TTPJRT_SOURCE_DIR}/third_party/tilelang
+            GIT_REPOSITORY https://github.com/tile-ai/tilelang.git
+            GIT_TAG ${TILELANG_VERSION}
+            GIT_PROGRESS ON
+            GIT_SUBMODULES_RECURSE ON
+            PATCH_COMMAND mkdir -p ${TILELANG_BUILD_DIR}
+            COMMAND pip install -q "cython>=3.1.0"
+            COMMAND sed -i "s|set(USE_LLVM OFF)|set(USE_LLVM ${TILELANG_LLVM_CONFIG})|" <SOURCE_DIR>/3rdparty/tvm/cmake/config.cmake
+            COMMAND sed -i "s|triple, cpu, features, target_options, reloc_model, code_model, opt_level|llvm::Triple(triple), cpu, features, target_options, reloc_model, code_model, opt_level|" <SOURCE_DIR>/3rdparty/tvm/src/target/llvm/llvm_instance.cc
+            CMAKE_GENERATOR Ninja
+            BINARY_DIR ${TILELANG_BUILD_DIR}
+            CMAKE_ARGS
+              -DCMAKE_BUILD_TYPE=Release
+              -DCMAKE_C_COMPILER=clang
+              -DCMAKE_CXX_COMPILER=clang++
+              -DUSE_CUDA=OFF
+              -DUSE_ROCM=OFF
+              -DUSE_LLVM=${TILELANG_LLVM_CONFIG}
+            INSTALL_COMMAND pip install "apache-tvm-ffi>=0.1.6" "z3-solver>=4.13.0"
+        )
+    endif()
 
 endif()
