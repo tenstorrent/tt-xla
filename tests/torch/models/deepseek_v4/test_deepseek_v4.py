@@ -44,7 +44,7 @@ def small_args(**overrides) -> ModelArgs:
         vocab_size=256,
         dim=128,
         moe_inter_dim=64,
-        n_layers=2,
+        n_layers=3,
         n_mtp_layers=0,
         n_heads=4,
         q_lora_rank=64,
@@ -56,7 +56,7 @@ def small_args(**overrides) -> ModelArgs:
         o_groups=2,
         o_lora_rank=32,
         window_size=8,
-        compress_ratios=(0, 4),
+        compress_ratios=(0, 4, 8),
         index_n_heads=4,
         index_head_dim=16,
         index_topk=4,
@@ -180,20 +180,26 @@ def test_hc_split_sinkhorn():
 
 @pytest.mark.nightly
 @pytest.mark.dual_chip
-def test_compressor_prefill():
+# most parameterizations are failing due to PCC (TT output is all or partially zeroed)
+# or compile error 'fused_0' object has no attribute 'xla_args'
+@pytest.mark.parametrize("seqlen", [3, 4, 5, 8, 9])
+@pytest.mark.parametrize(
+    "compressor_layer", [1, 2], ids=["ratio4_overlap", "ratio8_no_overlap"]
+)  # CSA uses overlapping compression, compression ratio = 4, on layer 1
+def test_compressor_prefill(seqlen, compressor_layer):
     """Compressor prefill: seqlen divisible by compress_ratio triggers compression."""
     xr.set_device_type("TT")
 
     args = small_args()
     model = make_model(args)
     # Layer 1 has compress_ratio=4
-    compressor = model.layers[1].attn.compressor
+    compressor = model.layers[compressor_layer].attn.compressor
     with torch.no_grad():
         torch.nn.init.normal_(compressor.ape, mean=0.0, std=0.02)
         torch.nn.init.normal_(compressor.wkv.weight, mean=0.0, std=0.02)
         torch.nn.init.normal_(compressor.wgate.weight, mean=0.0, std=0.02)
 
-    bsz, seqlen = 1, 8  # seqlen = 2 * compress_ratio → 2 compressed positions
+    bsz = 1
     x = torch.randn(bsz, seqlen, args.dim, dtype=torch.bfloat16)
     mesh = make_mesh()
 
@@ -208,13 +214,19 @@ def test_compressor_prefill():
 
 @pytest.mark.nightly
 @pytest.mark.dual_chip
-def test_compressor_decode():
+# most parameterizations are failing due to PCC or
+# compile error 'fused_0' object has no attribute 'xla_args'
+@pytest.mark.parametrize("start_pos", [0, 1, 3, 4, 7, 8])
+@pytest.mark.parametrize(
+    "compressor_layer", [1, 2], ids=["ratio4_overlap", "ratio8_no_overlap"]
+)  # CSA uses overlapping compression, compression ratio = 4, on layer 1
+def test_compressor_decode(start_pos, compressor_layer):
     """Compressor decode at start_pos=3: (3+1)%4==0 triggers compression."""
     xr.set_device_type("TT")
 
     args = small_args()
     model = make_model(args)
-    compressor = model.layers[1].attn.compressor
+    compressor = model.layers[compressor_layer].attn.compressor
     with torch.no_grad():
         torch.nn.init.normal_(compressor.ape, mean=0.0, std=0.02)
         torch.nn.init.normal_(compressor.wkv.weight, mean=0.0, std=0.02)
@@ -226,7 +238,7 @@ def test_compressor_decode():
 
     run_graph_test(
         compressor,
-        [x, 3],
+        [x, start_pos],
         framework=Framework.TORCH,
         mesh=mesh,
         comparison_config=PCC_99,
