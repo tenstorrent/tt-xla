@@ -58,7 +58,7 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
     return gm
 
 
-def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
+def run_fusion_passes(gm: torch.fx.GraphModule) -> dict[str, int]:
     """
     Run all registered fusion passes on a GraphModule.
 
@@ -66,6 +66,7 @@ def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
         gm: The GraphModule to transform
     """
     total_replacements = 0
+    provider_replacements: dict[str, int] = {}
 
     for provider_cls in FusionProvider.get_registered_providers():
         provider = provider_cls()
@@ -73,10 +74,44 @@ def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
         if num_replaced > 0:
             logger.debug(f"[Fusion] {provider.name}: {num_replaced} match(es)")
             total_replacements += num_replaced
+            provider_replacements[provider.name] = num_replaced
 
     if total_replacements > 0:
         gm.graph.lint()
         gm.recompile()
+
+    return provider_replacements
+
+
+def run_selected_fusion_passes(
+    gm: torch.fx.GraphModule, provider_names: list[str]
+) -> dict[str, int]:
+    """
+    Run a specific subset of fusion providers, including providers that are
+    disabled by default.
+
+    Args:
+        gm: The GraphModule to transform
+        provider_names: Fusion provider names to execute
+    """
+    total_replacements = 0
+    provider_replacements: dict[str, int] = {}
+
+    for provider_cls in FusionProvider.get_registered_providers(
+        provider_names=provider_names, include_default_disabled=True
+    ):
+        provider = provider_cls()
+        num_replaced = provider.replace_pattern(gm)
+        if num_replaced > 0:
+            logger.debug(f"[Fusion] {provider.name}: {num_replaced} match(es)")
+            total_replacements += num_replaced
+            provider_replacements[provider.name] = num_replaced
+
+    if total_replacements > 0:
+        gm.graph.lint()
+        gm.recompile()
+
+    return provider_replacements
 
 
 def _get_used_output_indices(node: torch.fx.Node) -> frozenset:

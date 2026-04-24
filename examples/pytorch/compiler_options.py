@@ -6,6 +6,8 @@
 Example demonstrating the compiler configuration options for TT-XLA with PyTorch.
 """
 
+import argparse
+
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
@@ -19,7 +21,7 @@ from third_party.tt_forge_models.mnist.image_classification.pytorch.loader impor
 # --------------------------------
 # Test run
 # --------------------------------
-def run_mnist_with_compiler_options():
+def run_mnist_with_compiler_options(tt_backend_options: dict | None = None):
     """Run MNIST model with compiler options on TT device."""
     device = xm.xla_device()
 
@@ -44,7 +46,7 @@ def run_mnist_with_compiler_options():
     input_device = input_tensor.to(device)
 
     # Compile model
-    model.compile(backend="tt")
+    model.compile(backend="tt", options=tt_backend_options or {})
 
     # Run inference
     with torch.no_grad():
@@ -94,5 +96,42 @@ if __name__ == "__main__":
     # Set device to TT
     xr.set_device_type("TT")
 
-    output = run_mnist_with_compiler_options()
+    parser = argparse.ArgumentParser(
+        description="Run MNIST with TT-XLA compiler options."
+    )
+    parser.add_argument(
+        "--tt-quetzal-analysis-passes",
+        default=None,
+        help="Run tt-quetzalcoatlus sidecar analysis with 'all' or a comma-separated pass list.",
+    )
+    parser.add_argument(
+        "--tt-quetzal-analysis-report-path",
+        default=None,
+        help="Write tt-quetzalcoatlus analysis report to this JSON file or directory.",
+    )
+    parser.add_argument(
+        "--tt-quetzal-rewrite-passes",
+        default=None,
+        help=(
+            "Run quetzal-inspired FX rewrite passes that actually mutate the "
+            "graph lowered by TT-XLA."
+        ),
+    )
+    args = parser.parse_args()
+
+    tt_backend_options = {}
+    if args.tt_quetzal_rewrite_passes:
+        tt_backend_options["tt_quetzal_rewrite_passes"] = (
+            args.tt_quetzal_rewrite_passes
+        )
+    if args.tt_quetzal_analysis_passes:
+        tt_backend_options["tt_quetzal_analysis_passes"] = (
+            args.tt_quetzal_analysis_passes
+        )
+    if args.tt_quetzal_analysis_report_path:
+        tt_backend_options["tt_quetzal_analysis_report_path"] = (
+            args.tt_quetzal_analysis_report_path
+        )
+
+    output = run_mnist_with_compiler_options(tt_backend_options=tt_backend_options)
     print(f"Success! Output shape: {output.shape}")

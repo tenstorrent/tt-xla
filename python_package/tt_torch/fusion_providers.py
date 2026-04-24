@@ -12,6 +12,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, List, Type
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 from torch.fx.subgraph_rewriter import replace_pattern_with_filters
 from ttxla_tools.logging import logger
@@ -38,15 +39,42 @@ class FusionProvider(ABC):
     """
 
     _registered_providers: List[Type["FusionProvider"]] = []
+    default_enabled: bool = True
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         FusionProvider._registered_providers.append(cls)
 
     @classmethod
-    def get_registered_providers(cls) -> List[Type["FusionProvider"]]:
-        """Return all registered provider classes."""
-        return cls._registered_providers.copy()
+    def get_registered_providers(
+        cls,
+        provider_names: List[str] | None = None,
+        include_default_disabled: bool = False,
+    ) -> List[Type["FusionProvider"]]:
+        """Return registered providers filtered by name and default-enabled state."""
+        selected_names = set(provider_names) if provider_names is not None else None
+        selected: List[Type["FusionProvider"]] = []
+
+        for provider_cls in cls._registered_providers:
+            provider = provider_cls()
+            if not include_default_disabled and not provider_cls.default_enabled:
+                continue
+            if selected_names is not None and provider.name not in selected_names:
+                continue
+            selected.append(provider_cls)
+
+        return selected
+
+    @classmethod
+    def get_registered_provider_names(
+        cls, include_default_disabled: bool = False
+    ) -> List[str]:
+        return [
+            provider_cls().name
+            for provider_cls in cls.get_registered_providers(
+                include_default_disabled=include_default_disabled
+            )
+        ]
 
     @property
     @abstractmethod
@@ -177,4 +205,97 @@ class RMSNormFusionProvider(FusionProvider):
         return [
             (self.pattern, self.replacement),
             (self.pattern_cast_after_mul, self.replacement),
+        ]
+
+
+class QuetzalFuseGELUProvider(FusionProvider):
+    """Collapse tanh-GELU decompositions back to torch.nn.functional.gelu."""
+
+    default_enabled = False
+
+    @property
+    def name(self) -> str:
+        return "fuse_gelu"
+
+    @staticmethod
+    def pattern_method(x: Tensor) -> Tensor:
+        half_x = x.mul(0.5)
+        x_pow_3 = x.pow(3.0)
+        cubic_term = x_pow_3.mul(0.044715)
+        inner = x.add(cubic_term)
+        tanh_input = inner.mul(0.7978845608028654)
+        tanh_output = torch.tanh(tanh_input)
+        return half_x.mul(tanh_output.add(1.0))
+
+    @staticmethod
+    def pattern_operator(x: Tensor) -> Tensor:
+        return 0.5 * x * (1.0 + torch.tanh(0.7978845608028654 * (x + 0.044715 * x**3)))
+
+    @staticmethod
+    def replacement(x: Tensor) -> Tensor:
+        return F.gelu(x, approximate="tanh")
+
+    def get_patterns(self) -> List[tuple]:
+        return [
+            (self.pattern_method, self.replacement),
+            (self.pattern_operator, self.replacement),
+        ]
+
+
+class QuetzalReconstructSDPAProvider(FusionProvider):
+    """Reconstruct SDPA from manual matmul/softmax/matmul attention."""
+
+    default_enabled = False
+
+    @property
+    def name(self) -> str:
+        return "reconstruct_sdpa"
+
+    @staticmethod
+    def pattern_scaled_method(
+        query: Tensor, key: Tensor, value: Tensor, scale: float
+    ) -> Tensor:
+        key_t = key.transpose(-2, -1)
+        scores = torch.matmul(query, key_t)
+        scaled_scores = scores.mul(scale)
+        weights = torch.softmax(scaled_scores, dim=-1)
+        return torch.matmul(weights, value)
+
+    @staticmethod
+    def pattern_scaled_operator(
+        query: Tensor, key: Tensor, value: Tensor, scale: float
+    ) -> Tensor:
+        return torch.softmax((query @ key.transpose(-2, -1)) * scale, dim=-1) @ value
+
+    @staticmethod
+    def pattern_unscaled_method(query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        key_t = key.transpose(-2, -1)
+        scores = torch.matmul(query, key_t)
+        weights = torch.softmax(scores, dim=-1)
+        return torch.matmul(weights, value)
+
+    @staticmethod
+    def pattern_unscaled_operator(query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        return torch.softmax(query @ key.transpose(-2, -1), dim=-1) @ value
+
+    @staticmethod
+    def replacement_scaled(
+        query: Tensor, key: Tensor, value: Tensor, scale: float
+    ) -> Tensor:
+        return F.scaled_dot_product_attention(
+            query, key, value, dropout_p=0.0, is_causal=False, scale=scale
+        )
+
+    @staticmethod
+    def replacement_unscaled(query: Tensor, key: Tensor, value: Tensor) -> Tensor:
+        return F.scaled_dot_product_attention(
+            query, key, value, dropout_p=0.0, is_causal=False
+        )
+
+    def get_patterns(self) -> List[tuple]:
+        return [
+            (self.pattern_scaled_method, self.replacement_scaled),
+            (self.pattern_scaled_operator, self.replacement_scaled),
+            (self.pattern_unscaled_method, self.replacement_unscaled),
+            (self.pattern_unscaled_operator, self.replacement_unscaled),
         ]

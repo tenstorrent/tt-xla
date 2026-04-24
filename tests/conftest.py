@@ -262,6 +262,33 @@ def pytest_addoption(parser):
         default=False,
         help="Enable IR dumping during model tests",
     )
+    parser.addoption(
+        "--tt-quetzal-analysis-passes",
+        action="store",
+        default=None,
+        help=(
+            "Run tt-quetzalcoatlus sidecar fusion analysis before TT-XLA lowering. "
+            "Use 'all' or a comma-separated pass list."
+        ),
+    )
+    parser.addoption(
+        "--tt-quetzal-analysis-report-path",
+        action="store",
+        default=None,
+        help=(
+            "Write tt-quetzalcoatlus sidecar analysis reports to this JSON file "
+            "or directory."
+        ),
+    )
+    parser.addoption(
+        "--tt-quetzal-rewrite-passes",
+        action="store",
+        default=None,
+        help=(
+            "Run quetzal-inspired FX rewrite passes that actually mutate the "
+            "graph TT-XLA lowers. Use 'all' or a comma-separated pass list."
+        ),
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -271,6 +298,28 @@ def disable_perf_measurement(request):
     """
     if request.config.getoption("--disable-perf-measurement"):
         os.environ["DISABLE_PERF_MEASUREMENT"] = "1"
+
+
+@pytest.fixture(autouse=True)
+def configure_quetzal_analysis_env(request):
+    passes = request.config.getoption("--tt-quetzal-analysis-passes")
+    report_path = request.config.getoption("--tt-quetzal-analysis-report-path")
+    rewrite_passes = request.config.getoption("--tt-quetzal-rewrite-passes")
+
+    if passes is None:
+        os.environ.pop("TT_TORCH_QUETZAL_ANALYSIS_PASSES", None)
+    else:
+        os.environ["TT_TORCH_QUETZAL_ANALYSIS_PASSES"] = passes
+
+    if report_path is None:
+        os.environ.pop("TT_TORCH_QUETZAL_ANALYSIS_REPORT_PATH", None)
+    else:
+        os.environ["TT_TORCH_QUETZAL_ANALYSIS_REPORT_PATH"] = report_path
+
+    if rewrite_passes is None:
+        os.environ.pop("TT_TORCH_QUETZAL_REWRITE_PASSES", None)
+    else:
+        os.environ["TT_TORCH_QUETZAL_REWRITE_PASSES"] = rewrite_passes
 
 
 # DOCKER_CACHE_ROOT is only meaningful on CIv1 and its presence indicates CIv1 usage.

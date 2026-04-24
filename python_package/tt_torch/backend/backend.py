@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
-from typing import Tuple
+from typing import Any, Tuple
 
 import torch
 import torch.export
@@ -25,6 +25,8 @@ from .metadata_propagation import (
     MetadataInterpreter,
     extract_nodes_info,
 )
+from .quetzal_analysis import run_quetzal_analysis
+from .quetzal_rewrite import run_quetzal_rewrite_passes
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
@@ -42,8 +44,15 @@ from .passes import (
 def torch_pass_pipeline(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-    options: dict[str, bool] | None,
+    options: dict[str, Any] | None,
 ) -> Tuple[torch.fx.GraphModule, torch.export.ExportGraphSignature, dict[str, str]]:
+    # Optional quetzal-inspired FX rewrites that mutate the graph TT-XLA lowers.
+    run_quetzal_rewrite_passes(gm, options)
+
+    # Optional sidecar analysis using tt-quetzalcoatlus' richer pass stack.
+    # This is diagnostic only today: it produces pass stats / reports without
+    # rewriting the graph that TT-XLA ultimately lowers to StableHLO.
+    run_quetzal_analysis(gm, tuple(example_inputs), options)
 
     # Run fusion passes to detect and fuse multi-op patterns
     # This runs before composite_ops to allow fused patterns to be wrapped as composites
@@ -269,7 +278,7 @@ class XLAExecutor:
 def fw_compiler(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-    options: dict[str, bool] | None,
+    options: dict[str, Any] | None,
 ):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
@@ -292,7 +301,7 @@ def fw_compiler(
 def aot_backend(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-    options: dict[str, bool] | None,
+    options: dict[str, Any] | None,
 ):
     """AOTAutograd backend: run decompositions and trace through aot_autograd with _fw_compiler."""
     # Rewrite AdaptiveAvgPool1d/2d(1) to torch.mean before AOTAutograd tracing.
@@ -326,7 +335,7 @@ def aot_backend(
 def tt_backend(
     gm: torch.fx.GraphModule,
     example_inputs: Tuple[torch.Tensor],
-    options: dict[str, bool] | None = None,
+    options: dict[str, Any] | None = None,
 ):
     use_aot_autograd = (
         bool(options.get("tt_use_aot_autograd", False)) if options else False
