@@ -241,21 +241,17 @@ def _tt_experts_forward_dp(
     if gate_up_bias is not None:
         gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, 1, -1)
 
-    activated = self._apply_gate(gate_up_out)  # same rank as gate_up_out
+    activated = self._apply_gate(gate_up_out)
 
-    # Flatten tiled output to canonical 4D so the down GEMM isn't re-detected
-    # as MoE-shape (which would re-tile). On the default tile-reduced path
-    # `activated` is 5D `[A, B, E, M, I]` with M=32. With the legacy per-token
-    # toggle ON, M=1 and sparse_matmul's `squeeze(-2)` collapses the M dim,
-    # yielding 4D `[A, B, E, I]`; restore an explicit M=1 before reshape so
-    # the down GEMM sees canonical 4D input.
-    if activated.dim() == 5:
-        A, B, _, M_tile, _ = activated.shape
-    else:  # 4D, M=1 collapsed (legacy per-token)
-        A, B, _, _ = activated.shape
-        M_tile = 1
-        activated = activated.unsqueeze(3)
-    activated = activated.reshape(A * B, E, M_tile, activated.shape[-1])
+    # Restore M if sparse_matmul squeezed it away. `sparse_matmul` emits a
+    # final `.squeeze(-2)` whenever M=1, which happens when either (a) the
+    # legacy per-token toggle is on, or (b) T=1 (decode). The subsequent
+    # reshape needs a 4-axis tile layout regardless.
+    if activated.dim() == 4:
+        activated = activated.unsqueeze(-2)
+    A, B, _, M_tile, I_dim = activated.shape
+    activated = activated.reshape(A * B, E, M_tile, I_dim)
+
     down_w = _as_sparse_matmul_weight(self.down_proj, self.is_transposed)
     down_out = torch.ops.tt.sparse_matmul(
         activated,
@@ -270,20 +266,15 @@ def _tt_experts_forward_dp(
     if down_bias is not None:
         down_out = down_out + down_bias.view(1, E, 1, -1)
 
-    # Untile to [1, T, E, H] for per-expert gather. A*B and M are adjacent
-    # so this is a permute + reshape, no copy.
-    AB, _, M_tile, Hout = down_out.shape
-    down_out = down_out.permute(0, 2, 1, 3).reshape(1, AB * M_tile, E, Hout)
+    # Merge tile axis into token axis: [A*B, E, M, H] → [T, E, H].
+    # A*B and M are adjacent so this is a permute + reshape, no copy.
+    down_out = down_out.permute(0, 2, 1, 3).reshape(T, E, H)
 
-    # Combine: gather the K expert outputs per token and weight-sum.
-    # down_out: [1, T, E, H] → gather on E with top_k_index → [T, K, H].
-    # This is O(T*K*H) vs the naive dense sum-over-E O(T*E*H), and needs no
-    # dense routing_map (and thus no scatter_).
-    Hout = down_out.shape[-1]
-    idx = top_k_index.unsqueeze(-1).expand(-1, -1, Hout)  # [T, K, H]
-    gathered = down_out.view(T, E, Hout).gather(1, idx)  # [T, K, H]
-    weights = top_k_weights.to(gathered.dtype).unsqueeze(-1)  # [T, K, 1]
-    output = (gathered * weights).sum(dim=1)  # [T, H]
+    # Gather the K expert outputs per token and weight-sum — O(T*K*H) vs
+    # the naive dense sum-over-E O(T*E*H), and no dense routing_map.
+    idx = top_k_index.unsqueeze(-1).expand(-1, -1, H)  # [T, K, H]
+    gathered = down_out.gather(1, idx)  # [T, K, H]
+    output = (gathered * top_k_weights.to(gathered.dtype).unsqueeze(-1)).sum(dim=1)
     return output.to(dtype)
 
 
