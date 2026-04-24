@@ -55,7 +55,7 @@ constraint applies to `dispatch_devices * T`. Pad inputs accordingly.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Protocol, Tuple, cast
 
 import torch
 import torch.nn as nn
@@ -92,6 +92,14 @@ USE_LEGACY_PER_TOKEN_SPARSITY = False
 # `self`) because cluster_axis is a property of the mesh, not of a specific
 # Experts instance, and HF gives no hook to thread it through from_pretrained.
 _config: dict = {"cluster_axis": 0}
+
+
+class _ExpertsModule(Protocol):
+    num_experts: int
+    gate_up_proj: torch.Tensor
+    down_proj: torch.Tensor
+    _apply_gate: Callable[[torch.Tensor], torch.Tensor]
+    is_transposed: bool
 
 
 def _mesh_info() -> Tuple[int, int, Tuple[int, ...]]:
@@ -178,6 +186,68 @@ def _build_routing_scores(
     return torch.einsum("tk,tke->te", top_k_weights.to(dtype), one_hot)
 
 
+def _pad_moe_inputs(
+    hidden_states: torch.Tensor,
+    top_k_index: torch.Tensor,
+    top_k_weights: torch.Tensor,
+    dispatch_devices: int,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
+    """Pad token-axis inputs so the per-shard token axis is 32-tile aligned.
+
+    The current `sparse_matmul` MoE fast-path only tiles cleanly when the
+    token axis presented to the kernel is a multiple of `REDUCTION_SIZE`.
+    That is true for the DP path directly, and for the EP path because each
+    shard still carries a length-`T` token axis after dispatch. Pad with
+    zero-valued dummy tokens and slice them back off after combine.
+    """
+    token_count, hidden_dim = hidden_states.shape
+    if token_count == 0:
+        return hidden_states, top_k_index, top_k_weights, token_count
+
+    token_multiple = REDUCTION_SIZE
+    padded_token_count = (
+        (token_count + token_multiple - 1) // token_multiple
+    ) * token_multiple
+    if padded_token_count == token_count:
+        return hidden_states, top_k_index, top_k_weights, token_count
+
+    pad_tokens = padded_token_count - token_count
+    hidden_pad = torch.zeros(
+        pad_tokens,
+        hidden_dim,
+        dtype=hidden_states.dtype,
+        device=hidden_states.device,
+    )
+    index_pad = torch.zeros(
+        pad_tokens,
+        top_k_index.shape[1],
+        dtype=top_k_index.dtype,
+        device=top_k_index.device,
+    )
+    weight_pad = torch.zeros(
+        pad_tokens,
+        top_k_weights.shape[1],
+        dtype=top_k_weights.dtype,
+        device=top_k_weights.device,
+    )
+    return (
+        torch.cat((hidden_states, hidden_pad), dim=0),
+        torch.cat((top_k_index, index_pad), dim=0),
+        torch.cat((top_k_weights, weight_pad), dim=0),
+        token_count,
+    )
+
+
+def _selected_mesh_axis_name(mesh_names: Tuple[str, ...]) -> str:
+    """Return the mesh axis that owns expert sharding for this backend."""
+    cluster_axis = _config["cluster_axis"]
+    if not 0 <= cluster_axis < len(mesh_names):
+        raise ValueError(
+            f"cluster_axis={cluster_axis} is out of range for mesh_names={mesh_names}"
+        )
+    return mesh_names[cluster_axis]
+
+
 def _tt_experts_forward_dp(
     self: torch.nn.Module,
     hidden_states: torch.Tensor,
@@ -188,8 +258,20 @@ def _tt_experts_forward_dp(
     sparsity mask. No collectives, no in-place scatter — fully functional so
     the graph survives AOTAutograd functionalization under XLA export.
     """
+    original_token_count = hidden_states.shape[0]
+    if not USE_LEGACY_PER_TOKEN_SPARSITY:
+        hidden_states, top_k_index, top_k_weights, original_token_count = (
+            _pad_moe_inputs(
+                hidden_states,
+                top_k_index,
+                top_k_weights,
+                dispatch_devices=1,
+            )
+        )
+
+    experts = cast(_ExpertsModule, self)
     T, H = hidden_states.shape
-    E = self.num_experts
+    E = experts.num_experts
     dtype = hidden_states.dtype
     device = hidden_states.device
 
@@ -227,7 +309,7 @@ def _tt_experts_forward_dp(
     #   is_transposed=True  → [E, in, out] = [E, H, 2I], ready as-is.
     #   is_transposed=False → [E, out, in] = [E, 2I, H], needs a transpose.
     input_a = hidden_states.view(1, 1, T, H)
-    gate_up_w = _as_sparse_matmul_weight(self.gate_up_proj, self.is_transposed)
+    gate_up_w = _as_sparse_matmul_weight(experts.gate_up_proj, experts.is_transposed)
     gate_up_out = torch.ops.tt.sparse_matmul(
         input_a,
         gate_up_w,
@@ -241,7 +323,7 @@ def _tt_experts_forward_dp(
     if gate_up_bias is not None:
         gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, 1, -1)
 
-    activated = self._apply_gate(gate_up_out)
+    activated = experts._apply_gate(gate_up_out)
 
     # Restore M if sparse_matmul squeezed it away. `sparse_matmul` emits a
     # final `.squeeze(-2)` whenever M=1, which happens when either (a) the
@@ -252,7 +334,7 @@ def _tt_experts_forward_dp(
     A, B, _, M_tile, I_dim = activated.shape
     activated = activated.reshape(A * B, E, M_tile, I_dim)
 
-    down_w = _as_sparse_matmul_weight(self.down_proj, self.is_transposed)
+    down_w = _as_sparse_matmul_weight(experts.down_proj, experts.is_transposed)
     down_out = torch.ops.tt.sparse_matmul(
         activated,
         down_w,
@@ -275,6 +357,7 @@ def _tt_experts_forward_dp(
     idx = top_k_index.unsqueeze(-1).expand(-1, -1, H)  # [T, K, H]
     gathered = down_out.gather(1, idx)  # [T, K, H]
     output = (gathered * top_k_weights.to(gathered.dtype).unsqueeze(-1)).sum(dim=1)
+    output = output[:original_token_count]
     return output.to(dtype)
 
 
@@ -283,19 +366,33 @@ def _tt_experts_forward_ep(
     hidden_states: torch.Tensor,
     top_k_index: torch.Tensor,
     top_k_weights: torch.Tensor,
-    routing_scores: torch.Tensor,
     dispatch_devices: int,
 ) -> torch.Tensor:
     """Expert-parallel compute: dispatch tokens to the devices holding their
     selected experts, run the sparse_matmul chain on the dispatched layout,
     then combine per-expert outputs back to original token positions.
     """
+    hidden_states, top_k_index, top_k_weights, original_token_count = _pad_moe_inputs(
+        hidden_states,
+        top_k_index,
+        top_k_weights,
+        dispatch_devices=dispatch_devices,
+    )
+
+    experts = cast(_ExpertsModule, self)
     T, H = hidden_states.shape
     K = top_k_index.shape[-1]
-    E = self.num_experts
+    E = experts.num_experts
     dtype = hidden_states.dtype
     device = hidden_states.device
     cluster_axis = _config["cluster_axis"]
+    routing_scores = _build_routing_scores(
+        top_k_index,
+        top_k_weights,
+        E,
+        dtype,
+        device,
+    )
 
     # `[1, 1, E, D]` one-hot mapping lifted into the graph as a pure tensor op
     # sequence so AOTAutograd/XLA can trace it without CPU copies or in-place
@@ -330,7 +427,7 @@ def _tt_experts_forward_ep(
     )  # sparsity: [1, 1, ceil(BD*T/32), E]
 
     # Fused gate/up projection.
-    gate_up_w = _as_sparse_matmul_weight(self.gate_up_proj, self.is_transposed)
+    gate_up_w = _as_sparse_matmul_weight(experts.gate_up_proj, experts.is_transposed)
     gate_up_out = torch.ops.tt.sparse_matmul(
         dispatched,
         gate_up_w,
@@ -347,13 +444,13 @@ def _tt_experts_forward_ep(
         else:
             gate_up_out = gate_up_out + gate_up_bias.view(1, 1, E, -1)
 
-    activated = self._apply_gate(gate_up_out)
+    activated = experts._apply_gate(gate_up_out)
 
     # Flatten to canonical 4D before down GEMM.
     if activated.dim() == 5:
         A, B, _, M_tile, _ = activated.shape
         activated = activated.reshape(A * B, E, M_tile, activated.shape[-1])
-    down_w = _as_sparse_matmul_weight(self.down_proj, self.is_transposed)
+    down_w = _as_sparse_matmul_weight(experts.down_proj, experts.is_transposed)
     down_out = torch.ops.tt.sparse_matmul(
         activated,
         down_w,
@@ -386,6 +483,7 @@ def _tt_experts_forward_ep(
     # Per-slot weighted sum with already-normalized top-K weights.
     weights_k = top_k_weights.permute(1, 0).view(K, 1, T, 1).to(combined.dtype)
     output = (combined * weights_k).sum(dim=0).view(T, H)
+    output = output[:original_token_count]
     return output.to(dtype)
 
 
@@ -434,20 +532,11 @@ def tt_experts_forward(
     if dispatch_devices <= 1:
         return _tt_experts_forward_dp(self, hidden_states, top_k_index, top_k_weights)
 
-    routing_scores = _build_routing_scores(
-        top_k_index,
-        top_k_weights,
-        self.num_experts,
-        hidden_states.dtype,
-        hidden_states.device,
-    )
-
     return _tt_experts_forward_ep(
         self,
         hidden_states,
         top_k_index,
         top_k_weights,
-        routing_scores,
         dispatch_devices,
     )
 
@@ -478,6 +567,7 @@ def register_tt_moe_backend(cluster_axis: int = 0) -> None:
         return  # already patched
 
     _original_validator = PreTrainedModel.get_correct_experts_implementation
+    original_validator = _original_validator
 
     def patched_validator(self, requested_experts):
         if (
@@ -491,7 +581,7 @@ def register_tt_moe_backend(cluster_axis: int = 0) -> None:
             )
         ):
             return requested_experts
-        return _original_validator(self, requested_experts)
+        return original_validator(self, requested_experts)
 
     PreTrainedModel.get_correct_experts_implementation = patched_validator
 
@@ -499,14 +589,16 @@ def register_tt_moe_backend(cluster_axis: int = 0) -> None:
 def get_tt_moe_shard_specs(
     model: nn.Module,
     original_spec_fn: Callable[[nn.Module], Dict[Any, Any]],
-    mesh_names: Tuple[str, str],
+    mesh_names: Tuple[str, ...],
 ) -> Dict[Any, Any]:
-    """Compound-shard expert weights across both mesh axes.
+    """Shard expert weights only along the backend's selected cluster axis.
 
     Starts from `original_spec_fn(model)`, then for every transformer layer
     whose `mlp.experts` follows the HF canonical layout, shards `gate_up_proj`
-    and `down_proj` (and their biases when present) with compound sharding
-    `(mesh_names[0], mesh_names[1])` on the expert (first) dimension.
+    and `down_proj` (and their biases when present) on the expert (first)
+    dimension using the same mesh axis that `_expert_mapping()` dispatches
+    across. This keeps parameter sharding aligned with the expert-to-device
+    mapping used by the EP collectives.
 
     The expected expert weight shapes are the HF canonical ones:
         gate_up_proj: [E, 2*I, H]
@@ -516,7 +608,7 @@ def get_tt_moe_shard_specs(
         down_proj_bias:    [E, H]
     """
     shard_specs = original_spec_fn(model)
-    compound = (mesh_names[0], mesh_names[1])
+    expert_axis = _selected_mesh_axis_name(mesh_names)
 
     layers = getattr(getattr(model, "model", None), "layers", None)
     if layers is None:
@@ -534,14 +626,14 @@ def get_tt_moe_shard_specs(
         ):
             continue
 
-        shard_specs[experts.gate_up_proj] = (compound, None, None)
-        shard_specs[experts.down_proj] = (compound, None, None)
+        shard_specs[experts.gate_up_proj] = (expert_axis, None, None)
+        shard_specs[experts.down_proj] = (expert_axis, None, None)
 
         gate_up_bias = getattr(experts, "gate_up_proj_bias", None)
         if gate_up_bias is not None:
-            shard_specs[gate_up_bias] = (compound, None)
+            shard_specs[gate_up_bias] = (expert_axis, None)
         down_bias = getattr(experts, "down_proj_bias", None)
         if down_bias is not None:
-            shard_specs[down_bias] = (compound, None)
+            shard_specs[down_bias] = (expert_axis, None)
 
     return shard_specs
