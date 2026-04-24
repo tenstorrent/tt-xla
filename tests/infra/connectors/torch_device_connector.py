@@ -5,10 +5,16 @@
 import os
 
 import torch
-import torch_xla
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
 from infra.utilities import Device
+
+try:
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.runtime as xr
+
+    HAS_TORCH_XLA = True
+except ImportError:
+    HAS_TORCH_XLA = False
 
 from .device_connector import DeviceConnector, DeviceType
 
@@ -18,6 +24,8 @@ class TorchDeviceConnector(DeviceConnector):
 
     def __init__(self) -> None:
         super().__init__()
+        if not HAS_TORCH_XLA:
+            return
         xr.runtime.set_device_type("TT")
         # Only initialize cache if not already initialized (avoids assertion
         # error when tests have already performed XLA operations before using
@@ -34,21 +42,21 @@ class TorchDeviceConnector(DeviceConnector):
         # Custom TT devices are discovered through XLA plugin. In case of CPUs, we
         # want to fallback to a regular CPU on host, which torch sees natively
         # through `torch.device("cpu")`.
-        return (
-            torch_xla.device(device_num)
-            if device_type == DeviceType.TT
-            else torch.device(device_type.value)
-        )
+        if device_type == DeviceType.TT:
+            if not HAS_TORCH_XLA:
+                raise RuntimeError("torch_xla is required to connect to TT device")
+            return torch_xla.device(device_num)
+        return torch.device(device_type.value)
 
     # @override
     def _number_of_devices(self, device_type: DeviceType) -> int:
         # Torch does not have an API to retrieve number of CPUs, so we use system
         # lib `os`.
-        return (
-            len(xm.get_xla_supported_devices())
-            if device_type == DeviceType.TT
-            else os.cpu_count()
-        )
+        if device_type == DeviceType.TT:
+            if not HAS_TORCH_XLA:
+                return 0
+            return len(xm.get_xla_supported_devices())
+        return os.cpu_count()
 
 
 # Global singleton instance.

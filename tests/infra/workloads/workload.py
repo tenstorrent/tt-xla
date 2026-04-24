@@ -8,11 +8,22 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-import torch_xla.runtime as xr
+try:
+    import torch_xla.runtime as xr
+except ImportError:
+    xr = None
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.utilities import Framework, Mesh, Model
-from tt_jax import serialize_compiled_artifacts_to_disk
-from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+
+try:
+    from tt_jax import serialize_compiled_artifacts_to_disk
+except ImportError:
+    serialize_compiled_artifacts_to_disk = None
+
+try:
+    from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+except ImportError:
+    parse_compiled_artifacts_from_cache_to_disk = None
 
 
 class Workload:

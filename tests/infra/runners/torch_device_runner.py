@@ -5,7 +5,11 @@
 import inspect
 
 import torch
-import torch_xla.distributed.spmd as xs
+
+try:
+    import torch_xla.distributed.spmd as xs
+except ImportError:
+    xs = None
 from infra.connectors import DeviceConnector
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload

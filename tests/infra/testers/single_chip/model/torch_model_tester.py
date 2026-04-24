@@ -8,8 +8,13 @@ from contextlib import contextmanager
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Set, Tuple
 
 import torch
-import torch_xla
-import torch_xla.runtime as xr
+
+try:
+    import torch_xla
+    import torch_xla.runtime as xr
+except ImportError:
+    torch_xla = None
+    xr = None
 from infra.evaluators import ComparisonConfig
 from infra.utilities import Framework, compile_torch_workload_for_tt_device
 from infra.workloads import TorchWorkload, Workload

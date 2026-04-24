@@ -5,9 +5,15 @@ import os
 from typing import Tuple
 
 import numpy as np
-import torch_xla
-import torch_xla.runtime as xr
-from torch_xla.distributed.spmd import Mesh
+
+try:
+    import torch_xla
+    import torch_xla.runtime as xr
+    from torch_xla.distributed.spmd import Mesh
+
+    HAS_TORCH_XLA = True
+except ImportError:
+    HAS_TORCH_XLA = False
 
 
 def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:

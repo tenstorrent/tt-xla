@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 import torch
-import torch_xla.runtime as xr
+
+try:
+    import torch_xla.runtime as xr
+except ImportError:
+    xr = None
 from infra.connectors.torch_device_connector import TorchDeviceConnector
 from infra.evaluators import (
     ImageGenQualityConfig,

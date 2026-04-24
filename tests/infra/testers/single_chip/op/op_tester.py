@@ -10,7 +10,11 @@ import time
 from typing import Callable, Optional, Sequence
 
 import torch
-import torch_xla
+
+try:
+    import torch_xla
+except ImportError:
+    torch_xla = None
 from infra.evaluators import ComparisonConfig
 from infra.utilities import (
     Framework,
