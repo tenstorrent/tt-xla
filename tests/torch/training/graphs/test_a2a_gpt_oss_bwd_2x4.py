@@ -20,6 +20,7 @@ from third_party.tt_forge_models.gpt_oss.pytorch.overrides import (
 
 MESH_SHAPE = (2, 4)
 MESH_NAMES = ("_axis_0", "_axis_1")
+NUM_EXPERTS = 32
 
 
 def _setup_mesh():
@@ -83,9 +84,9 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
     batch_size, seq_len = 8, 32
 
     torch.manual_seed(0)
-    layer_cpu, config = _build_layer(num_experts=num_devices)
+    layer_cpu, config = _build_layer(num_experts=NUM_EXPERTS)
     torch.manual_seed(0)
-    layer_tt, _ = _build_layer(num_experts=num_devices)
+    layer_tt, _ = _build_layer(num_experts=NUM_EXPERTS)
     layer_tt.load_state_dict(layer_cpu.state_dict())
 
     for layer in (layer_tt, layer_cpu):
