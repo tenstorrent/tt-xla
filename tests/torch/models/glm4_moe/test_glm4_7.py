@@ -441,33 +441,6 @@ def _apply_shard_specs(
                 mark_sharding(shared.down_proj.weight, mesh, ("_axis_0", None))
 
 
-class _LogitsOnly(nn.Module):
-    """Wrap Glm4MoeForCausalLM so torch.compile sees a pure tensor output.
-
-    Accepts a 4D additive attention_mask (B, 1, S, max_cache_len) to bypass
-    HF's internal mask construction — HF's eager attention adds this directly
-    to the attention scores, so left-pad masking works without HF
-    round-tripping a 2D tokenizer mask.
-    """
-
-    def __init__(self, model):
-        super().__init__()
-        self.model = model
-
-    def forward(
-        self, input_ids, position_ids, past_key_values, cache_position, attention_mask
-    ):
-        out = self.model(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            cache_position=cache_position,
-            use_cache=True,
-        )
-        return out.logits
-
-
 # ---------- test ----------
 @pytest.mark.llmbox
 @pytest.mark.nightly
@@ -634,20 +607,20 @@ def test_glm4_7_full_sparse_moe():
     )
     mark_sharding(full_attn_mask_device, mesh, ("_axis_1", None))
 
-    wrapped = _LogitsOnly(model)
-    compiled_model = torch.compile(wrapped, backend="tt")
+    compiled_model = torch.compile(model, backend="tt")
 
     print("[tt] running prefill (compile + run)...", flush=True)
     t0 = time.perf_counter()
     with torch.no_grad():
-        logits = compiled_model(
-            tokens_device,
-            position_ids_device,
-            tt_cache,
-            cache_position_device,
-            full_attn_mask_device,
+        out = compiled_model(
+            input_ids=tokens_device,
+            attention_mask=full_attn_mask_device,
+            position_ids=position_ids_device,
+            past_key_values=tt_cache,
+            cache_position=cache_position_device,
+            use_cache=True,
         )
-    logits_tt_cpu = logits.to("cpu").detach()
+    logits_tt_cpu = out.logits.to("cpu").detach()
     print(f"[timing] TT prefill: {time.perf_counter() - t0:.1f}s", flush=True)
 
     # Top-5 next-token predictions from the last prefill position.
@@ -904,8 +877,7 @@ def test_glm4_7_decode_static_cache():
     )
     mark_sharding(full_attn_mask_device, mesh, ("_axis_1", None))
 
-    wrapped = _LogitsOnly(model)
-    compiled_model = torch.compile(wrapped, backend="tt")
+    compiled_model = torch.compile(model, backend="tt")
 
     tt_logits_list = []
     tt_token_ids = []
@@ -914,14 +886,15 @@ def test_glm4_7_decode_static_cache():
     print("[tt] running prefill (compile #1)...", flush=True)
     t0 = time.perf_counter()
     with torch.no_grad():
-        logits = compiled_model(
-            tokens_device,
-            prefill_position_ids_device,
-            tt_cache,
-            prefill_cache_position_device,
-            full_attn_mask_device,
+        out = compiled_model(
+            input_ids=tokens_device,
+            attention_mask=full_attn_mask_device,
+            position_ids=prefill_position_ids_device,
+            past_key_values=tt_cache,
+            cache_position=prefill_cache_position_device,
+            use_cache=True,
         )
-    prefill_last = logits[:, -1].to("cpu").detach()
+    prefill_last = out.logits[:, -1].to("cpu").detach()
     print(f"[timing] TT prefill: {time.perf_counter() - t0:.1f}s", flush=True)
     tt_logits_list.append(prefill_last[0])
     next_id = int(prefill_last[0].argmax(dim=-1).item())
@@ -948,14 +921,15 @@ def test_glm4_7_decode_static_cache():
 
         t_step = time.perf_counter()
         with torch.no_grad():
-            logits = compiled_model(
-                next_tokens_device,
-                pos_ids_device,
-                tt_cache,
-                cache_pos_device,
-                full_attn_mask_device,
+            out = compiled_model(
+                input_ids=next_tokens_device,
+                attention_mask=full_attn_mask_device,
+                position_ids=pos_ids_device,
+                past_key_values=tt_cache,
+                cache_position=cache_pos_device,
+                use_cache=True,
             )
-        step_last = logits[:, -1].to("cpu").detach()
+        step_last = out.logits[:, -1].to("cpu").detach()
         next_id = int(step_last[0].argmax(dim=-1).item())
         tt_logits_list.append(step_last[0])
         tt_token_ids.append(next_id)
