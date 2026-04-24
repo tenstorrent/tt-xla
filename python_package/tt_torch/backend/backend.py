@@ -143,36 +143,6 @@ class XLAExecutor:
             self.devices.add(tensor.device.type)
         self.devices = list(self.devices)
 
-        # In multi-chip configurations with PyTorch 2.10+, torch.export.export()
-        # creates pending TransferFromDevice ops for every sharded XLA parameter.
-        # The experimental compile path calls extract_compiled_graph which
-        # internally runs torch_xla.sync(), executing ALL pending ops at once
-        # and flooding DRAM with replicated copies of each sharded param -> OOM.
-        # The legacy path uses _xla_sync_multi(outputs) which only syncs the
-        # output tensors, keeping sharded params as-is inside the computation.
-        if (
-            is_torch_2_10_or_newer()
-            and not legacy_compile_enabled
-            and xr.global_runtime_device_count() > 1
-        ):
-            logger.info(
-                "Multi-chip detected on torch >= 2.10 (device_count={}), using "
-                "legacy compile to avoid ReplicateShardedData flood in "
-                "experimental path.",
-                xr.global_runtime_device_count(),
-            )
-            legacy_compile_enabled = True
-
-        if not legacy_compile_enabled and any(
-            spec.kind == OutputKind.USER_INPUT_MUTATION
-            for spec in self.signature.output_specs
-        ):
-            logger.info(
-                "User-input mutation outputs detected, using legacy compile to "
-                "preserve torch.compile input alias semantics."
-            )
-            legacy_compile_enabled = True
-
         # Whether to enable the legacy compile flow.
         # The following group of fields will only be used if the experimental flow is enabled.
         self.legacy_compile_enabled = legacy_compile_enabled
