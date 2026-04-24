@@ -121,6 +121,7 @@ def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
     compiler_config = CompilerConfig(
         optimization_level=1,
+        experimental_enable_dram_space_saving_optimization=True,
         export_path="model",
         export_model_name="vae_decoder",
     )

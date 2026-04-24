@@ -55,6 +55,11 @@ class CompilerConfig:
     # some models until https://github.com/tenstorrent/tt-mlir/pull/6198 lands.
     experimental_enable_permute_matmul_fusion: bool = True
 
+    # Enables the TTNNMemoryManagement pass (DRAM space-saving optimizations),
+    # which rewrites graphs to avoid tile-padding blowup for tensors with
+    # non-tile-aligned inner dims.
+    experimental_enable_dram_space_saving_optimization: bool = False
+
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
@@ -95,6 +100,9 @@ class CompilerConfig:
 
         if not self.experimental_enable_permute_matmul_fusion:
             options["experimental_enable_permute_matmul_fusion"] = "false"
+
+        if self.experimental_enable_dram_space_saving_optimization:
+            options["experimental-enable-dram-space-saving-optimization"] = "true"
 
         if self.enable_trace:
             options["enable_trace"] = "true"
