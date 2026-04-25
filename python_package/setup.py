@@ -310,6 +310,7 @@ class CMakeBuildPy(build_py):
             "-B",
             "build",
             "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
+            "-DTTMLIR_ENABLE_BINDINGS_PYTHON=ON",
             "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
