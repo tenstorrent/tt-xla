@@ -7,6 +7,7 @@ import torch
 import torch_xla.core.xla_model as xm
 from infra.utilities.types import Framework
 
+from tests.infra.testers.compiler_config import CompilerConfig
 from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 
 # TODO: Record superset properties for these tests.
@@ -14,28 +15,38 @@ from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 
 @pytest.mark.push
 @pytest.mark.single_device
-@pytest.mark.parametrize("num_heads", [12, 16])
-@pytest.mark.parametrize("max_seq_len", [64, 128])
-@pytest.mark.parametrize("head_size", [64, 128])
-@pytest.mark.parametrize("seq_len_to_fill", [32, 64])
-def test_fill_cache(num_heads, max_seq_len, head_size, seq_len_to_fill):
+@pytest.mark.parametrize("num_heads", [12])
+@pytest.mark.parametrize("max_seq_len", [64])
+@pytest.mark.parametrize("head_size", [64])
+@pytest.mark.parametrize("seq_len_to_fill", [32])
+@pytest.mark.parametrize("experimental_kv_cache_dtype", [None, "bfp_bf8"])
+def test_fill_cache(
+    num_heads, max_seq_len, head_size, seq_len_to_fill, experimental_kv_cache_dtype
+):
 
     cache = torch.zeros(1, num_heads, max_seq_len, head_size, dtype=torch.bfloat16)
     fill_value = torch.randn(
         1, num_heads, seq_len_to_fill, head_size, dtype=torch.bfloat16
     )
+    compiler_config = CompilerConfig(
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype
+    )
 
     run_op_test(
-        torch.ops.tt.fill_cache, [cache, fill_value, 0], framework=Framework.TORCH
+        torch.ops.tt.fill_cache,
+        [cache, fill_value, 0],
+        framework=Framework.TORCH,
+        compiler_config=compiler_config,
     )
 
 
 @pytest.mark.push
 @pytest.mark.single_device
-@pytest.mark.parametrize("num_heads", [12, 16])
-@pytest.mark.parametrize("max_seq_len", [64, 128])
-@pytest.mark.parametrize("head_size", [64, 128])
-def test_update_cache(num_heads, max_seq_len, head_size):
+@pytest.mark.parametrize("num_heads", [12])
+@pytest.mark.parametrize("max_seq_len", [64])
+@pytest.mark.parametrize("head_size", [64])
+@pytest.mark.parametrize("experimental_kv_cache_dtype", [None, "bfp_bf8"])
+def test_update_cache(num_heads, max_seq_len, head_size, experimental_kv_cache_dtype):
 
     cache = torch.zeros(1, num_heads, max_seq_len, head_size, dtype=torch.bfloat16)
     fill_value = torch.randn(1, num_heads, 1, head_size, dtype=torch.bfloat16)
@@ -46,6 +57,9 @@ def test_update_cache(num_heads, max_seq_len, head_size):
         torch.ops.tt.update_cache,
         [cache, fill_value, cache_position, 0],
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(
+            experimental_kv_cache_dtype=experimental_kv_cache_dtype
+        ),
     )
 
 

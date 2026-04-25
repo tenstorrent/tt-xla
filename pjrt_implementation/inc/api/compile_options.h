@@ -37,6 +37,9 @@ struct CompileOptions {
   // Valid values: "bfp_bf8", "bfp_bf4". Empty string disables.
   std::string experimental_weight_dtype = "";
 
+  // Enables experimental KV cache dtype override.
+  std::optional<std::string> experimental_kv_cache_dtype = std::nullopt;
+
   // Override math fidelity for all ttnn operations exposing compute kernel
   // config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
   // "ttnn_default" - means that we don't override math_fidelity in comiler,
