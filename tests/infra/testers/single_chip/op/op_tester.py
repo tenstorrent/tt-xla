@@ -4,8 +4,8 @@
 
 from __future__ import annotations
 
+import copy
 import os
-import re
 import time
 from typing import Callable, Optional, Sequence
 
@@ -63,7 +63,8 @@ class OpTester(BaseTester):
         """
         Runs test by running `workload` on TT device and CPU and comparing the results.
         """
-        cpu_workload = workload
+        # some graphs are stateful, and running them twice produces different results
+        cpu_workload = copy.deepcopy(workload)
         if self._framework == Framework.JAX:
             compile_jax_workload_for_cpu(cpu_workload)
         cpu_res = self._device_runner.run_on_cpu(cpu_workload)

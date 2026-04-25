@@ -91,7 +91,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     ) -> float:
 
         def _atol_leaf(x, y):
-            if x is None and y is None:
+            if (x is None and y is None) or (x.numel() == 0 and y.numel() == 0):
                 return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
