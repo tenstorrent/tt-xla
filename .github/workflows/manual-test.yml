@@ -30,6 +30,7 @@ on:
           - 'fusion-tests.json'
           - 'model-test-lb-blackhole-nightly.json'
           - 'model-test-lb-blackhole-weekly.json'
+          - 'model-test-torch-nightly-ir-dump.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
@@ -62,6 +63,11 @@ on:
         description: 'tt-xla commit SHA to reuse pre-built artifacts from instead of building (leave empty to build fresh)'
         required: false
         type: string
+      dump_irs:
+        description: 'Pass --dump-irs to pytest and upload collected IRs as artifacts'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   actions: write
@@ -104,6 +110,7 @@ jobs:
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       forge_models_override: ${{ inputs.forge_models_override }}
+      dump_irs: ${{ inputs.dump_irs }}
 
   test-multihost-dualt3k:
     if: always() && !cancelled() && !failure() && inputs.run_multihost_dualt3k
