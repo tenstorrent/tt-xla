@@ -333,7 +333,44 @@ def masked_scatter(
 ) -> torch.Tensor:
     # Custom decomposition for masked_scatter
     # Decomposes masked_scatter into basic operations: broadcast, reshape, cumsum, clamp, gather, where
+
+    # Row-wise fast path: O(B*S) cumsum instead of O(B*S*H).
+    # The flat cumsum on B*S*H elements OOMs on TT hardware (TTNN allocates one 32x32
+    # tile per output element, so 277*2560=709k elements → 2.9 GB for the cumsum alone).
+    #
+    # The fast path is valid when the mask is row-constant (same True/False for every
+    # element in a row).  We detect this via three signals, checked BEFORE
+    # broadcast_tensors because FakeTensor may lose stride=0 through that call:
+    #   (a) stride=0   – explicit expand()/expand_as()
+    #   (b) lower rank – will broadcast last dim(s) after broadcast_tensors
+    #   (c) H-aligned source – source.numel() divisible by H.  This is a reliable proxy
+    #       for the VLM expand_as pattern (e.g. Gemma3 image-token insertion) where
+    #       stride info is lost after the .to(device) copy that follows expand_as().
+    H = data.shape[-1] if data.ndim >= 2 else 0
+    n_true = source.numel() // H if H > 0 else 0
+    _row_constant = (
+        data.ndim >= 2
+        and mask.ndim >= 2
+        and (
+            mask.stride(-1) == 0              # (a)
+            or mask.ndim < data.ndim          # (b)
+            or (n_true > 0 and source.numel() == n_true * H)  # (c)
+        )
+    )
+
     mask, data = torch.broadcast_tensors(mask, data)
+
+    if _row_constant and n_true > 0:
+        mask_outer = mask[..., 0]  # same value for every column when row-constant
+        mask_f = mask_outer.reshape(-1)  # [B*S]
+        data_2d = data.reshape(-1, H)  # [B*S, H]
+        source_2d = source.reshape(n_true, H)  # [n_true, H]
+        mask_i = mask_f.long()
+        source_idx = torch.cumsum(mask_i, 0) - 1  # [B*S]
+        source_idx = torch.clamp(source_idx, 0, n_true - 1)
+        gathered = source_2d[source_idx]  # [B*S, H]
+        result = torch.where(mask_f.unsqueeze(-1), gathered, data_2d)
+        return result.view_as(data)
 
     mask_f = mask.reshape(-1)
     data_flat = data.reshape(-1)
