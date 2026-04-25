@@ -4,7 +4,7 @@
 
 import contextlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Optional, Union, cast
 
 import torch
 from vllm.platforms.interface import Platform, PlatformEnum
@@ -104,6 +104,24 @@ class TTConfig:
             "experimental_weight_dtype": self.experimental_weight_dtype,
             "enable_trace": "true" if self.enable_trace else "false",
         }
+
+
+def resolve_hf_decoder_layer_config(hf_config: Any) -> tuple[int, Any]:
+    """Return (num_hidden_layers, config object to mutate) for the text decoder.
+    Plain LM configs expose ``num_hidden_layers`` on the root config. Multimodal
+    models (e.g. Pixtral) often use a composite ``PretrainedConfig`` and store
+    decoder depth on ``text_config`` instead, which would otherwise raise
+    ``AttributeError`` when accessed at the root.
+    """
+    if hasattr(hf_config, "num_hidden_layers"):
+        return hf_config.num_hidden_layers, hf_config
+    text_cfg = getattr(hf_config, "text_config", None)
+    if text_cfg is not None and hasattr(text_cfg, "num_hidden_layers"):
+        return text_cfg.num_hidden_layers, text_cfg
+    raise AttributeError(
+        f"{type(hf_config).__name__} has no decoder num_hidden_layers "
+        "(expected on config or text_config)"
+    )
 
 
 class TTPlatform(Platform):

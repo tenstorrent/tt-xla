@@ -185,7 +185,8 @@ jobs:
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_galaxy_wh_6u_tests" ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ steps.strings.outputs.artifact_run_id }} \
             --repo ${{ github.repository }} \
@@ -376,7 +377,8 @@ jobs:
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_galaxy_wh_6u_tests" ]]; then
           uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
           uv pip freeze
         fi
@@ -389,7 +391,8 @@ jobs:
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
-              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
+              "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_galaxy_wh_6u_tests" ]]; then
           uv pip uninstall vllm transformers
           uv pip install -r $(pwd)/venv/requirements-dev.txt
         fi
