@@ -23,7 +23,7 @@ class _CircularKVCacheUpdate(nn.Module):
         self.win = window_size
         self.register_buffer(
             "kv_cache",
-            torch.ones(max_batch_size, window_size, head_dim, dtype=torch.bfloat16),
+            torch.zeros(max_batch_size, window_size, head_dim, dtype=torch.bfloat16),
             persistent=False,
         )
 
@@ -214,7 +214,9 @@ def test_circular_kv_cache_prefill_then_double_decode(prefill_seqlen, window_siz
     )
 
 
-@pytest.mark.parametrize("start_pos", [0, 4, 7], ids=["pos0", "pos4", "pos7"])
+@pytest.mark.parametrize(
+    "start_pos", [0, 4, 7, 0, 5], ids=["pos0", "pos4", "pos7", "pos0_2", "pos5"]
+)
 def test_kv_cache_update_decode_only(start_pos):
     """Test decode operations at various positions.
 
@@ -223,6 +225,9 @@ def test_kv_cache_update_decode_only(start_pos):
 
     This is the simplest evidence of crosstalk between the prefill and decode tests.
     It can be avoided by running the pos0 test not first, or with --forked
+
+    It may also be related to KV cache initialization under prefill? - removing
+        the first "0" test causes all to pass, so it's not direclty prefill->decode contamination
     """
     xr.set_device_type("TT")
     device = xm.xla_device()
