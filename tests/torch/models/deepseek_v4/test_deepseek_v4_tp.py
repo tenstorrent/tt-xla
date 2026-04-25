@@ -23,7 +23,10 @@ PCC_99 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
 
 def make_mesh() -> Mesh:
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, num_devices)
+    if num_devices == 32:
+        mesh_shape = (4, 8)
+    else:
+        mesh_shape = (1, num_devices)
     device_ids = np.array(range(num_devices))
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
 
@@ -171,19 +174,19 @@ def init_weights(module: nn.Module, std: float = 0.02) -> None:
                 torch.nn.init.normal_(param, mean=0.0, std=std)
 
 
-def _attn_shard_spec(attn):
-    def spec_fn(module):
-        shard_specs = {
-            module.wq_b.weight: ("model", None),
-            module.wo_a.weight: ("model", None),
-            module.wo_b.weight: (None, "model"),
-        }
-        if hasattr(module, "indexer") and module.indexer is not None:
-            shard_specs[module.indexer.wq_b.weight] = ("model", None)
-            shard_specs[module.indexer.weights_proj.weight] = ("model", None)
-        return shard_specs
+def _attn_shard_spec(attn, args, kwargs):
+    shard_specs = {
+        attn.wq_b.weight: ("model", None),
+        attn.wo_a.weight: ("model", None),
+        attn.wo_b.weight: (None, "model"),
+    }
+    if hasattr(attn, "indexer") and attn.indexer is not None:
+        shard_specs[attn.indexer.wq_b.weight] = ("model", None)
+        shard_specs[attn.indexer.weights_proj.weight] = ("model", None)
+    
+    shard_specs[args[0]] = ("batch", None, None)
+    return shard_specs
 
-    return spec_fn
 
 
 @pytest.mark.nightly
@@ -229,10 +232,15 @@ def test_attention_prefill_no_compression(
 ):
     xr.set_device_type("TT")
 
+    bsz = 4
+    seq_len = 128
+    
+    args.max_batch_size = bsz
     attn = make_attention(args, no_compression_layer_id)
     init_weights(attn)
 
-    x = torch.randn(1, 8, args.dim, dtype=torch.bfloat16)
+    x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
+    
     mesh = make_mesh()
 
     run_graph_test(
@@ -240,7 +248,7 @@ def test_attention_prefill_no_compression(
         [x, 0],
         framework=Framework.TORCH,
         mesh=mesh,
-        shard_spec_fn=_attn_shard_spec(attn),
+        shard_spec_fn=_attn_shard_spec,
         comparison_config=PCC_99,
     )
 
@@ -253,12 +261,14 @@ def test_attention_prefill_no_compression(
 def test_attention_decode_no_compression(
     args: ModelArgs, no_compression_layer_id: int, _compression_layer_id: int
 ):
-    xr.set_device_type("TT")
-
+    bsz = 4
+    seq_len = 1
+    
+    args.max_batch_size = bsz
     attn = make_attention(args, no_compression_layer_id)
     init_weights(attn)
 
-    x = torch.randn(1, 1, args.dim, dtype=torch.bfloat16)
+    x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
     mesh = make_mesh()
 
     run_graph_test(
@@ -266,7 +276,7 @@ def test_attention_decode_no_compression(
         [x, 4],
         framework=Framework.TORCH,
         mesh=mesh,
-        shard_spec_fn=_attn_shard_spec(attn),
+        shard_spec_fn=_attn_shard_spec,
         comparison_config=PCC_99,
     )
 
@@ -281,10 +291,14 @@ def test_attention_prefill_with_compression(
 ):
     xr.set_device_type("TT")
 
+    bsz = 4
+    seq_len = 128
+    
+    args.max_batch_size = bsz
     attn = make_attention(args, compression_layer_id)
     init_weights(attn)
 
-    x = torch.randn(1, 8, args.dim, dtype=torch.bfloat16)
+    x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
     mesh = make_mesh()
 
     run_graph_test(
@@ -292,7 +306,7 @@ def test_attention_prefill_with_compression(
         [x, 0],
         framework=Framework.TORCH,
         mesh=mesh,
-        shard_spec_fn=_attn_shard_spec(attn),
+        shard_spec_fn=_attn_shard_spec,
         comparison_config=PCC_99,
     )
 
@@ -307,10 +321,14 @@ def test_attention_decode_with_compression(
 ):
     xr.set_device_type("TT")
 
+    bsz = 4
+    seq_len = 1
+    
+    args.max_batch_size = bsz
     attn = make_attention(args, compression_layer_id)
     init_weights(attn)
 
-    x = torch.randn(1, 1, args.dim, dtype=torch.bfloat16)
+    x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
     mesh = make_mesh()
 
     run_graph_test(
@@ -318,6 +336,6 @@ def test_attention_decode_with_compression(
         [x, 4],
         framework=Framework.TORCH,
         mesh=mesh,
-        shard_spec_fn=_attn_shard_spec(attn),
+        shard_spec_fn=_attn_shard_spec,
         comparison_config=PCC_99,
     )
