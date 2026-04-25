@@ -4,6 +4,8 @@
 
 import collections
 import os
+import shutil
+import tempfile
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Mapping, Optional, Sequence, Set, Tuple
 
@@ -11,6 +13,7 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig
+from infra.evaluators.torch_comparison_evaluator import TorchComparisonEvaluator
 from infra.utilities import Framework, compile_torch_workload_for_tt_device
 from infra.workloads import TorchWorkload, Workload
 from tt_torch.sharding import sharding_constraint_tensor
@@ -309,6 +312,75 @@ class TorchModelTester(ModelTester):
         # Only the first result is recorded in the report properties,
         # and only want to report on the backward result
         return backward_result, forward_result
+
+    def verify_emitpy(
+        self,
+        fb_reference,
+        assert_exact: bool = True,
+    ) -> None:
+        """Verify EmitPy (codegen_py) execution matches flatbuffer execution.
+
+        Resets dynamo and XLA caches to force a fresh recompilation with EmitPy
+        options, then compares the EmitPy result against the flatbuffer reference
+        from the original test run.
+
+        When assert_exact is True (default), asserts that results match exactly.
+        On failure the assertion message includes atol, pcc, and allclose diagnostics.
+
+        Args:
+            fb_reference: Flatbuffer reference result from the original test execution.
+            assert_exact: If True, raise AssertionError when results differ.
+        """
+        original_options = (
+            self._compiler_config.to_torch_compile_options()
+            if self._compiler_config
+            else {}
+        )
+
+        emitpy_export_path = tempfile.mkdtemp(prefix="emitpy_test_")
+        try:
+            # Nuke all dynamo and XLA caches so the next torch.compile call
+            # produces a fresh executable rather than reusing the already-compiled
+            # (non-EmitPy) one.
+            torch._dynamo.reset()
+            xr.clear_computation_cache()
+
+            # --- EmitPy run (legacy-compiled workload, emitpy PJRT options) ---
+            emitpy_options = {
+                **original_options,
+                "backend": "codegen_py",
+                "export_path": emitpy_export_path,
+                "export_tensors": "true",
+                "dry_run": "false",
+            }
+            torch_xla.set_custom_compile_options(emitpy_options)
+
+            self._compile_for_tt_device(
+                self._workload, options={"tt_legacy_compile": True}
+            )
+
+            emitpy_result = self._run_on_tt_device(self._workload)
+
+            # Compare EmitPy vs flatbuffer using the standard evaluator.
+            emitpy_config = ComparisonConfig(assert_on_failure=False)
+            emitpy_config.enable_all()
+            evaluator = TorchComparisonEvaluator(emitpy_config)
+            result = evaluator.evaluate(emitpy_result, fb_reference)
+
+            if not result.equal and assert_exact:
+                raise AssertionError(
+                    f"EmitPy result differs from flatbuffer. "
+                    f"atol={result.atol}, pcc={result.pcc}, "
+                    f"allclose={result.allclose}"
+                )
+        finally:
+            # Restore original compile options and clear caches to avoid
+            # state leaking into subsequent tests.
+            torch_xla.set_custom_compile_options(original_options)
+            torch._dynamo.reset()
+            xr.clear_computation_cache()
+
+            shutil.rmtree(emitpy_export_path, ignore_errors=True)
 
     # @override
     def _apply_model_dtype(self) -> None:

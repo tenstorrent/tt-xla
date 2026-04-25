@@ -163,7 +163,7 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
-                comparison_result = tester.test(request=request)
+                comparison_result, tt_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
@@ -171,6 +171,19 @@ def _run_model_test_impl(
                 # Trigger assertion after comparison_result is cached, and
                 #     fallthrough to finally block on failure.
                 Evaluator._assert_on_results(comparison_result)
+
+                # EmitPy verification: re-run via codegen_py and compare
+                # against flatbuffer result. Only for passing torch inference tests.
+                emitpy_enabled = request.config.getoption("--emitpy", default=False)
+                if emitpy_enabled and succeeded:
+                    print(
+                        f"Running EmitPy verification for {request.node.nodeid}",
+                        flush=True,
+                    )
+                    tester.verify_emitpy(
+                        fb_reference=tt_result,
+                        assert_exact=test_metadata.emitpy_assert_exact,
+                    )
 
         except Exception as e:
             try:

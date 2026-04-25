@@ -8,15 +8,12 @@
 // c++ standard library includes
 #include <iostream>
 #include <mutex>
-#include <numeric>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
 
 // tt-mlir includes
-#include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
-#include "tt/runtime/utils.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
@@ -25,9 +22,15 @@
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
-#include "utils/data_type_utils.h"
 #include "utils/logging.h"
 #include "utils/status.h"
+
+#if TTXLA_ENABLE_EMITPY_EXECUTION
+#include <tools/tt-alchemist/python_runner/python_runner.hpp>
+
+constexpr static char MODULE_NAME[] = "main";
+constexpr static char ENTRYPOINT_NAME[] = "main_for_test";
+#endif
 
 namespace tt::pjrt {
 
@@ -121,10 +124,44 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
       options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
   std::cout << lang << " codegen successful. Check "
             << options.export_path.value() << " for the results." << std::endl;
-  // TODO: Implement SO execution. For now, we create default output buffers.
-  // https://github.com/tenstorrent/tt-xla/issues/2038
-  createDefaultOutputBuffers(args->output_lists, args->num_devices);
 
+  if (options.dry_run || options.backend != BackendRuntime::TTNNCodegenPy) {
+    // dry_run mode or non-Python codegen: return zero-filled output buffers.
+    tt_pjrt_status status =
+        createDefaultOutputBuffers(args->output_lists, args->num_devices);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
+  } else {
+#if !TTXLA_ENABLE_EMITPY_EXECUTION
+    LOG_F(ERROR, "EmitPy execution requested, but this build does not include "
+                 "PythonModelRunner support");
+    return tt_pjrt_status::kInternal;
+#else
+    // Execute the generated Python code via PythonModelRunner.
+    tt::alchemist::PythonModelRunner runner;
+    runner.addToSysPath(options.export_path.value());
+    runner.loadModule(MODULE_NAME, ENTRYPOINT_NAME);
+
+    std::vector<tt::runtime::Tensor> output_tensors =
+        runner.forward(input_tensors, *runtime_device);
+
+    if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+      LOG_F(ERROR,
+            "PythonModelRunner produced different number of output tensors "
+            "(%zu) than the compiler estimated number of outputs (%zu)",
+            output_tensors.size(), m_executable_image->getNumOutputs());
+      return tt_pjrt_status::kInternal;
+    }
+
+    tt_pjrt_status status = fillPJRTOutputLists(
+        output_tensors, args->num_devices, args->output_lists,
+        m_executable_image->getOutputTypes());
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
+#endif
+  }
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
       std::unique_ptr<EventInstance> device_complete_event =
@@ -139,49 +176,6 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   return tt_pjrt_status::kSuccess;
-}
-
-void SOLoadedExecutableInstance::createDefaultOutputBuffers(
-    PJRT_Buffer **const *output_lists, size_t num_devices) {
-  ZoneScoped;
-  size_t num_outputs = m_executable_image->getNumOutputs();
-
-  for (size_t device_index = 0; device_index < num_devices; ++device_index) {
-    for (size_t output_index = 0; output_index < num_outputs; ++output_index) {
-      std::vector<std::uint32_t> output_shape =
-          m_executable_image->getOutputShape(output_index);
-      PJRT_Buffer_Type output_type =
-          m_executable_image->getOutputTypes()[output_index];
-      ::tt::target::DataType runtime_data_type =
-          data_type_utils::convertPJRTToRuntimeDataType(output_type);
-      std::uint32_t element_size =
-          tt::runtime::utils::dataTypeElementSize(runtime_data_type);
-
-      std::unique_ptr<BufferInstance> output_buffer =
-          BufferInstance::createOutputBufferInstance(
-              std::move(output_shape), m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory(),
-              output_type, device_index);
-
-      // We create a row-major tensor. Last stride is 1, one before is the last
-      // dimension size, etc. That means the right algorithm is the exclusive
-      // right scan.
-      std::vector<std::uint32_t> strides(output_shape.size());
-      std::exclusive_scan(output_shape.rbegin(), output_shape.rend(),
-                          strides.rbegin(), std::uint32_t(1),
-                          std::multiplies<>());
-
-      tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
-          nullptr, output_shape, strides, element_size, runtime_data_type);
-
-      PjrtTensor::from_runtime_tensor({output_buffer.get()}, host_tensor);
-
-      output_buffer->markAsDataReady();
-
-      // Release ownership to the PJRT API caller
-      output_lists[device_index][output_index] = *output_buffer.release();
-    }
-  }
 }
 
 std::optional<tt::runtime::Tensor>
