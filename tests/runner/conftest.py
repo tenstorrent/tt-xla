@@ -6,6 +6,23 @@ import os
 
 import pytest
 
+
+def pytest_configure(config):
+    """Override TT_FORGE_MODELS_ROOT from TTMLIR_VENV_DIR before model discovery runs.
+
+    run.sh sets TTMLIR_VENV_DIR=$PWD/.local_venv where $PWD is the models worktree
+    root.  The shared .env may point TT_FORGE_MODELS_ROOT at a different instance's
+    worktree, so we re-derive it here — before test_models.py is imported and
+    setup_test_discovery is called — to ensure the correct worktree is used.
+    """
+    venv_dir = os.environ.get("TTMLIR_VENV_DIR", "")
+    if not venv_dir:
+        return
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    candidate = os.path.dirname(venv_dir)
+    if candidate and os.path.isdir(candidate) and candidate != project_root:
+        os.environ["TT_FORGE_MODELS_ROOT"] = candidate
+
 from tests.runner.requirements import RequirementsManager
 from tests.runner.test_config.constants import ALLOWED_ARCHES
 from tests.runner.test_config.jax import test_config as jax_test_config
