@@ -299,6 +299,8 @@ class TorchModelTester(ModelTester):
         )
         tt_grads, tt_none_grads = self._extract_grads(self._model)
 
+        assert len(tt_grads.keys()) > 0
+        assert len(cpu_grads.keys()) > 0
         assert (
             cpu_none_grads == tt_none_grads
         ), f"CPU and TT have different None grad parameters: {cpu_none_grads} != {tt_none_grads}"
