@@ -54,7 +54,12 @@ def _unpack_router_output(router_out, num_experts):
 
 
 def _moe_activation(
-    gate_up_out, activation_type, alpha=1.702, limit=7.0, interleaved=True
+    gate_up_out,
+    activation_type,
+    alpha=1.702,
+    limit=7.0,
+    interleaved=True,
+    swiglu_limit=0.0,
 ):
     """Apply gate-up activation for MoE experts.
 
@@ -65,6 +70,9 @@ def _moe_activation(
         limit: Clamp bound (gpt_oss only).
         interleaved: If True, gate/up are interleaved [g0,u0,g1,u1,...].
                      If False, contiguous [g0,g1,...,u0,u1,...].
+        swiglu_limit: Clamp bound for deepseek SwiGLU (0 = no clamp). Matches
+                      DeepSeek-V4-Flash Expert.forward: gate clamped to
+                      max=limit, up clamped to +/-limit.
     """
     half = gate_up_out.shape[-1] // 2
     if interleaved:
@@ -75,6 +83,9 @@ def _moe_activation(
         up_out = gate_up_out[..., half:]
 
     if activation_type == ACTIVATION_DEEPSEEK:
+        if swiglu_limit > 0:
+            gate_out = gate_out.clamp(max=swiglu_limit)
+            up_out = up_out.clamp(-swiglu_limit, swiglu_limit)
         return F.silu(gate_out) * up_out
     else:
         gate_out = gate_out.clamp(max=limit)
@@ -94,6 +105,7 @@ class _SparseForwardMixin:
         alpha=1.702,
         limit=7.0,
         output_shape=None,
+        swiglu_limit=0.0,
     ):
         return _sparse_expert_forward(
             self,
@@ -103,6 +115,7 @@ class _SparseForwardMixin:
             alpha,
             limit,
             output_shape,
+            swiglu_limit=swiglu_limit,
         )
 
 
@@ -114,6 +127,7 @@ def _sparse_expert_forward(
     alpha=1.702,
     limit=7.0,
     output_shape=None,
+    swiglu_limit=0.0,
 ):
     """Unified sparse_matmul forward for MoE experts.
 
@@ -154,6 +168,9 @@ def _sparse_expert_forward(
             w3_out = w3_out + experts.w3_bias.view(1, 1, E, 1, -1)
 
         if activation_type == ACTIVATION_DEEPSEEK:
+            if swiglu_limit > 0:
+                w1_out = w1_out.clamp(max=swiglu_limit)
+                w3_out = w3_out.clamp(-swiglu_limit, swiglu_limit)
             activated = F.silu(w1_out) * w3_out
         else:
             w1_out = w1_out.clamp(max=limit)
@@ -162,7 +179,9 @@ def _sparse_expert_forward(
             activated = (w3_out + 1) * glu
     else:
         # Fused gate_up: 1 sparse_matmul, split via activation
-        activated = _moe_activation(w1_out, activation_type, alpha, limit)
+        activated = _moe_activation(
+            w1_out, activation_type, alpha, limit, swiglu_limit=swiglu_limit
+        )
 
     # Reshape 5D → 4D canonical for down: [A, B, E, M, K] → [A*B, E, M, K]
     A, B = activated.shape[0], activated.shape[1]
@@ -447,6 +466,7 @@ class A2aSparseMLP(nn.Module):
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
+        swiglu_limit: float = 0.0,
     ):
         super().__init__()
 
@@ -490,6 +510,9 @@ class A2aSparseMLP(nn.Module):
         # GPT-OSS specific activation parameters (used when activation_type=gpt_oss)
         self.alpha = getattr(self.experts, "alpha", 1.702)
         self.limit = getattr(self.experts, "limit", 7.0)
+        # DeepSeek SwiGLU clamp bound (0 = no clamp). Used only when
+        # activation_type=deepseek; matches DeepSeek-V4-Flash Expert.forward.
+        self.swiglu_limit = swiglu_limit
 
         # Expert-to-device mapping [1, 1, E, D] where D = num_devices (total)
         # Maps each expert to its owning device. When cluster_axis=0, the dispatch
@@ -583,7 +606,11 @@ class A2aSparseMLP(nn.Module):
                 if gate_up_bias is not None:
                     gate_up_out = gate_up_out + gate_up_bias
                 activated = _moe_activation(
-                    gate_up_out, self.activation_type, self.alpha, self.limit
+                    gate_up_out,
+                    self.activation_type,
+                    self.alpha,
+                    self.limit,
+                    swiglu_limit=self.swiglu_limit,
                 )
             else:
                 # Separate gate/up: two matmuls
@@ -609,6 +636,9 @@ class A2aSparseMLP(nn.Module):
                     up_out = up_out + up_bias
 
                 if self.activation_type == ACTIVATION_DEEPSEEK:
+                    if self.swiglu_limit > 0:
+                        gate_out = gate_out.clamp(max=self.swiglu_limit)
+                        up_out = up_out.clamp(-self.swiglu_limit, self.swiglu_limit)
                     activated = F.silu(gate_out) * up_out
                 else:
                     gate_out = gate_out.clamp(max=self.limit)
@@ -655,6 +685,7 @@ class A2aSparseMLP(nn.Module):
                 self.alpha,
                 self.limit,
                 output_shape=(BD, seq_len),
+                swiglu_limit=self.swiglu_limit,
             )
 
         # sparse_forward returns [E, 1, BD*S, H] — combine with output_shard_dim=2.
@@ -997,6 +1028,7 @@ def create_a2a_from_deepseek_v3_moe(
         activation_type=ACTIVATION_DEEPSEEK,
         dispatch_devices=dispatch_devices,
         cpu_forward_module=moe_module,
+        swiglu_limit=float(getattr(config, "swiglu_limit", 0.0) or 0.0),
     )
     shared_experts = getattr(moe_module, "shared_experts", None)
     return A2aSparseMLPWithSharedExperts(a2a_mlp, shared_experts)
