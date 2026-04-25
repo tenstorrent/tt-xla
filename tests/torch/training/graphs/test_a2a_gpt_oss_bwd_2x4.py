@@ -162,5 +162,6 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
         ),
     }
     for name, (g, t) in cases.items():
-        print(f"[PCC] {name}", flush=True)
-        compute_pcc(g, t, required_pcc=pcc)
+        actual = compute_pcc(g, t)
+        print(f"[PCC] {name}: {actual:.6f}", flush=True)
+        assert actual >= pcc, f"{name} PCC too low: {actual:.6f} < {pcc}"

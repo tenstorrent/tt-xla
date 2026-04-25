@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
@@ -111,25 +111,29 @@ def test_a2a_sparse_mlp_backward_pcc():
     out_tt.sum().backward()
 
     required_pcc = 0.95
-    compute_pcc(out_cpu, out_tt.cpu(), required_pcc)
-    compute_pcc(x_cpu.grad, x_tt.grad.cpu(), required_pcc)
-    compute_pcc(
-        mlp_cpu.experts.gate_proj.grad,
-        mlp_tt.experts.gate_proj.grad.cpu(),
-        required_pcc,
-    )
-    compute_pcc(
-        mlp_cpu.experts.up_proj.grad,
-        mlp_tt.experts.up_proj.grad.cpu(),
-        required_pcc,
-    )
-    compute_pcc(
-        mlp_cpu.experts.down_proj.grad,
-        mlp_tt.experts.down_proj.grad.cpu(),
-        required_pcc,
-    )
-    compute_pcc(
-        mlp_cpu.router.weight.grad,
-        mlp_tt.router.weight.grad.cpu(),
-        required_pcc,
-    )
+    cases = {
+        "out": (out_cpu, out_tt.cpu()),
+        "dx": (x_cpu.grad, x_tt.grad.cpu()),
+        "gate_proj.grad": (
+            mlp_cpu.experts.gate_proj.grad,
+            mlp_tt.experts.gate_proj.grad.cpu(),
+        ),
+        "up_proj.grad": (
+            mlp_cpu.experts.up_proj.grad,
+            mlp_tt.experts.up_proj.grad.cpu(),
+        ),
+        "down_proj.grad": (
+            mlp_cpu.experts.down_proj.grad,
+            mlp_tt.experts.down_proj.grad.cpu(),
+        ),
+        "router.grad": (
+            mlp_cpu.router.weight.grad,
+            mlp_tt.router.weight.grad.cpu(),
+        ),
+    }
+    for name, (g, t) in cases.items():
+        actual = compute_pcc(g, t)
+        print(f"[PCC] {name}: {actual:.6f}", flush=True)
+        assert (
+            actual >= required_pcc
+        ), f"{name} PCC too low: {actual:.6f} < {required_pcc}"
