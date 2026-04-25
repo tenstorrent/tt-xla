@@ -48,6 +48,11 @@ on:
         required: false
         type: string
         default: ''
+      dump_irs:
+        description: 'Pass --dump-irs to pytest and upload collected IRs as artifacts'
+        required: false
+        default: false
+        type: boolean
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -316,6 +321,10 @@ jobs:
           -k "$(printf '%q' '${{ matrix.build.contains }}')" \
           $PYTEST_SPLITS"
 
+        if [[ "${{ inputs.dump_irs }}" == "true" ]]; then
+          BASE_PYTEST_CMD="$BASE_PYTEST_CMD --dump-irs"
+        fi
+
         echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
@@ -428,6 +437,24 @@ jobs:
         path: ${{ steps.strings.outputs.perf_report_dir }}
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
+
+    - name: Zip IR Dumps
+      if: inputs.dump_irs && (success() || failure())
+      shell: bash
+      run: |
+        if [ -d collected_irs ] && find collected_irs -name "*.mlir" | grep -q .; then
+          zip -r ir-dumps.zip collected_irs/
+        else
+          echo "No IR files found, skipping zip"
+        fi
+
+    - name: Upload IR Dumps
+      if: inputs.dump_irs && (success() || failure())
+      uses: actions/upload-artifact@v6
+      with:
+        name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ir-dumps.zip
+        if-no-files-found: ignore
 
 
   test-summary:
