@@ -6,77 +6,13 @@
 import pytest
 import torch
 import torch_xla
+import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch import nn
 
-from tests.infra.testers.compiler_config import CompilerConfig
-from third_party.tt_forge_models.deepseek_v4.modified_model.kernel import (
-    hc_split_sinkhorn,
-    sparse_attn,
-)
-from third_party.tt_forge_models.deepseek_v4.modified_model.model import (
-    ModelArgs,
-    RMSNorm,
-    Transformer,
-)
-
 PCC_99 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
-
-
-class _CircularKVCacheDecode(nn.Module):
-    def __init__(self, window_size: int, head_dim: int, max_batch_size: int = 2):
-        super().__init__()
-        self.win = window_size
-        self.register_buffer(
-            "kv_cache",
-            torch.zeros(max_batch_size, window_size, head_dim, dtype=torch.bfloat16),
-            persistent=False,
-        )
-
-    def forward(self, kv: torch.Tensor, start_pos: int):
-        """Decode: update cache with single token at start_pos.
-
-        Args:
-            kv: [batch, 1, head_dim] - single decode token
-            start_pos: position to write to (wraps around window)
-        """
-        bsz, seqlen, _ = kv.shape
-        win = self.win
-        # This line triggers the clamp bug for start_pos > 0 (?)
-        self.kv_cache[:bsz, start_pos % win] = kv.squeeze(1)
-        return self.kv_cache[:bsz]
-
-
-# This works on its own.
-@pytest.mark.nightly
-@pytest.mark.single_device
-@pytest.mark.parametrize(
-    "start_pos", [0, 1, 4, 7], ids=["pos0", "pos1", "pos4", "pos7"]
-)
-@pytest.mark.parametrize("bsz", [1, 2], ids=["partial_batch", "full_batch"])
-def test_circular_kv_cache_decode(start_pos, bsz):
-    """Minimal repro for HLO clamp bug in KV cache updates.
-
-    Bug: clamp(batch_indices=[0,1], min=[0,0], max=[0,0]) → [0,0]
-    Expected: Only pos0 passes, others fail with PCC~0.21
-    """
-    xr.set_device_type("TT")
-    seqlen = 1  # Decode: single token
-    head_dim = 32
-    window_size = 8
-    module = _CircularKVCacheDecode(window_size, head_dim, max_batch_size=2)
-
-    torch.manual_seed(42)
-    kv = torch.randn(bsz, seqlen, head_dim, dtype=torch.bfloat16)
-
-    run_graph_test(
-        module,
-        [kv, start_pos],
-        framework=Framework.TORCH,
-        comparison_config=PCC_99,
-    )
 
 
 class _CircularKVCacheUpdate(nn.Module):
@@ -87,7 +23,7 @@ class _CircularKVCacheUpdate(nn.Module):
         self.win = window_size
         self.register_buffer(
             "kv_cache",
-            torch.zeros(max_batch_size, window_size, head_dim, dtype=torch.bfloat16),
+            torch.ones(max_batch_size, window_size, head_dim, dtype=torch.bfloat16),
             persistent=False,
         )
 
@@ -276,3 +212,50 @@ def test_circular_kv_cache_prefill_then_double_decode(prefill_seqlen, window_siz
         framework=Framework.TORCH,
         comparison_config=PCC_99,
     )
+
+
+@pytest.mark.parametrize("start_pos", [0, 4, 7], ids=["pos0", "pos4", "pos7"])
+def test_kv_cache_update_decode_only(start_pos):
+    """Test decode operations at various positions.
+
+    Each position gets its own independent test run via pytest parametrization
+    to avoid graph caching contamination between tests.
+
+    This is the simplest evidence of crosstalk between the prefill and decode tests.
+    It can be avoided by running the pos0 test not first, or with --forked
+    """
+    xr.set_device_type("TT")
+    device = xm.xla_device()
+
+    window_size = 8
+    head_dim = 32
+    bsz = 1
+    max_batch_size = 2
+
+    # Use same seed for all positions
+    torch.manual_seed(42)
+    kv_input = (
+        torch.arange(bsz * head_dim, dtype=torch.bfloat16)
+        .view(bsz, 1, head_dim)
+        .to(device)
+        + 1
+    )
+
+    print(f"\nInput KV (1 token):")
+    print(kv_input)
+
+    # Fresh module
+    module = _CircularKVCacheUpdate(window_size, head_dim, max_batch_size).to(device)
+    compiled_module = torch.compile(module, backend="tt")
+
+    # Run on device
+    result = compiled_module(kv_input, start_pos)
+    torch_xla.sync()
+
+    print(f"\nKV cache after decode (position {start_pos}):")
+    print(result)
+
+    # Verify the written position matches input
+    assert torch.allclose(
+        result[:, start_pos % window_size, :], kv_input
+    ), f"Position {start_pos % window_size} should contain input KV"
