@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
@@ -90,6 +90,13 @@ class TTConfig:
     # the vllm_config before the model is loaded. We also store the original and
     # target number of layers to filter the weights accordingly during loading.
     num_hidden_layers: int = 0
+
+    # Per-layer weight dtype overrides as a dict mapping parameter name patterns
+    # (fnmatch globs) to dtype strings ("bfp_bf4", "bfp_bf8", "bf16").
+    # An optional "default" key applies to all weight parameters not matched by
+    # other patterns. Applied after model loading, before compilation.
+    # Example: {"model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4", "default": "bfp_bf8"}
+    weight_dtype_overrides: Optional[dict] = None
 
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
