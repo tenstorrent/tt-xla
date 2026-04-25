@@ -33,6 +33,8 @@ else()
     # ----- tt-mlir -----
     set(TTMLIR_SOURCE_DIR_OVERRIDE "" CACHE PATH
         "Path to an existing tt-mlir checkout. When set, bypasses the git clone/update in ExternalProject_Add; the user is responsible for keeping the checkout at a compatible revision.")
+    set(TTMLIR_TTMETAL_SOURCE_DIR "" CACHE PATH
+        "Path to an existing tt-metal checkout. When set, bypasses the git clone/update in ExternalProject_Add; the user is responsible for keeping the checkout at a compatible revision.")
 
     if(TTMLIR_SOURCE_DIR_OVERRIDE)
         message(STATUS "Using override tt-mlir source: ${TTMLIR_SOURCE_DIR_OVERRIDE}")
@@ -50,6 +52,10 @@ else()
             GIT_TAG ${TT_MLIR_VERSION}
             GIT_PROGRESS ON
         )
+    endif()
+
+    if(TTMLIR_TTMETAL_SOURCE_DIR)
+      set(TTMLIR_TTMETAL_SOURCE_DIR "-DTTMLIR_TTMETAL_SOURCE_DIR=${TTMLIR_TTMETAL_SOURCE_DIR}")
     endif()
 
     set(WITH_METAL_RUNTIME_ROOT_SET "")
@@ -98,6 +104,7 @@ else()
           -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
           -DTTMLIR_ENABLE_DOCS=OFF
           -DTT_USE_SYSTEM_SFPI=${TT_USE_SYSTEM_SFPI}
+          ${TTMLIR_TTMETAL_SOURCE_DIR}
         ${TTMLIR_SOURCE_ARGS}
     )
 
