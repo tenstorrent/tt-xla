@@ -202,3 +202,63 @@ def test_compressor_decode(start_pos, compressor_layer):
         framework=Framework.TORCH,
         comparison_config=PCC_99,
     )
+
+
+# All of these fail, except for those where prefill_seqlen is a multiple of the attn window size = 8
+# no apparent crosstalk (--forked doesn't affect results)
+# only tested SWA so far.
+# ==== RETURN THE KV CACHE FOR THESE TESTS ====
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize("layer_id", [0, 1, 2], ids=["SWA", "CSA", "HSA"])
+@pytest.mark.parametrize("prefill_seqlen", [4, 7, 8, 9, 15, 16])
+@pytest.mark.parametrize("bsz", [1, 2], ids=["partial_batch", "full_batch"])
+def test_attention_prefill(layer_id, prefill_seqlen, bsz):
+    xr.set_device_type("TT")
+
+    args = small_args()
+    model = make_model(args)
+    attn = model.layers[layer_id].attn
+    init_weights(attn)
+
+    torch.manual_seed(42)
+    prefill_x = torch.randn(bsz, prefill_seqlen, args.dim, dtype=torch.bfloat16)
+
+    run_graph_test(
+        attn,
+        [prefill_x, 0],
+        # torch_options={"tt_legacy_compile": True},
+        framework=Framework.TORCH,
+        comparison_config=PCC_99,
+    )
+
+
+# All of these will fail without --forked, due to some cross-test crosstalk
+# with forked, only those in bsz=1 will fail, with attention PCC drop
+# only SWA is tested so far.
+# ==== RETURN THE KV CACHE FOR THESE TESTS ====
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize("layer_id", [0, 1, 2], ids=["SWA", "CSA", "HSA"])
+@pytest.mark.parametrize(
+    "start_pos", [1, 2, 3, 4, 5, 6, 7, 8, 9]
+)  # start pos = 0 always fails ~ prefill case w/ seqlen 1
+@pytest.mark.parametrize("bsz", [1, 2], ids=["partial_batch", "full_batch"])
+def test_attention_decode(layer_id, start_pos, bsz):
+    xr.set_device_type("TT")
+
+    args = small_args()
+    model = make_model(args)
+    attn = model.layers[layer_id].attn
+    init_weights(attn)
+
+    torch.manual_seed(42)
+    prefill_x = torch.randn(bsz, 1, args.dim, dtype=torch.bfloat16)
+
+    run_graph_test(
+        attn,
+        [prefill_x, start_pos],
+        # torch_options={"tt_legacy_compile": True},
+        framework=Framework.TORCH,
+        comparison_config=PCC_99,
+    )
