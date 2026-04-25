@@ -15,8 +15,24 @@
           "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
           "TT_RUNTIME_DEBUG": "ON",
           "TTMLIR_BUILD_TYPE": "Debug"
-        },
-        "cmakeExecutable": "sea_cmake"
+        }
+      },
+      {
+        "name": "debug-with-ttrt",
+        "displayName": "Debug and custom flags",
+        "generator": "Ninja",
+        "binaryDir": "${sourceDir}/build",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug",
+          "CMAKE_C_COMPILER": "clang",
+          "CMAKE_CXX_COMPILER": "clang++",
+          "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+          "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+          "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
+          "TT_RUNTIME_DEBUG": "ON",
+          "TTMLIR_BUILD_TYPE": "Debug",
+          "TTXLA_ENABLE_TTRT": "ON"
+        }
       },
       {
         "name": "release",
@@ -32,8 +48,7 @@
           "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
           "TTMLIR_BUILD_TYPE": "Release",
           "TT_RUNTIME_DEBUG": "OFF"
-        },
-        "cmakeExecutable": "sea_cmake"
+        }
       }
     ]
 }
