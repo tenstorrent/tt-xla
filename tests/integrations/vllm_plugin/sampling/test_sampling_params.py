@@ -123,11 +123,15 @@ def vllm_n300_llmbox():
 # This is a workaround mainly for CI so that crash in one test does not hang all the tests
 # saw it happen with logprobs failure, so being safe.
 @pytest.fixture(autouse=True)
-def _test_timeout(llm):
+def _test_timeout(request):
     """Kill any test that hangs longer than TEST_TIMEOUT_SECONDS.
 
-    Depends on ``llm`` so the alarm only starts after the LLM is ready.
+    Only activates when the test uses the ``llm`` fixture, so tests that
+    manage their own LLM are not affected.
     """
+    if "llm" not in request.fixturenames:
+        yield
+        return
 
     def _handler(signum, frame):
         raise TimeoutError(
@@ -248,6 +252,63 @@ def test_output_coherence(llm):
         assert (
             expected.lower() in text.lower()
         ), f"Expected '{expected}' in output for '{input_text}', got: '{text}'"
+
+
+_NON_LATIN_SCRIPTS = [
+    (0x0400, 0x04FF, "Cyrillic"),
+    (0x0600, 0x06FF, "Arabic"),
+    (0x4E00, 0x9FFF, "CJK"),
+    (0x3000, 0x303F, "CJK punctuation"),
+    (0x3040, 0x30FF, "Japanese kana"),
+    (0xAC00, 0xD7FF, "Korean"),
+]
+
+
+def _check_output_quality(text: str) -> None:
+    """Assert output doesn't exhibit token corruption patterns."""
+    assert len(text) > 20, f"Output too short ({len(text)} chars): {text!r}"
+    for start, end, name in _NON_LATIN_SCRIPTS:
+        chars = [c for c in text if start <= ord(c) <= end]
+        assert not chars, f"{name} characters in output: {text!r}"
+    ascii_alpha_space = sum(
+        1 for c in text if c.isascii() and (c.isalpha() or c == " ")
+    )
+    assert (
+        ascii_alpha_space / len(text) > 0.6
+    ), f"Low ASCII alphabetic ratio ({ascii_alpha_space / len(text):.0%}): {text!r}"
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_output_coherence_nongreedy():
+    """Verify non-greedy sampling doesn't produce token-corrupted garbage output.
+
+    Uses Llama-3.2-1B at opt_level=1 — the combination known to exhibit token
+    corruption when sampling perf changes regress the sampler pipeline.
+    """
+    llm = get_or_create_llm(
+        "llama_1b_opt1",
+        model="meta-llama/Llama-3.2-1B",
+        max_num_batched_tokens=128,
+        max_num_seqs=1,
+        max_model_len=128,
+        gpu_memory_utilization=0.002,
+        additional_config={
+            "optimization_level": 1,
+            "enable_const_eval": False,
+            "min_context_len": 32,
+        },
+    )
+    params = vllm.SamplingParams(temperature=0.8, max_tokens=64)
+    text = (
+        llm.generate(
+            ["Tell me a short story about a fox and a river."], params, use_tqdm=False
+        )[0]
+        .outputs[0]
+        .text
+    )
+    print(f"[TESTOUT test_output_coherence_nongreedy] {text!r}")
+    _check_output_quality(text)
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
