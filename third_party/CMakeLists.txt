@@ -44,6 +44,16 @@ else()
             DOWNLOAD_COMMAND ""
             UPDATE_COMMAND ""
         )
+
+        # Many scripts (venv/activate, install_ttmlir_requirements.sh, bisect_*.sh,
+        # CI workflows, tracy include path) hardcode third_party/tt-mlir/src/tt-mlir.
+        # Symlink the canonical location to the override so those continue to work.
+        set(TTMLIR_CANONICAL_LINK "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src/tt-mlir")
+        if(NOT EXISTS "${TTMLIR_CANONICAL_LINK}")
+            file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src")
+            file(CREATE_LINK "${TTMLIR_SOURCE_DIR_OVERRIDE}" "${TTMLIR_CANONICAL_LINK}" SYMBOLIC)
+            message(STATUS "Symlinked ${TTMLIR_CANONICAL_LINK} -> ${TTMLIR_SOURCE_DIR_OVERRIDE}")
+        endif()
     else()
         set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
         set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
