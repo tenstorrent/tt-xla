@@ -54,7 +54,10 @@ PjrtTensor &
 PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
                                 tt::runtime::Tensor rt_tensor) {
 
-  tt::runtime::setTensorRetain(rt_tensor, true);
+  if (tt::runtime::getCurrentDeviceRuntime() ==
+      tt::runtime::DeviceRuntime::TTNN) {
+    tt::runtime::setTensorRetain(rt_tensor, true);
+  }
 
   auto tensor = std::make_shared<PjrtTensor>(Private{}, std::move(shards),
                                              std::move(rt_tensor));
@@ -78,6 +81,13 @@ PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
 
 void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
                                const tt::runtime::Layout &layout) {
+
+  // TTMetal runtime returns a null-handle layout and does not implement
+  // hasLayout/toLayout. Skip the conversion in that case — the runtime
+  // handles tensor placement internally.
+  if (layout.handle == nullptr) {
+    return;
+  }
 
   if (tt::runtime::hasLayout(m_runtime_tensor, layout))
     return;
