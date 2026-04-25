@@ -94,12 +94,15 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    enable_trace: bool = False
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
+            "enable_trace": "true" if self.enable_trace else "false",
         }
 
 
