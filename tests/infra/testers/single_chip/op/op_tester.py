@@ -73,6 +73,11 @@ class OpTester(BaseTester):
         self._compile_for_tt_device(tt_workload)
         tt_res = self._device_runner.run_on_tt_device(tt_workload)
 
+        print("TT")
+        print(tt_res)
+        print("CPU")
+        print(cpu_res)
+
         if self._custom_comparator is not None:
             self._custom_comparator(tt_res, cpu_res, workload.args, workload.kwargs)
         else:

@@ -94,7 +94,21 @@ BufferInstance::BufferInstance(const std::vector<std::uint32_t> &dimensions,
       m_data_ready_event(nullptr), m_done_with_host_buffer_event(nullptr),
       m_data_deleted(false) {}
 
-BufferInstance::~BufferInstance() { deleteData(); }
+BufferInstance::~BufferInstance() {
+  // Log buffer destruction with UID and shape
+  std::string shape_str = "[";
+  for (size_t i = 0; i < m_dimensions.size(); ++i) {
+    if (i > 0)
+      shape_str += ", ";
+    shape_str += std::to_string(m_dimensions[i]);
+  }
+  shape_str += "]";
+
+  LOG_F(INFO, "BufferInstance destroyed: UID=%lu, shape=%s", m_uid,
+        shape_str.c_str());
+
+  deleteData();
+}
 
 void BufferInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Buffer_Destroy = internal::onBufferDestroy;

@@ -202,3 +202,60 @@ def test_compressor_decode(start_pos, compressor_layer):
         framework=Framework.TORCH,
         comparison_config=PCC_99,
     )
+
+
+class _CompressorPrefillThenDecode(nn.Module):
+    """Wrapper that runs prefill to warm up state, then runs decode."""
+
+    def __init__(self, compressor: nn.Module):
+        super().__init__()
+        self.compressor = compressor
+
+    def forward(
+        self, prefill_x: torch.Tensor, decode_x: torch.Tensor, decode_start_pos: int
+    ):
+        # Run prefill to populate kv_state and score_state
+        self.compressor(prefill_x, 0)
+        # print("KV state after prefill:")
+        print(self.compressor.kv_state)
+        # print(torch.sum(self.compressor.kv_state, dim=(0,2)))
+        # Run decode with warmed-up state
+        y = self.compressor(decode_x, decode_start_pos)
+        # print("KV state after decode:")
+        # print(self.compressor.kv_state)
+        # print(torch.sum(self.compressor.kv_state, dim=(0,2)))
+        return y
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+def test_compressor_prefill_then_decode():
+    """Compressor prefill followed by decode: tests stateful KV compression."""
+    xr.set_device_type("TT")
+
+    args = small_args()
+    model = make_model(args)
+    # Layer 1 has compress_ratio=4 with overlap
+    compressor = model.layers[1].attn.compressor
+    with torch.no_grad():
+        torch.nn.init.normal_(compressor.ape, mean=0.0, std=0.02)
+        torch.nn.init.normal_(compressor.wkv.weight, mean=0.0, std=0.02)
+        torch.nn.init.normal_(compressor.wgate.weight, mean=0.0, std=0.02)
+
+    bsz = 1
+    prefill_seqlen = 4  # Exactly one compress_ratio worth of tokens
+    decode_start_pos = 4  # Position after prefill
+
+    torch.manual_seed(42)
+    prefill_x = torch.randn(bsz, prefill_seqlen, args.dim, dtype=torch.bfloat16)
+    decode_x = torch.randn(bsz, 1, args.dim, dtype=torch.bfloat16)
+
+    wrapper = _CompressorPrefillThenDecode(compressor)
+
+    run_graph_test(
+        wrapper,
+        [prefill_x, decode_x, decode_start_pos],
+        torch_options={"tt_legacy_compile": True},
+        framework=Framework.TORCH,
+        comparison_config=PCC_99,
+    )

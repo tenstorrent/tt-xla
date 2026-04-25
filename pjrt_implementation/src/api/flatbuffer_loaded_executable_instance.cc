@@ -7,6 +7,7 @@
 
 // tracy includes
 #include "tracy/Tracy.hpp"
+#include "tt/runtime/runtime.h"
 
 // tt-mlir includes
 #define TTMLIR_ENABLE_STABLEHLO 1
@@ -95,7 +96,18 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
   // which is lazily returned to host when CopyToHost is called.
   for (size_t output_index = 0; output_index < n_prog_output_tensors;
        output_index++) {
+    LOG_F(INFO, "[START] Filling output at output_index %zu", output_index);
     tt::runtime::Tensor outputTensor = output_tensors[output_index];
+
+    auto output_tensor_shape = tt::runtime::getTensorShape(outputTensor);
+    std::vector<std::string> shape_strs;
+    shape_strs.reserve(output_tensor_shape.size());
+    for (auto dim : output_tensor_shape) {
+      shape_strs.push_back(std::to_string(dim));
+    }
+    std::string output_tensor_shape_str = llvm::join(shape_strs, ", ");
+    LOG_F(INFO, "tt::runtime::Tensor outputTensor info: %llu, shape: [%s]",
+          outputTensor.getGlobalId(), output_tensor_shape_str.c_str());
 
     std::vector<BufferInstance *> shards;
     shards.reserve(num_devices);
@@ -115,11 +127,11 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
               std::move(output_shape), m_addressable_devices[device_index],
               m_addressable_devices[device_index]->getDefaultMemory(),
               expected_output_data_types[output_index], device_index);
-      DLOG_F(LOG_DEBUG,
-             "Filled output at output_index %zu device_index %d with shape %s "
-             "and UID %zu",
-             output_index, device_index, output_buffer->toShapeStr().c_str(),
-             output_buffer->getUID());
+      LOG_F(INFO,
+            "Buffer instance for  %zu device_index %d with shape %s "
+            "and UID %zu",
+            output_index, device_index, output_buffer->toShapeStr().c_str(),
+            output_buffer->getUID());
 
       output_buffer->markAsDataReady();
 
@@ -129,6 +141,7 @@ void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
       // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
       output_lists[device_index][output_index] = *output_buffer.release();
     }
+    LOG_F(INFO, "[END] Filling output at output_index %zu", output_index);
 
     PjrtTensor::from_runtime_tensor(shards, std::move(outputTensor));
   }
@@ -189,7 +202,8 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
-  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
+  LOG_F(INFO, "FlatbufferLoadedExecutableInstance::Execute %s",
+        this->m_executable_image->getExecutableName().c_str());
   LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
@@ -221,6 +235,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
+
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }

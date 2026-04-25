@@ -86,7 +86,7 @@ def llama(interactive: bool = False):
                 break
             user_prompt = [user_prompt]
         else:
-            batch_size: int = 32
+            batch_size: int = 1
             user_prompt = DEFAULT_PROMPTS[:batch_size]
 
         # Construct inputs, including static cache
@@ -115,7 +115,7 @@ def llama(interactive: bool = False):
             device,
             mesh,
             is_spmd,
-            max_tokens_to_generate,
+            5,
             user_prompt,
             interactive,
         )
@@ -169,6 +169,7 @@ def setup_model_and_tokenizer(
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.bfloat16, use_cache=True
     )
+    model.config.num_hidden_layers = 1
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -345,7 +346,8 @@ def run_generate(
                 print("RUNNING PREFILL")
                 if is_interactive:
                     print(f"Result: {input_prompt[0]}", end="", flush=True)
-
+            else:
+                print("RUNNING DECODE")
             # Run forward pass
             output: CausalLMOutputWithPast = compiled_model(**input_args)
             output_logits: torch.Tensor = output.logits.to("cpu")

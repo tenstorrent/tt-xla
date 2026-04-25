@@ -148,6 +148,9 @@ class XLAExecutor:
         # Map from placeholder name -> tensor.
         total_args = tuple()
         encountered_user_input = False
+        print("sig.input_specs", sig.input_specs)
+        print("sig.output_specs", sig.output_specs)
+
         for spec in sig.input_specs:
             # Kinds: CUSTOM_OBJ and TOKEN haven't been tested.
             # USER_INPUT will not exist in state_dict, it is passed in from the outside.

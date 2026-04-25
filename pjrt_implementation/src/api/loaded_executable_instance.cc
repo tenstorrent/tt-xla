@@ -181,6 +181,12 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     for (size_t device_index = 0; device_index < num_devices; ++device_index) {
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
+
+      LOG_F(INFO,
+            "Input buffer instance arg_index: %d, device_index: %d, shape: %s "
+            "uid: %llu",
+            arg_index, device_index, buffer->toShapeStr().c_str(),
+            buffer->getUID());
       arg_buffers.push_back(buffer);
     }
 
