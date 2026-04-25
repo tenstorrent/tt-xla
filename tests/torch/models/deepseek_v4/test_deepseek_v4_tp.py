@@ -12,6 +12,7 @@ from torch import nn
 from torch_xla.distributed.spmd import Mesh
 
 from third_party.tt_forge_models.deepseek_v4.modified_model.model import (
+    Attention,
     ModelArgs,
     RMSNorm,
     Transformer,
@@ -58,8 +59,107 @@ def small_args(**overrides) -> ModelArgs:
     return ModelArgs(**defaults)
 
 
+def real_args(**overrides) -> ModelArgs:
+    """Attention-focused args copied from the real config.json with bounded test sizes."""
+    defaults = dict(
+        max_batch_size=1,
+        max_seq_len=256,
+        vocab_size=129280,
+        dim=4096,
+        moe_inter_dim=2048,
+        n_layers=43,
+        n_hash_layers=3,
+        n_mtp_layers=0,
+        n_heads=64,
+        n_routed_experts=256,
+        n_shared_experts=1,
+        n_activated_experts=6,
+        score_func="sqrtsoftplus",
+        route_scale=1.5,
+        swiglu_limit=10.0,
+        q_lora_rank=1024,
+        head_dim=512,
+        rope_head_dim=64,
+        o_groups=8,
+        o_lora_rank=1024,
+        window_size=128,
+        original_seq_len=65536,
+        rope_theta=10000,
+        rope_factor=16,
+        beta_fast=32,
+        beta_slow=1,
+        index_n_heads=64,
+        index_head_dim=128,
+        index_topk=512,
+        hc_mult=4,
+        hc_sinkhorn_iters=20,
+        dtype="bf16",
+        scale_fmt=None,
+        expert_dtype=None,
+        compress_rope_theta=160000,
+        compress_ratios=(
+            0,
+            0,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            128,
+            4,
+            0,
+        ),
+    )
+    defaults.update(overrides)
+    return ModelArgs(**defaults)
+
+
+ATTENTION_TEST_CONFIGS = [
+    pytest.param(small_args(), 0, 1, id="toy"),
+    pytest.param(real_args(), 1, 2, id="real"),
+]
+
+
 def make_model(args: ModelArgs) -> Transformer:
     return Transformer(args).eval()
+
+
+def make_attention(args: ModelArgs, layer_id: int) -> Attention:
+    return Attention(layer_id, args).eval()
 
 
 def init_weights(module: nn.Module, std: float = 0.02) -> None:
@@ -121,12 +221,15 @@ def test_indexer_prefill():
 
 @pytest.mark.nightly
 @pytest.mark.dual_chip
-def test_attention_prefill_no_compression():
+@pytest.mark.parametrize(
+    "args,no_compression_layer_id,_compression_layer_id", ATTENTION_TEST_CONFIGS
+)
+def test_attention_prefill_no_compression(
+    args: ModelArgs, no_compression_layer_id: int, _compression_layer_id: int
+):
     xr.set_device_type("TT")
 
-    args = small_args()
-    model = make_model(args)
-    attn = model.layers[0].attn
+    attn = make_attention(args, no_compression_layer_id)
     init_weights(attn)
 
     x = torch.randn(1, 8, args.dim, dtype=torch.bfloat16)
@@ -144,12 +247,15 @@ def test_attention_prefill_no_compression():
 
 @pytest.mark.nightly
 @pytest.mark.dual_chip
-def test_attention_decode_no_compression():
+@pytest.mark.parametrize(
+    "args,no_compression_layer_id,_compression_layer_id", ATTENTION_TEST_CONFIGS
+)
+def test_attention_decode_no_compression(
+    args: ModelArgs, no_compression_layer_id: int, _compression_layer_id: int
+):
     xr.set_device_type("TT")
 
-    args = small_args()
-    model = make_model(args)
-    attn = model.layers[0].attn
+    attn = make_attention(args, no_compression_layer_id)
     init_weights(attn)
 
     x = torch.randn(1, 1, args.dim, dtype=torch.bfloat16)
@@ -167,12 +273,15 @@ def test_attention_decode_no_compression():
 
 @pytest.mark.nightly
 @pytest.mark.dual_chip
-def test_attention_prefill_with_compression():
+@pytest.mark.parametrize(
+    "args,_no_compression_layer_id,compression_layer_id", ATTENTION_TEST_CONFIGS
+)
+def test_attention_prefill_with_compression(
+    args: ModelArgs, _no_compression_layer_id: int, compression_layer_id: int
+):
     xr.set_device_type("TT")
 
-    args = small_args()
-    model = make_model(args)
-    attn = model.layers[1].attn
+    attn = make_attention(args, compression_layer_id)
     init_weights(attn)
 
     x = torch.randn(1, 8, args.dim, dtype=torch.bfloat16)
@@ -190,12 +299,15 @@ def test_attention_prefill_with_compression():
 
 @pytest.mark.nightly
 @pytest.mark.dual_chip
-def test_attention_decode_with_compression():
+@pytest.mark.parametrize(
+    "args,_no_compression_layer_id,compression_layer_id", ATTENTION_TEST_CONFIGS
+)
+def test_attention_decode_with_compression(
+    args: ModelArgs, _no_compression_layer_id: int, compression_layer_id: int
+):
     xr.set_device_type("TT")
 
-    args = small_args()
-    model = make_model(args)
-    attn = model.layers[1].attn
+    attn = make_attention(args, compression_layer_id)
     init_weights(attn)
 
     x = torch.randn(1, 1, args.dim, dtype=torch.bfloat16)
