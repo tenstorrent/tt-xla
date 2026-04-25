@@ -1,0 +1,9 @@
+[submodule "tt-xla"]
+	path = tt-xla
+	url = git@github.com:tenstorrent/tt-xla.git
+[submodule "tt-mlir"]
+	path = tt-mlir
+	url = git@github.com:tenstorrent/tt-mlir.git
+[submodule "tt-metal"]
+	path = tt-metal
+	url = git@github.com:tenstorrent/tt-metal.git
