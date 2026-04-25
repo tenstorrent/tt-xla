@@ -1,0 +1,1992 @@
+2026-04-25 20:16:34.403 | INFO     | pjrt_plugin_tt:setup_tt_pjrt_plugin_dir:42 - Using PJRT plugin directory: /localdev/jameszianxu/clean/tt-xla/python_package/pjrt_plugin_tt
+2026-04-25 20:16:34.403 | INFO     | pjrt_plugin_tt:setup_tt_metal_home:103 - Using TT-Metal from the source tree: /localdev/jameszianxu/clean/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+2026-04-25 20:16:34.403 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.3, pluggy-1.6.0 -- /localdev/jameszianxu/clean/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.13', 'Platform': 'Linux-6.8.0-87-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'forked': '1.6.0', 'metadata': '3.1.1', 'anyio': '4.13.0', 'jaxtyping': '0.3.9', 'split': '0.11.0', 'json-report': '1.5.0'}}
+rootdir: /localdev/jameszianxu/clean/tt-xla
+configfile: pytest.ini
+plugins: forked-1.6.0, metadata-3.1.1, anyio-4.13.0, jaxtyping-0.3.9, split-0.11.0, json-report-1.5.0
+collecting ... collected 4 items
+
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos0] 2026-04-25 20:16:36.322111: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-04-25 20:16:37.078 (   1.082s) [        34254740]      module_builder.cc:1220     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+#loc10 = loc("reduce.28")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc("p0.1"), %arg1: !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc("p1.4")) -> (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) {
+    %0 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<0.000000e+00> : tensor<bf16>>}> : () -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc)
+    %1 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<[true, false, false, false, false, false, false, false]> : tensor<8xi1>>}> : () -> !vhlo.tensor_v1<8x!vhlo.bool_v1> loc(#loc3)
+    %2 = "vhlo.broadcast_in_dim_v1"(%1) <{broadcast_dimensions = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>}> : (!vhlo.tensor_v1<8x!vhlo.bool_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bool_v1> loc(#loc4)
+    %3 = "vhlo.custom_call_v1"(%arg1) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"args_0">}>} : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc(#loc5)
+    %4 = "vhlo.reshape_v1"(%3) : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x32x!vhlo.bf16_v1> loc(#loc6)
+    %5 = "vhlo.broadcast_in_dim_v1"(%4) <{broadcast_dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> : (!vhlo.tensor_v1<2x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc7)
+    %6 = "vhlo.custom_call_v1"(%arg0) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"kv_cache">}>} : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc8)
+    %7 = "vhlo.select_v1"(%2, %5, %6) : (!vhlo.tensor_v1<2x8x32x!vhlo.bool_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc9)
+    %8 = "vhlo.reduce_v1"(%7, %0) <{dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> ({
+    ^bb0(%arg2: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28"), %arg3: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28")):
+      %9 = "vhlo.add_v1"(%arg2, %arg3) : (!vhlo.tensor_v1<!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc11)
+      "vhlo.return_v1"(%9) : (!vhlo.tensor_v1<!vhlo.bf16_v1>) -> () loc(#loc)
+    }) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<8x!vhlo.bf16_v1> loc(#loc10)
+    "vhlo.return_v1"(%7, %8) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc11 = loc("add.27")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.084 (   1.087s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc("p0.1"), %arg1: tensor<2x1x32xbf16> loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[true, false, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.custom_call @tt.mark_argument(%arg1) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "args_0"}} : (tensor<2x1x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc5)
+    %2 = stablehlo.reshape %1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc6)
+    %3 = stablehlo.broadcast_in_dim %2, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.custom_call @tt.mark_argument(%arg0) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "kv_cache"}} : (tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc8)
+    %5 = stablehlo.select %0, %3, %4 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc9)
+    %6 = stablehlo.reduce(%5 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc10)
+    return %5, %6 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc10 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.085 (   1.088s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[true, false, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.090 (   1.093s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[true, false, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.091 (   1.094s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_set_mesh_attr:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[true, false, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.092 (   1.095s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler_cleaned:
+#loc = loc(unknown)
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc(unknown), %arg1: tensor<2x1x32xbf16> loc(unknown)) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[true, false, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.095 (   1.098s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttir:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+        %0 = "ttir.constant"() <{value = dense<[true, false, false, false, false, false, false, false]> : tensor<8xi1>}> : () -> tensor<8xi1> loc(#loc3)
+        %1 = "ttir.reshape"(%0) <{shape = [1 : i32, 8 : i32, 1 : i32]}> : (tensor<8xi1>) -> tensor<1x8x1xi1> loc(#loc4)
+        %2 = "ttir.broadcast"(%1) <{broadcast_dimensions = array<i64: 2, 1, 32>}> : (tensor<1x8x1xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+        %3 = "ttir.reshape"(%arg1) <{shape = [2 : i32, 32 : i32]}> : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+        %4 = "ttir.reshape"(%3) <{shape = [2 : i32, 1 : i32, 32 : i32]}> : (tensor<2x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc6)
+        %5 = "ttir.broadcast"(%4) <{broadcast_dimensions = array<i64: 1, 8, 1>}> : (tensor<2x1x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+        %6 = "ttir.where"(%2, %5, %arg0) : (tensor<2x8x32xi1>, tensor<2x8x32xbf16>, tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+        %7 = "ttir.sum"(%6) <{dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16>) -> tensor<8xbf16> loc(#loc8)
+        return %6, %7 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.106 (   1.109s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[1.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.112 (   1.116s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn_runtime:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[1.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.137 (   1.140s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:37.137 (   1.140s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 1
+2026-04-25 20:16:37.138 (   1.141s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 1, device_index: 0, shape: [2, 1, 32] uid: 0
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 9, shape: [2, 8, 32]
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 2
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 1
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 10, shape: [8]
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  1 device_index 0 with shape [8] and UID 3
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 1
+2026-04-25 20:16:37.182 (   1.185s) [        23FFF6C0]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=1, shape=[2, 8, 32]
+2026-04-25 20:16:37.442 | DEBUG    | tt_torch.backend.passes:_validate_demangling:463 - Failed to demangle 1 argument name(s): ['kv_cache']
+2026-04-25 20:16:37.447 | DEBUG    | tt_torch.backend.metadata_propagation:_extract_source_and_module_hierarchy_info:289 - Function name mismatch between stack_trace and found_func_name modes
+stack_trace: torch_dynamo_resume_in_forward_at_47
+found_func_name: forward
+found_func_name_ast: forward
+2026-04-25 20:16:37.497 (   1.500s) [        34254740]      module_builder.cc:1220     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc("p0.1")) -> (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) {
+    %0 = "vhlo.custom_call_v1"(%arg0) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"constant">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"kv_cache">}>} : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc2)
+    "vhlo.return_v1"(%0) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc2 = loc("custom-call.2")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.498 (   1.501s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc("p0.1")) -> tensor<2x8x32xbf16> {
+    %0 = stablehlo.custom_call @tt.mark_argument(%arg0) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "constant", ttir.name = "kv_cache"}} : (tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc2)
+    return %0 : tensor<2x8x32xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc2 = loc("custom-call.2")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.498 (   1.501s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<constant>, ttir.name = "kv_cache"} loc("p0.1")) -> tensor<2x8x32xbf16> {
+    return %arg0 : tensor<2x8x32xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.500 (   1.503s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<constant>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    return %arg0 : tensor<2x8x32xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.500 (   1.504s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_set_mesh_attr:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<constant>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    return %arg0 : tensor<2x8x32xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.501 (   1.504s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler_cleaned:
+#loc = loc(unknown)
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc(unknown)) -> tensor<2x8x32xbf16> {
+    return %arg0 : tensor<2x8x32xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.502 (   1.505s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttir:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<constant>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+        return %arg0 : tensor<2x8x32xbf16> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.508 (   1.511s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn:
+#dram = #ttnn.buffer_type<dram>
+#loc1 = loc("p0.1")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<constant>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1")) -> (tensor<2x8x32xbf16, #ttnn_layout> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        return %arg0 : tensor<2x8x32xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.511 (   1.514s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn_runtime:
+#dram = #ttnn.buffer_type<dram>
+#loc1 = loc("p0.1")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.5 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<constant>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1")) -> (tensor<2x8x32xbf16, #ttnn_layout> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        return %arg0 : tensor<2x8x32xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:37.517 (   1.521s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:37.517 (   1.521s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 2
+2026-04-25 20:16:37.517 (   1.521s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:37.518 (   1.521s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 9, shape: [2, 8, 32]
+2026-04-25 20:16:37.518 (   1.521s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 4
+2026-04-25 20:16:37.518 (   1.521s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+kv cache tensor([4.4688, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
+       dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True), InputSpec(kind=<InputKind.USER_INPUT: 1>, arg=TensorArgument(name='args_0'), target=None, persistent=None)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='sum_1'), target=None)]
+kv cache tensor([4.4688, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
+       device='xla:0', dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='slice_1'), target=None)]
+TT
+tensor([[[-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]],
+
+        [[ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]]], device='xla:0',
+       dtype=torch.bfloat16)
+CPU
+tensor([[[-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]],
+
+        [[ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]]], dtype=torch.bfloat16)2026-04-25 20:16:37.526 (   1.530s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=4, shape=[2, 8, 32]
+
+PASSED[W425 20:16:37.884939877 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+[W425 20:16:37.884996167 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+2026-04-25 20:16:37.902 (   1.906s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=0, shape=[2, 1, 32]
+2026-04-25 20:16:38.159 (   2.162s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=3, shape=[8]
+
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos1] 2026-04-25 20:16:38.569 (   2.572s) [        34254740]      module_builder.cc:1220     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+#loc10 = loc("reduce.28")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc("p0.1"), %arg1: !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc("p1.4")) -> (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) {
+    %0 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<0.000000e+00> : tensor<bf16>>}> : () -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc)
+    %1 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<[false, true, false, false, false, false, false, false]> : tensor<8xi1>>}> : () -> !vhlo.tensor_v1<8x!vhlo.bool_v1> loc(#loc3)
+    %2 = "vhlo.broadcast_in_dim_v1"(%1) <{broadcast_dimensions = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>}> : (!vhlo.tensor_v1<8x!vhlo.bool_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bool_v1> loc(#loc4)
+    %3 = "vhlo.custom_call_v1"(%arg1) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"args_0">}>} : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc(#loc5)
+    %4 = "vhlo.reshape_v1"(%3) : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x32x!vhlo.bf16_v1> loc(#loc6)
+    %5 = "vhlo.broadcast_in_dim_v1"(%4) <{broadcast_dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> : (!vhlo.tensor_v1<2x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc7)
+    %6 = "vhlo.custom_call_v1"(%arg0) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"kv_cache">}>} : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc8)
+    %7 = "vhlo.select_v1"(%2, %5, %6) : (!vhlo.tensor_v1<2x8x32x!vhlo.bool_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc9)
+    %8 = "vhlo.reduce_v1"(%7, %0) <{dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> ({
+    ^bb0(%arg2: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28"), %arg3: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28")):
+      %9 = "vhlo.add_v1"(%arg2, %arg3) : (!vhlo.tensor_v1<!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc11)
+      "vhlo.return_v1"(%9) : (!vhlo.tensor_v1<!vhlo.bf16_v1>) -> () loc(#loc)
+    }) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<8x!vhlo.bf16_v1> loc(#loc10)
+    "vhlo.return_v1"(%7, %8) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc11 = loc("add.27")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.571 (   2.574s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc("p0.1"), %arg1: tensor<2x1x32xbf16> loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, true, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.custom_call @tt.mark_argument(%arg1) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "args_0"}} : (tensor<2x1x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc5)
+    %2 = stablehlo.reshape %1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc6)
+    %3 = stablehlo.broadcast_in_dim %2, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.custom_call @tt.mark_argument(%arg0) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "kv_cache"}} : (tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc8)
+    %5 = stablehlo.select %0, %3, %4 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc9)
+    %6 = stablehlo.reduce(%5 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc10)
+    return %5, %6 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc10 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.572 (   2.576s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, true, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.576 (   2.579s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, true, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.577 (   2.580s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_set_mesh_attr:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, true, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.578 (   2.581s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler_cleaned:
+#loc = loc(unknown)
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc(unknown), %arg1: tensor<2x1x32xbf16> loc(unknown)) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, true, false, false, false, false, false, false]> : tensor<8xi1> loc(#loc)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.580 (   2.583s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttir:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+        %0 = "ttir.constant"() <{value = dense<[false, true, false, false, false, false, false, false]> : tensor<8xi1>}> : () -> tensor<8xi1> loc(#loc3)
+        %1 = "ttir.reshape"(%0) <{shape = [1 : i32, 8 : i32, 1 : i32]}> : (tensor<8xi1>) -> tensor<1x8x1xi1> loc(#loc4)
+        %2 = "ttir.broadcast"(%1) <{broadcast_dimensions = array<i64: 2, 1, 32>}> : (tensor<1x8x1xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+        %3 = "ttir.reshape"(%arg1) <{shape = [2 : i32, 32 : i32]}> : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+        %4 = "ttir.reshape"(%3) <{shape = [2 : i32, 1 : i32, 32 : i32]}> : (tensor<2x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc6)
+        %5 = "ttir.broadcast"(%4) <{broadcast_dimensions = array<i64: 1, 8, 1>}> : (tensor<2x1x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+        %6 = "ttir.where"(%2, %5, %arg0) : (tensor<2x8x32xi1>, tensor<2x8x32xbf16>, tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+        %7 = "ttir.sum"(%6) <{dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16>) -> tensor<8xbf16> loc(#loc8)
+        return %6, %7 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.589 (   2.592s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[0.000000e+00], [1.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.593 (   2.597s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn_runtime:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[0.000000e+00], [1.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:38.603 (   2.606s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:38.603 (   2.607s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 6
+2026-04-25 20:16:38.603 (   2.607s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 1, device_index: 0, shape: [2, 1, 32] uid: 5
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 26, shape: [2, 8, 32]
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 7
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 1
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 27, shape: [8]
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  1 device_index 0 with shape [8] and UID 8
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 1
+2026-04-25 20:16:38.604 (   2.607s) [        23FFF6C0]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=6, shape=[2, 8, 32]
+2026-04-25 20:16:38.657 (   2.660s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=8, shape=[8]
+2026-04-25 20:16:38.884 | DEBUG    | tt_torch.backend.passes:_validate_demangling:463 - Failed to demangle 1 argument name(s): ['kv_cache']
+2026-04-25 20:16:38.889 | DEBUG    | tt_torch.backend.metadata_propagation:_extract_source_and_module_hierarchy_info:289 - Function name mismatch between stack_trace and found_func_name modes
+stack_trace: torch_dynamo_resume_in_forward_at_47
+found_func_name: forward
+found_func_name_ast: forward
+2026-04-25 20:16:38.934 (   2.937s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:38.934 (   2.937s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 7
+2026-04-25 20:16:38.934 (   2.937s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:38.934 (   2.937s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 26, shape: [2, 8, 32]
+2026-04-25 20:16:38.934 (   2.937s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 9
+2026-04-25 20:16:38.934 (   2.937s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+kv cache tensor([0.0000, 4.4688, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
+       dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True), InputSpec(kind=<InputKind.USER_INPUT: 1>, arg=TensorArgument(name='args_0'), target=None, persistent=None)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='sum_1'), target=None)]
+kv cache tensor([0.0000, 4.4688, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
+       device='xla:0', dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='slice_1'), target=None)]
+TT
+tensor([[[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]],
+
+        [[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]]], device='xla:0',
+       dtype=torch.bfloat16)
+CPU
+tensor([[[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]],
+
+        [[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]]], dtype=torch.bfloat16)2026-04-25 20:16:38.939 (   2.942s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=9, shape=[2, 8, 32]
+
+PASSED[W425 20:16:39.299121687 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+[W425 20:16:39.299172196 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+2026-04-25 20:16:39.317 (   3.320s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=5, shape=[2, 1, 32]
+
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos4] 2026-04-25 20:16:39.983 (   3.986s) [        34254740]      module_builder.cc:1220     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+#loc10 = loc("reduce.28")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc("p0.1"), %arg1: !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc("p1.4")) -> (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) {
+    %0 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<0.000000e+00> : tensor<bf16>>}> : () -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc)
+    %1 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<[false, false, false, false, true, false, false, false]> : tensor<8xi1>>}> : () -> !vhlo.tensor_v1<8x!vhlo.bool_v1> loc(#loc3)
+    %2 = "vhlo.broadcast_in_dim_v1"(%1) <{broadcast_dimensions = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>}> : (!vhlo.tensor_v1<8x!vhlo.bool_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bool_v1> loc(#loc4)
+    %3 = "vhlo.custom_call_v1"(%arg1) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"args_0">}>} : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc(#loc5)
+    %4 = "vhlo.reshape_v1"(%3) : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x32x!vhlo.bf16_v1> loc(#loc6)
+    %5 = "vhlo.broadcast_in_dim_v1"(%4) <{broadcast_dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> : (!vhlo.tensor_v1<2x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc7)
+    %6 = "vhlo.custom_call_v1"(%arg0) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"kv_cache">}>} : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc8)
+    %7 = "vhlo.select_v1"(%2, %5, %6) : (!vhlo.tensor_v1<2x8x32x!vhlo.bool_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc9)
+    %8 = "vhlo.reduce_v1"(%7, %0) <{dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> ({
+    ^bb0(%arg2: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28"), %arg3: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28")):
+      %9 = "vhlo.add_v1"(%arg2, %arg3) : (!vhlo.tensor_v1<!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc11)
+      "vhlo.return_v1"(%9) : (!vhlo.tensor_v1<!vhlo.bf16_v1>) -> () loc(#loc)
+    }) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<8x!vhlo.bf16_v1> loc(#loc10)
+    "vhlo.return_v1"(%7, %8) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc11 = loc("add.27")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:39.985 (   3.988s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc("p0.1"), %arg1: tensor<2x1x32xbf16> loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, true, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.custom_call @tt.mark_argument(%arg1) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "args_0"}} : (tensor<2x1x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc5)
+    %2 = stablehlo.reshape %1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc6)
+    %3 = stablehlo.broadcast_in_dim %2, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.custom_call @tt.mark_argument(%arg0) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "kv_cache"}} : (tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc8)
+    %5 = stablehlo.select %0, %3, %4 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc9)
+    %6 = stablehlo.reduce(%5 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc10)
+    return %5, %6 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc10 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:39.986 (   3.989s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, true, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:39.990 (   3.993s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, true, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:39.991 (   3.994s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_set_mesh_attr:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, true, false, false, false]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:39.992 (   3.995s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler_cleaned:
+#loc = loc(unknown)
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc(unknown), %arg1: tensor<2x1x32xbf16> loc(unknown)) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, true, false, false, false]> : tensor<8xi1> loc(#loc)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:39.994 (   3.997s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttir:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+        %0 = "ttir.constant"() <{value = dense<[false, false, false, false, true, false, false, false]> : tensor<8xi1>}> : () -> tensor<8xi1> loc(#loc3)
+        %1 = "ttir.reshape"(%0) <{shape = [1 : i32, 8 : i32, 1 : i32]}> : (tensor<8xi1>) -> tensor<1x8x1xi1> loc(#loc4)
+        %2 = "ttir.broadcast"(%1) <{broadcast_dimensions = array<i64: 2, 1, 32>}> : (tensor<1x8x1xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+        %3 = "ttir.reshape"(%arg1) <{shape = [2 : i32, 32 : i32]}> : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+        %4 = "ttir.reshape"(%3) <{shape = [2 : i32, 1 : i32, 32 : i32]}> : (tensor<2x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc6)
+        %5 = "ttir.broadcast"(%4) <{broadcast_dimensions = array<i64: 1, 8, 1>}> : (tensor<2x1x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+        %6 = "ttir.where"(%2, %5, %arg0) : (tensor<2x8x32xi1>, tensor<2x8x32xbf16>, tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+        %7 = "ttir.sum"(%6) <{dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16>) -> tensor<8xbf16> loc(#loc8)
+        return %6, %7 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:40.002 (   4.005s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [1.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:40.007 (   4.010s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn_runtime:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [1.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:40.017 (   4.020s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:40.017 (   4.020s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 11
+2026-04-25 20:16:40.017 (   4.020s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 1, device_index: 0, shape: [2, 1, 32] uid: 10
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 43, shape: [2, 8, 32]
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 12
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 1
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 44, shape: [8]
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  1 device_index 0 with shape [8] and UID 13
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 1
+2026-04-25 20:16:40.018 (   4.021s) [        23FFF6C0]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=11, shape=[2, 8, 32]
+2026-04-25 20:16:40.071 (   4.074s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=13, shape=[8]
+2026-04-25 20:16:40.299 | DEBUG    | tt_torch.backend.passes:_validate_demangling:463 - Failed to demangle 1 argument name(s): ['kv_cache']
+2026-04-25 20:16:40.304 | DEBUG    | tt_torch.backend.metadata_propagation:_extract_source_and_module_hierarchy_info:289 - Function name mismatch between stack_trace and found_func_name modes
+stack_trace: torch_dynamo_resume_in_forward_at_47
+found_func_name: forward
+found_func_name_ast: forward
+2026-04-25 20:16:40.349 (   4.352s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:40.349 (   4.352s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 12
+2026-04-25 20:16:40.349 (   4.352s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:40.349 (   4.352s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 43, shape: [2, 8, 32]
+2026-04-25 20:16:40.349 (   4.353s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 14
+2026-04-25 20:16:40.349 (   4.353s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+kv cache tensor([0.0000, 0.0000, 0.0000, 0.0000, 4.4688, 0.0000, 0.0000, 0.0000],
+       dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True), InputSpec(kind=<InputKind.USER_INPUT: 1>, arg=TensorArgument(name='args_0'), target=None, persistent=None)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='sum_1'), target=None)]
+kv cache tensor([0.0000, 0.0000, 0.0000, 0.0000, 4.4688, 0.0000, 0.0000, 0.0000],
+       device='xla:0', dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='slice_1'), target=None)]
+TT
+tensor([[[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]],
+
+        [[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]]], device='xla:0',
+       dtype=torch.bfloat16)
+CPU
+tensor([[[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]],
+
+        [[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000]]], dtype=torch.bfloat16)2026-04-25 20:16:40.354 (   4.357s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=14, shape=[2, 8, 32]
+
+PASSED[W425 20:16:40.714119630 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+[W425 20:16:40.714173430 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+2026-04-25 20:16:40.732 (   4.735s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=10, shape=[2, 1, 32]
+
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos7] 2026-04-25 20:16:41.400 (   5.403s) [        34254740]      module_builder.cc:1220     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+#loc10 = loc("reduce.28")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc("p0.1"), %arg1: !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc("p1.4")) -> (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) {
+    %0 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<0.000000e+00> : tensor<bf16>>}> : () -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc)
+    %1 = "vhlo.constant_v1"() <{value = #vhlo.tensor_v1<dense<[false, false, false, false, false, false, false, true]> : tensor<8xi1>>}> : () -> !vhlo.tensor_v1<8x!vhlo.bool_v1> loc(#loc3)
+    %2 = "vhlo.broadcast_in_dim_v1"(%1) <{broadcast_dimensions = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>}> : (!vhlo.tensor_v1<8x!vhlo.bool_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bool_v1> loc(#loc4)
+    %3 = "vhlo.custom_call_v1"(%arg1) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"args_0">}>} : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1> loc(#loc5)
+    %4 = "vhlo.reshape_v1"(%3) : (!vhlo.tensor_v1<2x1x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x32x!vhlo.bf16_v1> loc(#loc6)
+    %5 = "vhlo.broadcast_in_dim_v1"(%4) <{broadcast_dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> : (!vhlo.tensor_v1<2x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc7)
+    %6 = "vhlo.custom_call_v1"(%arg0) <{api_version = #vhlo<api_version_v1 API_VERSION_UNSPECIFIED>, backend_config = #vhlo.string_v1<"">, call_target_name = #vhlo.string_v1<"tt.mark_argument">, called_computations = #vhlo.array_v1<[]>, has_side_effect = #vhlo.bool_v1<false>, operand_layouts = #vhlo.array_v1<[]>, output_operand_aliases = #vhlo.array_v1<[]>, result_layouts = #vhlo.array_v1<[]>}> {mhlo.frontend_attributes = #vhlo.dict_v1<{#vhlo.string_v1<"ttcore.argument_type"> = #vhlo.string_v1<"input">, #vhlo.string_v1<"ttir.name"> = #vhlo.string_v1<"kv_cache">}>} : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc8)
+    %7 = "vhlo.select_v1"(%2, %5, %6) : (!vhlo.tensor_v1<2x8x32x!vhlo.bool_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>) -> !vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1> loc(#loc9)
+    %8 = "vhlo.reduce_v1"(%7, %0) <{dimensions = #vhlo.tensor_v1<dense<[0, 2]> : tensor<2xi64>>}> ({
+    ^bb0(%arg2: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28"), %arg3: !vhlo.tensor_v1<!vhlo.bf16_v1> loc("reduce.28")):
+      %9 = "vhlo.add_v1"(%arg2, %arg3) : (!vhlo.tensor_v1<!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<!vhlo.bf16_v1> loc(#loc11)
+      "vhlo.return_v1"(%9) : (!vhlo.tensor_v1<!vhlo.bf16_v1>) -> () loc(#loc)
+    }) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<!vhlo.bf16_v1>) -> !vhlo.tensor_v1<8x!vhlo.bf16_v1> loc(#loc10)
+    "vhlo.return_v1"(%7, %8) : (!vhlo.tensor_v1<2x8x32x!vhlo.bf16_v1>, !vhlo.tensor_v1<8x!vhlo.bf16_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc11 = loc("add.27")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.402 (   5.405s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc("p0.1"), %arg1: tensor<2x1x32xbf16> loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, false, false, false, true]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.custom_call @tt.mark_argument(%arg1) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "args_0"}} : (tensor<2x1x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc5)
+    %2 = stablehlo.reshape %1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc6)
+    %3 = stablehlo.broadcast_in_dim %2, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.custom_call @tt.mark_argument(%arg0) {api_version = 0 : i32, mhlo.frontend_attributes = {ttcore.argument_type = "input", ttir.name = "kv_cache"}} : (tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc8)
+    %5 = stablehlo.select %0, %3, %4 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc9)
+    %6 = stablehlo.reduce(%5 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc10)
+    return %5, %6 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("custom-call.5")
+#loc6 = loc("reshape.6")
+#loc7 = loc("broadcast.11")
+#loc8 = loc("custom-call.2")
+#loc9 = loc("select.21")
+#loc10 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.403 (   5.406s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, false, false, false, true]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.407 (   5.410s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, false, false, false, true]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.408 (   5.411s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_set_mesh_attr:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, false, false, false, true]> : tensor<8xi1> loc(#loc3)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc7)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc8)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.409 (   5.412s) [        34254740]      module_builder.cc:1220     1| MLIR Module shlo_compiler_cleaned:
+#loc = loc(unknown)
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<2x8x32xbf16> loc(unknown), %arg1: tensor<2x1x32xbf16> loc(unknown)) -> (tensor<2x8x32xbf16>, tensor<8xbf16>) {
+    %cst = stablehlo.constant dense<0.000000e+00> : tensor<bf16> loc(#loc)
+    %c = stablehlo.constant dense<[false, false, false, false, false, false, false, true]> : tensor<8xi1> loc(#loc)
+    %0 = stablehlo.broadcast_in_dim %c, dims = [1] : (tensor<8xi1>) -> tensor<2x8x32xi1> loc(#loc)
+    %1 = stablehlo.reshape %arg1 : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc)
+    %2 = stablehlo.broadcast_in_dim %1, dims = [0, 2] : (tensor<2x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc)
+    %3 = stablehlo.select %0, %2, %arg0 : tensor<2x8x32xi1>, tensor<2x8x32xbf16> loc(#loc)
+    %4 = stablehlo.reduce(%3 init: %cst) applies stablehlo.add across dimensions = [0, 2] : (tensor<2x8x32xbf16>, tensor<bf16>) -> tensor<8xbf16> loc(#loc)
+    return %3, %4 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.411 (   5.414s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttir:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.4")
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      func.func @main(%arg0: tensor<2x8x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+        %0 = "ttir.constant"() <{value = dense<[false, false, false, false, false, false, false, true]> : tensor<8xi1>}> : () -> tensor<8xi1> loc(#loc3)
+        %1 = "ttir.reshape"(%0) <{shape = [1 : i32, 8 : i32, 1 : i32]}> : (tensor<8xi1>) -> tensor<1x8x1xi1> loc(#loc4)
+        %2 = "ttir.broadcast"(%1) <{broadcast_dimensions = array<i64: 2, 1, 32>}> : (tensor<1x8x1xi1>) -> tensor<2x8x32xi1> loc(#loc4)
+        %3 = "ttir.reshape"(%arg1) <{shape = [2 : i32, 32 : i32]}> : (tensor<2x1x32xbf16>) -> tensor<2x32xbf16> loc(#loc5)
+        %4 = "ttir.reshape"(%3) <{shape = [2 : i32, 1 : i32, 32 : i32]}> : (tensor<2x32xbf16>) -> tensor<2x1x32xbf16> loc(#loc6)
+        %5 = "ttir.broadcast"(%4) <{broadcast_dimensions = array<i64: 1, 8, 1>}> : (tensor<2x1x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc6)
+        %6 = "ttir.where"(%2, %5, %arg0) : (tensor<2x8x32xi1>, tensor<2x8x32xbf16>, tensor<2x8x32xbf16>) -> tensor<2x8x32xbf16> loc(#loc7)
+        %7 = "ttir.sum"(%6) <{dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16>) -> tensor<8xbf16> loc(#loc8)
+        return %6, %7 : tensor<2x8x32xbf16>, tensor<8xbf16> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("reshape.19")
+#loc4 = loc("broadcast.20")
+#loc5 = loc("reshape.6")
+#loc6 = loc("broadcast.11")
+#loc7 = loc("select.21")
+#loc8 = loc("reduce.28")
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.419 (   5.422s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [1.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.424 (   5.427s) [        34254740]      module_builder.cc:1220     1| MLIR Module ttnn_runtime:
+#dram = #ttnn.buffer_type<dram>
+#loc2 = loc("p0.1")
+#loc3 = loc("p1.4")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073119552, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2}], [0], [1 : i32], [ 0x0x0x0]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 8 + d1, d2), <1x1>, memref<16x32xbf16, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<2x32xbf16, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<2x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.30 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func private @main_const_eval_0() -> tensor<1x8x1xbf16, #ttnn_layout> attributes {tt.function_type = "const_eval"} {
+        %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device loc(#loc8)
+        %1 = "ttnn.constant"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, layout = #ttnn.layout<tile>, memory_config = #ttnn.memory_config<#dram, <interleaved>>, value = dense<[[[0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [0.000000e+00], [1.000000e+00]]]> : tensor<1x8x1xbf16>}> : (!ttnn.device) -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc1)
+        return %1 : tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+      } loc(#loc)
+      func.func @main(%arg0: tensor<2x8x32xbf16, #ttnn_layout1> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "kv_cache"} loc("p0.1"), %arg1: tensor<2x1x32xbf16, #ttnn_layout2> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x1x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<unsharded>, ttir.name = "args_0"} loc("p1.4")) -> (tensor<2x8x32xbf16, #ttnn_layout3> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<2x8x32xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}, tensor<8xbf16, #ttnn_layout4> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<8xbf16>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = ttcore.load_cached(@main_const_eval_0, []) : () -> tensor<1x8x1xbf16, #ttnn_layout> loc(#loc)
+        %1 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> tensor<2x1x32xbf16, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout2>) -> () loc(#loc4)
+        %2 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc5)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout1>) -> () loc(#loc5)
+        %3 = "ttnn.where"(%0, %1, %2) : (tensor<1x8x1xbf16, #ttnn_layout>, tensor<2x1x32xbf16, #ttnn_layout3>, tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<2x8x32xbf16, #ttnn_layout3> loc(#loc6)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<2x1x32xbf16, #ttnn_layout3>) -> () loc(#loc6)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1x8x1xbf16, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.sum"(%3) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, dim_arg = [0 : i32, 2 : i32], keep_dim = false}> : (tensor<2x8x32xbf16, #ttnn_layout3>) -> tensor<8xbf16, #ttnn_layout4> loc(#loc7)
+        return %3, %4 : tensor<2x8x32xbf16, #ttnn_layout3>, tensor<8xbf16, #ttnn_layout4> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc1 = loc("broadcast.20")
+#loc4 = loc("select.21_in_1_layout")
+#loc5 = loc("select.21_in_2_layout")
+#loc6 = loc("select.21")
+#loc7 = loc("reduce.28")
+#loc8 = loc("broadcast.20_workaround"(#loc1))
+------------------ END OF MLIR MODULE ------------------
+2026-04-25 20:16:41.434 (   5.437s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:41.434 (   5.437s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 16
+2026-04-25 20:16:41.434 (   5.437s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 1, device_index: 0, shape: [2, 1, 32] uid: 15
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 60, shape: [2, 8, 32]
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 17
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 1
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 61, shape: [8]
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  1 device_index 0 with shape [8] and UID 18
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 1
+2026-04-25 20:16:41.434 (   5.438s) [        23FFF6C0]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=16, shape=[2, 8, 32]
+2026-04-25 20:16:41.488 (   5.491s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=18, shape=[8]
+2026-04-25 20:16:41.712 | DEBUG    | tt_torch.backend.passes:_validate_demangling:463 - Failed to demangle 1 argument name(s): ['kv_cache']
+2026-04-25 20:16:41.717 | DEBUG    | tt_torch.backend.metadata_propagation:_extract_source_and_module_hierarchy_info:289 - Function name mismatch between stack_trace and found_func_name modes
+stack_trace: torch_dynamo_resume_in_forward_at_47
+found_func_name: forward
+found_func_name_ast: forward
+2026-04-25 20:16:41.761 (   5.764s) [        23FFF6C0]flatbuffer_loaded_execu:205   INFO| FlatbufferLoadedExecutableInstance::Execute tt_executable
+2026-04-25 20:16:41.761 (   5.765s) [        23FFF6C0]loaded_executable_insta:185   INFO| Input buffer instance arg_index: 0, device_index: 0, shape: [2, 8, 32] uid: 17
+2026-04-25 20:16:41.761 (   5.765s) [        23FFF6C0]flatbuffer_loaded_execu:99    INFO| [START] Filling output at output_index 0
+2026-04-25 20:16:41.761 (   5.765s) [        23FFF6C0]flatbuffer_loaded_execu:109   INFO| tt::runtime::Tensor outputTensor info: 60, shape: [2, 8, 32]
+2026-04-25 20:16:41.761 (   5.765s) [        23FFF6C0]flatbuffer_loaded_execu:133   INFO| Buffer instance for  0 device_index 0 with shape [2, 8, 32] and UID 19
+2026-04-25 20:16:41.761 (   5.765s) [        23FFF6C0]flatbuffer_loaded_execu:144   INFO| [END] Filling output at output_index 0
+kv cache tensor([0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 4.4688],
+       dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True), InputSpec(kind=<InputKind.USER_INPUT: 1>, arg=TensorArgument(name='args_0'), target=None, persistent=None)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='sum_1'), target=None)]
+kv cache tensor([0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 4.4688],
+       device='xla:0', dtype=torch.bfloat16)
+sig.input_specs [InputSpec(kind=<InputKind.BUFFER: 3>, arg=TensorArgument(name='b_kv_cache'), target='L__self___kv_cache', persistent=True)]
+sig.output_specs [OutputSpec(kind=<OutputKind.USER_OUTPUT: 1>, arg=TensorArgument(name='slice_1'), target=None)]
+TT
+tensor([[[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445]],
+
+        [[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906]]], device='xla:0',
+       dtype=torch.bfloat16)
+CPU
+tensor([[[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [-0.8086, -1.5312,  0.4062,  0.1719, -0.2471,  0.2041, -0.8789,
+          -0.3867,  0.6016,  0.2676, -0.8516, -0.2891,  1.0000, -0.7812,
+           1.3750,  0.1187,  0.8633, -0.7656,  0.8242, -1.1875, -0.0330,
+          -0.0801,  0.0781, -0.6484, -0.4746, -0.6680,  1.0547, -0.0359,
+          -1.3203, -0.6719,  0.0415, -0.6445]],
+
+        [[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
+           0.0000,  0.0000,  0.0000,  0.0000],
+         [ 0.2637,  0.7070, -0.2188,  2.8906,  1.3672, -0.1084,  0.2402,
+           1.8359,  1.7500, -0.0459, -0.3516, -0.0962, -1.7656, -0.9102,
+          -0.5977,  0.6602,  0.0393,  1.6094, -1.5078,  1.2656,  0.2227,
+          -1.0312,  0.6055, -0.4707,  1.6406, -0.3086, -0.0693, -1.0469,
+           0.6211, -0.1455,  0.3242,  2.3906]]], dtype=torch.bfloat16)2026-04-25 20:16:41.767 (   5.770s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=19, shape=[2, 8, 32]
+
+PASSED[W425 20:16:42.128467239 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+[W425 20:16:42.128519618 PyInterpreter.cpp:265] Warning: Deallocating Tensor that still has live PyObject references.  This probably happened because you took out a weak reference to Tensor and didn't call _fix_weakref() after dereferencing it.  Subsequent accesses to this tensor via the PyObject will now fail. (function decref)
+2026-04-25 20:16:42.146 (   6.149s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=15, shape=[2, 1, 32]
+
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos0]
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos1]
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos4]
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos7]
+  /localdev/jameszianxu/clean/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos0]
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos1]
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos4]
+tests/torch/models/deepseek_v4/test_deepseek_v4_single_device.py::test_circular_kv_cache_decode[pos7]
+  /localdev/jameszianxu/clean/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 4 passed, 10 warnings in 6.74s ========================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+2026-04-25 20:16:44.849 (   8.852s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=2, shape=[2, 8, 32]
+2026-04-25 20:16:44.849 (   8.852s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=7, shape=[2, 8, 32]
+2026-04-25 20:16:44.849 (   8.853s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=12, shape=[2, 8, 32]
+2026-04-25 20:16:44.849 (   8.853s) [        34254740]     buffer_instance.cc:106   INFO| BufferInstance destroyed: UID=17, shape=[2, 8, 32]
