@@ -49,8 +49,22 @@ else()
         # CI workflows, tracy include path) hardcode third_party/tt-mlir/src/tt-mlir.
         # Symlink the canonical location to the override so those continue to work.
         set(TTMLIR_CANONICAL_LINK "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src/tt-mlir")
-        if(NOT EXISTS "${TTMLIR_CANONICAL_LINK}")
-            file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src")
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src")
+        if(IS_SYMLINK "${TTMLIR_CANONICAL_LINK}")
+            file(READ_SYMLINK "${TTMLIR_CANONICAL_LINK}" _existing_link_target)
+            if(NOT "${_existing_link_target}" STREQUAL "${TTMLIR_SOURCE_DIR_OVERRIDE}")
+                file(REMOVE "${TTMLIR_CANONICAL_LINK}")
+                file(CREATE_LINK "${TTMLIR_SOURCE_DIR_OVERRIDE}" "${TTMLIR_CANONICAL_LINK}" SYMBOLIC)
+                message(STATUS "Repointed ${TTMLIR_CANONICAL_LINK} -> ${TTMLIR_SOURCE_DIR_OVERRIDE}")
+            endif()
+        elseif(EXISTS "${TTMLIR_CANONICAL_LINK}")
+            message(FATAL_ERROR
+                "TTMLIR_SOURCE_DIR_OVERRIDE is set, but a real directory exists at\n"
+                "  ${TTMLIR_CANONICAL_LINK}\n"
+                "(likely a leftover clone from a prior non-override configure). "
+                "Remove it so cmake can replace it with a symlink to the override:\n"
+                "  rm -rf ${TTMLIR_CANONICAL_LINK}")
+        else()
             file(CREATE_LINK "${TTMLIR_SOURCE_DIR_OVERRIDE}" "${TTMLIR_CANONICAL_LINK}" SYMBOLIC)
             message(STATUS "Symlinked ${TTMLIR_CANONICAL_LINK} -> ${TTMLIR_SOURCE_DIR_OVERRIDE}")
         endif()
