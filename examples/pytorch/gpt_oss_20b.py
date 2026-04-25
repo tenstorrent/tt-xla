@@ -123,8 +123,10 @@ def create_device_mesh() -> Mesh:
         mesh_shape = (8, 4)
     elif num_devices == 8:  # llmbox
         mesh_shape = (2, 4)
+    elif num_devices == 4:  # p300c (4 devices)
+        mesh_shape = (1, 4)
     else:
-        raise RuntimeError(f"Gpt-oss is only supported on llmbox and galaxy")
+        raise RuntimeError(f"Gpt-oss requires 4, 8, or 32 devices")
 
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
