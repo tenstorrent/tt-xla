@@ -447,6 +447,7 @@ class A2aSparseMLP(nn.Module):
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
+        use_dense_matmul: bool = False,
     ):
         super().__init__()
 
@@ -462,9 +463,9 @@ class A2aSparseMLP(nn.Module):
         self.dispatch_devices = (
             dispatch_devices if dispatch_devices is not None else num_devices
         )
-        # When True, uses dense torch.matmul instead of sparse_matmul.
-        # Skips remap (no sparsity mask needed). Demo-style approach.
-        self.use_dense_matmul = False
+        # When True, uses dense torch.matmul instead of sparse_matmul. Dense
+        # path skips the sparsity mask and supports autograd.
+        self.use_dense_matmul = use_dense_matmul
 
         # Keep original MLP for CPU golden path.
         # cpu_forward_module overrides original_mlp when the adapter wrapping
@@ -616,28 +617,17 @@ class A2aSparseMLP(nn.Module):
                     glu = gate_out * torch.sigmoid(gate_out * self.alpha)
                     activated = (up_out + 1) * glu
 
-            # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
-            act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
+            # Down: [E, T, inter] @ [E, inter, H] → [E, T, H], with T = BD*S.
+            # Keeping E on dim 0 through to combine lets Shardy propagate the
+            # expert sharding without inserting an all_gather on the E axis.
+            act_per_expert = activated.reshape(
                 dim_a * dim_b * M, E, self.intermediate_size
-            )
-            act_per_expert = act_per_expert.permute(
-                1, 0, 2
-            )  # [E, dim_a*dim_b*M, inter]
-            down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-            down_out = torch.bmm(
-                act_per_expert, down_per_expert
-            )  # [E, dim_a*dim_b*M, H]
-            down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
-            down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
-
-            # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
-            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
+            ).permute(1, 0, 2)
+            down_per_expert = down_proj.squeeze(0)
+            down_out = torch.bmm(act_per_expert, down_per_expert)
             if down_bias is not None:
-                down_out = down_out + down_bias
-            # E to front, merge all spatial dims into one token dim
-            down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
-            down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
+                down_out = down_out + down_bias.unsqueeze(1)
+            down_out = down_out.unsqueeze(1)
 
         else:
             # ===== Fused moe_expert_token_remap path =====
@@ -1057,9 +1047,13 @@ def enable_sparse_mlp(
     target_classes: Optional[List[Type]] = None,
     verbose: bool = False,
     config: Optional[object] = None,
+    use_dense_matmul: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
+
+    use_dense_matmul: when True, A2aSparseMLP uses dense torch.bmm (autograd
+    supported) instead of sparse_matmul (no autograd).
     """
     replaced_count = 0
 
@@ -1112,9 +1106,12 @@ def enable_sparse_mlp(
         num_experts, num_experts_per_tok = moe_config
 
         # Wrap fused experts (e.g. GptOssExperts) with FusedExpertsWrapper
-        # so they have sparse_forward() like StackedExperts
+        # so they have sparse_forward() like StackedExperts. The dense-matmul
+        # path uses experts directly (no sparse_forward), so the wrapper
+        # is unused and skipped.
         if (
-            hasattr(module, "experts")
+            not use_dense_matmul
+            and hasattr(module, "experts")
             and hasattr(module.experts, "gate_up_proj")
             and not hasattr(module.experts, "sparse_forward")
         ):
@@ -1129,6 +1126,7 @@ def enable_sparse_mlp(
             config=config,
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
+            use_dense_matmul=use_dense_matmul,
         )
 
         setattr(parent, name, sparse_mlp)
