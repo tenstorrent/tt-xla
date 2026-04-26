@@ -688,6 +688,10 @@ def record_model_test_properties(
         pytest.xfail(reason)
 
 
+_xla_device_arch_failed = False
+_xla_device_arch_cache = None
+
+
 def get_xla_device_arch():
     """
     Get the XLA device architecture (wormhole, blackhole, etc.)
@@ -695,18 +699,32 @@ def get_xla_device_arch():
     Returns:
         str: Architecture name ('wormhole' or 'blackhole'), or empty string if not found
     """
+    global _xla_device_arch_failed, _xla_device_arch_cache
+
     if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
         return ""
 
-    all_attributes = xr.global_runtime_device_attributes()
-    device_attributes = all_attributes[0]
+    if _xla_device_arch_failed:
+        return ""
 
-    arch_name = device_attributes["device_arch"].lower()
+    if _xla_device_arch_cache is not None:
+        return _xla_device_arch_cache
 
-    for arch in ["wormhole", "blackhole"]:
-        if arch in arch_name:
-            return arch
-    return ""
+    try:
+        all_attributes = xr.global_runtime_device_attributes()
+        device_attributes = all_attributes[0]
+
+        arch_name = device_attributes["device_arch"].lower()
+
+        for arch in ["wormhole", "blackhole"]:
+            if arch in arch_name:
+                _xla_device_arch_cache = arch
+                return arch
+        _xla_device_arch_cache = ""
+        return ""
+    except Exception:
+        _xla_device_arch_failed = True
+        return ""
 
 
 def get_input_shape_info(inputs) -> tuple[int, int, tuple]:
