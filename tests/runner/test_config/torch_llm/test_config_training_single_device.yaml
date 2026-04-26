@@ -16,11 +16,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.95
 
-  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
+  llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
     required_pcc: 0.88
 
-  llama_lora/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
+  llama_lora/causal_lm/pytorch-3.2_1B-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
     required_pcc: 0.95
 
@@ -32,11 +32,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.95
 
-  llama/causal_lm/pytorch-3.2_1B_Instruct-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
+  llama/causal_lm/pytorch-3.2_1B_Instruct-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
     required_pcc: 0.82
 
-  llama_lora/causal_lm/pytorch-3.2_1B_Instruct-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
+  llama_lora/causal_lm/pytorch-3.2_1B_Instruct-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
     required_pcc: 0.95
 
@@ -49,12 +49,12 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.97
 
-  llama/causal_lm/pytorch-Tinyllama_v1.1-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
+  llama/causal_lm/pytorch-Tinyllama_v1.1-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: NOT_SUPPORTED_SKIP
     reason: "PCC returns nan"
     bringup_status: FAILED_RUNTIME
 
-  llama_lora/causal_lm/pytorch-Tinyllama_v1.1-llm_prefill-seq_128-batch_2-single_device-mesh_default-training:
+  llama_lora/causal_lm/pytorch-Tinyllama_v1.1-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
