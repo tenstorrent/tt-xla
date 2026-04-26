@@ -2212,7 +2212,6 @@ test_config:
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/3379"
 
   gemma/codegemma/pytorch-2B-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-Tinyllama_v1.1-single_device-inference:
@@ -2378,8 +2377,8 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 1536736 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/4239"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Test hangs and times out after 240 minutes in CI - https://github.com/tenstorrent/tt-xla/issues/4239"
     markers: [large]
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
@@ -2651,7 +2650,6 @@ test_config:
 
   gemma3/causal_lm/pytorch-1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3860 - AssertionError: PCC comparison failed. Calculated: pcc=0.955831792289353. Required: pcc=0.99
 
   gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
     status: KNOWN_FAILURE_XFAIL

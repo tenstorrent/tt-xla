@@ -183,6 +183,7 @@ jobs:
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ steps.strings.outputs.artifact_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
@@ -276,7 +277,7 @@ jobs:
         # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
         # See issue: https://github.com/tenstorrent/tt-xla/issues/795
         PYTEST_FORKED=""
-        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
+        for n in run_torch run_large_jax_models run_forge_models run_forge_models_llm run_forge_models_llm_multichip run_forge_models_torch run_jax_training run_large_jax_training extended_models run_large_torch_models; do
           if [[ "${{ matrix.build.name }}" == "$n" ]]; then
             PYTEST_FORKED="--forked"; break
           fi
@@ -373,6 +374,7 @@ jobs:
       run: |
         source venv/activate
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           uv pip install -r $(pwd)/integrations/vllm_plugin/requirements-vllm-plugin.txt
@@ -385,6 +387,7 @@ jobs:
                2>&1 | tee pytest.log
 
         if [[ "${{ matrix.build.name }}" == "run_vllm_n150_tests" || \
+              "${{ matrix.build.name }}" == "run_vllm_p150_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_n300_tests" || \
               "${{ matrix.build.name }}" == "run_vllm_llmbox_tests" ]]; then
           uv pip uninstall vllm transformers

@@ -48,17 +48,20 @@ def test_qwen3_backward():
     loss_value = loss.item()
     assert loss_value > 0, f"Loss should be positive, got {loss_value}."
 
+    torch_xla.sync(wait=True)
+
     # Verify gradients exist.
-    assert (
-        model.model.layers[0].self_attn.q_proj.weight.grad is not None
-    ), "Gradients not computed."
+    trainable = [
+        (name, p) for name, p in model.model.named_parameters() if p.requires_grad
+    ]
+    missing = [name for name, p in trainable if p.grad is None]
+
+    assert trainable, "No trainable parameters found."
+    assert not missing, f"Missing gradients for: {missing}"
 
 
 @pytest.mark.push
 @pytest.mark.dual_chip
-@pytest.mark.xfail(
-    reason="Loss should be positive, got -1.980134329970842e+38. See https://github.com/tenstorrent/tt-xla/issues/3069"
-)
 def test_qwen3_multichip_backward():
 
     model_variant = ModelVariant.QWEN_3_0_6B
@@ -104,7 +107,13 @@ def test_qwen3_multichip_backward():
     loss_value = loss.item()
     assert loss_value > 0, f"Loss should be positive, got {loss_value}."
 
+    torch_xla.sync(wait=True)
+
     # Verify gradients exist.
-    assert (
-        model.model.layers[0].self_attn.q_proj.weight.grad is not None
-    ), "Gradients not computed."
+    trainable = [
+        (name, p) for name, p in model.model.named_parameters() if p.requires_grad
+    ]
+    missing = [name for name, p in trainable if p.grad is None]
+
+    assert trainable, "No trainable parameters found."
+    assert not missing, f"Missing gradients for: {missing}"

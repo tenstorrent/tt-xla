@@ -26,6 +26,8 @@ from .testers import (
 )
 from .utilities import (
     Framework,
+    MLACache,
+    MLAStaticLayer,
     Model,
     ShardingMode,
     enable_shardy,
