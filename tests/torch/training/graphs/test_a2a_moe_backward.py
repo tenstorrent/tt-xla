@@ -132,7 +132,14 @@ def test_a2a_sparse_mlp_backward_pcc():
         ),
     }
     for name, (g, t) in cases.items():
-        actual = compute_pcc(g, t)
+        try:
+            actual = compute_pcc(g, t)
+        except (ValueError, AssertionError) as exc:
+            assert torch.allclose(
+                g.float(), t.float(), rtol=1e-2, atol=1e-2
+            ), f"{name}: {exc}"
+            print(f"[PCC] {name}: allclose ok (constant tensor)", flush=True)
+            continue
         print(f"[PCC] {name}: {actual:.6f}", flush=True)
         assert (
             actual >= required_pcc

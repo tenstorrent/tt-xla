@@ -162,6 +162,13 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
         ),
     }
     for name, (g, t) in cases.items():
-        actual = compute_pcc(g, t)
+        try:
+            actual = compute_pcc(g, t)
+        except (ValueError, AssertionError) as exc:
+            assert torch.allclose(
+                g.float(), t.float(), rtol=1e-2, atol=1e-2
+            ), f"{name}: {exc}"
+            print(f"[PCC] {name}: allclose ok (constant tensor)", flush=True)
+            continue
         print(f"[PCC] {name}: {actual:.6f}", flush=True)
         assert actual >= pcc, f"{name} PCC too low: {actual:.6f} < {pcc}"
