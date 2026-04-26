@@ -101,6 +101,21 @@ fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
   return meshTopology;
 }
 
+// Matches the FABRIC_1D shortcut in ClientInstance::computeFabricConfig when
+// TT_RUNTIME_ENABLE_DISTRIBUTED is set: global1D fabric for multi-device,
+// empty per-axis list (same as distributed compile path).
+static tt::runtime::MeshFabricConfig
+defaultFabric1DMeshFabricConfig(llvm::ArrayRef<uint32_t> mesh_shape) {
+  uint32_t num_devices = 1;
+  for (uint32_t d : mesh_shape) {
+    num_devices *= d;
+  }
+  const tt::runtime::FabricConfig global =
+      num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
+                      : tt::runtime::FabricConfig::DISABLED;
+  return {global, {}};
+}
+
 // Helper function to get current timestamp in milliseconds.
 static std::string getCurrentTimeStamp() {
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1094,8 +1109,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Map per-axis fabric config to mesh topology for CCL operations.
   // Compute fabric config for the compilation mesh shape directly, since the
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
-  options.meshTopology = fabricConfigToMeshTopology(
-      client_instance->computeFabricConfig(devices_mesh_shape));
+
+  // Compile-only clients use default FABRIC_1D mesh config instead of
+  // computeMeshFabricConfig (system desc may omit fabric topology details).
+  const tt::runtime::MeshFabricConfig mesh_fabric_for_topology =
+      client_instance->isCompileOnly()
+          ? defaultFabric1DMeshFabricConfig(devices_mesh_shape)
+          : client_instance->computeFabricConfig(devices_mesh_shape);
+  options.meshTopology = fabricConfigToMeshTopology(mesh_fabric_for_topology);
+  mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);

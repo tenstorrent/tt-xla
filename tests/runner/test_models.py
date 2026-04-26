@@ -110,6 +110,8 @@ def _run_model_test_impl(
         comparison_result = None
         tester = None
 
+        comparison_config = test_metadata.to_comparison_config()
+
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -120,7 +122,7 @@ def _run_model_test_impl(
                         run_mode,
                         run_phase=run_phase,
                         loader=loader,
-                        comparison_config=test_metadata.to_comparison_config(),
+                        comparison_config=comparison_config,
                         compiler_config=compiler_config,
                         parallelism=parallelism,
                         test_metadata=test_metadata,
@@ -133,7 +135,7 @@ def _run_model_test_impl(
                         tester = DynamicJaxMultiChipModelTester(
                             model_loader=loader,
                             run_mode=run_mode,
-                            comparison_config=test_metadata.to_comparison_config(),
+                            comparison_config=comparison_config,
                             compiler_config=compiler_config,
                             parallelism=parallelism,
                         )
@@ -142,7 +144,7 @@ def _run_model_test_impl(
                             # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
                             tester = DynamicJaxMultiChipModelTester(
                                 model_loader=loader,
-                                comparison_config=test_metadata.to_comparison_config(),
+                                comparison_config=comparison_config,
                                 num_devices=1,
                                 compiler_config=compiler_config,
                                 parallelism=parallelism,
@@ -151,7 +153,7 @@ def _run_model_test_impl(
                             tester = DynamicJaxModelTester(
                                 run_mode,
                                 loader=loader,
-                                comparison_config=test_metadata.to_comparison_config(),
+                                comparison_config=comparison_config,
                                 compiler_config=compiler_config,
                             )
                 else:
@@ -168,9 +170,10 @@ def _run_model_test_impl(
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
-                # Trigger assertion after comparison_result is cached, and
-                #     fallthrough to finally block on failure.
-                Evaluator._assert_on_results(comparison_result)
+                # assert_on_failure is disabled by default, don't assert if
+                # all subcomponets are disabled
+                if not comparison_config.all_disabled():
+                    Evaluator._assert_on_results(comparison_result)
 
         except Exception as e:
             try:

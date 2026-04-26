@@ -4,8 +4,11 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
+
+from loguru import logger
 
 
 @dataclass
@@ -53,6 +56,12 @@ class ComparisonConfig:
     allclose: AllcloseConfig = field(default_factory=lambda: AllcloseConfig(False))
     assert_on_failure: bool = True  # Default to True for backwards compatibility
 
+    def __post_init__(self):
+        if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
+            logger.warning("Comparison disabled due to TT_COMPILE_ONLY_SYSTEM_DESC")
+            self.disable_all()
+            self.assert_on_failure = False
+
     def enable_all(self) -> None:
         self.equal.enable()
         self.atol.enable()
@@ -64,6 +73,16 @@ class ComparisonConfig:
         self.atol.disable()
         self.allclose.disable()
         self.pcc.disable()
+
+    def all_disabled(self) -> bool:
+        return not any(
+            [
+                self.equal.enabled,
+                self.atol.enabled,
+                self.allclose.enabled,
+                self.pcc.enabled,
+            ]
+        )
 
 
 @dataclass
