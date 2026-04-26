@@ -179,14 +179,22 @@ def _attn_shard_spec(attn, args, kwargs):
         attn.wq_b.weight: ("model", None),
         attn.wo_a.weight: ("model", None),
         attn.wo_b.weight: (None, "model"),
+        attn.kv_cache: ("batch", None, None),
     }
+    if attn.compress_ratio:
+        shard_specs[attn.compressor.kv_cache] = ("batch", None, None)
+        shard_specs[attn.compressor.kv_state] = ("batch", None, None)
+        shard_specs[attn.compressor.score_state] = ("batch", None, None)
     if hasattr(attn, "indexer") and attn.indexer is not None:
         shard_specs[attn.indexer.wq_b.weight] = ("model", None)
         shard_specs[attn.indexer.weights_proj.weight] = ("model", None)
-    
+
+        shard_specs[attn.indexer.compressor.kv_cache] = ("batch", None, None)
+        shard_specs[attn.indexer.compressor.kv_state] = ("batch", None, None)
+        shard_specs[attn.indexer.compressor.score_state] = ("batch", None, None)
+
     shard_specs[args[0]] = ("batch", None, None)
     return shard_specs
-
 
 
 @pytest.mark.nightly
@@ -234,13 +242,13 @@ def test_attention_prefill_no_compression(
 
     bsz = 4
     seq_len = 128
-    
+
     args.max_batch_size = bsz
     attn = make_attention(args, no_compression_layer_id)
     init_weights(attn)
 
     x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
-    
+
     mesh = make_mesh()
 
     run_graph_test(
@@ -263,7 +271,7 @@ def test_attention_decode_no_compression(
 ):
     bsz = 4
     seq_len = 1
-    
+
     args.max_batch_size = bsz
     attn = make_attention(args, no_compression_layer_id)
     init_weights(attn)
@@ -293,7 +301,7 @@ def test_attention_prefill_with_compression(
 
     bsz = 4
     seq_len = 128
-    
+
     args.max_batch_size = bsz
     attn = make_attention(args, compression_layer_id)
     init_weights(attn)
@@ -323,7 +331,7 @@ def test_attention_decode_with_compression(
 
     bsz = 4
     seq_len = 1
-    
+
     args.max_batch_size = bsz
     attn = make_attention(args, compression_layer_id)
     init_weights(attn)

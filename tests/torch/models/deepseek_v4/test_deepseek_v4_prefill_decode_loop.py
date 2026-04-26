@@ -79,9 +79,22 @@ def cache_buffers(attn) -> dict:
 def _pcc(x: torch.Tensor, y: torch.Tensor) -> float:
     """Pearson correlation. Mirrors tests/infra/evaluators/torch_comparison_evaluator.py:
     float64 conversion, allclose short-circuit to 1.0 (PCC is ill-conditioned when tensors
-    are nearly identical), Pearson on flattened tensors."""
+    are nearly identical), Pearson on flattened tensors.
+
+    Handles tensors that contain -inf sentinel values (e.g. score_state, which uses -inf for
+    not-yet-computed slots): first checks that the non-finite pattern agrees between x and y
+    (a mismatch means one side has a real value where the other has a sentinel, which is a hard
+    failure), then computes Pearson on the finite positions only."""
     x = x.detach().to(torch.float64).flatten()
     y = y.detach().to(torch.float64).flatten()
+    # Structural agreement on non-finite positions: catches cases where TT writes a real value
+    # where CPU expects -inf (or vice versa), which PCC alone cannot detect.
+    if not (x.isfinite() == y.isfinite()).all():
+        return 0.0
+    finite = x.isfinite()
+    if not finite.any():
+        return 1.0  # both entirely non-finite and structurally identical
+    x, y = x[finite], y[finite]
     if torch.allclose(x, y, rtol=ALLCLOSE_RTOL, atol=ALLCLOSE_ATOL):
         return 1.0
     if x.numel() <= 1:
