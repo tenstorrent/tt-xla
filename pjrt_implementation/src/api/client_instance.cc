@@ -349,11 +349,21 @@ tt_pjrt_status ClientInstance::populateDevices() {
   if (system_desc_override != nullptr) {
     LOG_F(INFO, "Loading system descriptor from path: %s",
           system_desc_override);
-    m_system_descriptor =
-        tt::runtime::SystemDesc::loadFromPath(system_desc_override);
+    try {
+      m_system_descriptor =
+          tt::runtime::SystemDesc::loadFromPath(system_desc_override);
+    } catch (const std::exception &e) {
+      LOG_F(ERROR, "Exception loading system descriptor: %s", e.what());
+      return tt_pjrt_status::kInternal;
+    }
     m_compile_only = true;
   } else {
-    m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+    try {
+      m_system_descriptor = tt::runtime::getCurrentSystemDesc();
+    } catch (const std::exception &e) {
+      LOG_F(ERROR, "Exception getting current system descriptor: %s", e.what());
+      return tt_pjrt_status::kInternal;
+    }
   }
 
   m_system_descriptor.store(m_cached_system_descriptor_path.data());
@@ -397,8 +407,13 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    try {
+      m_parent_mesh =
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    } catch (const std::exception &e) {
+      LOG_F(ERROR, "Exception creating mesh device: %s", e.what());
+      return tt_pjrt_status::kInternal;
+    }
   }
 
   return tt_pjrt_status::kSuccess;
