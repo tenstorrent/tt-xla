@@ -391,7 +391,7 @@ class CMakeBuildPy(build_py):
         """
         Add any missing shared library dependencies to the install directory.
         """
-        libs = ["libatomic.so.1"]
+        libs = ["libatomic.so.1", "libtt-umd.so.0"]
 
         # Determine the correct lib directory
         lib_dir = (
