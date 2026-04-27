@@ -10,7 +10,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
-from sys import stderr, stdout
+from sys import platform, stderr, stdout
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
@@ -380,6 +380,10 @@ class CMakeBuildPy(build_py):
             subprocess.run("ccache -s", shell=True, cwd=REPO_DIR, capture_output=False)
             print("::endgroup::")
 
+        if config.enable_explorer:
+            print("Install ttmlir Python module")
+            self._install_ttmlir_python(install_dir)
+
         print("::group::Add missing libs")
         self._add_missing_libs(install_dir)
         print("::endgroup::")
@@ -421,6 +425,60 @@ class CMakeBuildPy(build_py):
                 print(
                     f"Warning: {lib} not found in standard library paths or LD_LIBRARY_PATH"
                 )
+
+    def _install_ttmlir_python(self, install_dir: Path) -> None:
+        """
+        Copy the ttmlir Python module from tt-mlir build directory to the install directory.
+        This is only called when config.enable_explorer is True.
+        """
+        # Path to the built ttmlir Python package in tt-mlir build directory
+        ttmlir_build_dir = (
+            REPO_DIR
+            / "third_party"
+            / "tt-mlir"
+            / "tt-mlir"
+            / "src"
+            / "tt-mlir"
+            / "build"
+        )
+        ttmlir_source_dir = ttmlir_build_dir / "python_packages" / "ttmlir"
+        ttmlir_runtime_lib_dir = ttmlir_build_dir / "runtime" / "python"
+
+        arch = os.environ.get("CMAKE_SYSTEM_PROCESSOR", "x86_64")
+        py_maj_ver, py_min_ver, py_patch_ver = platform.python_version_tuple()
+        runtime_module = (
+            f"_ttmlir_runtime.cpython-{py_maj_ver}{py_min_ver}-{arch}-linux-gnu.so"
+        )
+        runtime_module_path = ttmlir_runtime_lib_dir / runtime_module
+
+        if not ttmlir_source_dir.exists():
+            raise RuntimeError(
+                f"ttmlir Python module not found at {ttmlir_source_dir}. "
+                "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
+            )
+
+        if not runtime_module_path.exists():
+            raise RuntimeError(
+                f"ttmlir runtime library not found at {runtime_module_path}. "
+                "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
+            )
+
+        # Determine the correct lib directory
+        lib_dir = (
+            install_dir / "lib"
+            if (install_dir / "lib").exists()
+            else install_dir / "lib64"
+        )
+
+        # Destination: install the ttmlir package at the root level alongside other packages
+        # The parent of install_dir is the build_lib directory where packages are discovered
+        ttmlir_dest = install_dir.parent / "ttmlir"
+
+        print(f"Copying ttmlir Python module from {ttmlir_source_dir} to {ttmlir_dest}")
+        if ttmlir_dest.exists():
+            shutil.rmtree(ttmlir_dest)
+        shutil.copytree(ttmlir_source_dir, ttmlir_dest, symlinks=True)
+        shutil.copy2(runtime_module_path, lib_dir / runtime_module)
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
