@@ -136,11 +136,10 @@ def _deepseek_moe_forward(self, hidden_states):
     """Monkey-patched DeepseekMoE.forward.
 
     CPU path: original moe_infer loop (data-dependent, used as PCC golden reference).
-    Device path: dense bmm over all experts (static graph for torch.compile).
+    Device path: per-expert loop unrolled by torch.compile (static graph, no stacking).
 
-    DeepseekMLP weights follow F.linear convention [out, in]:
-      gate_proj.weight / up_proj.weight: [inter, H]  → .t() gives [H, inter]
-      down_proj.weight:                  [H, inter]   → .t() gives [inter, H]
+    Uses F.one_hot to build routing weights without in-place scatter, and iterates
+    experts individually to avoid torch.stack of parameters inside the compiled graph.
     """
     identity = hidden_states
     orig_shape = hidden_states.shape
@@ -153,33 +152,23 @@ def _deepseek_moe_forward(self, hidden_states):
             *orig_shape
         )
     else:
-        T = hidden_states.shape[0]
         E = len(self.experts)
-        act_fn = self.experts[0].act_fn
 
-        # Stack weights for bmm: [E, H, inter] for gate/up, [E, inter, H] for down.
-        gate_w = torch.stack([e.gate_proj.weight.t() for e in self.experts])  # [E, H, inter]
-        up_w = torch.stack([e.up_proj.weight.t() for e in self.experts])      # [E, H, inter]
-        down_w = torch.stack([e.down_proj.weight.t() for e in self.experts])  # [E, inter, H]
+        # Build dense routing weights [T, E] without in-place ops.
+        # one_hot: [T, K, E]; topk_weight unsqueezed: [T, K, 1] → product → sum over K → [T, E]
+        routing_weights = (
+            torch.nn.functional.one_hot(topk_idx.long(), num_classes=E).to(
+                topk_weight.dtype
+            )
+            * topk_weight.unsqueeze(-1)
+        ).sum(dim=1)  # [T, E]
 
-        # Replicate all tokens across all experts: [T, H] → [E, T, H]
-        x_rep = hidden_states.repeat(E, 1).view(E, T, -1)
+        # Process each expert independently and accumulate weighted outputs.
+        # torch.compile statically unrolls this loop (E is a compile-time constant).
+        y = torch.zeros_like(hidden_states)  # [T, H]
+        for i, expert in enumerate(self.experts):
+            y = y + expert(hidden_states) * routing_weights[:, i : i + 1]
 
-        # Compute expert outputs: [E, T, H] @ [E, H, inter] → [E, T, inter]
-        gate_all = torch.bmm(x_rep, gate_w)
-        up_all = torch.bmm(x_rep, up_w)
-        hidden_all = act_fn(gate_all) * up_all  # [E, T, inter]
-
-        # Down projection: [E, T, inter] @ [E, inter, H] → [E, T, H]
-        out_all = torch.bmm(hidden_all, down_w)
-
-        # Build dense routing weights [T, E] via scatter (matches GptOss router pattern).
-        # topk_idx [T, K] values ∈ [0, E-1], topk_weight [T, K]
-        select = torch.zeros(T, E, device=hidden_states.device, dtype=topk_weight.dtype)
-        select.scatter_(1, topk_idx, topk_weight)  # [T, E]
-
-        # Weighted sum over experts: out_all [E, T, H] * select.T [E, T, 1] → [T, H]
-        y = (out_all * select.transpose(0, 1).unsqueeze(-1)).sum(dim=0)
         y = y.view(*orig_shape)
 
     if self.config.n_shared_experts is not None:
