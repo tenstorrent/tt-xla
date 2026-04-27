@@ -2451,6 +2451,10 @@ test_config:
       p150:
         required_pcc: 0.98
 
+  aimv2/image_text_similarity/pytorch-Large_Patch14_224_LIT-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.95  # Actual PCC: ~0.976 on blackhole; bfloat16 precision loss amplified by logit_scale~115
+
   siglip/image_text_similarity/pytorch-Base_Patch16_224-single_device-inference:
     status: EXPECTED_PASSING
 
