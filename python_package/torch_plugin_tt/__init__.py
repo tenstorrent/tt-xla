@@ -9,6 +9,7 @@ import torch_xla
 import tt_torch  # registers "tt" backend for torch.compile
 from pjrt_plugin_tt import (
     get_library_path,
+    register_shutdown_hook,
     setup_tt_metal_home,
     setup_tt_pjrt_plugin_dir,
 )
@@ -29,6 +30,7 @@ class TTPlugin(DevicePlugin):
         super().__init__()
         setup_tt_pjrt_plugin_dir()
         setup_tt_metal_home()
+        register_shutdown_hook()
 
         # For using the PJRT plugin with `torch_xla` we need to set
         # `XLA_STABLEHLO_COMPILE` env variable to `1` to enable stablehlo compilation.
