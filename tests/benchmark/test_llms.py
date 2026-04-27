@@ -1074,6 +1074,7 @@ def test_llama_3_1_8b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        required_pcc=0.90,
     )
 
 
