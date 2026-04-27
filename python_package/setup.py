@@ -426,6 +426,28 @@ class CMakeBuildPy(build_py):
                 )
 
     def _install_ttmlir_python(self, install_dir: Path) -> None:
+
+        def show_directories(root_path: Path, prefix: str = ""):
+            """Recursively show all directories."""
+            if not root_path.exists():
+                print(f"Directory does not exist: {root_path}")
+                return
+
+            try:
+                # Get all subdirectories
+                subdirs = sorted([d for d in root_path.iterdir() if d.is_dir()])
+
+                for i, subdir in enumerate(subdirs):
+                    is_last = i == len(subdirs) - 1
+                    current_prefix = "└── " if is_last else "├── "
+                    print(f"{prefix}{current_prefix}{subdir.name}/")
+
+                    # Recursively show subdirectories
+                    next_prefix = prefix + ("    " if is_last else "│   ")
+                    show_directories(subdir, next_prefix)
+            except PermissionError:
+                print(f"{prefix}    [Permission Denied]")
+
         """
         Copy the ttmlir Python module from tt-mlir build directory to the install directory.
         This is only called when config.enable_explorer is True.
@@ -451,6 +473,8 @@ class CMakeBuildPy(build_py):
         runtime_module_path = ttmlir_runtime_lib_dir / runtime_module
 
         if not ttmlir_source_dir.exists():
+            print("TTMLIR path doesn't exist. Available directories in tt-mlir build:")
+            show_directories(REPO_DIR / "third_party" / "tt-mlir")
             raise RuntimeError(
                 f"ttmlir Python module not found at {ttmlir_source_dir}. "
                 "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
