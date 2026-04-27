@@ -2522,6 +2522,10 @@ test_config:
   ssd512/object_detection/pytorch-ssd512-single_device-inference:
     status: EXPECTED_PASSING
 
+  alinvlm/pytorch-v1_3-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 — Statically allocated circular buffers grow to 8204800 B which is beyond max L1 size of 1572864 B. AlinVLM v1.3 is a 7B-class Qwen3VL model (hidden_size=4096, 36 layers) that exceeds single-device TT L1 capacity."
+
   qwen_3_vl/image_to_text/pytorch-2b_instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 645 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/3184"
