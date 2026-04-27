@@ -6,11 +6,12 @@ import hashlib
 import inspect
 import json
 import os
+import platform
 import shutil
 import subprocess
 from dataclasses import dataclass, fields
 from pathlib import Path
-from sys import platform, stderr, stdout
+from sys import stderr, stdout
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_py import build_py
@@ -242,8 +243,6 @@ class BdistWheel(bdist_wheel):
         python, abi = "cp312", "cp312"
         # Ensure platform-specific tag for x86_64 architecture
         # This prevents 'any' platform and enables auditwheel to properly repair
-        import platform
-
         if plat == "any" or not plat:
             machine = platform.machine().lower()
             if machine in ("x86_64", "amd64"):
