@@ -66,6 +66,10 @@ test_config:
     required_pcc: 0.97  # PCC drop when changing input
     status: EXPECTED_PASSING
 
+  blip_2/image_captioning/pytorch-Flan-T5-XL-single_device-inference:
+    required_pcc: 0.98  # bfloat16 accumulation over 24 T5 decoder layers; measured pcc=0.9817
+    status: EXPECTED_PASSING
+
   bloom/pytorch-single_device-inference:
     status: EXPECTED_PASSING
 
