@@ -148,3 +148,66 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _qwen3_moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Qwen3MoeExperts forward with device-aware dispatch.
+
+    CPU path: per-expert loop with index_add_ (original eager behavior).
+    Device path: dense bmm across all experts to avoid index_add_ → embedding_backward
+    miscompilation in TT-MLIR.
+    """
+    num_experts = self.num_experts
+
+    if hidden_states.device.type == "cpu":
+        import torch.nn.functional as F
+
+        final_hidden_states = torch.zeros_like(hidden_states)
+        with torch.no_grad():
+            expert_mask = F.one_hot(top_k_index, num_classes=num_experts)
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            if expert_idx == num_experts:
+                continue
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = F.linear(current_state, self.gate_up_proj[expert_idx]).chunk(2, dim=-1)
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = F.linear(current_hidden_states, self.down_proj[expert_idx])
+            current_hidden_states = current_hidden_states * top_k_weights[token_idx, top_k_pos, None]
+            final_hidden_states.index_add_(0, token_idx, current_hidden_states.to(final_hidden_states.dtype))
+        return final_hidden_states
+    else:
+        num_tokens = hidden_states.shape[0]
+        hidden_size = hidden_states.shape[-1]
+
+        # Build full [T, num_experts] routing weights via non-additive scatter
+        # (non-additive scatter does NOT match TT-MLIR embedding_backward pattern)
+        routing = torch.zeros(
+            num_tokens, num_experts, dtype=top_k_weights.dtype, device=hidden_states.device
+        ).scatter(1, top_k_index, top_k_weights)
+        routing = routing.transpose(0, 1)  # [num_experts, T]
+
+        # Expand hidden states across all experts: [num_experts, T, hidden_size]
+        hidden_exp = hidden_states.unsqueeze(0).repeat(num_experts, 1, 1)
+
+        # gate_up_proj: [num_experts, 2*I, H] → bmm → [num_experts, T, 2*I]
+        gate_up = torch.bmm(hidden_exp, self.gate_up_proj.transpose(1, 2))
+        gate, up = gate_up.chunk(2, dim=-1)  # [num_experts, T, I] each
+        activated = self.act_fn(gate) * up   # [num_experts, T, I]
+
+        # down_proj: [num_experts, H, I] → bmm → [num_experts, T, H]
+        out = torch.bmm(activated, self.down_proj.transpose(1, 2))
+
+        # Weighted sum over experts: [num_experts, T, H] * [num_experts, T, 1] → [T, H]
+        return (out * routing.unsqueeze(-1)).sum(dim=0).to(hidden_states.dtype)
+
+
+try:
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeExperts
+
+    Qwen3MoeExperts.forward = _qwen3_moe_experts_forward
+except ImportError:
+    pass
