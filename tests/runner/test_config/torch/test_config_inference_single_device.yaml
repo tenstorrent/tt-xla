@@ -8,6 +8,10 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  baseline_outcome_reward_qwen_7b_i1_gguf/causal_lm/pytorch-7B_i1_GGUF-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.93  # BF16/FP32 precision floor: BF16 CPU vs FP32 CPU measured at 0.9378; TT (FP32) vs CPU (BF16) gives ~0.939
+
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     arch_overrides:
       n150:
