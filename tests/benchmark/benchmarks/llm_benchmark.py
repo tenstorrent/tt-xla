@@ -18,7 +18,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-import tracy
+# import tracy
 import transformers
 from llm_utils import generate_and_benchmark, init_accuracy_testing, init_static_cache
 from llm_utils.decode_utils import LLMSamplingWrapper
@@ -598,12 +598,16 @@ def benchmark_llm_torch_xla(
             input_args,
             device,
             warmup_tokens,
-            verbose=False,
+            verbose=True,
             collect_logits=False,
         )
+        # Flush pending XLA work so device-side warmup buffers are released
+        # before the perf run rebuilds inputs.
+        torch_xla.sync(wait=True)
+        gc.collect()
         log_memory("warmup:end")
 
-        tracy.signpost("warmup_complete")
+        # tracy.signpost("warmup_complete")
 
     # Reconstruct inputs for the perf benchmark run.
     input_args = construct_inputs(
@@ -645,6 +649,13 @@ def benchmark_llm_torch_xla(
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
     )
+    # Drop the perf wrapper + compiled graph before building the accuracy
+    # wrapper — otherwise both sets of captured device buffers coexist and
+    # push DRAM past the limit on large models.
+    del compiled_perf_model
+    del perf_wrapper
+    torch_xla.sync(wait=True)
+    gc.collect()
     log_memory("perf:end")
 
     # ACCURACY BENCHMARK
@@ -691,6 +702,10 @@ def benchmark_llm_torch_xla(
             ground_truth_tokens=ground_truth_for_benchmark,
             collect_logits=True,
         )
+        del compiled_accuracy
+        del accuracy_wrapper
+        torch_xla.sync(wait=True)
+        gc.collect()
 
     # Post-processing: derive predicted tokens for accuracy testing
     if accuracy_testing:
@@ -774,11 +789,21 @@ def benchmark_llm_torch_xla(
     elif decode_only:
         print("PCC verification skipped in decode-only mode")
     else:
-        # Check PCC
+        # Check PCC for prefill
         pcc_value = compute_pcc(
             output_logits[1][0], cpu_output_logits[1][0], required_pcc=required_pcc
         )
-        print("PCC verification passed with PCC={:.6f}".format(pcc_value))
+        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
+        # Check PCC for first decode token
+        if len(output_logits) > 1 and len(cpu_output_logits) > 1:
+            decode_pcc_value = compute_pcc(
+                output_logits[1][0], cpu_output_logits[1][0], required_pcc=required_pcc
+            )
+            print(
+                "First decode PCC verification passed with PCC={:.6f}".format(
+                    decode_pcc_value
+                )
+            )
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()

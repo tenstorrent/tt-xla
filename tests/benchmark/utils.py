@@ -215,6 +215,31 @@ def _compute_pcc_single(golden_flat: torch.Tensor, device_flat: torch.Tensor) ->
     if denom == 0:
         if torch.allclose(golden_flat, device_flat, rtol=1e-2, atol=1e-2):
             return 1.0
+        abs_diff = (golden_flat - device_flat).abs()
+        max_atol = abs_diff.max().item()
+        mean_atol = abs_diff.mean().item()
+        rel_diff = abs_diff / golden_flat.abs().clamp(min=torch.finfo(torch.float32).eps)
+        max_rtol = rel_diff.max().item()
+        mean_rtol = rel_diff.mean().item()
+        print(
+            "PCC undefined (denom=0, constant tensor). "
+            f"max_atol={max_atol:.6g}, mean_atol={mean_atol:.6g}, "
+            f"max_rtol={max_rtol:.6g}, mean_rtol={mean_rtol:.6g}"
+        )
+        device_min = device_flat.min().item()
+        device_max = device_flat.max().item()
+        device_all_same = device_min == device_max
+        print(
+            f"device tensor: min={device_min:.6g}, max={device_max:.6g}, "
+            f"all_same={device_all_same}, first 16 values={device_flat[:16].tolist()}"
+        )
+        golden_min = golden_flat.min().item()
+        golden_max = golden_flat.max().item()
+        golden_all_same = golden_min == golden_max
+        print(
+            f"golden tensor: min={golden_min:.6g}, max={golden_max:.6g}, "
+            f"all_same={golden_all_same}, first 16 values={golden_flat[:16].tolist()}"
+        )
         raise AssertionError(
             "PCC computation failed: denominator is zero but tensors are not close"
         )
@@ -224,7 +249,7 @@ def _compute_pcc_single(golden_flat: torch.Tensor, device_flat: torch.Tensor) ->
     return max(-1.0, min(1.0, pcc))
 
 
-def compute_pcc(golden_output, device_output, required_pcc: float = 0.99) -> float:
+def compute_pcc(device_output, golden_output, required_pcc: float = 0.99) -> float:
     """
     Compute Pearson Correlation Coefficient between golden and device output.
 
@@ -233,8 +258,6 @@ def compute_pcc(golden_output, device_output, required_pcc: float = 0.99) -> flo
     PCC by concatenating all tensors into a single flattened tensor before comparison.
 
     Args:
-        golden_output: Golden output tensor or collection of tensors
-        device_output: Device output tensor or collection of tensors
         required_pcc: Minimum required PCC threshold
 
     Returns:
