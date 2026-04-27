@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // https://llvm.org/LICENSE.txt
 
+#include "api/event_instance.h"
 #include "api_bindings.h"
 
 // Provides the shared library exports.
@@ -20,3 +21,9 @@ void InitializeAPI(PJRT_Api *api) { bindApi(api); }
 
 } // namespace
 } // namespace tt::pjrt
+
+// Performs controlled shutdown of plugin-owned resources that must be torn
+// down. Initiated by the host before shutdown.
+extern "C" PJRT_PLUGIN_EXPORTED void tt_pjrt_shutdown() {
+  tt::pjrt::EventInstance::shutdownCallbackWorker();
+}
