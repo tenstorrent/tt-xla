@@ -58,6 +58,10 @@ test_config:
     required_pcc: 0.97
     status: EXPECTED_PASSING
 
+  aimv2/pytorch-Large_Patch14_224_LIT-single_device-inference:
+    required_pcc: 0.93
+    status: EXPECTED_PASSING
+
   wide_resnet/pytorch-50.2-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
