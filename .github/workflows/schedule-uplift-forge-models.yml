@@ -3,6 +3,11 @@
 
 name: Daily Forge Models Uplift
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
 on:
   schedule:
     - cron: '0 7 * * *'  # Runs at 07:00 UTC every day
@@ -16,7 +21,7 @@ jobs:
       TT_FORGE_MODELS_SUBMODULE_PATH: third_party/tt_forge_models
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
@@ -53,12 +58,12 @@ jobs:
           cat commit_list.txt
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         id: create-pr
         with:
           branch: uplift-forge-models
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: "ajakovljevicTT <ajakovljevic@tenstorrent.com>"
+          author: "acicovicTT <acicovic@tenstorrent.com>"
           base: main
           commit-message: "Uplift ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to ${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }} ${{ env.TODAY }}"
           title: "Uplift ${{ env.TT_FORGE_MODELS_SUBMODULE_PATH }} to ${{ steps.set-env-variables.outputs.LATEST_TT_FORGE_MODELS_VERSION }} ${{ env.TODAY }}"

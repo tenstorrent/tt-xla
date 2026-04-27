@@ -60,9 +60,6 @@ DEFAULT_PROMPTS = [
 # --------------------------------
 def llama(interactive: bool = False):
 
-    # Check transformers version
-    check_transformers_version()
-
     # Set up config variables.
     max_cache_len: int = 128
     model_name: str = "meta-llama/Llama-3.2-3B"
@@ -376,28 +373,6 @@ def run_generate(
         for i in range(num_users):
             print(f"Result for user {i}: {input_prompt[i]}{''.join(output_tokens[i])}")
             print()
-
-
-def check_transformers_version():
-    """
-    Check that transformers version is <= 4.52.4.
-    Raises RuntimeError if version is incompatible.
-
-    This is because transformers SDPA implementation changed in later versions,
-    which causes dynamo trace to fail.
-
-    See https://github.com/tenstorrent/tt-xla/issues/1020
-    """
-    import packaging.version
-
-    current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("4.57.1")
-
-    if current_version > max_version:
-        raise RuntimeError(
-            f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version <= 4.57.1"
-        )
 
 
 if __name__ == "__main__":

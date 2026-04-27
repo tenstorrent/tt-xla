@@ -22,6 +22,7 @@ from transformers.models.glm.modeling_glm import GlmAttention
 from transformers.models.glm.modeling_glm import (
     eager_attention_forward as glm_eager_attention_forward,
 )
+from transformers.models.glm_moe_dsa.modeling_glm_moe_dsa import GlmMoeDsaAttention
 from transformers.models.gpt_oss.modeling_gpt_oss import GptOssAttention
 from transformers.models.llama.modeling_llama import (
     ALL_ATTENTION_FUNCTIONS,
@@ -89,7 +90,8 @@ MODEL_LOADER_MAP = {
     "gemma": GemmaModelLoader,
     "mistral": MistralModelLoader,
     "gpt_oss": GPTOSSModelLoader,
-    "glm": GLMModelLoader,
+    "glm_4": GLMModelLoader,
+    "glm_5": GLMModelLoader,
 }
 
 AVAILABLE_VARIANT_MAP = {
@@ -131,7 +133,8 @@ AVAILABLE_VARIANT_MAP = {
         "Ministral_8B_Instruct",
     ],
     "gpt_oss": ["20B", "120B"],
-    "glm": ["4.7", "4.5", "4.5_Air"],
+    "glm_4": ["4.7", "4.5", "4.5_Air"],
+    "glm_5": ["5", "5.1"],
 }
 
 
@@ -219,7 +222,12 @@ def test_llama_attention_prefill(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -301,9 +309,14 @@ def test_llama_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    max_cache_len = 32
 
-    max_cache_len = 16
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, kv_seq_len]
+    # With static cache, kv_seq_len is max_cache_len
+    attention_mask = torch.zeros(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -494,7 +507,12 @@ def test_llama_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     run_graph_test(
         sdpa,
@@ -593,7 +611,12 @@ def test_qwen3_attention_prefill(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -626,7 +649,12 @@ def test_qwen3_attention_prefill_push(seq_len, variant, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -734,9 +762,14 @@ def test_qwen3_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    max_cache_len = 32
 
-    max_cache_len = 16
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, kv_seq_len]
+    # With static cache, kv_seq_len is max_cache_len
+    attention_mask = torch.zeros(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -943,7 +976,12 @@ def test_qwen3_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     dropout = 0.0
     scaling = attention.scaling
@@ -1215,7 +1253,12 @@ def test_qwen2_5_attention_prefill(seq_len, variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1302,7 +1345,12 @@ def test_qwen2_5_attention_prefill_push(seq_len, variant, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1397,9 +1445,14 @@ def test_qwen2_5_attention_decode(variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    max_cache_len = 32
 
-    max_cache_len = 16
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, kv_seq_len]
+    # With static cache, kv_seq_len is max_cache_len
+    attention_mask = torch.zeros(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -1546,7 +1599,12 @@ def test_qwen2_5_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     dropout = 0.0
     scaling = attention.scaling
@@ -1646,7 +1704,12 @@ def test_gemma_attention_prefill(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1682,7 +1745,12 @@ def test_gemma_attention_prefill_push(seq_len, variant, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -1791,9 +1859,14 @@ def test_gemma_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    max_cache_len = 32
 
-    max_cache_len = 16
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, kv_seq_len]
+    # With static cache, kv_seq_len is max_cache_len
+    attention_mask = torch.zeros(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -1919,7 +1992,12 @@ def test_gemma_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     run_graph_test(
         sdpa,
@@ -1965,7 +2043,12 @@ def test_mistral_attention_prefill(seq_len, variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2017,7 +2100,12 @@ def test_mistral_attention_prefill_push(seq_len, variant, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2072,9 +2160,14 @@ def test_mistral_attention_decode(variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    max_cache_len = 32
 
-    max_cache_len = 16
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, kv_seq_len]
+    # With static cache, kv_seq_len is max_cache_len
+    attention_mask = torch.zeros(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -2180,7 +2273,12 @@ def test_mistral_attention(variant, variant_config, seq_len, arch):
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
 
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     dropout = 0.0
     scaling = attention.scaling
@@ -2337,20 +2435,20 @@ def test_eager_batched_attention():
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-@parametrize_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox", "galaxy"])
 def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
+    config._attn_implementation = "eager"
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
     batch_size = 1
-    if arch == "llmbox":
-        batch_size = 2
+    if arch in ("llmbox", "galaxy"):
+        batch_size = 2 if arch == "llmbox" else 4
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (batch_size, num_devices // batch_size)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
@@ -2381,7 +2479,12 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
 
     cos_sin = torch.rand(batch_size, seq_len, 32, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2400,21 +2503,21 @@ def test_gpt_oss_attention_prefill(variant, variant_config, arch):
     get_available_variants("gpt_oss").items(),
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
-@parametrize_arch(["single_device", "llmbox"])
+@parametrize_arch(["single_device", "llmbox", "galaxy"])
 def test_gpt_oss_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = GPTOSSModelLoader(variant=variant)
     config = loader.load_config()
-    config._attn_implementation = "sdpa"
+    config._attn_implementation = "eager"
     attention = GptOssAttention(config, layer_idx=0).to(torch.bfloat16)
     batch_size = 1
 
-    if arch == "llmbox":
-        batch_size = 2
+    if arch in ("llmbox", "galaxy"):
+        batch_size = 2 if arch == "llmbox" else 4
         num_devices = xr.global_runtime_device_count()
         device_ids = np.array(range(num_devices))
-        mesh_shape = (2, num_devices // 2)
+        mesh_shape = (batch_size, num_devices // batch_size)
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
         def get_shard_spec(attention, args, kwargs):
@@ -2444,9 +2547,14 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
 
     cos_sin = torch.rand(batch_size, seq_len, 32, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    max_cache_len = 32
 
-    max_cache_len = 16
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, kv_seq_len]
+    # With static cache, kv_seq_len is max_cache_len
+    attention_mask = torch.zeros(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -2478,10 +2586,10 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
-    get_available_variants("glm").items(),
-    ids=[str(k) for k in get_available_variants("glm").keys()],
+    get_available_variants("glm_4").items(),
+    ids=[str(k) for k in get_available_variants("glm_4").keys()],
 )
-def test_glm_attention_prefill(seq_len, variant, variant_config):
+def test_glm_4_attention_prefill(seq_len, variant, variant_config):
     xr.set_device_type("TT")
 
     loader = GLMModelLoader(variant=variant)
@@ -2501,7 +2609,12 @@ def test_glm_attention_prefill(seq_len, variant, variant_config):
     )
     cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -2534,10 +2647,10 @@ def test_glm_attention_prefill(seq_len, variant, variant_config):
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
     "variant,variant_config",
-    get_available_variants("glm").items(),
-    ids=[str(k) for k in get_available_variants("glm").keys()],
+    get_available_variants("glm_4").items(),
+    ids=[str(k) for k in get_available_variants("glm_4").keys()],
 )
-def test_glm_attention_decode(variant, variant_config, arch):
+def test_glm_4_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
 
     loader = GLMModelLoader(variant=variant)
@@ -2558,9 +2671,14 @@ def test_glm_attention_decode(variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    max_cache_len = 32
 
-    max_cache_len = 16
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, kv_seq_len]
+    # With static cache, kv_seq_len is max_cache_len
+    attention_mask = torch.zeros(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
     static_cache: StaticCache = StaticCache(
         config=config,
         max_batch_size=batch_size,
@@ -2613,10 +2731,10 @@ def test_glm_attention_decode(variant, variant_config, arch):
 @pytest.mark.parametrize("seq_len", [1024])
 @pytest.mark.parametrize(
     "variant,variant_config",
-    get_available_variants("glm").items(),
-    ids=[str(k) for k in get_available_variants("glm").keys()],
+    get_available_variants("glm_4").items(),
+    ids=[str(k) for k in get_available_variants("glm_4").keys()],
 )
-def test_glm_attention(seq_len, variant, variant_config, arch):
+def test_glm_4_attention(seq_len, variant, variant_config, arch):
     xr.set_device_type("TT")
 
     def sdpa(
@@ -2685,7 +2803,12 @@ def test_glm_attention(seq_len, variant, variant_config, arch):
     value_states = torch.randn(
         (batch_size, num_key_value_heads, seq_len, head_dim), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     run_graph_test(
         sdpa,
@@ -2698,6 +2821,72 @@ def test_glm_attention(seq_len, variant, variant_config, arch):
             dropout,
             scaling,
         ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@parametrize_arch(["galaxy"])
+@pytest.mark.parametrize(
+    "variant,variant_config",
+    get_available_variants("glm_5").items(),
+    ids=[str(k) for k in get_available_variants("glm_5").keys()],
+)
+def test_glm_5_attention_prefill(variant, variant_config, arch):
+    xr.set_device_type("TT")
+
+    loader = GLMModelLoader(variant=variant)
+    config = loader.load_config()
+    config._attn_implementation = "sdpa"
+    attention = GlmMoeDsaAttention(config, layer_idx=0).to(torch.bfloat16)
+
+    batch_size = 1
+    seq_len = 128
+    rope_dim = config.qk_rope_head_dim
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    cos_sin = torch.rand(batch_size, seq_len, rope_dim, dtype=torch.bfloat16)
+    position_embeddings = (cos_sin, cos_sin)
+    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+
+    past_key_states = None
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh_shape = (4, num_devices // 4)
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(attention, args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = (None, None, "batch")
+        shard_specs[attention.q_a_proj.weight] = (None, "batch")  # [6144, 2048]
+        # q_a_layernorm: [2048]
+        shard_specs[attention.q_b_proj.weight] = (
+            "model",
+            None,
+        )  # colwise [2048, 16384]
+        shard_specs[attention.kv_a_proj_with_mqa.weight] = (
+            None,
+            "batch",
+        )  # needs to be mla_kv_a_proj [6144, 576]
+        shard_specs[attention.kv_b_proj.weight] = (
+            "model",
+            None,
+        )  # colwise [512, 28672]
+        shard_specs[attention.o_proj.weight] = (
+            "batch",
+            "model",
+        )  # rowwise [16384, 6144]
+
+        # TODO(@ddilbazTT): Add shard specs for indexer
+        return shard_specs
+
+    run_graph_test(
+        attention,
+        [hidden_states, position_embeddings, attention_mask, past_key_states],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,

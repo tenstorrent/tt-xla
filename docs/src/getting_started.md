@@ -36,29 +36,54 @@ To install a wheel and run an example model, do the following:
 
 #### Step 1. Install the Latest Wheel:
 
+Download the latest wheel with pip.
 ```bash
 pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 ```
 
-#### Step 2. Run a Model:
+Run the tt-forge-install script to install missing system dependencies.
+```
+tt-forge-install
+```
 
-- Navigate to the section of the [TT-Forge repo that contains TT-XLA demos](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla)
+#### Step 2. Run some models:
 
-- For this walkthrough, the [demo in the **TT-Forge** repo](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py) is used. In the **jax** folder, in the **requirements.txt** file, you can see that **flax** and **transformers** are necessary to run the demo. Install them:
+Use `wget` to fetch each demo script into your current directory, and install packages with pip when noted.
 
-   ```bash
-   pip install flax transformers
-   ```
+**MNIST (small CNN)**
 
-- Download the [**gpt_demo.py** file ](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/jax/gpt_demo.py ) The demo you are about to run takes a piece of text and tries to predict the next word that logically follows.
+The [**mnist.py**](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) example runs a simple CNN on a Tenstorrent device and compares the output against a CPU reference.
 
-- Run the model:
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-xla/main/examples/pytorch/mnist.py
+python mnist.py
+```
 
-   ```bash
-   python gpt_demo.py
-   ```
+You should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
 
-- If all goes well you should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead.
+**Tiny Llama (Hugging Face `transformers`)**
+
+The [**tiny_llama_demo.py**](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py) example in the TT-Forge repo loads a small LLM from Hugging Face, compiles it with `torch.compile(..., backend="tt")`, and prints top-token predictions. You must download the script and install [`transformers`](https://pypi.org/project/transformers/) (and its dependencies); the wheel install in Step 1 does not include them. The first run also downloads model weights from Hugging Face over the network.
+
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-forge/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py
+pip install transformers
+python tiny_llama_demo.py
+```
+
+You should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead, for example:
+```
+Prompt: `The capital of France is`
+Top prediction: `Paris`
+
+Rank   Token           Probability
+-----------------------------------
+1      'Paris'         36.9141%
+2      'located'       10.0098%
+3      'the'           8.8867%
+4      'a'             4.2480%
+5      'in'            2.5391%
+```
 
 ---
 
@@ -86,36 +111,42 @@ This section walks through the installation steps for using a Docker container f
 
 #### Step 2: Running Models in Docker
 
-- Inside your running Docker container, clone the TT-Forge repo:
+Use `wget` to fetch each demo script into your current directory, and install packages with pip when noted.
 
-   ```bash
-   git clone https://github.com/tenstorrent/tt-forge.git
-   ```
+**MNIST (small CNN)**
 
-- Set the path for Python:
+The [**mnist.py**](https://github.com/tenstorrent/tt-xla/blob/main/examples/pytorch/mnist.py) example runs a simple CNN on a Tenstorrent device and compares the output against a CPU reference.
 
-   ```bash
-   export PYTHONPATH=/tt-forge:$PYTHONPATH
-   ```
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-xla/main/examples/pytorch/mnist.py
+python mnist.py
+```
 
-- Navigate into TT-Forge and run the following command:
+You should see the model output and a PCC (Pearson Correlation Coefficient) check confirming the TT device output matches the CPU reference.
 
-   ```bash
-   git submodule update --init --recursive
-   ```
+**Tiny Llama (Hugging Face `transformers`)**
 
-- Run a model. For this example, the **demo.py** for **opt_125m** is used. Similar to **gpt2**, this model predicts what the next word in a sentence is likely to be.  The **requirements.txt** file shows that you need to install **flax** and **transformers**:
+The [**tiny_llama_demo.py**](https://github.com/tenstorrent/tt-forge/blob/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py) example in the TT-Forge repo loads a small LLM from Hugging Face, compiles it with `torch.compile(..., backend="tt")`, and prints top-token predictions. You must download the script and install [`transformers`](https://pypi.org/project/transformers/) (and its dependencies); the slim image does not include them. The first run also downloads model weights from Hugging Face over the network.
 
-   ```bash
-   pip install flax transformers
-   ```
+```bash
+wget https://raw.githubusercontent.com/tenstorrent/tt-forge/main/demos/tt-xla/nlp/pytorch/tiny_llama_demo.py
+pip install transformers
+python tiny_llama_demo.py
+```
 
-- After completing installation, run the following:
+You should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead, for example:
+```
+Prompt: `The capital of France is`
+Top prediction: `Paris`
 
-   ```bash
-   python demos/tt-xla/nlp/pytorch/opt_demo.py
-   ```
-- If all goes well, you should get an example prompt saying 'The capital of France is.' The prediction for the next term is listed, along with the probability it will occur. This is followed by a table of other likely choices.
+Rank   Token           Probability
+-----------------------------------
+1      'Paris'         36.9141%
+2      'located'       10.0098%
+3      'the'           8.8867%
+4      'a'             4.2480%
+5      'in'            2.5391%
+```
 
 ---
 
@@ -126,11 +157,11 @@ Install from source if you are a developer who wants to develop for TT-XLA.
 #### Step 1: Prerequisites
 
 - TT-XLA has the following system dependencies:
-   * Ubuntu 22.04
+   * Ubuntu 24.04
    * Python 3.12
    * python3.12-venv
-   * Clang 17
-   * GCC 12
+   * Clang 20
+   * GCC 13
    * Ninja
    * CMake 4.0.3
 
@@ -142,6 +173,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    sudo apt install libnuma-dev
    sudo apt install libhwloc-dev
    sudo apt install libboost-all-dev
+   sudo apt install libnsl-dev
    ```
 
 #### Step 2: Building the TT-MLIR Toolchain
@@ -226,7 +258,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
 The TT-XLA repo contains various tests in the **tests** directory. To run an individual test, `pytest -svv` is recommended in order to capture all potential error messages down the line. Multi-chip tests can be run only on specific Tenstorrent hardware, therefore these tests are structured in folders named by the Tenstorrent cards/systems they can be run on. For example, you can run `pytest -v tests/jax/multi_chip/n300` only on a system with an n300 Tenstorrent card. Single-chip tests can be run on any system with the command `pytest -v tests/jax/single_chip`.
 
 ## Common Build Errors
-- Building TT-XLA requires `clang-17`. Please make sure that `clang-17` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
+- Building TT-XLA requires `clang-20`. Please make sure that `clang-20` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
 - Please also see the TT-MLIR [docs](https://github.com/tenstorrent/tt-mlir/blob/main/docs/src/getting-started.md#common-build-errors) for common build errors.
 
 ## Pre-commit
@@ -247,6 +279,6 @@ For more information please visit [pre-commit](https://pre-commit.com/).
 
 ## Where to Go Next
 
-- Try more demos in the [TT-XLA folder in the TT-Forge repo](https://github.com/tenstorrent/tt-forge/tree/main/demos/tt-xla)
+- Try more examples in the [TT-XLA examples directory](https://github.com/tenstorrent/tt-xla/tree/main/examples)
 - Learn about [Improving Model Performance](./performance.md)
 - Explore [Code Generation](./getting_started_codegen.md) to convert models into standalone code

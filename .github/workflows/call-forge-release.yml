@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: false
+      xla_sha_override:
+        description: 'Git SHA of commit in tenstorrent/tt-xla or branch name'
+        required: false
+        type: string
+        default: ${{ github.sha }}
 
 permissions:
   contents: write
@@ -22,31 +27,31 @@ permissions:
 
 jobs:
   publish-forge:
-    runs-on: builder
+    runs-on: ubuntu-latest
     steps:
       - name: Fix workspace permissions issue
         run: sudo chown -R $USER:$USER $GITHUB_WORKSPACE
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.12
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.PYPI_BUCKET_ACCESS_ROLE }}
           aws-region: ${{ secrets.AWS_REGION }}
@@ -55,7 +60,7 @@ jobs:
         shell: bash
         run: |
           export VERSION_TAG=${{ inputs.release_tag }}
-          pip install wheel
+          pip install wheel setuptools
           python ./.github/scripts/forge-wheel-setup.py bdist_wheel --dist-dir ./
 
       - name: Publish wheels to PyPI
@@ -77,14 +82,15 @@ jobs:
           set -eo pipefail
 
           project="tt-forge"
-          commit_tag="${{ github.sha }}"
+          commit_tag="${{ inputs.xla_sha_override }}"
+          distro="ubuntu"
           version_tag="${{ inputs.release_tag }}"
           latest_tag="latest"
           if [[ "$version_tag" == *dev* ]]; then
             latest_tag="nightly-latest"
           fi
 
-          .github/build-release-docker-image.sh $project $commit_tag | tee docker.log
+          .github/build-release-docker-image.sh $project $commit_tag $distro | tee docker.log
           docker_image=$(tail -n 1 docker.log)
           docker_image_base=$(tail -n 2 docker.log | head -n 1)
 
@@ -100,7 +106,7 @@ jobs:
           echo "docker_image_base=$docker_image_base" >> $GITHUB_OUTPUT
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: tenstorrent/tt-forge
           path: tt-forge
@@ -130,7 +136,7 @@ jobs:
           fi
 
       - name: Publish github release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.release_tag }}
           generate_release_notes: true
@@ -139,8 +145,14 @@ jobs:
           draft: false
           prerelease: false
           body: |
-            Install via pypi
-            pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ### Installation
 
-            Pull docker image
+            #### Via PyPI
+            ```bash
+            pip install tt-forge==${{ inputs.release_tag }} --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+            ```
+
+            #### Via Docker
+            ```bash
             docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}
+            ```

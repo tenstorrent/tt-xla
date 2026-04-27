@@ -19,7 +19,9 @@ namespace tt::pjrt::module_builder::frontend_passes {
 // the same inputs/weights. This function detects that case and rewrites the
 // mesh to [1, num_devices] so fully replicated graphs execute as intended.
 tt_pjrt_status setProperSdyMeshAttributeInSpmdMode(
-    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape =
+        std::nullopt);
 
 namespace internal {
 // Checks whether the graph is in SPMD mode.

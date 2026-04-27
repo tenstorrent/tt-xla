@@ -43,12 +43,6 @@ PLACEHOLDER_MODELS:
     bringup_status: NOT_STARTED
   WhisperX:
     bringup_status: NOT_STARTED
-  Gemma 3 9B:
-    bringup_status: NOT_STARTED
-  Gemma 3 27B:
-    bringup_status: NOT_STARTED
-  Command A Reasoning:
-    bringup_status: NOT_STARTED
   SAM_large_sa1b:
     bringup_status: NOT_STARTED
   Motif-Technologies/Motif-Image-6B-Preview:

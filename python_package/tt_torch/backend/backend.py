@@ -9,7 +9,10 @@ import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
 import torch_xla.runtime as xr
+from functorch.compile import make_boxed_func
+from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
+from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 from torch.fx.passes.tools_common import legalize_graph
@@ -28,6 +31,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    rewrite_adaptive_avgpool_to_mean,
     run_fusion_passes,
 )
 
@@ -95,26 +99,6 @@ def torch_pass_pipeline(
     node_info = extract_nodes_info(compiled_graph)
 
     return compiled_graph, program.graph_signature, node_info
-
-
-def _mark_unsharded_args_replicated(args: Tuple[torch.Tensor]) -> None:
-    """Mark unsharded XLA tensors as REPLICATED when running in SPMD mode.
-
-    In SPMD mode, torch_xla's InputCollector propagates sharding annotations
-    during graph capture and marks unsharded tensors as '<replicated>'. At
-    runtime, freshly created tensors (e.g. input_ids, cache_position) carry no
-    sharding annotation and return '' from _get_xla_sharding_spec. Explicitly
-    marking them REPLICATED keeps their sharding spec consistent with what was
-    recorded at capture time and prevents spurious retracing in dynamo_bridge.
-    """
-    if not xr.is_spmd():
-        return
-    replicated = torch_xla._XLAC.OpSharding([], [], [], ShardingType.REPLICATED)
-    for arg in args:
-        if isinstance(arg, torch.Tensor) and not torch_xla._XLAC._get_xla_sharding_spec(
-            arg
-        ):
-            torch_xla._XLAC._xla_mark_sharding(arg, replicated)
 
 
 class XLAExecutor:
@@ -194,6 +178,20 @@ class XLAExecutor:
         return total_args
 
     def _call_experimental_compile(self, *args):
+        # Move any CPU tensors in args to XLA. Some model attributes (e.g.
+        # detection grid tensors in YOLOP) are not registered buffers, so
+        # AOTAutograd lifts them as graph inputs but they remain on CPU.
+        # Passing CPU tensors to extract_compiled_graph causes graph breaks.
+        moved_args = []
+        for arg in args:
+            if isinstance(arg, torch.Tensor) and arg.device.type != "xla":
+                logger.warning(
+                    f"Found an argument on non-XLA device: {arg}. "
+                    "Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA."
+                )
+                arg = arg.to(torch.device("xla"))
+            moved_args.append(arg)
+        args = tuple(moved_args)
         if self.compiled_graph is None:
             # To use the `optimized_mod` from `torch_xla` we need to have all of the arguments (user input, params, constants)
             # inlined in the function signature (torch calls this "lifting" the arguments). Exporting does this.
@@ -219,10 +217,7 @@ class XLAExecutor:
             )
 
         full_args = self.params_and_consts + args
-        # Ensure unsharded tensors are marked REPLICATED in SPMD mode so their
-        # sharding spec matches what was recorded at graph capture time. This is a temporary workaround
-        # until a change is made in torch-xla to automatically mark unsharded tensors as REPLICATED at runtime in SPMD mode.
-        _mark_unsharded_args_replicated(full_args)
+
         return self.compiled_graph(*full_args)
 
     def __call__(self, *args):
@@ -249,7 +244,18 @@ class XLAExecutor:
         if gm_has_functional_output_kind:
             # This tells torch-xla to cut the graph at only what is required to
             # compute all tensors in the `output` list.
-            torch_xla._XLAC._xla_sync_multi(list(output), self.devices, wait=False)
+
+            # Two hacks to make AOTAutograd with legacy compile work:
+            # 1) Filter out non-tensor outputs (e.g. None values from aot_autograd
+            # backward graphs where some inputs don't require gradients).
+            output_tensors = [o for o in output if isinstance(o, torch.Tensor)]
+            # 2) When AOTAutograd is used, the forward graph module has no
+            # state_dict (parameters are lifted as inputs), so self.devices
+            # may be empty. Derive devices from the output tensors instead.
+            devices = self.devices
+            if not devices and output_tensors:
+                devices = list({t.device.type for t in output_tensors})
+            torch_xla._XLAC._xla_sync_multi(output_tensors, devices, wait=False)
         else:
             # Some graphs have side effects not included in graph output.
             # In these cases we must call sync() to force materialization of non-user-output
@@ -260,19 +266,72 @@ class XLAExecutor:
         return output
 
 
-@register_backend(name="tt")
-def xla_backend(gm, example_inputs, options={}):
-    """TT backend for torch.compile."""
+def fw_compiler(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
+):
     module, graph_signature, node_info = torch_pass_pipeline(
         gm, example_inputs, options
     )
-    legacy_compile_enabled = False
-    if "tt_experimental_compile" in options:
-        logger.warning(
-            'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
-            'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
-        )
-        legacy_compile_enabled = not bool(options["tt_experimental_compile"])
-    if "tt_legacy_compile" in options:
-        legacy_compile_enabled = bool(options["tt_legacy_compile"])
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile_enabled)
+
+    legacy_compile = False
+    if options:
+        if "tt_experimental_compile" in options:
+            print(
+                'Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.'
+                'Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.'
+            )
+            legacy_compile = not bool(options["tt_experimental_compile"])
+        if "tt_legacy_compile" in options:
+            legacy_compile = bool(options["tt_legacy_compile"])
+
+    return XLAExecutor(module, graph_signature, node_info, legacy_compile)
+
+
+def aot_backend(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None,
+):
+    """AOTAutograd backend: run decompositions and trace through aot_autograd with _fw_compiler."""
+    # Rewrite AdaptiveAvgPool1d/2d(1) to torch.mean before AOTAutograd tracing.
+    # There is a Torch/TorchXLA bug where fakified XLA tensors fault in AdaptiveAveragePool, because of an as_strided_ call
+    # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549
+    gm = rewrite_adaptive_avgpool_to_mean(gm)
+
+    # There is a well known bug in our stack that stablehlo.batch_norm_training doesn't shard properly in multichip scenarios.
+    # TorchXLA uses stablehlo.batch_norm_training for it's implementation of torch layernorm,
+    # but that gets decomposed by decompositions inside torch_pass_pipeline anyway so we don't observe it.
+    # In multichip scenarios, for reasons unknown, now the layernorm to batchnorm(specifically _native_batch_norm_legit.no_stats)
+    # conversion happens before the fx module ever reaches us.
+    # So we manually decompose batch norm early inside aot_autograd to avoid the bug. This could be a perf pitfall.
+    # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3533
+    aot_decompositions = get_aten_decompositions(
+        [
+            torch.ops.aten._native_batch_norm_legit.no_stats,
+        ]
+    )
+
+    @fake_tensor_unsupported  # see https://github.com/tenstorrent/tt-xla/issues/3572
+    def fw_compiler_boxed(gm, example_inputs):
+        return make_boxed_func(fw_compiler(gm, example_inputs, options))
+
+    return aot_autograd(
+        fw_compiler=fw_compiler_boxed, decompositions=aot_decompositions
+    )(gm, example_inputs)
+
+
+@register_backend(name="tt")
+def tt_backend(
+    gm: torch.fx.GraphModule,
+    example_inputs: Tuple[torch.Tensor],
+    options: dict[str, bool] | None = None,
+):
+    use_aot_autograd = (
+        bool(options.get("tt_use_aot_autograd", False)) if options else False
+    )
+    if use_aot_autograd:
+        return aot_backend(gm, example_inputs, options)
+    else:
+        return fw_compiler(gm, example_inputs, options)

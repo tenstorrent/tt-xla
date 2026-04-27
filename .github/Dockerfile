@@ -1,6 +1,10 @@
 ARG MLIR_TAG=latest
 
-FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-base-ubuntu-22-04:${MLIR_TAG} as base
+#============================================================================
+# Base image
+#============================================================================
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-base-ubuntu-24-04:${MLIR_TAG} as base
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
@@ -14,7 +18,11 @@ COPY --chown=root:root --chmod=777 .github/scripts/install-tt-triage.sh /tmp/ins
 COPY third_party/CMakeLists.txt third_party/CMakeLists.txt
 RUN /tmp/install-tt-triage.sh || true
 
-FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-22-04:${MLIR_TAG} as ci
+#============================================================================
+# CI image
+#============================================================================
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ci-ubuntu-24-04:${MLIR_TAG} as ci
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
@@ -31,6 +39,10 @@ ENV PATH=${OMPI_PREFIX}/bin:$PATH
 ENV LD_LIBRARY_PATH=${OMPI_PREFIX}/lib:$LD_LIBRARY_PATH
 ENV CPATH=${OMPI_PREFIX}/include
 ENV PKG_CONFIG_PATH=${OMPI_PREFIX}/lib/pkgconfig:$PKG_CONFIG_PATH
+
+#============================================================================
+# Manylinux image
+#============================================================================
 
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-manylinux-2-34:${MLIR_TAG} AS cibw
 SHELL ["/bin/bash", "-c"]
@@ -72,6 +84,7 @@ WORKDIR /tmp
 RUN git clone --branch ${OMPI_TAG} --depth 1 https://github.com/open-mpi/ompi.git ompi-src && \
     cd ompi-src && \
     git submodule update --init --recursive && \
+    grep -rl 'req_complete = false;' --include='*.h' --include='*.c' . | xargs sed -i 's/req_complete = false;/req_complete = REQUEST_PENDING;/g' && \
     ./autogen.pl && \
     ./configure \
         --prefix=${OMPI_PREFIX} \
@@ -98,13 +111,16 @@ ENV TRACY_NO_ISA_EXTENSIONS=1
 ENV CCACHE_MAXSIZE="5G"
 ENV CCACHE_COMPRESS="true"
 
-FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-22-04:${MLIR_TAG} AS ird
+#============================================================================
+# IRD image
+#============================================================================
+
+FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-24-04:${MLIR_TAG} AS ird
 SHELL ["/bin/bash", "-c"]
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install requirements.txt as global Python 3.11 packages
 COPY --chown=root:root --chmod=777 .github/docker_install.sh /tmp/script.sh
 RUN pkg_install() { apt-get update && apt-get install -y "$@"; } && export -f pkg_install && /tmp/script.sh ubuntu && \
     rm /tmp/script.sh

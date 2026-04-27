@@ -71,7 +71,7 @@
   // Not required to be implemented and unclear how this is used by the clients
   // (if at all).
   _STUB(PJRT_Executable_GetCostAnalysis);
-  _STUB(PJRT_LoadedExecutable_GetDeviceAssignment);
+  _STUB(PJRT_Executable_ParameterMemoryKinds);
 
   // This is not required to be implemented by all platforms. It should return
   // memory stats that allow callers to estimate device memory usage when
@@ -164,6 +164,7 @@
   _STUB(PJRT_TopologyDescription_Serialize);
   _STUB(PJRT_TopologyDescription_Attributes);
   _STUB(PJRT_TopologyDescription_Deserialize);
+  _STUB(PJRT_TopologyDescription_Fingerprint);
   _STUB(PJRT_Compile);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Device);
@@ -177,3 +178,5 @@
   _STUB(PJRT_Client_Load);
   _STUB(PJRT_Device_GetAttributes);
   _STUB(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
+  _STUB(PJRT_Buffer_Bitcast);
+  _STUB(PJRT_Error_ForEachPayload);

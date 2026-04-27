@@ -51,7 +51,7 @@ def create_inference_tester(hidden_sizes: tuple, format: str) -> MNISTMLPTester:
     [
         "float32",
         "bfloat16",
-        "bfp8",
+        "bfp_bf8",
     ],
 )
 def test_mnist_mlp_inference(hidden_sizes: tuple, format: str, request):

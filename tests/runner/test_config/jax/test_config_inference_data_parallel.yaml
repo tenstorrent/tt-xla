@@ -14,6 +14,12 @@ test_config:
     reason: "Not enough space to allocate 37748736 B DRAM buffer across 12 banks, where each bank needs to store 3145728 B, but bank size is 1073741792 B"
     bringup_status: FAILED_RUNTIME
 
+  glm/causal_lm/jax-4_9B-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 448790528 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4320"
+    bringup_status: FAILED_RUNTIME
+
   gpt2/causal_lm/jax-Base-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
@@ -31,6 +37,11 @@ test_config:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
     markers: [large]
+
+  gpt_j/causal_lm/jax-6B-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Value mlir::sdy::(anonymous namespace)::CollectiveInserter::insert(): Assertion failed. https://github.com/tenstorrent/tt-xla/issues/3393"
 
   llama/causal_lm/jax-1B_Tiny-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -51,6 +62,11 @@ test_config:
   mamba/causal_lm/jax-mamba-1.4b-hf-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
     status: EXPECTED_PASSING
+
+  mamba2/causal_lm/jax-Codestral-7B-v0.1-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "stablehlo.dynamic_slice' op failed to infer returned types - https://github.com/tenstorrent/tt-xla/issues/3495"
 
   phi1/causal_lm/jax-Phi_1-data_parallel-inference:
     supported_archs: ["n300-llmbox"]
@@ -176,4 +192,16 @@ test_config:
     supported_archs: ["n300-llmbox"]
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 10485760 B DRAM buffer across 12 banks, where each bank needs to store 876544 B, but bank size is 1073741792 B"
+    bringup_status: FAILED_RUNTIME
+
+  stablelm/causal_lm/jax-7B_Alpha-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 603979776 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4089"
+    bringup_status: FAILED_RUNTIME
+
+  stablelm/causal_lm/jax-3B_Alpha-data_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Not enough space to allocate 268435456 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4089"
     bringup_status: FAILED_RUNTIME

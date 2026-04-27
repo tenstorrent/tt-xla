@@ -8,8 +8,6 @@ import pytest
 from infra import run_op_test_with_random_inputs
 from utils import Category
 
-from tests.infra.testers.compiler_config import CompilerConfig
-
 # NOTE: This test passes `request` to support serialization (--serialize).
 # Other op tests can follow this pattern. See docs/src/test_infra.md for details.
 
@@ -29,25 +27,19 @@ from tests.infra.testers.compiler_config import CompilerConfig
     ],
     ids=lambda val: f"{val}",
 )
-@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
+@pytest.mark.parametrize("format", ["float32", "bfloat16"])
 def test_add(x_shape: tuple, y_shape: tuple, format: str, request):
     def add(x: jax.Array, y: jax.Array) -> jax.Array:
         return jnp.add(x, y)
 
     if format == "float32":
         dtype = None
-        compiler_config = None
-    elif format == "bfloat16":
+    else:
         dtype = jnp.bfloat16
-        compiler_config = None
-    else:  # bfp8
-        dtype = jnp.bfloat16
-        compiler_config = CompilerConfig(enable_bfp8_conversion=True)
 
     run_op_test_with_random_inputs(
         add,
         [x_shape, y_shape],
         dtype=dtype,
-        compiler_config=compiler_config,
         request=request,
     )

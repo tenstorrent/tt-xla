@@ -41,6 +41,12 @@ class MultihostConfiguration:
             distributed execution. The order should match the rank binding configuration.
             Maps to: TT_DISTRIBUTED_HOSTS_LIST
             Examples: "g05glx01,g05glx02,g05glx03,g05glx04", "forge-bh-01,forge-bh-02"
+            Mutually exclusive with hosts_file; hosts_file takes precedence when set.
+
+        hosts_file: Path to an MPI-style hostfile listing participating hosts. When set,
+            TT_DISTRIBUTED_HOSTS_FILE is used instead of TT_DISTRIBUTED_HOSTS_LIST.
+            Maps to: TT_DISTRIBUTED_HOSTS_FILE
+            Examples: "/etc/mpirun/hostfile"
 
         remote_script_name: Name of the shell script used by MPI as the plm_rsh_agent
             to execute commands on remote hosts. This script handles SSH and docker
@@ -51,20 +57,22 @@ class MultihostConfiguration:
             Maps to: TT_DISTRIBUTED_PLM_RSH_AGENT (via script_dir / remote_script_name)
             Default: "remote_docker.sh"
 
-        btl_tcp_if_include: The network interface name to use for MPI byte transport
-            layer (BTL) TCP communication between hosts. This controls which network
-            interface MPI uses for inter-host data transfer.
-            Maps to: TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE
+        tt_distributed_tcp_iface: The network interface name to use for MPI byte
+            transport layer (BTL) TCP communication between hosts. This controls which
+            network interface MPI uses for inter-host data transfer.
+            Maps to: TT_DISTRIBUTED_TCP_IFACE
 
             "cnx1" for aus galaxies
             "enp10s0f1np1" for quietboxes
+            Leave empty to use the runtime default.
     """
 
     rank_binding: str
     controller_host_name: str
-    hosts_list: str
-    btl_tcp_if_include: str
+    tt_distributed_tcp_iface: str = ""
+    hosts_list: str = ""
     remote_script_name: str = "remote_docker.sh"
+    hosts_file: str = ""
 
 
 # Predefined topology configurations
@@ -73,20 +81,24 @@ TOPOLOGIES: Dict[str, MultihostConfiguration] = {
         rank_binding="quad_galaxy",
         controller_host_name="g05glx01",
         hosts_list="g05glx01,g05glx02,g05glx03,g05glx04",
-        btl_tcp_if_include="cnx1",
+        tt_distributed_tcp_iface="cnx1",
     ),
     "dual_galaxy": MultihostConfiguration(
         rank_binding="dual_galaxy",
         controller_host_name="g14glx03",
         hosts_list="g14glx03,g14glx04",
-        btl_tcp_if_include="cnx1",
+        tt_distributed_tcp_iface="cnx1",
     ),
     "dual_bh_quietbox": MultihostConfiguration(
         rank_binding="dual_bh_quietbox",
         controller_host_name="forge-qbae-01",
         hosts_list="forge-qbae-01,forge-qbae-02",
-        btl_tcp_if_include="enp10s0f1np1",
-        remote_script_name=None,  # not used for dual BH quietbox since this runs on baremetal
+        tt_distributed_tcp_iface="enp10s0f1np1",
+    ),
+    "dual_t3k": MultihostConfiguration(
+        rank_binding="dual_t3k",
+        controller_host_name="f10cs03",
+        hosts_file="/etc/mpirun/hostfile",
     ),
 }
 
@@ -174,9 +186,16 @@ def setup_distributed_env():
             "TT_DISTRIBUTED_WORKER_PATH": get_distributed_worker_path(),
             "TT_DISTRIBUTED_RANK_BINDING": topo.rank_binding,
             "TT_DISTRIBUTED_CONTROLLER_HOST_NAME": topo.controller_host_name,
-            "TT_DISTRIBUTED_BTL_TCP_IF_INCLUDE": topo.btl_tcp_if_include,
-            "TT_DISTRIBUTED_HOSTS_LIST": topo.hosts_list,
         }
+
+        if topo.tt_distributed_tcp_iface:
+            env_vars["TT_DISTRIBUTED_TCP_IFACE"] = topo.tt_distributed_tcp_iface
+
+        # hosts_file takes precedence over hosts_list when both are set
+        if topo.hosts_file:
+            env_vars["TT_DISTRIBUTED_HOSTS_FILE"] = topo.hosts_file
+        elif topo.hosts_list:
+            env_vars["TT_DISTRIBUTED_HOSTS_LIST"] = topo.hosts_list
 
         # TT_DISTRIBUTED_PLM_RSH_AGENT is only needed for container to container tests
         if topo.remote_script_name:

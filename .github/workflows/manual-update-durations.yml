@@ -8,22 +8,24 @@ on:
   workflow_dispatch:
 
 permissions:
-  packages: write
-  checks: write
+  actions: read
+  contents: write
+  issues: write
+  pull-requests: write
 
 jobs:
   update_test_durations:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           # ref: main
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
       - name: Process test durations from latest workflows
         id: get-test-durations
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           repo="tenstorrent/tt-xla"
 
@@ -80,7 +82,7 @@ jobs:
           echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         id: create-pr
         with:
           branch: test-durations-update
@@ -92,13 +94,13 @@ jobs:
           body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
           labels: tooling
           delete-branch: true
-          token: ${{ secrets.GH_TOKEN }}
+          token: ${{ github.token }}
 
       - name: Enable Pull Request Automerge
         if: ${{ steps.create-pr.outputs.pull-request-number }}
         run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
 
       - name: Generate Summary
         run: |

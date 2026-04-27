@@ -17,6 +17,7 @@
 #include "api/buffer_instance.h"
 #include "api/error_instance.h"
 #include "api/module_builder/module_builder.h"
+#include "utils/assert.h"
 
 namespace tt::pjrt {
 
@@ -58,7 +59,8 @@ SerializedExecutableInstance::SerializedExecutableInstance(
   data_ptr = writeRaw(data_ptr, flatbuffer_data.data(), flatbuffer_data.size());
 
   // assert that we wrote the correct number of bytes
-  assert(data_ptr == m_payload.data() + m_payload.size());
+  TT_FATAL(data_ptr == m_payload.data() + m_payload.size(),
+           "Written bytes don't match payload size");
 }
 
 } // namespace tt::pjrt

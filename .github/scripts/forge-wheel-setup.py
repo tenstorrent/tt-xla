@@ -14,7 +14,7 @@ setup(
     version=version_tag,
     homepage="https://github.com/tenstorrent/tt-forge",
     install_requires=[
-        f"pjrt-plugin-tt @https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-{version_tag}-cp312-cp312-linux_x86_64.whl",
+        f"pjrt-plugin-tt @https://pypi.eng.aws.tenstorrent.com/pjrt-plugin-tt/pjrt_plugin_tt-{version_tag}-cp312-cp312-manylinux_2_34_x86_64.whl",
         f"vllm_tt @https://pypi.eng.aws.tenstorrent.com/vllm-tt/vllm_tt-{version_tag}-cp312-cp312-linux_x86_64.whl",
     ],
     python_requires=">=3.12",

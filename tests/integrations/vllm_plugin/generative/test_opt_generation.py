@@ -55,3 +55,29 @@ def test_opt_generation_multibatch():
     output_text2 = output[1].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text1}")
     print(f"prompt: {prompts[1]}, output: {output_text2}")
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "batch_size", [8, 16, 32], ids=["batch8", "batch16", "batch32"]
+)
+def test_opt_generation_large_batch(batch_size):
+    prompts = ["The quick brown fox"] * batch_size
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=16)
+    llm_args = {
+        "model": "facebook/opt-125m",
+        "max_num_batched_tokens": batch_size * 32,
+        "max_num_seqs": batch_size,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.001,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": 32,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+    outputs = llm.generate(prompts, sampling_params)
+    assert len(outputs) == batch_size
+    for i, out in enumerate(outputs):
+        print(f"[{i}] {out.outputs[0].text}")

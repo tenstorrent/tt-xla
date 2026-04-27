@@ -5,6 +5,7 @@
 """Dynamic Torch model tester implementation."""
 
 import collections
+import inspect
 from typing import Any
 
 import torch
@@ -68,6 +69,43 @@ class DynamicTorchModelTester(TorchModelTester):
         if test_metadata and getattr(test_metadata, "inject_custom_moe", False):
             self._inject_custom_moe(self._model)
 
+    def _compile_for_tt_device(self, workload, options=None):
+        """Apply per-variant weight dtype overrides before compiling for TT device."""
+        self._apply_weight_dtype_overrides()
+        super()._compile_for_tt_device(workload, options)
+        self._remove_weight_dtype_overrides()
+
+    def _apply_weight_dtype_overrides(self):
+        """Auto-apply per-variant weight dtype overrides if available."""
+        loader = self.dynamic_loader.loader
+        if not hasattr(loader, "get_weight_dtype_config_path"):
+            return
+        try:
+            config_path = loader.get_weight_dtype_config_path()
+        except TypeError:
+            return
+        if config_path:
+            from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+            applied = apply_weight_dtype_overrides(self._model, config_path)
+            if applied:
+                logger.info(
+                    f"Applied {len(applied)} weight dtype overrides from {config_path}"
+                )
+
+    def _remove_weight_dtype_overrides(self):
+        """Remove weight dtype parametrizations after compilation.
+
+        Parametrizations only need to be present during tracing/compilation to
+        inject stablehlo custom_call metadata. Removing them afterwards prevents
+        conflicts with tie_weights() during subsequent device placement.
+        """
+        from tt_torch.weight_dtype import remove_weight_dtype_overrides
+
+        removed = remove_weight_dtype_overrides(self._model)
+        if removed:
+            logger.info(f"Removed {removed} weight dtype overrides after compilation")
+
     # --- TorchModelTester interface implementations ---
 
     def _get_model(self):
@@ -121,16 +159,76 @@ class DynamicTorchModelTester(TorchModelTester):
     def _get_shard_specs_function(self):
         """Get shard specs function from the dynamic loader if available.
 
+        Handles standard TP, DP, and combined TP+DP with FSDP/megatron strategies.
+
         Returns:
             Shard spec function if loader supports it, None otherwise
         """
         if self.parallelism == Parallelism.DATA_PARALLEL:
             return self.dynamic_loader.load_shard_spec_data_parallel
-        else:
+
+        strategy = (
+            getattr(self._test_metadata, "sharding_strategy", None)
+            if self._test_metadata
+            else None
+        )
+        shard_inputs = (
+            getattr(self._test_metadata, "shard_inputs", False)
+            if self._test_metadata
+            else False
+        )
+
+        # No explicit strategy → default TP behavior from the loader
+        if strategy is None:
             return self.dynamic_loader.get_shard_spec_function()
+
+        loader_shard_spec_fn = self.dynamic_loader.get_shard_spec_function()
+        if loader_shard_spec_fn is None:
+            return None
+
+        supports_strategy_kwargs = False
+        try:
+            # TODO(umales): Remove inspect check, once we migrate to custom loader class for
+            # Focus models.
+            signature = inspect.signature(self.dynamic_loader.loader.load_shard_spec)
+            params = signature.parameters
+            supports_strategy_kwargs = "strategy" in params and "batch_axis" in params
+        except (TypeError, ValueError):
+            supports_strategy_kwargs = False
+
+        # Build the weight shard spec function.
+        # When shard_inputs is on, the mesh uses ("data", "model") axes, so FSDP
+        # specs must use "data" instead of "batch" — handled by batch_axis arg.
+        # (Megatron ignores batch_axis — its non-model axis is always None.)
+        batch_axis = "data" if shard_inputs else "batch"
+        if supports_strategy_kwargs:
+            weight_fn = lambda model: self.dynamic_loader.loader.load_shard_spec(
+                model, strategy=str(strategy), batch_axis=batch_axis
+            )
+        else:
+            # Backward-compat fallback: ignore explicit strategy if loader does
+            # not support strategy kwargs.
+            weight_fn = loader_shard_spec_fn
+
+        if shard_inputs:
+            # Combined TP + input sharding: shard weights AND inputs.
+            # The device runner dispatches to the 3-arg form (model, args, kwargs).
+            dp_loader = self.dynamic_loader
+
+            def combined_shard_spec(model, args, kwargs):
+                weight_specs = weight_fn(model) or {}
+                dp_specs = dp_loader.load_shard_spec_data_parallel(args, kwargs)
+                weight_specs.update(dp_specs)
+                return weight_specs
+
+            return combined_shard_spec
+
+        return weight_fn
 
     def _get_mesh(self):
         """Get mesh configuration from the dynamic loader if available.
+
+        Supports explicit mesh_shape / shard_inputs from test_metadata.
 
         Returns:
             Mesh object if loader supports mesh configuration, None otherwise
@@ -139,14 +237,42 @@ class DynamicTorchModelTester(TorchModelTester):
             return None
 
         num_devices = xr.global_runtime_device_count()
+
         if self.parallelism == Parallelism.DATA_PARALLEL:
             mesh_shape, mesh_names = (1, num_devices), ("model", "data")
+        elif self._test_metadata and getattr(self._test_metadata, "mesh_shape", None):
+            # Explicit mesh from test metadata, e.g. (1, 8) or (2, 4)
+            mesh_shape = self._test_metadata.mesh_shape
+            shard_inputs = getattr(self._test_metadata, "shard_inputs", False)
+            # TODO(umales): Remove this once https://github.com/tenstorrent/tt-xla/issues/3397 is fixed
+            if shard_inputs:
+                mesh_names = ("data", "model")
+            else:
+                mesh_names = ("batch", "model")
         else:
             mesh_shape, mesh_names = self.dynamic_loader.get_mesh_config(num_devices)
 
         if mesh_shape and mesh_names:
             return get_mesh(mesh_shape, mesh_names)
         return None
+
+    def _get_prefill_pcc_mask(self):
+        """Return boolean token mask for LLM prefill PCC filtering."""
+        if self.run_phase != RunPhase.LLM_PREFILL:
+            return None
+
+        attention_mask = self._input_activations.get("attention_mask")
+        if not isinstance(attention_mask, torch.Tensor):
+            return None
+        return attention_mask.to(dtype=torch.bool)
+
+    def _compare(self, device_out, golden_out):
+        """Compare outputs, masking padded prefill tokens for PCC only."""
+        return self._evaluator.evaluate(
+            device_out,
+            golden_out,
+            pcc_mask=self._get_prefill_pcc_mask(),
+        )
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:
         """

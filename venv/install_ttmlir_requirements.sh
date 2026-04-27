@@ -24,7 +24,16 @@ if [ ! -e $LLVM_REQUIREMENTS_PATH ]; then
   wget -O $LLVM_REQUIREMENTS_PATH "https://github.com/llvm/llvm-project/raw/$LLVM_VERSION/mlir/python/requirements.txt" --quiet
 fi
 command -v uv &> /dev/null && PIP="uv pip" || PIP="pip" # use uv pip if uv is available
-$PIP install -r $LLVM_REQUIREMENTS_PATH
+
+# Apply pip constraints from tt-mlir (e.g. nanobind version pinning) if available
+PIP_CONSTRAINTS_FILE=${TT_MLIR_ENV_DIR}/pip-constraints.txt
+if [ -e $PIP_CONSTRAINTS_FILE ]; then
+  CONSTRAINTS_FLAG="-c $PIP_CONSTRAINTS_FILE"
+else
+  CONSTRAINTS_FLAG=""
+fi
+
+$PIP install $CONSTRAINTS_FLAG -r $LLVM_REQUIREMENTS_PATH
 
 # Install tt-mlir requirements
-$PIP install -r ${TT_MLIR_ENV_DIR}/build-requirements.txt
+$PIP install $CONSTRAINTS_FLAG -r ${TT_MLIR_ENV_DIR}/build-requirements.txt

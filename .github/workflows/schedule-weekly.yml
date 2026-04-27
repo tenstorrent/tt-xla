@@ -6,8 +6,10 @@ on:
     - cron: '0 8 * * 6'
 
 permissions:
+  actions: write
   packages: write
   checks: write
+  contents: read
 
 jobs:
   build-image:
@@ -78,26 +80,22 @@ jobs:
     steps:
       - name: Send Fail Notification
         if: ${{ needs.fail-notify.outputs.failed == 'true' && needs.fail-notify.outputs.is-main == 'true' }}
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v3.0.1
         with:
+          webhook: ${{ secrets.SLACK_WEEKLY_FAIL }}
+          webhook-type: webhook-trigger
           payload: |
-            {
-              "text": "Bad bad weekly - inference: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M",
-              "unfurl_links": false, "unfurl_media": false
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEEKLY_FAIL }}
+            text: "Bad bad weekly - inference: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>"
+            unfurl_links: false
+            unfurl_media: false
 
       - name: Send Success Notification
         if: ${{ needs.fail-notify.outputs.failed == 'false' && needs.fail-notify.outputs.is-main == 'true' }}
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v3.0.1
         with:
+          webhook: ${{ secrets.SLACK_WEEKLY_SUCCESS }}
+          webhook-type: webhook-trigger
           payload: |
-            {
-              "text": "Good weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>",
-              "channel": "C08GYB57C8M",
-              "unfurl_links": false, "unfurl_media": false
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEEKLY_SUCCESS }}
+            text: "Good weekly: <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}>"
+            unfurl_links: false
+            unfurl_media: false

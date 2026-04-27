@@ -97,6 +97,11 @@ def test_mnist():
     tt_output = run_mnist()
     cpu_output = run_mnist_cpu()
 
+    print("TT device output:")
+    print(tt_output)
+    print("CPU output:")
+    print(cpu_output)
+
     tt_output_cpu = tt_output.cpu()
 
     tt_flat = tt_output_cpu.flatten().float()
@@ -115,6 +120,4 @@ def test_mnist():
 if __name__ == "__main__":
     # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
-
-    output = run_mnist()
-    print(output)
+    test_mnist()

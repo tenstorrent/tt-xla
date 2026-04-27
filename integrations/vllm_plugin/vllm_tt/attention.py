@@ -101,7 +101,8 @@ class TTAttentionBackend(AttentionBackend):
         head_size: int,
         cache_dtype_str: str = "auto",
     ) -> tuple[int, ...]:
-        return (2, num_blocks, num_kv_heads, block_size, head_size)
+        # Shape for one of the two separate K/V tensors per layer.
+        return (num_blocks, num_kv_heads, block_size, head_size)
 
     @staticmethod
     def swap_blocks(
@@ -173,6 +174,9 @@ class TTMetadata:
     attn_mask: torch.Tensor
     page_table: torch.Tensor
     is_causal: bool
+    # Page table with prefix blocks rolled to the end for paged_fill_cache.
+    # Computed outside the compiled graph to avoid shape-change recompilation.
+    fill_page_table: torch.Tensor
 
     def __init__(
         self,
@@ -180,11 +184,15 @@ class TTMetadata:
         attn_mask: torch.Tensor | None = None,
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
+        fill_page_table: torch.Tensor | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
         self.page_table = page_table
         self.is_causal = is_causal
+        self.fill_page_table = (
+            fill_page_table if fill_page_table is not None else page_table
+        )
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -274,8 +282,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
 
-        # Handle paged attention if KV cache exists
-        if kv_cache.numel() > 1:
+        # kv_cache is [k_cache, v_cache] after init, but a scalar placeholder
+        # during profiling — isinstance distinguishes the two cases.
+        if isinstance(kv_cache, (list, tuple)) and kv_cache[0].numel() > 0:
             self._handle_paged_attention(inputs, kv_cache, attn_metadata)
 
         # Compute attention based on mode:
@@ -442,7 +451,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         return query, key, value
 
     def _handle_paged_attention(
-        self, inputs, kv_cache: torch.Tensor, attn_metadata: TTMetadata
+        self, inputs, kv_cache: list[torch.Tensor], attn_metadata: TTMetadata
     ):
         """Handle paged attention cache updates."""
         k_cache = kv_cache[0]
@@ -474,7 +483,7 @@ class TTAttentionBackendImpl(AttentionImpl):
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache,
                     key_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.page_table,
+                    attn_metadata.fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=k_cache.device
                     ),
@@ -482,15 +491,15 @@ class TTAttentionBackendImpl(AttentionImpl):
                 v_cache = torch.ops.tt.paged_fill_cache(
                     v_cache,
                     value_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.page_table,
+                    attn_metadata.fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=v_cache.device
                     ),
                 )
 
-        # Update the KV cache
-        new_kv_cache = torch.stack([k_cache, v_cache], dim=0)
-        kv_cache.copy_(new_kv_cache)
+        # Preserve tensor identity so XLA reuses the traced graph.
+        kv_cache[0].copy_(k_cache)
+        kv_cache[1].copy_(v_cache)
 
     def _compute_full_attention(
         self, inputs, attn_metadata: TTMetadata
@@ -521,7 +530,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         return output
 
     def _compute_decode_attention(
-        self, inputs, kv_cache: torch.Tensor, attn_metadata: TTMetadata
+        self, inputs, kv_cache: list[torch.Tensor], attn_metadata: TTMetadata
     ) -> torch.Tensor:
         """Compute attention for decode phase (paged)."""
         k_cache = kv_cache[0]

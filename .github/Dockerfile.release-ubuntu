@@ -1,0 +1,29 @@
+FROM ubuntu:24.04
+
+SHELL ["/bin/bash", "-c"]
+
+LABEL org.opencontainers.image.source=https://github.com/tenstorrent/tt-xla
+LABEL org.opencontainers.image.licenses=Apache-2.0
+
+# Install system tools
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
+    apt-get install -y \
+    wget \
+    curl \
+    git \
+    jq \
+    unzip \
+    ca-certificates
+
+# Install Python 3.12
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y python3.12 python3.12-dev python3.12-venv python3-pip && \
+    rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED && \
+    python3.12 -m pip install --no-cache-dir --ignore-installed --break-system-packages --upgrade pip && \
+    ln -sf /usr/bin/python3 /usr/bin/python
+
+COPY *.whl /tmp/
+RUN pip install --no-cache-dir /tmp/*.whl --break-system-packages && \
+    tt-forge-install && \
+    rm -rf /tmp/*.whl
+
+CMD ["/bin/bash"]

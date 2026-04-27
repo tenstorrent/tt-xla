@@ -22,6 +22,7 @@
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-xla includes
+#include "utils/callback_worker.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
@@ -69,22 +70,27 @@ public:
   // Waits until the event is ready, blocking the calling thread.
   void await();
 
-  // Invokes the callback immediately on the calling thread if the event is
-  // ready, otherwise adds it to the list so it can be executed once the event
-  // is marked as ready.
+  // Dispatches the callback to the CallbackWorker thread for asynchronous
+  // execution. If the event is already ready, the callback is dispatched
+  // immediately to the worker thread. Otherwise, it is registered and
+  // dispatched to the worker thread when the event is marked as ready.
   void onReady(PJRT_Event_OnReadyCallback callback_function, void *user_arg);
+
+  // Returns the CallbackWorker used to dispatch event callbacks, creating it
+  // lazily on first access.
+  static CallbackWorker &getCallbackWorker();
 
   // See comment below for `m_indestructible`.
   void setIndestructible() { m_indestructible = true; }
   bool isIndestructible() const { return m_indestructible; }
 
-  // Marks the given event as ready with the given status and executes all
-  // registered callbacks (on the same thread).
+  // Marks the given event as ready with the given status and dispatches all
+  // registered callbacks to the CallbackWorker thread.
   //
   // NOTE: This is a static method that takes the event instance as an argument
   // because in some cases the callback functions destroy the event instance.
   // So, to avoid any subtle bugs (or UB), we first mark the event as ready,
-  // move all callback functions from the event instance, and then execute the
+  // move all callback functions from the event instance, and then dispatch the
   // callbacks so that the event instance can be safely destroyed.
   static void markAsReadyAndCallback(EventInstance *event_instance,
                                      tt_pjrt_status status);

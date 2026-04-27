@@ -8,7 +8,6 @@
 // c++ standard library includes
 #include <algorithm>
 #include <atomic>
-#include <cassert>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -74,6 +73,7 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
+#include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
 
@@ -305,9 +305,15 @@ ModuleBuilder::buildModule(
 
   std::vector<int64_t> result_presharded = collectResultPresharded(mlir_module);
 
-  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
-                                        compile_options.export_path,
-                                        compile_options.export_model_name);
+  const std::optional<tt::runtime::Device> &parent_mesh =
+      client_instance->parentMesh();
+  std::optional<std::vector<uint32_t>> current_mesh_shape =
+      parent_mesh ? std::make_optional(tt::runtime::getMeshShape(*parent_mesh))
+                  : std::nullopt;
+
+  status = runCompilerStableHLOPipeline(
+      mlir_module, result_presharded, compile_options.export_path,
+      compile_options.export_model_name, current_mesh_shape);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -372,6 +378,14 @@ ModuleBuilder::buildModule(
                                  ttnn_mlir);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
+  }
+
+  // tt-xla creates 1D mesh by default, so if compiler determines a different
+  // mesh shape, we need to update the mesh in the client instance to match the
+  // compiler determined mesh shape.
+  if (current_mesh_shape.has_value() &&
+      current_mesh_shape.value() != mesh_shape) {
+    client_instance->getOrCreateMeshDevice(mesh_shape);
   }
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has
@@ -656,8 +670,9 @@ tt_pjrt_status ModuleBuilder::collectNumArguments(
       std::vector<std::uint32_t> output_shape;
 
       for (int64_t dim : shape) {
-        assert(dim != mlir::ShapedType::kDynamic &&
-               "Dynamic dimensions not supported");
+        TT_FATAL(dim != mlir::ShapedType::kDynamic,
+                 "Dynamic dimensions not supported: result_index={}",
+                 result_index);
         output_shape.push_back(static_cast<std::uint32_t>(dim));
       }
 
@@ -668,7 +683,9 @@ tt_pjrt_status ModuleBuilder::collectNumArguments(
         result.output_dimensions_flat.push_back(static_cast<std::int64_t>(dim));
       }
     } else {
-      assert(false && "Expected ranked tensor type for function result");
+      TT_THROW(
+          "Expected ranked tensor type for function result: result_index={}",
+          result_index);
     }
   }
   return tt_pjrt_status::kSuccess;
@@ -807,7 +824,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<int64_t> &result_presharded,
     const std::optional<std::string> &export_path,
-    const std::string &model_name) {
+    const std::string &model_name,
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
@@ -825,10 +843,13 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   printModule(mlir_module, export_path, "shlo_compiler", model_name);
 
   if (!tt_pjrt_status_is_ok(
-          frontend_passes::setProperSdyMeshAttributeInSpmdMode(mlir_module))) {
+          frontend_passes::setProperSdyMeshAttributeInSpmdMode(
+              mlir_module, current_mesh_shape))) {
     LOG_F(ERROR, "Failed to set proper sdy.mesh attribute in SPMD mode");
     return tt_pjrt_status::kInternal;
   }
+
+  printModule(mlir_module, export_path, "shlo_set_mesh_attr", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -961,7 +982,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Static counter for auto-numbering graphs when perf metrics are enabled
   static std::atomic<int> graph_counter{0};
 
-  mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  mlir::tt::ttnn::TTIRToTTNNCommonPipelineOptions options;
 
   // Optimizer passes are not supported in distributed runtime.
   if (tt::runtime::getCurrentHostRuntime() ==
@@ -972,9 +993,18 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.optimizationLevel = compile_options.optimization_level;
-  options.enableBfp8Conversion = compile_options.enable_bfp8_conversion;
-  options.experimentalBfp8Weights =
-      compile_options.experimental_enable_weight_bfp8_conversion;
+  // Map user-facing dtype names to WeightDtype enum values.
+  if (compile_options.experimental_weight_dtype == "bfp_bf8") {
+    options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat8;
+  } else if (compile_options.experimental_weight_dtype == "bfp_bf4") {
+    options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat4;
+  } else if (!compile_options.experimental_weight_dtype.empty()) {
+    LOG_F(ERROR,
+          "Unknown experimental_weight_dtype: '%s'. Valid values: 'bfp_bf8', "
+          "'bfp_bf4'.",
+          compile_options.experimental_weight_dtype.c_str());
+    return tt_pjrt_status::kUnimplemented;
+  }
 
   // Set compute kernel config options if provided
   if (compile_options.math_fidelity.has_value()) {
@@ -999,6 +1029,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
   options.enableCPUHoistedConstEval = compile_options.enable_const_eval_on_cpu;
+  options.dramSpaceSavingOptimizationEnabled =
+      compile_options.experimental_enable_dram_space_saving_optimization;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
 
   // Auto-number performance metrics output file if enabled
@@ -1052,13 +1084,21 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
             submesh_for_optim.handle);
   }
 
+  // TODO(dmilinkovic): Disable const-eval on CPU for EmitC backend until
+  // CPU hoisting support is added.
+  // https://github.com/tenstorrent/tt-mlir/issues/6100
+  if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
+    options.enableCPUHoistedConstEval = false;
+  }
+
   // Map per-axis fabric config to mesh topology for CCL operations.
   // Compute fabric config for the compilation mesh shape directly, since the
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
   options.meshTopology = fabricConfigToMeshTopology(
       client_instance->computeFabricConfig(devices_mesh_shape));
-  mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
 
+  // Run the common TTIR-to-TTNN pipeline.
+  mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
@@ -1068,7 +1108,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   client_instance->closeOptimizerSubmesh();
 
   if (mlir::failed(mlir_result)) {
-    LOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
+    LOG_F(ERROR, "Failed to run TTIRToTTNNCommon pipeline");
     return tt_pjrt_status::kInternal;
   }
 
@@ -1281,6 +1321,21 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
+  mlir::PassManager runtime_pm(mlir_module.get()->getName());
+  mlir::tt::ttnn::TTNNCommonToRuntimePipelineOptions runtime_options;
+  mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
+                                                    runtime_options);
+  enableVerboseIRPrinting(runtime_pm);
+
+  mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
+  if (mlir::failed(mlir_result)) {
+    LOG_F(ERROR, "Failed to run TTNNCommonToRuntime pipeline");
+    return {tt_pjrt_status::kInternal, nullptr};
+  }
+
+  printModule(mlir_module, compile_options.export_path, "ttnn_runtime",
+              compile_options.export_model_name);
+
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
                                                  output_shardings, flatbuffer);
@@ -1351,8 +1406,8 @@ ModuleBuilder::buildModuleForTTNNCodegen(
 tt_pjrt_status
 ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
                               const CompileOptions &compile_options) {
-  assert(compile_options.export_path.has_value() &&
-         "export_path compile option is not set.");
+  TT_FATAL(compile_options.export_path.has_value(),
+           "export_path compile option is not set.");
 
   if (!m_tt_alchemist_handler.isInitialized()) {
     LOG_F(ERROR, "tt-alchemist library or functions not available");
@@ -1400,12 +1455,15 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string try_recover_structure =
         compile_options.codegen_try_recover_structure ? "true" : "false";
     pipeline_options += " try-recover-structure=" + try_recover_structure;
+    std::string split_files =
+        compile_options.codegen_split_files ? "true" : "false";
+    pipeline_options += " split-files=" + split_files;
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,
         pipeline_options.c_str());
   } else {
-    assert(false && "Unsupported backend when doing codegen");
+    TT_THROW("Unsupported backend when doing codegen");
   }
 
   if (!result) {

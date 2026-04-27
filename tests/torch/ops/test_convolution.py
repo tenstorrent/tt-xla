@@ -2,10 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import jax
 import pytest
 import torch
-import torch_xla.core.xla_model as xm
 from infra.utilities.types import Framework
 from utils import Category
 
@@ -36,7 +34,7 @@ from tests.infra.testers.single_chip.op.op_tester import run_op_test_with_random
     ],
     ids=lambda val: f"{val}",
 )
-@pytest.mark.parametrize("format", ["float32", "bfloat16", "bfp8"])
+@pytest.mark.parametrize("format", ["float32", "bfloat16"])
 @pytest.mark.parametrize(
     "optimization_level", [0, 1], ids=["opt_level_0", "opt_level_1"]
 )
@@ -52,12 +50,6 @@ def test_conv2d(
     format: str,
     optimization_level: int,
 ):
-    device = xm.xla_device()
-    device_kind = xm.xla_device_kind(device)
-    device_str = str(device_kind)
-    if device_str == "Blackhole" and format == "bfp8" and optimization_level > 0:
-        pytest.xfail(f"conv2d BFP8 with optimizer not supported on {device_str}")
-
     def conv2d(img: torch.Tensor, weight: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.conv2d(img, weight, stride=1, padding=1)
 
@@ -66,15 +58,10 @@ def test_conv2d(
 
     if format == "float32":
         dtype = torch.float32
-        compiler_config = CompilerConfig(optimization_level=optimization_level)
-    elif format == "bfloat16":
+    else:
         dtype = torch.bfloat16
-        compiler_config = CompilerConfig(optimization_level=optimization_level)
-    elif format == "bfp8":
-        dtype = torch.bfloat16
-        compiler_config = CompilerConfig(
-            optimization_level=optimization_level, enable_bfp8_conversion=True
-        )
+
+    compiler_config = CompilerConfig(optimization_level=optimization_level)
 
     run_op_test_with_random_inputs(
         conv2d,

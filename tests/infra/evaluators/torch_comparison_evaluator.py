@@ -34,10 +34,19 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         """
         if hasattr(cache, "to_legacy_cache"):
             return cache.to_legacy_cache()
-        # Fallback for StaticCache and any Cache with .layers that do not
-        # implement to_legacy_cache (e.g. StaticCache with StaticLayer).
+        # Fallback for any Cache with .layers (DynamicCache, StaticCache in transformers 5.x,
+        # and any other Cache subclass). Each layer exposes .keys and .values via CacheLayerMixin.
         if hasattr(cache, "layers"):
             return tuple((layer.keys, layer.values) for layer in cache.layers)
+        # Handle EncoderDecoderCache (transformers 5.x): contains self_attention_cache and
+        # cross_attention_cache as separate DynamicCache objects instead of .layers directly.
+        if hasattr(cache, "self_attention_cache") and hasattr(
+            cache, "cross_attention_cache"
+        ):
+            return (
+                TorchComparisonEvaluator._cache_to_legacy(cache.self_attention_cache),
+                TorchComparisonEvaluator._cache_to_legacy(cache.cross_attention_cache),
+            )
         return cache
 
     # @override
@@ -95,11 +104,50 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     # @override
     @run_on_cpu(Framework.TORCH)
     def _compare_pcc(
-        self, device_output: PyTree, golden_output: PyTree, pcc_config: PccConfig
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        pcc_config: PccConfig,
+        pcc_mask: torch.Tensor | None = None,
     ) -> float:
+        def apply_real_token_mask(x: torch.Tensor, y: torch.Tensor):
+            if pcc_mask is None:
+                return x, y
+
+            assert (
+                pcc_mask.ndim == 2
+            ), f"Expected pcc_mask to have shape [batch, seq], got {tuple(pcc_mask.shape)}"
+            batch_size, seq_len = pcc_mask.shape
+
+            if x.dim() < 2 or y.dim() < 2:
+                return x, y
+            if x.shape[0] != batch_size or y.shape[0] != batch_size:
+                return x, y
+
+            # Known LLM outputs:
+            # - rank-3 tensors (e.g. logits [B, S, V]) -> sequence dim is -2
+            # - rank-4 tensors (e.g. KV [B, H, S, D]) -> sequence dim is -2
+            assert (
+                x.shape == y.shape
+            ), f"pcc_mask requires matching shapes, got {x.shape} vs {y.shape}"
+            assert x.dim() in (
+                3,
+                4,
+            ), f"pcc_mask only supports rank-3 (logits) or rank-4 (KV) tensors, got rank {x.dim()} with shape {x.shape}"
+            assert (
+                x.shape[-2] == seq_len
+            ), f"dim -2 should be seq_len ({seq_len}), got {x.shape[-2]} in shape {x.shape}"
+
+            x_seq_first = x.movedim(-2, 1)
+            y_seq_first = y.movedim(-2, 1)
+
+            x, y = x_seq_first[pcc_mask], y_seq_first[pcc_mask]
+            return x, y
+
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             if x is None and y is None:
                 return None
+            x, y = apply_real_token_mask(x, y)
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
             if TorchComparisonEvaluator._compare_allclose(x, y, pcc_config.allclose):

@@ -10,12 +10,12 @@ from .jax_multichip_utils import (
     make_flax_linen_parameters_partition_specs_on_cpu,
     make_partition_spec,
 )
+from .torch_mla_cache import MLACache, MLAStaticLayer
 from .types import Device, Framework, Mesh, Model, PyTree, ShardSpec, Tensor
 from .utils import (
     compile_jax_multichip_workload,
     compile_jax_workload_for_cpu,
     compile_jax_workload_for_tt_device,
-    compile_torch_workload_for_cpu,
     compile_torch_workload_for_tt_device,
     random_image,
     random_tensor,

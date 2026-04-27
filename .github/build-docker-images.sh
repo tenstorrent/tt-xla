@@ -48,9 +48,9 @@ DOCKER_TAG=$(./.github/get-docker-tag.sh "$MLIR_DOCKER_TAG")
 echo "Docker tag: $DOCKER_TAG"
 
 REPO=tenstorrent/tt-xla
-BASE_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ubuntu-22-04
-CI_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ci-ubuntu-22-04
-IRD_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ird-ubuntu-22-04
+BASE_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ubuntu-24-04
+CI_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ci-ubuntu-24-04
+IRD_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ird-ubuntu-24-04
 CIBW_IMAGE_NAME=ghcr.io/$REPO/tt-xla-cibuildwheel-manylinux-2-34
 
 build_and_push() {

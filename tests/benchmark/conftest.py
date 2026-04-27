@@ -21,6 +21,23 @@ def make_validator_positive_int(option_name):
     return validate
 
 
+def make_validator_optimization_level(option_name):
+    """Create an optimization level validator (0, 1, or 2)."""
+
+    def validate(value):
+        try:
+            int_value = int(value)
+            if int_value not in [0, 1, 2]:
+                raise ValueError
+            return int_value
+        except (ValueError, TypeError):
+            raise pytest.UsageError(
+                f"Invalid value for {option_name}: '{value}'. Must be 0, 1, or 2."
+            )
+
+    return validate
+
+
 def pytest_addoption(parser):
     """Adds a custom command-line option to pytest."""
     parser.addoption(
@@ -53,6 +70,29 @@ def pytest_addoption(parser):
         help="Enable accuracy testing mode. Uses reference data for TOP1/TOP5 accuracy.",
     )
 
+    parser.addoption(
+        "--optimization-level",
+        action="store",
+        default=None,
+        type=make_validator_optimization_level("--optimization-level"),
+        help="Optimization level (0, 1, or 2). Overrides default value.",
+    )
+
+    parser.addoption(
+        "--max-output-tokens",
+        action="store",
+        default=None,
+        type=make_validator_positive_int("--max-output-tokens"),
+        help="Limit the maximum number of output tokens generated. Useful for profiling runs.",
+    )
+
+    parser.addoption(
+        "--decode-only",
+        action="store_true",
+        default=False,
+        help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -72,3 +112,18 @@ def batch_size(request):
 @pytest.fixture
 def accuracy_testing(request):
     return request.config.getoption("--accuracy-testing")
+
+
+@pytest.fixture
+def optimization_level(request):
+    return request.config.getoption("--optimization-level")
+
+
+@pytest.fixture
+def max_output_tokens(request):
+    return request.config.getoption("--max-output-tokens")
+
+
+@pytest.fixture
+def decode_only(request):
+    return request.config.getoption("--decode-only")

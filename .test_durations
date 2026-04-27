@@ -1829,7 +1829,6 @@
     "tests/torch/models/mochi/test_mochi_vae.py::test_torch_mochi_vae_decoder_inference[mochi_tiled]": 0.001,
     "tests/torch/models/resnet/test_resnet.py::test_torch_resnet_training": 0.001,
     "tests/torch/models/stable_diffusion_3_5/test_stable_diffusion_3_5_large_turbo.py::test_torch_stable_diffusion_3_5_large_turbo_training": 0.001,
-    "tests/torch/models/surya_ocr/test_surya_ocr_text.py::test_torch_surya_ocr_text_inference": 17.125,
     "tests/torch/ops/test_add.py::test_add[float32-(32, 32)-(32, 32)]": 4.047,
     "tests/torch/ops/test_add.py::test_add[bfloat16-(32, 32)-(32, 32)]": 6.843,
     "tests/torch/ops/test_add.py::test_add[bfloat16-(64, 64)-(64, 64)]": 4.11,

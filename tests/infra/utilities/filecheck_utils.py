@@ -48,13 +48,11 @@ def run_filecheck(
 
     sanitized_test_id = sanitize_test_name(test_node_name)
 
-    ir_files_map = {}
-    for filepath in irs_dir.glob("*.mlir"):
-        stem = filepath.stem
-        # Check if this IR file corresponds to the current test
-        if stem.startswith(sanitized_test_id):
-            ir_type = stem.split("_")[-1]
-            ir_files_map[ir_type] = filepath
+    ir_files_map = {
+        ir_type: filepath
+        for ir_type in ("ttir", "ttnn")
+        if (filepath := irs_dir / f"{sanitized_test_id}_{ir_type}.mlir").exists()
+    }
 
     if not ir_files_map:
         print(f"No IR files found for test '{sanitized_test_id}' in {irs_filepath}")

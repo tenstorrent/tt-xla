@@ -2,29 +2,31 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import os
-
 import numpy as np
 import pytest
 import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from infra import Framework, run_graph_test
+from infra import Framework, MLACache, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from transformers import DynamicCache
+from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
-
-from .configuration_deepseek import DeepseekV3Config
-from .modeling_deepseek import (
+from third_party.tt_forge_models.kimi_k2.pytorch.configuration_deepseek import (
+    DeepseekV3Config,
+)
+from third_party.tt_forge_models.kimi_k2.pytorch.loader import ModelLoader
+from third_party.tt_forge_models.kimi_k2.pytorch.modified_modeling_deepseek import (
     DeepseekV3Attention,
     DeepseekV3DecoderLayer,
     DeepseekV3ForCausalLM,
+    DeepseekV3MoE,
 )
+
 from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
-from .utils import MLACache
 
 
 @pytest.mark.xfail(
@@ -35,12 +37,8 @@ from .utils import MLACache
 def test_kimi_k2_single_layer():
     xr.set_device_type("TT")
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
-
-    # Override for single layer testing
-    config.num_hidden_layers = 1
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
     config.use_cache = False
 
     model = DeepseekV3ForCausalLM(config)
@@ -64,13 +62,13 @@ def test_kimi_k2_single_layer():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 def test_kimi_k2_attention_prefill():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
 
     attention = DeepseekV3Attention(config, layer_idx=0)
     attention = attention.to(torch.bfloat16)
@@ -81,8 +79,13 @@ def test_kimi_k2_attention_prefill():
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, max_cache_len).bool().tril(), float("-inf")
     )
 
     num_devices = xr.global_runtime_device_count()
@@ -137,13 +140,13 @@ def test_kimi_k2_attention_prefill():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 def test_kimi_k2_attention_decode():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
-    config.num_hidden_layers = 1
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
 
     attention = DeepseekV3Attention(config, layer_idx=0)
     attention = attention.to(torch.bfloat16)
@@ -154,8 +157,13 @@ def test_kimi_k2_attention_decode():
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, max_cache_len).bool().tril(), float("-inf")
     )
 
     num_devices = xr.global_runtime_device_count()
@@ -172,6 +180,13 @@ def test_kimi_k2_attention_decode():
         device="cpu",
         dtype=torch.bfloat16,
     )
+    for layer in static_cache.layers:
+        layer.lazy_initialization(
+            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
+            torch.zeros(
+                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
+            ),
+        )
     past_key_states = static_cache
 
     def get_shard_spec(attention, args, kwargs):
@@ -179,8 +194,8 @@ def test_kimi_k2_attention_decode():
 
         shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
         shard_specs[args[1]] = ("_axis_1", None, None, None)
-        shard_specs[args[3][0][0]] = ("_axis_1", None, None, None)
-        shard_specs[args[3][0][1]] = ("_axis_1", None, None, None)
+        shard_specs[args[3].layers[0].compressed_kv] = ("_axis_1", None, None, None)
+        shard_specs[args[3].layers[0].k_pe] = ("_axis_1", None, None, None)
 
         # Main attention weights, TP across model and batch dimensions
         shard_specs[attention.q_b_proj.weight] = ("_axis_0", None)
@@ -211,15 +226,14 @@ def test_kimi_k2_attention_decode():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 def test_kimi_k2_layer():
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    # Load full Kimi K2 config from JSON file
-    config_path = os.path.join(os.path.dirname(__file__), "config.json")
-    config = DeepseekV3Config.from_json_file(config_path)
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=1)
     config._attn_implementation = "eager"
-    config.num_hidden_layers = 1
 
     layer = DeepseekV3DecoderLayer(config, layer_idx=0)
     layer = layer.to(torch.bfloat16)
@@ -230,8 +244,13 @@ def test_kimi_k2_layer():
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
     )
-    attention_mask = torch.rand(
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, max_cache_len).bool().tril(), float("-inf")
     )
     cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
     num_devices = xr.global_runtime_device_count()
@@ -247,6 +266,13 @@ def test_kimi_k2_layer():
         device="cpu",
         dtype=torch.bfloat16,
     )
+    for cache_layer in static_cache.layers:
+        cache_layer.lazy_initialization(
+            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
+            torch.zeros(
+                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
+            ),
+        )
     past_key_states = static_cache
 
     num_devices = xr.global_runtime_device_count()
@@ -257,8 +283,8 @@ def test_kimi_k2_layer():
 
         shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
         shard_specs[args[1]] = ("_axis_1", None, None, None)
-        shard_specs[args[3][0][0]] = ("_axis_1", None, None, None)
-        shard_specs[args[3][0][1]] = ("_axis_1", None, None, None)
+        shard_specs[args[3].layers[0].compressed_kv] = ("_axis_1", None, None, None)
+        shard_specs[args[3].layers[0].k_pe] = ("_axis_1", None, None, None)
 
         # Main attention weights, TP across model and batch dimensions
         shard_specs[layer.self_attn.q_b_proj.weight] = ("_axis_0", None)
@@ -292,6 +318,118 @@ def test_kimi_k2_layer():
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("batch_size", [32])
+@pytest.mark.parametrize("seq_len", [1, 32])
+def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=2)
+    config._attn_implementation = "eager"
+
+    layer = DeepseekV3DecoderLayer(config, layer_idx=1)
+    layer = layer.eval().to(torch.bfloat16)
+
+    max_cache_len = 1024
+    hidden_states = torch.randn(
+        (batch_size, seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+    attention_mask = torch.rand(
+        batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
+    )
+    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, 4)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+    enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
+
+    position_ids = torch.arange(seq_len).unsqueeze(0)
+    static_cache = MLACache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    past_key_states = static_cache
+
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+
+    def get_shard_spec(layer, args, kwargs):
+        shard_specs = {}
+
+        shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
+        shard_specs[args[1]] = ("_axis_1", None, None, None)
+        shard_specs[args[3].layers[1].compressed_kv] = ("_axis_1", None, None, None)
+        shard_specs[args[3].layers[1].k_pe] = ("_axis_1", None, None, None)
+
+        shard_specs[layer.self_attn.q_b_proj.weight] = ("_axis_0", None)
+        shard_specs[layer.self_attn.kv_b_proj.weight] = ("_axis_0", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "_axis_0")
+
+        shard_specs[layer.self_attn.q_a_proj.weight] = (None, "_axis_0")
+        shard_specs[layer.self_attn.kv_a_proj_with_mqa.weight] = (None, "_axis_0")
+
+        # A2aSparseMLP: experts compound-sharded (axis_0, axis_1)
+        mlp_wrapper = layer.mlp
+        mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
+        shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+        shard_specs[mlp.experts.gate_proj] = (
+            ("_axis_0", "_axis_1"),
+            None,
+            None,
+        )
+        shard_specs[mlp.experts.up_proj] = (
+            ("_axis_0", "_axis_1"),
+            None,
+            None,
+        )
+        shard_specs[mlp.experts.down_proj] = (
+            ("_axis_0", "_axis_1"),
+            None,
+            None,
+        )
+
+        # Shared experts (if present, on wrapper not on inner A2aSparseMLP)
+        shared = getattr(mlp_wrapper, "shared_experts", None)
+        if shared is not None:
+            shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
+            shard_specs[shared.up_proj.weight] = (None, "_axis_0")
+            shard_specs[shared.down_proj.weight] = ("_axis_0", None)
+
+        # Layernorm: hidden replicated → weight not sharded
+        shard_specs[layer.input_layernorm.weight] = ("_axis_0",)
+        shard_specs[layer.post_attention_layernorm.weight] = ("_axis_0",)
+
+        return shard_specs
+
+    comparison_config = ComparisonConfig(
+        pcc=PccConfig(enabled=True, required_pcc=0.98),
+    )
+
+    run_graph_test(
+        layer,
+        [
+            hidden_states,
+            attention_mask,
+            position_ids,
+            past_key_states,
+            False,
+            True,
+            cache_positions,
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+        comparison_config=comparison_config,
     )
 
 

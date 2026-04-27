@@ -160,7 +160,7 @@ def benchmark_encoder_torch_xla(
     display_name=None,
     num_layers_override=None,
     required_pcc=0.97,
-    enable_weight_bfp8_conversion=False,
+    experimental_weight_dtype="",
     experimental_enable_permute_matmul_fusion=False,
 ):
     """
@@ -191,7 +191,7 @@ def benchmark_encoder_torch_xla(
             Signature: fn(outputs, model_inputs) -> embeddings.
             This function should extract hidden states and apply the appropriate pooling.
         required_pcc: Minimum PCC threshold for output validation
-        enable_weight_bfp8_conversion: Whether to enable bfp8 weight conversion
+        experimental_weight_dtype: Weight dtype for block format conversion ("bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
 
     Returns:
@@ -224,7 +224,7 @@ def benchmark_encoder_torch_xla(
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "enable_trace": trace_enabled,
-        "experimental_enable_weight_bfp8_conversion": enable_weight_bfp8_conversion,
+        "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
     }
 
@@ -259,7 +259,10 @@ def benchmark_encoder_torch_xla(
     )
 
     # Evaluate PCC
-    pcc_value = compute_pcc(predictions[0], golden_output, required_pcc=required_pcc)
+    pcc_value = compute_pcc(predictions[0], golden_output)
+    assert (
+        pcc_value >= required_pcc
+    ), f"PCC comparison failed. PCC={pcc_value:.6f}, Required={required_pcc}"
     print(f"PCC verification passed with PCC={pcc_value:.6f}")
     evaluation_score = pcc_value
 
@@ -312,7 +315,7 @@ def benchmark_encoder_torch_xla(
         arch=get_xla_device_arch(),
         input_is_image=False,
         input_sequence_length=input_sequence_length,
-        enable_weight_bfp8_conversion=enable_weight_bfp8_conversion,
+        experimental_weight_dtype=experimental_weight_dtype,
         device_count=xr.global_runtime_device_count(),
     )
 

@@ -4,7 +4,7 @@
 import pytest
 from infra import RunMode
 from infra.evaluators import ComparisonConfig, PccConfig
-from utils import BringupStatus, Category
+from utils import BringupStatus, Category, failed_runtime
 
 from third_party.tt_forge_models.mochi.pytorch import ModelLoader, ModelVariant
 
@@ -28,7 +28,7 @@ _DRAM_OOM_SKIP_REASON = (
                     category=Category.MODEL_TEST,
                     model_info=ModelLoader.get_model_info(ModelVariant.MOCHI),
                     run_mode=RunMode.INFERENCE,
-                    bringup_status=BringupStatus.PASSED,
+                    bringup_status=BringupStatus.FAILED_RUNTIME,
                     pcc=0.97,
                 ),
             ],

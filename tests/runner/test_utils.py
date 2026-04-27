@@ -32,6 +32,19 @@ from third_party.tt_forge_models.config import Parallelism
 BRINGUP_STAGE_FILE = "._bringup_stage.txt"
 
 
+class ResolvedFailingReason:
+    def __init__(self, name: str, description: str, component=None, summary=None):
+        self.name = name
+        self.summary = summary
+
+        class Value:
+            def __init__(self, description, component):
+                self.description = description
+                self.component_checker_description = component
+
+        self.value = Value(description, component)
+
+
 # Optional hint that selects a non-default execution/input-loading phase.
 # Today this is only used to distinguish LLM prefill vs decode; in the future it may
 # be extended to other model families (e.g., vision) if they need phase-specific inputs.
@@ -42,6 +55,57 @@ class RunPhase(Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+class ShardingStrategy(Enum):
+    FSDP = "fsdp"
+    MEGATRON = "megatron"
+
+    def __str__(self) -> str:
+        return self.value
+
+
+@dataclass(frozen=True)
+class ShardingConfig:
+    """Configuration for multi-chip sharding in LLM tests.
+
+    Bundles shard_strategy and shard_inputs into a single
+    test parameter. Used only by test_llms_torch to expand tested sharding
+    combinations without changing the Parallelism enum or shared code paths.
+
+    Attributes:
+        shard_strategy: FSDP (both axes) or MEGATRON (model axis only). None = loader default.
+        shard_inputs: Whether to shard inputs across the batch/data axis of the mesh.
+        parallelism: Parallelism enum value for dispatch and backward-compat reporting.
+    """
+
+    shard_strategy: Optional[ShardingStrategy]
+    shard_inputs: bool
+    parallelism: Parallelism  # Parallelism here is used for backward-compatibility.
+
+
+class ShardingConfigs:
+    """Pre-defined sharding configurations for test_llms_torch parametrization.
+
+    TENSOR_PARALLEL has all-None fields so the tester falls through to the
+    existing (loader-driven) code path — preserving current behavior and test IDs.
+    """
+
+    # --- Backward-compatible defaults (None strategy → existing code paths) ---
+    SINGLE_DEVICE = ShardingConfig(None, False, Parallelism.SINGLE_DEVICE)
+    TENSOR_PARALLEL = ShardingConfig(None, False, Parallelism.TENSOR_PARALLEL)
+
+    # --- Explicit TP strategies (mesh shape is parametrized separately) ---
+    FSDP = ShardingConfig(ShardingStrategy.FSDP, False, Parallelism.TENSOR_PARALLEL)
+    FSDP_DP = ShardingConfig(ShardingStrategy.FSDP, True, Parallelism.TENSOR_PARALLEL)
+
+    # --- Megatron sharding (weights sharded on "model" axis only) ---
+    MEGATRON = ShardingConfig(
+        ShardingStrategy.MEGATRON, False, Parallelism.TENSOR_PARALLEL
+    )
+    MEGATRON_DP = ShardingConfig(
+        ShardingStrategy.MEGATRON, True, Parallelism.TENSOR_PARALLEL
+    )
 
 
 def find_dumped_ir_files(artifacts_dir: str) -> List[str]:
@@ -99,6 +163,13 @@ class ModelTestConfig:
         # Misc arguments used in test
         self.batch_size = self._resolve("batch_size", default=None)
         self.seq_len = self._resolve("seq_len", default=None)
+
+        # Sharding configuration for TP prefill tests (set from parametrization, not YAML)
+        self.sharding_strategy: ShardingStrategy | None = None
+        self.mesh_shape = None  # e.g. (1, 8), (2, 4)
+        self.shard_inputs = (
+            False  # whether to shard inputs across the batch/data mesh axis
+        )
 
         # Arguments to skip_full_eval_test() for skipping tests
         self.reason = self._resolve("reason", default=None)
@@ -261,7 +332,22 @@ def update_test_metadata_for_exception(
     runtime_reason = detailed_error if detailed_error else message
 
     setattr(test_metadata, "runtime_reason", runtime_reason)
-    setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+
+    if (
+        exception_reason.failing_reasons is not None
+        and exception_reason.failing_reasons.name != "UNCLASSIFIED"
+    ):
+        setattr(test_metadata, "failing_reason", exception_reason.failing_reasons)
+    else:
+        failing_reason_obj = ResolvedFailingReason(
+            name=type(exc).__name__,
+            description=runtime_reason,
+            component=None,
+            summary=exception_reason.summary,
+        )
+
+        setattr(test_metadata, "failing_reason", failing_reason_obj)
+
     setattr(test_metadata, "failing_reason_summary", exception_reason.summary)
 
 
@@ -269,7 +355,7 @@ def update_test_metadata_for_exception(
 # ruamel returns ScalarFloat/ScalarString types (subclasses of float/str).
 # pytest-forked uses Python's marshal, which rejects non-builtin subclasses inside the
 # test report's user_properties, causing ValueError: unmarshallable object.
-def _to_marshal_safe(value):
+def to_marshal_safe(value):
     """Recursively convert values to marshal-safe builtin types for pytest-forked."""
     # None stays None
     if value is None:
@@ -296,9 +382,9 @@ def _to_marshal_safe(value):
 
     # Collections
     if isinstance(value, dict):
-        return {str(k): _to_marshal_safe(v) for k, v in value.items()}
+        return {str(k): to_marshal_safe(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
-        return [_to_marshal_safe(v) for v in value]
+        return [to_marshal_safe(v) for v in value]
 
     # Fallback to string to avoid unmarshallable objects
     return str(value)
@@ -645,10 +731,10 @@ def record_model_test_properties(
     # If we have an explanatory reason, include it as a top-level property too for DB visibility
     # which is especially useful for passing tests (used to just from xkip/xfail reason)
     if reason:
-        record_property("error_message", _to_marshal_safe(reason))
+        record_property("error_message", to_marshal_safe(reason))
 
     # Write properties
-    record_property("tags", _to_marshal_safe(tags))
+    record_property("tags", to_marshal_safe(tags))
     record_property("owner", "tt-xla")
     if hasattr(model_info, "group") and model_info.group is not None:
         record_property("group", str(model_info.group))

@@ -73,7 +73,7 @@ def test_llama_step(run_mode):
     tokenizer.pad_token = tokenizer.eos_token
 
     # Generate inputs.
-    inputs = tokenizer.encode_plus(
+    inputs = tokenizer._encode_plus(
         input_prompt,
         return_tensors="pt",
         truncation=True,

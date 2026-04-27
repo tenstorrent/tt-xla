@@ -11,13 +11,13 @@
 #include "api/memory_instance.h"
 
 // c++ standard library includes
-#include <cassert>
 #include <cstring>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
 
 // tt-xla includes
+#include "utils/assert.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -66,9 +66,10 @@ DeviceInstance *MemoryInstance::getDevice() {
     return nullptr;
   }
 
-  assert(m_addressable_by_devices.size() == 1 &&
-         "MemoryInstance::getDevice: Device memory should have exactly one "
-         "device.");
+  TT_FATAL(m_addressable_by_devices.size() == 1,
+           "MemoryInstance::getDevice: Device memory should have exactly one "
+           "device: m_addressable_by_devices.size()={}",
+           m_addressable_by_devices.size());
 
   return m_addressable_by_devices[0];
 }
