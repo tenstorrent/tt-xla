@@ -1,0 +1,68 @@
+2026-04-27 06:52:20.121 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'split': '0.11.0', 'forked': '1.6.0', 'anyio': '4.13.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, split-0.11.0, forked-1.6.0, anyio-4.13.0
+collecting ... collected 24 items
+
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_old_decomp_vs_reference[small_S32_D16] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_old_decomp_vs_reference[deepseek_ocr_S913_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_old_decomp_vs_reference[stress_S2048_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_new_decomp_vs_reference[small_S32_D16] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_new_decomp_vs_reference[deepseek_ocr_S913_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_new_decomp_vs_reference[stress_S2048_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_old_vs_new_direct[small_S32_D16] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_old_vs_new_direct[deepseek_ocr_S913_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_old_vs_new_direct[stress_S2048_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_true_positions_get_source[small_S32_D16] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_true_positions_get_source[deepseek_ocr_S913_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_true_positions_get_source[stress_S2048_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_false_positions_keep_original[small_S32_D16] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_false_positions_keep_original[deepseek_ocr_S913_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMaskedScatterDecomp::test_false_positions_keep_original[stress_S2048_D1280] PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestEdgeCases::test_all_true PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestEdgeCases::test_all_false PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestEdgeCases::test_single_true_at_start PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestEdgeCases::test_single_true_at_end PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestEdgeCases::test_alternating PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestEdgeCases::test_consecutive_block_in_middle PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMemoryReport::test_report_memory_savings[small_S32_D16] 
+  S=32, D=16, num_true=10
+  Old decomp intermediates: 0.0 MB (cumsum on [512] = 32*16 elements)
+  New decomp intermediates: 0.0 MB (cumsum on [32] elements)
+  Reduction: 80.0%  |  cumsum ratio: 16x smaller
+PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMemoryReport::test_report_memory_savings[deepseek_ocr_S913_D1280] 
+  S=913, D=1280, num_true=903
+  Old decomp intermediates: 27.9 MB (cumsum on [1168640] = 913*1280 elements)
+  New decomp intermediates: 4.5 MB (cumsum on [913] elements)
+  Reduction: 84.0%  |  cumsum ratio: 1280x smaller
+PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py::TestMemoryReport::test_report_memory_savings[stress_S2048_D1280] 
+  S=2048, D=1280, num_true=1024
+  Old decomp intermediates: 62.5 MB (cumsum on [2621440] = 2048*1280 elements)
+  New decomp intermediates: 10.0 MB (cumsum on [2048] elements)
+  Reduction: 84.0%  |  cumsum ratio: 1280x smaller
+PASSED
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py: 24 warnings
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp.py: 24 warnings
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 24 passed, 50 warnings in 5.85s ========================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

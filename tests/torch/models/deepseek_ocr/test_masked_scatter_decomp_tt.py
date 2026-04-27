@@ -24,7 +24,6 @@ import pytest
 import torch
 import torch.nn as nn
 from infra import Framework, run_op_test
-from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 
 
 # ---------------------------------------------------------------------------
@@ -134,18 +133,11 @@ def model_inputs():
     return [inputs_embeds, mask_1d, source]
 
 
-@pytest.fixture
-def comparison_config():
-    return ComparisonConfig(
-        pcc=PccConfig(required_pcc=0.99),
-    )
-
-
 # ---------------------------------------------------------------------------
 # Sanity 1: masked_scatter_ -- crashes on TT (repeat_interleave/transpose)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_reference_tt(model_inputs, comparison_config):
+def test_masked_scatter_reference_tt(model_inputs):
     """
     masked_scatter_ on TT device.
     Crashes with TT_FATAL in ttnn::repeat_interleave -> transpose_impl.
@@ -156,7 +148,6 @@ def test_masked_scatter_reference_tt(model_inputs, comparison_config):
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -165,7 +156,7 @@ def test_masked_scatter_reference_tt(model_inputs, comparison_config):
 # Sanity 2: new decomposition -- PCC drop is TT op accuracy issue
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_tt(model_inputs, comparison_config):
+def test_masked_scatter_new_decomp_tt(model_inputs):
     """
     New decomposition (row-level cumsum on [S] + 2D gather) on TT device.
     cumsum input: [913] int64 instead of [1168640] int64.
@@ -177,7 +168,6 @@ def test_masked_scatter_new_decomp_tt(model_inputs, comparison_config):
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -186,7 +176,7 @@ def test_masked_scatter_new_decomp_tt(model_inputs, comparison_config):
 # Sanity 3: old decomposition -- crashes on TT (repeat_interleave)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_old_decomp_tt(model_inputs, comparison_config):
+def test_masked_scatter_old_decomp_tt(model_inputs):
     """
     Old decomposition (flatten to 1D, cumsum on [S*D]) on TT device.
     Crashes with TT_FATAL in ttnn::repeat_interleave -> transpose_impl.
@@ -197,7 +187,6 @@ def test_masked_scatter_old_decomp_tt(model_inputs, comparison_config):
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -206,9 +195,7 @@ def test_masked_scatter_old_decomp_tt(model_inputs, comparison_config):
 # Sanity 4: new decomposition with torch.compiler.disable
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_compiler_disabled_tt(
-    model_inputs, comparison_config
-):
+def test_masked_scatter_new_decomp_compiler_disabled_tt(model_inputs):
     """
     New decomposition with @torch.compiler.disable.
     Prevents XLA from tracing the op — runs eagerly on CPU, bypassing
@@ -221,7 +208,6 @@ def test_masked_scatter_new_decomp_compiler_disabled_tt(
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -230,9 +216,7 @@ def test_masked_scatter_new_decomp_compiler_disabled_tt(
 # Sanity 5: old decomposition with torch.compiler.disable
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_old_decomp_compiler_disabled_tt(
-    model_inputs, comparison_config
-):
+def test_masked_scatter_old_decomp_compiler_disabled_tt(model_inputs):
     """
     Old decomposition with @torch.compiler.disable.
     Prevents XLA from tracing — runs eagerly on CPU, bypassing the
@@ -244,6 +228,5 @@ def test_masked_scatter_old_decomp_compiler_disabled_tt(
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )

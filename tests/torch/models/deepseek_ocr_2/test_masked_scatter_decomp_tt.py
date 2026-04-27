@@ -24,7 +24,6 @@ import pytest
 import torch
 import torch.nn as nn
 from infra import Framework, run_op_test
-from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 
 
 S = 913
@@ -166,18 +165,13 @@ def model_inputs():
     return [inputs_embeds, mask_1d, source]
 
 
-@pytest.fixture
-def comparison_config():
-    return ComparisonConfig(
-        pcc=PccConfig(required_pcc=0.99),
-    )
 
 
 # ---------------------------------------------------------------------------
 # 1. masked_scatter_ reference — crashes on TT (repeat_interleave/transpose)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_reference_tt(model_inputs, comparison_config):
+def test_masked_scatter_reference_tt(model_inputs):
     """masked_scatter_ on TT device. Crashes with TT_FATAL."""
     model = MaskedScatterReference()
     model.eval()
@@ -185,7 +179,6 @@ def test_masked_scatter_reference_tt(model_inputs, comparison_config):
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -194,7 +187,7 @@ def test_masked_scatter_reference_tt(model_inputs, comparison_config):
 # 2. New decomposition (gather-based) — PCC drop from matmul bug
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_tt(model_inputs, comparison_config):
+def test_masked_scatter_new_decomp_tt(model_inputs):
     """
     New decomposition (row-level cumsum + 2D gather) on TT device.
     PCC drops due to ttnn.matmul precision bug in gather decomposition.
@@ -205,7 +198,6 @@ def test_masked_scatter_new_decomp_tt(model_inputs, comparison_config):
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -214,7 +206,7 @@ def test_masked_scatter_new_decomp_tt(model_inputs, comparison_config):
 # 3. V2 decomposition (mul+add) — expected to PASS with PCC ~1.0
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_v2_tt(model_inputs, comparison_config):
+def test_masked_scatter_new_decomp_v2_tt(model_inputs):
     """
     V2 decomposition (row-level cumsum + mul+add index linearization).
     Bypasses ttnn.matmul entirely — expected PCC ~1.0 on TT device.
@@ -225,7 +217,6 @@ def test_masked_scatter_new_decomp_v2_tt(model_inputs, comparison_config):
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -234,7 +225,7 @@ def test_masked_scatter_new_decomp_v2_tt(model_inputs, comparison_config):
 # 4. Old decomposition — crashes on TT (repeat_interleave)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_old_decomp_tt(model_inputs, comparison_config):
+def test_masked_scatter_old_decomp_tt(model_inputs):
     """Old decomposition on TT device. Crashes with TT_FATAL."""
     model = MaskedScatterOldDecomp()
     model.eval()
@@ -242,7 +233,6 @@ def test_masked_scatter_old_decomp_tt(model_inputs, comparison_config):
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -251,9 +241,7 @@ def test_masked_scatter_old_decomp_tt(model_inputs, comparison_config):
 # 5. V2 decomposition with compiler disabled (control)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_v2_compiler_disabled_tt(
-    model_inputs, comparison_config
-):
+def test_masked_scatter_new_decomp_v2_compiler_disabled_tt(model_inputs):
     """
     V2 decomposition with @torch.compiler.disable.
     Runs eagerly on CPU — control test, should produce PCC ~1.0.
@@ -264,7 +252,6 @@ def test_masked_scatter_new_decomp_v2_compiler_disabled_tt(
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -273,9 +260,7 @@ def test_masked_scatter_new_decomp_v2_compiler_disabled_tt(
 # 6. New decomposition (gather) with compiler disabled
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_compiler_disabled_tt(
-    model_inputs, comparison_config
-):
+def test_masked_scatter_new_decomp_compiler_disabled_tt(model_inputs):
     """New decomposition (gather-based) with @torch.compiler.disable."""
     model = MaskedScatterNewDecompCompilerDisabled()
     model.eval()
@@ -283,7 +268,6 @@ def test_masked_scatter_new_decomp_compiler_disabled_tt(
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )
 
@@ -292,9 +276,7 @@ def test_masked_scatter_new_decomp_compiler_disabled_tt(
 # 7. Old decomposition with compiler disabled
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_old_decomp_compiler_disabled_tt(
-    model_inputs, comparison_config
-):
+def test_masked_scatter_old_decomp_compiler_disabled_tt(model_inputs):
     """Old decomposition with @torch.compiler.disable."""
     model = MaskedScatterOldDecompCompilerDisabled()
     model.eval()
@@ -302,6 +284,5 @@ def test_masked_scatter_old_decomp_compiler_disabled_tt(
     run_op_test(
         model,
         model_inputs,
-        comparison_config=comparison_config,
         framework=Framework.TORCH,
     )

@@ -1,0 +1,67 @@
+2026-04-27 06:56:18.195 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'split': '0.11.0', 'forked': '1.6.0', 'anyio': '4.13.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, split-0.11.0, forked-1.6.0, anyio-4.13.0
+collecting ... collected 13 items
+
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op1_cast_long 2026-04-27 06:56:19.903842: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-04-27 06:56:20.267049: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op2_cumsum 2026-04-27 06:56:20.971968: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op3_sub 2026-04-27 06:56:21.711653: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op2_op3_cumsum_sub 2026-04-27 06:56:22.265657: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op4_clamp 2026-04-27 06:56:22.748648: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op5_flatten_source PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op7_mul_add PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op8_flat_index PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op9_where 2026-04-27 06:56:29.375885: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op1_to_op4_pipeline PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_op1_to_op8_pipeline PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_full_v2_decomp 2026-04-27 06:56:31.294213: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_full_original_decomp 2026-04-27 06:56:32.040393: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+FAILED
+
+=================================== FAILURES ===================================
+__________________________ test_full_original_decomp ___________________________
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py:343: in test_full_original_decomp
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:68: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.06524327813701349. Required: pcc=0.99.
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py: 13 warnings
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py: 13 warnings
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_ops.py::test_full_original_decomp - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.06524327813701349. Required: pcc=0.99.
+================== 1 failed, 12 passed, 28 warnings in 14.06s ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

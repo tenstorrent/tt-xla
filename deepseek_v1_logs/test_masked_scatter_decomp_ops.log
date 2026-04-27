@@ -1,0 +1,86 @@
+2026-04-27 06:55:27.914 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'split': '0.11.0', 'forked': '1.6.0', 'anyio': '4.13.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, split-0.11.0, forked-1.6.0, anyio-4.13.0
+collecting ... collected 11 items
+
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op1_cast_long 2026-04-27 06:55:29.798229: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op2_cumsum PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op3_sub PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op2_op3_cumsum_sub PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op4_clamp PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op5_unsqueeze_expand PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op6_gather FAILED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op7_where PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op1_to_op5_pipeline PASSED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op1_to_op6_pipeline FAILED
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_full_new_decomp 2026-04-27 06:55:43.507066: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+FAILED
+
+=================================== FAILURES ===================================
+_______________________________ test_op6_gather ________________________________
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py:235: in test_op6_gather
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:68: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.05570001107827305. Required: pcc=0.99.
+___________________________ test_op1_to_op6_pipeline ___________________________
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py:272: in test_op1_to_op6_pipeline
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:68: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.05570001107827305. Required: pcc=0.99.
+_____________________________ test_full_new_decomp _____________________________
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py:284: in test_full_new_decomp
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:68: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.06524327813701349. Required: pcc=0.99.
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py: 11 warnings
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py: 11 warnings
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op6_gather - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.05570001107827305. Required: pcc=0.99.
+FAILED tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_op1_to_op6_pipeline - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.05570001107827305. Required: pcc=0.99.
+FAILED tests/torch/models/deepseek_ocr/test_masked_scatter_decomp_ops.py::test_full_new_decomp - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.06524327813701349. Required: pcc=0.99.
+================== 3 failed, 8 passed, 24 warnings in 14.74s ===================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

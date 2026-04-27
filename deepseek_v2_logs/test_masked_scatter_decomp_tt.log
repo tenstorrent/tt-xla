@@ -1,0 +1,313 @@
+2026-04-27 06:53:50.798 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'split': '0.11.0', 'forked': '1.6.0', 'anyio': '4.13.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, split-0.11.0, forked-1.6.0, anyio-4.13.0
+collecting ... collected 7 items
+
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_reference_tt 2026-04-27 06:53:52.451476: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-04-27 06:53:52.876424: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-04-27 06:53:53.113 | critical |          Always | TT_FATAL: Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615 (assert.hpp:104)
+2026-04-27 06:53:53.137 (   0.842s) [        D77FE6C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/common/shape.cpp:56: normalized_index >= 0 and normalized_index < rank
+info:
+Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615
+backtrace:
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x8c02a8) [0x7f5c7b9102a8]
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x8b7c66) [0x7f5c7b907c66]
+ --- ttnn::operations::data_movement::transpose::transpose_impl(tt::tt_metal::Tensor const&, long, long, std::optional<tt::tt_metal::MemoryConfig> const&, float)
+ --- ttnn::transpose(tt::tt_metal::Tensor const&, long, long, std::optional<tt::tt_metal::MemoryConfig> const&, float)
+ --- ttnn::repeat_interleave(tt::tt_metal::Tensor const&, unsigned int, int, std::optional<tt::tt_metal::MemoryConfig> const&)
+ --- tt::runtime::ttnn::operations::data_movement::run(tt::target::ttnn::RepeatInterleaveOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > std::__invoke_impl<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&>(std::__invoke_other, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::optional<std::conditional<std::is_same_v<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, void>, std::monostate, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >::type> tt::pjrt::utils::invoke_noexcept<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >(std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::ExecuteWithSingleDevice(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- xla::PjRtCApiLoadedExecutable::ExecutePortable(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteComputation(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, torch_xla::runtime::ComputationClient::ExecuteComputationOptions const&)
+ --- torch_xla::XlaBackendImpl::ExecuteComputation(std::shared_ptr<torch::lazy::Computation>, c10::ArrayRef<std::shared_ptr<torch::lazy::BackendData> >, torch::lazy::BackendDevice const&) const
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6ded470) [0x7f5d082e3470]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x1168b182) [0x7f5d12b81182]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x9caa4) [0x7f5d3f406aa4]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x129c6c) [0x7f5d3f493c6c]
+}
+
+FAILED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_tt 2026-04-27 06:53:53.805665: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+FAILED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_v2_tt 2026-04-27 06:53:56.047188: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_tt 2026-04-27 06:53:57.470 | critical |          Always | TT_FATAL: Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615 (assert.hpp:104)
+2026-04-27 06:53:57.492 (   5.197s) [        D77FE6C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/common/shape.cpp:56: normalized_index >= 0 and normalized_index < rank
+info:
+Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615
+backtrace:
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x8c02a8) [0x7f5c7b9102a8]
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x8b7c66) [0x7f5c7b907c66]
+ --- ttnn::operations::data_movement::transpose::transpose_impl(tt::tt_metal::Tensor const&, long, long, std::optional<tt::tt_metal::MemoryConfig> const&, float)
+ --- ttnn::transpose(tt::tt_metal::Tensor const&, long, long, std::optional<tt::tt_metal::MemoryConfig> const&, float)
+ --- ttnn::repeat_interleave(tt::tt_metal::Tensor const&, unsigned int, int, std::optional<tt::tt_metal::MemoryConfig> const&)
+ --- tt::runtime::ttnn::operations::data_movement::run(tt::target::ttnn::RepeatInterleaveOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > std::__invoke_impl<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&>(std::__invoke_other, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::optional<std::conditional<std::is_same_v<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, void>, std::monostate, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >::type> tt::pjrt::utils::invoke_noexcept<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >(std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::ExecuteWithSingleDevice(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- xla::PjRtCApiLoadedExecutable::ExecutePortable(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteComputation(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, torch_xla::runtime::ComputationClient::ExecuteComputationOptions const&)
+ --- torch_xla::XlaBackendImpl::ExecuteComputation(std::shared_ptr<torch::lazy::Computation>, c10::ArrayRef<std::shared_ptr<torch::lazy::BackendData> >, torch::lazy::BackendDevice const&) const
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6ded470) [0x7f5d082e3470]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x1168b182) [0x7f5d12b81182]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x9caa4) [0x7f5d3f406aa4]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x129c6c) [0x7f5d3f493c6c]
+}
+
+FAILED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_v2_compiler_disabled_tt 2026-04-27 06:53:57.884967: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+PASSED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_compiler_disabled_tt 2026-04-27 06:53:58.590097: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+FAILED
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_compiler_disabled_tt 2026-04-27 06:53:59.155985: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-04-27 06:53:59.334 | critical |          Always | TT_FATAL: Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615 (assert.hpp:104)
+2026-04-27 06:53:59.355 (   7.060s) [        D77FE6C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/common/shape.cpp:56: normalized_index >= 0 and normalized_index < rank
+info:
+Index is out of bounds for the rank, should be between 0 and 0 however is 18446744073709551615
+backtrace:
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x8c02a8) [0x7f5c7b9102a8]
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x8b7c66) [0x7f5c7b907c66]
+ --- ttnn::operations::data_movement::transpose::transpose_impl(tt::tt_metal::Tensor const&, long, long, std::optional<tt::tt_metal::MemoryConfig> const&, float)
+ --- ttnn::transpose(tt::tt_metal::Tensor const&, long, long, std::optional<tt::tt_metal::MemoryConfig> const&, float)
+ --- ttnn::repeat_interleave(tt::tt_metal::Tensor const&, unsigned int, int, std::optional<tt::tt_metal::MemoryConfig> const&)
+ --- tt::runtime::ttnn::operations::data_movement::run(tt::target::ttnn::RepeatInterleaveOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > std::__invoke_impl<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&>(std::__invoke_other, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::optional<std::conditional<std::is_same_v<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, void>, std::monostate, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >::type> tt::pjrt::utils::invoke_noexcept<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >(std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::ExecuteWithSingleDevice(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- xla::PjRtCApiLoadedExecutable::ExecutePortable(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteComputation(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, torch_xla::runtime::ComputationClient::ExecuteComputationOptions const&)
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6dedd96) [0x7f5d082e3d96]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x1168b182) [0x7f5d12b81182]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x9caa4) [0x7f5d3f406aa4]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x129c6c) [0x7f5d3f493c6c]
+}
+
+FAILED
+
+=================================== FAILURES ===================================
+_______________________ test_masked_scatter_reference_tt _______________________
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py:179: in test_masked_scatter_reference_tt
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:37: in evaluate
+    device_output, golden_output = self._match_data_types((device_out, golden_out))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/utils.py:41: in wrapper
+    return runner.run_on_cpu(workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:26: in run_on_cpu
+    return self.run_on_device(workload, DeviceType.CPU)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:38: in run_on_device
+    device_workload = self._put_on_device(workload, device=device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:54: in _put_on_device
+    return self._safely_put_workload_on_device(workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in _safely_put_workload_on_device
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1376: in tree_map
+    return treespec.unflatten(map(func, *flat_args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1193: in unflatten
+    leaves = list(leaves)
+             ^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in <lambda>
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                                        ^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:76: in to_device
+    result = x.to(device)
+             ^^^^^^^^^^^^
+python_package/tt_torch/torch_overrides.py:22: in __torch_function__
+    return func(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+______________________ test_masked_scatter_new_decomp_tt _______________________
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py:198: in test_masked_scatter_new_decomp_tt
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:68: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.0655313931080329. Required: pcc=0.99.
+______________________ test_masked_scatter_old_decomp_tt _______________________
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py:233: in test_masked_scatter_old_decomp_tt
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:37: in evaluate
+    device_output, golden_output = self._match_data_types((device_out, golden_out))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/utils.py:41: in wrapper
+    return runner.run_on_cpu(workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:26: in run_on_cpu
+    return self.run_on_device(workload, DeviceType.CPU)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:38: in run_on_device
+    device_workload = self._put_on_device(workload, device=device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:54: in _put_on_device
+    return self._safely_put_workload_on_device(workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in _safely_put_workload_on_device
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1376: in tree_map
+    return treespec.unflatten(map(func, *flat_args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1193: in unflatten
+    leaves = list(leaves)
+             ^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in <lambda>
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                                        ^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:76: in to_device
+    result = x.to(device)
+             ^^^^^^^^^^^^
+python_package/tt_torch/torch_overrides.py:22: in __torch_function__
+    return func(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+_____________ test_masked_scatter_new_decomp_compiler_disabled_tt ______________
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py:268: in test_masked_scatter_new_decomp_compiler_disabled_tt
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:68: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.0655313931080329. Required: pcc=0.99.
+_____________ test_masked_scatter_old_decomp_compiler_disabled_tt ______________
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py:284: in test_masked_scatter_old_decomp_compiler_disabled_tt
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:37: in evaluate
+    device_output, golden_output = self._match_data_types((device_out, golden_out))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/utils.py:41: in wrapper
+    return runner.run_on_cpu(workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:26: in run_on_cpu
+    return self.run_on_device(workload, DeviceType.CPU)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:38: in run_on_device
+    device_workload = self._put_on_device(workload, device=device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:54: in _put_on_device
+    return self._safely_put_workload_on_device(workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in _safely_put_workload_on_device
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1376: in tree_map
+    return treespec.unflatten(map(func, *flat_args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1193: in unflatten
+    leaves = list(leaves)
+             ^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in <lambda>
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                                        ^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:76: in to_device
+    result = x.to(device)
+             ^^^^^^^^^^^^
+python_package/tt_torch/torch_overrides.py:22: in __torch_function__
+    return func(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_reference_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_v2_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_v2_compiler_disabled_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_compiler_disabled_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_compiler_disabled_tt
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_reference_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_v2_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_v2_compiler_disabled_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_compiler_disabled_tt
+tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_compiler_disabled_tt
+  /proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_reference_tt - RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+FAILED tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_tt - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.0655313931080329. Required: pcc=0.99.
+FAILED tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_tt - RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+FAILED tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_new_decomp_compiler_disabled_tt - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.0655313931080329. Required: pcc=0.99.
+FAILED tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py::test_masked_scatter_old_decomp_compiler_disabled_tt - RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+=================== 5 failed, 2 passed, 16 warnings in 7.68s ===================
+ERROR:root:Caught an exception when exiting the process. Exception: 
+Traceback (most recent call last):
+  File "/proj_sw/user_dev/ctr-akannan/27_aprd_bgd/tt-xla/venv/lib/python3.12/site-packages/torch_xla/__init__.py", line 216, in _prepare_to_exit
+    _XLAC._prepare_to_exit()
+RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
