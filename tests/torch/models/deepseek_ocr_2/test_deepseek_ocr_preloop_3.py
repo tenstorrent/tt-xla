@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Pre-decoder-loop sanity with v2 (mul+add) masked_scatter decomposition.
+Pre-decoder-loop sanity with mul+add masked_scatter decomposition.
 
 Same graph structure as test_deepseek_ocr_preloop_3.py in deepseek_ocr_org
 (exact DeepseekV2Model.forward pre-loop path with inlined decomposition),
-but uses the v2 decomposition (row-level cumsum on [S] + mul+add flat indexing).
+but uses the mul+add decomposition (row-level cumsum on [S] + mul+add flat indexing).
 
 This avoids both:
   - The cumsum OOM from issue #4167 (cumsum on [S] not [S*D]).
@@ -31,7 +31,7 @@ from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_m
 class DeepseekOCRVisionEmbedPreloopPipeline(nn.Module):
     """DeepseekOCRModel.forward + DeepseekV2Model.forward up to decoder loop.
 
-    Uses v2 decomposition: row-level cumsum on [S] + mul+add index linearization.
+    Uses mul+add decomposition: row-level cumsum on [S] + mul+add index linearization.
     Avoids both the cumsum OOM and the ttnn.matmul PCC drop.
     """
 
@@ -185,7 +185,7 @@ class DeepseekOCRVisionEmbedPreloopPipeline(nn.Module):
 
                 if images_in_this_batch:
                     images_in_this_batch = torch.cat(images_in_this_batch, dim=0)
-                    # V2 decomposition (mul+add) INLINED
+                    # Mul+add decomposition INLINED
                     S, D = inputs_embeds[idx].shape
                     mask_i = images_seq_mask[idx].long()
                     source_idx = torch.cumsum(mask_i, 0) - 1
@@ -318,9 +318,9 @@ def model_and_inputs():
 @pytest.mark.single_device
 def test_deepseek_ocr_vision_embed_preloop(model_and_inputs):
     """
-    OCR forward (v2 mul+add decomp) + V2 forward through attention_mask prep.
+    OCR forward (mul+add decomp) + DeepseekV2 forward through attention_mask prep.
 
-    Same graph structure as the org decomp preloop_3 test, but uses v2
+    Same graph structure as the org decomp preloop_3 test, but uses mul+add
     decomposition that avoids both the cumsum OOM (#4167) and the
     ttnn.matmul PCC drop (tt-metal#42845).
 

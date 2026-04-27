@@ -7,11 +7,11 @@ Pytest sanity comparing four masked_scatter_ implementations:
   1. Reference:  torch.Tensor.masked_scatter_ (ground truth)
   2. Old decomp: flatten-to-1D + broadcast + cumsum on S*D elements
   3. New decomp: row-level cumsum on S elements + 2D gather
-  4. New decomp v2: row-level cumsum + mul+add index linearization (no gather)
+  4. Mul+add decomp: row-level cumsum + mul+add index linearization (no gather)
 
-The v2 decomposition replaces torch.gather with explicit mul+add to compute
-flat indices, avoiding the ttnn.matmul precision bug on Wormhole hardware
-(see tt-metal#42845, hardware bug #38306).
+The mul+add decomposition replaces torch.gather with explicit mul+add to
+compute flat indices, avoiding the ttnn.matmul precision bug on Wormhole
+hardware (see tt-metal#42845, hardware bug #38306).
 
 Context:
   - Issue #3316: masked_scatter_ introduced dynamic shapes, so it was
@@ -20,7 +20,7 @@ Context:
     (e.g. [1168640] for S=913, D=1280), causing moreh_cumsum L1/DRAM OOM.
   - Issue #4328: torch.gather in the new decomp causes PCC drop on TT
     due to ttnn.matmul precision bug in the XLA-generated index linearization.
-  - The v2 approach replaces gather with mul+add for index computation,
+  - The mul+add approach replaces gather with mul+add for index computation,
     keeping cumsum at [S] and bypassing the matmul entirely.
 
 Usage:
@@ -101,9 +101,9 @@ def masked_scatter_new_decomp(inputs_embeds, mask_1d, source):
     return torch.where(mask_1d.unsqueeze(-1), gathered_rows, inputs_embeds)
 
 
-def masked_scatter_new_decomp_v2(inputs_embeds, mask_1d, source):
+def masked_scatter_muladd_decomp(inputs_embeds, mask_1d, source):
     """
-    New decomposition v2: row-level cumsum + mul+add index linearization.
+    Mul+add decomposition: row-level cumsum + mul+add index linearization.
 
     Replaces torch.gather with explicit flat index computation:
         flat_idx = source_idx * D + col_arange
@@ -170,7 +170,7 @@ SHAPE_CASES = [
 
 
 class TestMaskedScatterDecomp:
-    """Correctness tests: old decomp, new decomp, v2 decomp, and cross-checks."""
+    """Correctness tests: old decomp, new decomp, mul+add decomp, and cross-checks."""
 
     @pytest.mark.parametrize("S, D, num_true", SHAPE_CASES)
     def test_old_decomp_vs_reference(self, S, D, num_true):
@@ -187,20 +187,20 @@ class TestMaskedScatterDecomp:
         _assert_match(new, ref, "New decomp vs Reference")
 
     @pytest.mark.parametrize("S, D, num_true", SHAPE_CASES)
-    def test_v2_decomp_vs_reference(self, S, D, num_true):
-        """v2 decomp (mul+add) should be bit-exact with reference."""
+    def test_muladd_decomp_vs_reference(self, S, D, num_true):
+        """mul+add decomp should be bit-exact with reference."""
         inputs, mask, source = _build_inputs(S, D, num_true)
         ref = masked_scatter_reference(inputs, mask, source)
-        v2 = masked_scatter_new_decomp_v2(inputs, mask, source)
-        _assert_match(v2, ref, "V2 decomp (mul+add) vs Reference")
+        muladd = masked_scatter_muladd_decomp(inputs, mask, source)
+        _assert_match(muladd, ref, "Mul+add decomp vs Reference")
 
     @pytest.mark.parametrize("S, D, num_true", SHAPE_CASES)
-    def test_v2_vs_new_direct(self, S, D, num_true):
-        """v2 and v1 should produce identical results on CPU."""
+    def test_muladd_vs_new_direct(self, S, D, num_true):
+        """mul+add and gather-based should produce identical results on CPU."""
         inputs, mask, source = _build_inputs(S, D, num_true)
         new = masked_scatter_new_decomp(inputs, mask, source)
-        v2 = masked_scatter_new_decomp_v2(inputs, mask, source)
-        _assert_match(v2, new, "V2 decomp vs New decomp")
+        muladd = masked_scatter_muladd_decomp(inputs, mask, source)
+        _assert_match(muladd, new, "Mul+add decomp vs Gather decomp")
 
     @pytest.mark.parametrize("S, D, num_true", SHAPE_CASES)
     def test_old_vs_new_direct(self, S, D, num_true):
@@ -213,11 +213,11 @@ class TestMaskedScatterDecomp:
     def test_true_positions_get_source(self, S, D, num_true):
         """Rows where mask is True must contain exact source values."""
         inputs, mask, source = _build_inputs(S, D, num_true)
-        v2 = masked_scatter_new_decomp_v2(inputs, mask, source)
+        muladd = masked_scatter_muladd_decomp(inputs, mask, source)
         new = masked_scatter_new_decomp(inputs, mask, source)
         old = masked_scatter_old_decomp(inputs, mask, source)
-        assert torch.allclose(v2[mask], source, atol=1e-6), \
-            "V2 decomp: True positions don't match source"
+        assert torch.allclose(muladd[mask], source, atol=1e-6), \
+            "Mul+add decomp: True positions don't match source"
         assert torch.allclose(new[mask], source, atol=1e-6), \
             "New decomp: True positions don't match source"
         assert torch.allclose(old[mask], source, atol=1e-6), \
@@ -227,11 +227,11 @@ class TestMaskedScatterDecomp:
     def test_false_positions_keep_original(self, S, D, num_true):
         """Rows where mask is False must be unchanged from input."""
         inputs, mask, source = _build_inputs(S, D, num_true)
-        v2 = masked_scatter_new_decomp_v2(inputs, mask, source)
+        muladd = masked_scatter_muladd_decomp(inputs, mask, source)
         new = masked_scatter_new_decomp(inputs, mask, source)
         old = masked_scatter_old_decomp(inputs, mask, source)
-        assert torch.allclose(v2[~mask], inputs[~mask], atol=1e-6), \
-            "V2 decomp: False positions changed"
+        assert torch.allclose(muladd[~mask], inputs[~mask], atol=1e-6), \
+            "Mul+add decomp: False positions changed"
         assert torch.allclose(new[~mask], inputs[~mask], atol=1e-6), \
             "New decomp: False positions changed"
         assert torch.allclose(old[~mask], inputs[~mask], atol=1e-6), \
@@ -253,44 +253,44 @@ class TestEdgeCases:
         mask = torch.ones(self.S, dtype=torch.bool)
         source = torch.randn(self.S, self.D)
         ref = masked_scatter_reference(self.inputs, mask, source)
-        v2 = masked_scatter_new_decomp_v2(self.inputs, mask, source)
-        _assert_match(v2, ref, "All True (v2)")
+        muladd = masked_scatter_muladd_decomp(self.inputs, mask, source)
+        _assert_match(muladd, ref, "All True (mul+add)")
 
     def test_all_false(self):
         mask = torch.zeros(self.S, dtype=torch.bool)
         source = torch.randn(0, self.D)
-        v2 = masked_scatter_new_decomp_v2(self.inputs, mask, source)
-        assert torch.equal(self.inputs, v2), "All-False: output should be unchanged"
+        muladd = masked_scatter_muladd_decomp(self.inputs, mask, source)
+        assert torch.equal(self.inputs, muladd), "All-False: output should be unchanged"
 
     def test_single_true_at_start(self):
         mask = _mask_at(self.S, [0])
         source = torch.randn(1, self.D)
         ref = masked_scatter_reference(self.inputs, mask, source)
-        v2 = masked_scatter_new_decomp_v2(self.inputs, mask, source)
-        _assert_match(v2, ref, "Single True at start (v2)")
+        muladd = masked_scatter_muladd_decomp(self.inputs, mask, source)
+        _assert_match(muladd, ref, "Single True at start (mul+add)")
 
     def test_single_true_at_end(self):
         mask = _mask_at(self.S, [self.S - 1])
         source = torch.randn(1, self.D)
         ref = masked_scatter_reference(self.inputs, mask, source)
-        v2 = masked_scatter_new_decomp_v2(self.inputs, mask, source)
-        _assert_match(v2, ref, "Single True at end (v2)")
+        muladd = masked_scatter_muladd_decomp(self.inputs, mask, source)
+        _assert_match(muladd, ref, "Single True at end (mul+add)")
 
     def test_alternating(self):
         mask = _mask_at(self.S, list(range(0, self.S, 2)))
         num_true = mask.sum().item()
         source = torch.randn(num_true, self.D)
         ref = masked_scatter_reference(self.inputs, mask, source)
-        v2 = masked_scatter_new_decomp_v2(self.inputs, mask, source)
-        _assert_match(v2, ref, "Alternating True/False (v2)")
+        muladd = masked_scatter_muladd_decomp(self.inputs, mask, source)
+        _assert_match(muladd, ref, "Alternating True/False (mul+add)")
 
     def test_consecutive_block_in_middle(self):
         mask = _mask_at(self.S, list(range(4, 10)))
         num_true = mask.sum().item()
         source = torch.randn(num_true, self.D)
         ref = masked_scatter_reference(self.inputs, mask, source)
-        v2 = masked_scatter_new_decomp_v2(self.inputs, mask, source)
-        _assert_match(v2, ref, "Consecutive Trues in middle (v2)")
+        muladd = masked_scatter_muladd_decomp(self.inputs, mask, source)
+        _assert_match(muladd, ref, "Consecutive Trues in middle (mul+add)")
 
 
 # ---------------------------------------------------------------------------
@@ -315,7 +315,7 @@ class TestMemoryReport:
             + S * elem_long         # source_idx
             + S * D * elem_float    # gathered_rows
         )
-        total_v2 = (
+        total_muladd = (
             S * elem_long           # mask_i
             + S * elem_long         # source_idx
             + S * D * elem_long     # flat_idx
@@ -323,16 +323,16 @@ class TestMemoryReport:
         )
 
         reduction_new = (1 - total_new / total_old) * 100
-        reduction_v2 = (1 - total_v2 / total_old) * 100
+        reduction_muladd = (1 - total_muladd / total_old) * 100
 
         print(f"\n  S={S}, D={D}, num_true={num_true}")
         print(f"  Old decomp intermediates: {total_old / 1024**2:.1f} MB "
               f"(cumsum on [{S * D}] = {S}*{D} elements)")
         print(f"  New decomp (gather) intermediates: {total_new / 1024**2:.1f} MB "
               f"(cumsum on [{S}] elements)")
-        print(f"  V2 decomp (mul+add) intermediates: {total_v2 / 1024**2:.1f} MB "
+        print(f"  Mul+add decomp intermediates: {total_muladd / 1024**2:.1f} MB "
               f"(cumsum on [{S}] elements, explicit flat_idx)")
-        print(f"  Reduction vs old:  new={reduction_new:.1f}%  v2={reduction_v2:.1f}%")
+        print(f"  Reduction vs old:  new={reduction_new:.1f}%  muladd={reduction_muladd:.1f}%")
 
         assert total_new < total_old, "New decomp should use less memory"
-        assert total_v2 < total_old, "V2 decomp should use less memory than old"
+        assert total_muladd < total_old, "Mul+add decomp should use less memory than old"

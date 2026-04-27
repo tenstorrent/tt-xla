@@ -5,8 +5,8 @@
 """
 TT hardware sanity tests for masked_scatter_ decompositions in DeepSeek OCR.
 
-Adds the v2 decomposition (mul+add index linearization) alongside the
-original variants. The v2 decomp replaces torch.gather with explicit
+Adds the mul+add decomposition (mul+add index linearization) alongside the
+original variants. The mul+add decomp replaces torch.gather with explicit
     flat_idx = source_idx * D + col_arange
 to avoid the ttnn.matmul precision bug on Wormhole (tt-metal#42845).
 
@@ -14,7 +14,7 @@ Context:
   - Issue #3316: masked_scatter_ fails with dynamic shapes on TT.
   - Issue #3412: old decomp runs cumsum on [S*D] int64 -> OOM on TT.
   - Issue #4328: torch.gather in new decomp causes PCC drop via matmul bug.
-  - V2 decomp: mul+add bypasses matmul entirely, expected PCC ~1.0 on TT.
+  - Mul+add decomp: mul+add bypasses matmul entirely, expected PCC ~1.0 on TT.
 
 Usage:
   pytest tests/torch/models/deepseek_ocr_2/test_masked_scatter_decomp_tt.py -svv
@@ -83,8 +83,8 @@ class MaskedScatterNewDecomp(nn.Module):
         return torch.where(mask_1d.unsqueeze(-1), gathered_rows, inputs_embeds)
 
 
-class MaskedScatterNewDecompV2(nn.Module):
-    """New decomposition v2: row-level cumsum + mul+add index linearization.
+class MaskedScatterMulAddDecomp(nn.Module):
+    """Mul+add decomposition: row-level cumsum + mul+add index linearization.
 
     Replaces torch.gather with:
         flat_idx = source_idx * D + col_arange
@@ -105,8 +105,8 @@ class MaskedScatterNewDecompV2(nn.Module):
         return torch.where(mask_1d.unsqueeze(-1), gathered_rows, inputs_embeds)
 
 
-class MaskedScatterNewDecompV2CompilerDisabled(nn.Module):
-    """V2 decomposition with @torch.compiler.disable.
+class MaskedScatterMulAddDecompCompilerDisabled(nn.Module):
+    """Mul+add decomposition with @torch.compiler.disable.
 
     Runs eagerly on CPU (excluded from XLA tracing) as a control test.
     Should produce PCC ~1.0 since logic never touches TT device.
@@ -203,15 +203,15 @@ def test_masked_scatter_new_decomp_tt(model_inputs):
 
 
 # ---------------------------------------------------------------------------
-# 3. V2 decomposition (mul+add) — expected to PASS with PCC ~1.0
+# 3. Mul+add decomposition — expected to PASS with PCC ~1.0
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_v2_tt(model_inputs):
+def test_masked_scatter_muladd_decomp_tt(model_inputs):
     """
-    V2 decomposition (row-level cumsum + mul+add index linearization).
+    Mul+add decomposition (row-level cumsum + mul+add index linearization).
     Bypasses ttnn.matmul entirely — expected PCC ~1.0 on TT device.
     """
-    model = MaskedScatterNewDecompV2()
+    model = MaskedScatterMulAddDecomp()
     model.eval()
 
     run_op_test(
@@ -238,15 +238,15 @@ def test_masked_scatter_old_decomp_tt(model_inputs):
 
 
 # ---------------------------------------------------------------------------
-# 5. V2 decomposition with compiler disabled (control)
+# 5. Mul+add decomposition with compiler disabled (control)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
-def test_masked_scatter_new_decomp_v2_compiler_disabled_tt(model_inputs):
+def test_masked_scatter_muladd_decomp_compiler_disabled_tt(model_inputs):
     """
-    V2 decomposition with @torch.compiler.disable.
+    Mul+add decomposition with @torch.compiler.disable.
     Runs eagerly on CPU — control test, should produce PCC ~1.0.
     """
-    model = MaskedScatterNewDecompV2CompilerDisabled()
+    model = MaskedScatterMulAddDecompCompilerDisabled()
     model.eval()
 
     run_op_test(

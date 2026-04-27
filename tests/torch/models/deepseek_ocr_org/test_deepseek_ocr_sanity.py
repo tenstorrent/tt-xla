@@ -11,7 +11,7 @@ This passes in isolation but OOMs at ttnn::cumsum when the full model is run
 on TT device (issue #3412).
 
 These tests exist to **reproduce** the OOM and confirm that the original
-decomposition is the bottleneck, validating the need for the v2 (mul+add)
+decomposition is the bottleneck, validating the need for the mul+add
 decomposition introduced in deepseek_ocr_2.
 
 Tests:

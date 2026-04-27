@@ -2,9 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Per-op isolation tests for the v2 masked_scatter decomposition (mul+add).
+Per-op isolation tests for the mul+add masked_scatter decomposition.
 
-The v2 decomposition replaces torch.gather with mul+add index linearization:
+The mul+add decomposition replaces torch.gather with mul+add index linearization:
     mask_i       = mask_1d.long()                                    # op1: cast
     source_idx   = torch.cumsum(mask_i, 0) - 1                      # op2: cumsum, op3: sub
     source_idx   = torch.clamp(source_idx, 0, max)                  # op4: clamp
@@ -46,7 +46,7 @@ def decomp_tensors():
 
 
 # ---------------------------------------------------------------------------
-# Op wrappers — each wraps one step of the v2 decomposition
+# Op wrappers — each wraps one step of the mul+add decomposition
 # ---------------------------------------------------------------------------
 
 class Op1CastLong(nn.Module):
@@ -153,8 +153,8 @@ class Op1To8Pipeline(nn.Module):
         return flat_source[flat_idx.reshape(-1)].reshape(S, self.D)
 
 
-class FullNewDecompV2(nn.Module):
-    """Complete v2 decomposition end-to-end (mul+add, no gather)."""
+class FullMulAddDecomp(nn.Module):
+    """Complete mul+add decomposition end-to-end (no gather)."""
     def __init__(self, max_val, D):
         super().__init__()
         self.max_val = max_val
@@ -323,10 +323,10 @@ def test_op1_to_op8_pipeline(intermediates):
 
 
 @pytest.mark.single_device
-def test_full_v2_decomp(intermediates):
-    """Full v2 decomposition end-to-end (mul+add, no gather).
+def test_full_muladd_decomp(intermediates):
+    """Full mul+add decomposition end-to-end (no gather).
     Expected PCC ~1.0 — the matmul-free path."""
-    m = FullNewDecompV2(intermediates["max_val"], D)
+    m = FullMulAddDecomp(intermediates["max_val"], D)
     run_op_test(
         m,
         [intermediates["inputs_embeds_row"], intermediates["mask_1d"],

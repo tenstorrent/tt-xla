@@ -13,7 +13,7 @@ from transformers.modeling_attn_mask_utils import (
 )
 
 @staticmethod
-def _masked_scatter_decomp_v2(inputs_embeds_row, mask_1d, source):
+def _masked_scatter_decomp_muladd(inputs_embeds_row, mask_1d, source):
     """Decomposed masked_scatter_ via row-level cumsum + mul+add flat indexing.
 
     Replaces the original torch.gather-based decomposition with explicit
@@ -38,7 +38,7 @@ def _masked_scatter_decomp_v2(inputs_embeds_row, mask_1d, source):
 
 class DeepseekOCRVisionEmbedPipeline(nn.Module):
     """Wraps the DeepseekOCRModel forward logic BEFORE super().forward().
-    Uses v2 decomposition (mul+add) instead of torch.gather for masked scatter.
+    Uses mul+add decomposition instead of torch.gather for masked scatter.
     """
 
     def __init__(self, ocr_model):
@@ -183,7 +183,7 @@ class DeepseekOCRVisionEmbedPipeline(nn.Module):
 
                 if images_in_this_batch:
                     images_in_this_batch = torch.cat(images_in_this_batch, dim=0)
-                    inputs_embeds[idx] = _masked_scatter_decomp_v2(
+                    inputs_embeds[idx] = _masked_scatter_decomp_muladd(
                         inputs_embeds[idx],
                         images_seq_mask[idx],
                         images_in_this_batch,
@@ -195,8 +195,8 @@ class DeepseekOCRVisionEmbedPipeline(nn.Module):
 
 
 class DeepseekOCRPreDecoderPipeline(nn.Module):
-    """OCR forward (vision embed with v2 masked scatter decomp) + V2 forward
-    setup before decoder layers start."""
+    """OCR forward (vision embed with mul+add masked scatter decomp) + DeepseekV2
+    forward setup before decoder layers start."""
 
     def __init__(self, ocr_model):
         super().__init__()
@@ -233,7 +233,7 @@ class DeepseekOCRPreDecoderPipeline(nn.Module):
 
 
 class DeepseekOCRLayerSlicePipeline(nn.Module):
-    """OCR forward (vision embed with v2 decomp) + V2 setup + decoder layers[start:end]."""
+    """OCR forward (vision embed with mul+add decomp) + DeepseekV2 setup + decoder layers[start:end]."""
 
     def __init__(self, ocr_model, start, end):
         super().__init__()
@@ -281,7 +281,7 @@ class DeepseekOCRLayerSlicePipeline(nn.Module):
 
 
 class DeepseekOCRFullSinglePassPipeline(nn.Module):
-    """Full model single forward pass with v2 decomposition."""
+    """Full model single forward pass with mul+add decomposition."""
 
     def __init__(self, ocr_model):
         super().__init__()
@@ -427,13 +427,13 @@ def full_single_pass_model_and_inputs(full_model_and_raw_inputs):
 
 
 # ---------------------------------------------------------------------------
-# 1. Vision embed only (v2 decomp — mul+add)
+# 1. Vision embed only (mul+add decomp)
 # ---------------------------------------------------------------------------
 @pytest.mark.single_device
 def test_deepseek_ocr_vision_embed_pipeline(model_and_inputs):
     """
     Full vision-embedding pipeline (embed + SAM + CLIP + project + scatter)
-    on TT device vs CPU. Uses v2 decomposition (mul+add, no gather).
+    on TT device vs CPU. Uses mul+add decomposition (no gather).
     """
     pipeline, inputs = model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
@@ -445,8 +445,8 @@ def test_deepseek_ocr_vision_embed_pipeline(model_and_inputs):
 @pytest.mark.single_device
 def test_deepseek_ocr_pre_decoder(pre_decoder_model_and_inputs):
     """
-    Vision-embedding pipeline + V2 forward setup.
-    Uses v2 decomposition (mul+add).
+    Vision-embedding pipeline + DeepseekV2 forward setup.
+    Uses mul+add decomposition.
     """
     pipeline, inputs = pre_decoder_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
@@ -458,8 +458,8 @@ def test_deepseek_ocr_pre_decoder(pre_decoder_model_and_inputs):
 @pytest.mark.single_device
 def test_deepseek_ocr_layer0_only(layer0_only_model_and_inputs):
     """
-    Vision-embedding + V2 setup + layer 0 only (dense MLP).
-    Uses v2 decomposition (mul+add).
+    Vision-embedding + DeepseekV2 setup + layer 0 only (dense MLP).
+    Uses mul+add decomposition.
     """
     pipeline, inputs = layer0_only_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
@@ -471,8 +471,8 @@ def test_deepseek_ocr_layer0_only(layer0_only_model_and_inputs):
 @pytest.mark.single_device
 def test_deepseek_ocr_layer1_only(layer1_only_model_and_inputs):
     """
-    Vision-embedding + V2 setup + layer 1 only (MoE, 64 experts, top-6).
-    Uses v2 decomposition (mul+add).
+    Vision-embedding + DeepseekV2 setup + layer 1 only (MoE, 64 experts, top-6).
+    Uses mul+add decomposition.
     """
     pipeline, inputs = layer1_only_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
@@ -484,8 +484,8 @@ def test_deepseek_ocr_layer1_only(layer1_only_model_and_inputs):
 @pytest.mark.single_device
 def test_deepseek_ocr_layer0_and_1(layer0_and_1_model_and_inputs):
     """
-    Vision-embedding + V2 setup + layers 0-1 (dense + first MoE).
-    Uses v2 decomposition (mul+add).
+    Vision-embedding + DeepseekV2 setup + layers 0-1 (dense + first MoE).
+    Uses mul+add decomposition.
     """
     pipeline, inputs = layer0_and_1_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
@@ -498,7 +498,7 @@ def test_deepseek_ocr_layer0_and_1(layer0_and_1_model_and_inputs):
 def test_deepseek_ocr_full_single_pass(full_single_pass_model_and_inputs):
     """
     Full model: OCR forward + all 12 decoder layers + RMS norm.
-    Single forward pass only. Uses v2 decomposition (mul+add).
+    Single forward pass only. Uses mul+add decomposition.
     """
     pipeline, inputs = full_single_pass_model_and_inputs
     run_op_test(pipeline, inputs, framework=Framework.TORCH)
