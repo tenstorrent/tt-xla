@@ -180,3 +180,4 @@
   _STUB(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
   _STUB(PJRT_Buffer_Bitcast);
   _STUB(PJRT_Error_ForEachPayload);
+  _STUB(PJRT_Device_ClearMemoryStats);

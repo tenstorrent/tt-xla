@@ -84,6 +84,7 @@ typedef enum {
   PJRT_Extension_Type_AbiVersion,
   PJRT_Extension_Type_Collectives,
   PJRT_Extension_Type_MultiSlice,
+  PJRT_Extension_Type_HostMemoryAllocator,
 } PJRT_Extension_Type;
 
 // PJRT_Extension_Base contains a type and a pointer to next
@@ -118,7 +119,7 @@ PJRT_DEFINE_STRUCT_TRAITS(PJRT_Extension_Base, next);
 // Changes include:
 // * Adding a new field to the PJRT_Api or argument structs
 // * Renaming a method or argument (doesn't affect ABI)
-#define PJRT_API_MINOR 103
+#define PJRT_API_MINOR 106
 
 // The plugin should set the major_version and minor_version of
 // PJRT_Api.pjrt_api_version to be the `PJRT_API_MAJOR` and `PJRT_API_MINOR` in
@@ -390,6 +391,24 @@ typedef PJRT_Error *PJRT_Event_Set(PJRT_Event_Set_Args *args);
 typedef struct PJRT_Client PJRT_Client;
 typedef struct PJRT_Device PJRT_Device;
 typedef struct PJRT_Memory PJRT_Memory;
+typedef struct PJRT_Memory_FunctionTable PJRT_Memory_FunctionTable;
+
+struct PJRT_Memory_FunctionTable {
+  size_t struct_size;
+  struct PJRT_Extension_Base *extension_start;
+  size_t instance_struct_size; /* = PJRT_Memory_STRUCT_SIZE; */
+  // fetches user data from the PJRT_Memory implementation.
+  void *(*get_user_data)(struct PJRT_Memory *memory, const void *key);
+  // Attaches user data to the PJRT_Memory implementation.
+  void (*set_user_data)(struct PJRT_Memory *memory, const void *key, void *data,
+                        void (*dtor)(void *));
+};
+PJRT_DEFINE_STRUCT_TRAITS(PJRT_Memory_FunctionTable, set_user_data);
+
+struct PJRT_Memory {
+  const struct PJRT_Memory_FunctionTable *vtable;
+};
+PJRT_DEFINE_STRUCT_TRAITS(PJRT_Memory, vtable);
 typedef struct PJRT_ShapeSpec PJRT_ShapeSpec;
 typedef struct PJRT_DeviceDescription PJRT_DeviceDescription;
 typedef struct PJRT_TopologyDescription PJRT_TopologyDescription;
@@ -1498,6 +1517,16 @@ PJRT_DEFINE_STRUCT_TRAITS(PJRT_Device_MemoryStats_Args, peak_pool_bytes_is_set);
 // also return PJRT_Error_Code_UNIMPLEMENTED. Intended for diagnostic purposes.
 typedef PJRT_Error *PJRT_Device_MemoryStats(PJRT_Device_MemoryStats_Args *args);
 
+struct PJRT_Device_ClearMemoryStats_Args {
+  size_t struct_size;
+  PJRT_Extension_Base *extension_start;
+  PJRT_Device *device;
+};
+PJRT_DEFINE_STRUCT_TRAITS(PJRT_Device_ClearMemoryStats_Args, device);
+
+typedef PJRT_Error *
+PJRT_Device_ClearMemoryStats(PJRT_Device_ClearMemoryStats_Args *args);
+
 struct PJRT_Device_PoisonExecution_Args {
   size_t struct_size;
   PJRT_Extension_Base *extension_start;
@@ -2097,10 +2126,13 @@ struct PJRT_Executable_GetCompiledMemoryStats_Args {
   // Device memory stats, from xla::CompiledMemoryStats.
   int64_t peak_memory_in_bytes; // out
   // Total Device default memory (e.g., HBM for GPU/TPU) usage.
-  int64_t total_size_in_bytes; // out
+  int64_t total_size_in_bytes;      // out
+  int64_t total_allocation_bytes;   // out
+  int64_t indefinite_allocations;   // out
+  int64_t peak_unpadded_heap_bytes; // out
 };
 PJRT_DEFINE_STRUCT_TRAITS(PJRT_Executable_GetCompiledMemoryStats_Args,
-                          total_size_in_bytes);
+                          peak_unpadded_heap_bytes);
 
 // Return memory stats that allow callers to estimate memory usage when running
 // this executable. The memory stats could contain usage info from different
@@ -3068,11 +3100,12 @@ typedef struct PJRT_Api {
   _PJRT_API_STRUCT_FIELD(PJRT_Error_ForEachPayload);
   _PJRT_API_STRUCT_FIELD(PJRT_TopologyDescription_Fingerprint);
   _PJRT_API_STRUCT_FIELD(PJRT_Executable_ParameterMemoryKinds);
+  _PJRT_API_STRUCT_FIELD(PJRT_Device_ClearMemoryStats);
 } PJRT_Api;
 
 enum {
   PJRT_Api_STRUCT_SIZE =
-      PJRT_STRUCT_SIZE(PJRT_Api, PJRT_Executable_ParameterMemoryKinds)
+      PJRT_STRUCT_SIZE(PJRT_Api, PJRT_Device_ClearMemoryStats)
 };
 
 #undef _PJRT_API_STRUCT_FIELD
