@@ -137,6 +137,8 @@ _QUALITY_OPTS = dict(
     enable_trace=True,
 )
 
+_QUALITY_OPTS_CPU = dict(_QUALITY_OPTS, cpu_sampling=True)
+
 SAMPLING_QUALITY_CONFIGS = [
     pytest.param(
         VLLMBenchmarkConfig(**_OPT_BASE, additional_config=_QUALITY_OPTS),
@@ -149,6 +151,16 @@ SAMPLING_QUALITY_CONFIGS = [
         id="opt125m-nongreedy-device",
     ),
     pytest.param(
+        VLLMBenchmarkConfig(**_OPT_BASE, additional_config=_QUALITY_OPTS_CPU),
+        id="opt125m-greedy-cpu",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_OPT_BASE, temperature=1.0, additional_config=_QUALITY_OPTS_CPU
+        ),
+        id="opt125m-nongreedy-cpu",
+    ),
+    pytest.param(
         VLLMBenchmarkConfig(**_1B_BASE, additional_config=_QUALITY_OPTS),
         id="llama3.2-1b-greedy-device",
     ),
@@ -157,6 +169,16 @@ SAMPLING_QUALITY_CONFIGS = [
             **_1B_BASE, temperature=1.0, additional_config=_QUALITY_OPTS
         ),
         id="llama3.2-1b-nongreedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(**_1B_BASE, additional_config=_QUALITY_OPTS_CPU),
+        id="llama3.2-1b-greedy-cpu",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_1B_BASE, temperature=1.0, additional_config=_QUALITY_OPTS_CPU
+        ),
+        id="llama3.2-1b-nongreedy-cpu",
     ),
     pytest.param(
         VLLMBenchmarkConfig(**_1B_BASE, batch_size=32, additional_config=_QUALITY_OPTS),
@@ -169,6 +191,21 @@ SAMPLING_QUALITY_CONFIGS = [
         id="llama3.2-1b-b32-nongreedy-device",
     ),
     pytest.param(
+        VLLMBenchmarkConfig(
+            **_1B_BASE, batch_size=32, additional_config=_QUALITY_OPTS_CPU
+        ),
+        id="llama3.2-1b-b32-greedy-cpu",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_1B_BASE,
+            batch_size=32,
+            temperature=1.0,
+            additional_config=_QUALITY_OPTS_CPU,
+        ),
+        id="llama3.2-1b-b32-nongreedy-cpu",
+    ),
+    pytest.param(
         VLLMBenchmarkConfig(**_3B_BASE, additional_config=_QUALITY_OPTS),
         id="llama3.2-3b-greedy-device",
     ),
@@ -179,6 +216,16 @@ SAMPLING_QUALITY_CONFIGS = [
         id="llama3.2-3b-nongreedy-device",
     ),
     pytest.param(
+        VLLMBenchmarkConfig(**_3B_BASE, additional_config=_QUALITY_OPTS_CPU),
+        id="llama3.2-3b-greedy-cpu",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_3B_BASE, temperature=1.0, additional_config=_QUALITY_OPTS_CPU
+        ),
+        id="llama3.2-3b-nongreedy-cpu",
+    ),
+    pytest.param(
         VLLMBenchmarkConfig(**_8B_BASE, additional_config=_QUALITY_OPTS),
         id="llama3.1-8b-greedy-device",
     ),
@@ -187,6 +234,16 @@ SAMPLING_QUALITY_CONFIGS = [
             **_8B_BASE, temperature=1.0, additional_config=_QUALITY_OPTS
         ),
         id="llama3.1-8b-nongreedy-device",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(**_8B_BASE, additional_config=_QUALITY_OPTS_CPU),
+        id="llama3.1-8b-greedy-cpu",
+    ),
+    pytest.param(
+        VLLMBenchmarkConfig(
+            **_8B_BASE, temperature=1.0, additional_config=_QUALITY_OPTS_CPU
+        ),
+        id="llama3.1-8b-nongreedy-cpu",
     ),
 ]
 
