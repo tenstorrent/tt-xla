@@ -1721,7 +1721,7 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
     shard_specs[model.model.embed_tokens.weight] = (None, None)
     shard_specs[model.model.norm.weight] = (None,)
     # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
-    shard_specs[model.lm_head.weight] = (None, "batch")
+    shard_specs[model.lm_head.weight] = (None, None)
 
     for layer in model.model.layers:
         shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
@@ -1784,7 +1784,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_fused_decode_batch_size_128(
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
-        trace_enabled=False,
+        trace_enabled=True,
         inject_custom_moe=True,
         custom_moe_cluster_axis=0,
         gpt_oss_fused_decode=gpt_oss_fused_decode,
