@@ -856,6 +856,10 @@ test_config:
   qwen_1_5/causal_lm/pytorch-0_5B_Chat-single_device-inference:
     status: EXPECTED_PASSING
 
+  adavar/pytorch-7B-single_device-inference:
+    required_pcc: 0.97
+    status: EXPECTED_PASSING
+
   qwen_2_5_vl/pytorch-3B_Instruct-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
