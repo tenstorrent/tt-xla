@@ -172,6 +172,43 @@ one cherry-pick.
    `TTXLA_LOGGER_LEVEL=DEBUG` to dump TTNN IR and grep for adjacent
    `ttnn.add/mul/sub` clusters.
 
+## TODO: collapse `top_p=1.0` / `top_k=-1` to `None` in the metadata
+
+After cherry-picking `87e9a927f`, IR inspection at batch=2 with
+default vLLM sampling showed a residual `ttnn.sort` at shape `[B, 128]`
+firing in the sampler graph:
+
+```
+%values_6, %indices_7 = "ttnn.sort"(%34) <{descending = false, dim = 1, stable = false}>
+                        : (tensor<2x128xf32>) -> (tensor<2x128xf32>, tensor<2x128xui16>)
+"ttnn.deallocate"(%indices_7)  // indices unused
+```
+
+The sort is from `apply_top_k_top_p_fast`'s inner branch:
+```python
+if k is not None or p is not None:
+    probs = all_values.softmax(dim=-1)
+    probs_sort, _ = probs.sort(dim=-1, descending=False)
+    ...
+```
+
+vLLM's defaults are `top_p=1.0, top_k=-1`, which `XLASupportedSamplingMetadata.from_input_batch`
+appears to be passing through as non-None tensors instead of collapsing
+to `None`. Result: every step pays for a sort + cutoff-gather + greater-than +
+mask that is functionally a no-op (top_p=1.0 doesn't filter anything;
+top_k=-1 / top_k>=vocab_size also doesn't filter).
+
+Fix: in `XLASupportedSamplingMetadata.from_input_batch`, set:
+- `top_p = None` if all values are `>= 1.0 - eps`
+- `top_k = None` if all values are `<= 0` or `>= vocab_size`
+
+Then `apply_top_k_top_p_fast`'s inner sort/mask branch is skipped for
+default-sampling traffic — saving the no-op cost AND removing the inner
+`ttnn.sort` from the default-path graph. Smaller correctness surface
+too: `ttnn.sort` is documented (in `tests/torch/ops/test_tt_sampling_bugs.py`)
+as having a known index bug that `ttnn.topk` does not, so any path that
+removes a dependency on `ttnn.sort` is a win.
+
 ## How to reproduce
 
 ```bash
