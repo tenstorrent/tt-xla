@@ -13,6 +13,7 @@ from torch_xla.distributed.spmd import Mesh
 
 from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt import (
     Attention,
+    Block,
     ModelArgs,
     RMSNorm,
     Transformer,
@@ -165,13 +166,20 @@ def make_attention(args: ModelArgs, layer_id: int) -> Attention:
     return Attention(layer_id, args).eval()
 
 
+def make_block(args: ModelArgs, layer_id: int) -> Block:
+    return Block(layer_id, args).eval()
+
+
 def init_weights(module: nn.Module, std: float = 0.02) -> None:
     with torch.no_grad():
         for sub in module.modules():
             if isinstance(sub, RMSNorm):
                 continue
             for _, param in sub.named_parameters(recurse=False):
-                torch.nn.init.normal_(param, mean=0.0, std=std)
+                if param.is_floating_point():
+                    torch.nn.init.normal_(param, mean=0.0, std=std)
+                else:
+                    param.zero_()
 
 
 def _attn_shard_spec(attn, args, kwargs):
@@ -345,5 +353,105 @@ def test_attention_decode_with_compression(
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_attn_shard_spec,
+        comparison_config=PCC_99,
+    )
+
+
+def _block_shard_spec(block, args, kwargs):
+    attn = block.attn
+    shard_specs = {
+        attn.wq_b.weight: ("model", None),
+        attn.wo_a.weight: ("model", None),
+        attn.wo_b.weight: (None, "model"),
+        attn.kv_cache: ("batch", None, None),
+    }
+    if attn.compress_ratio:
+        shard_specs[attn.compressor.kv_cache] = ("batch", None, None)
+        shard_specs[attn.compressor.kv_state] = ("batch", None, None)
+        shard_specs[attn.compressor.score_state] = ("batch", None, None)
+    if hasattr(attn, "indexer") and attn.indexer is not None:
+        shard_specs[attn.indexer.wq_b.weight] = ("model", None)
+        shard_specs[attn.indexer.weights_proj.weight] = ("model", None)
+        shard_specs[attn.indexer.compressor.kv_cache] = ("batch", None, None)
+        shard_specs[attn.indexer.compressor.kv_state] = ("batch", None, None)
+        shard_specs[attn.indexer.compressor.score_state] = ("batch", None, None)
+
+    shard_specs[args[0]] = ("batch", None, None, None)  # x: [b, s, hc, d]
+    shard_specs[args[2]] = ("batch", None)  # input_ids: [b, s]
+    return shard_specs
+
+
+@pytest.mark.nightly
+@pytest.mark.dual_chip
+@pytest.mark.parametrize(
+    "args,no_compression_layer_id,compression_layer_id", ATTENTION_TEST_CONFIGS
+)
+@pytest.mark.parametrize(
+    "with_compression", [False, True], ids=["no_compress", "compress"]
+)
+def test_block_prefill(
+    args: ModelArgs,
+    no_compression_layer_id: int,
+    compression_layer_id: int,
+    with_compression: bool,
+):
+    xr.set_device_type("TT")
+
+    bsz = 4
+    seq_len = 16
+    args.max_batch_size = bsz
+
+    layer_id = compression_layer_id if with_compression else no_compression_layer_id
+    block = make_block(args, layer_id)
+    init_weights(block)
+
+    x = torch.randn(bsz, seq_len, args.hc_mult, args.dim, dtype=torch.bfloat16)
+    input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
+    mesh = make_mesh()
+
+    run_graph_test(
+        block,
+        [x, torch.tensor(0, dtype=torch.long), input_ids],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=_block_shard_spec,
+        comparison_config=PCC_99,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.dual_chip
+@pytest.mark.parametrize(
+    "args,no_compression_layer_id,compression_layer_id", ATTENTION_TEST_CONFIGS
+)
+@pytest.mark.parametrize(
+    "with_compression", [False, True], ids=["no_compress", "compress"]
+)
+def test_block_decode(
+    args: ModelArgs,
+    no_compression_layer_id: int,
+    compression_layer_id: int,
+    with_compression: bool,
+):
+    xr.set_device_type("TT")
+
+    bsz = 4
+    seq_len = 1
+    args.max_batch_size = bsz
+
+    layer_id = compression_layer_id if with_compression else no_compression_layer_id
+    block = make_block(args, layer_id)
+    init_weights(block)
+
+    x = torch.randn(bsz, seq_len, args.hc_mult, args.dim, dtype=torch.bfloat16)
+    input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
+    mesh = make_mesh()
+
+    run_graph_test(
+        block,
+        [x, torch.tensor(4, dtype=torch.long), input_ids],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=_block_shard_spec,
         comparison_config=PCC_99,
     )
