@@ -22,7 +22,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.utilities.torch_multichip_utils import enable_spmd
 
-from .test_deepseek_v4_tp import (
+from .test_deepseek_v4_tp_no_int import (
     _attn_shard_spec,
     init_weights,
     make_attention,
@@ -139,6 +139,24 @@ def test_prefill_decode_cache_coherence(args_factory, layer_id, decode_steps):
     init_weights(cpu_attn)
     tt_attn = copy.deepcopy(cpu_attn).to(torch_xla.device())
 
+    # Register start_pos as a module buffer so torch_xla treats it as a graph
+    # parameter rather than constant-folding its value. Building sp_tt fresh
+    # from a CPU literal each step (sp_cpu.to(device)) causes torch_xla to bake
+    # start_pos and every value derived from it (sp+1-ratio, sp%ratio, sp//ratio,
+    # etc.) into the SHLO as `stablehlo.constant dense<N>`, producing a unique
+    # decode graph per step. A registered nn.Module buffer keeps its parameter
+    # status across calls — same mechanism that keeps `kv_cache` parametric.
+    # one_buffer is needed so the in-graph increment `sp_buffer + one_buffer`
+    # stays parametric; `sp_buffer + 1` (Python literal) constant-folds.
+    tt_attn.register_buffer(
+        "sp_buffer",
+        torch.tensor([prompt_len], dtype=torch.long, device=torch_xla.device()),
+    )
+    tt_attn.register_buffer(
+        "one_buffer",
+        torch.ones(1, dtype=torch.long, device=torch_xla.device()),
+    )
+
     # Mark weight sharding once. Sharding persists across forward calls; only
     # the per-call input tensor needs to be re-marked because it's a fresh
     # tensor each step.
@@ -147,6 +165,80 @@ def test_prefill_decode_cache_coherence(args_factory, layer_id, decode_steps):
     weight_specs.pop(None, None)  # drop the placeholder input entry
     for tensor, spec in weight_specs.items():
         xs.mark_sharding(tensor, mesh, spec)
+    xs.mark_sharding(tt_attn.sp_buffer, mesh, (None,))
+    xs.mark_sharding(tt_attn.one_buffer, mesh, (None,))
+
+    def run_step(start_pos: int, seq_len: int) -> None:
+        x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
+        sp_cpu = torch.tensor(start_pos, dtype=torch.long)
+        cpu_out = cpu_attn(x, sp_cpu)
+
+        x_tt = x.to(torch_xla.device())
+        xs.mark_sharding(x_tt, mesh, ("batch", None, None))
+        # Always pass sp_buffer (model asserts start_pos is a Tensor). For
+        # prefill the model coerces start_pos to int(0) internally and never
+        # reads it as a tensor, so no harm. For decode, increment in-graph via
+        # parametric add (sp_buffer + one_buffer rather than sp_buffer + 1, to
+        # avoid constant-folding the literal increment).
+        tt_out = tt_attn(x_tt, tt_attn.sp_buffer)
+        if seq_len == 1:
+            tt_attn.sp_buffer.copy_(tt_attn.sp_buffer + tt_attn.one_buffer)
+
+        # Step boundary: fuse the forward output and every in-place cache
+        # buffer mutation into one compile. Without this, each cache buffer's
+        # pending mutation IR materializes separately when assert_pcc calls
+        # .to("cpu") on it, producing 1 + len(cache_buffers) compiles per call.
+        torch_xla.sync()
+
+        kind = "prefill" if start_pos == 0 else f"decode start_pos={start_pos}"
+        assert_pcc(tt_out, cpu_out, label=f"{kind} output")
+        cpu_bufs = cache_buffers(cpu_attn)
+        tt_bufs = cache_buffers(tt_attn)
+        for name, cpu_buf in cpu_bufs.items():
+            assert_pcc(tt_bufs[name], cpu_buf, label=f"{kind} {name}")
+
+    # Prefill (start_pos=0, seqlen=window_size so the first decode wraps).
+    run_step(start_pos=0, seq_len=prompt_len)
+
+    # Decode loop.
+    for step in range(decode_steps):
+        run_step(start_pos=prompt_len + step, seq_len=1)
+
+
+@pytest.mark.nightly
+@pytest.mark.dual_chip
+@pytest.mark.parametrize("args_factory,layer_id,decode_steps", PREFILL_DECODE_CASES)
+def test_prefill_decode_cache_coherence_compiled(args_factory, layer_id, decode_steps):
+    """Same as test_prefill_decode_cache_coherence, but drives the model through
+    torch.compile(backend='tt') instead of torch_xla lazy-tensor mode.
+
+    Expected compile count: 4 (= 2 const-eval graphs + 2 main forward graphs).
+    The tt backend hoists non-mutated buffer/parameter inputs into a separate
+    const-eval graph that runs once and caches its outputs (precomputed RMSNorm
+    weights, RoPE tables, indexing masks, etc.), so each unique forward shape
+    produces both a one-time const-eval compile and a reusable forward compile.
+    All 8 decode forward calls hit the cache for both graphs.
+    """
+    enable_spmd()
+    xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    args = args_factory()
+    bsz = 4
+    args.max_batch_size = bsz
+    prompt_len = args.window_size
+
+    cpu_attn = make_attention(args, layer_id)
+    init_weights(cpu_attn)
+    tt_attn = copy.deepcopy(cpu_attn).to(torch_xla.device())
+
+    mesh = make_mesh()
+    weight_specs = _attn_shard_spec(tt_attn, args=[None], kwargs={})
+    weight_specs.pop(None, None)  # drop the placeholder input entry
+    for tensor, spec in weight_specs.items():
+        xs.mark_sharding(tensor, mesh, spec)
+
+    compiled_attn = torch.compile(tt_attn, backend="tt")
 
     def run_step(start_pos: int, seq_len: int) -> None:
         x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
@@ -156,7 +248,7 @@ def test_prefill_decode_cache_coherence(args_factory, layer_id, decode_steps):
         x_tt = x.to(torch_xla.device())
         xs.mark_sharding(x_tt, mesh, ("batch", None, None))
         sp_tt = sp_cpu.to(torch_xla.device())
-        tt_out = tt_attn(x_tt, sp_tt)
+        tt_out = compiled_attn(x_tt, sp_tt)
 
         kind = "prefill" if start_pos == 0 else f"decode start_pos={start_pos}"
         assert_pcc(tt_out, cpu_out, label=f"{kind} output")
