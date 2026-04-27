@@ -142,8 +142,6 @@ def _deepseek_moe_forward(self, hidden_states):
       gate_proj.weight / up_proj.weight: [inter, H]  → .t() gives [H, inter]
       down_proj.weight:                  [H, inter]   → .t() gives [inter, H]
     """
-    import torch.nn.functional as F
-
     identity = hidden_states
     orig_shape = hidden_states.shape
     topk_idx, topk_weight, aux_loss = self.gate(hidden_states)
@@ -165,7 +163,7 @@ def _deepseek_moe_forward(self, hidden_states):
         down_w = torch.stack([e.down_proj.weight.t() for e in self.experts])  # [E, inter, H]
 
         # Replicate all tokens across all experts: [T, H] → [E, T, H]
-        x_rep = hidden_states.unsqueeze(0).expand(E, -1, -1).contiguous()
+        x_rep = hidden_states.repeat(E, 1).view(E, T, -1)
 
         # Compute expert outputs: [E, T, H] @ [E, H, inter] → [E, T, inter]
         gate_all = torch.bmm(x_rep, gate_w)
@@ -175,13 +173,13 @@ def _deepseek_moe_forward(self, hidden_states):
         # Down projection: [E, T, inter] @ [E, inter, H] → [E, T, H]
         out_all = torch.bmm(hidden_all, down_w)
 
-        # Build dense routing weights [T, E] via one-hot:
-        #   topk_idx [T, K] → one_hot [T, K, E] → weighted sum over K → [T, E]
-        one_hot = F.one_hot(topk_idx, num_classes=E).to(topk_weight.dtype)  # [T, K, E]
-        select = (one_hot * topk_weight.unsqueeze(-1)).sum(dim=1)            # [T, E]
+        # Build dense routing weights [T, E] via scatter (matches GptOss router pattern).
+        # topk_idx [T, K] values ∈ [0, E-1], topk_weight [T, K]
+        select = torch.zeros(T, E, device=hidden_states.device, dtype=topk_weight.dtype)
+        select.scatter_(1, topk_idx, topk_weight)  # [T, E]
 
         # Weighted sum over experts: out_all [E, T, H] * select.T [E, T, 1] → [T, H]
-        y = (out_all * select.t().unsqueeze(-1)).sum(dim=0)
+        y = (out_all * select.transpose(0, 1).unsqueeze(-1)).sum(dim=0)
         y = y.view(*orig_shape)
 
     if self.config.n_shared_experts is not None:
