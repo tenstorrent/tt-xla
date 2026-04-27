@@ -605,6 +605,37 @@ def benchmark_llm_torch_xla(
             )
         )
 
+        # HACK (dgolubovic): dump sidecar JSON with the decoded comparison so
+        # the reference-vs-reference markdown can be generated after the run.
+        try:
+            import json as _json
+
+            _matching = min(len(token_accuracy.top1_tokens), len(predicted_tokens))
+            _tt_ids = [int(t) for t in predicted_tokens[:_matching]]
+            _cpu_ids = [int(t.item()) for t in token_accuracy.top1_tokens[:_matching]]
+            _gt_ids = [
+                int(t.item()) for t in token_accuracy.reference_tokens[:_matching]
+            ]
+            _sidecar = {
+                "model_name_for_accuracy": model_name_for_accuracy,
+                "top1_accuracy": top1_accuracy,
+                "top5_accuracy": top5_accuracy,
+                "tt_predicted_ids": _tt_ids,
+                "cpu_top1_ids": _cpu_ids,
+                "ground_truth_ids": _gt_ids,
+                "tt_predicted_text": tokenizer.decode(_tt_ids),
+                "cpu_top1_text": tokenizer.decode(_cpu_ids),
+                "ground_truth_text": tokenizer.decode(_gt_ids),
+            }
+            _sidecar_path = os.path.abspath(
+                f"tt_accuracy_sidecar_{model_name_for_accuracy}.json"
+            )
+            with open(_sidecar_path, "w") as _fh:
+                _json.dump(_sidecar, _fh, indent=2)
+            print(f"Accuracy sidecar written to {_sidecar_path}")
+        except Exception as _exc:
+            print(f"WARN: failed to write accuracy sidecar: {_exc}")
+
         # Store accuracy scores
         evaluation_score = top1_accuracy  # Use TOP1 as primary score
         custom_measurements.extend(
