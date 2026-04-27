@@ -1642,9 +1642,10 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         arch="wormhole_galaxy",
         optimization_level=1,
         weight_dtype_overrides={
-            "model.layers.*.mlp.router.weight": "bfp_bf4",
+            "model.layers.*.mlp.router.weight": "bf16",
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+            "default": "bfp_bf8",
         },
         required_pcc=0.93,
     )
