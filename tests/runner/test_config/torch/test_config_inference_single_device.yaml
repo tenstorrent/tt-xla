@@ -39,6 +39,10 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
+  aimv2/image_text_similarity/pytorch-Large_Patch14_224_LIT-single_device-inference:
+    required_pcc: 0.75 # logit_scale~115 amplifies bfloat16 precision loss in the 3-element logits tensor
+    status: EXPECTED_PASSING
+
   clip/pytorch-Base_Patch16-single_device-inference:
     required_pcc: 0.97 # https://github.com/tenstorrent/tt-xla/issues/2793
     status: EXPECTED_PASSING
