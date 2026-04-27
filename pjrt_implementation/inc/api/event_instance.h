@@ -81,12 +81,9 @@ public:
   static CallbackWorker &getCallbackWorker();
 
   // Shuts down the CallbackWorker: drains pending callbacks, joins the
-  // worker thread, and switches `enqueue` to synchronous execution on the
-  // caller's thread for any callbacks that arrive afterwards. Intended to
-  // be invoked from a Python `atexit` hook (via `tt_pjrt_shutdown`) so
-  // that pending and post-hook callbacks all run while Python state and
-  // the GIL are still valid.
-  static void destroyCallbackWorker();
+  // worker thread, and switches enqueue() to synchronous execution on the
+  // caller's thread for any callbacks that arrive afterwards.
+  static void shutdownCallbackWorker();
 
   // See comment below for `m_indestructible`.
   void setIndestructible() { m_indestructible = true; }

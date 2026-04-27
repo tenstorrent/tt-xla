@@ -131,16 +131,12 @@ def get_library_path() -> Path:
     return library_path
 
 
-def register_shutdown_hook():
+def register_shutdown_hook() -> None:
     """
     Register a Python `atexit` handler that drives controlled shutdown of
-    plugin-owned resources (currently the internal `CallbackWorker` thread)
-    before the interpreter tears down modules and destroys the GIL.
-
-    The handler invokes the exported `tt_pjrt_shutdown` C symbol via ctypes.
-    ctypes releases the GIL around foreign calls, allowing the worker thread
-    to drain any pending event callbacks (which may re-enter Python, e.g.
-    torch `TensorImpl` destructors) against a live interpreter.
+    plugin-owned resources before the interpreter tears down modules and
+    destroys the GIL. The handler invokes the exported `tt_pjrt_shutdown`
+    C symbol via ctypes.
 
     Safe to call multiple times; the hook is registered at most once.
     """

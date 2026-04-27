@@ -37,8 +37,7 @@ void CallbackWorker::enqueue(PJRT_Event_OnReadyCallback callback_function,
                              void *user_arg, PJRT_Error *error) {
   if (m_shutdown.load(std::memory_order_acquire)) {
     // Worker thread has exited; execute synchronously on the caller's
-    // thread so the callback is not lost. Hit during Python finalization
-    // after `shutdown()` has drained the worker.
+    // thread so the callback is not lost.
     callback_function(error, user_arg);
     return;
   }

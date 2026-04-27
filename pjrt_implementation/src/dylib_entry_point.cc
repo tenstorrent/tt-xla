@@ -23,9 +23,7 @@ void InitializeAPI(PJRT_Api *api) { bindApi(api); }
 } // namespace tt::pjrt
 
 // Performs controlled shutdown of plugin-owned resources that must be torn
-// down while the host Python interpreter (GIL + modules) is still alive.
-// Invoked from Python via `atexit` / ctypes before interpreter finalization
-// tears down state that in-flight callbacks depend on.
+// down. Initiated by the host before shutdown.
 extern "C" PJRT_PLUGIN_EXPORTED void tt_pjrt_shutdown() {
-  tt::pjrt::EventInstance::destroyCallbackWorker();
+  tt::pjrt::EventInstance::shutdownCallbackWorker();
 }

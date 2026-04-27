@@ -24,34 +24,12 @@
 
 namespace tt::pjrt {
 
-namespace {
-
-// Heap-allocated so it can be explicitly destroyed via
-// `EventInstance::destroyCallbackWorker()` before process teardown, rather
-// than relying on static destruction order.
-std::unique_ptr<CallbackWorker> g_callback_worker;
-std::once_flag g_callback_worker_init_flag;
-
-} // namespace
-
 CallbackWorker &EventInstance::getCallbackWorker() {
-  std::call_once(g_callback_worker_init_flag, []() {
-    g_callback_worker = std::make_unique<CallbackWorker>();
-  });
-  return *g_callback_worker;
+  static CallbackWorker instance;
+  return instance;
 }
 
-void EventInstance::destroyCallbackWorker() {
-  // Drain and join the worker thread but keep the object alive. Later
-  // `enqueue` calls (e.g. from Python finalization GC destructing torch
-  // buffers after this hook has fired) will fall back to synchronous
-  // execution on the caller's thread instead of crashing on a destroyed
-  // worker. The object itself is cleaned up later as part of normal
-  // process teardown, when no more callbacks can be enqueued.
-  if (g_callback_worker) {
-    g_callback_worker->shutdown();
-  }
-}
+void EventInstance::shutdownCallbackWorker() { getCallbackWorker().shutdown(); }
 
 std::unique_ptr<EventInstance> EventInstance::createInstance() {
   struct make_unique_enabler : public EventInstance {};
