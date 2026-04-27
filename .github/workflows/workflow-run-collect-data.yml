@@ -14,6 +14,7 @@ on:
       - "On nightly Experimental"
       - "Run Test Single"
       - "Run Test"
+      - "Performance benchmark experimental"
     types:
       - completed
   workflow_dispatch:
