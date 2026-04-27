@@ -1,0 +1,327 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""
+Pre-decoder-loop sanity with gather-based masked_scatter decomposition.
+
+Same graph structure as test_deepseek_ocr_preloop_3.py in deepseek_ocr_org
+(exact DeepseekV2Model.forward pre-loop path with inlined decomposition),
+but uses the gather-based decomposition (row-level cumsum on [S] + 2D gather).
+
+This avoids the cumsum OOM from issue #4167 (cumsum input is [913] instead
+of [1,168,640]), but has a known PCC drop (~0.05) due to the ttnn.matmul
+precision bug in torch.gather decomposition (tt-metal#42845).
+
+Expected result: PASS with PCC drop.
+
+See: https://github.com/tenstorrent/tt-xla/issues/4167
+     https://github.com/tenstorrent/tt-metal/issues/42845
+"""
+
+import pytest
+import torch
+import torch.nn as nn
+from infra import Framework, run_op_test
+from transformers.cache_utils import Cache, DynamicCache
+from transformers.modeling_attn_mask_utils import _prepare_4d_causal_attention_mask
+
+
+class DeepseekOCRVisionEmbedPreloopPipeline(nn.Module):
+    """DeepseekOCRModel.forward + DeepseekV2Model.forward up to decoder loop.
+
+    Uses gather-based decomposition: row-level cumsum on [S] + 2D gather.
+    Avoids cumsum OOM but has PCC drop from ttnn.matmul bug in gather.
+    """
+
+    def __init__(self, ocr_model):
+        super().__init__()
+        self.embed_tokens = ocr_model.model.embed_tokens
+        self.sam_model = ocr_model.model.sam_model
+        self.vision_model = ocr_model.model.vision_model
+        self.projector = ocr_model.model.projector
+        self.image_newline = ocr_model.model.image_newline
+        self.view_seperator = ocr_model.model.view_seperator
+        self._config = ocr_model.model.config
+        self._use_flash_attention_2 = (
+            ocr_model.model.config._attn_implementation == "flash_attention_2"
+        )
+
+    def forward(
+        self,
+        input_ids,
+        patches,
+        image_ori,
+        images_seq_mask,
+        images_spatial_crop,
+    ):
+        attention_mask = None
+        position_ids = None
+        past_key_values = None
+        use_cache = None
+        output_attentions = None
+        output_hidden_states = None
+        return_dict = None
+
+        inputs_embeds = self.embed_tokens(input_ids)
+
+        sam_model = getattr(self, "sam_model", None)
+        vision_model = getattr(self, "vision_model", None)
+
+        images = [(patches, image_ori)]
+
+        if (
+            sam_model is not None
+            and (input_ids.shape[1] != 1 or self.training)
+            and torch.sum(images[0][1], dim=(0, 1, 2, 3)).item() != 0
+        ):
+
+            idx = 0
+            for image, crop_shape in zip(images, images_spatial_crop):
+                images_in_this_batch = []
+
+                patches = image[0]
+                image_ori = image[1]
+
+                with torch.no_grad():
+
+                    if torch.sum(patches).item() != 0:
+                        local_features_1 = sam_model(patches)
+                        local_features_2 = vision_model(patches, local_features_1)
+                        local_features = torch.cat(
+                            (
+                                local_features_2[:, 1:],
+                                local_features_1.flatten(2).permute(0, 2, 1),
+                            ),
+                            dim=-1,
+                        )
+                        local_features = self.projector(local_features)
+                        global_features_1 = sam_model(image_ori)
+                        global_features_2 = vision_model(image_ori, global_features_1)
+                        global_features = torch.cat(
+                            (
+                                global_features_2[:, 1:],
+                                global_features_1.flatten(2).permute(0, 2, 1),
+                            ),
+                            dim=-1,
+                        )
+                        global_features = self.projector(global_features)
+                        _, hw, n_dim = global_features.shape
+                        h = w = int(hw**0.5)
+
+                        _2, hw2, n_dim2 = local_features.shape
+                        h2 = w2 = int(hw2**0.5)
+
+                        width_crop_num, height_crop_num = crop_shape[0], crop_shape[1]
+
+                        global_features = global_features.view(h, w, n_dim)
+
+                        global_features = torch.cat(
+                            [
+                                global_features,
+                                self.image_newline[None, None, :].expand(h, 1, n_dim),
+                            ],
+                            dim=1,
+                        )
+
+                        global_features = global_features.view(-1, n_dim)
+
+                        local_features = (
+                            local_features.view(
+                                height_crop_num, width_crop_num, h2, w2, n_dim2
+                            )
+                            .permute(0, 2, 1, 3, 4)
+                            .reshape(height_crop_num * h2, width_crop_num * w2, n_dim2)
+                        )
+                        local_features = torch.cat(
+                            [
+                                local_features,
+                                self.image_newline[None, None, :].expand(
+                                    height_crop_num * h2, 1, n_dim2
+                                ),
+                            ],
+                            dim=1,
+                        )
+                        local_features = local_features.view(-1, n_dim2)
+
+                        global_local_features = torch.cat(
+                            [
+                                local_features,
+                                global_features,
+                                self.view_seperator[None, :],
+                            ],
+                            dim=0,
+                        )
+
+                    else:
+                        global_features_1 = sam_model(image_ori)
+                        global_features_2 = vision_model(image_ori, global_features_1)
+                        global_features = torch.cat(
+                            (
+                                global_features_2[:, 1:],
+                                global_features_1.flatten(2).permute(0, 2, 1),
+                            ),
+                            dim=-1,
+                        )
+                        global_features = self.projector(global_features)
+                        _, hw, n_dim = global_features.shape
+                        h = w = int(hw**0.5)
+
+                        global_features = global_features.view(h, w, n_dim)
+                        global_features = torch.cat(
+                            [
+                                global_features,
+                                self.image_newline[None, None, :].expand(h, 1, n_dim),
+                            ],
+                            dim=1,
+                        )
+                        global_features = global_features.view(-1, n_dim)
+                        global_local_features = torch.cat(
+                            [global_features, self.view_seperator[None, :]], dim=0
+                        )
+
+                    images_in_this_batch.append(global_local_features)
+
+                if images_in_this_batch:
+                    images_in_this_batch = torch.cat(images_in_this_batch, dim=0)
+                    # Gather-based decomposition INLINED
+                    mask_i = images_seq_mask[idx].long()
+                    source_idx = torch.cumsum(mask_i, 0) - 1
+                    source_idx = torch.clamp(source_idx, 0, images_in_this_batch.shape[0] - 1)
+                    source_idx_2d = source_idx.unsqueeze(-1).expand_as(inputs_embeds[idx])
+                    gathered_rows = torch.gather(images_in_this_batch, 0, source_idx_2d)
+                    inputs_embeds[idx] = torch.where(
+                        images_seq_mask[idx].unsqueeze(-1), gathered_rows, inputs_embeds[idx]
+                    )
+
+                idx += 1
+
+        # DeepseekV2Model.forward — up to just before decoder layer loop
+        input_ids = None
+
+        output_attentions = (
+            output_attentions
+            if output_attentions is not None
+            else self._config.output_attentions
+        )
+        output_hidden_states = (
+            output_hidden_states
+            if output_hidden_states is not None
+            else self._config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self._config.use_cache
+
+        return_dict = (
+            return_dict
+            if return_dict is not None
+            else self._config.use_return_dict
+        )
+
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError(
+                "You cannot specify both input_ids and inputs_embeds at the same time"
+            )
+        elif input_ids is not None:
+            batch_size, seq_length = input_ids.shape[:2]
+        elif inputs_embeds is not None:
+            batch_size, seq_length = inputs_embeds.shape[:2]
+        else:
+            raise ValueError(
+                "You have to specify either input_ids or inputs_embeds"
+            )
+
+        past_key_values_length = 0
+        if use_cache:
+            use_legacy_cache = not isinstance(past_key_values, Cache)
+            if use_legacy_cache:
+                past_key_values = DynamicCache.from_legacy_cache(
+                    past_key_values
+                )
+            past_key_values_length = past_key_values.get_usable_length(
+                seq_length
+            )
+
+        if position_ids is None:
+            device = (
+                input_ids.device
+                if input_ids is not None
+                else inputs_embeds.device
+            )
+            position_ids = torch.arange(
+                past_key_values_length,
+                seq_length + past_key_values_length,
+                dtype=torch.long,
+                device=device,
+            )
+            position_ids = position_ids.unsqueeze(0)
+
+        if inputs_embeds is None:
+            inputs_embeds = self.embed_tokens(input_ids)
+
+        if self._use_flash_attention_2:
+            attention_mask = (
+                attention_mask
+                if (attention_mask is not None and 0 in attention_mask)
+                else None
+            )
+        else:
+            attention_mask = _prepare_4d_causal_attention_mask(
+                attention_mask,
+                (batch_size, seq_length),
+                inputs_embeds,
+                past_key_values_length,
+            )
+
+        hidden_states = inputs_embeds
+
+        return hidden_states, attention_mask, position_ids
+
+
+def _load_model_and_inputs():
+    import inspect
+    import third_party.tt_forge_models.deepseek.deepseek_ocr.pytorch.loader as deepseek_ocr_loader
+    from third_party.tt_forge_models.deepseek.deepseek_ocr.pytorch import (
+        ModelLoader,
+    )
+    from tests.runner.requirements import RequirementsManager
+
+    loader_path = inspect.getsourcefile(deepseek_ocr_loader)
+    with RequirementsManager.for_loader(loader_path):
+        loader = ModelLoader()
+        full_model = loader.load_model(dtype_override=torch.bfloat16)
+        raw_inputs = loader.load_inputs(dtype_override=torch.bfloat16)
+    return full_model, raw_inputs
+
+
+@pytest.fixture(scope="module")
+def model_and_inputs():
+    full_model, raw_inputs = _load_model_and_inputs()
+
+    pipeline = DeepseekOCRVisionEmbedPreloopPipeline(full_model)
+    pipeline.eval()
+    pipeline = pipeline.to(torch.bfloat16)
+
+    inputs = [
+        raw_inputs["input_ids"],
+        raw_inputs["images"][0][0],
+        raw_inputs["images"][0][1],
+        raw_inputs["images_seq_mask"],
+        raw_inputs["images_spatial_crop"],
+    ]
+    return pipeline, inputs
+
+
+@pytest.mark.single_device
+def test_deepseek_ocr_vision_embed_preloop(model_and_inputs):
+    """
+    OCR forward (gather-based decomp) + V2 forward through attention_mask prep.
+
+    Same graph structure as the org decomp preloop_3 test, but cumsum runs on
+    [S]=913 instead of [S*D]=1,168,640 — avoids the OOM from issue #4167.
+    PCC drop expected due to ttnn.matmul bug in gather (tt-metal#42845).
+
+    See: https://github.com/tenstorrent/tt-xla/issues/4167
+         https://github.com/tenstorrent/tt-metal/issues/42845
+    """
+    pipeline, inputs = model_and_inputs
+    run_op_test(pipeline, inputs, framework=Framework.TORCH)
