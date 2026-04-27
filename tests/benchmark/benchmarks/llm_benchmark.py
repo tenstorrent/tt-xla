@@ -262,6 +262,9 @@ def benchmark_llm_torch_xla(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    accuracy_prompt: str = None,
+    accuracy_max_decode_tokens: int = None,
+    accuracy_use_chat_template: bool = True,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -360,6 +363,9 @@ def benchmark_llm_torch_xla(
             max_cache_len=max_cache_len,
             tokenizer=tokenizer,
             hf_model_name=hf_model_name_for_accuracy,
+            accuracy_prompt=accuracy_prompt,
+            accuracy_max_decode_tokens=accuracy_max_decode_tokens,
+            accuracy_use_chat_template=accuracy_use_chat_template,
         )
 
     # Construct inputs, including static cache
@@ -679,6 +685,16 @@ def benchmark_llm_torch_xla(
                 top1_accuracy * 100, top5_accuracy * 100
             )
         )
+
+        if accuracy_prompt is not None:
+            from llm_utils.reference_generator import _REFERENCE_DIR
+
+            refpt_path = os.path.join(
+                _REFERENCE_DIR, f"{model_name_for_accuracy}_prompt.refpt"
+            )
+            if os.path.exists(refpt_path):
+                os.unlink(refpt_path)
+                logger.info(f"Cleaned up prompt-based reference file: {refpt_path}")
 
         # Store accuracy scores
         evaluation_score = top1_accuracy  # Use TOP1 as primary score

@@ -160,3 +160,142 @@ def generate_reference_outputs(total_length, output_file, model_name):
     logger.info(
         f"Library versions: torch={torch.__version__}, transformers={transformers.__version__}"
     )
+
+
+def generate_reference_from_prompt(
+    prompt, output_file, model_name, max_generated_tokens=30, use_chat_template=True
+):
+    """Generate reference outputs via autoregressive generation from a prompt.
+
+    When ``use_chat_template=True`` the prompt is wrapped with the model's
+    chat template (adds system turn + generation-prompt tail). When False,
+    the prompt is tokenized raw with ``add_special_tokens=False``.
+
+    Runs greedy autoregressive decoding on CPU for ``max_generated_tokens``
+    steps. The saved .refpt contains a custom ``split_point`` key so
+    TokenAccuracy separates prompt (prefill) from generated tokens (decode)
+    without the default 50/50 split.
+    """
+    device = torch.device("cpu")
+    logger.info(f"Using device: {device} (CPU forced for reference generation)")
+
+    config = AutoConfig.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, config=config, torch_dtype=torch.bfloat16
+    )
+    model.to(device)
+    model.eval()
+
+    if use_chat_template:
+        messages = [{"role": "user", "content": prompt}]
+        prompt_ids = tokenizer.apply_chat_template(
+            messages, tokenize=True, add_generation_prompt=True
+        )
+        if hasattr(prompt_ids, "input_ids"):
+            prompt_ids = prompt_ids["input_ids"]
+            if (
+                isinstance(prompt_ids, list)
+                and prompt_ids
+                and isinstance(prompt_ids[0], list)
+            ):
+                prompt_ids = prompt_ids[0]
+        elif not isinstance(prompt_ids, list):
+            prompt_ids = (
+                prompt_ids.ids if hasattr(prompt_ids, "ids") else list(prompt_ids)
+            )
+    else:
+        prompt_ids = tokenizer.encode(prompt, add_special_tokens=False)
+    prompt_len = len(prompt_ids)
+    total_length = prompt_len + max_generated_tokens
+
+    logger.info(f"Prompt: {prompt!r}")
+    logger.info(
+        f"Prompt tokens: {prompt_len} (chat_template={use_chat_template}), "
+        f"generating {max_generated_tokens}"
+    )
+
+    static_cache = init_static_cache(
+        config=config,
+        batch_size=1,
+        max_cache_len=total_length,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+
+    prompt_tensor = torch.tensor(prompt_ids, device=device)
+
+    all_top1 = []
+    all_top5 = []
+    generated_tokens = []
+
+    with torch.no_grad():
+        prefill_output = model(
+            input_ids=prompt_tensor.unsqueeze(0),
+            past_key_values=static_cache,
+            cache_position=torch.arange(0, prompt_len),
+            use_cache=True,
+        )
+        prefill_logits = prefill_output.logits[0]
+        for pos in range(prompt_len):
+            top1, top5 = extract_topk(prefill_logits[pos], k=5)
+            all_top1.append(top1.view(-1).cpu())
+            all_top5.append(top5.view(-1, 5).cpu())
+
+        next_token = prefill_logits[-1].argmax().item()
+        generated_tokens.append(next_token)
+
+        for step in range(max_generated_tokens - 1):
+            token_idx = prompt_len + step
+            decode_output = model(
+                input_ids=torch.tensor([[next_token]], device=device),
+                past_key_values=static_cache,
+                cache_position=torch.tensor([token_idx]),
+                use_cache=True,
+            )
+            logits = decode_output.logits[0, -1]
+            top1, top5 = extract_topk(logits, k=5)
+            all_top1.append(top1.view(-1).cpu())
+            all_top5.append(top5.view(-1, 5).cpu())
+
+            next_token = logits.argmax().item()
+            generated_tokens.append(next_token)
+
+    all_tokens = prompt_ids + generated_tokens
+    reference_tokens = torch.tensor(all_tokens).unsqueeze(0)
+
+    top1_tokens = torch.cat(all_top1, dim=0)
+    top5_tokens = torch.cat(all_top5, dim=0)
+
+    expected_predictions = total_length - 1
+    if top1_tokens.shape[0] != expected_predictions:
+        raise RuntimeError(
+            f"Expected {expected_predictions} predictions, got {top1_tokens.shape[0]}"
+        )
+
+    data = {
+        "top1_tokens": top1_tokens,
+        "top5_tokens": top5_tokens,
+        "reference_tokens": reference_tokens,
+        "split_point": prompt_len,
+        "library_versions": {
+            "torch": torch.__version__,
+            "transformers": transformers.__version__,
+        },
+    }
+
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=os.path.dirname(output_file), suffix=".refpt.tmp"
+    )
+    os.close(tmp_fd)
+    try:
+        torch.save(data, tmp_path)
+        os.replace(tmp_path, output_file)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+
+    logger.info(f"Saved prompt-based reference to {output_file}")
+    logger.info(f"Generated text: {tokenizer.decode(generated_tokens)}")

@@ -329,6 +329,9 @@ def init_accuracy_testing(
     max_cache_len: int,
     tokenizer,
     hf_model_name: str = None,
+    accuracy_prompt: str = None,
+    accuracy_max_decode_tokens: int = None,
+    accuracy_use_chat_template: bool = True,
 ):
     """Initialize token accuracy testing for LLM benchmarks.
 
@@ -361,6 +364,45 @@ def init_accuracy_testing(
         raise ValueError(
             "model_name_for_accuracy must be provided when accuracy_testing=True"
         )
+
+    # --- Prompt-based reference mode (for comparison with other implementations) ---
+    if accuracy_prompt is not None:
+        if hf_model_name is None:
+            raise ValueError(
+                "hf_model_name required for prompt-based accuracy testing"
+            )
+
+        from llm_utils.reference_generator import (
+            _REFERENCE_DIR,
+            generate_reference_from_prompt,
+        )
+
+        max_gen = accuracy_max_decode_tokens or 30
+        refpt_name = model_name_for_accuracy + "_prompt"
+        output_file = os.path.join(_REFERENCE_DIR, f"{refpt_name}.refpt")
+
+        print(
+            f"Generating prompt-based reference for {model_name_for_accuracy} "
+            f"on CPU ({max_gen} tokens from {accuracy_prompt!r})..."
+        )
+        generate_reference_from_prompt(
+            prompt=accuracy_prompt,
+            output_file=output_file,
+            model_name=hf_model_name,
+            max_generated_tokens=max_gen,
+            use_chat_template=accuracy_use_chat_template,
+        )
+        print(f"Prompt-based reference generation complete: {output_file}")
+
+        token_accuracy = TokenAccuracy(model_name=refpt_name)
+        custom_input_prompt = token_accuracy.prepare_ref_tokens(tokenizer)
+        print(
+            f"Using prompt-based reference for accuracy testing:"
+            f"\n  Prompt tokens: {len(token_accuracy.input_prompt)}"
+            f"\n  Decode tokens: {len(token_accuracy.reference_tokens)}"
+            f"\n  Text preview: {custom_input_prompt[:100]}..."
+        )
+        return token_accuracy, custom_input_prompt
 
     # On-demand generation: check if .refpt exists and versions match
     if TokenAccuracy.needs_regeneration(model_name_for_accuracy):

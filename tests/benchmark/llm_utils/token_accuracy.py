@@ -70,10 +70,12 @@ class TokenAccuracy:
         )  # Shape: [total_length-1] (or None for old format)
         full_top5_tokens = reference_data["top5_tokens"]  # Shape: [total_length-1, 5]
 
-        # Split tokens: first half = prefill, second half = decode ground truth
-        # WARNING: This split assumes total_length matches max_cache_len used during testing.
-        # Context length mismatch will cause accuracy degradation even with teacher forcing.
-        split_point = reference_tokens.shape[-1] // 2
+        # Split tokens: first half = prefill, second half = decode ground truth.
+        # A custom split_point (from prompt-based .refpt files) overrides the
+        # default 50/50 split so prompt and generated tokens align exactly.
+        split_point = reference_data.get(
+            "split_point", reference_tokens.shape[-1] // 2
+        )
         prefill_tokens = reference_tokens[0, :split_point]
         decode_tokens = reference_tokens[0, split_point:]
 

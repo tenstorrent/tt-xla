@@ -62,6 +62,9 @@ def test_llm(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    accuracy_prompt: str = None,
+    accuracy_max_decode_tokens: int = None,
+    accuracy_use_chat_template: bool = True,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -156,6 +159,9 @@ def test_llm(
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
         use_mla_cache=use_mla_cache,
+        accuracy_prompt=accuracy_prompt,
+        accuracy_max_decode_tokens=accuracy_max_decode_tokens,
+        accuracy_use_chat_template=accuracy_use_chat_template,
     )
 
     if output_file:
@@ -1811,6 +1817,10 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
+        weight_dtype_overrides={
+            "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
+            "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
+        },
         optimization_level=1,
     )
 
@@ -1884,6 +1894,160 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
         required_pcc=0.93,
+    )
+
+
+_GPT_OSS_TOTC_PROMPT = (
+    "entertained herself, besides, with such humane "
+    "achievements as sentencing a youth to have his hands cut off, his tongue "
+    "torn out with pincers, and his"
+)
+
+
+@pytest.mark.parametrize("chat_wrap", [True, False], ids=["chat", "raw"])
+def test_gpt_oss_120b_tp_galaxy_totc_teacher_forcing(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    chat_wrap,
+):
+    """GPT-OSS-120B CPU-teacher-forced accuracy on the TOTC prompt.
+
+    Mirrors the tt-metal TOTC experiment: drives the model with
+    CPU-generated ground-truth tokens (no .refpt), running both the
+    chat-wrapped variant (~99 prefill tokens) and the raw variant
+    (~32 prefill tokens) for 64 decode steps. tt-metal baseline:
+    chat 87.5% top-1, raw 84.4% top-1, both 100% top-5.
+    """
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=(max_output_tokens if max_output_tokens is not None else 64),
+        decode_only=decode_only,
+        batch_size=(batch_size if batch_size is not None else 32),
+        input_sequence_length=256,
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.router.weight": "bf16",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+        required_pcc=0.93,
+        accuracy_prompt=_GPT_OSS_TOTC_PROMPT,
+        accuracy_max_decode_tokens=64,
+        accuracy_use_chat_template=chat_wrap,
+    )
+
+
+# Multi-prompt sweep — ~60-token prompts spanning literary,
+# Shakespearean, expository styles. Used to measure mean TOP1/TOP5
+# across diverse inputs (sanity check that the gpt-oss bfp4 fix is
+# robust beyond a single prompt).
+_GPT_OSS_PROMPT_SWEEP = {
+    "totc_opening": (
+        "It was the best of times, it was the worst of times, it was the age "
+        "of wisdom, it was the age of foolishness, it was the epoch of "
+        "belief, it was the epoch of incredulity, it was the season of"
+    ),
+    "pride_and_prejudice": (
+        "It is a truth universally acknowledged, that a single man in "
+        "possession of a good fortune, must be in want of a wife. However "
+        "little known the feelings or views of such a man may be on his "
+        "first entering a neighbourhood, this truth is so well fixed in the "
+        "minds"
+    ),
+    "hamlet_soliloquy": (
+        "To be, or not to be, that is the question: Whether 'tis nobler in "
+        "the mind to suffer the slings and arrows of outrageous fortune, or "
+        "to take arms against a sea of troubles and by opposing end them. To "
+        "die, to sleep, no more; and by a sleep to say"
+    ),
+    "photosynthesis": (
+        "Photosynthesis is the biochemical process by which plants, algae, "
+        "and some bacteria convert light energy into chemical energy stored "
+        "in glucose molecules. This process occurs in chloroplasts, where "
+        "chlorophyll absorbs light, primarily in the blue and red regions of "
+        "the spectrum,"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "prompt_id",
+    list(_GPT_OSS_PROMPT_SWEEP.keys()),
+    ids=list(_GPT_OSS_PROMPT_SWEEP.keys()),
+)
+def test_gpt_oss_120b_tp_galaxy_prompt_sweep_bfp4_raw(
+    prompt_id,
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    """Multi-prompt CPU-teacher-forcing sweep at fused bfp4 production
+    config. Each parametrize variant uses a different ~60-token prompt.
+    Each prompt MUST be invoked as a separate pytest invocation (run via
+    a shell loop) — running all four variants in a single pytest session
+    leaks state and the second variant gets killed silently during
+    model loading.
+
+    Each variant deletes the cached prompt-based .refpt before running
+    so each prompt gets fresh CPU ground-truth.
+    """
+    refpt_cache = os.path.join(
+        os.path.dirname(__file__),
+        "reference_outputs",
+        "gpt-oss-120b_prompt.refpt",
+    )
+    if os.path.exists(refpt_cache):
+        os.remove(refpt_cache)
+
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=(max_output_tokens if max_output_tokens is not None else 64),
+        decode_only=decode_only,
+        batch_size=(batch_size if batch_size is not None else 32),
+        input_sequence_length=256,
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        weight_dtype_overrides={
+            "model.layers.*.mlp.router.weight": "bf16",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+        required_pcc=0.93,
+        accuracy_prompt=_GPT_OSS_PROMPT_SWEEP[prompt_id],
+        accuracy_max_decode_tokens=64,
+        accuracy_use_chat_template=False,
     )
 
 
