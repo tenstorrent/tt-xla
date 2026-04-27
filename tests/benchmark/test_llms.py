@@ -1615,6 +1615,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
 def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     output_file,
     num_layers,
+    layer_index,
     request,
     accuracy_testing,
     batch_size,
@@ -1632,6 +1633,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         variant,
         output_file,
         num_layers=num_layers,
+        layer_index=layer_index,
         request=request,
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,

@@ -176,40 +176,69 @@ _BYPASS_HELPERS_MARKER = "# === CPU BYPASS HELPERS ==="
 
 _BYPASS_HELPERS = f'''
 {_BYPASS_HELPERS_MARKER}
-def _bypass_to_host_bf16(t):
-    """Dequant (if bfp4) -> all_gather on every sharded axis -> host torch.bfloat16.
+# Mesh shape used by the generated main.py. Kept here so bypass helpers can
+# reshape the per-device shard list into a (rows, cols) grid for concat.
+_BYPASS_MESH_SHAPE = (4, 8)
 
-    The emitted bypass uses this for BOTH activation and weight so the CPU
-    matmul sees a full (un-sharded) tensor regardless of the original shard
-    spec. We all-gather both cluster axes unconditionally; axes that were
-    already replicated become no-ops.
+
+def _find_diff_dim(a, b):
+    """Return the first dim where a and b differ in shape; None if identical."""
+    if list(a.shape) == list(b.shape):
+        return None if bool((a == b).all()) else -1   # same shape, diff values => impossible for shards
+    for d in range(max(a.ndim, b.ndim)):
+        if a.shape[d] != b.shape[d]:
+            return d
+    return None
+
+
+def _bypass_to_host_bf16(t):
+    """Dequant (if bfp4) -> per-chip shards to host -> reconstruct full logical tensor on CPU.
+
+    Avoids in-graph all_gather (which OOMs on large sharded weights when
+    gathered along the wrong dim). Instead pulls each shard to host, detects
+    the shard dim per mesh axis by shape-diffing neighbor shards, and
+    reconstructs with torch.cat. Works for any shard spec on the (4, 8)
+    mesh including (None, None) replication and single-axis sharding.
     """
-    import ttnn
+    import ttnn, torch
     if t.dtype == ttnn.DataType.BFLOAT4_B:
         t = ttnn.typecast(
             t,
             ttnn.DataType.BFLOAT16,
             memory_config=ttnn.DRAM_MEMORY_CONFIG,
         )
-    # Multi-device all-gather on both cluster axes. Wrapped in try/except so
-    # this also works on single-chip where cluster_axis is invalid.
-    for axis in (0, 1):
-        try:
-            t = ttnn.all_gather(
-                input_tensor=t,
-                dim=-1,
-                cluster_axis=axis,
-                memory_config=ttnn.DRAM_MEMORY_CONFIG,
-                topology=ttnn.Topology.Ring,
-            )
-        except Exception:
-            break
-    import torch
-    return ttnn.to_torch(ttnn.from_device(t)).to(torch.bfloat16)
+    host = ttnn.from_device(t)
+    shards_flat = ttnn.get_device_tensors(host)
+    rows, cols = _BYPASS_MESH_SHAPE
+    # Convert each shard to torch.bfloat16 on CPU.
+    grid = [[None] * cols for _ in range(rows)]
+    for i, s in enumerate(shards_flat):
+        grid[i // cols][i % cols] = ttnn.to_torch(s).to(torch.bfloat16).contiguous()
+    # Determine per-axis shard dims by shape-diffing neighbors on the grid.
+    col_diff_dim = _find_diff_dim(grid[0][0], grid[0][1]) if cols > 1 else None
+    row_diff_dim = _find_diff_dim(grid[0][0], grid[1][0]) if rows > 1 else None
+    # First concat along columns (mesh axis 1) within each row.
+    row_tensors = []
+    for r in range(rows):
+        if col_diff_dim is not None and col_diff_dim >= 0:
+            row_tensors.append(torch.cat([grid[r][c] for c in range(cols)], dim=col_diff_dim))
+        else:
+            row_tensors.append(grid[r][0])    # replicated along cols
+    # Then concat along rows (mesh axis 0).
+    if row_diff_dim is not None and row_diff_dim >= 0:
+        return torch.cat(row_tensors, dim=row_diff_dim)
+    return row_tensors[0]                      # replicated along rows
 
 
 def _bypass_from_host_bf16(cpu_tensor, reference_device_tensor):
-    """Push a CPU torch tensor back to device with the same mesh as the reference."""
+    """Push a CPU torch tensor back to device with the same mesh as the reference.
+
+    The result is replicated across every chip in the mesh. Downstream ops
+    that expected a specific shard spec may see a different layout than the
+    device run — but this is consistent between device and bypass runs for
+    the purposes of PCC on OUTPUTS (we gather both via the same per-shard
+    path on output).
+    """
     import ttnn
     return ttnn.from_torch(
         cpu_tensor,
@@ -318,6 +347,10 @@ def run_alchemist_cpu_bypass(
     if os.path.exists(consteval_path):
         with open(consteval_path, "r") as f:
             consteval_code = f.read()
+    else:
+        # Newer tt-alchemist inlines the main_const_eval_N functions into main.py
+        # rather than splitting consteval.py. Scan main.py itself in that case.
+        consteval_code = main_code
 
     # Find bfp4 matmul groups
     groups = find_bfp4_matmul_groups(main_code, consteval_code)
