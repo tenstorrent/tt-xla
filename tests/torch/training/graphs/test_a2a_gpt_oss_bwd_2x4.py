@@ -7,7 +7,7 @@ import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from benchmark.utils import compute_pcc
+from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig
@@ -132,43 +132,37 @@ def test_gpt_oss_layer_bwd_pcc_2x4():
     out_tt.sum().backward()
     torch_xla.sync()
 
-    pcc = 0.95
+    comparator = TorchComparisonEvaluator(
+        ComparisonConfig(pcc=PccConfig(required_pcc=0.95))
+    )
     cases = {
-        "out": (out_cpu, out_tt.cpu()),
-        "dx": (x_cpu.grad, x_tt.grad.cpu()),
+        "out": (out_tt.cpu(), out_cpu),
+        "dx": (x_tt.grad.cpu(), x_cpu.grad),
         "gate_proj.grad": (
-            layer_cpu.mlp.experts.gate_proj.grad,
             moe_layer.mlp.experts.gate_proj.grad.cpu(),
+            layer_cpu.mlp.experts.gate_proj.grad,
         ),
         "up_proj.grad": (
-            layer_cpu.mlp.experts.up_proj.grad,
             moe_layer.mlp.experts.up_proj.grad.cpu(),
+            layer_cpu.mlp.experts.up_proj.grad,
         ),
         "down_proj.grad": (
-            layer_cpu.mlp.experts.down_proj.grad,
             moe_layer.mlp.experts.down_proj.grad.cpu(),
+            layer_cpu.mlp.experts.down_proj.grad,
         ),
         "router.grad": (
-            layer_cpu.mlp.router.weight.grad,
             moe_layer.mlp.router.weight.grad.cpu(),
+            layer_cpu.mlp.router.weight.grad,
         ),
         "q_proj.grad": (
-            layer_cpu.self_attn.q_proj.weight.grad,
             moe_layer.self_attn.q_proj.weight.grad.cpu(),
+            layer_cpu.self_attn.q_proj.weight.grad,
         ),
         "o_proj.grad": (
-            layer_cpu.self_attn.o_proj.weight.grad,
             moe_layer.self_attn.o_proj.weight.grad.cpu(),
+            layer_cpu.self_attn.o_proj.weight.grad,
         ),
     }
-    for name, (g, t) in cases.items():
-        try:
-            actual = compute_pcc(g, t)
-        except (ValueError, AssertionError) as exc:
-            assert torch.allclose(
-                g.float(), t.float(), rtol=1e-2, atol=1e-2
-            ), f"{name}: {exc}"
-            print(f"[PCC] {name}: allclose ok (constant tensor)", flush=True)
-            continue
-        print(f"[PCC] {name}: {actual:.6f}", flush=True)
-        assert actual >= pcc, f"{name} PCC too low: {actual:.6f} < {pcc}"
+    for name, (device_out, golden_out) in cases.items():
+        print(f"[PCC] {name}", flush=True)
+        comparator.evaluate(device_out, golden_out)
