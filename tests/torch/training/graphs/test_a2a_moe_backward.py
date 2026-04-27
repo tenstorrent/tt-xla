@@ -75,11 +75,6 @@ def _shard_a2a_mlp(mlp: A2aSparseMLP, mesh: Mesh) -> None:
 @pytest.mark.push
 @pytest.mark.dual_chip
 def test_a2a_sparse_mlp_backward_pcc():
-    """A2aSparseMLP forward+backward on N300 (1x2 mesh) vs CPU.
-
-    Uses the de-interleaved GPT-OSS layout (separate gate_proj / up_proj) to
-    avoid the strided-slice [..., ::2] backward miscompile on TT XLA.
-    """
     mesh, mesh_shape, device, num_devices = _setup_mesh()
     batch_size, seq_len = 2, 32
 
@@ -110,8 +105,11 @@ def test_a2a_sparse_mlp_backward_pcc():
     out_tt, _ = mlp_tt(x_tt)
     out_tt.sum().backward()
 
+    required_pcc = 0.95
     comparator = TorchComparisonEvaluator(
-        ComparisonConfig(pcc=PccConfig(required_pcc=0.95))
+        ComparisonConfig(
+            pcc=PccConfig(required_pcc=required_pcc), assert_on_failure=False
+        )
     )
     cases = {
         "out": (out_tt.cpu(), out_cpu),
@@ -133,6 +131,10 @@ def test_a2a_sparse_mlp_backward_pcc():
             mlp_cpu.router.weight.grad,
         ),
     }
+    failures = []
     for name, (device_out, golden_out) in cases.items():
-        print(f"[PCC] {name}", flush=True)
-        comparator.evaluate(device_out, golden_out)
+        result = comparator.evaluate(device_out, golden_out)
+        print(f"[PCC] {name}: pcc={result.pcc} atol={result.atol}", flush=True)
+        if not result.passed:
+            failures.append(f"{name}: {result.error_message}")
+    assert not failures, "PCC failures:\n" + "\n".join(failures)
