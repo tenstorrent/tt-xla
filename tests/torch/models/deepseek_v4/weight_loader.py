@@ -220,3 +220,60 @@ def load_expert_state_dict(layer_id: int, expert_id: int) -> Dict[str, torch.Ten
     base = f"layers.{layer_id}.ffn.experts.{expert_id}."
     raw = _load_raw_subset([base])
     return _dequant_paired(raw, base)
+
+
+def load_block_state_dict(layer_id: int) -> Dict[str, torch.Tensor]:
+    """State dict matching `model.Block(layer_id, args).state_dict()` keys.
+
+    Pulls the full Block: attention (incl. compressor/indexer), attn_norm,
+    ffn (MoE — gate, experts, shared), ffn_norm, hc_attn_*, hc_ffn_*.
+
+    Heavy: hash-routed layers contain 256 routed experts × 3 weight matrices
+    (fp4-packed in storage; ~3GB on disk per layer, ~12GB after bf16 dequant
+    in memory).
+    """
+    base = f"layers.{layer_id}."
+    raw = _load_raw_subset([base])
+    return _dequant_paired(raw, base)
+
+
+def load_embed_state_dict() -> Dict[str, torch.Tensor]:
+    """Top-level embedding weights for `Transformer.embed`.
+
+    Returns: {"weight": tensor[vocab_size, dim] bf16}.
+    """
+    raw = _load_raw_subset(["embed."])
+    return _dequant_paired(raw, "embed.")
+
+
+def load_top_level_state_dict() -> Dict[str, torch.Tensor]:
+    """Top-level Transformer params that don't live under a layer.
+
+    Includes hc_head_fn / hc_head_base / hc_head_scale (the head-side
+    Hyper-Connections params that reduce hc_mult copies back to one), the
+    final RMSNorm `norm.weight`, and the parallel head's `head.weight`.
+    Keys are returned verbatim with their top-level dotted names.
+    """
+    raw = _load_raw_subset(
+        [
+            "hc_head_fn",
+            "hc_head_base",
+            "hc_head_scale",
+            "norm.",
+            "head.",
+        ]
+    )
+    out: Dict[str, torch.Tensor] = {}
+    # Pair-dequant within each base prefix that has fp4/fp8 weights.
+    for base in ("head.",):
+        sub = {k: v for k, v in raw.items() if k.startswith(base)}
+        for local_k, v in _dequant_paired(sub, base).items():
+            out[base + local_k] = v
+    # Plain pass-through for the non-paired ones (norm.weight, hc_head_*).
+    for k, v in raw.items():
+        if k.startswith("head."):
+            continue
+        if k.endswith(".scale"):
+            continue
+        out[k] = v.to(torch.bfloat16) if v.is_floating_point() else v
+    return out
