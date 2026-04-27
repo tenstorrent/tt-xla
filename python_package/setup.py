@@ -454,13 +454,7 @@ class CMakeBuildPy(build_py):
         """
         # Path to the built ttmlir Python package in tt-mlir build directory
         ttmlir_build_dir = (
-            REPO_DIR
-            / "third_party"
-            / "tt-mlir"
-            / "tt-mlir"
-            / "src"
-            / "tt-mlir"
-            / "build"
+            REPO_DIR / "third_party" / "tt-mlir" / "src" / "tt-mlir" / "build"
         )
         ttmlir_source_dir = ttmlir_build_dir / "python_packages" / "ttmlir"
         ttmlir_runtime_lib_dir = ttmlir_build_dir / "runtime" / "python"
