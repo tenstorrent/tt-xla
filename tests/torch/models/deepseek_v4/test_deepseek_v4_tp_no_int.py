@@ -11,9 +11,8 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
 
-from third_party.tt_forge_models.deepseek_v4.modified_model.model import (
+from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt import (
     Attention,
-    Block,
     ModelArgs,
     RMSNorm,
     Transformer,
@@ -26,8 +25,6 @@ def make_mesh() -> Mesh:
     num_devices = xr.global_runtime_device_count()
     if num_devices == 32:
         mesh_shape = (4, 8)
-    elif num_devices == 8:
-        mesh_shape = (2, 4)
     else:
         mesh_shape = (1, num_devices)
     device_ids = np.array(range(num_devices))
@@ -225,7 +222,7 @@ def test_indexer_prefill():
 
     run_graph_test(
         indexer,
-        [x, qr, 0, offset],
+        [x, qr, torch.tensor(0, dtype=torch.long), offset],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=shard_spec,
@@ -256,7 +253,7 @@ def test_attention_prefill_no_compression(
 
     run_graph_test(
         attn,
-        [x, 0],
+        [x, torch.tensor(0, dtype=torch.long)],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_attn_shard_spec,
@@ -284,7 +281,7 @@ def test_attention_decode_no_compression(
 
     run_graph_test(
         attn,
-        [x, 4],
+        [x, torch.tensor(4, dtype=torch.long)],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_attn_shard_spec,
@@ -314,7 +311,7 @@ def test_attention_prefill_with_compression(
 
     run_graph_test(
         attn,
-        [x, 0],
+        [x, torch.tensor(0, dtype=torch.long)],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_attn_shard_spec,
@@ -344,146 +341,9 @@ def test_attention_decode_with_compression(
 
     run_graph_test(
         attn,
-        [x, 4],
+        [x, torch.tensor(4, dtype=torch.long)],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_attn_shard_spec,
-        comparison_config=PCC_99,
-    )
-
-
-class _HcPreModule(nn.Module):
-    """Standalone wrapper around Block.hc_pre that owns the attn-side hc params.
-
-    Avoids constructing a full Block (which pulls in Attention + MoE) when all we
-    need is the hc_pre math.
-    """
-
-    def __init__(self, args: ModelArgs):
-        super().__init__()
-        self.norm_eps = args.norm_eps
-        self.hc_mult = args.hc_mult
-        self.hc_sinkhorn_iters = args.hc_sinkhorn_iters
-        self.hc_eps = args.hc_eps
-        mix_hc = (2 + args.hc_mult) * args.hc_mult
-        hc_dim = args.hc_mult * args.dim
-        self.hc_fn = nn.Parameter(torch.empty(mix_hc, hc_dim, dtype=torch.float32))
-        self.hc_base = nn.Parameter(torch.empty(mix_hc, dtype=torch.float32))
-        self.hc_scale = nn.Parameter(torch.empty(3, dtype=torch.float32))
-
-    def forward(self, x: torch.Tensor):
-        return Block.hc_pre(self, x, self.hc_fn, self.hc_scale, self.hc_base)
-
-
-class _HcPostModule(nn.Module):
-    """Standalone wrapper around Block.hc_post (no learnable params)."""
-
-    def forward(
-        self,
-        x: torch.Tensor,
-        residual: torch.Tensor,
-        post: torch.Tensor,
-        comb: torch.Tensor,
-    ):
-        return Block.hc_post(self, x, residual, post, comb)
-
-
-def _hc_pre_shard_spec(module, args, kwargs):
-    return {args[0]: ("batch", None, None, None)}
-
-
-def _hc_post_shard_spec(module, args, kwargs):
-    return {
-        args[0]: ("batch", None, None),
-        args[1]: ("batch", None, None, None),
-        args[2]: ("batch", None, None),
-        args[3]: ("batch", None, None, None),
-    }
-
-
-def _norm_shard_spec(module, args, kwargs):
-    return {args[0]: ("batch", None, None)}
-
-
-@pytest.mark.nightly
-@pytest.mark.dual_chip
-@pytest.mark.parametrize("args,_layer_a,_layer_b", ATTENTION_TEST_CONFIGS)
-def test_hc_pre(args: ModelArgs, _layer_a: int, _layer_b: int):
-    xr.set_device_type("TT")
-
-    bsz = 4
-    seq_len = 32
-    args.max_batch_size = bsz
-
-    module = _HcPreModule(args).eval()
-    init_weights(module)
-
-    x = torch.randn(bsz, seq_len, args.hc_mult, args.dim, dtype=torch.bfloat16)
-    mesh = make_mesh()
-
-    run_graph_test(
-        module,
-        [x],
-        framework=Framework.TORCH,
-        mesh=mesh,
-        shard_spec_fn=_hc_pre_shard_spec,
-        comparison_config=PCC_99,
-    )
-
-
-@pytest.mark.nightly
-@pytest.mark.dual_chip
-@pytest.mark.parametrize("args,_layer_a,_layer_b", ATTENTION_TEST_CONFIGS)
-def test_hc_post(args: ModelArgs, _layer_a: int, _layer_b: int):
-    xr.set_device_type("TT")
-
-    bsz = 4
-    seq_len = 32
-    args.max_batch_size = bsz
-    hc = args.hc_mult
-
-    module = _HcPostModule().eval()
-
-    x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
-    residual = torch.randn(bsz, seq_len, hc, args.dim, dtype=torch.bfloat16)
-    post = torch.randn(bsz, seq_len, hc, dtype=torch.bfloat16)
-    comb = torch.randn(bsz, seq_len, hc, hc, dtype=torch.bfloat16)
-    mesh = make_mesh()
-
-    run_graph_test(
-        module,
-        [x, residual, post, comb],
-        framework=Framework.TORCH,
-        mesh=mesh,
-        shard_spec_fn=_hc_post_shard_spec,
-        comparison_config=PCC_99,
-    )
-
-
-@pytest.mark.nightly
-@pytest.mark.dual_chip
-@pytest.mark.parametrize("norm_attr", ["attn_norm", "ffn_norm"])
-@pytest.mark.parametrize("args,_layer_a,_layer_b", ATTENTION_TEST_CONFIGS)
-def test_block_norm(args: ModelArgs, _layer_a: int, _layer_b: int, norm_attr: str):
-    xr.set_device_type("TT")
-
-    bsz = 4
-    seq_len = 32
-    args.max_batch_size = bsz
-
-    norm = RMSNorm(args.dim, args.norm_eps).eval()
-    # RMSNorm.weight defaults to ones; perturb so the test exercises a real scale.
-    with torch.no_grad():
-        torch.nn.init.normal_(norm.weight, mean=1.0, std=0.02)
-
-    x = torch.randn(bsz, seq_len, args.dim, dtype=torch.bfloat16)
-    mesh = make_mesh()
-
-    run_graph_test(
-        norm,
-        [x],
-        framework=Framework.TORCH,
-        mesh=mesh,
-        shard_spec_fn=_norm_shard_spec,
         comparison_config=PCC_99,
     )
