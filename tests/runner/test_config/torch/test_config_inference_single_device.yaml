@@ -151,6 +151,10 @@ test_config:
   alexnet/pytorch-B-single_device-inference:
     status: EXPECTED_PASSING
 
+  asmodeus_24b_v2_gguf/causal_lm/pytorch-24B_v2_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 335544320 B DRAM buffer across 8 banks (allocated: 4196976960 B, free: 76413056 B) - Asmodeus-24B-v2 in BF16 exceeds single-device n150 DRAM capacity"
+
   attention_denseunet/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
 
