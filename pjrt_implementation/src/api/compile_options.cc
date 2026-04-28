@@ -7,7 +7,9 @@
 
 // c++ standard library includes
 #include <algorithm>
+#include <filesystem>
 #include <string>
+#include <unordered_map>
 
 namespace tt::pjrt {
 
@@ -82,6 +84,23 @@ CompileOptions CompileOptions::parse(
       options.backend != BackendRuntime::TTNNFlatbuffer) {
     ABORT_F("Compile option 'export_path' must be provided when backend is not "
             "'TTNNFlatbuffer'");
+  }
+
+  // Codegen backends write fixed-name files (main.py, ttnn.mlir, tensors/...)
+  // into export_path, so a second compile in the same process would clobber
+  // the first. Give each compile its own subdirectory under the user-provided
+  // export_path. Counter is keyed by the user-provided path so independent
+  // export_paths each start at graph_0; reusing the same path keeps numbering
+  // monotonic and never clobbers an earlier compile in the same process.
+  // Flatbuffer outputs are timestamped and don't collide, so they're skipped.
+  if (options.export_path.has_value() &&
+      (options.backend == BackendRuntime::TTNNCodegenPy ||
+       options.backend == BackendRuntime::TTNNCodegenCpp)) {
+    static std::unordered_map<std::string, int> counters;
+    int graph_index = counters[*options.export_path]++;
+    options.export_path = (std::filesystem::path(*options.export_path) /
+                           ("graph_" + std::to_string(graph_index)))
+                              .string();
   }
 
   return options;
