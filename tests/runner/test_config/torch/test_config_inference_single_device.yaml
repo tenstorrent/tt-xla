@@ -2598,6 +2598,10 @@ test_config:
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  gpt_oss_heretic_ara_gguf/causal_lm/pytorch-20B_Heretic_Ara_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 20B params dequantize to bfloat16 (~40 GB), exceeding single-device DRAM (~34 GB)"
+
   gpt_oss/pytorch-120B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
