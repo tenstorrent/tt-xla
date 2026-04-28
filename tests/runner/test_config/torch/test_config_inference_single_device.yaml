@@ -172,6 +172,10 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
 
+  btbtyler09_qwen3_coder_next_gptq_4bit/causal_lm/pytorch-Qwen3-Coder-Next-GPTQ-4bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is 47 GB on disk in GPTQ 4-bit; unquantized equivalent exceeds n150 single-device DRAM (12 GB)"
+
   bart/pytorch-Large-single_device-inference:
     status: EXPECTED_PASSING
 
