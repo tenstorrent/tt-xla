@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  ernie_4_5_vl/pytorch-28B_A3B_PT-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "28B MoE model requires ~56 GB bfloat16 DRAM, exceeding the 24 GB capacity of a single device. Compilation also fails at the MoE dispatch stage due to torch.nonzero() with data-dependent output shape (from moe_use_aux_free correction-bias update)."
