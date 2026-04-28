@@ -87,6 +87,10 @@ test_config:
   openpose/v2/pytorch-single_device-inference:
     status: EXPECTED_PASSING
 
+  aes_sedai_nemotron_3_super_120b_a12b_gguf/causal_lm/pytorch-AesSedai_3_Super_120B_A12B_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "120B-param MoE model at Q4_K_M (~67.5 GB) exceeds single-device DRAM; also nemotron_h_moe GGUF architecture unsupported in transformers 5.x"
+
   albert/masked_lm/pytorch-Xxlarge_v2-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
