@@ -865,6 +865,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
+  lingshu/pytorch-32B-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "32B model in bfloat16 (~64GB) exceeds single-device DRAM on p150b (24GB) - hardware capacity ceiling"
+
   llama/sequence_classification/pytorch-3.2_1B-single_device-inference:
     status: EXPECTED_PASSING
 
