@@ -2643,6 +2643,10 @@ test_config:
   llama/sequence_classification/pytorch-3.1_405B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
 
+  functionary_medium_v2_2_i1_gguf/causal_lm/pytorch-v2.2_i1_Q4_K_M_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Mixtral-8x7B (~46.7B params, ~93 GB BF16) exceeds n150 single-device DRAM (~12 GB); model too large for single-device inference"
+
   smolvla/vision_language_action/pytorch-smolvla_base-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
