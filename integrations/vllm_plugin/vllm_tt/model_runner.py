@@ -1348,6 +1348,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            logger.info(f"input_ids: {input_ids.shape} -- {input_ids}")
+            logger.info(f"hidden_states: {hidden_states.shape} -- {hidden_states}")
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1952,6 +1954,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self,
         num_tokens: int,
     ) -> None:
+        return
         if self.tt_config.decode_only:
             return
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
