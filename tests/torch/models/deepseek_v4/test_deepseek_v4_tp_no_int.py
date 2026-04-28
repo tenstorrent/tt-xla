@@ -160,6 +160,14 @@ def real_args(**overrides) -> ModelArgs:
     return ModelArgs(**defaults)
 
 
+def transformer_args(num_layers: int, max_batch_size: int) -> ModelArgs:
+    """real_args sliced to N layers. Truncates compress_ratios; keeps
+    n_hash_layers=3 so layers 0..min(2, N-1) stay hash-routed."""
+    args = real_args(n_layers=num_layers, max_batch_size=max_batch_size)
+    args.compress_ratios = args.compress_ratios[:num_layers]
+    return args
+
+
 ATTENTION_TEST_CONFIGS = [
     pytest.param(small_args(), 0, 1, id="toy"),
     pytest.param(real_args(), 1, 2, id="real"),
@@ -168,6 +176,20 @@ ATTENTION_TEST_CONFIGS = [
 
 def make_model(args: ModelArgs) -> Transformer:
     return Transformer(args).eval()
+
+
+def make_real_transformer(args: ModelArgs) -> Transformer:
+    """Construct Transformer under default_dtype=bf16. Required for the
+    real-weight path because ParallelEmbedding.weight is created via
+    torch.empty(...) with no explicit dtype and would otherwise default to
+    fp32, mismatching the bf16 Linear weights downstream. Mirrors the
+    construction pattern in realistic_inputs._build_cpu_prefix_model."""
+    prev = torch.get_default_dtype()
+    torch.set_default_dtype(torch.bfloat16)
+    try:
+        return Transformer(args).eval()
+    finally:
+        torch.set_default_dtype(prev)
 
 
 def make_attention(args: ModelArgs, layer_id: int) -> Attention:
@@ -234,6 +256,41 @@ def init_weights(
                         torch.save(param.data.clone(), cache_file)
                 else:
                     param.zero_()
+
+
+def init_transformer_weights(model: Transformer, num_layers: int) -> None:
+    """Load real V4-Flash weights for embed + layers[0..N-1] + top-level
+    (norm, head, hc_head_*). Uses weight_loader's HF-cached path."""
+    from . import weight_loader
+
+    model.embed.load_state_dict(weight_loader.load_embed_state_dict(), strict=True)
+    for li in range(num_layers):
+        model.layers[li].load_state_dict(
+            weight_loader.load_block_state_dict(li), strict=False
+        )
+    model.load_state_dict(weight_loader.load_top_level_state_dict(), strict=False)
+
+
+def prime_decode_kv_buffers(model: Transformer, std: float = 0.02) -> None:
+    """Fill KV-cache and compressor state buffers with deterministic random
+    values. Default-init leaves kv_state at zeros and score_state at -inf;
+    the decode-time softmax over (-inf, score) and the cascade of zero KV
+    rows leaves a long tail of denormalised products whose CPU/TT bf16
+    rounding diverges (~7pt PCC drop at compress_ratio=128). Seeding with
+    finite noise yields a well-conditioned softmax at the cost of replacing
+    the zero-history semantics with a random-history one — fine for PCC since
+    both backends see the same seeded state."""
+    g = torch.Generator(device="cpu").manual_seed(0)
+    with torch.no_grad():
+        for name, buf in model.named_buffers():
+            if not buf.is_floating_point():
+                continue
+            if name.endswith(".freqs_cis"):
+                continue
+            noise = torch.empty_like(buf, device="cpu").normal_(
+                mean=0.0, std=std, generator=g
+            )
+            buf.copy_(noise)
 
 
 def _attn_shard_spec(attn, args, kwargs):
@@ -411,14 +468,13 @@ def test_attention_decode_with_compression(
     )
 
 
-def _block_shard_spec(block, args, kwargs):
-    attn = block.attn
-    shard_specs = {
-        attn.wq_b.weight: ("model", None),
-        attn.wo_a.weight: ("model", None),
-        attn.wo_b.weight: (None, "model"),
-        attn.kv_cache: ("batch", None, None),
-    }
+def _layer_shard_spec(layer, shard_specs: dict) -> None:
+    """Per-layer attn + ffn shard entries. Mutates shard_specs in place."""
+    attn = layer.attn
+    shard_specs[attn.wq_b.weight] = ("model", None)
+    shard_specs[attn.wo_a.weight] = ("model", None)
+    shard_specs[attn.wo_b.weight] = (None, "model")
+    shard_specs[attn.kv_cache] = ("batch", None, None)
     if attn.compress_ratio:
         shard_specs[attn.compressor.kv_cache] = ("batch", None, None)
         shard_specs[attn.compressor.kv_state] = ("batch", None, None)
@@ -430,21 +486,28 @@ def _block_shard_spec(block, args, kwargs):
         shard_specs[attn.indexer.compressor.kv_state] = ("batch", None, None)
         shard_specs[attn.indexer.compressor.score_state] = ("batch", None, None)
 
-    ffn = block.ffn
+    ffn = layer.ffn
     if hasattr(ffn, "mlp") and hasattr(ffn.mlp, "experts"):
         experts = ffn.mlp.experts
         compound = ("batch", "model")
         shard_specs[experts.gate_proj] = (compound, None, None)
         shard_specs[experts.up_proj] = (compound, None, None)
         shard_specs[experts.down_proj] = (compound, None, None)
-    # shared = getattr(ffn, "shared_experts", None)
-    # if shared is not None:
-    #     shard_specs[shared.w1.weight] = ("model", None)
-    #     shard_specs[shared.w3.weight] = ("model", None)
-    #     shard_specs[shared.w2.weight] = (None, "model")
 
+
+def _block_shard_spec(block, args, kwargs):
+    shard_specs: dict = {}
+    _layer_shard_spec(block, shard_specs)
     shard_specs[args[0]] = ("batch", None, None, None)  # x: [b, s, hc, d]
     shard_specs[args[2]] = ("batch", None)  # input_ids: [b, s]
+    return shard_specs
+
+
+def _transformer_shard_spec(model, args, kwargs):
+    shard_specs: dict = {}
+    for layer in model.layers:
+        _layer_shard_spec(layer, shard_specs)
+    shard_specs[args[0]] = ("batch", None)  # input_ids: [b, s]
     return shard_specs
 
 
@@ -555,5 +618,154 @@ def test_block_decode(
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_block_shard_spec,
+        comparison_config=PCC_SPARSE,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("num_layers", [1, 2, 3])
+def test_transformer_prefill(num_layers: int):
+    xr.set_device_type("TT")
+
+    bsz = 32
+    seq_len = 32
+    args = transformer_args(num_layers=num_layers, max_batch_size=bsz)
+
+    model = make_real_transformer(args)
+    init_transformer_weights(model, num_layers=num_layers)
+
+    input_ids, _ = realistic_inputs.get_realistic_inputs(
+        layer_id=args.n_hash_layers, batch_size=bsz, seq_len=seq_len
+    )
+
+    mesh = make_mesh()
+    enable_sparse_mlp(model, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
+
+    run_graph_test(
+        model,
+        [input_ids, torch.tensor(0, dtype=torch.long)],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=_transformer_shard_spec,
+        comparison_config=PCC_SPARSE,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize(
+    "num_layers,start_pos",
+    [
+        # (num_layers, start_pos)
+        # - start_pos must satisfy `start_pos + 1 - compress_ratio >= 0` for
+        #   every Compressor in the included layers (rope_idx index bounds).
+        # - start_pos==127 with num_layers==4 hits `(start_pos + 1) % ratio == 0`
+        #   for both layer 2 (ratio=4) and layer 3 (ratio=128) — exercises the
+        #   compressor's "compress step" branch (kv_state roll, kv_cache write).
+        (1, 4),
+        (2, 4),
+        (3, 128),
+        (3, 127),
+        (3, 4),
+        (3, 128),
+        (3, 127),
+        (4, 128),
+        (4, 127),
+    ],
+)
+def test_transformer_decode(num_layers: int, start_pos: int):
+    xr.set_device_type("TT")
+
+    bsz = 32
+    seq_len = 1
+    args = transformer_args(num_layers=num_layers, max_batch_size=bsz)
+
+    model = make_real_transformer(args)
+    init_transformer_weights(model, num_layers=num_layers)
+    prime_decode_kv_buffers(model)
+
+    input_ids, _ = realistic_inputs.get_realistic_inputs(
+        layer_id=args.n_hash_layers, batch_size=bsz, seq_len=seq_len
+    )
+
+    mesh = make_mesh()
+    enable_sparse_mlp(model, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
+
+    run_graph_test(
+        model,
+        [input_ids, torch.tensor(start_pos, dtype=torch.long)],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=_transformer_shard_spec,
+        comparison_config=PCC_SPARSE,
+    )
+
+
+class _PrefillDecodeWrapper(nn.Module):
+    """Runs Transformer.forward(prefill_ids, prefill_pos) followed by
+    Transformer.forward(decode_ids, decode_pos) inside one compiled graph.
+    The first call mutates kv_cache in place; the second reads from those
+    mutations. Tests true autoregressive cache carryover end-to-end."""
+
+    def __init__(self, transformer: Transformer):
+        super().__init__()
+        self.transformer = transformer
+
+    def forward(self, prefill_ids, prefill_pos, decode_ids, decode_pos):
+        _ = self.transformer(prefill_ids, prefill_pos)
+        return self.transformer(decode_ids, decode_pos)
+
+
+def _carryover_shard_spec(wrapped, args, kwargs):
+    shard_specs: dict = {}
+    for layer in wrapped.transformer.layers:
+        _layer_shard_spec(layer, shard_specs)
+    shard_specs[args[0]] = ("batch", None)  # prefill_ids
+    shard_specs[args[2]] = ("batch", None)  # decode_ids
+    return shard_specs
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("num_layers", [1, 2, 3])
+def test_transformer_prefill_decode_carryover(num_layers: int):
+    """Prefill (seq_len=32, start_pos=0) followed by decode (seq_len=1,
+    start_pos=32) compiled into a single graph. The prefill's in-place
+    kv_cache writes feed the decode read, so a divergence in cache mutation
+    semantics between TT and CPU shows up as a logits PCC drop.
+
+    Limited to num_layers ∈ {1, 2}: num_layers=4 includes layer 3 with
+    compress_ratio=128, which forces decode_pos >= 127 (for rope_idx >= 0),
+    but the realistic_inputs cache caps prefill at seq_len=32 — leaving an
+    unprocessed gap between prefill and decode that breaks the
+    autoregressive semantics this test is trying to verify."""
+    xr.set_device_type("TT")
+
+    bsz = 32
+    prefill_seq_len = 32
+    args = transformer_args(num_layers=num_layers, max_batch_size=bsz)
+
+    model = make_real_transformer(args)
+    init_transformer_weights(model, num_layers=num_layers)
+
+    input_ids, _ = realistic_inputs.get_realistic_inputs(
+        layer_id=args.n_hash_layers, batch_size=bsz, seq_len=prefill_seq_len
+    )
+    decode_ids = input_ids[:, -1:].clone()
+
+    wrapped = _PrefillDecodeWrapper(model).eval()
+
+    mesh = make_mesh()
+    enable_sparse_mlp(wrapped, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
+
+    run_graph_test(
+        wrapped,
+        [
+            input_ids,
+            torch.tensor(0, dtype=torch.long),
+            decode_ids,
+            torch.tensor(prefill_seq_len, dtype=torch.long),
+        ],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=_carryover_shard_spec,
         comparison_config=PCC_SPARSE,
     )
