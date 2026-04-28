@@ -438,6 +438,9 @@ class CMakeBuildPy(build_py):
         _resolve_symlink_to_file(install_dir / "lib64" / "libtt-umd.so.0")
         _remove_bloat_file(install_dir / "lib64" / "libtt-umd.so")
         _remove_bloat_file(install_dir / "lib64" / "libtt-umd.so.0.70.0")
+        _resolve_symlink_to_file(install_dir / "lib" / "libtt-umd.so.0")
+        _remove_bloat_file(install_dir / "lib" / "libtt-umd.so")
+        _remove_bloat_file(install_dir / "lib" / "libtt-umd.so.0.70.0")
         # Remove bin when building manylinux wheel. This, however, removes multi-host feature.
         # issue: https://github.com/tenstorrent/tt-xla/issues/3531
         if self.in_ci():
