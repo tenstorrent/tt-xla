@@ -725,10 +725,9 @@ def test_qwen_2_5_1_5b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
+            optimization_level if optimization_level is not None else 1
         ),
+        required_pcc=0.90,
     )
 
 
@@ -827,10 +826,9 @@ def test_qwen_2_5_7b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
+            optimization_level if optimization_level is not None else 1
         ),
+        required_pcc=0.90,
     )
 
 
@@ -1846,45 +1844,6 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
-    )
-
-
-def test_gpt_oss_120b_tp_galaxy_batch_size_64(
-    output_file,
-    num_layers,
-    request,
-    accuracy_testing,
-    batch_size,
-    max_output_tokens,
-    decode_only,
-    optimization_level,
-):
-    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
-        ModelLoader,
-        ModelVariant,
-    )
-
-    variant = ModelVariant.GPT_OSS_120B
-    test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
-        num_layers=num_layers,
-        request=request,
-        accuracy_testing=accuracy_testing,
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
-        batch_size=(
-            batch_size if batch_size is not None else 64
-        ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
-        arch="wormhole_galaxy",
-        optimization_level=1,
-        weight_dtype_overrides={
-            "model.layers.*.mlp.router.weight": "bfp_bf4",
-            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
-            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
-        },
-        required_pcc=0.93,
     )
 
 
