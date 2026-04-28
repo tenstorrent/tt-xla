@@ -363,6 +363,20 @@ def main():
         help="Limit CPU runs to one pattern group (default: all)",
     )
     ap.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        metavar="N",
+        help="Skip the first N models before running (for batch splitting)",
+    )
+    ap.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Run at most N models (for batch splitting)",
+    )
+    ap.add_argument(
         "--output",
         metavar="FILE",
         help="Write JSON report to FILE",
@@ -378,7 +392,19 @@ def main():
             if args.pattern == "all"
             else [args.pattern]
         )
-        print(f"Running CPU forward passes for pattern(s): {target_patterns}")
+        # Apply offset/limit to each pattern group so batching works per-pattern
+        if args.offset or args.limit is not None:
+            for pat in target_patterns:
+                if pat in groups:
+                    entries = groups[pat]
+                    end = (args.offset + args.limit) if args.limit is not None else len(entries)
+                    groups[pat] = entries[args.offset:end]
+            print(
+                f"Running CPU forward passes for pattern(s): {target_patterns}"
+                f"  (offset={args.offset}, limit={args.limit})"
+            )
+        else:
+            print(f"Running CPU forward passes for pattern(s): {target_patterns}")
         enrich_with_cpu_run(groups, target_patterns)
 
     registry = known_output_classes()

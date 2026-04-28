@@ -53,29 +53,41 @@ plain `torch.Tensor` and has no registered handler. The fix is either:
 
 ### Workflow
 
-1. Run the script with CPU execution to collect output class names:
-   ```bash
-   python tools/triage_fe_failures.py --pattern unpack --run
-   ```
-   For each model this prints `output_class=XYZ` and whether it's already
-   registered in `_HANDLER_REGISTRY`.
+Do not ask clarifying questions. Run the steps below immediately.
 
-2. For each unregistered output class, determine the correct tensor attribute.
-   Priority order for training loss:
+1. First, list all models for this pattern (no execution):
+   ```bash
+   python tools/triage_fe_failures.py --pattern unpack
+   ```
+   This gives you the full model list with loader paths.
+
+2. Run models in batches of 5 to collect output class names. The `--run` flag
+   executes each model on CPU and will time out if run on all models at once.
+   Use `--offset` and `--limit` to split into batches:
+   ```bash
+   python tools/triage_fe_failures.py --pattern unpack --run --limit 5            # models 1-5
+   python tools/triage_fe_failures.py --pattern unpack --run --limit 5 --offset 5 # models 6-10
+   python tools/triage_fe_failures.py --pattern unpack --run --limit 5 --offset 10 # models 11-15
+   ```
+   Repeat until all models are covered. For each model the script prints
+   `output_class=XYZ` and whether it's already registered in `_HANDLER_REGISTRY`.
+
+3. For each unregistered output class, determine the correct tensor attribute
+   by reading the loader and model output class source. Priority order for
+   training loss:
    - `logits` — classification, LM heads (cross-entropy loss)
    - `last_hidden_state` — encoder-only/embedding models
    - `loss` — if model returns pre-computed loss (rare in this codebase)
    - `sample` — diffusion model outputs
    - `predicted_depth` — depth estimation
-   - Check the HuggingFace docs or model source for the output class if unsure.
 
-3. **If the same output class is shared across models** (common for HF model families):
+4. **If the same output class is shared across models** (common for HF model families):
    Add a single line to `third_party/tt_forge_models/training_utils.py`:
    ```python
    _register_attr("OutputClassName", "logits")  # or whichever attr
    ```
 
-4. **If the model returns a plain tuple/list or a custom class** that can't be
+5. **If the model returns a plain tuple/list or a custom class** that can't be
    unambiguously mapped to one tensor (e.g., object detection models returning
    `(cls_scores, bbox_preds)`, or models where the "right" tensor depends on
    task): override `unpack_forward_output` in the model's `loader.py`:
@@ -89,8 +101,7 @@ plain `torch.Tensor` and has no registered handler. The fix is either:
    grep -rn "def unpack_forward_output" third_party/tt_forge_models/ --include="*.py" -l
    ```
 
-5. After adding the fix, remove the `bringup_status` and `reason` lines from
-   the YAML entry so the test can run.
+6. After applying all fixes, update their status in the YAML (see Step 4 below).
 
 ---
 
@@ -210,20 +221,20 @@ requires extra tensors (ground-truth labels, decoder start tokens, etc.).
 
 ## Step 4 — after fixing
 
-For each fixed model:
+For each fixed model, update the YAML directly after applying the fix. Do not
+run pytest — just mark the entry as expected passing.
+
 1. Remove `status: NOT_SUPPORTED_SKIP`, `bringup_status: FAILED_FE_COMPILATION`,
-   and `reason: ...` from the YAML entry.
-2. Set the appropriate new status. For newly-fixed models use:
+   and `reason: ...` from the YAML entry and set `status: EXPECTED_PASSING`:
    ```yaml
    model/path/pytorch-Variant-single_device-training:
-     status: KNOWN_FAILURE_XFAIL  # until verified on TT hardware
+     status: EXPECTED_PASSING
      markers: [nightly]
    ```
-3. Run the test on CPU to confirm the frontend passes:
-   ```bash
-   TT_DEVICE_SIMULATION=1 pytest tests/runner/test_models.py -k "<model_key>" -sv
-   ```
-   (or run the loader directly as shown in Pattern 3 step 4)
+
+2. After updating the YAML, report a summary: which models were updated to
+   `EXPECTED_PASSING` and which remain unchanged (i.e., the fix could not be
+   determined).
 
 ---
 
