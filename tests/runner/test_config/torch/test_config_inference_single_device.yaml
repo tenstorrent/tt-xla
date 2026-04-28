@@ -2089,6 +2089,10 @@ test_config:
     reason: "Statically allocated circular buffers on core range [(x=6,y=7) - (x=6,y=7)] grow to 2012288 B which is beyond max L1 size of 1499136 B" # https://github.com/tenstorrent/tt-xla/issues/2817
     bringup_status: FAILED_RUNTIME
 
+  jackdaw_gguf/causal_lm/pytorch-30B_A3B_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "30B MoE model dequantizes to ~60 GB bfloat16 at load time, exceeding single-device DRAM (p150b: 24 GB)"
+
   # yolov11/pytorch-yolo11n-single_device-full-inference:
   #   status: EXPECTED_PASSING
 
