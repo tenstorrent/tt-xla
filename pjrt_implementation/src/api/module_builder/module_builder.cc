@@ -81,6 +81,18 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
+static bool moduleHasAnyFuncArguments(mlir::OwningOpRef<mlir::ModuleOp> &m) {
+  bool found = false;
+  m.get().walk([&](mlir::func::FuncOp funcOp) {
+    if (funcOp.getNumArguments() > 0) {
+      found = true;
+      return mlir::WalkResult::interrupt();
+    }
+    return mlir::WalkResult::advance();
+  });
+  return found;
+}
+
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
 fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
@@ -845,9 +857,9 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
-  // Forward the open parent mesh shape so AnalyzeMeshPass can use it as the
-  // fallback for modules with no shardings.
-  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2) {
+
+  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
+      !moduleHasAnyFuncArguments(mlir_module)) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};
