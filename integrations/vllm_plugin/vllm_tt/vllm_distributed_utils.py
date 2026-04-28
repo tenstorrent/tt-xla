@@ -74,7 +74,6 @@ class XlaMergedColumnParallelLinear(nn.Module):
             start_idx = end_idx
 
         if merged_column_parallel_linear.bias is not None:
-            logger.info(f"loading bias for merged column parallel linear")
             start_idx = 0
             for i, output_size in enumerate(self.output_sizes):
                 end_idx = start_idx + output_size

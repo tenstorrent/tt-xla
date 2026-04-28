@@ -83,9 +83,9 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-32B", False, "", "True"),
-        pytest.param("Qwen/Qwen2.5-32B", False, "", "False"),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", "True"),
+        pytest.param("Qwen/Qwen3-32B", False, "", True),
+        pytest.param("Qwen/Qwen2.5-32B", False, "", False),
+        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
