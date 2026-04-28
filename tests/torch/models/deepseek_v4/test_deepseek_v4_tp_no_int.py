@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
@@ -20,8 +22,10 @@ from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt imp
     Transformer,
 )
 
+from . import realistic_inputs
+
 PCC_99 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
-PCC_SPARSE = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.95))
+PCC_SPARSE = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
 
 
 def make_mesh() -> Mesh:
@@ -174,14 +178,60 @@ def make_block(args: ModelArgs, layer_id: int) -> Block:
     return Block(layer_id, args).eval()
 
 
-def init_weights(module: nn.Module, std: float = 0.02) -> None:
+_WEIGHTS_CACHE = Path(__file__).parents[4] / "generated" / "weights"
+
+
+def init_weights(
+    module: nn.Module,
+    std: float = 0.02,
+    *,
+    args: ModelArgs = None,
+    layer_id: int = None,
+) -> None:
+    """Initialize a module's weights.
+
+    Two modes:
+    1. Real V4-Flash mode (when `args` matches HF V4-Flash dims and
+       `layer_id` is provided AND `module` is a Block): pull the real Block
+       state dict from HF via `weight_loader.load_block_state_dict` and load
+       it. Heavy (~12 GB per layer after bf16 dequant) but reuses the
+       standard hf_hub cache so subsequent runs are fast.
+    2. Otherwise: random-init each floating param (cached on disk by
+       module-path + shape so reruns are deterministic). Integer params
+       (e.g. hash gate's `tid2eid`) zeroed.
+    """
+    if (
+        args is not None
+        and layer_id is not None
+        and args.vocab_size == 129280
+        and args.dim == 4096
+        and args.hc_mult == 4
+    ):
+        from . import weight_loader
+
+        state = weight_loader.load_block_state_dict(layer_id)
+        # strict=False: weight_loader returns checkpoint-format keys but the
+        # Block has a few non-persistent buffers (kv_cache, freqs_cis) that
+        # aren't in the dict; those stay at their construction defaults.
+        module.load_state_dict(state, strict=False)
+        return
+
+    _WEIGHTS_CACHE.mkdir(parents=True, exist_ok=True)
     with torch.no_grad():
-        for sub in module.modules():
+        for mod_path, sub in module.named_modules():
             if isinstance(sub, RMSNorm):
                 continue
-            for _, param in sub.named_parameters(recurse=False):
+            for name, param in sub.named_parameters(recurse=False):
                 if param.is_floating_point():
-                    torch.nn.init.normal_(param, mean=0.0, std=std)
+                    shape_str = "x".join(str(d) for d in param.shape)
+                    full_path = f"{mod_path}.{name}" if mod_path else name
+                    key = f"{full_path.replace('.', '_')}_{shape_str}.pt"
+                    cache_file = _WEIGHTS_CACHE / key
+                    if cache_file.exists():
+                        param.copy_(torch.load(cache_file, weights_only=True))
+                    else:
+                        torch.nn.init.normal_(param, mean=0.0, std=std)
+                        torch.save(param.data.clone(), cache_file)
                 else:
                     param.zero_()
 
@@ -419,10 +469,29 @@ def test_block_prefill(
 
     layer_id = compression_layer_id if with_compression else no_compression_layer_id
     block = make_block(args, layer_id)
-    init_weights(block)
+    # For V4-Flash dims, init_weights pulls real HF weights for this Block
+    # (the (args, layer_id) opt-in path). For toy, falls back to disk-cached
+    # random init.
+    init_weights(block, args=args, layer_id=layer_id)
 
-    x = torch.randn(bsz, seq_len, args.hc_mult, args.dim, dtype=torch.bfloat16)
-    input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
+    # Use cached realistic inputs when the parametrize config matches V4-Flash
+    # dims (the cache is generated with vocab/dim/hc_mult pinned to the real
+    # config). For the toy config the cache shape doesn't fit, so fall back to
+    # random — regenerating a toy-sized cache isn't worth the complexity.
+    if args.vocab_size == 129280 and args.dim == 4096 and args.hc_mult == 4:
+        input_ids, hidden_states = realistic_inputs.get_realistic_inputs(
+            layer_id=args.n_hash_layers, batch_size=bsz, seq_len=seq_len
+        )
+        # The cache stores single-stream `[b, s, d]` (post-ffn_norm of layer
+        # n_hash_layers). Block.forward expects hc-expanded `[b, s, hc, d]`.
+        # Replicating into hc copies mirrors Transformer.forward's initial
+        # `h.unsqueeze(2).repeat(1, 1, hc_mult, 1)` — degenerate hc streams
+        # but identical to how the real model enters layer 0, so the per-token
+        # activation distribution stays realistic.
+        x = hidden_states.unsqueeze(2).repeat(1, 1, args.hc_mult, 1).contiguous()
+    else:
+        x = torch.randn(bsz, seq_len, args.hc_mult, args.dim, dtype=torch.bfloat16)
+        input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
     mesh = make_mesh()
 
     enable_sparse_mlp(block, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
@@ -452,16 +521,30 @@ def test_block_decode(
 ):
     xr.set_device_type("TT")
 
-    bsz = 4
+    bsz = 32
     seq_len = 1
     args.max_batch_size = bsz
 
     layer_id = compression_layer_id if with_compression else no_compression_layer_id
     block = make_block(args, layer_id)
-    init_weights(block)
+    # For V4-Flash dims, init_weights pulls real HF weights for this Block
+    # (the (args, layer_id) opt-in path). For toy, falls back to disk-cached
+    # random init.
+    init_weights(block, args=args, layer_id=layer_id)
 
-    x = torch.randn(bsz, seq_len, args.hc_mult, args.dim, dtype=torch.bfloat16)
-    input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
+    # Use cached realistic inputs when the parametrize config matches V4-Flash
+    # dims. For the toy config the cache shape doesn't fit, fall back to random.
+    if args.vocab_size == 129280 and args.dim == 4096 and args.hc_mult == 4:
+        input_ids, hidden_states = realistic_inputs.get_realistic_inputs(
+            layer_id=args.n_hash_layers, batch_size=bsz, seq_len=seq_len
+        )
+        # Cache stores single-stream `[b, s, d]`; Block.forward expects
+        # hc-expanded `[b, s, hc, d]`. Replicating into hc copies mirrors
+        # Transformer.forward's initial expansion.
+        x = hidden_states.unsqueeze(2).repeat(1, 1, args.hc_mult, 1).contiguous()
+    else:
+        x = torch.randn(bsz, seq_len, args.hc_mult, args.dim, dtype=torch.bfloat16)
+        input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
     mesh = make_mesh()
 
     enable_sparse_mlp(block, mesh=mesh.mesh_shape, cluster_axis=0, config=args)

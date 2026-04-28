@@ -57,9 +57,7 @@ _FP8_BLOCK = 128
 
 def load_config_args():
     """Fetch inference/config.json and hydrate a model.ModelArgs with real values."""
-    # The upstream model lives in third_party/tt_forge_models; the test file is
-    # responsible for registering the `kernel` stub before any import touches it.
-    from third_party.tt_forge_models.deepseek_v4.original_model import model
+    from third_party.tt_forge_models.deepseek_v4.modified_model import model
 
     path = hf_hub_download(repo_id=REPO_ID, filename="inference/config.json")
     with open(path) as f:

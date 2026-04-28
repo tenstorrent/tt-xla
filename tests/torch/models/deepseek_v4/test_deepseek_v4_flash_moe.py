@@ -1,10 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import importlib.util
-import os
-import sys
-
 import numpy as np
 import pytest
 import torch
@@ -15,114 +11,15 @@ from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
+from third_party.tt_forge_models.deepseek_v4.modified_model import model as ds_model
 
-def _register_kernel_stub():
-    """Pre-register our bf16 kernel stub as the top-level `kernel` module so
-    the upstream model.py's `from kernel import ...` resolves to it instead of
-    the tilelang-backed kernel that ships alongside it in tt_forge_models.
-    Must run before importing the upstream model."""
-    stub_path = os.path.join(os.path.dirname(__file__), "kernel.py")
-    spec = importlib.util.spec_from_file_location("kernel", stub_path)
-    stub = importlib.util.module_from_spec(spec)
-    sys.modules["kernel"] = stub
-    spec.loader.exec_module(stub)
-
-
-_register_kernel_stub()
-
-from third_party.tt_forge_models.deepseek_v4.original_model import (  # noqa: E402
-    model as ds_model,
-)
-
-from . import realistic_inputs, weight_loader  # noqa: E402
+from . import realistic_inputs, weight_loader
 
 # Layer past `n_hash_layers` so Gate uses score-based routing (no input_ids
 # dependency). Layer 10 is a typical routed-MoE layer in V4-Flash (n_hash=3).
 LAYER_ID = 10
 # Layer < n_hash_layers uses static hash routing via gate.tid2eid[input_ids].
 HASH_LAYER_ID = 0
-
-
-def _patch_model_for_a2a_compat():
-    """Make V4 MoE/Gate callable with input_ids=None so A2aSparseMLP (which
-    only passes hidden_states) can dispatch through them.
-
-    For hash layers, input_ids is required by `gate.tid2eid[input_ids]`. The
-    hash test injects it via a tensor attribute `gate._ambient_input_ids` set
-    on the gate immediately before the a2a forward; the patched Gate/MoE
-    forwards below read that attribute when no explicit arg is given."""
-
-    orig_moe = ds_model.MoE.forward
-
-    def moe_forward(self, x, input_ids=None):
-        if input_ids is None:
-            amb = getattr(self.gate, "_ambient_input_ids", None)
-            if amb is not None:
-                input_ids = amb
-            else:
-                # Non-hash layers ignore input_ids; zeros is a safe filler.
-                input_ids = torch.zeros(x.shape[:-1], dtype=torch.long, device=x.device)
-        return orig_moe(self, x, input_ids)
-
-    ds_model.MoE.forward = moe_forward
-
-    def gate_forward(self, x, input_ids=None):
-        # Full re-implementation of Gate.forward that:
-        # 1) Pulls input_ids from _ambient_input_ids when not passed (needed for
-        #    the a2a RouterAdapter which calls gate(x) with one arg).
-        # 2) Replaces `original_scores.gather(1, indices)` with one-hot ×
-        #    elementwise × sum. The .gather path lowers to an all_gather
-        #    followed by a flat embedding lookup whose per-shard batch offset
-        #    is lost under SPMD (the row index stays arange(local_batch) on
-        #    every shard), which silently corrupts routing weights on every
-        #    non-first batch-axis shard. See ds4/log0.log TTNN dump for the
-        #    concrete pattern.
-        if input_ids is None and self.hash:
-            input_ids = getattr(self, "_ambient_input_ids", None)
-
-        scores = ds_model.linear(x.float(), self.weight.float())
-        if self.score_func == "softmax":
-            scores = scores.softmax(dim=-1)
-        elif self.score_func == "sigmoid":
-            scores = scores.sigmoid()
-        else:
-            scores = torch.nn.functional.softplus(scores).sqrt()
-        original_scores = scores
-        if self.bias is not None:
-            scores = scores + self.bias
-        if self.hash:
-            indices = self.tid2eid[input_ids]
-        else:
-            indices = scores.topk(self.topk, dim=-1)[1]
-
-        one_hot = torch.nn.functional.one_hot(
-            indices.long(), num_classes=original_scores.size(-1)
-        ).to(original_scores.dtype)
-        weights = (one_hot * original_scores.unsqueeze(1)).sum(dim=-1)
-
-        if self.score_func != "softmax":
-            weights /= weights.sum(dim=-1, keepdim=True)
-        weights *= self.route_scale
-        return weights, indices
-
-    ds_model.Gate.forward = gate_forward
-
-
-_patch_model_for_a2a_compat()
-
-
-class _HashMoERunner(torch.nn.Module):
-    """Adapter that lets the hash-routed a2a MoE consume (hidden_states,
-    input_ids) as two explicit forward args. Stashes the flattened input_ids
-    on the gate so the patched Gate/MoE forwards can retrieve them."""
-
-    def __init__(self, ffn_wrapper: torch.nn.Module):
-        super().__init__()
-        self.ffn = ffn_wrapper
-
-    def forward(self, hidden_states, input_ids):
-        self.ffn.mlp.router.gate._ambient_input_ids = input_ids.flatten()
-        return self.ffn(hidden_states)
 
 
 @pytest.mark.nightly
@@ -143,7 +40,7 @@ def test_deepseek_v4_flash_moe(batch_size, seq_len):
     block.ffn.load_state_dict(weight_loader.load_moe_state_dict(layer_id=LAYER_ID))
     block.ffn = block.ffn.eval().to(torch.bfloat16)
 
-    mesh_shape = (4, 8)
+    mesh_shape = (2, 4)
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
     ffn = block.ffn  # now A2aSparseMLPWithSharedExperts
 
@@ -216,7 +113,7 @@ def test_deepseek_v4_flash_moe_hash(batch_size, seq_len):
     block.ffn.load_state_dict(weight_loader.load_moe_state_dict(layer_id=HASH_LAYER_ID))
     block.ffn = block.ffn.eval().to(torch.bfloat16)
 
-    mesh_shape = (4, 8)
+    mesh_shape = (2, 4)
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
     runner = _HashMoERunner(block.ffn)
 

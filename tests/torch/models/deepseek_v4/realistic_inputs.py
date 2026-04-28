@@ -23,8 +23,6 @@ runs (and other contributors) just `torch.load` a ~16 MB file.
 from __future__ import annotations
 
 import os
-import sys
-import types
 from dataclasses import dataclass
 from typing import Tuple
 
@@ -32,31 +30,10 @@ import torch
 
 from . import weight_loader
 
-
-def _register_hadamard_stub():
-    """Register a no-op `fast_hadamard_transform` shim on `sys.modules` so the
-    upstream model's `rotate_activation` (lazy-imports it) doesn't crash on
-    CPU. Mathematically safe here: `rotate_activation` is followed by FP4/FP8
-    QAT-simulation (which our `kernel.py` stubs out), and the same Hadamard
-    is applied to both q and k paths in the Indexer/Compressor — so the
-    dot-products that drive top-k selection are rotation-invariant. With the
-    rotation made identity on both sides, the captured FFN input is
-    numerically equivalent to running with the real Hadamard."""
-    if "fast_hadamard_transform" in sys.modules:
-        return
-
-    def hadamard_transform(x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
-        return x * scale
-
-    shim = types.ModuleType("fast_hadamard_transform")
-    shim.hadamard_transform = hadamard_transform
-    sys.modules["fast_hadamard_transform"] = shim
-
-
 # Cache file lives next to the tests so it ships with the repo. Versioned
 # field in the saved dict lets us invalidate when generation logic changes.
 _CACHE_DIR = os.path.join(os.path.dirname(__file__), "_cached_inputs")
-_CACHE_VERSION = 1
+_CACHE_VERSION = 2  # bumped: now generated from modified_model (no QAT sim).
 
 # Largest shape we materialize. Tests with smaller (batch, seq) slice this.
 # Pinned so the cache shape is deterministic across machines.
@@ -402,14 +379,14 @@ def _capture_pre_ffn(model, layer_id: int, input_ids: torch.Tensor) -> torch.Ten
 
 def _generate_cache(layer_id: int) -> _CacheEntry:
     """Heavy first-time path: download HF weights, build CPU model, run
-    prefix forward, capture pre-FFN activation. Saves the .pt cache."""
-    # Lazy import: ds_model side-effects (kernel stub) live in the test
-    # module's _register_kernel_stub. realistic_inputs.py is imported AFTER
-    # the test file's module-level _register_kernel_stub() runs, so the
-    # stub is already on sys.modules and the model import here is safe.
-    from third_party.tt_forge_models.deepseek_v4.original_model import model as ds_model
+    prefix forward, capture pre-FFN activation. Saves the .pt cache.
 
-    _register_hadamard_stub()
+    Uses `modified_model` (TT-friendly variant): pure-torch hc/sparse_attn
+    kernels live in its own `.kernel` package, and Attention.forward has the
+    QAT-simulation calls + Hadamard rotation stripped, so the CPU prefix
+    runs with no CUDA-only dependencies and no monkey-patching."""
+    from third_party.tt_forge_models.deepseek_v4.modified_model import model as ds_model
+
     args = weight_loader.load_config_args()
     input_ids = _tokenize_passage(args, _CACHE_BATCH, _CACHE_SEQ)
 
