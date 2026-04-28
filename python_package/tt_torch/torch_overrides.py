@@ -31,6 +31,23 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+
+        # XLA slice op rejects start < -dim_size, but PyTorch silently clamps.
+        # Replicate PyTorch semantics so partition_fx_graph_for_cpu_fallback
+        # (which runs the FX graph with XLA tensors) does not raise ValueError.
+        if (
+            func is torch.ops.aten.slice.Tensor
+            and len(args) >= 3
+            and isinstance(args[2], int)
+            and args[2] < 0
+            and hasattr(args[0], "shape")
+            and isinstance(args[1], int)
+            and 0 <= args[1] < len(args[0].shape)
+        ):
+            dim_size = args[0].shape[args[1]]
+            if isinstance(dim_size, int) and args[2] < -dim_size:
+                args = (args[0], args[1], -dim_size) + args[3:]
+
         return func(*args, **(kwargs or {}))
 
 
