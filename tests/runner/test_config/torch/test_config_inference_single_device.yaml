@@ -87,6 +87,9 @@ test_config:
   openpose/v2/pytorch-single_device-inference:
     status: EXPECTED_PASSING
 
+  anakin87_phi_3_5_mini_ita/causal_lm/pytorch-Phi_3_5_mini_ITA-single_device-inference:
+    status: EXPECTED_PASSING
+
   albert/masked_lm/pytorch-Xxlarge_v2-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
