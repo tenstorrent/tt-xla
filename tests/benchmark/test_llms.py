@@ -1863,7 +1863,7 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
     shard_specs[model.model.embed_tokens.weight] = (None, None)
     shard_specs[model.model.norm.weight] = (None,)
     # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
-    shard_specs[model.lm_head.weight] = (None, None)
+    shard_specs[model.lm_head.weight] = ("batch", None)
 
     for layer in model.model.layers:
         shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
