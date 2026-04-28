@@ -295,6 +295,46 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Clamp aten.slice.Tensor start indices that are more negative than -dim_size.
+
+    PyTorch CPU semantics: start < -dim_size is treated as 0 (returns all elements).
+    The XLA/TT backend requires start >= -dim_size and raises "Value out of range"
+    otherwise.  Clamping to -dim_size produces the same tensor as the original
+    operation would on CPU.
+    """
+    modified = False
+    for node in gm.graph.nodes:
+        if (
+            node.op != "call_function"
+            or node.target is not torch.ops.aten.slice.Tensor
+        ):
+            continue
+        if len(node.args) < 4:
+            continue
+        input_node, dim, start = node.args[0], node.args[1], node.args[2]
+        if not isinstance(dim, int) or not isinstance(start, int):
+            continue
+        input_val = input_node.meta.get("val")
+        if input_val is None:
+            continue
+        input_shape = input_val.shape
+        rank = len(input_shape)
+        norm_dim = dim if dim >= 0 else dim + rank
+        if not (0 <= norm_dim < rank):
+            continue
+        dim_size = input_shape[norm_dim]
+        if not isinstance(dim_size, int):
+            continue
+        if start < -dim_size:
+            node.args = (input_node, dim, -dim_size) + node.args[3:]
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.

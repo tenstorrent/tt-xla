@@ -29,6 +29,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    clamp_out_of_range_slice_starts,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
@@ -90,6 +91,7 @@ def torch_pass_pipeline(
     )
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
+    compiled_graph = clamp_out_of_range_slice_starts(compiled_graph)
 
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
