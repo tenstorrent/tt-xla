@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  bartowski_l3_3_nevoria_r1_70b_gguf/causal_lm/pytorch-L3_3_Nevoria_R1_70b_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "70B model at Q4_K_M quantization (~40 GB GGUF, ~140 GB BF16) vastly exceeds single-device DRAM (~12 GB); hardware capacity ceiling"
