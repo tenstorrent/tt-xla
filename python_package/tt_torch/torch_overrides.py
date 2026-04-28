@@ -148,3 +148,73 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _deepseek_v3_naive_moe_forward(self, hidden_states, top_k_index, top_k_weights):
+    """TT-compatible DeepseekV3NaiveMoe.forward.
+
+    CPU path: per-expert loop (golden reference).
+    Device path: static dense BMM — avoids torch.histc(int) and torch._grouped_mm
+    which are CUDA-only and fail on TT hardware.
+    Bypasses the @use_experts_implementation grouped_mm dispatch.
+    """
+    import torch.nn.functional as F_
+
+    if hidden_states.device.type == "cpu":
+        final_hidden_states = torch.zeros_like(hidden_states)
+        with torch.no_grad():
+            expert_mask = F_.one_hot(top_k_index, num_classes=self.num_experts)
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            if expert_idx == self.num_experts:
+                continue
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = F_.linear(current_state, self.gate_up_proj[expert_idx]).chunk(
+                2, dim=-1
+            )
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = F_.linear(
+                current_hidden_states, self.down_proj[expert_idx]
+            )
+            current_hidden_states = (
+                current_hidden_states * top_k_weights[token_idx, top_k_pos, None]
+            )
+            final_hidden_states.index_add_(
+                0, token_idx, current_hidden_states.to(final_hidden_states.dtype)
+            )
+        return final_hidden_states
+    else:
+        T = hidden_states.shape[0]
+        E = self.num_experts
+        # Replicate hidden states across all experts: [E, T, H]
+        h = hidden_states.repeat(E, 1).view(E, T, hidden_states.shape[-1])
+        # gate_up_proj: [E, 2*I, H] — linear uses weight.T so transpose to [E, H, 2*I]
+        gate_up = torch.bmm(h, self.gate_up_proj.transpose(-1, -2))  # [E, T, 2*I]
+        gate, up = gate_up.chunk(2, dim=-1)  # [E, T, I] each
+        gated = self.act_fn(gate) * up  # [E, T, I]
+        # down_proj: [E, H, I] — transpose to [E, I, H]
+        out = torch.bmm(gated, self.down_proj.transpose(-1, -2))  # [E, T, H]
+        # Routing: scatter top-k weights into [T, E] dense matrix
+        routing_weights = torch.zeros(
+            T, E, dtype=hidden_states.dtype, device=hidden_states.device
+        )
+        routing_weights.scatter_(
+            1, top_k_index, top_k_weights.to(hidden_states.dtype)
+        )  # [T, E]
+        out = out * routing_weights.permute(1, 0).unsqueeze(-1)  # [E, T, H]
+        return out.sum(dim=0)  # [T, H]
+
+
+# Bypass grouped_mm dispatch for DeepseekV3NaiveMoe — grouped_mm uses
+# torch.histc(int) and torch._grouped_mm which are CUDA-only.
+try:
+    from transformers.models.deepseek_v3.modeling_deepseek_v3 import (
+        DeepseekV3NaiveMoe,
+    )
+
+    DeepseekV3NaiveMoe.forward = _deepseek_v3_naive_moe_forward
+except ImportError:
+    pass
