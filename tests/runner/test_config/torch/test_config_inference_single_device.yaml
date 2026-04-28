@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  apertus_70b_instruct/causal_lm/pytorch-70B_INSTRUCT_2509-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 70B model in BF16 (~140 GB) exceeds single-device DRAM (~32 GB). TT_FATAL: Not enough space to allocate 704643072 B DRAM buffer across 8 banks, where each bank needs to store 88080384 B, but bank size is 4273390016 B"
