@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  davidau_openai_gpt_oss_20b_coder_neo_code_di_matrix_gguf/causal_lm/pytorch-CODER_NEO_CODE_DIMAT_IQ4_NL-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "GPT-OSS 20B dequantizes from GGUF IQ4_NL to bfloat16 (~40 GB), exceeding single-device DRAM (12 GB n150 / 24 GB p150b); analogous non-GGUF gpt_oss/pytorch-20B is EXCLUDE_MODEL for the same reason. Segfaults in XLA C++ layer (partition_fx_graph_for_cpu_fallback) due to OOM during compilation."
