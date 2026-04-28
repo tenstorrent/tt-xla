@@ -295,6 +295,48 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm):
+    """Clamp aten.slice.Tensor start indices that exceed [-dim_size, dim_size-1].
+
+    PyTorch allows start < -dim_size (clamped to 0 semantically), but the XLA/TT
+    backend validates slice bounds strictly. SlidingWindowCache.update does
+    full_value_states[:, :, -sliding_window+1:, :] when seq_len < sliding_window,
+    producing start values like -1023 on a dim of size 23.
+    """
+    modified = False
+    for node in list(gm.graph.nodes):
+        if (
+            node.op != "call_function"
+            or node.target is not torch.ops.aten.slice.Tensor
+        ):
+            continue
+        # args: (input, dim, start, end, step)
+        if len(node.args) < 4:
+            continue
+        dim = node.args[1] if len(node.args) > 1 else 0
+        start = node.args[2] if len(node.args) > 2 else None
+        if not isinstance(start, int) or start >= 0:
+            continue
+        input_node = node.args[0]
+        val = input_node.meta.get("val")
+        if val is None or not isinstance(dim, int):
+            continue
+        ndim = len(val.shape)
+        actual_dim = dim % ndim if dim < 0 else dim
+        if actual_dim >= len(val.shape):
+            continue
+        dim_size = val.shape[actual_dim]
+        if isinstance(dim_size, int) and start < -dim_size:
+            clamped = max(-dim_size, start)
+            new_args = list(node.args)
+            new_args[2] = clamped
+            node.args = tuple(new_args)
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
