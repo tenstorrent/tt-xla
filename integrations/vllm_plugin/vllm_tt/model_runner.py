@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -223,6 +224,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
+        self._debug_step = 0
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
@@ -516,17 +518,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Check if this weight belongs to a layer that should be skipped
             should_skip = False
 
-            # Look for layer patterns like "layers.N." where N >= target_num_layers
+            # Look for text-decoder layer patterns like "model.layers.N." where
+            # N >= target_num_layers.  We intentionally skip this check when the
+            # parent of "layers" is "encoder" (vision tower) so that vision
+            # encoder weights are never dropped by the text-layer override.
             if "layers." in weight_name:
                 try:
-                    # Extract layer number from weight name
                     parts = weight_name.split(".")
                     for i, part in enumerate(parts):
                         if part == "layers" and i + 1 < len(parts):
+                            parent = parts[i - 1] if i > 0 else ""
+                            if parent == "encoder":
+                                # Vision / audio encoder — never filter these.
+                                break
                             layer_num = int(parts[i + 1])
                             if layer_num >= self._target_num_layers:
                                 should_skip = True
-                                break
+                            break
                 except (ValueError, IndexError):
                     # If we can't parse the layer number, keep the weight
                     pass
@@ -1440,6 +1448,40 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
+
+            if (
+                self.tt_config.debug_dump_logits_dir
+                or self.tt_config.debug_logit_topk > 0
+            ):
+                step = self._debug_step
+                self._debug_step += 1
+                logits_cpu = logits.cpu()
+                if self.tt_config.debug_dump_logits_dir:
+                    os.makedirs(self.tt_config.debug_dump_logits_dir, exist_ok=True)
+                    torch.save(
+                        logits_cpu,
+                        os.path.join(
+                            self.tt_config.debug_dump_logits_dir,
+                            f"step{step:05d}_logits.pt",
+                        ),
+                    )
+                    torch.save(
+                        model_input_ids.cpu(),
+                        os.path.join(
+                            self.tt_config.debug_dump_logits_dir,
+                            f"step{step:05d}_input_ids.pt",
+                        ),
+                    )
+                if self.tt_config.debug_logit_topk > 0:
+                    k = self.tt_config.debug_logit_topk
+                    vals, idxs = logits_cpu[0].topk(k)
+                    logger.info(
+                        "step=%d top-%d tokens: %s logits: %s",
+                        step,
+                        k,
+                        idxs.tolist(),
+                        [f"{v:.3f}" for v in vals.tolist()],
+                    )
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device

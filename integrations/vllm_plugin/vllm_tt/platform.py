@@ -87,14 +87,40 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    # Path where the compiler writes exported flatbuffers/MLIR artefacts.
+    # Forwarded verbatim to the PJRT compile option "export_path".
+    # IR dumps land in <export_path>/irs/<stage>_<export_model_name>_<ts>.mlir.
+    # Stages written: vhlo, shlo, shlo_frontend, shlo_compiler, ttir, ttnn.
+    # Leave empty to skip export.
+    export_path: str = ""
+
+    # Optional label embedded in the IR dump filenames (see export_path).
+    # Forwarded to the PJRT compile option "export_model_name".
+    export_model_name: str = ""
+
+    # Directory for per-step logit dumps used to compare two runs offline
+    # (e.g. optimization_level=0 vs a failing level).  Each forward step
+    # writes "<dir>/step<N>_logits.pt" and "<dir>/step<N>_input_ids.pt".
+    # Leave empty to disable.
+    debug_dump_logits_dir: str = ""
+
+    # Print the top-K predicted tokens (and their logit values) from the
+    # device to stdout after every forward step.  0 disables.
+    debug_logit_topk: int = 0
+
     def get_pjrt_compile_config(self) -> dict:
-        return {
+        cfg = {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
             "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
+        if self.export_path:
+            cfg["export_path"] = self.export_path
+        if self.export_model_name:
+            cfg["export_model_name"] = self.export_model_name
+        return cfg
 
 
 class TTPlatform(Platform):

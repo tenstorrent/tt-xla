@@ -20,6 +20,19 @@
 
 // llvm includes
 #include "llvm/Support/Casting.h"
+// Force-include Debug.h with NDEBUG cleared so llvm::DebugFlag /
+// setCurrentDebugTypes are visible even in Release builds. tt-xla and
+// tt-mlir are built against an LLVM toolchain compiled with
+// LLVM_ENABLE_ASSERTIONS=ON, so the library symbols exist.
+#ifdef NDEBUG
+#define TTXLA_RESTORE_NDEBUG
+#undef NDEBUG
+#endif
+#include "llvm/Support/Debug.h"
+#ifdef TTXLA_RESTORE_NDEBUG
+#define NDEBUG
+#undef TTXLA_RESTORE_NDEBUG
+#endif
 #include "llvm/Support/LogicalResult.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -982,6 +995,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Static counter for auto-numbering graphs when perf metrics are enabled
   static std::atomic<int> graph_counter{0};
 
+  // Enable LLVM debug machinery for the greedy-optimizer/L1-spill traces.
+  // Mirrors `ttmlir-opt --debug-only=greedy-optimizer` for the embedded
+  // pass-manager path used by the PJRT plugin. Works in Release because
+  // we forced Debug.h to be included with NDEBUG cleared above.
+  // Disabled while chasing the runtime segfault — re-enable when needed.
+  // static const char *kDebugTypes[] = {"greedy-optimizer"};
+  // llvm::DebugFlag = true;
+  // llvm::setCurrentDebugTypes(kDebugTypes, /*Count=*/1);
+
   mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
 
   // Optimizer passes are not supported in distributed runtime.
@@ -1108,6 +1130,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   client_instance->closeOptimizerSubmesh();
 
   if (mlir::failed(mlir_result)) {
+    // Dump the partial/failed TTNN IR so it can be compared against standalone
+    // ttmlir-opt output to diagnose real-device vs mock-device OpModel diffs.
+    printModule(mlir_module, compile_options.export_path, "ttnn_failed",
+                compile_options.export_model_name);
     LOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
     return tt_pjrt_status::kInternal;
   }
