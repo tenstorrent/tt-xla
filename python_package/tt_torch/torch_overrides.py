@@ -148,3 +148,72 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _qwen3_5_moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Monkey-patched Qwen3_5MoeExperts.forward.
+
+    CPU path: per-expert loop (same as the original undecorated forward).
+    Device path: dense bmm over all experts, avoiding torch.histc and
+    grouped_mm (both unsupported on TT hardware).
+
+    Args:
+        hidden_states: [T, H] reshaped token embeddings.
+        top_k_index:   [T, K] expert indices selected per token.
+        top_k_weights: [T, K] routing weights for each selected expert.
+    """
+    T, H = hidden_states.shape
+    E = self.num_experts
+    device = hidden_states.device
+
+    if device.type == "cpu":
+        final_hidden_states = torch.zeros_like(hidden_states)
+        with torch.no_grad():
+            expert_mask = torch.nn.functional.one_hot(top_k_index, num_classes=E)
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            if expert_idx == E:
+                continue
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = torch.nn.functional.linear(
+                current_state, self.gate_up_proj[expert_idx]
+            ).chunk(2, dim=-1)
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = torch.nn.functional.linear(
+                current_hidden_states, self.down_proj[expert_idx]
+            )
+            current_hidden_states = (
+                current_hidden_states * top_k_weights[token_idx, top_k_pos, None]
+            )
+            final_hidden_states.index_add_(
+                0, token_idx, current_hidden_states.to(final_hidden_states.dtype)
+            )
+        return final_hidden_states
+    else:
+        # Dense bmm: runs all E experts on all T tokens to avoid histc + grouped_mm.
+        # gate_up_proj: [E, 2*I, H];  down_proj: [E, H, I]
+        h = hidden_states.repeat(E, 1).view(E, T, H)
+        gate_up = torch.bmm(h, self.gate_up_proj.transpose(1, 2))  # [E, T, 2*I]
+        gate, up = gate_up.chunk(2, dim=-1)
+        expert_out = torch.bmm(
+            self.act_fn(gate) * up, self.down_proj.transpose(1, 2)
+        )  # [E, T, H]
+        routing = torch.zeros(T, E, device=device, dtype=hidden_states.dtype)
+        routing.scatter_(1, top_k_index, top_k_weights.to(hidden_states.dtype))
+        return (expert_out * routing.T.unsqueeze(-1)).sum(dim=0)
+
+
+# Patch Qwen3_5MoeExperts.forward to replace grouped_mm_experts_forward
+# (which calls torch.histc and torch.nn.functional.grouped_mm, both
+# unsupported on TT hardware) with an equivalent dense-bmm implementation.
+try:
+    from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import (
+        Qwen3_5MoeExperts,
+    )
+
+    Qwen3_5MoeExperts.forward = _qwen3_5_moe_experts_forward
+except ImportError:
+    pass
