@@ -157,12 +157,17 @@ class ModelTester(BaseTester, ABC):
         else:
             return self._test_training()
 
+    def _cache_output_activations(self, output) -> None:
+        """Cache forward output for shape reporting. Overridden by subclasses."""
+        pass
+
     def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...] | None:
         """
         Tests the model by running inference on TT device and on CPU and comparing the
         results.
         """
         cpu_res = self._run_on_cpu(self._workload)
+        self._cache_output_activations(cpu_res)
 
         self._compile_for_tt_device(self._workload)
 
