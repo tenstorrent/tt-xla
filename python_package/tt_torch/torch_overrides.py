@@ -148,3 +148,76 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _mixtral_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Monkey-patched MixtralExperts.forward.
+
+    CPU path: per-expert loop (memory-efficient, serves as PCC golden reference).
+    Device path: dense bmm (static graph for torch.compile).
+
+    Args:
+        hidden_states: [T, H] where T = B*S
+        top_k_index: [T, K]
+        top_k_weights: [T, K]
+    """
+    E = self.num_experts
+
+    if hidden_states.device.type == "cpu":
+        final_hidden_states = torch.zeros_like(hidden_states)
+        with torch.no_grad():
+            expert_mask = torch.nn.functional.one_hot(top_k_index, num_classes=E)
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            if expert_idx == E:
+                continue
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = torch.nn.functional.linear(
+                current_state, self.gate_up_proj[expert_idx]
+            ).chunk(2, dim=-1)
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = torch.nn.functional.linear(
+                current_hidden_states, self.down_proj[expert_idx]
+            )
+            current_hidden_states = (
+                current_hidden_states * top_k_weights[token_idx, top_k_pos, None]
+            )
+            final_hidden_states.index_add_(
+                0, token_idx, current_hidden_states.to(final_hidden_states.dtype)
+            )
+        return final_hidden_states
+    else:
+        # Dense device path: run all experts on all tokens, combine with routing weights.
+        # gate_up_proj: [E, 2*inter, H] (F.linear convention); down_proj: [E, H, inter]
+        h = hidden_states.repeat(E, 1).view(E, -1, self.hidden_dim)  # [E, T, H]
+        # transpose weights for bmm: [E, H, 2*inter]
+        gate_up = torch.bmm(h, self.gate_up_proj.transpose(1, 2))  # [E, T, 2*inter]
+        gate, up = gate_up.chunk(2, dim=-1)  # [E, T, inter] each
+        activated = self.act_fn(gate) * up  # [E, T, inter]
+        # transpose down weights for bmm: [E, inter, H]
+        expert_out = torch.bmm(activated, self.down_proj.transpose(1, 2))  # [E, T, H]
+        # Convert top-k format [T, K] to full routing matrix [T, E]
+        expert_range = torch.arange(E, device=hidden_states.device)
+        one_hot = (top_k_index.unsqueeze(-1) == expert_range).to(
+            hidden_states.dtype
+        )  # [T, K, E]
+        routing_full = (
+            top_k_weights.to(hidden_states.dtype).unsqueeze(-1) * one_hot
+        ).sum(dim=1)  # [T, E]
+        # Weighted combine across experts: [T, E] x [E, T, H] -> [T, H]
+        output = torch.einsum("te,eth->th", routing_full, expert_out)
+        return output.to(hidden_states.dtype)
+
+
+# Monkey patch MixtralExperts to replace the data-dependent nonzero()+loop forward
+# with a device-compatible dense bmm implementation.
+# Bypasses @use_experts_implementation decorator dispatch (transformers >= 4.58).
+try:
+    from transformers.models.mixtral.modeling_mixtral import MixtralExperts
+
+    MixtralExperts.forward = _mixtral_experts_forward
+except ImportError:
+    pass
