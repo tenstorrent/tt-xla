@@ -617,9 +617,7 @@ class A2aSparseMLP(nn.Module):
                     glu = gate_out * torch.sigmoid(gate_out * self.alpha)
                     activated = (up_out + 1) * glu
 
-            # Down: [E, T, inter] @ [E, inter, H] → [E, T, H], with T = BD*S.
-            # Keeping E on dim 0 through to combine lets Shardy propagate the
-            # expert sharding without inserting an all_gather on the E axis.
+            # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
             act_per_expert = activated.reshape(
                 dim_a * dim_b * M, E, self.intermediate_size
             ).permute(1, 0, 2)
