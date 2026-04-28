@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  llama_4_scout_bnb_4bit/causal_lm/pytorch-17B_16E_Instruct_unsloth_bnb_4bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model too large for single-device DRAM: Llama 4 Scout 17B-16E is a 109B total-parameter MoE model; at NF4 4-bit quantization the weights are ~57 GB, exceeding the 24 GB p150b DRAM. Fails locally with ignore_mismatched_sizes error (bitsandbytes missing); in CI fails as TT_THROW @ buffer_instance.cc:282 (complex-tensor-0-dim during compilation of view_as_complex RoPE ops)"
