@@ -845,6 +845,13 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
+  // Forward the open parent mesh shape so AnalyzeMeshPass can use it as the
+  // fallback for modules with no shardings.
+  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2) {
+    stablehlo_pipeline_options.meshShape = {
+        static_cast<int64_t>((*current_mesh_shape)[0]),
+        static_cast<int64_t>((*current_mesh_shape)[1])};
+  }
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 

@@ -167,7 +167,11 @@ std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
   if (device_ids.size() == 0) {
     TT_FATAL(!m_addressable_devices.empty(),
              "No addressable devices available");
-    device_ids.emplace(m_addressable_devices.front()->getGlobalDeviceId());
+    size_t target = std::max<size_t>(
+        1, std::min(num_devices, m_addressable_devices.size()));
+    for (size_t i = 0; i < target; ++i) {
+      device_ids.emplace(m_addressable_devices[i]->getGlobalDeviceId());
+    }
   }
 
   return device_ids;
