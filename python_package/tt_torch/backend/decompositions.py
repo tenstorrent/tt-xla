@@ -203,8 +203,19 @@ def avg_pool2d(
     if isinstance(padding, int):
         padding = [padding, padding, padding, padding]
 
+    padding_is_zero = all(p == 0 for p in padding)
     input_size = list(input.shape[-len(stride) :])
-    if stride == kernel_size == input_size and padding == [0, 0, 0, 0]:
+    if stride == kernel_size == input_size and padding_is_zero:
+        return input.mean(dim=[-2, -1], keepdim=True)
+
+    # ceil_mode=True with kernel >= input: the single window covers the entire
+    # input, so the result is identical to a global average pool.
+    if (
+        ceil_mode
+        and padding_is_zero
+        and divisor_override is None
+        and all(k >= s for k, s in zip(kernel_size, input_size))
+    ):
         return input.mean(dim=[-2, -1], keepdim=True)
 
     # If we call the regular torch.nn.functional.avg_pool2d, it will infinitely recurse into this function.
