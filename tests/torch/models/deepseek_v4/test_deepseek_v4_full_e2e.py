@@ -36,6 +36,8 @@ from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
+from tt_torch.sharding import sharding_constraint_hook
+
 from third_party.tt_forge_models.deepseek_v4.modified_model import (
     model_decode_opt as mdo,
 )
@@ -320,6 +322,8 @@ def test_e2e_prefill_decode_full_real() -> None:
     for tensor, spec in transformer_shard_spec(model).items():
         xs.mark_sharding(tensor, mesh, spec)
 
+    hook = sharding_constraint_hook(model.head, mesh, (None, None))
+    model.head.register_forward_hook(hook)
     # --- Compile (one handle, reused for prefill and every decode step) --
     # Compiled-mode pattern (mirrors test_prefill_decode_cache_coherence_compiled
     # in test_deepseek_v4_prefill_decode_loop_no_int.py:243-251): pass start_pos
