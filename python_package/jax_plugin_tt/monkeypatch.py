@@ -289,8 +289,6 @@ def _create_flax_apply_patch_config(mark_weight_func):
     ]
 
 
-
-
 def _create_absl_handler_close_patch_config():
     """Create a MonkeyPatchConfig for patching absl's PythonHandler.close.
 
