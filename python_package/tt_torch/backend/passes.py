@@ -277,6 +277,62 @@ def insert_argument_type_markers(
     return gm
 
 
+def normalize_slice_indices(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Clamp out-of-range negative start indices in aten.slice.Tensor nodes.
+
+    The TT XLA backend (via torch_xla) rejects start indices outside the range
+    [-dim_size, dim_size-1], but PyTorch CPU silently clamps them. For example,
+    t[:, :, -1023:, :] on a tensor of size 277 should return the full tensor
+    (start clamped to 0) but torch_xla raises "Value out of range".
+
+    This pass rewrites static start constants that satisfy start < -dim_size
+    to their equivalent clamped value (always 0 in that case).
+    """
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if node.op != "call_function":
+            continue
+        if node.target is not torch.ops.aten.slice.Tensor:
+            continue
+        # args: (self, dim=0, start=None, end=None, step=1)
+        if len(node.args) < 3:
+            continue
+
+        tensor_node = node.args[0]
+        dim = node.args[1] if len(node.args) > 1 else 0
+        start = node.args[2]
+
+        if not isinstance(start, int) or not isinstance(dim, int) or start >= 0:
+            continue
+
+        val = tensor_node.meta.get("val") if hasattr(tensor_node, "meta") else None
+        if val is None:
+            continue
+
+        shape = getattr(val, "shape", None)
+        if shape is None or dim >= len(shape):
+            continue
+
+        dim_size = shape[dim]
+        if not isinstance(dim_size, int):
+            continue  # symbolic dimension — skip
+
+        if start < -dim_size:
+            new_start = max(0, dim_size + start)
+            new_args = list(node.args)
+            new_args[2] = new_start
+            node.args = tuple(new_args)
+            modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
