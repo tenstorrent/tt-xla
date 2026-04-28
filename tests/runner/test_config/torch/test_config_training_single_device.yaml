@@ -179,7 +179,7 @@ test_config:
   speecht5/pytorch-Tts-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: mat1 and mat2 must have the same dtype, but got Float and BFloat16"
+    reason: "AssertionError: CPU and TT have different None grad parameters (LayerDrop nondeterminism: encoder/decoder layer indices skipped differ between runs)"
   rmbg/pytorch-2.0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION

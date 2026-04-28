@@ -80,6 +80,73 @@ observed during the CPU run.
 
 ---
 
+## Step 5 — Verify each fix by running pytest
+
+Fixing the dtype mismatch often unmasks a different downstream failure
+(missing inputs, grad-disabled EMA checkpoints, unpack errors, FE/MLIR
+compilation errors, runtime OOM, etc.). After flipping a model to
+`EXPECTED_PASSING`, run the corresponding pytest **one model at a time**
+to avoid timeouts and to keep failure attribution clean. Each test
+typically takes 15–60 s for the FE-compilation check.
+
+For each fixed entry `<key>` (e.g. `yolov6/pytorch-N-single_device-training`):
+
+```bash
+pytest -svv "tests/runner/test_models.py::test_all_models_torch[<key>]" 2>&1 | tail -40
+```
+
+Interpret the result:
+- **PASSED** — leave the YAML at `status: EXPECTED_PASSING`.
+- **FAILED** — the dtype fix is verified (compilation got past it), but
+  a *different* downstream issue blocks the test. Revert the YAML entry
+  to `status: NOT_SUPPORTED_SKIP` with a `bringup_status` and a `reason`
+  that captures the new error verbatim (one line, quoted).
+
+  `bringup_status` reflects the **pipeline stage** of the failure, not
+  the Python exception class. A `RuntimeError` from torch during forward
+  or autograd is still `FAILED_FE_COMPILATION` — `FAILED_RUNTIME` is
+  reserved for TT-device runtime, post-compilation. Pick by stage:
+  - `FAILED_FE_COMPILATION` — anything before the TT device executes:
+    model load, CPU baseline forward/backward, autograd graph build,
+    dtype mismatches during forward, FX/stablehlo lowering. Most torch
+    `RuntimeError`s land here. (Example reasons in the YAML:
+    `"RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"`,
+    `"RuntimeError: mat1 and mat2 must have the same dtype..."`.)
+  - `FAILED_RUNTIME` — TT device runtime only: kernel hangs, L1/DRAM
+    allocation overflow on TT cores, TT-Metal asserts. (Example:
+    `"RuntimeError: Test Hangs"`, `"Statically allocated circular
+    buffers ... beyond max L1 size"`.)
+  - `FAILED_TTMLIR_COMPILATION` — failures inside the TT-MLIR compiler
+    proper (post-stablehlo, before runtime).
+
+  Quick disambiguator: if the traceback shows the failure inside
+  `_run_on_cpu(...)` or before any TT/XLA call, it's
+  `FAILED_FE_COMPILATION`, regardless of the exception type.
+
+Example revert when the test fails with a torch autograd error:
+```yaml
+yolov6/pytorch-N-single_device-training:
+  status: NOT_SUPPORTED_SKIP
+  bringup_status: FAILED_FE_COMPILATION
+  reason: "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
+```
+
+**Run-budget guidance:** when fixing many entries, run pytest
+sequentially (not in parallel) — each test acquires the TT device. Use
+`pytest --collect-only` first to confirm the test ID resolves to exactly
+one item; then run each in turn. If a single test exceeds ~10 minutes,
+kill it and mark `bringup_status: FAILED_RUNTIME`,
+`reason: "Test timed out"`.
+
+Report a summary at the end:
+- Which models pass end-to-end (kept `EXPECTED_PASSING`).
+- Which models had the dtype error replaced by a new error (reverted to
+  `NOT_SUPPORTED_SKIP` with the captured reason).
+- Which models remain unchanged because the fix could not be determined
+  from the float32 CPU run.
+
+---
+
 ## Reference files
 
 - `tests/runner/test_config/torch/test_config_training_single_device.yaml` — test config
