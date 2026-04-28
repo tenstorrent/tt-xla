@@ -2651,7 +2651,7 @@ def test_glm_4_attention_prefill(seq_len, variant, variant_config):
     ids=[str(k) for k in get_available_variants("glm_4").keys()],
 )
 @pytest.mark.xfail(
-    reason="TT_FATAL: MUL_BCAST_GRANULARITY (3) must be power of 2 (sdpa_decode)"
+    reason="TT_FATAL: MUL_BCAST_GRANULARITY (3) must be power of 2. https://github.com/tenstorrent/tt-xla/issues/4282"
 )
 def test_glm_4_attention_decode(variant, variant_config, arch):
     xr.set_device_type("TT")
