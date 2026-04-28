@@ -51,57 +51,114 @@ plain `torch.Tensor` and has no registered handler. The fix is either:
 - Register the output class in `training_utils.py` via `_register_attr`, or
 - Override `unpack_forward_output` in the specific model loader.
 
+**No CPU execution is needed for this pattern.** The YAML error message proves
+the model already loaded and ran on the TT device — it only failed at the
+output-unpacking step. The output class is determined by the model's `forward()`
+return type, which is fixed and discoverable from the loader code or HF docs
+without running anything.
+
 ### Workflow
 
-Do not ask clarifying questions. Run the steps below immediately.
+Do not ask clarifying questions. Work through each model statically.
 
-1. First, list all models for this pattern (no execution):
+1. List all unpack failures:
    ```bash
    python tools/triage_fe_failures.py --pattern unpack
    ```
-   This gives you the full model list with loader paths.
 
-2. Run models in batches of 5 to collect output class names. The `--run` flag
-   executes each model on CPU and will time out if run on all models at once.
-   Use `--offset` and `--limit` to split into batches:
+2. For each entry, read the loader file to identify the model and its output
+   class. For HuggingFace models the output class name is typically the return
+   type annotation of `forward()`, or matches the model class name pattern.
+   Check whether the class is already in `_HANDLER_REGISTRY`:
    ```bash
-   python tools/triage_fe_failures.py --pattern unpack --run --limit 5            # models 1-5
-   python tools/triage_fe_failures.py --pattern unpack --run --limit 5 --offset 5 # models 6-10
-   python tools/triage_fe_failures.py --pattern unpack --run --limit 5 --offset 10 # models 11-15
+   grep "ClassName" third_party/tt_forge_models/training_utils.py
    ```
-   Repeat until all models are covered. For each model the script prints
-   `output_class=XYZ` and whether it's already registered in `_HANDLER_REGISTRY`.
+   If it is already registered, the YAML entry is stale — just update it to
+   `EXPECTED_PASSING` (see Step 4).
 
-3. For each unregistered output class, determine the correct tensor attribute
-   by reading the loader and model output class source. Priority order for
-   training loss:
-   - `logits` — classification, LM heads (cross-entropy loss)
-   - `last_hidden_state` — encoder-only/embedding models
-   - `loss` — if model returns pre-computed loss (rare in this codebase)
-   - `sample` — diffusion model outputs
-   - `predicted_depth` — depth estimation
+3. Apply the fix using the decision table:
 
-4. **If the same output class is shared across models** (common for HF model families):
-   Add a single line to `third_party/tt_forge_models/training_utils.py`:
+   **A — HuggingFace named output class** (class name ends in `Output`):
+   The class name is determined by the task/architecture. Apply the table:
+   | Output class name pattern | Attribute |
+   |---------------------------|-----------|
+   | `*ImageClassifier*`, `*Classification*`, `*ObjectDetection*`, `*Semantic*`, `*Segmenter*` | `logits` |
+   | `*CausalLM*`, `*MaskedLM*`, `*LMOutput*`, `*Seq2Seq*`, `*TokenClassifier*` | `logits` |
+   | `*QuestionAnswering*` | `start_logits` |
+   | `*ContextEncoder*`, `*QuestionEncoder*`, `*Encoder*` (DPR-style) | `pooler_output` |
+   | `*BaseModel*`, embedding models | `last_hidden_state` |
+   | `Sam*Segmentation*` | `pred_masks` |
+   | `*MaskedImageModeling*`, `*Reconstruction*` | `reconstruction` |
+   | `*Depth*` | `predicted_depth` |
+   | `UNet2DCondition*`, diffusion | `sample` |
+
+   Fix: add one line to `third_party/tt_forge_models/training_utils.py` (keep
+   the block alphabetically sorted):
    ```python
-   _register_attr("OutputClassName", "logits")  # or whichever attr
+   _register_attr("OutputClassName", "logits")
    ```
 
-5. **If the model returns a plain tuple/list or a custom class** that can't be
-   unambiguously mapped to one tensor (e.g., object detection models returning
-   `(cls_scores, bbox_preds)`, or models where the "right" tensor depends on
-   task): override `unpack_forward_output` in the model's `loader.py`:
+   This works even when the model fails to load locally (e.g. `IRD_LF_CACHE`
+   not set, `AttributeError` during init, missing module). The class name comes
+   from the HF docs or the loader's import/type hints, not from running the model.
+
+   **B — dict output**:
+   Read the loader to identify the primary output key (look at the model's
+   `forward()` return statement or HF docs). Implement `unpack_forward_output`
+   in the model's `loader.py`:
    ```python
    def unpack_forward_output(self, fwd_output):
-       # Return the tensor that makes sense for the training loss
-       return fwd_output[0]  # or fwd_output.logits, etc.
+       return fwd_output["dense_vecs"]  # replace with the actual key
    ```
-   See existing overrides in:
-   ```bash
-   grep -rn "def unpack_forward_output" third_party/tt_forge_models/ --include="*.py" -l
-   ```
+   Only use `--run` here if the dict keys are genuinely unknown after reading
+   the code.
 
-6. After applying all fixes, update their status in the YAML (see Step 4 below).
+   **C — tuple, list, or non-HF custom class**:
+   Read the loader's `forward()` or any patched forward function defined in the
+   loader file to understand the output structure. If the tuple has a known
+   structure (e.g. `(head_outputs, anchors)`), destructure it and recurse only
+   into the loss-relevant part:
+   ```python
+   def unpack_forward_output(self, fwd_output):
+       import torch
+       from ...tools.utils import extract_tensors_recursive
+       head_outputs, anchors = fwd_output  # if structure is known
+       tensors = []
+       extract_tensors_recursive(head_outputs, tensors)
+       if tensors:
+           return torch.cat([t.flatten() for t in tensors])
+       return head_outputs["cls_logits"]
+   ```
+   If the structure is unknown (opaque list/tuple), use the generic form:
+   ```python
+   def unpack_forward_output(self, fwd_output):
+       import torch
+       from ...tools.utils import extract_tensors_recursive
+       tensors = []
+       extract_tensors_recursive(fwd_output, tensors)
+       if tensors:
+           return torch.cat([t.flatten() for t in tensors])
+       return fwd_output
+   ```
+   Detection models that fail to load locally (e.g. `IRD_LF_CACHE`) can still
+   be fixed this way — the generic `extract_tensors_recursive` pattern is safe
+   for any detection model returning a list or tuple of tensors.
+
+   **Style note:** always use local imports inside `unpack_forward_output`
+   (not top-level), consistent with the rest of the codebase.
+
+4. After applying all fixes, update their status in the YAML (see Step 4 below).
+
+### When to use `--run`
+
+Only reach for `--run` when static analysis is insufficient:
+- The output class is a **custom non-HF class** and you cannot determine it
+  from reading the loader code
+- The output is a **dict** and the relevant key is not obvious from the code
+
+Even then, only run models that actually load successfully locally. Models
+blocked by `IRD_LF_CACHE`, `AttributeError` during init, or missing modules
+must be fixed statically.
 
 ---
 
