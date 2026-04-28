@@ -295,6 +295,64 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Clamp start indices in aten.slice.Tensor nodes that exceed [-dim_size, dim_size-1].
+
+    PyTorch CPU silently clamps start < -dim_size to 0, but XLA/TT raises
+    RuntimeError: Value out of range. Triggered by SlidingWindowCache.update()
+    doing full_value_states[:, :, -sliding_window+1:, :] when seq_len < sliding_window.
+    """
+    graph = gm.graph
+    modified = False
+
+    for node in graph.nodes:
+        if node.op != "call_function" or node.target is not torch.ops.aten.slice.Tensor:
+            continue
+
+        args = list(node.args)
+        if len(args) < 3:
+            continue
+
+        start = args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+
+        input_node = args[0]
+        shape = None
+        if "val" in input_node.meta:
+            shape = input_node.meta["val"].shape
+        elif "tensor_meta" in input_node.meta:
+            shape = input_node.meta["tensor_meta"].shape
+        if shape is None:
+            continue
+
+        dim = int(args[1]) if len(args) > 1 else 0
+        if dim < 0:
+            dim += len(shape)
+        if dim >= len(shape):
+            continue
+
+        dim_size = shape[dim]
+        if not isinstance(dim_size, int):
+            continue
+
+        if start < -dim_size:
+            clamped = -dim_size
+            logger.debug(
+                f"clamp_out_of_range_slice_starts: clamped start {start} → {clamped} "
+                f"(dim={dim}, dim_size={dim_size})"
+            )
+            args[2] = clamped
+            node.args = tuple(args)
+            modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
