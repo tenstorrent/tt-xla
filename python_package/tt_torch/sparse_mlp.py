@@ -625,9 +625,12 @@ class A2aSparseMLP(nn.Module):
             ).permute(1, 0, 2)
             down_per_expert = down_proj.squeeze(0)
             down_out = torch.bmm(act_per_expert, down_per_expert)
+            down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
+            down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
             if down_bias is not None:
-                down_out = down_out + down_bias.unsqueeze(1)
-            down_out = down_out.unsqueeze(1)
+                down_out = down_out + down_bias
+            down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
+            down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
 
         else:
             # ===== Fused moe_expert_token_remap path =====
@@ -947,7 +950,11 @@ class A2aSparseMLPWithSharedExperts(nn.Module):
 
     def forward(self, hidden_states):
         out, _ = self.mlp(hidden_states)
-        if self.shared_experts is not None:
+        # On CPU, _cpu_forward delegates to the original MoE which already adds
+        # shared_experts internally (DS V4 MoE.forward: y += self.shared_experts(x)).
+        # On TT, dispatch/combine produces routed-only output, so shared must be
+        # added here. Skip on CPU to avoid double-counting.
+        if self.shared_experts is not None and hidden_states.device.type != "cpu":
             out = out + self.shared_experts(hidden_states)
         return out
 
