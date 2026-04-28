@@ -1597,7 +1597,7 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
-  deepseek/qwen/pytorch-single_device-training:
+  deepseek/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 8 banks, where each bank needs to store 1073741824 B, but bank size is 4273390016 B"
