@@ -11,15 +11,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <string>
-#include <unordered_map>
 #include <vector>
 
 // PJRT C API includes
 #include "xla/pjrt/c/pjrt_c_api.h"
 
 // tt-mlir includes
-#include "mlir/Support/LogicalResult.h"
 #include "tt/runtime/types.h"
 
 // tt-xla includes
@@ -57,10 +54,6 @@ private:
   prepareInputTensor(const std::vector<BufferInstance *> &arg_buffers,
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
-
-  // Create default-initialized output buffers for SO execution
-  void createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
-                                  size_t num_devices);
 
 private:
   // Creates SO loaded executable instance from the executable image.

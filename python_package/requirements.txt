@@ -6,6 +6,11 @@ torch@https://download.pytorch.org/whl/cpu/torch-2.9.1%2Bcpu-cp312-cp312-manylin
 loguru
 torch-xla@https://pypi.eng.aws.tenstorrent.com/torch-xla/torch_xla-2.9.0%2Bgit44ecef3-cp312-cp312-linux_x86_64.whl
 
+# Pin nanobind to match tt-metal's version (v2.10.2) for ABI compatibility.
+# A mismatch causes segfaults in nb_type_c2p when PythonModelRunner converts
+# ttnn::Tensor objects via nanobind (different NB_INTERNALS_VERSION).
+nanobind==2.10.2
+
 # TTNN + tracy requirements
 networkx==3.6.1
 graphviz==0.21

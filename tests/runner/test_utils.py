@@ -203,6 +203,9 @@ class ModelTestConfig:
 
         # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
         self.inject_custom_moe = self._resolve("inject_custom_moe", default=False)
+        # EmitPy verification: assert exact match (default True).
+        # Set to false in YAML config for models with known minor differences.
+        self.emitpy_assert_exact = self._resolve("emitpy_assert_exact", default=True)
 
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})

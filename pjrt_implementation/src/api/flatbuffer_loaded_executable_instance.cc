@@ -9,18 +9,13 @@
 #include "tracy/Tracy.hpp"
 
 // tt-mlir includes
-#define TTMLIR_ENABLE_STABLEHLO 1
 #include "tt/runtime/types.h"
-#include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
-#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 
 // tt-xla includes
 #include "api/buffer_instance.h"
-#include "api/error_instance.h"
 #include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/tensor.h"
-#include "utils/assert.h"
 #include "utils/logging.h"
 #include "utils/utils.h"
 
@@ -81,88 +76,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   tensor.ensure_layout(runtime_device, expected_layout);
 
   return tensor.runtime_tensor();
-}
-
-void FlatbufferLoadedExecutableInstance::fillPJRTOutputLists(
-    const std::vector<tt::runtime::Tensor> &output_tensors, size_t num_devices,
-    PJRT_Buffer **const *output_lists,
-    const std::vector<PJRT_Buffer_Type> &expected_output_data_types) {
-  ZoneScoped;
-  size_t n_prog_output_tensors = output_tensors.size();
-
-  // Iterate over the available tensors and devices, filling in the PJRT Buffer
-  // outputs. The output BufferInstance is initialized with a device tensor
-  // which is lazily returned to host when CopyToHost is called.
-  for (size_t output_index = 0; output_index < n_prog_output_tensors;
-       output_index++) {
-    tt::runtime::Tensor outputTensor = output_tensors[output_index];
-
-    std::vector<BufferInstance *> shards;
-    shards.reserve(num_devices);
-
-    for (int device_index = 0; device_index < num_devices; ++device_index) {
-      std::vector<std::uint32_t> output_shape = getOutputShape(output_index);
-
-      // For a given output_index, each device will get the same
-      // outputDeviceTensor This is trivially correct for replicated outputs.
-      // For sharded outputs, the outputDeviceTensor is a multi-device tensor
-      // and represents all shards. Therefore, the outputDevice tensor will
-      // still be the same for each device, and the BufferInstance will store
-      // which shard to retrieve via the device index, when requested in
-      // CopyToHost.
-      std::unique_ptr<BufferInstance> output_buffer =
-          BufferInstance::createOutputBufferInstance(
-              std::move(output_shape), m_addressable_devices[device_index],
-              m_addressable_devices[device_index]->getDefaultMemory(),
-              expected_output_data_types[output_index], device_index);
-      DLOG_F(LOG_DEBUG,
-             "Filled output at output_index %zu device_index %d with shape %s "
-             "and UID %zu",
-             output_index, device_index, output_buffer->toShapeStr().c_str(),
-             output_buffer->getUID());
-
-      output_buffer->markAsDataReady();
-
-      shards.emplace_back(output_buffer.get());
-
-      // Releasing the ownership to the PJRT API caller since the caller is
-      // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
-      output_lists[device_index][output_index] = *output_buffer.release();
-    }
-
-    PjrtTensor::from_runtime_tensor(shards, std::move(outputTensor));
-  }
-}
-
-std::vector<std::uint32_t>
-FlatbufferLoadedExecutableInstance::getOutputShape(size_t output_index) {
-  std::vector<std::uint32_t> outputShape =
-      m_executable_image->getOutputShape(output_index);
-  const mlir::tt::sharding_utils::MeshSharding &outputSharding =
-      m_executable_image->getOutputSharding(output_index);
-
-  if (outputSharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Identity ||
-      outputSharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Replicate) {
-    return outputShape;
-  }
-  llvm::SmallVector<int64_t> output_sharding_shard_shape =
-      outputSharding.getShardShape();
-  TT_FATAL(output_sharding_shard_shape.size() == outputShape.size(),
-           "Output sharding shape doesn't match the output shape: "
-           "output_sharding_shard_shape.size()={}, outputShape.size()={}",
-           output_sharding_shard_shape.size(), outputShape.size());
-
-  for (size_t i = 0; i < outputShape.size(); ++i) {
-    TT_FATAL(outputShape[i] % output_sharding_shard_shape[i] == 0,
-             "Output shape is not divisible by the sharding shape: "
-             "dim={}, outputShape[dim]={}, output_sharding_shard_shape[dim]={}",
-             i, outputShape[i], output_sharding_shard_shape[i]);
-    outputShape[i] /= output_sharding_shard_shape[i];
-  }
-
-  return outputShape;
 }
 
 std::shared_ptr<FlatbufferExecutableImage>
@@ -229,30 +142,41 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     dumpInputs(input_tensors);
   }
 
-  FlatbufferExecutableImage *executable_image =
-      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+  if (m_executable_image->getCompileOptions().dry_run) {
+    status = createDefaultOutputBuffers(args->output_lists, args->num_devices);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
+  } else {
+    FlatbufferExecutableImage *executable_image =
+        static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
-  auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
-                                  executable_image->getFlatbufferBinary(),
-                                  program_index, input_tensors);
+    auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
+                                    executable_image->getFlatbufferBinary(),
+                                    program_index, input_tensors);
 
-  if (!r) {
-    m_client_instance->closeMeshDevice();
-    return tt_pjrt_status::kInternal;
+    if (!r) {
+      m_client_instance->closeMeshDevice();
+      return tt_pjrt_status::kInternal;
+    }
+
+    std::vector<tt::runtime::Tensor> &output_tensors = *r;
+
+    if (output_tensors.size() != m_executable_image->getNumOutputs()) {
+      LOG_F(ERROR,
+            "Runtime produced different number of output tensors (%zu) than "
+            "the compiler estimated number of outputs (%zu)",
+            output_tensors.size(), m_executable_image->getNumOutputs());
+      return tt_pjrt_status::kInternal;
+    }
+
+    status = fillPJRTOutputLists(output_tensors, args->num_devices,
+                                 args->output_lists,
+                                 m_executable_image->getOutputTypes());
+    if (!tt_pjrt_status_is_ok(status)) {
+      return status;
+    }
   }
-
-  std::vector<tt::runtime::Tensor> &output_tensors = *r;
-
-  if (output_tensors.size() != m_executable_image->getNumOutputs()) {
-    LOG_F(ERROR,
-          "Runtime produced different number of output tensors (%zu) than the "
-          "compiler estimated number of outputs (%zu)",
-          output_tensors.size(), m_executable_image->getNumOutputs());
-    return tt_pjrt_status::kInternal;
-  }
-
-  fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
-                      m_executable_image->getOutputTypes());
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {
