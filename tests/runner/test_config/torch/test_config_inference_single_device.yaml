@@ -1822,6 +1822,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>>'"
 
+  ggml_llava_v1_5_7b/pytorch-v1.5_7B_Q4_K-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 9948889088 B DRAM buffer across 8 banks — LLaVA-1.5-7B de-quantized from GGUF Q4_K to BF16 exceeds p150b single-device DRAM capacity (32 GB needed vs 32 GB available with compilation overhead)"
+
   qwen_2_5/causal_lm/pytorch-72B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
