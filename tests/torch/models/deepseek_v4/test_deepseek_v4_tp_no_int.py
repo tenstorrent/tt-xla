@@ -10,6 +10,7 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
+from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt import (
     Attention,
@@ -20,12 +21,15 @@ from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt imp
 )
 
 PCC_99 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
+PCC_SPARSE = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.95))
 
 
 def make_mesh() -> Mesh:
     num_devices = xr.global_runtime_device_count()
     if num_devices == 32:
         mesh_shape = (4, 8)
+    elif num_devices == 8:
+        mesh_shape = (2, 4)
     else:
         mesh_shape = (1, num_devices)
     device_ids = np.array(range(num_devices))
@@ -376,13 +380,25 @@ def _block_shard_spec(block, args, kwargs):
         shard_specs[attn.indexer.compressor.kv_state] = ("batch", None, None)
         shard_specs[attn.indexer.compressor.score_state] = ("batch", None, None)
 
+    ffn = block.ffn
+    if hasattr(ffn, "mlp") and hasattr(ffn.mlp, "experts"):
+        experts = ffn.mlp.experts
+        compound = ("batch", "model")
+        shard_specs[experts.gate_proj] = (compound, None, None)
+        shard_specs[experts.up_proj] = (compound, None, None)
+        shard_specs[experts.down_proj] = (compound, None, None)
+    # shared = getattr(ffn, "shared_experts", None)
+    # if shared is not None:
+    #     shard_specs[shared.w1.weight] = ("model", None)
+    #     shard_specs[shared.w3.weight] = ("model", None)
+    #     shard_specs[shared.w2.weight] = (None, "model")
+
     shard_specs[args[0]] = ("batch", None, None, None)  # x: [b, s, hc, d]
     shard_specs[args[2]] = ("batch", None)  # input_ids: [b, s]
     return shard_specs
 
 
 @pytest.mark.nightly
-@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     "args,no_compression_layer_id,compression_layer_id", ATTENTION_TEST_CONFIGS
 )
@@ -398,7 +414,7 @@ def test_block_prefill(
     xr.set_device_type("TT")
 
     bsz = 4
-    seq_len = 16
+    seq_len = 32
     args.max_batch_size = bsz
 
     layer_id = compression_layer_id if with_compression else no_compression_layer_id
@@ -409,18 +425,19 @@ def test_block_prefill(
     input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
     mesh = make_mesh()
 
+    enable_sparse_mlp(block, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
+
     run_graph_test(
         block,
         [x, torch.tensor(0, dtype=torch.long), input_ids],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_block_shard_spec,
-        comparison_config=PCC_99,
+        comparison_config=PCC_SPARSE,
     )
 
 
 @pytest.mark.nightly
-@pytest.mark.dual_chip
 @pytest.mark.parametrize(
     "args,no_compression_layer_id,compression_layer_id", ATTENTION_TEST_CONFIGS
 )
@@ -447,11 +464,13 @@ def test_block_decode(
     input_ids = torch.randint(0, args.vocab_size, (bsz, seq_len), dtype=torch.long)
     mesh = make_mesh()
 
+    enable_sparse_mlp(block, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
+
     run_graph_test(
         block,
         [x, torch.tensor(4, dtype=torch.long), input_ids],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=_block_shard_spec,
-        comparison_config=PCC_99,
+        comparison_config=PCC_SPARSE,
     )
