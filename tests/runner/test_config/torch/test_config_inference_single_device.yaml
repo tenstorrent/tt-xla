@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  mirothinker/causal_lm/pytorch-huihui_v1_5_30B_abliterated-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model weights ~60 GB in bf16 (48 MoE layers × 128 experts) exceed single-device DRAM (12 GB n150)"
