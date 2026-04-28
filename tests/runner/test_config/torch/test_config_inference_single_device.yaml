@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  aratako_qwen3_30b_a3b_nsfw_jp/causal_lm/pytorch-30B_A3B_NSFW_JP-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Qwen3-30B-A3B-NSFW-JP requires ~60 GB device DRAM in BF16; exceeds single p300c device capacity (~24 GB per chip)"
