@@ -277,11 +277,6 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
 std::vector<std::uint32_t>
 BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
                                PJRT_Buffer_Type data_type) {
-  if (data_type_utils::isComplexPJRTType(data_type) && num_dims == 0) {
-    // Throw error if complex tensor num_dims == 0.
-    TT_THROW("Complex tensor with num_dims == 0 is not supported.");
-  }
-
   std::vector<std::uint32_t> shape;
   for (size_t i = 0; i < num_dims; ++i) {
     shape.push_back(dims[i]);
