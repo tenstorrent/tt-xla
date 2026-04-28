@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import dataclasses
 import json
 import os
 
@@ -12,6 +13,12 @@ from utils import resolve_display_name
 # Set VLLM_ENABLE_TRACE=1 to run the trace benchmark configs with metal trace enabled.
 # Default is off so CI measures the stable no-trace baseline.
 _ENABLE_TRACE = os.environ.get("VLLM_ENABLE_TRACE", "0").lower() in ("1", "true")
+
+# Tracy device profiling (-p) is incompatible with metal trace: tracy reads
+# perf counters via event sync, which tt-metal forbids inside trace capture.
+# Auto-disable trace when tracy is active so the same configs work for both
+# perf measurement (trace ON) and op-level tracy capture (trace OFF).
+_TRACY_ACTIVE = os.environ.get("TRACY_PROFILING_ACTIVE", "") == "1"
 
 SINGLE_DEVICE_CONFIGS = [
     pytest.param(
@@ -78,7 +85,13 @@ TRACE_CONFIGS = [
 ]
 
 
-def _run_vllm_benchmark(config, output_file, request):
+def _run_vllm_benchmark(config, output_file, request, max_output_tokens):
+    if max_output_tokens is not None:
+        # Honor --max-output-tokens. The pytest option is wired up in
+        # conftest.py but test_sampling_quality didn't thread it to the
+        # benchmark, leaving config.max_tokens at the 128 default.
+        config = dataclasses.replace(config, max_tokens=max_output_tokens)
+
     display_name = "vllm_" + resolve_display_name(
         request=request, fallback=config.model
     )
@@ -98,13 +111,13 @@ def _run_vllm_benchmark(config, output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
 
 
 @pytest.mark.parametrize("config", TRACE_CONFIGS)
-def test_vllm_trace_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_trace_benchmark(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
 
 
 # Sampling quality tests: greedy and non-greedy (temp=1.0) device sampling
@@ -134,7 +147,7 @@ _QUALITY_OPTS = dict(
     cpu_sampling=False,
     optimization_level=1,
     experimental_weight_dtype="bfp_bf8",
-    enable_trace=True,
+    enable_trace=not _TRACY_ACTIVE,
 )
 
 _QUALITY_OPTS_CPU = dict(_QUALITY_OPTS, cpu_sampling=True)
@@ -179,5 +192,5 @@ SAMPLING_QUALITY_CONFIGS = [
 
 
 @pytest.mark.parametrize("config", SAMPLING_QUALITY_CONFIGS)
-def test_sampling_quality(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_sampling_quality(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
