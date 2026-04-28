@@ -197,7 +197,12 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
-        greedy_sampled = self.greedy_sample(logits)
+        # Skip greedy_sample when every row is sampling (all_random=True);
+        # the torch.where below would discard greedy_sampled anyway. ArgMax
+        # over full vocab was ~34% of sampler runtime at b=32 in tracy.
+        all_random = sampling_metadata.all_random
+        if not all_random:
+            greedy_sampled = self.greedy_sample(logits)
 
         # Build the candidate set via chunked multi-core topk. The fused
         # tt::sampling kernel applies user top-k, top-p, softmax, and
@@ -206,6 +211,8 @@ class Sampler(nn.Module):
         random_sampled = self._ttnn_sampling_padded(
             filtered_logits, candidate_indices, sampling_metadata
         )
+        if all_random:
+            return random_sampled
         return torch.where(
             sampling_metadata.temperature < _SAMPLING_EPS,
             greedy_sampled,
