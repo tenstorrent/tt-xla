@@ -63,6 +63,8 @@ def test_llm(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    expected_ops: list = None,
+    check_fusions: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -159,6 +161,8 @@ def test_llm(
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
         use_mla_cache=use_mla_cache,
+        expected_ops=expected_ops,
+        check_fusions_enabled=check_fusions,
     )
 
     if output_file:
@@ -261,6 +265,7 @@ def test_llama_3_2_1b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -283,6 +288,11 @@ def test_llama_3_2_1b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            "ttnn.scaled_dot_product_attention",
+            "ttnn.rms_norm",
+        ],
+        check_fusions=check_fusions,
     )
 
 

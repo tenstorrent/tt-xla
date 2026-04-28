@@ -6,6 +6,7 @@
 import os
 import socket
 import sys
+import time
 from typing import Optional, Union
 
 import numpy as np
@@ -263,6 +264,8 @@ def benchmark_llm_torch_xla(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    expected_ops: list = None,
+    check_fusions_enabled: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -480,6 +483,7 @@ def benchmark_llm_torch_xla(
         output_sharding_spec=input_output_sharding_spec,
     )
     perf_wrapper.eval()
+    before_compile_ts = time.time()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
     warmup_kv_cache = None
@@ -760,5 +764,15 @@ def benchmark_llm_torch_xla(
         device_count=device_count,
         mesh_shape=mesh_shape,
     )
+
+    if check_fusions_enabled and expected_ops:
+        from fusion_check import check_fusions
+
+        check_fusions(
+            expected_ops=expected_ops,
+            export_model_name=export_model_name,
+            modules_dir=MODULE_EXPORT_PATH,
+            before_compile_ts=before_compile_ts,
+        )
 
     return result
