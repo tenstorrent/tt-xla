@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  gemma_3_12b_it_quantized_w8a8/pytorch-12B_IT_Quantized_W8A8-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "INTERNAL: Error code: 13 (OOM) at lm_head execution. RedHatAI W8A8 model uses compressed-tensors int8 quantization, which TT does not support natively; dequantizing to bfloat16 yields ~24GB+ total weight footprint, exceeding p150b DRAM capacity (24GB)."
