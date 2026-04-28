@@ -33,6 +33,7 @@ jobs:
       adv_filter: '[ {"runs-on": "p150", "accuracy-testing": false} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      perf_regression_check: true
 
   run-n150-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
@@ -43,6 +44,7 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       sh-runner: true
+      perf_regression_check: true
 
   run-llmbox-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
@@ -52,6 +54,7 @@ jobs:
       adv_filter: '[ {"runs-on": "n300-llmbox", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      perf_regression_check: true
 
   run-galaxy-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
@@ -61,6 +64,7 @@ jobs:
       adv_filter: '[ {"runs-on": "galaxy-wh-6u", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      perf_regression_check: true
 
   fail-notify:
     needs:
