@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  bartowski_skywork_skywork_swe_32b_gguf/causal_lm/pytorch-Skywork_SWE_32B_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 8 banks, where each bank needs to store 35389440 B, but bank size is 4273390016 B (allocated: 4209222080 B, free: 64167936 B) — 32B model (~31 GB quantized) exceeds single-device DRAM"
