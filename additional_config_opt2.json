@@ -1,0 +1,7 @@
+{
+  "optimization_level": 2,
+  "num_hidden_layers": 2,
+  "debug_dump_logits_dir": "/tmp/logits_opt2",
+  "export_path": "/tmp/tt_ir_opt2",
+  "export_model_name": "gemma4_2l"
+}

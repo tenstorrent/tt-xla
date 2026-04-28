@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import json
+
 import pytest
 
 
@@ -68,6 +70,18 @@ def pytest_addoption(parser):
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
     )
 
+    parser.addoption(
+        "--tt-additional-config",
+        action="store",
+        default=None,
+        help=(
+            "TTConfig overrides merged into the test's additional_config.  "
+            "Accepts either an inline JSON string or a path to a .json file.  "
+            "Example (inline): '{\"optimization_level\": 2, \"num_hidden_layers\": 2}'  "
+            "Example (file):   --tt-additional-config overrides.json"
+        ),
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -97,3 +111,30 @@ def max_output_tokens(request):
 @pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def tt_additional_config(request):
+    """Return a dict of TTConfig overrides from --tt-additional-config, or {}."""
+    raw = request.config.getoption("--tt-additional-config")
+    if raw is None:
+        return {}
+    # Try to treat it as a file path first, then fall back to inline JSON.
+    import os
+
+    if os.path.isfile(raw):
+        with open(raw) as f:
+            data = json.load(f)
+    else:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError as e:
+            raise pytest.UsageError(
+                f"--tt-additional-config: not a valid file path or JSON string: {e}"
+            )
+    if not isinstance(data, dict):
+        raise pytest.UsageError(
+            "--tt-additional-config: must be a JSON object (dict), got "
+            f"{type(data).__name__}"
+        )
+    return data

@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "sshon/temp2")
+    set(TT_MLIR_VERSION "a34600e551996c3ca557a7db55cbe9d3b7f1b01b")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
@@ -41,6 +41,13 @@ else()
     if(TTXLA_ENABLE_EXPLORER)
         set(TT_RUNTIME_DEBUG ON)
     endif()
+    # Force-enable runtime debug so logMemoryStateIfNeeded fires per-op when
+    # TT_RUNTIME_MEMORY_LOG_LEVEL=operation is set. Used to chase the
+    # rms_norm CB-vs-L1 collision in Gemma-4 g1, and the FromDeviceOp
+    # readback hang on g23 (we want to see which op last logged before the
+    # readback wedges).
+    # set(TT_RUNTIME_DEBUG ON)
+    set(TT_RUNTIME_DEBUG OFF)
 
     message(STATUS "ttmlir runtime debugging is set to: ${TT_RUNTIME_DEBUG}")
 

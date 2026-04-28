@@ -127,7 +127,11 @@ BHQB_CONFIGS = [
 ]
 
 
-def _run_vllm_benchmark(config, output_file, request):
+def _run_vllm_benchmark(config, output_file, request, tt_additional_config=None):
+    if tt_additional_config:
+        config.additional_config = {**config.additional_config, **tt_additional_config}
+        print(f"TTConfig overrides applied: {tt_additional_config}")
+
     display_name = "vllm_" + resolve_display_name(
         request=request, fallback=config.model
     )
@@ -147,12 +151,12 @@ def _run_vllm_benchmark(config, output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark(config, output_file, request, tt_additional_config):
+    _run_vllm_benchmark(config, output_file, request, tt_additional_config)
 
 
 @pytest.mark.bhqb
 @pytest.mark.tensor_parallel
 @pytest.mark.parametrize("config", BHQB_CONFIGS)
-def test_vllm_benchmark_bhqb(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark_bhqb(config, output_file, request, tt_additional_config):
+    _run_vllm_benchmark(config, output_file, request, tt_additional_config)
