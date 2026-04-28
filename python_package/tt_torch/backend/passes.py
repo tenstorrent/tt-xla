@@ -277,6 +277,66 @@ def insert_argument_type_markers(
     return gm
 
 
+def normalize_index_tensor_index_dtypes(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Cast all integer index tensors in aten.index.Tensor to int64.
+
+    XLA requires that all index tensors concatenated to form a gather index
+    have the same element type (S64). Mixed S32/S64 indices trigger
+    "Cannot concatenate arrays with different element types" during lowering.
+    This pass inserts aten._to_copy casts before any aten.index.Tensor whose
+    index list contains tensors with non-int64 integer dtypes.
+    """
+    _INT_DTYPES = {torch.int8, torch.int16, torch.int32}
+    aten = torch.ops.aten
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if node.op != "call_function" or node.target != aten.index.Tensor:
+            continue
+
+        indices = node.args[1]
+        if not isinstance(indices, (list, tuple)):
+            continue
+
+        new_indices = list(indices)
+        needs_update = False
+
+        for i, idx in enumerate(indices):
+            if not isinstance(idx, torch.fx.Node):
+                continue
+            idx_meta = idx.meta.get("tensor_meta")
+            if idx_meta is None:
+                continue
+            if idx_meta.dtype in _INT_DTYPES:
+                with graph.inserting_before(node):
+                    cast_node = graph.call_function(
+                        aten._to_copy.default,
+                        args=(idx,),
+                        kwargs={"dtype": torch.int64},
+                    )
+                    new_meta = dict(idx.meta)
+                    if "tensor_meta" in new_meta:
+                        new_meta["tensor_meta"] = new_meta["tensor_meta"]._replace(
+                            dtype=torch.int64
+                        )
+                    cast_node.meta = new_meta
+                new_indices[i] = cast_node
+                needs_update = True
+
+        if needs_update:
+            node.args = (node.args[0], new_indices)
+            modified = True
+
+    if modified:
+        graph.eliminate_dead_code()
+        graph.lint()
+        gm.recompile()
+
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
