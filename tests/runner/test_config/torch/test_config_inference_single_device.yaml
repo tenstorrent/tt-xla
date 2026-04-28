@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  grin_moe/causal_lm/pytorch-GRIN-MoE-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model too large for single-device DRAM: GRIN-MoE has ~42B total parameters (~84 GB at bfloat16), exceeding n150 (12 GB) and p150b (24 GB) capacity. RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 (OOM during compilation)"
