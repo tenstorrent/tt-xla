@@ -60,7 +60,7 @@ BATCH_SIZE = 32
 # real_args.compress_ratios so the included layers stay consistent with the
 # real-checkpoint layout (mirrors transformer_args in
 # test_deepseek_v4_tp_no_int.py:163).
-NUM_LAYERS = 2
+NUM_LAYERS = 16
 
 # One distinct prompt per batch row; len(PROMPTS) must equal BATCH_SIZE.
 PROMPTS = [
@@ -317,25 +317,17 @@ def test_e2e_prefill_decode_full_real() -> None:
     model = model.to(device)
     gc.collect()
 
-    # --- Persistent start_pos / increment buffers (compile-friendly) ------
-    model.register_buffer(
-        "sp_buffer",
-        torch.tensor([PROMPT_LEN], dtype=torch.long, device=device),
-    )
-    model.register_buffer(
-        "one_buffer",
-        torch.ones(1, dtype=torch.long, device=device),
-    )
-
-    # --- Mark sharding (once) --------------------------------------------
-    print("[shard] marking sharding for every weight + cache buffer ...",
-          flush=True)
     for tensor, spec in transformer_shard_spec(model).items():
         xs.mark_sharding(tensor, mesh, spec)
-    xs.mark_sharding(model.sp_buffer, mesh, (None,))
-    xs.mark_sharding(model.one_buffer, mesh, (None,))
 
     # --- Compile (one handle, reused for prefill and every decode step) --
+    # Compiled-mode pattern (mirrors test_prefill_decode_cache_coherence_compiled
+    # in test_deepseek_v4_prefill_decode_loop_no_int.py:243-251): pass start_pos
+    # as a fresh CPU->device tensor argument every call. dynamo turns it into a
+    # symbolic graph input, so its value does NOT constant-fold per step. The
+    # lazy-mode sp_buffer/one_buffer trick (lines 142-158 of that same file) is
+    # NOT needed here and actively breaks the dynamo bridge's input-update path
+    # (Bad StatusOr access during torch_xla.sync).
     compiled = torch.compile(model, backend="tt")
 
     # Per-row generation tracker. generated[i] is the list of token ids
@@ -346,7 +338,8 @@ def test_e2e_prefill_decode_full_real() -> None:
     print("[prefill] compiling + running ...", flush=True)
     prompt_ids_tt = prompt_ids.to(device)
     xs.mark_sharding(prompt_ids_tt, mesh, ("_axis_0", None))
-    prefill_logits = compiled(prompt_ids_tt, model.sp_buffer)  # [bsz, vocab]
+    sp_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
+    prefill_logits = compiled(prompt_ids_tt, sp_tt)  # [bsz, vocab]
     torch_xla.sync()
 
     next_ids = prefill_logits.detach().to("cpu").argmax(dim=-1)  # [bsz]
@@ -359,18 +352,17 @@ def test_e2e_prefill_decode_full_real() -> None:
     # graph stays shape-stable. EOS trimming happens at print time.
     prev_token = next_ids.unsqueeze(1)  # [bsz, 1]
     for step in range(MAX_NEW_TOKENS - 1):
+        start_pos = PROMPT_LEN + step
         prev_token_tt = prev_token.to(device)
         xs.mark_sharding(prev_token_tt, mesh, ("_axis_0", None))
-        decode_logits = compiled(prev_token_tt, model.sp_buffer)
-        # In-graph parametric increment: sp_buffer + one_buffer (NOT
-        # sp_buffer + 1, which would constant-fold the literal).
-        model.sp_buffer.copy_(model.sp_buffer + model.one_buffer)
+        sp_tt = torch.tensor(start_pos, dtype=torch.long).to(device)
+        decode_logits = compiled(prev_token_tt, sp_tt)
         torch_xla.sync()
 
         next_ids = decode_logits.detach().to("cpu").argmax(dim=-1)  # [bsz]
         for i in range(bsz):
             generated[i].append(int(next_ids[i].item()))
-        print(f"[decode {step + 1:>2}] sp={PROMPT_LEN + step}: "
+        print(f"[decode {step + 1:>2}] sp={start_pos}: "
               f"ids[:8]={next_ids[:8].tolist()}", flush=True)
         prev_token = next_ids.unsqueeze(1)
 
