@@ -103,6 +103,7 @@ def make_metadata(
         ),
         min_p=torch.zeros(batch, device=device),
         all_greedy=greedy,
+        all_random=not greedy,
     )
 
 

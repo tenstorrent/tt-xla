@@ -225,7 +225,13 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
-        greedy_sampled = self.greedy_sample(logits)
+        # Only compute greedy when at least one row's temperature is below
+        # EPS — otherwise the torch.where selectors below pick `random` for
+        # every row and `greedy_sampled` is dead. ArgMax on full vocab was
+        # ~34% of sampler runtime at b=32 in tracy.
+        all_random = sampling_metadata.all_random
+        if not all_random:
+            greedy_sampled = self.greedy_sample(logits)
 
         if _USE_TTNN_SAMPLING:
             # ttnn.sampling handles temperature internally (multiplies by
@@ -245,17 +251,20 @@ class Sampler(nn.Module):
             )
             pad_batch = _TTNN_SAMPLING_BATCH_SIZE
             batch = logits.shape[0]
-            greedy_padded = torch.nn.functional.pad(
-                greedy_sampled, (0, pad_batch - batch)
-            ).to(torch.int32)
-            temp_padded = torch.nn.functional.pad(
-                sampling_metadata.temperature, (0, pad_batch - batch), value=1.0
-            )
-            sampled_padded = torch.where(
-                temp_padded < _SAMPLING_EPS,
-                greedy_padded,
-                random_sampled_padded,
-            )
+            if all_random:
+                sampled_padded = random_sampled_padded
+            else:
+                greedy_padded = torch.nn.functional.pad(
+                    greedy_sampled, (0, pad_batch - batch)
+                ).to(torch.int32)
+                temp_padded = torch.nn.functional.pad(
+                    sampling_metadata.temperature, (0, pad_batch - batch), value=1.0
+                )
+                sampled_padded = torch.where(
+                    temp_padded < _SAMPLING_EPS,
+                    greedy_padded,
+                    random_sampled_padded,
+                )
             sampled_padded = sampled_padded.to(torch.int64)
             return sampled_padded[:batch].view(-1)
         else:
@@ -291,11 +300,14 @@ class Sampler(nn.Module):
                 1, random_sampled_local.unsqueeze(-1)
             ).squeeze(-1)
 
-        sampled = torch.where(
-            sampling_metadata.temperature < _SAMPLING_EPS,
-            greedy_sampled,
-            random_sampled,
-        )
+        if all_random:
+            sampled = random_sampled
+        else:
+            sampled = torch.where(
+                sampling_metadata.temperature < _SAMPLING_EPS,
+                greedy_sampled,
+                random_sampled,
+            )
         return sampled
 
     def compute_logprobs(self, logits: torch.Tensor) -> torch.Tensor:
