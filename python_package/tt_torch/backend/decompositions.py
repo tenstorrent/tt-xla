@@ -204,7 +204,24 @@ def avg_pool2d(
         padding = [padding, padding, padding, padding]
 
     input_size = list(input.shape[-len(stride) :])
-    if stride == kernel_size == input_size and padding == [0, 0, 0, 0]:
+    # Normalize padding to a flat list for zero-check; padding may arrive as [pH, pW]
+    # (2 elements) or [pT, pB, pL, pR] (4 elements) depending on the caller.
+    padding_values = padding if isinstance(padding, (list, tuple)) else [padding]
+    padding_is_zero = all(p == 0 for p in padding_values)
+
+    if stride == kernel_size == input_size and padding_is_zero:
+        return input.mean(dim=[-2, -1], keepdim=True)
+
+    # When ceil_mode=True and kernel_size >= input_size with no padding, the pool window
+    # covers the entire input and the output is 1x1.  XLA incorrectly computes the output
+    # size as 0 (uses floor formula instead of ceil formula), so we decompose to mean()
+    # which is numerically equivalent and produces the correct 1x1 output.
+    if (
+        ceil_mode
+        and padding_is_zero
+        and divisor_override is None
+        and all(k >= s for k, s in zip(kernel_size, input_size))
+    ):
         return input.mean(dim=[-2, -1], keepdim=True)
 
     # If we call the regular torch.nn.functional.avg_pool2d, it will infinitely recurse into this function.
