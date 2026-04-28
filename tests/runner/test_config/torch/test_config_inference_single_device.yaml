@@ -1554,6 +1554,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 5271 while an async operation is in flight: UNKNOWN_SCALAR[]')"
 
+  hulu_med/image_to_text/pytorch-30A3-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 - Hulu-Med-30A3 (Qwen3-VL-30B-A3B based) has ~30B params (~60 GB BF16), exceeding single-device DRAM (n150: 12 GB, p150b: 24 GB)"
+
   huggyllama/pytorch-Llama_7B-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
