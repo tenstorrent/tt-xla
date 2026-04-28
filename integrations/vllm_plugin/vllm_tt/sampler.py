@@ -10,6 +10,27 @@ from vllm.v1.outputs import LogprobsTensors, SamplerOutput
 
 from .metadata import XLASupportedSamplingMetadata
 
+
+# Per-decode-step tracy signpost. Gated on TRACY_PROFILING_ACTIVE so this
+# is a true no-op outside tracy capture (tracy_message itself may be a
+# no-op too but we avoid the ttnn import + global-counter increment).
+# Lets perf_debug/analyze_tracy.py slice the e2e graph by decode step.
+_TRACY_ACTIVE = os.environ.get("TRACY_PROFILING_ACTIVE", "") == "1"
+_sampler_step_counter = 0
+
+
+def _signpost_sampler_step() -> None:
+    if not _TRACY_ACTIVE:
+        return
+    global _sampler_step_counter
+    try:
+        import ttnn
+
+        ttnn.tracy_message(f"`TT_SIGNPOST: sampler iter {_sampler_step_counter}`")
+    except (ImportError, AttributeError):
+        pass
+    _sampler_step_counter += 1
+
 # Multi-core topk parameters.
 # ttnn.topk uses a multi-core bitonic sort when input dim is a power of 2 and
 # < 65536.  We split the vocab into chunks of at most this size, pad each

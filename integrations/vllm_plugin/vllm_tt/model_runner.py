@@ -1397,6 +1397,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
+            from .sampler import _signpost_sampler_step
+
+            # Per-decode-step tracy signpost (no-op outside tracy capture).
+            # Lets perf_debug/analyze_tracy.py slice the e2e graph by step.
+            # Must be on host side: sample_from_logits is @torch.compile'd
+            # with fullgraph=True, so the signpost can't live inside it.
+            _signpost_sampler_step()
             selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
