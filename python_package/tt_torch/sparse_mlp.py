@@ -625,6 +625,7 @@ class A2aSparseMLP(nn.Module):
             down_out = torch.bmm(act_per_expert, down_per_expert)
             down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
             down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
+
             if down_bias is not None:
                 down_out = down_out + down_bias
             down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]

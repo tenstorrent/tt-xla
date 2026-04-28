@@ -52,8 +52,17 @@ public:
   // Enqueue a callback for asynchronous execution on the worker thread.
   // Lock-free for producers. If the queue is full, this call sleeps briefly
   // and retries until the item is successfully enqueued.
+  //
+  // Once shutdown() has completed, the worker thread is gone, so the
+  // callback is executed synchronously on the caller's thread instead of
+  // being enqueued.
   void enqueue(PJRT_Event_OnReadyCallback callback_function, void *user_arg,
                PJRT_Error *error);
+
+  // Drains any pending callbacks, signals the worker thread to exit, and
+  // joins it. After this returns, `enqueue` will run callbacks
+  // synchronously on the caller's thread. Idempotent.
+  void shutdown();
 
 private:
   // Worker thread main loop.
