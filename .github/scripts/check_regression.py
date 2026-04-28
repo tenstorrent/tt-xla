@@ -9,20 +9,6 @@ import sys
 REGRESSION_THRESHOLD_PCT = 5.0
 
 
-def lookup_prev(report, name):
-    for entry in report:
-        if entry.get("NAME") == name:
-            return float(entry["LAST_VALUE"])
-    return None
-
-
-def lookup_current(report, name):
-    for m in report.get("measurements", []):
-        if m.get("measurement_name") == name:
-            return float(m["value"])
-    return None
-
-
 def check_regression(label, prev, current):
     if prev is None or current is None:
         print(f"{label}: missing data, skipping")
@@ -38,38 +24,52 @@ def check_regression(label, prev, current):
 
 
 def check_accuracy(prev_report, current_report):
-    prev_top1 = lookup_prev(prev_report, "top1_accuracy")
-    prev_top5 = lookup_prev(prev_report, "top5_accuracy")
-    current_top1 = lookup_current(current_report, "top1_accuracy")
-    current_top5 = lookup_current(current_report, "top5_accuracy")
+    prev = {}
+    for e in prev_report:
+        prev[e["NAME"]] = float(e["LAST_VALUE"])
+    current = {}
+    for m in current_report.get("measurements", []):
+        current[m["measurement_name"]] = float(m["value"])
 
-    print(f"Previous: top1={prev_top1}  top5={prev_top5}")
-    print(f"Current:  top1={current_top1}  top5={current_top5}")
+    print(
+        f"Previous: top1={prev.get('top1_accuracy')}  top5={prev.get('top5_accuracy')}"
+    )
+    print(
+        f"Current:  top1={current.get('top1_accuracy')}  top5={current.get('top5_accuracy')}"
+    )
 
-    failed = check_regression("Top-1 accuracy", prev_top1, current_top1)
-    failed |= check_regression("Top-5 accuracy", prev_top5, current_top5)
+    failed = check_regression(
+        "Top-1 accuracy", prev.get("top1_accuracy"), current.get("top1_accuracy")
+    )
+    failed |= check_regression(
+        "Top-5 accuracy", prev.get("top5_accuracy"), current.get("top5_accuracy")
+    )
     return failed
 
 
 def check_perf(prev_report, current_report):
-    prev_samples = lookup_prev(prev_report, "total_samples")
-    prev_time = lookup_prev(prev_report, "total_time")
-    current_samples = lookup_current(current_report, "total_samples")
-    current_time = lookup_current(current_report, "total_time")
+    prev = {}
+    for e in prev_report:
+        prev[e["NAME"]] = float(e["LAST_VALUE"])
+    current = {}
+    for m in current_report.get("measurements", []):
+        current[m["measurement_name"]] = float(m["value"])
 
-    if prev_samples is None or prev_time is None:
+    if "total_samples" not in prev or "total_time" not in prev:
         print("Previous report missing total_samples/total_time, skipping")
         return False
-    if current_samples is None or current_time is None:
+    if "total_samples" not in current or "total_time" not in current:
         print("Current report missing total_samples/total_time, skipping")
         return False
 
-    prev_sps = prev_samples / prev_time
-    current_sps = current_samples / current_time
+    prev_sps = prev["total_samples"] / prev["total_time"]
+    current_sps = current["total_samples"] / current["total_time"]
 
-    print(f"Previous: samples={prev_samples}  time={prev_time}  sps={prev_sps:.6f}")
     print(
-        f"Current:  samples={current_samples}  time={current_time}  sps={current_sps:.6f}"
+        f"Previous: samples={prev['total_samples']}  time={prev['total_time']}  sps={prev_sps:.6f}"
+    )
+    print(
+        f"Current:  samples={current['total_samples']}  time={current['total_time']}  sps={current_sps:.6f}"
     )
 
     return check_regression("Samples/sec", prev_sps, current_sps)
@@ -83,7 +83,7 @@ def main():
     parser.add_argument(
         "--current-report", required=True, help="Path to current perf report JSON file"
     )
-    parser.add_argument("--accuracy-testing", action="store_true")
+    parser.add_argument("--mode", choices=["perf", "accuracy"], default="perf")
     args = parser.parse_args()
 
     prev_report = json.loads(args.prev_report)
@@ -94,12 +94,13 @@ def main():
     with open(args.current_report) as f:
         current_report = json.load(f)
 
-    if args.accuracy_testing:
+    if args.mode == "accuracy":
         failed = check_accuracy(prev_report, current_report)
     else:
         failed = check_perf(prev_report, current_report)
 
-    sys.exit(1 if failed else 0)
+    if failed:
+        exit(1)
 
 
 if __name__ == "__main__":
