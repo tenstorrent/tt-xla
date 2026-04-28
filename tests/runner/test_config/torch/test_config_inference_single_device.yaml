@@ -2601,6 +2601,10 @@ test_config:
   gpt_oss/pytorch-120B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  gpt_oss_20b_counsel_mindbuddi_i1_gguf/causal_lm/pytorch-20B_Counsel_MindBuddi_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "OOM: 20B model bfloat16 weights (~40 GB) exceed single-device DRAM (~32 GB). TT_FATAL: Out of Memory: Not enough space to allocate 1061683200 B DRAM buffer across 8 banks (allocated: 4111273024 B, free: 162116992 B, largest free block: 66355200 B)"
+
   mistral/pytorch-Small_24B_INSTRUCT_2501-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
