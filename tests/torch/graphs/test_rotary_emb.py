@@ -207,3 +207,55 @@ def test_deepseek_v4_pro_complex_rotary_emb():
         framework=Framework.TORCH,
         comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.66)),
     )
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_deepseek_v4_pro_complex_rotary_emb_in_real_domain():
+    def apply_rotary_emb(
+        x: torch.Tensor, freqs_cis: torch.Tensor, inverse: bool = False
+    ) -> torch.Tensor:
+        """Applies rotary positional embeddings in-place using real arithmetic."""
+        y = x
+        x = x.float()
+        x = x.reshape(*x.shape[:-1], -1, 2)
+        x_real = x[..., 0]
+        x_imag = x[..., 1]
+
+        if freqs_cis.dtype.is_complex:
+            freqs_cis = torch.view_as_real(freqs_cis)
+
+        if x_real.ndim == 3:
+            freqs_cis = freqs_cis.view(1, x_real.size(1), x_real.size(-1), 2)
+        else:
+            freqs_cis = freqs_cis.view(1, x_real.size(1), 1, x_real.size(-1), 2)
+
+        cos = freqs_cis[..., 0]
+        sin = freqs_cis[..., 1]
+        if inverse:
+            sin = -sin
+
+        rotated = torch.stack(
+            (x_real * cos - x_imag * sin, x_real * sin + x_imag * cos),
+            dim=-1,
+        ).flatten(-2)
+        y.copy_(rotated)
+        return y
+
+    batch, seq, head_dim = 1, 32, 64
+    x = torch.randn(batch, seq, head_dim, dtype=torch.bfloat16)
+    angles = torch.outer(
+        torch.arange(seq, dtype=torch.float32),
+        1.0
+        / torch.pow(
+            10000.0, torch.arange(0, head_dim // 2, dtype=torch.float32) * 2 / head_dim
+        ),
+    )
+    freqs_cis = torch.stack([torch.cos(angles), torch.sin(angles)], dim=-1)
+
+    run_graph_test(
+        apply_rotary_emb,
+        [x, freqs_cis],
+        framework=Framework.TORCH,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.66)),
+    )
