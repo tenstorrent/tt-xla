@@ -90,6 +90,10 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         def _equal_leaf(x, y):
             if x is None and y is None:
                 return True
+            if not isinstance(x, torch.Tensor) or not isinstance(y, torch.Tensor):
+                # Skip non-tensor leaves (e.g. model-specific cache objects that don't
+                # inherit from transformers.Cache and can't be compared element-wise).
+                return True
             return torch.equal(x, y)
 
         passed = tree_map(_equal_leaf, device_output, golden_output)
@@ -106,6 +110,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         def _atol_leaf(x, y):
             if x is None and y is None:
                 return torch.tensor(0.0)
+            if not isinstance(x, torch.Tensor) or not isinstance(y, torch.Tensor):
+                return torch.tensor(0.0)
             return torch.max(torch.abs(x - y))
 
         leaf_atols = tree_map(_atol_leaf, device_output, golden_output)
@@ -121,6 +127,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     ) -> float:
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             if x is None and y is None:
+                return None
+            if not isinstance(x, torch.Tensor) or not isinstance(y, torch.Tensor):
+                # Skip non-tensor leaves (e.g. model-specific cache objects).
                 return None
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
@@ -153,6 +162,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
     ) -> bool:
         def _allclose_leaf(x, y):
             if x is None and y is None:
+                return True
+            if not isinstance(x, torch.Tensor) or not isinstance(y, torch.Tensor):
                 return True
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
