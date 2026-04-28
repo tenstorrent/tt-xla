@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  glyph/conditional_generation/pytorch-glyph-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: GLM4V high-resolution image processing produces ~24K image patches (grid_thw=[1,134,180]) creating a ~30K token sequence whose full-attention SDPA requires ~75 GB DRAM allocation, exceeding single-device capacity"
