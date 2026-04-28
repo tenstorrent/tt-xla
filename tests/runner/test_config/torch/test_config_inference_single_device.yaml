@@ -2534,6 +2534,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError('Check failed: handle->HasValue(): Trying to access XLA data for tensor with ID 645 while an async operation is in flight: UNKNOWN_SCALAR[]') - https://github.com/tenstorrent/tt-xla/issues/3184"
 
+  ig1_qwen3_vl/pytorch-30b_a3b_instruct_nvfp4-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 — ig1/Qwen3-VL-30B-A3B-Instruct-NVFP4 has 30.7B parameters (60.8 GB in BF16), which exceeds single-device DRAM on all TT hardware (n150: 12 GB, p150b: 24 GB). Even in FP4 compressed format (~15 GB) TT hardware has no native FP4 inference support, so dequantisation to BF16 at runtime is required."
+
   arcee/text_generation/pytorch-arcee_Spark-single_device-inference:
     arch_overrides:
       n150:
