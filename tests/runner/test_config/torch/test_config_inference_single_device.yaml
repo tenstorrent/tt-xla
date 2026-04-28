@@ -2652,6 +2652,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
 
+  huihui_qwen_3_5_abliterated_gguf/causal_lm/pytorch-27B_Abliterated_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "27B model dequantises to ~54 GB BF16 at load time, exceeding single-device DRAM (p150b: 24 GB). Fabric Router Sync timeout is the downstream OOM symptom."
+
   gemma3/causal_lm/pytorch-270M_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
