@@ -148,3 +148,73 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _qwen3_moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Monkey-patched Qwen3MoeExperts.forward.
+
+    Replaces grouped_mm_experts_forward (uses torch._grouped_mm, not XLA-aware)
+    with a static-shape dense bmm path on device and a per-expert loop on CPU.
+
+    Weight layout (transformers convention):
+        gate_up_proj: [E, 2*I, H]  (use .T per expert to project H -> 2*I)
+        down_proj:    [E, H,   I]  (use .T per expert to project I -> H)
+
+    Args:
+        hidden_states: [T, H] pre-flattened by Qwen3MoeSparseMoeBlock
+        top_k_index:   [T, K] expert indices
+        top_k_weights: [T, K] routing weights (already normalized)
+    """
+    T, H = hidden_states.shape
+    E = self.num_experts
+
+    if hidden_states.device.type == "cpu":
+        next_states = torch.zeros(T, H, dtype=hidden_states.dtype,
+                                  device=hidden_states.device)
+        for expert_idx in range(E):
+            expert_mask = (top_k_index == expert_idx)    # [T, K]
+            token_mask = expert_mask.any(dim=-1)          # [T]
+            token_indices = token_mask.nonzero(as_tuple=True)[0]
+            if token_indices.numel() == 0:
+                continue
+            current = hidden_states[token_indices]                           # [m, H]
+            gate_up = current @ self.gate_up_proj[expert_idx].T             # [m, 2*I]
+            gate, up = gate_up.chunk(2, dim=-1)
+            activated = self.act_fn(gate) * up                              # [m, I]
+            out = activated @ self.down_proj[expert_idx].T                  # [m, H]
+            w = (top_k_weights[token_indices] * expert_mask[token_indices]).sum(-1, keepdim=True)
+            next_states.index_add_(0, token_indices,
+                                   (out * w).to(hidden_states.dtype))
+        return next_states
+    else:
+        # Build full [T, E] routing weight matrix — static shape, XLA-friendly
+        routing_full = torch.zeros(
+            T, E, device=hidden_states.device, dtype=hidden_states.dtype
+        ).scatter(1, top_k_index.long(), top_k_weights.to(hidden_states.dtype))
+
+        # Tile hidden states: [T, H] -> [E, T, H]
+        hidden_tiled = hidden_states.repeat(E, 1).view(E, T, H)
+
+        # gate_up_proj [E, 2*I, H] -> transpose -> [E, H, 2*I]
+        gate_up = torch.bmm(hidden_tiled,
+                            self.gate_up_proj.transpose(-2, -1))   # [E, T, 2*I]
+        gate, up = gate_up.chunk(2, dim=-1)
+        activated = self.act_fn(gate) * up                         # [E, T, I]
+
+        # down_proj [E, H, I] -> transpose -> [E, I, H]
+        output = torch.bmm(activated,
+                           self.down_proj.transpose(-2, -1))       # [E, T, H]
+
+        # Weighted sum over experts
+        output = output * routing_full.T.unsqueeze(-1)             # [E, T, H]
+        return output.sum(dim=0).to(hidden_states.dtype)           # [T, H]
+
+
+# Bypass @use_experts_implementation dispatch for Qwen3MoE — grouped_mm path
+# is not XLA-aware and causes MHLO -> StableHLO conversion failure.
+try:
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeExperts
+
+    Qwen3MoeExperts.forward = _qwen3_moe_experts_forward
+except ImportError:
+    pass
