@@ -207,6 +207,19 @@ def avg_pool2d(
     if stride == kernel_size == input_size and padding == [0, 0, 0, 0]:
         return input.mean(dim=[-2, -1], keepdim=True)
 
+    # ceil_mode=True with kernel >= input_size and no explicit padding: the single
+    # output window covers the entire spatial input, so this is a global average
+    # pool.  With padding=0, count_include_pad has no effect (no padded zeros), so
+    # the result is simply the spatial mean — identical to the stride==kernel_size
+    # case above but triggered when kernel_size > input_size.
+    if (
+        ceil_mode
+        and all(p == 0 for p in padding)
+        and all(ks >= is_ for ks, is_ in zip(kernel_size, input_size))
+        and divisor_override is None
+    ):
+        return input.mean(dim=[-2, -1], keepdim=True)
+
     # If we call the regular torch.nn.functional.avg_pool2d, it will infinitely recurse into this function.
     # Returning NotImplemented allows the tracer to use the default implementation.
     return NotImplemented
