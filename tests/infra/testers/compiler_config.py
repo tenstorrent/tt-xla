@@ -58,6 +58,9 @@ class CompilerConfig:
     # Enables trace hoisting for TTNN pipeline.
     enable_trace: bool = False
 
+    # Enables the DRAM space saving optimization pass (TTNNMemoryManagement).
+    experimental_enable_dram_space_saving_optimization: bool = False
+
     # Enables IR dumping to a specified path.
     export_path: str = ""
 
@@ -98,6 +101,9 @@ class CompilerConfig:
 
         if self.enable_trace:
             options["enable_trace"] = "true"
+
+        if self.experimental_enable_dram_space_saving_optimization:
+            options["experimental-enable-dram-space-saving-optimization"] = "true"
 
         if self.export_path != "":
             options["export_path"] = self.export_path

@@ -61,7 +61,8 @@ def test_vae_decoder_720p_sharded():
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
     compiler_config = CompilerConfig(
-        optimization_level=1
+        optimization_level=1,
+        experimental_enable_dram_space_saving_optimization=True,
     )
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
