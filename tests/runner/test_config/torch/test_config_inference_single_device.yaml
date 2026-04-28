@@ -22,6 +22,9 @@ test_config:
   gpt_neo/causal_lm/pytorch-2_7B-single_device-inference:
     status: EXPECTED_PASSING
 
+  mpt_1b_redpajama_200b_dolly/causal_lm/pytorch-mpt-1b-redpajama-200b-dolly-single_device-inference:
+    status: EXPECTED_PASSING
+
   vovnet/pytorch-27s-single_device-inference:
     status: EXPECTED_PASSING
 
