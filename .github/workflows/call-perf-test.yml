@@ -460,8 +460,7 @@ jobs:
       if: inputs.perf_regression_check
       shell: bash
       run: |
-        source venv/activate
-        python .github/scripts/check_regression.py \
+        python3 .github/scripts/check_regression.py \
           --prev-report '${{ steps.prev-perf.outputs.response }}' \
           --current-report ${{ steps.strings.outputs.perf_report_json_file }} \
           --mode ${{ steps.set-query-strings.outputs.mode }}
