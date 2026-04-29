@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  big_tiger_gemma_gguf/causal_lm/pytorch-27B_V1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 339738624 B DRAM buffer across 8 banks, where each bank needs to store 42467328 B, but bank size is 4273390016 B — 27B bfloat16 model (~54 GB) exceeds single-device DRAM (~32 GB)"
