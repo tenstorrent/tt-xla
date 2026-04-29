@@ -31,6 +31,26 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor and not torch.compiler.is_compiling():
+            # The XLA lazy backend rejects slice start/end indices that are
+            # more negative than -size, even though PyTorch eager silently
+            # clamps them.  Pre-clamp here so the lazy graph stays valid.
+            tensor = args[0] if len(args) > 0 else (kwargs or {}).get("self")
+            dim = args[1] if len(args) > 1 else (kwargs or {}).get("dim", 0)
+            start = args[2] if len(args) > 2 else (kwargs or {}).get("start")
+            end = args[3] if len(args) > 3 else (kwargs or {}).get("end")
+            if tensor is not None and hasattr(tensor, "shape"):
+                try:
+                    size = tensor.shape[dim]
+                    if isinstance(size, int):
+                        args = list(args)
+                        if start is not None and isinstance(start, int) and start < -size:
+                            args[2] = -size
+                        if end is not None and isinstance(end, int) and end < -size:
+                            args[3] = -size
+                        args = tuple(args)
+                except Exception:
+                    pass
         return func(*args, **(kwargs or {}))
 
 
