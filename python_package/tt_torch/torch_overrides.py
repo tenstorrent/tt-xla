@@ -31,6 +31,20 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # abs(complex) on XLA records Abs(complex)→float in HLO but returns a
+        # Python tensor still typed as complex64.  Any attempt to call .real on
+        # that HLO-float produces Real(float) which is invalid in StableHLO.
+        # Decompose manually: sqrt(re² + im²) using Real(complex) and
+        # Imag(complex), both of which are legal StableHLO ops and are handled
+        # by the ComplexDataTypeConversion MLIR pass.
+        # func.__name__ is "abs" for torch.abs and "abs.default" for aten.abs.default.
+        _func_name = getattr(func, "__name__", "") or ""
+        if (_func_name == "abs" or _func_name == "abs.default") and not torch.compiler.is_compiling():
+            inp = args[0] if len(args) > 0 else (kwargs or {}).get("input")
+            if inp is not None and isinstance(inp, torch.Tensor) and inp.is_complex():
+                re = torch.real(inp)
+                im = torch.imag(inp)
+                return torch.sqrt(re * re + im * im)
         return func(*args, **(kwargs or {}))
 
 
