@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -47,6 +48,7 @@ _RUNTIME_KEYWORDS = (
 )
 _DEBUG_LOG_SUFFIXES = (".log", ".txt")
 _SAFE_PATH_COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+_PYTEST_COMMAND = "pytest"
 
 
 @dataclass
@@ -133,15 +135,20 @@ def detect_rerun_invalid_execution(log_path: Path | None) -> str | None:
 
 
 def build_pytest_node_id(test_id: str) -> str:
-    return f"tests/runner/test_models.py::test_all_models_torch[{test_id}]"
+    safe_test_id = validate_safe_test_id(test_id)
+    return f"tests/runner/test_models.py::test_all_models_torch[{safe_test_id}]"
 
 
 def build_rerun_command(pytest_bin: str, test_id: str) -> list[str]:
-    return [pytest_bin, "-vv", "-s", build_pytest_node_id(test_id)]
+    validate_pytest_command_name(pytest_bin)
+    return [_PYTEST_COMMAND, "-vv", "-s", build_pytest_node_id(test_id)]
 
 
 def derive_python_bin(pytest_bin: str) -> str | None:
-    pytest_path = Path(pytest_bin)
+    try:
+        pytest_path = Path(resolve_pytest_executable(pytest_bin))
+    except (FileNotFoundError, ValueError):
+        return None
     if pytest_path.parent.name == "bin":
         candidate = pytest_path.parent / "python"
         if candidate.exists():
@@ -210,6 +217,39 @@ def validate_safe_path_component(component: str, label: str) -> str:
     ):
         raise ValueError(f"Unsafe {label} component: {component!r}")
     return component
+
+
+def validate_safe_test_id(test_id: str) -> str:
+    parts = test_id.split("/")
+    if len(parts) < 2:
+        raise ValueError(f"Unsupported test_id format: {test_id}")
+    for part in parts:
+        validate_safe_path_component(part, "test_id")
+    return test_id
+
+
+def validate_pytest_command_name(pytest_bin: str) -> str:
+    if pytest_bin != _PYTEST_COMMAND:
+        raise ValueError(
+            "--pytest-bin only accepts 'pytest'; adjust PATH to select the environment"
+        )
+    return pytest_bin
+
+
+def resolve_pytest_executable(pytest_bin: str) -> str:
+    validate_pytest_command_name(pytest_bin)
+    resolved = shutil.which(_PYTEST_COMMAND)
+    if resolved is None:
+        raise FileNotFoundError(_PYTEST_COMMAND)
+
+    resolved_path = Path(resolved).resolve()
+    if resolved_path.name != _PYTEST_COMMAND or not resolved_path.is_file():
+        raise ValueError(f"Resolved pytest executable is invalid: {resolved_path}")
+    if not os.access(resolved_path, os.X_OK):
+        raise ValueError(
+            f"Resolved pytest executable is not executable: {resolved_path}"
+        )
+    return str(resolved_path)
 
 
 def require_path_within(path: Path, root: Path, label: str) -> Path:
@@ -312,16 +352,25 @@ def run_bounded_rerun(
     timeout_sec: int,
     force_run_skipped: bool = False,
 ) -> tuple[int | None, str]:
-    command = build_rerun_command(pytest_bin, test_id)
+    safe_test_id = validate_safe_test_id(test_id)
+    try:
+        safe_pytest_bin = validate_pytest_command_name(pytest_bin)
+    except ValueError as exc:
+        command = [_PYTEST_COMMAND, "-vv", "-s", build_pytest_node_id(safe_test_id)]
+        log_path.write_text(f"invalid pytest binary: {exc}\n", encoding="utf-8")
+        return None, " ".join(command)
+
+    command = build_rerun_command(safe_pytest_bin, safe_test_id)
     env = dict(os.environ)
     env["TTMLIR_LOGGER_LEVEL"] = "DEBUG"
     env["TT_RUNTIME_DEBUG"] = "ON"
     if force_run_skipped:
-        env["TT_XLA_FORCE_RUN_SKIPPED_TEST_IDS"] = test_id
+        env["TT_XLA_FORCE_RUN_SKIPPED_TEST_IDS"] = safe_test_id
 
     try:
+        resolve_pytest_executable(safe_pytest_bin)
         completed = subprocess.run(
-            command,
+            [_PYTEST_COMMAND, "-vv", "-s", build_pytest_node_id(safe_test_id)],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -334,7 +383,7 @@ def run_bounded_rerun(
         return completed.returncode, " ".join(command)
     except FileNotFoundError:
         log_path.write_text(
-            f"pytest binary not found: {pytest_bin}\n", encoding="utf-8"
+            f"pytest binary not found: {safe_pytest_bin}\n", encoding="utf-8"
         )
         return None, " ".join(command)
     except subprocess.TimeoutExpired as exc:
@@ -783,8 +832,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--pytest-bin",
-        default="pytest",
-        help="Pytest executable to use for --execute-rerun. Default: pytest",
+        default=_PYTEST_COMMAND,
+        choices=[_PYTEST_COMMAND],
+        help=(
+            "Pytest executable to use for --execute-rerun. Only 'pytest' is accepted; "
+            "adjust PATH to select the environment."
+        ),
     )
     parser.add_argument(
         "--rerun-timeout-sec",

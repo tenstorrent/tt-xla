@@ -25,6 +25,10 @@ def write_executable_script(path: Path, body: str) -> None:
         f.write(body)
 
 
+def prepend_path(monkeypatch, bin_dir: Path) -> None:
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+
+
 def test_build_pytest_node_id_uses_training_test_id():
     assert (
         build_pytest_node_id("pointpillars/pytorch-pointpillars-single_device-training")
@@ -34,11 +38,11 @@ def test_build_pytest_node_id_uses_training_test_id():
 
 def test_build_rerun_command_uses_pytest_and_node_id():
     command = build_rerun_command(
-        "/tmp/pytest-bin",
+        "pytest",
         "pointpillars/pytorch-pointpillars-single_device-training",
     )
     assert command == [
-        "/tmp/pytest-bin",
+        "pytest",
         "-vv",
         "-s",
         "tests/runner/test_models.py::test_all_models_torch[pointpillars/pytorch-pointpillars-single_device-training]",
@@ -52,7 +56,7 @@ def test_derive_python_bin_from_pytest_path():
     assert derive_python_bin("/tmp/env/bin/pytest") is None
 
 
-def test_probe_rerun_environment_reports_missing_modules(tmp_path: Path):
+def test_probe_rerun_environment_reports_missing_modules(tmp_path: Path, monkeypatch):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_python = bin_dir / "python"
@@ -69,13 +73,16 @@ def test_probe_rerun_environment_reports_missing_modules(tmp_path: Path):
     )
     fake_pytest = bin_dir / "pytest"
     write_executable_script(fake_pytest, "#!/bin/sh\nexit 0\n")
-    result = probe_rerun_environment(str(fake_pytest))
+    prepend_path(monkeypatch, bin_dir)
+    result = probe_rerun_environment("pytest")
     assert result is not None
     assert "psutil" in result
     assert "torch" in result
 
 
-def test_probe_rerun_environment_ignores_non_missing_warning_output(tmp_path: Path):
+def test_probe_rerun_environment_ignores_non_missing_warning_output(
+    tmp_path: Path, monkeypatch
+):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_python = bin_dir / "python"
@@ -91,7 +98,8 @@ def test_probe_rerun_environment_ignores_non_missing_warning_output(tmp_path: Pa
     )
     fake_pytest = bin_dir / "pytest"
     write_executable_script(fake_pytest, "#!/bin/sh\nexit 0\n")
-    assert probe_rerun_environment(str(fake_pytest)) is None
+    prepend_path(monkeypatch, bin_dir)
+    assert probe_rerun_environment("pytest") is None
 
 
 def test_classify_runtime_entry_tt_metal_for_memory_signal():
@@ -232,8 +240,10 @@ def test_reduce_test_entry_attaches_debug_evidence_when_present(tmp_path: Path):
     assert "trim to the smallest repro-worthy snippet" in result.next_manual_step
 
 
-def test_reduce_test_entry_can_attempt_bounded_rerun(tmp_path: Path):
-    fake_pytest = tmp_path / "fake_pytest.sh"
+def test_reduce_test_entry_can_attempt_bounded_rerun(tmp_path: Path, monkeypatch):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_pytest = bin_dir / "pytest"
     write_executable_script(
         fake_pytest,
         "\n".join(
@@ -246,6 +256,7 @@ def test_reduce_test_entry_can_attempt_bounded_rerun(tmp_path: Path):
         )
         + "\n",
     )
+    prepend_path(monkeypatch, bin_dir)
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -254,7 +265,7 @@ def test_reduce_test_entry_can_attempt_bounded_rerun(tmp_path: Path):
         },
         output_root=tmp_path / "artifacts",
         execute_rerun=True,
-        pytest_bin=str(fake_pytest),
+        pytest_bin="pytest",
         rerun_timeout_sec=5,
     )
     assert result.rerun_attempted is True
@@ -266,8 +277,12 @@ def test_reduce_test_entry_can_attempt_bounded_rerun(tmp_path: Path):
     assert result.owner_hint == "tt-alchemist"
 
 
-def test_reduce_test_entry_can_force_run_skipped_rows_for_bounded_debug(tmp_path: Path):
-    fake_pytest = tmp_path / "fake_pytest.sh"
+def test_reduce_test_entry_can_force_run_skipped_rows_for_bounded_debug(
+    tmp_path: Path, monkeypatch
+):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_pytest = bin_dir / "pytest"
     write_executable_script(
         fake_pytest,
         "\n".join(
@@ -281,6 +296,7 @@ def test_reduce_test_entry_can_force_run_skipped_rows_for_bounded_debug(tmp_path
         )
         + "\n",
     )
+    prepend_path(monkeypatch, bin_dir)
     test_id = "stable_diffusion_unet/pytorch-Base-single_device-training"
     result = reduce_test_entry(
         test_id=test_id,
@@ -291,7 +307,7 @@ def test_reduce_test_entry_can_force_run_skipped_rows_for_bounded_debug(tmp_path
         },
         output_root=tmp_path / "artifacts",
         execute_rerun=True,
-        pytest_bin=str(fake_pytest),
+        pytest_bin="pytest",
         rerun_timeout_sec=5,
         force_run_skipped=True,
     )
@@ -305,8 +321,12 @@ def test_reduce_test_entry_can_force_run_skipped_rows_for_bounded_debug(tmp_path
     assert f"force={test_id}" in Path(result.rerun_log_path).read_text(encoding="utf-8")
 
 
-def test_reduce_test_entry_surfaces_rerun_precondition_failure(tmp_path: Path):
-    fake_pytest = tmp_path / "fake_pytest_fail.sh"
+def test_reduce_test_entry_surfaces_rerun_precondition_failure(
+    tmp_path: Path, monkeypatch
+):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_pytest = bin_dir / "pytest"
     write_executable_script(
         fake_pytest,
         "\n".join(
@@ -319,6 +339,7 @@ def test_reduce_test_entry_surfaces_rerun_precondition_failure(tmp_path: Path):
         )
         + "\n",
     )
+    prepend_path(monkeypatch, bin_dir)
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -327,7 +348,7 @@ def test_reduce_test_entry_surfaces_rerun_precondition_failure(tmp_path: Path):
         },
         output_root=tmp_path / "artifacts",
         execute_rerun=True,
-        pytest_bin=str(fake_pytest),
+        pytest_bin="pytest",
         rerun_timeout_sec=5,
     )
     assert result.rerun_attempted is True
@@ -338,7 +359,9 @@ def test_reduce_test_entry_surfaces_rerun_precondition_failure(tmp_path: Path):
     assert "missing pytest/runtime dependencies" in result.next_manual_step
 
 
-def test_reduce_test_entry_fast_fails_on_environment_preflight(tmp_path: Path):
+def test_reduce_test_entry_fast_fails_on_environment_preflight(
+    tmp_path: Path, monkeypatch
+):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_python = bin_dir / "python"
@@ -348,6 +371,7 @@ def test_reduce_test_entry_fast_fails_on_environment_preflight(tmp_path: Path):
     )
     fake_pytest = bin_dir / "pytest"
     write_executable_script(fake_pytest, "#!/bin/sh\necho should-not-run\nexit 99\n")
+    prepend_path(monkeypatch, bin_dir)
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -356,7 +380,7 @@ def test_reduce_test_entry_fast_fails_on_environment_preflight(tmp_path: Path):
         },
         output_root=tmp_path / "artifacts",
         execute_rerun=True,
-        pytest_bin=str(fake_pytest),
+        pytest_bin="pytest",
         rerun_timeout_sec=5,
     )
     assert result.rerun_attempted is False
@@ -365,8 +389,12 @@ def test_reduce_test_entry_fast_fails_on_environment_preflight(tmp_path: Path):
     assert "torch" in result.reduction_signal
 
 
-def test_reduce_test_entry_surfaces_cpu_fallback_or_skip_as_attempt_log(tmp_path: Path):
-    fake_pytest = tmp_path / "fake_pytest_cpu_skip.sh"
+def test_reduce_test_entry_surfaces_cpu_fallback_or_skip_as_attempt_log(
+    tmp_path: Path, monkeypatch
+):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_pytest = bin_dir / "pytest"
     write_executable_script(
         fake_pytest,
         "\n".join(
@@ -379,6 +407,7 @@ def test_reduce_test_entry_surfaces_cpu_fallback_or_skip_as_attempt_log(tmp_path
         )
         + "\n",
     )
+    prepend_path(monkeypatch, bin_dir)
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -387,7 +416,7 @@ def test_reduce_test_entry_surfaces_cpu_fallback_or_skip_as_attempt_log(tmp_path
         },
         output_root=tmp_path / "artifacts",
         execute_rerun=True,
-        pytest_bin=str(fake_pytest),
+        pytest_bin="pytest",
         rerun_timeout_sec=5,
     )
     assert result.rerun_attempted is True
@@ -397,8 +426,10 @@ def test_reduce_test_entry_surfaces_cpu_fallback_or_skip_as_attempt_log(tmp_path
     assert "TT hardware" in result.next_manual_step
 
 
-def test_reduce_test_entry_surfaces_timeout_as_attempt_log(tmp_path: Path):
-    fake_pytest = tmp_path / "fake_pytest_timeout.sh"
+def test_reduce_test_entry_surfaces_timeout_as_attempt_log(tmp_path: Path, monkeypatch):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake_pytest = bin_dir / "pytest"
     write_executable_script(
         fake_pytest,
         "\n".join(
@@ -411,6 +442,7 @@ def test_reduce_test_entry_surfaces_timeout_as_attempt_log(tmp_path: Path):
         )
         + "\n",
     )
+    prepend_path(monkeypatch, bin_dir)
     result = reduce_test_entry(
         test_id="stable_diffusion_unet/pytorch-Base-single_device-training",
         entry={
@@ -419,7 +451,7 @@ def test_reduce_test_entry_surfaces_timeout_as_attempt_log(tmp_path: Path):
         },
         output_root=tmp_path / "artifacts",
         execute_rerun=True,
-        pytest_bin=str(fake_pytest),
+        pytest_bin="pytest",
         rerun_timeout_sec=5,
         force_run_skipped=True,
     )
