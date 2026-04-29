@@ -2671,3 +2671,7 @@ test_config:
   csai_gpt_oss_20b_gguf/causal_lm/pytorch-20B_GGUF-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 1061683200 B DRAM buffer across 8 banks on n150 (12 GB DRAM). The Q4_K_M GGUF (~11.25 GB) consumes nearly all device DRAM, leaving insufficient space for activation buffers."
+
+  devstral_small_mlx_4bit/causal_lm/pytorch-2507_MLX_4bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: Devstral-Small-2507 is a 22B parameter Mistral model. Dequantized to bfloat16 it requires ~44 GB DRAM, far exceeding n150 single-device capacity of 12 GB."
