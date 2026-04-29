@@ -412,3 +412,579 @@ def _print_decoded(tokenizer, prompts: list, generated: list) -> None:
         print(f"         ids={ids}")
         print(f"         cont={cont!r}")
     print(f"{bar}\n", flush=True)
+
+
+# ----------------------------------------------------------------------------
+# CPU-vs-device prefill PCC test.
+# ----------------------------------------------------------------------------
+
+
+PREFILL_PCC_REQUIRED = 0.95
+
+
+def _pcc(x: torch.Tensor, y: torch.Tensor) -> float:
+    """Pearson correlation. Mirrors _pcc in
+    test_deepseek_v4_prefill_decode_loop_no_int.py: float64 conversion,
+    allclose short-circuit (PCC is ill-conditioned when tensors are nearly
+    identical), Pearson on flattened tensors."""
+    x = x.detach().to(torch.float64).flatten()
+    y = y.detach().to(torch.float64).flatten()
+    if torch.allclose(x, y, rtol=1e-2, atol=1e-2):
+        return 1.0
+    if x.numel() <= 1:
+        return 0.0
+    vx = x - x.mean()
+    vy = y - y.mean()
+    denom = vx.norm() * vy.norm()
+    if denom == 0:
+        return float("nan")
+    return float((vx @ vy) / denom)
+
+
+def _reset_attn_caches(model: mdo.Transformer) -> None:
+    """Zero in-place attention/compressor cache buffers populated by a prior
+    forward pass so the next prefill starts from the same blank state as a
+    fresh model. Mirrors the buffer set asserted in transformer_shard_spec."""
+    for block in model.layers:
+        attn = block.attn
+        attn.kv_cache.zero_()
+        if attn.compress_ratio:
+            attn.compressor.kv_cache.zero_()
+            attn.compressor.kv_state.zero_()
+            attn.compressor.score_state.fill_(float("-inf"))
+            if attn.indexer is not None:
+                attn.indexer.compressor.kv_cache.zero_()
+                attn.indexer.compressor.kv_state.zero_()
+                attn.indexer.compressor.score_state.fill_(float("-inf"))
+
+
+def _emulate_post_prefill_caches(
+    model: mdo.Transformer, generator: torch.Generator, std: float = 0.1
+) -> None:
+    """Fill kv / compressor / indexer cache buffers with deterministic
+    random values, emulating a non-empty post-prefill state. Same generator
+    seed -> identical fills, so a CPU run and a device run can share bit-
+    identical starting cache state without paying for a real CPU prefill.
+
+    score_state would normally hold a mix of real scores and -inf for slots
+    not yet computed; the model only uses it via softmax(dim=1) so finite
+    random values are mathematically valid here (compressor logic at
+    model_decode_opt.py:414,424). std=0.1 keeps softmax in-distribution."""
+    for block in model.layers:
+        attn = block.attn
+        attn.kv_cache.normal_(mean=0.0, std=std, generator=generator)
+        if attn.compress_ratio:
+            attn.compressor.kv_cache.normal_(mean=0.0, std=std, generator=generator)
+            attn.compressor.kv_state.normal_(mean=0.0, std=std, generator=generator)
+            attn.compressor.score_state.normal_(mean=0.0, std=std, generator=generator)
+            if attn.indexer is not None:
+                attn.indexer.compressor.kv_cache.normal_(
+                    mean=0.0, std=std, generator=generator
+                )
+                attn.indexer.compressor.kv_state.normal_(
+                    mean=0.0, std=std, generator=generator
+                )
+                attn.indexer.compressor.score_state.normal_(
+                    mean=0.0, std=std, generator=generator
+                )
+
+
+def _tokenize_prompts(tokenizer, prompts: list) -> torch.Tensor:
+    pad_id = (
+        tokenizer.pad_token_id
+        if tokenizer.pad_token_id is not None
+        else tokenizer.eos_token_id
+    )
+    prompt_rows = []
+    for prompt in prompts:
+        ids = tokenizer(
+            prompt, return_tensors="pt", add_special_tokens=False
+        ).input_ids[0]
+        if ids.shape[0] >= PROMPT_LEN:
+            ids = ids[-PROMPT_LEN:]
+        else:
+            pad = torch.full(
+                (PROMPT_LEN - ids.shape[0],), pad_id, dtype=torch.long
+            )
+            ids = torch.cat([pad, ids], dim=0)
+        prompt_rows.append(ids)
+    return torch.stack(prompt_rows, dim=0).contiguous()
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("num_layers", [10, 15, 20, 30, 43])
+@torch.inference_mode()
+def test_e2e_prefill_pcc(num_layers: int) -> None:
+    """Run prefill on CPU and on the TT device with a `num_layers`-deep
+    swapped Transformer and PCC-compare the final hidden-states output.
+
+    Both paths share one model object: the A2aSparseMLP swap routes through
+    `_cpu_forward` -> original MoE while `hidden_states.device.type == "cpu"`
+    (sparse_mlp.py:540) and through the all_to_all dispatch/combine kernels
+    once moved to the TT device. CPU prefill runs first; its in-place kv /
+    compressor / indexer cache mutations are zeroed before the device move
+    so the device prefill starts from the same blank state.
+
+    The "final output hidden states" tensor compared here is the post-block,
+    pre-head activation `h` of shape `[bsz, seq, hc_mult, dim]` — the first
+    element of the tuple returned by
+    `Transformer.forward(..., return_hidden_states=True)`
+    (model_decode_opt.py:972-981).
+    """
+    enable_spmd()
+    xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    mesh, mesh_shape = make_mesh()
+    bsz = BATCH_SIZE
+
+    args = weight_loader.load_config_args()
+    args.n_mtp_layers = 0
+    args.max_batch_size = bsz
+    args.max_seq_len = 128
+    if num_layers < args.n_layers:
+        args.n_layers = num_layers
+        args.compress_ratios = args.compress_ratios[:num_layers]
+    print(
+        f"[args] n_layers={args.n_layers}, "
+        f"n_routed_experts={args.n_routed_experts}, "
+        f"n_activated_experts={args.n_activated_experts}, bsz={bsz}, "
+        f"max_seq_len={args.max_seq_len}, "
+        f"compress_ratios={args.compress_ratios}",
+        flush=True,
+    )
+
+    from transformers import AutoTokenizer  # noqa: WPS433
+
+    tokenizer = AutoTokenizer.from_pretrained(weight_loader.REPO_ID)
+    prompt_ids = _tokenize_prompts(tokenizer, PROMPTS)
+    assert prompt_ids.shape == (bsz, PROMPT_LEN)
+    print(
+        f"[tokenize] prompt_ids[0][-8:]={prompt_ids[0][-8:].tolist()}",
+        flush=True,
+    )
+
+    model = _build_and_load_full_model(args, mesh_shape)
+
+    # --- CPU prefill ------------------------------------------------------
+    print("[cpu] prefill ...", flush=True)
+    sp_cpu = torch.tensor(PROMPT_LEN, dtype=torch.long)
+    cpu_h, _ = model(prompt_ids, sp_cpu, return_hidden_states=True)
+    cpu_out = cpu_h.detach().to(torch.float32).cpu().clone()
+    print(f"[cpu] hidden_states shape={tuple(cpu_out.shape)}", flush=True)
+
+    # CPU prefill mutated kv_cache / kv_state / score_state in place. Reset
+    # them so the device prefill sees the same fresh-model starting state.
+    _reset_attn_caches(model)
+
+    # --- Move to device + shard ------------------------------------------
+    print("[device] moving model to TT (this releases CPU storage) ...", flush=True)
+    device = torch_xla.device()
+    model = model.to(device)
+    gc.collect()
+    for tensor, spec in transformer_shard_spec(model).items():
+        xs.mark_sharding(tensor, mesh, spec)
+
+    # head is computed even under return_hidden_states=True (logits are the
+    # second tuple element, ignored here) — re-attach the sharding hook so
+    # head's output carries the standard `(None, None)` constraint, matching
+    # test_e2e_prefill_decode_full_real.
+    hook = sharding_constraint_hook(model.head, mesh, (None, None))
+    model.head.register_forward_hook(hook)
+
+    compiled = torch.compile(model, backend="tt")
+
+    prompt_ids_tt = prompt_ids.to(device)
+    xs.mark_sharding(prompt_ids_tt, mesh, ("_axis_0", None))
+    sp_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
+
+    # --- Device prefill ---------------------------------------------------
+    print("[device] compiling + running prefill ...", flush=True)
+    device_h, _ = compiled(prompt_ids_tt, sp_tt, return_hidden_states=True)
+    torch_xla.sync(wait=True)
+    device_out = device_h.detach().to("cpu").to(torch.float32).clone()
+    print(f"[device] hidden_states shape={tuple(device_out.shape)}", flush=True)
+
+    assert cpu_out.shape == device_out.shape, (
+        f"shape mismatch: cpu={tuple(cpu_out.shape)} "
+        f"device={tuple(device_out.shape)}"
+    )
+
+    pcc = _pcc(cpu_out, device_out)
+    print(
+        f"[pcc] cpu vs device prefill hidden_states pcc={pcc:.6f} "
+        f"(required >= {PREFILL_PCC_REQUIRED})",
+        flush=True,
+    )
+    assert pcc >= PREFILL_PCC_REQUIRED, (
+        f"PCC failed: got {pcc:.6f}, required >= {PREFILL_PCC_REQUIRED}"
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("num_layers", [10, 15, 20, 30, 43])
+@torch.inference_mode()
+def test_e2e_single_decode_pcc(num_layers: int) -> None:
+    """Run one decode step (seqlen=1) on CPU and on the TT device starting
+    from a deterministically-emulated post-prefill cache state, and
+    PCC-compare the post-block, pre-head hidden states.
+
+    Strategy: build one swapped Transformer on CPU. Fill kv / compressor /
+    indexer caches with random values from a seeded generator, run a single
+    CPU decode at start_pos=PROMPT_LEN. Re-fill the caches with the same
+    seed (CPU decode mutated them in place), then move the model to the TT
+    device — `.to(device)` carries the freshly re-emulated cache contents
+    over so the device decode sees bit-identical starting state. Run a
+    single device decode and compare.
+
+    The "final hidden states" tensor compared here is the post-block,
+    pre-head activation `h` returned by
+    `Transformer.forward(..., return_hidden_states=True)`
+    (model_decode_opt.py:972-981).
+
+    Real prefill is not run because a 43-layer / 256-expert CPU prefill of
+    a 128-token prompt is prohibitively slow; this test isolates decode-
+    forward equivalence — what matters is that both sides start the decode
+    step from identical caches.
+    """
+    enable_spmd()
+    xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    mesh, mesh_shape = make_mesh()
+    bsz = BATCH_SIZE
+
+    args = weight_loader.load_config_args()
+    args.n_mtp_layers = 0
+    args.max_batch_size = bsz
+    # max_seq_len > PROMPT_LEN: a decode at start_pos = PROMPT_LEN reads
+    # `freqs_cis[start_pos]` directly (model_decode_opt.py:644), so the
+    # precomputed table needs at least one entry past PROMPT_LEN. The
+    # prefill+decode test gets away with max_seq_len = PROMPT_LEN = 128
+    # because it only exercises decode under torch.compile on device, where
+    # an OOB index_select doesn't raise the same way it does on CPU.
+    args.max_seq_len = 2 * PROMPT_LEN
+    if num_layers < args.n_layers:
+        args.n_layers = num_layers
+        args.compress_ratios = args.compress_ratios[:num_layers]
+    print(
+        f"[args] n_layers={args.n_layers}, "
+        f"n_routed_experts={args.n_routed_experts}, "
+        f"n_activated_experts={args.n_activated_experts}, bsz={bsz}, "
+        f"max_seq_len={args.max_seq_len}, "
+        f"compress_ratios={args.compress_ratios}",
+        flush=True,
+    )
+
+    model = _build_and_load_full_model(args, mesh_shape)
+
+    # Single-token decode input: id 0 per batch row. Deterministic and the
+    # actual content doesn't affect the CPU-vs-device equivalence check.
+    next_token = torch.zeros((bsz, 1), dtype=torch.long)
+    cache_seed = 12345
+
+    # --- CPU decode -------------------------------------------------------
+    _emulate_post_prefill_caches(model, torch.Generator().manual_seed(cache_seed))
+    print("[cpu] single decode (start_pos=PROMPT_LEN) ...", flush=True)
+    sp_cpu = torch.tensor(PROMPT_LEN, dtype=torch.long)
+    cpu_h, _ = model(next_token, sp_cpu, return_hidden_states=True)
+    cpu_out = cpu_h.detach().to(torch.float32).cpu().clone()
+    print(f"[cpu] hidden_states shape={tuple(cpu_out.shape)}", flush=True)
+
+    # CPU decode mutated kv_cache + compressor / indexer state in place.
+    # Re-emulate from the same seed so the device run starts from identical
+    # cache contents.
+    _emulate_post_prefill_caches(model, torch.Generator().manual_seed(cache_seed))
+
+    # --- Move to device + shard ------------------------------------------
+    print("[device] moving model to TT (this releases CPU storage) ...", flush=True)
+    device = torch_xla.device()
+    model = model.to(device)
+    gc.collect()
+    for tensor, spec in transformer_shard_spec(model).items():
+        xs.mark_sharding(tensor, mesh, spec)
+
+    hook = sharding_constraint_hook(model.head, mesh, (None, None))
+    model.head.register_forward_hook(hook)
+
+    compiled = torch.compile(model, backend="tt")
+
+    next_token_tt = next_token.to(device)
+    xs.mark_sharding(next_token_tt, mesh, ("_axis_0", None))
+    sp_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
+
+    # --- Device decode ----------------------------------------------------
+    print("[device] compiling + running single decode ...", flush=True)
+    device_h, _ = compiled(next_token_tt, sp_tt, return_hidden_states=True)
+    torch_xla.sync(wait=True)
+    device_out = device_h.detach().to("cpu").to(torch.float32).clone()
+    print(f"[device] hidden_states shape={tuple(device_out.shape)}", flush=True)
+
+    assert cpu_out.shape == device_out.shape, (
+        f"shape mismatch: cpu={tuple(cpu_out.shape)} "
+        f"device={tuple(device_out.shape)}"
+    )
+
+    pcc = _pcc(cpu_out, device_out)
+    print(
+        f"[pcc] cpu vs device single-decode hidden_states pcc={pcc:.6f} "
+        f"(required >= {PREFILL_PCC_REQUIRED})",
+        flush=True,
+    )
+    assert pcc >= PREFILL_PCC_REQUIRED, (
+        f"PCC failed: got {pcc:.6f}, required >= {PREFILL_PCC_REQUIRED}"
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("num_layers", [10, 15, 20, 30, 43])
+@pytest.mark.parametrize("num_iterations", [1, 2, 5, 10])
+@pytest.mark.parametrize("use_cpu_decode_inputs", [True, False])
+@torch.inference_mode()
+def test_prefill_and_decode_pcc(
+    num_layers: int,
+    num_iterations: int,
+    use_cpu_decode_inputs: bool,
+) -> None:
+    """Run prefill + `num_iterations` decode steps on CPU, then on the TT
+    device, capturing the post-block hidden states tensor at every step.
+    PCC-compare CPU vs device for the prefill output and for each decode
+    step.
+
+    Decode is driven by real logits: the first decode token comes from
+    argmax of the prefill logits, and each subsequent decode token comes
+    from argmax of the previous decode's logits — autoregressive
+    generation.
+
+    `use_cpu_decode_inputs` selects how the device decode loop is fed:
+      - True: the device replays the CPU-derived token sequence verbatim,
+        so CPU and device see identical inputs at every decode step and
+        the per-step PCC isolates numeric divergence rather than diverging
+        argmax choices. This is the path whose decode-step PCCs are
+        asserted.
+      - False: the device derives its own next-token sequence from its
+        own logits. At the end of every decode step we record the per-row
+        match count between the token the device just argmaxed and the
+        token CPU argmaxed at the same step, and print the list at the
+        end (no assert — the user wants to inspect divergence). Decode-
+        step PCCs are still computed and printed but not asserted, since
+        once argmaxes diverge the inputs to subsequent steps differ and
+        decode-PCC stops being equivalence-meaningful.
+
+    `Transformer.forward(..., return_hidden_states=True)` returns
+    `(hidden_states, logits)` (model_decode_opt.py:972-981). hidden_states
+    is `[bsz, seqlen, hc_mult, dim]` (seqlen=PROMPT_LEN for prefill, 1 for
+    each decode); logits is `[bsz, vocab_size]` at the last position.
+
+    Caches mutate in place across prefill+decodes; CPU caches are zeroed
+    before the device move so the device run starts from a fresh-model
+    state matching the CPU run.
+    """
+    enable_spmd()
+    xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    mesh, mesh_shape = make_mesh()
+    bsz = BATCH_SIZE
+
+    args = weight_loader.load_config_args()
+    args.n_mtp_layers = 0
+    args.max_batch_size = bsz
+    # Extend the max_seq_len to allow kv_cache tensors to store all prefill+decode tokens
+    args.max_seq_len = 2 * PROMPT_LEN
+    assert PROMPT_LEN + num_iterations - 1 < args.max_seq_len, (
+        f"PROMPT_LEN+num_iterations-1 ({PROMPT_LEN + num_iterations - 1}) "
+        f">= max_seq_len ({args.max_seq_len})"
+    )
+    if num_layers < args.n_layers:
+        args.n_layers = num_layers
+        args.compress_ratios = args.compress_ratios[:num_layers]
+    print(
+        f"[args] n_layers={args.n_layers}, "
+        f"n_routed_experts={args.n_routed_experts}, "
+        f"n_activated_experts={args.n_activated_experts}, bsz={bsz}, "
+        f"max_seq_len={args.max_seq_len}, num_iterations={num_iterations}, "
+        f"compress_ratios={args.compress_ratios}",
+        flush=True,
+    )
+
+    from transformers import AutoTokenizer  # noqa: WPS433
+
+    tokenizer = AutoTokenizer.from_pretrained(weight_loader.REPO_ID)
+    prompt_ids = _tokenize_prompts(tokenizer, PROMPTS)
+    assert prompt_ids.shape == (bsz, PROMPT_LEN)
+
+    model = _build_and_load_full_model(args, mesh_shape)
+
+    # ---- CPU prefill + decodes ------------------------------------------
+    # decode_inputs[k] is the [bsz, 1] token tensor fed into CPU decode
+    # step k (decode_inputs[0] is argmax of prefill logits;
+    # decode_inputs[k>0] is argmax of decode step k-1's logits).
+    # cpu_generated_tokens[k] is the token CPU produced *at* decode step k
+    # (= argmax of step k's logits = decode_inputs[k+1] when k+1 exists).
+    decode_inputs: list[torch.Tensor] = []
+    cpu_generated_tokens: list[torch.Tensor] = []
+
+    print("[cpu] prefill ...", flush=True)
+    sp_prefill = torch.tensor(PROMPT_LEN, dtype=torch.long)
+    # h_pf is the hidden states tensor returned after prefill
+    # logits_pf is the logits tensor returned after prefill
+    h_pf, logits_pf = model(prompt_ids, sp_prefill, return_hidden_states=True)
+    cpu_prefill_h = h_pf.detach().to(torch.float32).cpu().clone()
+    next_token = logits_pf.detach().cpu().argmax(dim=-1, keepdim=True).to(torch.long)
+    print(
+        f"[cpu] prefill hidden_states shape={tuple(cpu_prefill_h.shape)} "
+        f"first_ids[:8]={next_token[:8, 0].tolist()}",
+        flush=True,
+    )
+
+    cpu_decode_hs: list[torch.Tensor] = []
+    for step in range(num_iterations):
+        decode_inputs.append(next_token)
+        sp_step = torch.tensor(PROMPT_LEN + step, dtype=torch.long)
+        h_d, logits_d = model(next_token, sp_step, return_hidden_states=True)
+        h = h_d.detach().to(torch.float32).cpu().clone()
+        cpu_decode_hs.append(h)
+        next_token = logits_d.detach().cpu().argmax(dim=-1, keepdim=True).to(torch.long)
+        cpu_generated_tokens.append(next_token)
+        print(
+            f"[cpu] decode step {step} sp={PROMPT_LEN + step} "
+            f"shape={tuple(h.shape)} next_ids[:8]={next_token[:8, 0].tolist()}",
+            flush=True,
+        )
+
+    assert len(decode_inputs) == num_iterations
+    assert len(cpu_generated_tokens) == num_iterations
+
+    # CPU prefill+decodes mutated kv_cache + compressor / indexer state in
+    # place. Reset so the device run starts from the same fresh state.
+    _reset_attn_caches(model)
+
+    # ---- Move to device + shard ----------------------------------------
+    print("[device] moving model to TT (this releases CPU storage) ...", flush=True)
+    device = torch_xla.device()
+    model = model.to(device)
+    gc.collect()
+    for tensor, spec in transformer_shard_spec(model).items():
+        xs.mark_sharding(tensor, mesh, spec)
+
+    hook = sharding_constraint_hook(model.head, mesh, (None, None))
+    model.head.register_forward_hook(hook)
+
+    compiled = torch.compile(model, backend="tt")
+
+    # ---- Device prefill + decodes --------------------------------------
+    prompt_ids_tt = prompt_ids.to(device)
+    xs.mark_sharding(prompt_ids_tt, mesh, ("_axis_0", None))
+    sp_prefill_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
+    print("[device] compiling + running prefill ...", flush=True)
+    h_pf_dev, logits_pf_dev = compiled(
+        prompt_ids_tt, sp_prefill_tt, return_hidden_states=True
+    )
+    torch_xla.sync(wait=True)
+    device_prefill_h = h_pf_dev.detach().to("cpu").to(torch.float32).clone()
+    # Device's first decode input when running self-driven (False): the
+    # argmax of device's own prefill logits. Materialize now via .to("cpu")
+    # so the lazy-graph result for prefill is snapshotted before the
+    # decode loop mutates caches.
+    next_token_dev = (
+        logits_pf_dev.detach().to("cpu").argmax(dim=-1, keepdim=True).to(torch.long)
+    )
+    print(
+        f"[device] prefill hidden_states shape={tuple(device_prefill_h.shape)} "
+        f"first_ids[:8]={next_token_dev[:8, 0].tolist()}",
+        flush=True,
+    )
+
+    device_decode_hs: list[torch.Tensor] = []
+    # When use_cpu_decode_inputs=False, store per-step (matches, total) of
+    # device-vs-cpu argmax tokens. Empty in the True path.
+    token_match_results: list[tuple[int, int, int]] = []
+
+    for step in range(num_iterations):
+        if use_cpu_decode_inputs:
+            # Replay the CPU-derived token sequence so CPU and device
+            # decode steps see identical inputs.
+            token_in = decode_inputs[step]
+        else:
+            # Self-driven: feed device its own previous-step argmax.
+            token_in = next_token_dev
+
+        decode_token_tt = token_in.to(device)
+        xs.mark_sharding(decode_token_tt, mesh, ("_axis_0", None))
+        sp_step_tt = torch.tensor(PROMPT_LEN + step, dtype=torch.long).to(device)
+        h_d_dev, logits_d_dev = compiled(
+            decode_token_tt, sp_step_tt, return_hidden_states=True
+        )
+        # `.to("cpu")` forces lazy-graph materialization, snapshotting the
+        # i-th decode's hidden states before the next step mutates caches.
+        h = h_d_dev.detach().to("cpu").to(torch.float32).clone()
+        device_decode_hs.append(h)
+        dev_argmax = (
+            logits_d_dev.detach().to("cpu").argmax(dim=-1, keepdim=True).to(torch.long)
+        )
+        next_token_dev = dev_argmax  # used as next-step input when not replaying CPU
+
+        if not use_cpu_decode_inputs:
+            matches = int((dev_argmax == cpu_generated_tokens[step]).sum().item())
+            token_match_results.append((step, matches, bsz))
+
+        print(
+            f"[device] decode step {step} sp={PROMPT_LEN + step} "
+            f"shape={tuple(h.shape)} "
+            f"next_ids[:8]={dev_argmax[:8, 0].tolist()}",
+            flush=True,
+        )
+
+    # ---- PCC comparisons ------------------------------------------------
+    pccs: list[tuple[str, float]] = []
+
+    assert cpu_prefill_h.shape == device_prefill_h.shape, (
+        f"prefill shape mismatch: cpu={tuple(cpu_prefill_h.shape)} "
+        f"device={tuple(device_prefill_h.shape)}"
+    )
+    pcc_prefill = _pcc(cpu_prefill_h, device_prefill_h)
+    pccs.append(("prefill", pcc_prefill))
+    print(f"[pcc] prefill pcc={pcc_prefill:.6f}", flush=True)
+
+    decode_pccs: list[tuple[str, float]] = []
+    for i, (cpu_h, dev_h) in enumerate(zip(cpu_decode_hs, device_decode_hs)):
+        assert cpu_h.shape == dev_h.shape, (
+            f"decode[{i}] shape mismatch: cpu={tuple(cpu_h.shape)} "
+            f"device={tuple(dev_h.shape)}"
+        )
+        p = _pcc(cpu_h, dev_h)
+        decode_pccs.append((f"decode[{i}]", p))
+        print(f"[pcc] decode step {i} pcc={p:.6f}", flush=True)
+
+    # ---- Token-sequence match (False-path only) ------------------------
+    if not use_cpu_decode_inputs:
+        print(
+            "[match] device-vs-cpu argmax tokens per decode step "
+            f"(use_cpu_decode_inputs=False, total={bsz} rows):",
+            flush=True,
+        )
+        for step, matches, total in token_match_results:
+            print(
+                f"  step {step}: {matches}/{total} rows match",
+                flush=True,
+            )
+
+    # ---- Assertions ----------------------------------------------------
+    # Prefill PCC is always asserted (prefill inputs are identical for both
+    # paths). Decode PCCs are asserted only when use_cpu_decode_inputs=True
+    # — once self-driven argmaxes diverge, decode-step inputs differ between
+    # CPU and device and the PCC stops being equivalence-meaningful.
+    failures = []
+    if pcc_prefill < PREFILL_PCC_REQUIRED:
+        failures.append(f"prefill={pcc_prefill:.6f}")
+    if use_cpu_decode_inputs:
+        for label, p in decode_pccs:
+            if p < PREFILL_PCC_REQUIRED:
+                failures.append(f"{label}={p:.6f}")
+    assert not failures, (
+        f"PCC failed for: {failures} (required >= {PREFILL_PCC_REQUIRED})"
+    )
