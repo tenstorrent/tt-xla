@@ -34,6 +34,7 @@ import traceback
 from collections import defaultdict
 from pathlib import Path
 from typing import Optional
+
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -70,6 +71,7 @@ PATTERN_LABELS = {
 
 # ── YAML parsing ──────────────────────────────────────────────────────────
 
+
 def load_config():
     with TEST_CONFIG.open() as f:
         data = yaml.safe_load(f)
@@ -77,6 +79,7 @@ def load_config():
 
 
 # ── test-key → loader path ────────────────────────────────────────────────
+
 
 def parse_test_key(key: str) -> tuple[str, Optional[str], Path]:
     """
@@ -109,6 +112,7 @@ def parse_test_key(key: str) -> tuple[str, Optional[str], Path]:
 
 # ── loader import ─────────────────────────────────────────────────────────
 
+
 def import_loader(loader_path: Path):
     """Dynamically import a loader.py and return its ModelLoader class."""
     if not loader_path.exists():
@@ -133,6 +137,7 @@ def import_loader(loader_path: Path):
 
 
 # ── CPU forward pass ──────────────────────────────────────────────────────
+
 
 def run_cpu_forward(ModelLoader, variant_name: Optional[str]) -> dict:
     """
@@ -201,6 +206,7 @@ def run_cpu_forward(ModelLoader, variant_name: Optional[str]) -> dict:
 
 # ── group failures ────────────────────────────────────────────────────────
 
+
 def group_failures(config: dict) -> dict[str, list[dict]]:
     """Return failures grouped by pattern key (unpack / dtype / inputs / other)."""
     groups: dict[str, list[dict]] = defaultdict(list)
@@ -225,9 +231,11 @@ def group_failures(config: dict) -> dict[str, list[dict]]:
                 "reason": reason,
                 "model_path": model_path,
                 "variant": variant,
-                "loader_path": str(loader_path.relative_to(REPO_ROOT))
-                if loader_path.is_absolute()
-                else str(loader_path),
+                "loader_path": (
+                    str(loader_path.relative_to(REPO_ROOT))
+                    if loader_path.is_absolute()
+                    else str(loader_path)
+                ),
                 "loader_exists": loader_path.exists(),
             }
         )
@@ -236,6 +244,7 @@ def group_failures(config: dict) -> dict[str, list[dict]]:
 
 
 # ── run mode: CPU forward for unpack + dtype groups ───────────────────────
+
 
 def enrich_with_cpu_run(groups: dict, target_patterns: list[str]) -> None:
     """Mutate group entries in-place with CPU forward pass results."""
@@ -247,7 +256,9 @@ def enrich_with_cpu_run(groups: dict, target_patterns: list[str]) -> None:
 
     for pattern in target_patterns:
         entries = groups.get(pattern, [])
-        seen_loaders: dict[str, dict] = {}  # loader_path -> result (same for all variants)
+        seen_loaders: dict[str, dict] = (
+            {}
+        )  # loader_path -> result (same for all variants)
 
         for i, entry in enumerate(entries):
             lp = entry["loader_path"]
@@ -283,6 +294,7 @@ def enrich_with_cpu_run(groups: dict, target_patterns: list[str]) -> None:
 
 # ── registry check ────────────────────────────────────────────────────────
 
+
 def known_output_classes() -> set[str]:
     """Return the set of output class names already registered in training_utils."""
     try:
@@ -298,6 +310,7 @@ def known_output_classes() -> set[str]:
 
 
 # ── report printing ───────────────────────────────────────────────────────
+
 
 def print_report(groups: dict, registry: set[str]) -> None:
     total = sum(len(v) for v in groups.values())
@@ -349,8 +362,11 @@ def print_report(groups: dict, registry: set[str]) -> None:
 
 # ── entry point ───────────────────────────────────────────────────────────
 
+
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument(
         "--run",
         action="store_true",
@@ -388,17 +404,19 @@ def main():
 
     if args.run:
         target_patterns = (
-            ["unpack", "dtype", "inputs"]
-            if args.pattern == "all"
-            else [args.pattern]
+            ["unpack", "dtype", "inputs"] if args.pattern == "all" else [args.pattern]
         )
         # Apply offset/limit to each pattern group so batching works per-pattern
         if args.offset or args.limit is not None:
             for pat in target_patterns:
                 if pat in groups:
                     entries = groups[pat]
-                    end = (args.offset + args.limit) if args.limit is not None else len(entries)
-                    groups[pat] = entries[args.offset:end]
+                    end = (
+                        (args.offset + args.limit)
+                        if args.limit is not None
+                        else len(entries)
+                    )
+                    groups[pat] = entries[args.offset : end]
             print(
                 f"Running CPU forward passes for pattern(s): {target_patterns}"
                 f"  (offset={args.offset}, limit={args.limit})"
