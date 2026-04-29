@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import csv
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, TextIO
+from typing import Iterable, Iterator, TextIO
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,52 @@ def iter_device_events(path: Path) -> Iterator[DeviceEvent]:
                 zone_name=row[10],
                 event_type=row[11],
             )
+
+
+@dataclass(frozen=True)
+class Zone:
+    pcie_slot: int
+    core_x: int
+    core_y: int
+    risc: str
+    run_host_id: int
+    zone_name: str
+    start_cycles: int
+    end_cycles: int
+
+    @property
+    def duration_cycles(self) -> int:
+        return self.end_cycles - self.start_cycles
+
+
+def pair_zones(events: Iterable[DeviceEvent]) -> list[Zone]:
+    """Pair ZONE_START / ZONE_END rows into Zones (FIFO stack per key)."""
+    open_stacks: dict[tuple, list[DeviceEvent]] = defaultdict(list)
+    zones: list[Zone] = []
+    for ev in events:
+        key = (ev.pcie_slot, ev.core_x, ev.core_y, ev.risc, ev.run_host_id, ev.zone_name)
+        if ev.event_type == "ZONE_START":
+            open_stacks[key].append(ev)
+        elif ev.event_type == "ZONE_END":
+            if not open_stacks[key]:
+                raise ValueError(f"unmatched ZONE_END for {key}")
+            start = open_stacks[key].pop()
+            zones.append(Zone(
+                pcie_slot=ev.pcie_slot,
+                core_x=ev.core_x,
+                core_y=ev.core_y,
+                risc=ev.risc,
+                run_host_id=ev.run_host_id,
+                zone_name=ev.zone_name,
+                start_cycles=start.time_cycles,
+                end_cycles=ev.time_cycles,
+            ))
+        else:
+            raise ValueError(f"unknown event_type {ev.event_type!r}")
+    leftover = [k for k, v in open_stacks.items() if v]
+    if leftover:
+        raise ValueError(f"unmatched ZONE_START events for keys: {leftover}")
+    return zones
 
 
 def main() -> int:
