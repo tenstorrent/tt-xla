@@ -81,16 +81,20 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
-static bool moduleHasAnyFuncArguments(mlir::OwningOpRef<mlir::ModuleOp> &m) {
-  bool found = false;
+// Returns true if the public entry point of the module has at least one
+// argument.
+static bool
+moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
+  std::vector<mlir::func::FuncOp> public_func_ops;
   m.get().walk([&](mlir::func::FuncOp funcOp) {
-    if (funcOp.getNumArguments() > 0) {
-      found = true;
-      return mlir::WalkResult::interrupt();
+    if (funcOp.isPublic()) {
+      public_func_ops.push_back(funcOp);
     }
-    return mlir::WalkResult::advance();
   });
-  return found;
+  TT_FATAL(public_func_ops.size() == 1,
+           "Expected exactly one public function in module, got {}",
+           public_func_ops.size());
+  return public_func_ops[0].getNumArguments() > 0;
 }
 
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
