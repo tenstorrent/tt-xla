@@ -76,6 +76,7 @@ _GEMMA4_BASE_ADDITIONAL_CONFIG = {
     "cpu_sampling": False,
     "experimental_enable_permute_matmul_fusion": False,
     "experimental_weight_dtype": "bfp_bf8",
+    "optimization_level": 1,
 }
 
 
@@ -86,8 +87,11 @@ def _gemma4_bhqb_config(
     max_num_batched_tokens: int = _GEMMA4_MIN_BATCHED_TOKENS,
     gpu_memory_utilization: float = 0.1,
     max_tokens: int = 256,
+    num_hidden_layers: int = 0,
 ) -> VLLMBenchmarkConfig:
     additional_config = dict(_GEMMA4_BASE_ADDITIONAL_CONFIG)
+    if num_hidden_layers > 0:
+        additional_config["num_hidden_layers"] = num_hidden_layers
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
@@ -111,7 +115,7 @@ def _gemma4_bhqb_config(
 
 BHQB_CONFIGS = [
     pytest.param(
-        _gemma4_bhqb_config(model="google/gemma-4-31B-it"),
+        _gemma4_bhqb_config(model="google/gemma-4-31B-it", ),
         id="gemma-4-31b-it-b1",
     ),
     pytest.param(
@@ -121,6 +125,7 @@ BHQB_CONFIGS = [
             max_model_len=256,
             max_num_batched_tokens=8192,
             gpu_memory_utilization=0.74,
+            #num_hidden_layers=1,
         ),
         id="gemma-4-31b-it-b32",
     ),

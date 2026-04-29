@@ -516,8 +516,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             f"skipping layers {self._target_num_layers}-{self._original_num_layers-1}"
         )
 
+        # PLE tensors pack all layers' per-layer dim into a single weight
+        # (shape includes num_layers * hidden_size_per_layer_input). When
+        # num_hidden_layers is overridden the model is built with a smaller
+        # PLE dim, so the full-size checkpoint tensor must be sliced to match.
+        hf_config = self.vllm_config.model_config.hf_config
+        text_cfg = getattr(hf_config, "text_config", hf_config)
+        ple_dim = getattr(text_cfg, "hidden_size_per_layer_input", 0) or 0
+        target_ple_total = self._target_num_layers * ple_dim
+        original_ple_total = self._original_num_layers * ple_dim
+
         skipped_count = 0
         kept_count = 0
+        truncated_count = 0
 
         for weight_name, weight_tensor in weights_iterator:
             # Check if this weight belongs to a layer that should be skipped
@@ -542,12 +553,34 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 skipped_count += 1
                 logger.debug(f"Skipping weight: {weight_name}")
                 continue
-            else:
-                kept_count += 1
-                yield weight_name, weight_tensor
+
+            # Truncate Gemma-style PLE weights whose last/first dim packs all
+            # original layers' per-layer dim. We slice rather than skip so
+            # the (smaller) target model still gets a usable checkpoint slice.
+            if ple_dim > 0 and target_ple_total < original_ple_total:
+                if "embed_tokens_per_layer" in weight_name:
+                    # VocabParallelEmbedding weight: (vocab, num_layers * ple_dim)
+                    if weight_tensor.dim() == 2 and weight_tensor.shape[-1] == original_ple_total:
+                        weight_tensor = weight_tensor[..., :target_ple_total].contiguous()
+                        truncated_count += 1
+                        logger.debug(
+                            f"Truncated PLE weight {weight_name} to {weight_tensor.shape}"
+                        )
+                elif "per_layer_model_projection" in weight_name:
+                    # ColumnParallelLinear weight: (num_layers * ple_dim, hidden_size)
+                    if weight_tensor.dim() == 2 and weight_tensor.shape[0] == original_ple_total:
+                        weight_tensor = weight_tensor[:target_ple_total, ...].contiguous()
+                        truncated_count += 1
+                        logger.debug(
+                            f"Truncated PLE weight {weight_name} to {weight_tensor.shape}"
+                        )
+
+            kept_count += 1
+            yield weight_name, weight_tensor
 
         logger.info(
-            f"Weight filtering complete: kept {kept_count} weights, skipped {skipped_count} weights"
+            f"Weight filtering complete: kept {kept_count} weights, "
+            f"skipped {skipped_count} weights, truncated {truncated_count} PLE weights"
         )
 
     def reset_mm_cache(self) -> None:
@@ -1895,12 +1928,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
-            # Mark dummy inputs to match the generated hidden_states shardings
-            # (during execution) to avoid re-compilation of select_hidden_states
-            # graph later.
-            if self.enable_tensor_parallel and self.use_2d_mesh:
-                xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
-
+            if self.enable_tensor_parallel:
+                xs.mark_sharding(
+                    dummy_hidden,
+                    self.mesh,
+                    (None, None if num_tokens == 1 else "batch", "model"),
+                )
             with torch_dynamo_jax_compatibility():
                 self.select_hidden_states(dummy_hidden, indices)
 
@@ -2258,18 +2291,29 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Set up cross-layer KV cache sharing if needed
         self.maybe_setup_cross_layer_kv_sharing(kv_caches, kv_cache_config)
 
+        # Apply sharding BEFORE bind_kv_cache so the metadata is attached to
+        # the underlying tensor and propagates to every reference (the bound
+        # forward-context entries and self.kv_caches alike). Otherwise the
+        # sharding annotation does not reach the references the model layers
+        # actually fetch during forward, and the compiled graph captured at
+        # _precompile_backbone time differs from the runtime graph -> cache
+        # miss and full recompile of the decode graph at warmup.
+        if self.enable_tensor_parallel:
+            # Shard KV Cache — each entry is [k_cache, v_cache]
+            # Shape: (num_blocks, num_kv_heads, block_size, head_size)
+            # Split dim 1 (num_kv_heads) along the size-N mesh axis ("model"
+            # in our (1, N) mesh) to do head-parallel TP. Using "batch" here
+            # would be a no-op since the batch axis is size 1.
+            for kv_pair in kv_caches.values():
+                for cache in kv_pair:
+                    assert cache.ndim == 4, "KV cache tensor must be 4D."
+                    xs.mark_sharding(cache, self.mesh, (None, "model", None, None))
+
         bind_kv_cache(
             kv_caches,
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,
         )
-
-        if self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]
-            for kv_pair in self.kv_caches:
-                for cache in kv_pair:
-                    assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    xs.mark_sharding(cache, self.mesh, (None, "batch", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -2303,8 +2347,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        if self.enable_tensor_parallel and not self.use_2d_mesh:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
