@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import bisect
+import contextlib
 import gc
 import os
 import time
@@ -103,6 +104,7 @@ from .platform import TTConfig
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
 from .vllm_utils import determine_mesh_shape, prev_power_of_2
+from . import _tracy
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -923,228 +925,222 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         assert num_reqs > 0
         assert start_index < num_reqs
 
-        # Get the number of scheduled tokens for each request.
-        use_max_model_len = self.most_model_len is None
-        num_scheduled_tokens_per_req = []
-        max_num_scheduled_tokens_all_reqs = 0
-        end_index = start_index
+        with _tracy.zone("compute_scheduled_tokens"):
+            # Get the number of scheduled tokens for each request.
+            use_max_model_len = self.most_model_len is None
+            num_scheduled_tokens_per_req = []
+            max_num_scheduled_tokens_all_reqs = 0
+            end_index = start_index
 
-        # Use either most_model_len or max_model_len depending on request size.
-        for i in range(start_index, num_reqs):
-            req_id = self.input_batch.req_ids[i]
-            assert req_id is not None
-            num_tokens = scheduler_output.num_scheduled_tokens[req_id]
-            if (
-                not use_max_model_len
-                and self.most_model_len is not None
-                and num_tokens > self.most_model_len
-            ):
-                use_max_model_len = True
-            num_scheduled_tokens_per_req.append(num_tokens)
-        if use_max_model_len:
-            if len(num_scheduled_tokens_per_req) > self.num_reqs_max_model_len:
-                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
-                    : self.num_reqs_max_model_len
-                ]
-                end_index = start_index + self.num_reqs_max_model_len
+            # Use either most_model_len or max_model_len depending on request size.
+            for i in range(start_index, num_reqs):
+                req_id = self.input_batch.req_ids[i]
+                assert req_id is not None
+                num_tokens = scheduler_output.num_scheduled_tokens[req_id]
+                if (
+                    not use_max_model_len
+                    and self.most_model_len is not None
+                    and num_tokens > self.most_model_len
+                ):
+                    use_max_model_len = True
+                num_scheduled_tokens_per_req.append(num_tokens)
+            if use_max_model_len:
+                if len(num_scheduled_tokens_per_req) > self.num_reqs_max_model_len:
+                    num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
+                        : self.num_reqs_max_model_len
+                    ]
+                    end_index = start_index + self.num_reqs_max_model_len
+                else:
+                    end_index = num_reqs
             else:
-                end_index = num_reqs
-        else:
-            assert self.num_reqs_most_model_len is not None
-            if len(num_scheduled_tokens_per_req) > self.num_reqs_most_model_len:
-                num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
-                    : self.num_reqs_most_model_len
+                assert self.num_reqs_most_model_len is not None
+                if len(num_scheduled_tokens_per_req) > self.num_reqs_most_model_len:
+                    num_scheduled_tokens_per_req = num_scheduled_tokens_per_req[
+                        : self.num_reqs_most_model_len
+                    ]
+                    end_index = start_index + self.num_reqs_most_model_len
+                else:
+                    end_index = num_reqs
+
+            max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
+            num_scheduled_tokens_per_req = np.array(
+                num_scheduled_tokens_per_req, dtype=np.int32
+            )
+            total_num_scheduled_tokens = sum(num_scheduled_tokens_per_req)
+            assert max_num_scheduled_tokens_all_reqs > 0
+
+            num_reqs = len(num_scheduled_tokens_per_req)
+
+            # Compute the padded total number of scheduled tokens so that all requests
+            # in the batch share a common, hardware-compatible sequence length.
+            padded_total_num_scheduled_tokens = _get_padded_token_len(
+                self.num_tokens_paddings, max_num_scheduled_tokens_all_reqs
+            )
+            logger.info(
+                "DEBUG _prepare_inputs: num_reqs=%d, max_scheduled=%d, padded=%d, start_index=%d",
+                num_reqs,
+                max_num_scheduled_tokens_all_reqs,
+                padded_total_num_scheduled_tokens,
+                start_index,
+            )
+
+        with _tracy.zone("build_position_ids"):
+            # Allocate a zero-initialized position tensor of shape
+            # [max_num_reqs, padded_total_num_scheduled_tokens]. Entries beyond the
+            # actual number of scheduled tokens per request remain zero (padding).
+            arange = torch.zeros(
+                (self.max_num_reqs, padded_total_num_scheduled_tokens), dtype=torch.int32
+            )
+
+            # Populate position ids for each request.
+            for i, n in enumerate(num_scheduled_tokens_per_req):
+                arange[i, :n] = (
+                    torch.arange(n, dtype=torch.int32)
+                    + self.input_batch.num_computed_tokens_cpu[i]
+                )
+
+        with _tracy.zone("build_input_ids"):
+            # Allocate a zero-padded input_ids tensor of shape
+            # [max_num_reqs, padded_total_num_scheduled_tokens].
+            input_ids_cpu = torch.zeros(
+                (self.max_num_reqs, padded_total_num_scheduled_tokens),
+                dtype=torch.int32,
+                device="cpu",
+            )
+
+            # Fill input_ids with the newly scheduled tokens for each request.
+            for i, n in enumerate(num_scheduled_tokens_per_req):
+                computed_tokens = self.input_batch.num_computed_tokens_cpu[i]
+                input_ids_cpu[i, :n] = self.input_batch.token_ids_cpu_tensor[
+                    i, computed_tokens : n + computed_tokens
                 ]
-                end_index = start_index + self.num_reqs_most_model_len
+
+        with _tracy.zone("transfer_ids_to_device"):
+            # Move input_ids and position_ids to the target device for execution.
+            self.input_ids = input_ids_cpu.to(self.device)
+            self.position_ids = arange.to(self.device)
+
+        with _tracy.zone("attn_metadata_cpu_setup"):
+            # Prepare the attention metadata.
+            self.query_start_loc_np[0] = 0
+            np.cumsum(
+                num_scheduled_tokens_per_req,
+                out=self.query_start_loc_np[1 : num_reqs + 1],
+            )
+            self.query_start_loc_np[num_reqs + 1 :] = 1
+
+            self.seq_lens_np[:num_reqs] = (
+                self.input_batch.num_computed_tokens_cpu[:num_reqs]
+                + num_scheduled_tokens_per_req
+            )
+
+        with _tracy.zone("build_page_table"):
+            if use_max_model_len:
+                assert self.num_reqs_max_model_len is not None
+                page_table = self.block_table_cpu[
+                    : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
+                ]
+                page_table[:num_reqs, : self.max_num_blocks_per_req] = (
+                    self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
+                )
+                seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
             else:
-                end_index = num_reqs
-
-        max_num_scheduled_tokens_all_reqs = max(num_scheduled_tokens_per_req)
-        num_scheduled_tokens_per_req = np.array(
-            num_scheduled_tokens_per_req, dtype=np.int32
-        )
-        total_num_scheduled_tokens = sum(num_scheduled_tokens_per_req)
-        assert max_num_scheduled_tokens_all_reqs > 0
-
-        num_reqs = len(num_scheduled_tokens_per_req)
-
-        # Compute the padded total number of scheduled tokens so that all requests
-        # in the batch share a common, hardware-compatible sequence length.
-        padded_total_num_scheduled_tokens = _get_padded_token_len(
-            self.num_tokens_paddings, max_num_scheduled_tokens_all_reqs
-        )
-        logger.info(
-            "DEBUG _prepare_inputs: num_reqs=%d, max_scheduled=%d, padded=%d, start_index=%d",
-            num_reqs,
-            max_num_scheduled_tokens_all_reqs,
-            padded_total_num_scheduled_tokens,
-            start_index,
-        )
-
-        # Allocate a zero-initialized position tensor of shape
-        # [max_num_reqs, padded_total_num_scheduled_tokens]. Entries beyond the
-        # actual number of scheduled tokens per request remain zero (padding).
-        arange = torch.zeros(
-            (self.max_num_reqs, padded_total_num_scheduled_tokens), dtype=torch.int32
-        )
-
-        # Populate position ids for each request.
-        # For request i with n scheduled tokens, positions are computed as:
-        #   arange(n) + num_computed_tokens[i]
-        # which offsets the new tokens by the number of tokens already processed.
-        #
-        # Example (num_computed_tokens = [0, 0, 0]):
-        #   num_scheduled_tokens_per_req = [2, 5, 3]
-        #   =>
-        #   [[0, 1, 0, 0, 0],
-        #    [0, 1, 2, 3, 4],
-        #    [0, 1, 2, 0, 0]]
-        #
-        # Padding positions remain zero.
-        #
-        # Example (num_computed_tokens = [3, 10, 5]):
-        #   num_scheduled_tokens_per_req = [2, 5, 3]
-        #   =>
-        #   [[3, 4, 0, 0, 0],
-        #    [10,11,12,13,14],
-        #    [5, 6, 7, 0, 0]]
-        for i, n in enumerate(num_scheduled_tokens_per_req):
-            arange[i, :n] = (
-                torch.arange(n, dtype=torch.int32)
-                + self.input_batch.num_computed_tokens_cpu[i]
-            )
-
-        # Allocate a zero-padded input_ids tensor of shape
-        # [max_num_reqs, padded_total_num_scheduled_tokens].
-        # Only the first n tokens per request are populated; the rest are padding.
-        input_ids_cpu = torch.zeros(
-            (self.max_num_reqs, padded_total_num_scheduled_tokens),
-            dtype=torch.int32,
-            device="cpu",
-        )
-
-        # Fill input_ids with the newly scheduled tokens for each request, starting
-        # from the current computed token offset.
-        for i, n in enumerate(num_scheduled_tokens_per_req):
-            computed_tokens = self.input_batch.num_computed_tokens_cpu[i]
-            input_ids_cpu[i, :n] = self.input_batch.token_ids_cpu_tensor[
-                i, computed_tokens : n + computed_tokens
-            ]
-
-        # Move input_ids and position_ids to the target device for execution.
-        self.input_ids = input_ids_cpu.to(self.device)
-        self.position_ids = arange.to(self.device)
-
-        # Prepare the attention metadata.
-        self.query_start_loc_np[0] = 0
-        np.cumsum(
-            num_scheduled_tokens_per_req, out=self.query_start_loc_np[1 : num_reqs + 1]
-        )
-        self.query_start_loc_np[num_reqs + 1 :] = 1
-
-        self.seq_lens_np[:num_reqs] = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs]
-            + num_scheduled_tokens_per_req
-        )
-
-        if use_max_model_len:
-            assert self.num_reqs_max_model_len is not None
-            page_table = self.block_table_cpu[
-                : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
-            ]
-            page_table[:num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
-            )
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
-        else:
-            page_table = self.block_table_cpu[
-                : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
-            ]
-            page_table[:num_reqs, : self.num_blocks_per_most_len_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[
-                    :num_reqs, : self.num_blocks_per_most_len_req
+                page_table = self.block_table_cpu[
+                    : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
                 ]
+                page_table[:num_reqs, : self.num_blocks_per_most_len_req] = (
+                    self.input_batch.block_table[0].get_cpu_tensor()[
+                        :num_reqs, : self.num_blocks_per_most_len_req
+                    ]
+                )
+                seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
+
+            cache_position = seq_lens - 1
+
+            if num_reqs == 1:
+                cache_position[1:] = -1
+                page_table[1:, :] = 0
+
+        with _tracy.zone("roll_prefix_blocks"):
+            # With prefix caching, some blocks are already filled. Roll each
+            # user's page_table row so paged_fill_cache writes to suffix blocks
+            # instead of overwriting shared prefix blocks.
+            offsets = (
+                self.input_batch.num_computed_tokens_cpu[:num_reqs] // self.block_size
+                if num_reqs > 0
+                else np.array([], dtype=np.int64)
             )
-            seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
+            if np.any(offsets > 0):
+                fill_page_table = page_table.clone()
+                for i in range(num_reqs):
+                    if offsets[i] > 0:
+                        fill_page_table[i] = torch.roll(
+                            page_table[i], shifts=-int(offsets[i])
+                        )
+            else:
+                fill_page_table = page_table
 
-        cache_position = seq_lens - 1
-
-        if num_reqs == 1:
-            cache_position[1:] = -1
-            page_table[1:, :] = 0
-
-        # With prefix caching, some blocks are already filled. Roll each
-        # user's page_table row so paged_fill_cache writes to suffix blocks
-        # instead of overwriting shared prefix blocks. Each user may have a
-        # different prefix length, so we roll per-row. Done outside the
-        # compiled graph to avoid shape-change recompilation.
-        offsets = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs] // self.block_size
-            if num_reqs > 0
-            else np.array([], dtype=np.int64)
-        )
-        if np.any(offsets > 0):
-            fill_page_table = page_table.clone()
-            for i in range(num_reqs):
-                if offsets[i] > 0:
-                    fill_page_table[i] = torch.roll(
-                        page_table[i], shifts=-int(offsets[i])
-                    )
-        else:
-            fill_page_table = page_table
-
-        cache_position = cache_position.to(self.device)
-        page_table = page_table.to(self.device)
-        fill_page_table = (
-            fill_page_table.to(self.device)
-            if fill_page_table is not page_table
-            else page_table
-        )
+        with _tracy.zone("transfer_metadata_to_device"):
+            cache_position = cache_position.to(self.device)
+            page_table = page_table.to(self.device)
+            fill_page_table = (
+                fill_page_table.to(self.device)
+                if fill_page_table is not page_table
+                else page_table
+            )
 
         if self.lora_config is not None:
-            # We need to respect padding when activating LoRA adapters
-            padded_num_scheduled_tokens_per_req = np.copy(
-                num_scheduled_tokens_per_req
-            )  # Copying to avoid accidental state corruption bugs
-            padded_num_scheduled_tokens_per_req[-1] += (
-                padded_total_num_scheduled_tokens - total_num_scheduled_tokens
+            with _tracy.zone("set_active_loras_pre"):
+                # We need to respect padding when activating LoRA adapters
+                padded_num_scheduled_tokens_per_req = np.copy(
+                    num_scheduled_tokens_per_req
+                )  # Copying to avoid accidental state corruption bugs
+                padded_num_scheduled_tokens_per_req[-1] += (
+                    padded_total_num_scheduled_tokens - total_num_scheduled_tokens
+                )
+
+                self.set_active_loras(
+                    self.input_batch, padded_num_scheduled_tokens_per_req
+                )
+
+        with _tracy.zone("build_logits_indices"):
+            attn_metadata = TTMetadata(
+                page_table=page_table,
+                cache_position=cache_position,
+                is_causal=True,
+                attn_mask=None,
+                fill_page_table=fill_page_table,
             )
-
-            self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
-
-        attn_metadata = TTMetadata(
-            page_table=page_table,
-            cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
-            fill_page_table=fill_page_table,
-        )
-        # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
-        # request in the batch. While we should not sample any token from this
-        # partial request, we do so for simplicity. We will ignore the sampled
-        # token from the partial request.
-        # Per-user last-token index within each padded slot.
-        logits_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
-        logits_indices[: len(num_scheduled_tokens_per_req)] = (
-            torch.from_numpy(num_scheduled_tokens_per_req) - 1
-        )
-        logits_indices = logits_indices.to(self.device)
+            # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
+            # request in the batch. While we should not sample any token from this
+            # partial request, we do so for simplicity. We will ignore the sampled
+            # token from the partial request.
+            # Per-user last-token index within each padded slot.
+            logits_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
+            logits_indices[: len(num_scheduled_tokens_per_req)] = (
+                torch.from_numpy(num_scheduled_tokens_per_req) - 1
+            )
+            logits_indices = logits_indices.to(self.device)
 
         if self.lora_config is not None:
-            # We need to respect padding when activating LoRA adapters
-            padded_num_scheduled_tokens_per_req = np.copy(
-                num_scheduled_tokens_per_req
-            )  # Copying to avoid accidental state corruption bugs
-            padded_num_scheduled_tokens_per_req[-1] += (
-                padded_total_num_scheduled_tokens - total_num_scheduled_tokens
-            )
+            with _tracy.zone("set_active_loras_post"):
+                # We need to respect padding when activating LoRA adapters
+                padded_num_scheduled_tokens_per_req = np.copy(
+                    num_scheduled_tokens_per_req
+                )  # Copying to avoid accidental state corruption bugs
+                padded_num_scheduled_tokens_per_req[-1] += (
+                    padded_total_num_scheduled_tokens - total_num_scheduled_tokens
+                )
 
-            self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
+                self.set_active_loras(
+                    self.input_batch, padded_num_scheduled_tokens_per_req
+                )
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        with _tracy.zone("build_per_layer_attn_metadata"):
+            layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
+            per_layer_attn_metadata = {
+                layer_name: attn_metadata for layer_name in layer_names
+            }
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -1366,7 +1362,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         torch._dynamo.config.dynamic_shapes = False
         # Update cached state
-        self._update_states(scheduler_output)
+        with _tracy.zone("update_states"):
+            self._update_states(scheduler_output)
         if not scheduler_output.total_num_scheduled_tokens:
             if not has_kv_transfer_group():
                 # Return empty ModelRunnerOutput if there's no work to do.
@@ -1379,11 +1376,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         mm_embed_inputs = None
         if self.supports_mm_inputs:
-            # Run the multimodal encoder if any.
-            self._execute_mm_encoder(scheduler_output)
-            mm_embed_inputs = self._gather_mm_embeddings(scheduler_output)
+            with _tracy.zone("mm_encoder"):
+                self._execute_mm_encoder(scheduler_output)
+            with _tracy.zone("gather_mm_embeddings"):
+                mm_embed_inputs = self._gather_mm_embeddings(scheduler_output)
 
-        torch_xla.sync(wait=False)
+        with _tracy.zone("xla_sync_execute_model"):
+            torch_xla.sync(wait=False)
 
         self.scheduler_output = scheduler_output
         self.mm_embed_inputs = mm_embed_inputs
@@ -1411,60 +1410,75 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         prompt_lp_hs: dict[int, torch.Tensor] = {}
 
         while start_index < self.input_batch.num_reqs:
-            (
-                attn_metadata,
-                logits_indices,
-                num_reqs,
-                end_index,
-            ) = self._prepare_inputs(scheduler_output, start_index)
-            input_ids, inputs_embeds = self._get_model_inputs(
-                self.input_ids, mm_embed_inputs
-            )
-            (
-                model_input_ids,
-                model_positions,
-                model_inputs_embeds,
-                hidden_state_shape,
-            ) = self._prepare_model_call_tensors(
-                input_ids, self.position_ids, inputs_embeds
-            )
-            torch_xla.sync(wait=False)
-            # Run the decoder
-            with (
-                set_forward_context(
+            with _tracy.zone("prepare_inputs"):
+                (
                     attn_metadata,
-                    self.vllm_config,
-                    num_tokens=scheduler_output.total_num_scheduled_tokens,
-                ),
-                self.maybe_get_kv_connector_output(
-                    scheduler_output
-                ) as kv_connector_output,
-            ):
-                hidden_states = self.model(
-                    input_ids=model_input_ids,
-                    positions=model_positions,
-                    inputs_embeds=model_inputs_embeds,
+                    logits_indices,
+                    num_reqs,
+                    end_index,
+                ) = self._prepare_inputs(scheduler_output, start_index)
+            with _tracy.zone("get_model_inputs"):
+                input_ids, inputs_embeds = self._get_model_inputs(
+                    self.input_ids, mm_embed_inputs
                 )
-            hidden_states = self._restore_model_hidden_states(
-                hidden_states, hidden_state_shape
-            )
+            with _tracy.zone("prepare_model_call_tensors"):
+                (
+                    model_input_ids,
+                    model_positions,
+                    model_inputs_embeds,
+                    hidden_state_shape,
+                ) = self._prepare_model_call_tensors(
+                    input_ids, self.position_ids, inputs_embeds
+                )
+            with _tracy.zone("xla_sync_pre_model"):
+                torch_xla.sync(wait=False)
+            # Run the decoder
+            with _tracy.zone("model_forward"):
+                with contextlib.ExitStack() as fwd_stack:
+                    with _tracy.zone("setup_forward_context"):
+                        fwd_stack.enter_context(
+                            set_forward_context(
+                                attn_metadata,
+                                self.vllm_config,
+                                num_tokens=scheduler_output.total_num_scheduled_tokens,
+                            )
+                        )
+                        kv_connector_output = fwd_stack.enter_context(
+                            self.maybe_get_kv_connector_output(scheduler_output)
+                        )
+                    with _tracy.zone("model_call"):
+                        with _tracy.zone("model_invoke"):
+                            hidden_states = self.model(
+                                input_ids=model_input_ids,
+                                positions=model_positions,
+                                inputs_embeds=model_inputs_embeds,
+                            )
+                        with _tracy.zone("xla_sync_after_model"):
+                            torch_xla.sync(wait=False)
+            with _tracy.zone("restore_hidden_states"):
+                hidden_states = self._restore_model_hidden_states(
+                    hidden_states, hidden_state_shape
+                )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
             # [max_num_reqs, padded_seq_len, H] tensor to CPU.
             if self.num_prompt_logprobs:
-                for i in range(start_index, end_index):
-                    req_id = self.input_batch.req_ids[i]
-                    if req_id in self.num_prompt_logprobs:
-                        local_idx = i - start_index
-                        prompt_lp_hs[i] = hidden_states[local_idx].cpu()
+                with _tracy.zone("prompt_lp_hs_to_cpu"):
+                    for i in range(start_index, end_index):
+                        req_id = self.input_batch.req_ids[i]
+                        if req_id in self.num_prompt_logprobs:
+                            local_idx = i - start_index
+                            prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
             if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
                 xm.wait_device_ops()
                 self._signpost("forward_end")
-            hidden_states = self.select_hidden_states(hidden_states, logits_indices)
-            logits = self.compute_logits(hidden_states)
+            with _tracy.zone("select_hidden_states"):
+                hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+            with _tracy.zone("compute_logits"):
+                logits = self.compute_logits(hidden_states)
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -1474,38 +1488,44 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 self.tt_config.cpu_sampling,
             )
-            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
-                self.input_batch,
-                self.max_num_reqs,
-                sampling_device,
-                vocab_size=self.vocab_size,
-            )
-            if grammar_output is not None:
-                (
-                    require_struct_decoding,
-                    grammar_bitmask_padded,
-                    arange,
-                ) = self.prepare_structured_decoding_input(logits, grammar_output)
-                logits = self.structured_decode(
-                    require_struct_decoding, grammar_bitmask_padded, logits, arange
+            with _tracy.zone("build_sampling_metadata"):
+                sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+                    self.input_batch,
+                    self.max_num_reqs,
+                    sampling_device,
+                    vocab_size=self.vocab_size,
                 )
+            if grammar_output is not None:
+                with _tracy.zone("structured_decoding"):
+                    (
+                        require_struct_decoding,
+                        grammar_bitmask_padded,
+                        arange,
+                    ) = self.prepare_structured_decoding_input(logits, grammar_output)
+                    logits = self.structured_decode(
+                        require_struct_decoding, grammar_bitmask_padded, logits, arange
+                    )
 
             if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
                 xm.wait_device_ops()
                 self._signpost("sampling_start")
-            selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
+            with _tracy.zone("sample_from_logits"):
+                selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
             # sure `sample_from_logits` does not modify the logits in-place.
-            logprobs = (
-                self.gather_logprobs(logits, selected_token_ids)
-                if sampling_metadata.logprobs
-                else None
-            )
+            with _tracy.zone("gather_logprobs"):
+                logprobs = (
+                    self.gather_logprobs(logits, selected_token_ids)
+                    if sampling_metadata.logprobs
+                    else None
+                )
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
-            selected_token_ids = selected_token_ids.cpu()[:num_reqs]
+            with _tracy.zone("tokens_to_cpu"):
+                selected_token_ids = selected_token_ids.cpu()[:num_reqs]
+            _tracy.frame()
 
             combined_selected_tokens.append(selected_token_ids)
             if sampling_metadata.logprobs:
@@ -1513,85 +1533,92 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             start_index = end_index
 
-        selected_token_ids = torch.cat(combined_selected_tokens, dim=0)
-        if sampling_metadata.logprobs:
-            logprobs_lists = LogprobsLists(
-                logprob_token_ids=np.concatenate(
-                    [lp.logprob_token_ids for lp in combined_logprobs]
-                ),
-                logprobs=np.concatenate([lp.logprobs for lp in combined_logprobs]),
-                sampled_token_ranks=np.concatenate(
-                    [lp.sampled_token_ranks for lp in combined_logprobs]
-                ),
-            )
-        else:
-            logprobs_lists = None
-
-        # Update the cache state concurrently. Code above will not block until
-        # we use `selected_token_ids`. Add mark_step if post-processing changes
-        request_seq_lens: list[tuple[int, CachedRequestState, int]] = []
-        discard_sampled_tokens_req_indices = []
-        num_reqs = self.input_batch.num_reqs
-        for i, req_id in zip(range(num_reqs), self.input_batch.req_ids):
-            assert req_id is not None
-            req_state = self.requests[req_id]
-            seq_len = (
-                req_state.num_computed_tokens
-                + scheduler_output.num_scheduled_tokens[req_id]
-            )
-            if seq_len >= req_state.num_tokens:
-                request_seq_lens.append((i, req_state, seq_len))
-            else:
-                # Ignore the sampled token from the partial request.
-                # NOTE: on GPU, generator state is rewound here. On TT,
-                # per-request generators (CPU-based) are consumed during
-                # q_samples construction in from_input_batch(), not during
-                # random_sample(), so no rewind is needed or possible
-                # (CPU generators don't support get_offset/set_offset).
-
-                # Record the index of the request that should not be sampled,
-                # so that we could clear the sampled tokens before returning.
-                discard_sampled_tokens_req_indices.append(i)
-
-        assert all(
-            req_id is not None for req_id in self.input_batch.req_ids[:num_reqs]
-        ), "req_ids contains None"
-        req_ids = cast(list[str], self.input_batch.req_ids[:num_reqs])
-
-        prompt_logprobs_dict = self._get_prompt_logprobs_dict(
-            prompt_lp_hs, scheduler_output
-        )
-
-        max_gen_len = selected_token_ids.shape[-1]
-        if max_gen_len == 1:
-            valid_sampled_token_ids = selected_token_ids.tolist()
-
-            # Mask out the sampled tokens that should not be sampled.
-            # TODO: Keep in sync with gpu_model_runner.py, in particular
-            #       the "else" case here
-            for i in discard_sampled_tokens_req_indices:
-                valid_sampled_token_ids[i].clear()
-
-            # Append sampled tokens
-            for i, req_state, seq_len in request_seq_lens:
-                token_id = valid_sampled_token_ids[i][0]
-                self.input_batch.token_ids_cpu[i, seq_len] = token_id
-                req_state.output_token_ids.append(token_id)
-                self.input_batch.num_tokens[i] += 1
-
-        else:
-            valid_mask = selected_token_ids != INVALID_TOKEN_ID
-            gen_lens = valid_mask.sum(dim=1).tolist()
-            valid_sampled_token_ids = [
-                seq.tolist() for seq in selected_token_ids[valid_mask].split(gen_lens)
-            ]
-            self.input_batch.num_tokens[:num_reqs] += gen_lens
-            for i, req_state, seq_len in request_seq_lens:
-                target_slice = slice(seq_len - gen_lens[i] + 1, seq_len + 1)
-                self.input_batch.token_ids_cpu[i, target_slice] = (
-                    valid_sampled_token_ids[i]
+        with _tracy.zone("combine_iteration_results"):
+            selected_token_ids = torch.cat(combined_selected_tokens, dim=0)
+            if sampling_metadata.logprobs:
+                logprobs_lists = LogprobsLists(
+                    logprob_token_ids=np.concatenate(
+                        [lp.logprob_token_ids for lp in combined_logprobs]
+                    ),
+                    logprobs=np.concatenate([lp.logprobs for lp in combined_logprobs]),
+                    sampled_token_ranks=np.concatenate(
+                        [lp.sampled_token_ranks for lp in combined_logprobs]
+                    ),
                 )
-                req_state.output_token_ids.extend(valid_sampled_token_ids[i])
+            else:
+                logprobs_lists = None
+
+        with _tracy.zone("update_token_state"):
+            with _tracy.zone("compute_request_seq_lens"):
+                # Update the cache state concurrently. Code above will not block until
+                # we use `selected_token_ids`. Add mark_step if post-processing changes
+                request_seq_lens: list[tuple[int, CachedRequestState, int]] = []
+                discard_sampled_tokens_req_indices = []
+                num_reqs = self.input_batch.num_reqs
+                for i, req_id in zip(range(num_reqs), self.input_batch.req_ids):
+                    assert req_id is not None
+                    req_state = self.requests[req_id]
+                    seq_len = (
+                        req_state.num_computed_tokens
+                        + scheduler_output.num_scheduled_tokens[req_id]
+                    )
+                    if seq_len >= req_state.num_tokens:
+                        request_seq_lens.append((i, req_state, seq_len))
+                    else:
+                        # Ignore the sampled token from the partial request.
+                        # NOTE: on GPU, generator state is rewound here. On TT,
+                        # per-request generators (CPU-based) are consumed during
+                        # q_samples construction in from_input_batch(), not during
+                        # random_sample(), so no rewind is needed or possible
+                        # (CPU generators don't support get_offset/set_offset).
+
+                        # Record the index of the request that should not be sampled,
+                        # so that we could clear the sampled tokens before returning.
+                        discard_sampled_tokens_req_indices.append(i)
+
+                assert all(
+                    req_id is not None
+                    for req_id in self.input_batch.req_ids[:num_reqs]
+                ), "req_ids contains None"
+                req_ids = cast(list[str], self.input_batch.req_ids[:num_reqs])
+
+            with _tracy.zone("get_prompt_logprobs_dict"):
+                prompt_logprobs_dict = self._get_prompt_logprobs_dict(
+                    prompt_lp_hs, scheduler_output
+                )
+
+            with _tracy.zone("append_sampled_tokens"):
+                max_gen_len = selected_token_ids.shape[-1]
+                if max_gen_len == 1:
+                    valid_sampled_token_ids = selected_token_ids.tolist()
+
+                    # Mask out the sampled tokens that should not be sampled.
+                    # TODO: Keep in sync with gpu_model_runner.py, in particular
+                    #       the "else" case here
+                    for i in discard_sampled_tokens_req_indices:
+                        valid_sampled_token_ids[i].clear()
+
+                    # Append sampled tokens
+                    for i, req_state, seq_len in request_seq_lens:
+                        token_id = valid_sampled_token_ids[i][0]
+                        self.input_batch.token_ids_cpu[i, seq_len] = token_id
+                        req_state.output_token_ids.append(token_id)
+                        self.input_batch.num_tokens[i] += 1
+
+                else:
+                    valid_mask = selected_token_ids != INVALID_TOKEN_ID
+                    gen_lens = valid_mask.sum(dim=1).tolist()
+                    valid_sampled_token_ids = [
+                        seq.tolist()
+                        for seq in selected_token_ids[valid_mask].split(gen_lens)
+                    ]
+                    self.input_batch.num_tokens[:num_reqs] += gen_lens
+                    for i, req_state, seq_len in request_seq_lens:
+                        target_slice = slice(seq_len - gen_lens[i] + 1, seq_len + 1)
+                        self.input_batch.token_ids_cpu[i, target_slice] = (
+                            valid_sampled_token_ids[i]
+                        )
+                        req_state.output_token_ids.extend(valid_sampled_token_ids[i])
 
         model_runner_output = ModelRunnerOutput(
             req_ids=req_ids,
@@ -1691,9 +1718,78 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        # Register submodule forward zones BEFORE compile so that the
+        # zone_enter/zone_exit calls (allow_in_graph'd) get inlined into
+        # the compiled graph and fire on every cached execution.
+        self._register_submodule_zones()
+
         self.model.compile(backend="tt", dynamic=False)
+
+        # Wrap _compiled_call_impl post-compile so the wrapper itself is
+        # NOT traced by dynamo — its zone fires on every dispatch into the
+        # compiled graph.
+        self._wrap_compiled_call_impl()
+
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
+
+    def _register_submodule_zones(self) -> None:
+        """Register Tracy forward hooks on key submodules of the model.
+
+        Hooks emit zone_enter/zone_exit calls (which are allow_in_graph'd
+        in _tracy.py) so they survive dynamo compilation and fire on every
+        cached graph execution. This gives visible zone depth inside
+        model_call: one zone per decoder layer + entry/exit modules.
+        """
+        if self.model_config.is_multimodal_model:
+            backbone = self.model.get_language_model()
+        else:
+            backbone = self.model
+
+        # Drill into the backbone container. Layouts differ per arch:
+        #   Gemma4ForCausalLM.model -> Gemma4Model with .layers, .embed_tokens, .norm
+        inner = getattr(backbone, "model", None)
+        if inner is None:
+            return
+
+        targets: list[tuple[str, nn.Module]] = []
+        layers = getattr(inner, "layers", None)
+        if layers is not None:
+            for i, layer in enumerate(layers):
+                targets.append((f"decoder_layer_{i:03d}", layer))
+        for attr in ("embed_tokens", "norm"):
+            mod = getattr(inner, attr, None)
+            if isinstance(mod, nn.Module):
+                targets.append((attr, mod))
+        lm_head = getattr(self.model, "lm_head", None)
+        if isinstance(lm_head, nn.Module):
+            targets.append(("lm_head", lm_head))
+
+        for zone_name, mod in targets:
+            mod.register_forward_pre_hook(
+                lambda _m, _inp, _n=zone_name: _tracy.zone_enter(_n)
+            )
+            mod.register_forward_hook(
+                lambda _m, _inp, _out, _n=zone_name: _tracy.zone_exit(_n)
+            )
+
+    def _wrap_compiled_call_impl(self) -> None:
+        """Wrap model._compiled_call_impl so each invocation emits a zone.
+
+        Adds visible nesting depth between model_invoke (in execute_model)
+        and the dynamo-compiled body. The wrapper is plain Python (not
+        torch.compile'd), so its zone fires on every call regardless of
+        graph caching.
+        """
+        original = getattr(self.model, "_compiled_call_impl", None)
+        if original is None:
+            return
+
+        def wrapped(*args, **kwargs):
+            with _tracy.zone("compiled_call_impl"):
+                return original(*args, **kwargs)
+
+        self.model._compiled_call_impl = wrapped
 
     def reload_weights(self) -> None:
         assert (
