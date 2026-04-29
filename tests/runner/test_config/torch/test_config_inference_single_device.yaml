@@ -606,6 +606,9 @@ test_config:
   bert/sequence_classification/pytorch-Base_Uncased_Sst_2-single_device-inference:
     status: EXPECTED_PASSING
 
+  camembert/pytorch-Tiny-Random-single_device-inference:
+    status: EXPECTED_PASSING
+
   yoloworld/pytorch-Small_640-single_device-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
