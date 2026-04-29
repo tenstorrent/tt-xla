@@ -1780,12 +1780,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
-            if self.enable_tensor_parallel:
-                xs.mark_sharding(
-                    dummy_hidden,
-                    self.mesh,
-                    (None, None if num_tokens == 1 else "batch", "model"),
-                )
+            # Mark dummy inputs to match the generated hidden_states shardings
+            # (during execution) to avoid re-compilation of select_hidden_states
+            # graph later.
+            if self.enable_tensor_parallel and self.use_2d_mesh:
+                xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+
             self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
@@ -1803,8 +1803,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, hsize), dtype=self._hidden_states_dtype
         )
         dummy_hidden = dummy_hidden.to(self.device)
-        if self.enable_tensor_parallel:
-            xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
         self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
@@ -2167,13 +2165,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        if self.enable_tensor_parallel:
+        if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
+        if self.enable_tensor_parallel and not self.use_2d_mesh:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
