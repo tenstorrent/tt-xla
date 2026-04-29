@@ -251,6 +251,11 @@ test_config:
         enable_weight_bfp8_conversion: true
         status: EXPECTED_PASSING
 
+  bartowski_c4ai_command_r_plus_gguf/causal_lm/pytorch-C4AI_COMMAND_R_PLUS_Q4_K_M_GGUF-tensor_parallel-inference:
+    supported_archs: [n300-llmbox, galaxy-wh-6u]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity ceiling: 104B-parameter model at BF16 requires ~208 GB DRAM, exceeding available device memory on all supported configurations"
+
   gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox]
     status: KNOWN_FAILURE_XFAIL
