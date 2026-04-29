@@ -257,7 +257,8 @@ def partition_vocab_parallel_embedding(
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, (None, "batch"))
+    xs.mark_sharding(layer.weight, mesh, (None, None))
+    # xs.mark_sharding(layer.weight, mesh, (None, "batch"))
     # Apply sharding constraint to the output of the layer.
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)

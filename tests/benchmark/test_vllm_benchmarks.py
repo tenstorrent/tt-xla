@@ -84,7 +84,7 @@ _GEMMA4_BASE_ADDITIONAL_CONFIG = {
 def _gemma4_bhqb_config(
     model: str,
     batch_size: int = 1,
-    max_model_len: int = 512,
+    max_model_len: int = 128,
     max_num_batched_tokens: int = _GEMMA4_MIN_BATCHED_TOKENS,
     gpu_memory_utilization: float = 0.1,
     max_tokens: int = 256,
@@ -120,7 +120,7 @@ BHQB_CONFIGS = [
         _gemma4_bhqb_config(
             model="google/gemma-4-31B-it",
             batch_size=32,
-            max_model_len=256,
+            max_model_len=128,
             max_num_batched_tokens=8192,
             gpu_memory_utilization=0.74,
         ),

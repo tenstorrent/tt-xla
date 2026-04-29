@@ -1770,10 +1770,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # assertion.
             if self.enable_tensor_parallel:
                 if input_ids is not None:
-                    xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-                xs.mark_sharding(position_ids, self.mesh, ("batch", None))
+                    xs.mark_sharding(input_ids, self.mesh, ("model", None))
+                xs.mark_sharding(position_ids, self.mesh, ("model", None))
                 if inputs_embeds is not None:
-                    xs.mark_sharding(inputs_embeds, self.mesh, ("batch", None, None))
+                    xs.mark_sharding(inputs_embeds, self.mesh, ("model", None, None))
             (
                 model_input_ids,
                 model_positions,
