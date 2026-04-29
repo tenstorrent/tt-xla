@@ -42,7 +42,7 @@ def test_pair_zones_produces_complete_intervals():
     events = list(iter_device_events(FIXTURES / "mini_device.csv"))
     zones = pair_zones(events)
 
-    # 5 zones for op 32770 (BRISC-FW, BRISC-KERNEL, NCRISC-FW, NCRISC-KERNEL,
+    # 6 zones for op 32770 (BRISC-FW, BRISC-KERNEL, NCRISC-FW, NCRISC-KERNEL,
     # TRISC_0-FW, TRISC_0-KERNEL) → 6, plus 2 for op 32771 = 8 total
     assert len(zones) == 8
 
@@ -75,13 +75,13 @@ def test_load_ops_indexes_by_global_call_count():
 
     op = ops[32770]
     assert op.op_code == "PermuteDeviceOperation"
-    assert op.compute_kernels == [
+    assert op.compute_kernels == (
         "ttnn/cpp/ttnn/operations/data_movement/permute/device/kernels/compute/transpose_xw_rm_single_tile_size.cpp",
-    ]
-    assert sorted(op.data_movement_kernels) == [
+    )
+    assert tuple(sorted(op.data_movement_kernels)) == (
         "ttnn/cpp/ttnn/operations/data_movement/permute/device/kernels/dataflow/reader_permute_interleaved_rm_blocked_generic.cpp",
         "ttnn/cpp/ttnn/operations/data_movement/permute/device/kernels/dataflow/writer_permute_interleaved_rm_blocked_generic.cpp",
-    ]
+    )
 
 
 def test_load_ops_handles_missing_source_lists():
@@ -100,8 +100,8 @@ def _make_op(compute=None, dm=None):
     return OpInfo(
         op_code="X",
         global_call_count=0,
-        compute_kernels=compute or [],
-        data_movement_kernels=dm or [],
+        compute_kernels=tuple(compute or []),
+        data_movement_kernels=tuple(dm or []),
     )
 
 
@@ -218,6 +218,32 @@ def test_main_uncompressed_json_when_extension_is_json(tmp_path):
     assert rc == 0
     trace = json.loads(out.read_text())
     assert "traceEvents" in trace
+
+
+def test_main_emits_microsecond_display_unit(tmp_path):
+    reports = tmp_path / "reports" / "synthetic"
+    reports.mkdir(parents=True)
+    shutil.copy(FIXTURES / "mini_device.csv", reports / "profile_log_device.csv")
+    shutil.copy(FIXTURES / "mini_ops.csv", reports / "ops_perf_results_synthetic.csv")
+
+    out = tmp_path / "out.json"
+    rc = tracy_to_perfetto.main([str(reports), "-o", str(out)])
+    assert rc == 0
+    trace = json.loads(out.read_text())
+
+    # Perfetto reads ts/dur as microseconds when displayTimeUnit=="us"
+    assert trace["displayTimeUnit"] == "us"
+
+    # The BRISC-KERNEL zone for op 32770 in the fixture has end_cycles=5000,
+    # start_cycles=1100, chip_freq=1350 MHz → dur = 3900/1350 ≈ 2.8888... µs
+    brisc_kernel = next(
+        e for e in trace["traceEvents"]
+        if e.get("ph") == "X"
+        and e.get("args", {}).get("run_host_id") == 32770
+        and e.get("args", {}).get("risc") == "BRISC"
+        and e["name"] != "BRISC-FW"
+    )
+    assert abs(brisc_kernel["dur"] - 3900.0 / 1350.0) < 1e-6
 
 
 REAL_REPORTS = Path("/root/tt-xla/.tracy_artifacts/reports/2026_04_29_11_04_58")

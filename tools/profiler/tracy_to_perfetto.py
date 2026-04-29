@@ -81,7 +81,7 @@ class Zone:
 
 
 def pair_zones(events: Iterable[DeviceEvent]) -> list[Zone]:
-    """Pair ZONE_START / ZONE_END rows into Zones (FIFO stack per key)."""
+    """Pair ZONE_START / ZONE_END rows into Zones (LIFO stack per key, supports nesting)."""
     open_stacks: dict[tuple, list[DeviceEvent]] = defaultdict(list)
     zones: list[Zone] = []
     for ev in events:
@@ -114,8 +114,8 @@ def pair_zones(events: Iterable[DeviceEvent]) -> list[Zone]:
 class OpInfo:
     op_code: str
     global_call_count: int
-    compute_kernels: list[str]
-    data_movement_kernels: list[str]
+    compute_kernels: tuple[str, ...]
+    data_movement_kernels: tuple[str, ...]
 
 
 def _split_kernel_list(cell: str) -> list[str]:
@@ -137,8 +137,8 @@ def load_ops(path: Path) -> dict[int, OpInfo]:
             out[gcc] = OpInfo(
                 op_code=row["OP CODE"],
                 global_call_count=gcc,
-                compute_kernels=_split_kernel_list(row.get("COMPUTE KERNEL SOURCE", "")),
-                data_movement_kernels=_split_kernel_list(row.get("DATA MOVEMENT KERNEL SOURCE", "")),
+                compute_kernels=tuple(_split_kernel_list(row.get("COMPUTE KERNEL SOURCE", ""))),
+                data_movement_kernels=tuple(_split_kernel_list(row.get("DATA MOVEMENT KERNEL SOURCE", ""))),
             )
     return out
 
@@ -147,27 +147,39 @@ def _basename_no_ext(path: str) -> str:
     return os.path.splitext(os.path.basename(path))[0]
 
 
+def _kernel_source_for_risc(risc: str, op: OpInfo) -> str:
+    """Return the full source path of the kernel that the given RISC ran, or '' if unknown."""
+    if risc.startswith("TRISC"):
+        return op.compute_kernels[0] if op.compute_kernels else ""
+    if risc in ("BRISC", "NCRISC"):
+        prefix = "reader_" if risc == "BRISC" else "writer_"
+        for src in op.data_movement_kernels:
+            if _basename_no_ext(src).startswith(prefix):
+                return src
+        idx = 0 if risc == "BRISC" else 1
+        if idx < len(op.data_movement_kernels):
+            return op.data_movement_kernels[idx]
+    return ""
+
+
 def classify_kernel(risc: str, op: Optional[OpInfo], fallback: str) -> tuple[str, str]:
     """Return (display_name, role) for a given RISC and op."""
     if op is None:
         return (fallback, "unknown")
 
-    if risc.startswith("TRISC"):
-        if op.compute_kernels:
-            return (_basename_no_ext(op.compute_kernels[0]), "compute")
+    src = _kernel_source_for_risc(risc, op)
+    if not src:
         return (fallback, "unknown")
 
+    base = _basename_no_ext(src)
+    if risc.startswith("TRISC"):
+        return (base, "compute")
     if risc in ("BRISC", "NCRISC"):
         prefix = "reader_" if risc == "BRISC" else "writer_"
-        for src in op.data_movement_kernels:
-            if _basename_no_ext(src).startswith(prefix):
-                return (_basename_no_ext(src), prefix.rstrip("_"))
-        # Fall back to list-order: BRISC = first, NCRISC = second
-        idx = 0 if risc == "BRISC" else 1
-        if idx < len(op.data_movement_kernels):
-            base = _basename_no_ext(op.data_movement_kernels[idx])
-            return (base, base)
-        return (fallback, "unknown")
+        if base.startswith(prefix):
+            return (base, prefix.rstrip("_"))
+        # Fall back to list-order: no prefix match, role == basename
+        return (base, base)
 
     return (fallback, "unknown")
 
@@ -199,19 +211,7 @@ def zones_to_perfetto(
             kernel_source = ""
         else:
             display_name, role = classify_kernel(z.risc, op, fallback=z.zone_name)
-            kernel_source = ""
-            if op is not None:
-                if z.risc.startswith("TRISC") and op.compute_kernels:
-                    kernel_source = op.compute_kernels[0]
-                elif z.risc in ("BRISC", "NCRISC"):
-                    prefix = "reader_" if z.risc == "BRISC" else "writer_"
-                    matched = [s for s in op.data_movement_kernels if _basename_no_ext(s).startswith(prefix)]
-                    if matched:
-                        kernel_source = matched[0]
-                    elif op.data_movement_kernels:
-                        idx = 0 if z.risc == "BRISC" else 1
-                        if idx < len(op.data_movement_kernels):
-                            kernel_source = op.data_movement_kernels[idx]
+            kernel_source = _kernel_source_for_risc(z.risc, op) if op is not None else ""
 
         tid = _tid(z.core_x, z.core_y, z.risc)
 
@@ -263,7 +263,7 @@ def _discover_inputs(reports_dir: Path) -> tuple[Path, Path]:
 
 
 def _write_trace(events: list[dict], out_path: Path) -> None:
-    payload = {"traceEvents": events, "displayTimeUnit": "ns"}
+    payload = {"traceEvents": events, "displayTimeUnit": "us"}
     if out_path.suffix == ".gz":
         with gzip.open(out_path, "wt") as f:
             json.dump(payload, f)
