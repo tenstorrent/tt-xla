@@ -60,6 +60,19 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 TorchComparisonEvaluator._cache_to_legacy(cache.self_attention_cache),
                 TorchComparisonEvaluator._cache_to_legacy(cache.cross_attention_cache),
             )
+        # Handle Qwen3_5DynamicCache and similar hybrid caches that store per-layer
+        # key/value tensors and SSM (conv/recurrent) states in flat lists rather than
+        # inheriting from transformers.Cache.
+        if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
+            result = []
+            for k, v in zip(cache.key_cache, cache.value_cache):
+                if k is not None and v is not None:
+                    result.append((k, v))
+            if hasattr(cache, "conv_states") and hasattr(cache, "recurrent_states"):
+                for cs, rs in zip(cache.conv_states, cache.recurrent_states):
+                    if cs is not None and rs is not None:
+                        result.append((cs, rs))
+            return tuple(result)
         return cache
 
     # @override
@@ -72,10 +85,13 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache):
+            if isinstance(tensor, Cache) or (
+                hasattr(tensor, "key_cache") and hasattr(tensor, "value_cache")
+            ):
                 # New transformers library uses Cache classes (DynamicCache, StaticCache)
                 # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
                 # (keys, values) tuple per layer so the comparator can compare tensors.
+                # Also handles non-Cache hybrid caches like Qwen3_5DynamicCache.
                 tensor = TorchComparisonEvaluator._cache_to_legacy(tensor)
             if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float64:
                 tensor = tensor.to(torch.float64)
