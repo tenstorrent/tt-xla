@@ -267,6 +267,10 @@ test_config:
   dla/pytorch-60x-single_device-inference:
     status: EXPECTED_PASSING
 
+  dolphin_2_5_mixtral_gguf/causal_lm/pytorch-DOLPHIN_2_5_MIXTRAL_8X7B_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Mixtral 8x7B (46.7B params, ~93 GB BF16) exceeds single-device DRAM (n150: 12 GB, p150b: 24 GB)"
+
   dpr/question_encoder/pytorch-Question_Encoder_Single_Nq_Base-single_device-inference:
     status: EXPECTED_PASSING
 
