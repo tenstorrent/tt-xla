@@ -1812,6 +1812,10 @@ test_config:
   qwen_2/causal_lm/pytorch-Qwq_32B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  deepseek_math_v2/causal_lm/pytorch-DeepSeek-Math-V2-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is DeepSeek-V3.2-Exp-Base (~671B parameters); exceeds single-device DRAM capacity"
+
   deepseek/deepseek_math/pytorch-7B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip - https://github.com/tenstorrent/tt-xla/issues/2208"
