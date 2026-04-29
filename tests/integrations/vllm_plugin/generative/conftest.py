@@ -2,7 +2,50 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """Shared conftest for vLLM generative tests."""
+import re
+
 import psutil
+
+# Common English function words used by `assert_output_coherent` to detect
+# the 2D-mesh sampler garbage-output bug (issue #4440). Coherent natural-
+# language continuations contain several of these per ~30-token output;
+# token-soup garbage contains ~zero.
+_STOPWORDS = frozenset(
+    """
+    the a an and or but i you he she it we they is are was were be been
+    have has had do does did of to in on at for with by from as that this
+    my your her his their can will would should like go get make me so
+    not if when what how there here
+    """.split()
+)
+_WORD_RE = re.compile(r"[A-Za-z']+")
+_MIN_STOPWORD_RATIO = 0.10
+_MAX_NON_LATIN_RATIO = 0.03
+_MIN_WORDS = 5
+
+
+def assert_output_coherent(text: str) -> None:
+    """Heuristic assertion: text is English natural-language, not token soup.
+
+    Tuned for the English prompts used in the generative TP tests
+    (e.g. "I like taking walks in the"). Re-tune thresholds if a test
+    introduces non-English prompts or code-completion prompts.
+    """
+    s = text.strip()
+    assert s, f"empty output: {text!r}"
+    nlr = sum(1 for c in s if ord(c) > 127) / len(s)
+    assert nlr <= _MAX_NON_LATIN_RATIO, (
+        f"non-Latin char ratio too high ({nlr:.3f} > {_MAX_NON_LATIN_RATIO}): "
+        f"{text!r}"
+    )
+    words = [w.lower() for w in _WORD_RE.findall(s)]
+    assert words, f"output has no word characters: {text!r}"
+    if len(words) < _MIN_WORDS:
+        return
+    sr = sum(1 for w in words if w in _STOPWORDS) / len(words)
+    assert (
+        sr >= _MIN_STOPWORD_RATIO
+    ), f"stopword ratio too low ({sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
 
 
 def check_host_memory(model_name: str) -> float:
