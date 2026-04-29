@@ -1,10 +1,10 @@
 ---
 name: analyze-nightly
 description: Analyze a GitHub Actions run and summarize failures
-disable-model-invocation: true
-allowed-tools: Read, Read(/tmp/**), Glob, Grep, Bash(git clone *), Bash(gh run view *), Bash(gh run list *), Bash(gh run download *), Bash(gh pr view *), Bash(tee *), Bash(gh api *), Bash(gh api * > /tmp/**), Bash(wc -l /tmp/**), Bash(jq *), Bash(mkdir -p /tmp/**), Bash(rm -rf /tmp/**), Bash(for *)
+disable-model-invocation: false
+allowed-tools: Read, Read(/tmp/**), Write(/tmp/**), Glob, Grep, Bash(git clone *), Bash(gh run view *), Bash(gh run list *), Bash(gh run download *), Bash(gh pr view *), Bash(tee *), Bash(gh api *), Bash(gh api * > /tmp/**), Bash(wc -l /tmp/**), Bash(jq *), Bash(mkdir -p /tmp/**), Bash(rm -rf /tmp/**), Bash(for *)
 context: fork
-argument-hint: run-id
+argument-hint: run-id [save]
 model: opus
 ---
 
@@ -102,6 +102,14 @@ Output format that you need to follow (raw Markdown text):
 - {test-or-step-name} ({arch-list}) -> [job-link]({url})
 - {test-or-step-name} ({arch-list}) -> [job-link]({url})
 ```
+
+After producing the Markdown summary:
+- If $1 equals "save" (i.e. this skill was invoked as a subskill by another
+  skill), write the full Markdown output to /tmp/nightly-analysis-$0.md using
+  the Write tool, then emit one final line:
+  `Analysis written to: /tmp/nightly-analysis-$0.md`
+- If $1 is absent or empty (i.e. this skill was invoked directly by the user),
+  only emit the Markdown summary to the conversation. Do not write any files.
 
 Always respect these additional constraints:
 - Never ask for, and never run any `gh {subcommand}` commands that may modify
