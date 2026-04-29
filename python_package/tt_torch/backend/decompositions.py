@@ -331,10 +331,45 @@ def copy_default(
 def masked_scatter(
     data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
 ) -> torch.Tensor:
-    # Custom decomposition for masked_scatter
-    # Decomposes masked_scatter into basic operations: broadcast, reshape, cumsum, clamp, gather, where
+    # Custom decomposition for masked_scatter.
+    #
+    # When the mask was broadcast along the last dimension (stride==0),
+    # uses an optimized path: row-level cumsum on [S] elements + mul+add
+    # flat index linearization. This avoids:
+    #   - cumsum OOM on [S*D] elements (tt-xla#4167, moreh_cumsum L1/DRAM)
+    #   - PCC drop from ttnn.matmul in torch.gather (tt-metal#42845)
+    #
+    # For arbitrary mask patterns, falls back to the original flatten-based
+    # cumsum + where decomposition.
     mask, data = torch.broadcast_tensors(mask, data)
 
+    if source.numel() == 0:
+        return data.clone()
+
+    if mask.dim() >= 2 and mask.stride(-1) == 0:
+        # Optimized path: mask is constant along last dim (e.g. VLM models
+        # where mask_1d.unsqueeze(-1) is broadcast to [S, D] or [B, S, D]).
+        # Cumsum operates on [leading_dims] instead of [leading_dims * D].
+        orig_shape = data.shape
+        D = data.shape[-1]
+        data_2d = data.reshape(-1, D)
+        mask_1d = mask.reshape(-1, D)[:, 0]
+        S = data_2d.shape[0]
+
+        mask_i = mask_1d.long()
+        source_idx = torch.cumsum(mask_i, 0) - 1
+        num_source_rows = source.numel() // D if D > 0 else 0
+        source_idx = torch.clamp(source_idx, 0, max(num_source_rows - 1, 0))
+
+        flat_source = source.reshape(-1)
+        col_idx = torch.arange(D, device=data.device, dtype=source_idx.dtype)
+        flat_idx = source_idx.unsqueeze(-1) * D + col_idx.unsqueeze(0)
+        gathered_rows = flat_source[flat_idx.reshape(-1)].reshape(S, D)
+
+        result_2d = torch.where(mask_1d.unsqueeze(-1), gathered_rows, data_2d)
+        return result_2d.view(orig_shape)
+
+    # Fallback: flatten everything (works for arbitrary mask patterns)
     mask_f = mask.reshape(-1)
     data_flat = data.reshape(-1)
     source_flat = source.reshape(-1)
