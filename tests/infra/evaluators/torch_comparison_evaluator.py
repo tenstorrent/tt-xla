@@ -60,6 +60,29 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 TorchComparisonEvaluator._cache_to_legacy(cache.self_attention_cache),
                 TorchComparisonEvaluator._cache_to_legacy(cache.cross_attention_cache),
             )
+        # Handle hybrid cache types (e.g. Qwen3_5DynamicCache) that are NOT Cache subclasses
+        # but use flat per-layer lists: key_cache/value_cache for full-attention layers and
+        # conv_states/recurrent_states for linear-attention layers.
+        if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
+            result = []
+            num_layers = len(cache.key_cache)
+            for i in range(num_layers):
+                k = cache.key_cache[i]
+                v = cache.value_cache[i]
+                if k is not None and v is not None:
+                    result.append((k, v))
+                elif hasattr(cache, "conv_states") and hasattr(
+                    cache, "recurrent_states"
+                ):
+                    cs = cache.conv_states[i] if i < len(cache.conv_states) else None
+                    rs = (
+                        cache.recurrent_states[i]
+                        if i < len(cache.recurrent_states)
+                        else None
+                    )
+                    if cs is not None and rs is not None:
+                        result.append((cs, rs))
+            return tuple(result)
         return cache
 
     # @override
@@ -72,10 +95,14 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache):
+            if isinstance(tensor, Cache) or (
+                hasattr(tensor, "key_cache") and hasattr(tensor, "value_cache")
+            ):
                 # New transformers library uses Cache classes (DynamicCache, StaticCache)
                 # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
                 # (keys, values) tuple per layer so the comparator can compare tensors.
+                # Also handles non-Cache subclasses like Qwen3_5DynamicCache that use
+                # flat key_cache/value_cache/conv_states/recurrent_states lists.
                 tensor = TorchComparisonEvaluator._cache_to_legacy(tensor)
             if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float64:
                 tensor = tensor.to(torch.float64)
