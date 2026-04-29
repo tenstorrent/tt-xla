@@ -36,6 +36,7 @@ from vllm.model_executor.layers.attention.chunked_local_attention import (
 )
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.models.interfaces import (
@@ -237,12 +238,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
+        self.is_sharded_compute_logits = False
 
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            # Updating the config to reflect the actual mesh shape used.
+            if self.use_2d_mesh and 1 in mesh_shape:
+                self.use_2d_mesh = False
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -1590,6 +1595,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        if (
+            self.enable_tensor_parallel
+            and self.use_2d_mesh
+            and self.model.lm_head is not None
+            and isinstance(self.model.lm_head, ParallelLMHead)
+        ):
+            self.is_sharded_compute_logits = True
+
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
@@ -2172,7 +2185,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        if self.enable_tensor_parallel and not self.use_2d_mesh:
+        if self.enable_tensor_parallel and (
+            not self.use_2d_mesh or self.is_sharded_compute_logits
+        ):
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
