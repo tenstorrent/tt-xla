@@ -31,6 +31,34 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor:
+            # PyTorch eager silently clamps out-of-range negative slice indices,
+            # but the XLA lazy backend raises "Value out of range" when start < -size.
+            # Pre-clamp so both backends agree on the no-op semantics.
+            tensor = args[0] if len(args) > 0 else kwargs.get("self")
+            dim = args[1] if len(args) > 1 else kwargs.get("dim", 0)
+            start = args[2] if len(args) > 2 else kwargs.get("start")
+            end = args[3] if len(args) > 3 else kwargs.get("end")
+            if tensor is not None and isinstance(dim, int):
+                try:
+                    size = tensor.shape[dim]
+                    if isinstance(size, int):
+                        clamped = False
+                        if isinstance(start, int) and start < -size:
+                            start = -size
+                            clamped = True
+                        if isinstance(end, int) and end < -size:
+                            end = -size
+                            clamped = True
+                        if clamped:
+                            new_args = list(args)
+                            if len(args) > 2:
+                                new_args[2] = start
+                            if len(args) > 3:
+                                new_args[3] = end
+                            args = tuple(new_args)
+                except (IndexError, TypeError):
+                    pass
         return func(*args, **(kwargs or {}))
 
 
