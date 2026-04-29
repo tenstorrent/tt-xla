@@ -186,36 +186,36 @@ test_config:
     reason: "ImportError: kornia"
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: targets should not be none when in training mode"
+    bringup_status: FAILED_RUNTIME
+    reason: "Test timed out"
   resnext/pytorch-101_64x4d-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Cannot find callable resnext101_64x4d in hubconf"
   ssd300_vgg16/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: targets should not be none when in training mode"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "UNREACHABLE: ElementsAttr does not provide iteration facilities for type `int` (dense<4294967295> : tensor<ui32>)"
   bi_lstm_crf/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
   ssd300_resnet50/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "UNREACHABLE: ElementsAttr does not provide iteration facilities for type `int` (dense<4294967295> : tensor<ui32>)"
   oft_stable_diffusion/pytorch-Stable_Diffusion_v1_5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+    reason: "ImportError: cannot import diffusers ip_adapter (No module named 'triton.language')"
   retinanet/pytorch-ResNet50_Backbone_with_FPN_V2-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 1073741824 B DRAM buffer across 12 banks"
   gliner/pytorch-Multi_v2.1-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "python3: ArrayRef.h:253: Assertion `Index < Length && Invalid index!` failed (llvm assertion in TT-MLIR module builder)"
   # yolov5/pytorch-yolov5n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -250,8 +250,8 @@ test_config:
     reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
   mobilenetv2/pytorch-Deeplabv3_Mobilenet_v2_1.0_513-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 256, 1, 1])"
+    bringup_status: FAILED_RUNTIME
+    reason: "Test timed out"
   bge_m3/encode/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -267,27 +267,27 @@ test_config:
   yolox/pytorch-Nano-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
   yolox/pytorch-Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
   yolox/pytorch-S-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
   yolox/pytorch-M-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
   yolox/pytorch-L-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
   yolox/pytorch-Darknet-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
   hippynn/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1389,28 +1389,28 @@ test_config:
     markers: [large]
   whisper/pytorch-Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration ... Operation requires more memory than available even with maximum slicing"
   whisper/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration ... Operation requires more memory than available even with maximum slicing"
   whisper/pytorch-Small-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration ... Operation requires more memory than available even with maximum slicing"
   whisper/pytorch-Medium-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 72384512 B DRAM buffer across 12 banks"
   whisper/pytorch-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: Out of Memory: Not enough space to allocate DRAM buffer (extrapolated from Medium variant which OOMs at 72 MB)"
   whisper/pytorch-Large_v3_Turbo-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: You have to specify either decoder_input_ids or decoder_inputs_embeds."
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: Out of Memory: Not enough space to allocate DRAM buffer (extrapolated from Medium variant which OOMs at 72 MB)"
   mobilenetv3/pytorch-Mobilenet_v3_Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]

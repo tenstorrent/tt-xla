@@ -3,7 +3,7 @@ name: training-triage-unpack
 description: Fix FAILED_FE_COMPILATION failures caused by unpack_forward_output not being implemented for a model. Adds _register_attr entries to training_utils.py or overrides unpack_forward_output in loader.py.
 ---
 
-# Pattern 1 — `unpack_forward_output` not implemented
+# Pattern 3 — `unpack_forward_output` not implemented
 
 **Error:** `tt-forge-models doesn't implement unpack_forward_output for this model.`
 
@@ -18,6 +18,21 @@ output-unpacking step. The output class is determined by the model's `forward()`
 return type, which is fixed and discoverable from the loader code or HF docs
 without running anything.
 
+### How you got here (cascade from `training-triage-inputs`)
+
+This skill is also commonly triggered by `training-triage-inputs`'s
+post-fix cascade — the failure shape is:
+
+```
+ValueError: No handler for class <X> exists in `unpack_forward_output`.
+```
+
+The class name `<X>` is in the parens of the YAML reason. If `training-triage-inputs`
+just ran, its Step 7 aggregate already lists each entry's output class —
+read that report rather than re-deriving from the loader. Empirically every
+torchvision detection model (`ssdlite320`, `ssd300_vgg16`, `ssd300_resnet50`,
+RetinaNet variants) and `gliner` ended up here after their inputs fix.
+
 ---
 
 ## Setup
@@ -27,6 +42,27 @@ All commands run from the repo root with the venv active:
 ```bash
 source venv/activate
 ```
+
+### Per-model dependencies (`ModuleNotFoundError` cases)
+
+If the loader fails to import with `ModuleNotFoundError: No module named 'X'`,
+check for a per-model requirements file before assuming the env is broken:
+
+```bash
+ls third_party/tt_forge_models/<model>/pytorch/requirements*.txt
+```
+
+Three filename conventions are in use:
+
+- `requirements.txt` — install with `pip install -r`.
+- `requirements.nodeps.txt` — install with `pip install --no-deps -r`
+  (used when the package's transitive deps would conflict with the env).
+- `requirements.nodeps.nobuildisolation.txt` — install with
+  `pip install --no-deps --no-build-isolation -r` (needed for packages
+  that build against the venv's existing torch, e.g. `yolox==0.3.0`).
+
+If no requirements file exists, treat the import error as an
+environment/upstream issue and update the YAML reason accordingly.
 
 ---
 
@@ -106,6 +142,13 @@ python tools/triage_fe_failures.py --pattern unpack --run --limit 5 --offset 0 -
 
 **C — tuple, list, or non-HF custom class**:
 
+> **Hard rule: never register `tuple`, `list`, or `dict` in
+> `_HANDLER_REGISTRY`.** They are the literal builtins and would match
+> every tuple/list/dict-returning forward across the codebase, almost
+> always producing the wrong attribute. These output types **always**
+> require a per-loader override of `unpack_forward_output` in the
+> model's `loader.py` — never a global handler.
+
 Read the loader's `forward()` or any patched forward function defined in the
 loader file to understand the output structure. If the tuple has a known
 structure (e.g. `(head_outputs, anchors)`), destructure it and recurse only
@@ -135,6 +178,29 @@ def unpack_forward_output(self, fwd_output):
 Detection models that fail to load locally (e.g. `IRD_LF_CACHE`) can still
 be fixed this way — the generic pattern is safe for any detection model
 returning a list or tuple of tensors.
+
+**Empirical: torchvision detection cluster.** RetinaNet, SSD300-VGG16,
+SSD300-ResNet50, SSDLite320-MobileNetV3, RetinaNet_FPN_V2 all return
+`(head_outputs, anchors)` from their patched forward (the patch lives in
+the loader's `src/utils.py` or in the loader file itself). The reference
+implementation is at `third_party/tt_forge_models/retinanet/pytorch/loader.py:331`:
+
+```python
+def unpack_forward_output(self, fwd_output):
+    import torch
+    from ...tools.utils import extract_tensors_recursive
+
+    head_outputs, _anchors = fwd_output
+    tensors = []
+    extract_tensors_recursive(head_outputs, tensors)
+    if tensors:
+        return torch.cat(tensors, dim=0)
+    return head_outputs
+```
+
+Copy this verbatim into the other detection loaders' `loader.py` — none of
+them need anchors for the loss path, and `extract_tensors_recursive`
+handles both dict-of-tensors and list-of-tensors `head_outputs`.
 
 **Style note:** always use local imports inside `unpack_forward_output`
 (not top-level), consistent with the rest of the codebase.
@@ -166,8 +232,25 @@ typically takes 15–60 s for the FE-compilation check.
 For each fixed entry `<key>` (e.g. `yolov6/pytorch-N-single_device-training`):
 
 ```bash
-pytest -svv "tests/runner/test_models.py::test_all_models_torch[<key>]" 2>&1 | tail -40
+timeout 300 pytest -svv "tests/runner/test_models.py::test_all_models_torch[<key>]" >/tmp/pytest.log 2>&1
+# then read /tmp/pytest.log with the Read tool (or grep) — do NOT use tail
 ```
+
+**Always wrap pytest in `timeout 300` (5 min).** The FE-compilation check
+typically completes in 15–60 s; anything past 5 min on a single test is
+either a hang or a slow OOM/sliced-allocation retry that won't recover.
+If `timeout` returns 124, mark `bringup_status: FAILED_RUNTIME`,
+`reason: "Test timed out"` and move on.
+
+**Never pipe pytest output through `tail`.** The tail of a tt-xla pytest
+run is almost always a generic `Error Code 13` / pytest exit summary
+that hides the real failure, which lives several hundred lines earlier
+in the dump (the actual Python traceback, the assert text, or the
+TT-MLIR error block). Dump the full output to a temp file and read it
+— search for `FAILED`, `Error`, `Traceback`, or the model name to find
+the originating line. The same applies to `head` and short `grep -A`
+windows: only the full file gives you the right error to put in the
+YAML `reason`.
 
 Interpret the result:
 - **PASSED** — leave the YAML at `status: EXPECTED_PASSING`.
@@ -208,9 +291,29 @@ yolov6/pytorch-N-single_device-training:
 **Run-budget guidance:** when fixing many entries, run pytest
 sequentially (not in parallel) — each test acquires the TT device. Use
 `pytest --collect-only` first to confirm the test ID resolves to exactly
-one item; then run each in turn. If a single test exceeds ~10 minutes,
-kill it and mark `bringup_status: FAILED_RUNTIME`,
+one item; then run each in turn. Always wrap with `timeout 300` (see
+above) — if it triggers, mark `bringup_status: FAILED_RUNTIME`,
 `reason: "Test timed out"`.
+
+**Skip larger siblings of OOM-ing variants.** If `Medium` of a family
+hits a TT DRAM OOM, don't bother running `Large` / `Large_v3` /
+`Large_v3_Turbo`: they only get bigger and will OOM the same way.
+Mark them directly as `FAILED_RUNTIME` with a reason that explicitly
+notes the extrapolation, e.g. `"TT_FATAL: Out of Memory ... DRAM
+buffer (extrapolated from Medium variant which OOMs at 72 MB)"`.
+
+### Skip-without-running matrix
+
+Apply these without re-running pytest. Each row converts a deterministic
+condition into a YAML mark, no further investigation needed:
+
+| Condition | Mark | Reason text (template) |
+|---|---|---|
+| Sibling Large/X-Large of a variant that already OOMed on TT DRAM | `FAILED_RUNTIME` | `"TT_FATAL: Out of Memory ... DRAM buffer (extrapolated from <smaller> variant which OOMs at <X> MB)"` |
+| `timeout 300` triggered (`exit code 124`) | `FAILED_RUNTIME` | `"Test timed out"` |
+| YAML reason matches a known-stale string AND CPU `--run` (or pytest re-run) shows a different error | `FAILED_FE_COMPILATION` (or whatever the new stage is) | the verbatim observed error |
+| Loader fails to import an `<X>` module that has **no** `requirements*.txt` under `third_party/tt_forge_models/<model>/pytorch/` | `FAILED_FE_COMPILATION` | `"ModuleNotFoundError: No module named '<X>'"` |
+| Loader fails to import despite a present `requirements*.txt` (install fails or post-install loader still raises) | `FAILED_FE_COMPILATION` | the verbatim install/import error |
 
 Report a summary at the end:
 - Which models pass end-to-end (kept `EXPECTED_PASSING`).

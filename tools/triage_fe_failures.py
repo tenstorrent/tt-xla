@@ -62,9 +62,9 @@ REASON_TO_PATTERN = {
 }
 
 PATTERN_LABELS = {
-    "unpack": "unpack_forward_output not implemented",
-    "dtype": "op not supported / dtype mismatch in bfloat16",
-    "inputs": "missing training inputs (targets / decoder ids / etc.)",
+    "inputs": "Pattern 1: missing training inputs (targets / decoder ids / etc.)",
+    "dtype": "Pattern 2: op not supported / dtype mismatch in bfloat16",
+    "unpack": "Pattern 3: unpack_forward_output not implemented",
 }
 
 
