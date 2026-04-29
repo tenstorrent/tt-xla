@@ -2172,6 +2172,10 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
 
+  detr/object_detection/pytorch-ResNet101_DC5_Backbone-single_device-inference:
+    required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.979569698395752. Required: pcc=0.99. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
+    status: EXPECTED_PASSING
+
   sentencizer/pytorch-Xlm_Roberta_Base-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
