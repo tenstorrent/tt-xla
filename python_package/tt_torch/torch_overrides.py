@@ -7,6 +7,15 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        # Decompose complex * non-complex to avoid PyTorch promoting the non-complex
+        # operand to a 0-dim complex tensor. The TT PJRT backend rejects 0-dim complex
+        # buffers ("Complex tensor with num_dims == 0 is not supported").
+        if func.__name__ == "mul" and len(args) == 2 and not (kwargs or {}).get("out"):
+            lhs, rhs = args
+            if torch.is_tensor(lhs) and lhs.is_complex() and not (
+                torch.is_tensor(rhs) and rhs.is_complex()
+            ):
+                return torch.view_as_complex(torch.view_as_real(lhs) * rhs)
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
