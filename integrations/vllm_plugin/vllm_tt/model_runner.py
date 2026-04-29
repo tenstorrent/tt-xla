@@ -2172,7 +2172,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        if self.enable_tensor_parallel and not self.use_2d_mesh:
+        if self.enable_tensor_parallel:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
