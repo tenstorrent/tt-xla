@@ -425,3 +425,14 @@ def run_component(
     with torch.no_grad():
         out = compiled(*inputs_on_device)
     return out.to("cpu")
+
+
+def compute_pcc(x: torch.Tensor, y: torch.Tensor) -> float:
+    """Pearson correlation between two tensors, flattened and cast to float32."""
+    x = x.detach().to("cpu").to(torch.float32).flatten()
+    y = y.detach().to("cpu").to(torch.float32).flatten()
+    vx, vy = x - x.mean(), y - y.mean()
+    denom = vx.norm() * vy.norm()
+    if denom == 0:
+        return float("nan")
+    return float((vx @ vy) / denom)
