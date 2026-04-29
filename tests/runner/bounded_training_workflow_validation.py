@@ -46,25 +46,39 @@ def validate_record(manifest: dict[str, Any], workflow_path: str) -> ValidationR
 
     if not manifest.get("test_id"):
         failed_conditions.append("missing cohort identity")
-        corrective_steps.append("ensure manifest.json records the exact test_id for the cohort row")
+        corrective_steps.append(
+            "ensure manifest.json records the exact test_id for the cohort row"
+        )
 
     if workflow_path == "frontend":
         path_explicit = manifest.get("classification") == "frontend"
     else:
         path_explicit = bool(manifest.get("owner_hint"))
     if not path_explicit:
-        failed_conditions.append("workflow path or owner classification is not explicit")
-        corrective_steps.append("record explicit workflow-path classification in the manifest")
+        failed_conditions.append(
+            "workflow path or owner classification is not explicit"
+        )
+        corrective_steps.append(
+            "record explicit workflow-path classification in the manifest"
+        )
 
-    evidence_present = bool(manifest.get("draft_issue_path") or manifest.get("attempt_log_path"))
+    evidence_present = bool(
+        manifest.get("draft_issue_path") or manifest.get("attempt_log_path")
+    )
     if not evidence_present:
         failed_conditions.append("evidence bundle link is missing")
-        corrective_steps.append("emit either draft_issue.md or attempt.log and persist its path in the manifest")
+        corrective_steps.append(
+            "emit either draft_issue.md or attempt.log and persist its path in the manifest"
+        )
 
-    outcome_explicit = bool(manifest.get("draft_issue_path") or manifest.get("attempt_log_path"))
+    outcome_explicit = bool(
+        manifest.get("draft_issue_path") or manifest.get("attempt_log_path")
+    )
     if not outcome_explicit:
         failed_conditions.append("recommendation or reduction outcome is not explicit")
-        corrective_steps.append("record whether the item produced a draft packet or an attempt log")
+        corrective_steps.append(
+            "record whether the item produced a draft packet or an attempt log"
+        )
 
     blockers_present = False
     if workflow_path == "frontend":
@@ -103,7 +117,9 @@ def validate_record(manifest: dict[str, Any], workflow_path: str) -> ValidationR
         )
     if not contract_ok:
         failed_conditions.append("output does not match the shared packet contract")
-        corrective_steps.append("populate the required manifest fields for the workflow path")
+        corrective_steps.append(
+            "populate the required manifest fields for the workflow path"
+        )
 
     if failed_conditions:
         if not evidence_present:
@@ -120,7 +136,9 @@ def validate_record(manifest: dict[str, Any], workflow_path: str) -> ValidationR
         test_id=manifest.get("test_id", ""),
         workflow_path=workflow_path,
         binary_result=binary_result,
-        evidence_path=manifest.get("draft_issue_path") or manifest.get("attempt_log_path") or "",
+        evidence_path=manifest.get("draft_issue_path")
+        or manifest.get("attempt_log_path")
+        or "",
         failed_conditions=failed_conditions,
         corrective_steps=corrective_steps,
         failure_taxonomy=failure_taxonomy,
@@ -132,7 +150,9 @@ def collect_manifests(output_root: Path) -> list[Path]:
 
 
 def write_summary(path: Path, summary: ValidationSummary) -> None:
-    path.write_text(json.dumps(asdict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def write_review_packet(path: Path, summary: ValidationSummary) -> None:
@@ -157,8 +177,12 @@ def write_review_packet(path: Path, summary: ValidationSummary) -> None:
             ]
         )
         if record["failed_conditions"]:
-            lines.append(f"  - failed conditions: `{'; '.join(record['failed_conditions'])}`")
-            lines.append(f"  - corrective steps: `{'; '.join(record['corrective_steps'])}`")
+            lines.append(
+                f"  - failed conditions: `{'; '.join(record['failed_conditions'])}`"
+            )
+            lines.append(
+                f"  - corrective steps: `{'; '.join(record['corrective_steps'])}`"
+            )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
