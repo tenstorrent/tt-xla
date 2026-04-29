@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Dict, Iterable, List, Optional
 
 import torch
@@ -26,6 +27,80 @@ from huggingface_hub import hf_hub_download
 from safetensors import safe_open
 
 REPO_ID = "deepseek-ai/DeepSeek-V4-Flash"
+
+# When DSV4_RANDOM_WEIGHTS=1 is set, skip the multi-hundred-GB HF download:
+# `load_transformer_state_dict` returns {} (no-op for `load_state_dict(strict=False)`),
+# and `Transformer.__init__` is wrapped at import time to zero every parameter slot
+# (the model's `nn.Parameter(torch.empty(...))` is undefined memory otherwise).
+# Output is meaningless; this is only meant for compile-path / OOM smoke testing.
+# `nn.init.normal_` over 256-expert MoE tensors takes hours; zero_ is a memset.
+_RANDOM_WEIGHTS = bool(os.environ.get("DSV4_RANDOM_WEIGHTS"))
+
+if _RANDOM_WEIGHTS:
+    from third_party.tt_forge_models.deepseek_v4.modified_model import (
+        model_decode_opt as _mdo,
+    )
+
+    _orig_transformer_init = _mdo.Transformer.__init__
+
+    def _zero_transformer_init(self, args):
+        _orig_transformer_init(self, args)
+        with torch.no_grad():
+            for p in self.parameters():
+                p.zero_()
+
+    _mdo.Transformer.__init__ = _zero_transformer_init
+
+    # (B) Drop the `_original_mlp` retention that A2aSparseMLP installs for the
+    # CPU golden path. Under `torch.compile(backend="tt")` that path is never
+    # exercised, but the reference keeps every layer's original 256-expert
+    # module alive (~12 GB/layer × 43 = ~516 GB host RAM). Halving persistent
+    # memory after `enable_sparse_mlp` is the cheapest way to keep the 43-layer
+    # run from swap-thrashing.
+    from tt_torch import sparse_mlp as _sm
+
+    _orig_create_a2a = _sm.create_a2a_from_deepseek_v3_moe
+
+    def _create_a2a_no_cpu_forward(
+        moe_module, config, num_devices=8, cluster_axis=0, dispatch_devices=None
+    ):
+        a2a_with_shared = _orig_create_a2a(
+            moe_module, config, num_devices, cluster_axis, dispatch_devices
+        )
+        # `_original_mlp` was installed via object.__setattr__ to bypass nn.Module
+        # auto-registration; release the same way.
+        object.__setattr__(a2a_with_shared.mlp, "_original_mlp", None)
+        return a2a_with_shared
+
+    _sm.create_a2a_from_deepseek_v3_moe = _create_a2a_no_cpu_forward
+
+    # (C) Short-circuit `torch.stack` when every input is the same shape/dtype:
+    # since all expert weights are zeros after _zero_transformer_init, the
+    # stacked result is just a zero tensor of the union shape. Skipping the
+    # 256× per-tensor copies eliminates ~516 GB of memcpy work across the swap
+    # phase and halves transient memory (no need to hold list + stacked tensor
+    # simultaneously).
+    _orig_stack = torch.stack
+
+    def _zero_stack(tensors, dim=0, *, out=None):
+        if (
+            out is None
+            and isinstance(tensors, (list, tuple))
+            and len(tensors) > 0
+            and all(isinstance(t, torch.Tensor) for t in tensors)
+            and all(
+                t.shape == tensors[0].shape and t.dtype == tensors[0].dtype
+                for t in tensors
+            )
+        ):
+            shape = list(tensors[0].shape)
+            shape.insert(dim, len(tensors))
+            return torch.zeros(
+                shape, dtype=tensors[0].dtype, device=tensors[0].device
+            )
+        return _orig_stack(tensors, dim=dim, out=out)
+
+    torch.stack = _zero_stack
 
 # FP4 e2m1fn lookup: 4 bits -> float value. Bits 0-7 positive, 8-15 negative
 # (bit 3 acts as sign). Copied verbatim from inference/convert.py.
@@ -284,6 +359,11 @@ def load_transformer_state_dict(
     top-level (embed, norm, head, hc_head_*). Load with strict=False —
     non-persistent buffers (kv_cache, freqs_cis) aren't in the checkpoint.
     """
+    # Uncomment if you want to use random weights (torch.zeros actually)
+    #if _RANDOM_WEIGHTS:
+    #    # Patched Transformer.__init__ already random-init'd everything;
+    #    # caller will do `model.load_state_dict({}, strict=False)` (no-op).
+    #    return {}
     layer_ids = sorted(set(layer_ids))
     prefixes: List[str] = ["embed.", "norm.", "head.", "hc_head_"]
     prefixes.extend(f"layers.{L}." for L in layer_ids)

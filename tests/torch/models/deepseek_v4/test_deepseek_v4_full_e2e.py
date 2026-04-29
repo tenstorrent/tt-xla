@@ -52,7 +52,7 @@ from . import weight_loader
 # `rope_idx = start_pos + 1 - ratio` stays non-negative
 # (model_decode_opt.py:414). 128 satisfies both.
 PROMPT_LEN = 128
-MAX_NEW_TOKENS = 32
+MAX_NEW_TOKENS = 64
 
 # Batch size is a hard requirement of the A2aSparseMLP op; on the (4, 8)
 # mesh this shards to 8 rows per _axis_0 device.
@@ -63,7 +63,7 @@ BATCH_SIZE = 32
 # real_args.compress_ratios so the included layers stay consistent with the
 # real-checkpoint layout (mirrors transformer_args in
 # test_deepseek_v4_tp_no_int.py:163).
-NUM_LAYERS = 16
+NUM_LAYERS = 43
 
 # see issue https://github.com/tenstorrent/tt-xla/issues/4444
 torch._dynamo.config.cache_size_limit = 100
@@ -351,6 +351,7 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     # lazy-mode sp_buffer/one_buffer trick (lines 142-158 of that same file) is
     # NOT needed here and actively breaks the dynamo bridge's input-update path
     # (Bad StatusOr access during torch_xla.sync).
+    #compile_options = {"tt_legacy_compile": True}
     compiled = torch.compile(model, backend="tt")
 
     # Per-row generation tracker. generated[i] is the list of token ids
@@ -363,8 +364,7 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     xs.mark_sharding(prompt_ids_tt, mesh, ("_axis_0", None))
     sp_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
     prefill_logits = compiled(prompt_ids_tt, sp_tt)  # [bsz, vocab]
-    torch_xla.sync()
-
+    torch_xla.sync(wait=True)
     next_ids = prefill_logits.detach().to("cpu").argmax(dim=-1)  # [bsz]
     for i in range(bsz):
         generated[i].append(int(next_ids[i].item()))
@@ -380,7 +380,7 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
         xs.mark_sharding(prev_token_tt, mesh, ("_axis_0", None))
         sp_tt = torch.tensor(start_pos, dtype=torch.long).to(device)
         decode_logits = compiled(prev_token_tt, sp_tt)
-        torch_xla.sync()
+        #torch_xla.sync()
 
         next_ids = decode_logits.detach().to("cpu").argmax(dim=-1)  # [bsz]
         for i in range(bsz):
