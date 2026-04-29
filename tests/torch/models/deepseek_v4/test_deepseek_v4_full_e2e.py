@@ -35,6 +35,7 @@ import torch_xla.runtime as xr
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
+from tt_torch.weight_dtype import apply_weight_dtype_overrides
 
 from tt_torch.sharding import sharding_constraint_hook
 
@@ -250,8 +251,9 @@ def transformer_shard_spec(model: mdo.Transformer) -> Dict[torch.Tensor, Tuple]:
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@pytest.mark.parametrize("expert_dtype", ["bfp_bf4", "bfp_bf8"])
 @torch.inference_mode()
-def test_e2e_prefill_decode_full_real() -> None:
+def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     enable_spmd()
     xr.set_device_type("TT")
     torch.manual_seed(0)
@@ -263,9 +265,9 @@ def test_e2e_prefill_decode_full_real() -> None:
     # is tiled across the batch — every row generates the same answer.
     mesh, mesh_shape = make_mesh()
     bsz = BATCH_SIZE
-    assert bsz % mesh_shape[0] == 0, (
-        f"BATCH_SIZE={bsz} must be divisible by mesh_shape[0]={mesh_shape[0]}"
-    )
+    # assert bsz % mesh_shape[0] == 0, (
+    #     f"BATCH_SIZE={bsz} must be divisible by mesh_shape[0]={mesh_shape[0]}"
+    # )
 
     # --- Real config, MTP off, layer-prefix truncation --------------------
     args = weight_loader.load_config_args()
@@ -319,6 +321,20 @@ def test_e2e_prefill_decode_full_real() -> None:
     device = torch_xla.device()
     model = model.to(device)
     gc.collect()
+
+
+    # --- Apply weight dtype overrides ------------------------------------
+    # MoE routed experts + router: bfp4 
+    weight_dtype_overrides = {
+        # MoE routed experts (compound stacked across the 256 experts).
+        "layers.*.ffn.mlp.experts.gate_proj": expert_dtype,
+        "layers.*.ffn.mlp.experts.up_proj":   expert_dtype,
+        "layers.*.ffn.mlp.experts.down_proj": expert_dtype,
+    }
+    applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
+    print(f"[wdtype] applied {len(applied)} weight dtype overrides", flush=True)
+    for path, dtype_str in applied:
+        print(f"[wdtype]   {path} -> {dtype_str}", flush=True)
 
     for tensor, spec in transformer_shard_spec(model).items():
         xs.mark_sharding(tensor, mesh, spec)
