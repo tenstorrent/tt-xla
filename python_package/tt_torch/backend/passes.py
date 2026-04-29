@@ -164,8 +164,16 @@ def handle_composite_ops(gm: torch.fx.GraphModule) -> None:
         elif node.op == "call_module":
             module = gm.get_submodule(node.target)
             module_type = type(module)
+            matched_type = None
             if module_type in composite_ops.replacements:
-                composite_ops.replacements[module_type](gm, node, module)
+                matched_type = module_type
+            else:
+                for key_type in composite_ops.replacements:
+                    if isinstance(key_type, type) and isinstance(module, key_type):
+                        matched_type = key_type
+                        break
+            if matched_type is not None:
+                composite_ops.replacements[matched_type](gm, node, module)
 
         elif node.op == "call_method":
             # This happens when the method is called as `input.function(args)` instead of
