@@ -414,19 +414,18 @@ def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
                 )
                 return False
 
-    # Check kv_len is a multiple of 32: TTNN FlashAttention-2 k_chunk_size constraint.
-    # When kv_len % 32 != 0, zero-padded K positions in the last chunk contribute
-    # exp(0)=1 to the softmax denominator, diluting attention weights and producing
-    # incorrect output. For kv_len=1, output ≈ V*exp(s)/(exp(s)+31) instead of V.
-    # For kv_len=34, the last chunk has 30 zero-padded positions out of 32.
+    # Check kv_len >= 32: TTNN FlashAttention-2 k_chunk_size constraint.
+    # When kv_len < 32, zero-padded K positions contribute exp(0)=1 to the
+    # softmax denominator, diluting attention weights and producing incorrect
+    # output. For kv_len=1, output ≈ V*exp(s)/(exp(s)+31) instead of V.
     key_node = node.args[1] if len(node.args) > 1 else None
     if key_node is not None and isinstance(key_node, torch.fx.Node):
         val = key_node.meta.get("example_value", None)
         if val is not None and val.ndim >= 2:
             kv_len = val.shape[-2]  # [..., kv_seq_len, head_dim]
-            if isinstance(kv_len, int) and kv_len % 32 != 0:
+            if isinstance(kv_len, int) and kv_len < 32:
                 logger.debug(
-                    f"composite scaled_dot_product_attention: kv_len={kv_len} is not a multiple of 32 "
+                    f"composite scaled_dot_product_attention: kv_len={kv_len} < 32 "
                     "(TTNN SDPA k_chunk_size), skipping composite and using native implementation."
                 )
                 return False
