@@ -8,6 +8,10 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  command_r/causal_lm/pytorch-Plus_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "C4AI Command R+ (~104B params, ~58 GB Q4_K_M) exceeds single-device DRAM on all TT hardware (n150: 12 GB, p150b: 24 GB)"
+
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     arch_overrides:
       n150:
