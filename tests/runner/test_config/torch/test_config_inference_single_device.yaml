@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  ddh0_gemma_3_40b_gguf/causal_lm/pytorch-DDH0_GEMMA_3_40B_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 231211008 B DRAM buffer across 8 banks, where each bank needs to store 28901376 B, but bank size is 4273390016 B (allocated: 4225171776 B, free: 48218240 B, largest free block: 13801280 B) — 40B model in BF16 (~80 GB) exceeds single-device DRAM capacity (~34 GB)"
