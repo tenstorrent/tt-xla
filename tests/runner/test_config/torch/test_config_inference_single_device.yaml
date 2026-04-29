@@ -1227,6 +1227,10 @@ test_config:
   deepseek/deepseek_coder/pytorch-1_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
+  deepseek/deepseek_coder_v2/pytorch-Lite_Instruct-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "DeepSeek-Coder-V2-Lite-Instruct is ~15.9B params at bf16 (~31.7 GB), exceeding single-device DRAM (12 GB). Compilation fails with INTERNAL: Error code: 13."
+
   deepseek/deepseek_ocr/pytorch-Ocr-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
