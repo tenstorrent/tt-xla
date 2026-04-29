@@ -20,7 +20,7 @@ from pathlib import Path
 
 import torch
 
-from .monkey_patch import _disable_tt_torch_function_override, _patch_apply_lora_scale
+from .monkey_patch import _patch_apply_lora_scale, _patch_tt_torch_getitem_clamp, _patch_wan_resample_rep_sentinel, _patch_wan_resample_avoid_4d_fold
 from .shared import (
     LATENT_CHANNELS,
     RESOLUTIONS,
@@ -119,7 +119,9 @@ def _output_path() -> Path:
 # ---------------------------------------------------------------------------
 
 _patch_apply_lora_scale()
-_disable_tt_torch_function_override()
+_patch_tt_torch_getitem_clamp()
+_patch_wan_resample_rep_sentinel()
+_patch_wan_resample_avoid_4d_fold()
 
 # ---------------------------------------------------------------------------
 # Test
