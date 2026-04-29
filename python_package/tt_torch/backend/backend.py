@@ -31,6 +31,7 @@ from .passes import (
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
+    normalize_index_op_index_dtypes,
     rewrite_adaptive_avgpool_to_mean,
     run_fusion_passes,
 )
@@ -89,6 +90,7 @@ def torch_pass_pipeline(
         compiled_graph, example_inputs
     )
     compiled_graph = bypass_redundant_getitem(compiled_graph)
+    compiled_graph = normalize_index_op_index_dtypes(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
 
     # Recompile the GraphModule to ensure the modifications made by the above
