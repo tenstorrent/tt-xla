@@ -174,7 +174,7 @@ jobs:
           --repo ${{ github.repository }} \
           --dir wheels \
           --name ${{ steps.strings.outputs.wheel_artifact_name }}
-        if [[ "${{ matrix.build['extra-wheel'] }}" == "vllm" ]]; then
+        if [[ "${{ matrix.build.extra-wheel }}" == "vllm" ]]; then
           echo "Downloading wheel from: ${{ github.repository }} run_id ${{ inputs.artifact_release_run_id }} name ${{ steps.strings.outputs.wheel_release_vllm_tt_artifact_name }}"
           gh run download ${{ inputs.artifact_release_run_id }} \
             --repo ${{ github.repository }} \
@@ -279,8 +279,8 @@ jobs:
 
         # Pass arch to forge models tests to resolve arch_overrides in test_config files.
         ARCH=""
-        if [[ "${{ matrix.build['forge-models'] }}" == "true" ]]; then
-          ARCH="--arch ${{ matrix.build['runs-on-original'] || matrix.build.runs-on }}"
+        if [[ "${{ matrix.build.forge-models }}" == "true" ]]; then
+          ARCH="--arch ${{ matrix.build.runs-on-original || matrix.build.runs-on }}"
         fi
 
         MARKS="${{ matrix.build.test-mark }}"
@@ -307,7 +307,7 @@ jobs:
         echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
 
     - name: Install System Deps for Forge Models Tests
-      if: ${{ matrix.build['forge-models'] == true }}
+      if: ${{ matrix.build.forge-models == true }}
       shell: bash
       run: |
         apt-get update
@@ -316,7 +316,7 @@ jobs:
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
     - name: Validate Forge Models Tests test config file
-      if: ${{ matrix.build['forge-models'] == true && strategy.job-index == 0 && inputs.forge_models_override == '' }}
+      if: ${{ matrix.build.forge-models == true && strategy.job-index == 0 && inputs.forge_models_override == '' }}
       shell: bash
       run: |
         source venv/activate
