@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
+import gzip
+import json
 import os
 import re
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator, Optional, TextIO
+from typing import Iterable, Iterator, Optional, Sequence, TextIO
 
 
 @dataclass(frozen=True)
@@ -246,7 +250,50 @@ def zones_to_perfetto(
     return events
 
 
-def main() -> int:
+def _discover_inputs(reports_dir: Path) -> tuple[Path, Path]:
+    device = reports_dir / "profile_log_device.csv"
+    if not device.exists():
+        raise FileNotFoundError(f"profile_log_device.csv not found in {reports_dir}")
+    ops_matches = sorted(reports_dir.glob("ops_perf_results_*.csv"))
+    if not ops_matches:
+        raise FileNotFoundError(f"No ops_perf_results_*.csv found in {reports_dir}")
+    if len(ops_matches) > 1:
+        print(f"Warning: multiple ops CSVs found, using {ops_matches[-1].name}", file=sys.stderr)
+    return device, ops_matches[-1]
+
+
+def _write_trace(events: list[dict], out_path: Path) -> None:
+    payload = {"traceEvents": events, "displayTimeUnit": "ns"}
+    if out_path.suffix == ".gz":
+        with gzip.open(out_path, "wt") as f:
+            json.dump(payload, f)
+    else:
+        with open(out_path, "w") as f:
+            json.dump(payload, f)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Convert tt-metal .tracy_artifacts/reports/<ts>/ to a Perfetto-loadable trace."
+    )
+    parser.add_argument("reports_dir", type=Path,
+                        help="Path to the reports/<timestamp>/ directory")
+    parser.add_argument("-o", "--output", type=Path, default=None,
+                        help="Output path (.json or .json.gz). Default: <reports_dir>/perfetto_kernel_timeline.json.gz")
+    args = parser.parse_args(argv)
+
+    device_csv, ops_csv = _discover_inputs(args.reports_dir)
+    out = args.output or (args.reports_dir / "perfetto_kernel_timeline.json.gz")
+
+    with open(device_csv) as f:
+        header = parse_device_header(f)
+
+    zones = pair_zones(iter_device_events(device_csv))
+    ops = load_ops(ops_csv)
+    events = zones_to_perfetto(zones, ops, chip_freq_mhz=header.chip_freq_mhz)
+    _write_trace(events, out)
+
+    print(f"Wrote {len(events)} events to {out}")
     return 0
 
 

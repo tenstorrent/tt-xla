@@ -180,3 +180,41 @@ def test_zones_to_perfetto_emits_complete_events_with_kernel_names():
 
     thread_names = [e for e in events if e.get("ph") == "M" and e["name"] == "thread_name"]
     assert any("BRISC" in e["args"]["name"] for e in thread_names)
+
+
+import gzip
+import json
+import shutil
+
+
+def test_main_writes_gzipped_perfetto_json(tmp_path):
+    # Lay out a fake reports dir like the real one
+    reports = tmp_path / "reports" / "synthetic"
+    reports.mkdir(parents=True)
+    shutil.copy(FIXTURES / "mini_device.csv", reports / "profile_log_device.csv")
+    shutil.copy(FIXTURES / "mini_ops.csv", reports / "ops_perf_results_synthetic.csv")
+
+    out = tmp_path / "out.json.gz"
+    rc = tracy_to_perfetto.main([str(reports), "-o", str(out)])
+    assert rc == 0
+    assert out.exists()
+
+    with gzip.open(out, "rt") as f:
+        trace = json.load(f)
+    names = {e["name"] for e in trace["traceEvents"] if e.get("ph") == "X"}
+    assert "reader_permute_interleaved_rm_blocked_generic" in names
+    assert "transpose_xw_rm_single_tile_size" in names
+    assert "BRISC-FW" in names
+
+
+def test_main_uncompressed_json_when_extension_is_json(tmp_path):
+    reports = tmp_path / "reports" / "synthetic"
+    reports.mkdir(parents=True)
+    shutil.copy(FIXTURES / "mini_device.csv", reports / "profile_log_device.csv")
+    shutil.copy(FIXTURES / "mini_ops.csv", reports / "ops_perf_results_synthetic.csv")
+
+    out = tmp_path / "out.json"
+    rc = tracy_to_perfetto.main([str(reports), "-o", str(out)])
+    assert rc == 0
+    trace = json.loads(out.read_text())
+    assert "traceEvents" in trace
