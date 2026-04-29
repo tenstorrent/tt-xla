@@ -322,6 +322,8 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     model = model.to(device)
     gc.collect()
 
+    for tensor, spec in transformer_shard_spec(model).items():
+        xs.mark_sharding(tensor, mesh, spec)
 
     # --- Apply weight dtype overrides ------------------------------------
     # MoE routed experts + router: bfp4 
@@ -335,9 +337,6 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     print(f"[wdtype] applied {len(applied)} weight dtype overrides", flush=True)
     for path, dtype_str in applied:
         print(f"[wdtype]   {path} -> {dtype_str}", flush=True)
-
-    for tensor, spec in transformer_shard_spec(model).items():
-        xs.mark_sharding(tensor, mesh, spec)
 
     hook = sharding_constraint_hook(model.head, mesh, (None, None))
     model.head.register_forward_hook(hook)
