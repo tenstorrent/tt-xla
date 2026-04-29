@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  bereaved_compound_v1_0_24b_i1_gguf/causal_lm/pytorch-BereavedCompound-v1.0-24b-i1-GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 335544320 B DRAM buffer across 8 banks (allocated: 4196977728 B, free: 76412288 B, largest free block: 37030336 B) - 24B model in BF16 (~31 GB) exhausts single-device DRAM leaving insufficient room for activations"
