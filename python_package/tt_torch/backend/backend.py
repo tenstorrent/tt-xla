@@ -16,6 +16,7 @@ from torch._dynamo.backends.common import aot_autograd, fake_tensor_unsupported
 from torch.export import ExportedProgram
 from torch.export.graph_signature import InputKind, OutputKind
 from torch.fx.passes.tools_common import legalize_graph
+import torch.fx.experimental.symbolic_shapes as _sym_shapes
 from torch_xla.distributed.spmd import ShardingType
 from ttxla_tools.logging import logger
 
@@ -70,9 +71,49 @@ def torch_pass_pipeline(
         tuple(example_inputs),
         strict=False,
     )
-    program = program.run_decompositions(decompositions)
+
+    # Symbolic-shape guard nodes (_guards_fn call_module) are injected during
+    # run_decompositions re-tracing.  Their forward() is a dynamo-generated
+    # closure that references 'L' (the dynamo locals dict) which is not
+    # available when called from PropagateUnbackedSymInts or at inference time,
+    # producing: NameError: name 'L' is not defined.  The nodes are dead code
+    # (num_users=0), so we skip them during metadata collection and erase them.
+    _orig_run_node = _sym_shapes.PropagateUnbackedSymInts.run_node
+
+    def _skip_guard_run_node(self, n):
+        if (
+            n.op == "call_module"
+            and isinstance(n.target, str)
+            and "_guards" in n.target
+            and not n.users
+        ):
+            return None
+        return _orig_run_node(self, n)
+
+    _sym_shapes.PropagateUnbackedSymInts.run_node = _skip_guard_run_node
+    try:
+        program = program.run_decompositions(decompositions)
+    finally:
+        _sym_shapes.PropagateUnbackedSymInts.run_node = _orig_run_node
 
     compiled_graph = program.module()
+
+    # Erase surviving _guards_fn nodes from the compiled graph; they remain
+    # after run_decompositions and cause the same NameError at inference time.
+    _guard_nodes = [
+        n
+        for n in compiled_graph.graph.nodes
+        if n.op == "call_module"
+        and isinstance(n.target, str)
+        and "_guards" in n.target
+        and not n.users
+    ]
+    if _guard_nodes:
+        for n in _guard_nodes:
+            compiled_graph.graph.erase_node(n)
+        compiled_graph.graph.lint()
+        compiled_graph.recompile()
+
     # When torch.compile traces a model, it flattens the module hierarchy and
     # mangles parameter names (e.g., "model.layers.0.weight" becomes something
     # like "L__self___model_layers___0___weight"). Dynamo stores a reverse
