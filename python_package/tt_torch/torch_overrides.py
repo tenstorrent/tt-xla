@@ -31,6 +31,25 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor and not torch.compiler.is_compiling():
+            # XLA eager execution requires slice start in [-dim_size, dim_size-1].
+            # PyTorch silently clamps more-negative-than-(-dim_size) indices to 0.
+            # Mistral SlidingWindowCache slices [:, :, -sliding_window+1:, :] where
+            # sliding_window=4096 >> seq_len during first-token compilation, causing
+            # RuntimeError: Value out of range (expected [-128, 127], got -4095).
+            tensor = args[0] if args else kwargs.get("self")
+            dim = args[1] if len(args) > 1 else kwargs.get("dim", 0)
+            start = args[2] if len(args) > 2 else kwargs.get("start")
+            end = args[3] if len(args) > 3 else kwargs.get("end")
+            if tensor is not None and isinstance(dim, int) and dim < len(tensor.shape):
+                size = tensor.shape[dim]
+                if isinstance(size, int):
+                    if isinstance(start, int) and start < -size:
+                        start = -size
+                    if isinstance(end, int) and end < -size:
+                        end = -size
+                    new_args = (tensor, dim, start, end) + args[4:]
+                    return func(*new_args, **(kwargs or {}))
         return func(*args, **(kwargs or {}))
 
 
