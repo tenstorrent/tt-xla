@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  coughmedicine_huihui_qwen3_next_80b_a3b_instruct_abliterated_w4a16/causal_lm/pytorch-Huihui-Qwen3-Next-80B-A3B-Instruct-abliterated-W4A16-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model (80B W4A16, ~40 GB compressed weights) exceeds single-device DRAM capacity (12 GB per n150)"
