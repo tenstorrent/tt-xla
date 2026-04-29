@@ -135,6 +135,11 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false # issue - https://github.com/tenstorrent/tt-xla/issues/2607
 
+  falcon3_mamba/causal_lm/pytorch-7B-Base-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+    assert_pcc: false # same Mamba BF16 PCC issue - https://github.com/tenstorrent/tt-xla/issues/2607
+
 #  yolov5/pytorch-yolov5s-single_device-inference:
 #    status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
 #    reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
