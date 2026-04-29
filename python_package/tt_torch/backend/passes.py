@@ -295,6 +295,63 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Clamp aten.slice.Tensor start indices that are out of XLA's valid range [-dim_size, dim_size-1].
+
+    PyTorch's CPU implementation silently clamps out-of-range negative starts to 0, but XLA
+    raises RuntimeError. This arises in sliding-window attention (e.g., Gemma3 sliding_window=512)
+    where full_states[:, :, -sliding_window+1:, :] produces start=-(sliding_window-1) which is
+    more negative than -seq_len when seq_len < sliding_window. Clamping to -seq_len is
+    semantically equivalent: both select all elements (from index 0 to end).
+    """
+    modified = False
+    for node in list(gm.graph.nodes):
+        if (
+            node.op != "call_function"
+            or node.target != torch.ops.aten.slice.Tensor
+            or len(node.args) < 3
+        ):
+            continue
+
+        start = node.args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+
+        dim = node.args[1] if len(node.args) > 1 else 0
+        if not isinstance(dim, int):
+            continue
+
+        input_node = node.args[0]
+        val = input_node.meta.get("val")
+        if val is None:
+            tensor_meta = input_node.meta.get("tensor_meta")
+            if tensor_meta is None:
+                continue
+            shape = tensor_meta.shape
+        else:
+            shape = val.shape
+
+        normalized_dim = dim if dim >= 0 else dim + len(shape)
+        if normalized_dim < 0 or normalized_dim >= len(shape):
+            continue
+
+        dim_size = shape[normalized_dim]
+        if not isinstance(dim_size, int) or start >= -dim_size:
+            continue
+
+        new_args = list(node.args)
+        new_args[2] = -dim_size
+        node.args = tuple(new_args)
+        modified = True
+
+    if modified:
+        gm.graph.lint()
+        gm.recompile()
+
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
