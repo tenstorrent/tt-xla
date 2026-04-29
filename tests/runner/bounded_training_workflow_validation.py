@@ -36,93 +36,103 @@ class ValidationSummary:
     records: list[dict[str, Any]]
 
 
+_FRONTEND_REQUIRED_MANIFEST_KEYS = (
+    "test_id",
+    "classification",
+    "reason",
+    "draft_issue_path",
+    "attempt_log_path",
+    "next_manual_step",
+)
+_RUNTIME_REQUIRED_MANIFEST_KEYS = (
+    "test_id",
+    "bringup_status",
+    "classification",
+    "owner_hint",
+    "reason",
+    "draft_issue_path",
+    "attempt_log_path",
+    "next_manual_step",
+)
+
+
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def evidence_path(manifest: dict[str, Any]) -> str:
+    return manifest.get("draft_issue_path") or manifest.get("attempt_log_path") or ""
+
+
+def path_is_explicit(manifest: dict[str, Any], workflow_path: str) -> bool:
+    if workflow_path == "frontend":
+        return manifest.get("classification") == "frontend"
+    return bool(manifest.get("owner_hint"))
+
+
+def required_manifest_keys(workflow_path: str) -> tuple[str, ...]:
+    if workflow_path == "frontend":
+        return _FRONTEND_REQUIRED_MANIFEST_KEYS
+    return _RUNTIME_REQUIRED_MANIFEST_KEYS
+
+
+def record_failure(
+    failed_conditions: list[str],
+    corrective_steps: list[str],
+    condition: str,
+    corrective_step: str,
+) -> None:
+    failed_conditions.append(condition)
+    corrective_steps.append(corrective_step)
 
 
 def validate_record(manifest: dict[str, Any], workflow_path: str) -> ValidationRecord:
     failed_conditions: list[str] = []
     corrective_steps: list[str] = []
+    output_evidence_path = evidence_path(manifest)
 
     if not manifest.get("test_id"):
-        failed_conditions.append("missing cohort identity")
-        corrective_steps.append(
-            "ensure manifest.json records the exact test_id for the cohort row"
+        record_failure(
+            failed_conditions,
+            corrective_steps,
+            "missing cohort identity",
+            "ensure manifest.json records the exact test_id for the cohort row",
         )
 
-    if workflow_path == "frontend":
-        path_explicit = manifest.get("classification") == "frontend"
-    else:
-        path_explicit = bool(manifest.get("owner_hint"))
-    if not path_explicit:
-        failed_conditions.append(
-            "workflow path or owner classification is not explicit"
-        )
-        corrective_steps.append(
-            "record explicit workflow-path classification in the manifest"
+    if not path_is_explicit(manifest, workflow_path):
+        record_failure(
+            failed_conditions,
+            corrective_steps,
+            "workflow path or owner classification is not explicit",
+            "record explicit workflow-path classification in the manifest",
         )
 
-    evidence_present = bool(
-        manifest.get("draft_issue_path") or manifest.get("attempt_log_path")
-    )
-    if not evidence_present:
-        failed_conditions.append("evidence bundle link is missing")
-        corrective_steps.append(
-            "emit either draft_issue.md or attempt.log and persist its path in the manifest"
+    if not output_evidence_path:
+        record_failure(
+            failed_conditions,
+            corrective_steps,
+            "evidence bundle link is missing",
+            "emit either draft_issue.md or attempt.log and persist its path in the manifest",
         )
 
-    outcome_explicit = bool(
-        manifest.get("draft_issue_path") or manifest.get("attempt_log_path")
-    )
-    if not outcome_explicit:
-        failed_conditions.append("recommendation or reduction outcome is not explicit")
-        corrective_steps.append(
-            "record whether the item produced a draft packet or an attempt log"
+    if not manifest.get("next_manual_step"):
+        record_failure(
+            failed_conditions,
+            corrective_steps,
+            "remaining blocker or next manual step is missing",
+            "record the next manual step in the manifest",
         )
 
-    blockers_present = False
-    if workflow_path == "frontend":
-        blockers_present = bool(manifest.get("next_manual_step"))
-    else:
-        blockers_present = bool(manifest.get("next_manual_step"))
-    if not blockers_present:
-        failed_conditions.append("remaining blocker or next manual step is missing")
-        corrective_steps.append("record the next manual step in the manifest")
-
-    if workflow_path == "frontend":
-        contract_ok = all(
-            key in manifest
-            for key in (
-                "test_id",
-                "classification",
-                "reason",
-                "draft_issue_path",
-                "attempt_log_path",
-                "next_manual_step",
-            )
-        )
-    else:
-        contract_ok = all(
-            key in manifest
-            for key in (
-                "test_id",
-                "bringup_status",
-                "classification",
-                "owner_hint",
-                "reason",
-                "draft_issue_path",
-                "attempt_log_path",
-                "next_manual_step",
-            )
-        )
-    if not contract_ok:
-        failed_conditions.append("output does not match the shared packet contract")
-        corrective_steps.append(
-            "populate the required manifest fields for the workflow path"
+    if not all(key in manifest for key in required_manifest_keys(workflow_path)):
+        record_failure(
+            failed_conditions,
+            corrective_steps,
+            "output does not match the shared packet contract",
+            "populate the required manifest fields for the workflow path",
         )
 
     if failed_conditions:
-        if not evidence_present:
+        if not output_evidence_path:
             binary_result = "error"
             failure_taxonomy = "precondition_violation"
         else:
@@ -136,9 +146,7 @@ def validate_record(manifest: dict[str, Any], workflow_path: str) -> ValidationR
         test_id=manifest.get("test_id", ""),
         workflow_path=workflow_path,
         binary_result=binary_result,
-        evidence_path=manifest.get("draft_issue_path")
-        or manifest.get("attempt_log_path")
-        or "",
+        evidence_path=output_evidence_path,
         failed_conditions=failed_conditions,
         corrective_steps=corrective_steps,
         failure_taxonomy=failure_taxonomy,
@@ -147,6 +155,34 @@ def validate_record(manifest: dict[str, Any], workflow_path: str) -> ValidationR
 
 def collect_manifests(output_root: Path) -> list[Path]:
     return sorted(output_root.glob("*/manifest.json"))
+
+
+def validate_manifests(output_root: Path, workflow_path: str) -> list[ValidationRecord]:
+    return [
+        validate_record(load_json(manifest_path), workflow_path)
+        for manifest_path in collect_manifests(output_root)
+    ]
+
+
+def count_records(records: list[ValidationRecord], binary_result: str) -> int:
+    return sum(1 for record in records if record.binary_result == binary_result)
+
+
+def build_validation_summary(
+    *,
+    frontend_output_root: Path,
+    runtime_output_root: Path,
+    records: list[ValidationRecord],
+) -> ValidationSummary:
+    return ValidationSummary(
+        frontend_output_root=str(frontend_output_root),
+        runtime_output_root=str(runtime_output_root),
+        total_items=len(records),
+        pass_count=count_records(records, "pass"),
+        fail_count=count_records(records, "fail"),
+        error_count=count_records(records, "error"),
+        records=[asdict(record) for record in records],
+    )
 
 
 def write_summary(path: Path, summary: ValidationSummary) -> None:
@@ -196,21 +232,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    records: list[ValidationRecord] = []
+    records = [
+        *validate_manifests(args.frontend_output_root, "frontend"),
+        *validate_manifests(args.runtime_output_root, "runtime"),
+    ]
 
-    for manifest_path in collect_manifests(args.frontend_output_root):
-        records.append(validate_record(load_json(manifest_path), "frontend"))
-    for manifest_path in collect_manifests(args.runtime_output_root):
-        records.append(validate_record(load_json(manifest_path), "runtime"))
-
-    summary = ValidationSummary(
-        frontend_output_root=str(args.frontend_output_root),
-        runtime_output_root=str(args.runtime_output_root),
-        total_items=len(records),
-        pass_count=sum(1 for record in records if record.binary_result == "pass"),
-        fail_count=sum(1 for record in records if record.binary_result == "fail"),
-        error_count=sum(1 for record in records if record.binary_result == "error"),
-        records=[asdict(record) for record in records],
+    summary = build_validation_summary(
+        frontend_output_root=args.frontend_output_root,
+        runtime_output_root=args.runtime_output_root,
+        records=records,
     )
     args.output_root.mkdir(parents=True, exist_ok=True)
     write_summary(args.output_root / "validation_summary.json", summary)

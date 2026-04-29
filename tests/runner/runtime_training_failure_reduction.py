@@ -6,9 +6,9 @@
 
 This tool creates review-ready reduction artifacts for training failures whose
 current config metadata points to runtime or metal-style failures. It is a
-bounded planning-driven implementation: it does not rerun tests, but it
-normalizes the current runtime evidence and branches into draft packet or
-attempt-log outputs using explicit heuristics.
+bounded planning-driven implementation: by default it normalizes current
+runtime evidence without rerunning tests, and optional bounded reruns capture
+explicit logs before branching into draft packet or attempt-log outputs.
 """
 
 from __future__ import annotations
@@ -49,6 +49,25 @@ _RUNTIME_KEYWORDS = (
 _DEBUG_LOG_SUFFIXES = (".log", ".txt")
 _SAFE_PATH_COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 _PYTEST_COMMAND = "pytest"
+_TT_METAL_SIGNAL_TOKENS = (
+    "TT_FATAL",
+    "Buffer must be allocated on device",
+    "Out of Memory",
+    "beyond max L1 size",
+    "Not enough space to allocate",
+)
+_RUNTIME_SIGNAL_TOKENS = _TT_METAL_SIGNAL_TOKENS + ("RuntimeError",)
+_TTNN_MLIR_TOKENS = ("ttnn.", "tt.device", "ttnn::", "stablehlo.")
+_INVALID_EXECUTION_NEXT_STEPS = {
+    "rerun executed with PJRT_DEVICE=CPU instead of TT hardware": (
+        "configure the rerun environment so the test runs on TT hardware and emits runtime debug markers, "
+        "then rerun the bounded runtime capture."
+    ),
+    "rerun timed out before TT runtime evidence was captured": (
+        "capture a staged or narrower debug run that emits TT runtime markers before the hang point, "
+        "or choose a runtime row that reaches operation-level evidence within the bounded timeout."
+    ),
+}
 
 
 @dataclass
@@ -93,6 +112,30 @@ class DebugEvidence:
     ttnn_mlir_lines: list[str]
 
 
+@dataclass
+class RerunCapture:
+    debug_log_path: Path | None
+    rerun_attempted: bool = False
+    rerun_command: str | None = None
+    rerun_log_path: str | None = None
+    rerun_returncode: int | None = None
+
+
+def contains_all(text: str, tokens: tuple[str, ...]) -> bool:
+    return all(token in text for token in tokens)
+
+
+def contains_any(text: str, tokens: tuple[str, ...]) -> bool:
+    return any(token in text for token in tokens)
+
+
+def module_not_found_detail(text: str) -> str:
+    missing = [
+        line.strip() for line in text.splitlines() if "ModuleNotFoundError" in line
+    ]
+    return "; ".join(missing) if missing else "pytest environment dependency missing"
+
+
 def detect_rerun_precondition_failure(log_path: Path | None) -> str | None:
     if log_path is None or not log_path.exists():
         return None
@@ -102,20 +145,10 @@ def detect_rerun_precondition_failure(log_path: Path | None) -> str | None:
         return text.strip()
     if "TT-Metal installation could not be found" in text:
         return "rerun precondition violation: torch_xla could not locate TT-Metal installation"
-    if (
-        "Native library" in text
-        and "pjrt_plugin_tt.so" in text
-        and "does not exist" in text
-    ):
+    if contains_all(text, ("Native library", "pjrt_plugin_tt.so", "does not exist")):
         return "rerun precondition violation: torch_xla loaded source pjrt_plugin_tt without native plugin library"
     if "ImportError while loading conftest" in text and "ModuleNotFoundError" in text:
-        missing = []
-        for line in text.splitlines():
-            if "ModuleNotFoundError" in line:
-                missing.append(line.strip())
-        detail = (
-            "; ".join(missing) if missing else "pytest environment dependency missing"
-        )
+        detail = module_not_found_detail(text)
         return f"rerun precondition violation: {detail}"
     return None
 
@@ -301,33 +334,22 @@ def find_debug_log(debug_log_root: Path | None, test_id: str) -> Path | None:
     return None
 
 
+def matching_lines(
+    lines: list[str], tokens: tuple[str, ...], *, strip: bool = True
+) -> list[str]:
+    matched = [line for line in lines if contains_any(line, tokens)]
+    if strip:
+        return [line.strip() for line in matched]
+    return [line.rstrip() for line in matched]
+
+
 def extract_debug_evidence(debug_log_path: Path) -> DebugEvidence | None:
     lines = debug_log_path.read_text(encoding="utf-8").splitlines()
     executing_operation_lines = [
         line.strip() for line in lines if "Executing operation" in line
     ]
-    runtime_signal_lines = [
-        line.strip()
-        for line in lines
-        if any(
-            token in line
-            for token in (
-                "TT_FATAL",
-                "beyond max L1 size",
-                "Not enough space to allocate",
-                "Buffer must be allocated on device",
-                "RuntimeError",
-                "Out of Memory",
-            )
-        )
-    ]
-    ttnn_mlir_lines = [
-        line.rstrip()
-        for line in lines
-        if any(
-            token in line for token in ("ttnn.", "tt.device", "ttnn::", "stablehlo.")
-        )
-    ]
+    runtime_signal_lines = matching_lines(lines, _RUNTIME_SIGNAL_TOKENS)
+    ttnn_mlir_lines = matching_lines(lines, _TTNN_MLIR_TOKENS, strip=False)
 
     if (
         not executing_operation_lines
@@ -341,6 +363,48 @@ def extract_debug_evidence(debug_log_path: Path) -> DebugEvidence | None:
         executing_operation_lines=executing_operation_lines[:5],
         runtime_signal_lines=runtime_signal_lines[:8],
         ttnn_mlir_lines=ttnn_mlir_lines[:12],
+    )
+
+
+def capture_runtime_log(
+    *,
+    debug_log_root: Path | None,
+    test_id: str,
+    output_dir: Path,
+    execute_rerun: bool,
+    pytest_bin: str,
+    rerun_timeout_sec: int,
+    force_run_skipped: bool,
+) -> RerunCapture:
+    debug_log_path = find_debug_log(debug_log_root, test_id)
+    if debug_log_path is not None or not execute_rerun:
+        return RerunCapture(debug_log_path=debug_log_path)
+
+    rerun_log_file = output_dir / "runtime_rerun.log"
+    environment_precondition_failure = probe_rerun_environment(pytest_bin)
+    if environment_precondition_failure is not None:
+        rerun_log_file.write_text(
+            environment_precondition_failure + "\n", encoding="utf-8"
+        )
+        return RerunCapture(
+            debug_log_path=rerun_log_file,
+            rerun_command=" ".join(build_rerun_command(pytest_bin, test_id)),
+            rerun_log_path=str(rerun_log_file),
+        )
+
+    rerun_returncode, rerun_command = run_bounded_rerun(
+        pytest_bin=pytest_bin,
+        test_id=test_id,
+        log_path=rerun_log_file,
+        timeout_sec=rerun_timeout_sec,
+        force_run_skipped=force_run_skipped,
+    )
+    return RerunCapture(
+        debug_log_path=rerun_log_file,
+        rerun_attempted=True,
+        rerun_command=rerun_command,
+        rerun_log_path=str(rerun_log_file),
+        rerun_returncode=rerun_returncode,
     )
 
 
@@ -396,6 +460,25 @@ def run_bounded_rerun(
         return None, " ".join(command)
 
 
+def debug_signal_text(debug_evidence: DebugEvidence | None) -> str:
+    if debug_evidence is None:
+        return ""
+    return " ".join(
+        debug_evidence.executing_operation_lines + debug_evidence.runtime_signal_lines
+    )
+
+
+def has_runtime_debug_context(debug_evidence: DebugEvidence | None) -> bool:
+    return bool(
+        debug_evidence
+        and (
+            debug_evidence.executing_operation_lines
+            or debug_evidence.runtime_signal_lines
+            or debug_evidence.ttnn_mlir_lines
+        )
+    )
+
+
 def classify_runtime_entry(
     bringup_status: str | None,
     reason: str | None,
@@ -403,34 +486,21 @@ def classify_runtime_entry(
 ) -> tuple[str, str, str]:
     reason = reason or ""
     bringup_status = bringup_status or ""
-    debug_signal_text = (
-        " ".join(
-            (
-                debug_evidence.executing_operation_lines
-                + debug_evidence.runtime_signal_lines
-            )
-        )
-        if debug_evidence
-        else ""
-    )
-    signal_text = f"{reason} {debug_signal_text}"
+    signal_text = f"{reason} {debug_signal_text(debug_evidence)}"
 
-    if any(
-        token in signal_text
-        for token in (
-            "TT_FATAL",
-            "Buffer must be allocated on device",
-            "Out of Memory",
-            "beyond max L1 size",
-            "Not enough space to allocate",
-        )
-    ):
+    if contains_any(signal_text, _TT_METAL_SIGNAL_TOKENS):
         return (
             "draft_issue",
             "tt-metal",
             "runtime op/device or memory failure signature suggests tt-metal ownership",
         )
-    if "FAILED_RUNTIME" in bringup_status and "Test Hangs" in reason:
+    if "FAILED_RUNTIME" not in bringup_status:
+        return (
+            "attempt_log",
+            "unknown",
+            "row does not match the bounded runtime-reduction selection strongly enough for a draft packet",
+        )
+    if "Test Hangs" in reason:
         if debug_evidence and debug_evidence.executing_operation_lines:
             return (
                 "draft_issue",
@@ -442,26 +512,16 @@ def classify_runtime_entry(
             "unknown",
             "runtime hang requires real debug-log capture and cannot be confidently assigned from config-only evidence",
         )
-    if "FAILED_RUNTIME" in bringup_status:
-        if debug_evidence and (
-            debug_evidence.executing_operation_lines
-            or debug_evidence.runtime_signal_lines
-            or debug_evidence.ttnn_mlir_lines
-        ):
-            return (
-                "draft_issue",
-                "tt-alchemist",
-                "runtime failure has captured debug evidence and is reduction-worthy for tt-alchemist follow-through",
-            )
+    if has_runtime_debug_context(debug_evidence):
         return (
             "draft_issue",
             "tt-alchemist",
-            "runtime failure is reduction-worthy but needs op-level extraction and tt-alchemist follow-through",
+            "runtime failure has captured debug evidence and is reduction-worthy for tt-alchemist follow-through",
         )
     return (
-        "attempt_log",
-        "unknown",
-        "row does not match the bounded runtime-reduction selection strongly enough for a draft packet",
+        "draft_issue",
+        "tt-alchemist",
+        "runtime failure is reduction-worthy but needs op-level extraction and tt-alchemist follow-through",
     )
 
 
@@ -475,6 +535,22 @@ def write_summary(path: Path, summary: RuntimeReductionSummary) -> None:
     path.write_text(
         json.dumps(asdict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+
+
+def append_result_section(
+    lines: list[str],
+    title: str,
+    rows: list[dict[str, Any]],
+    fields: tuple[tuple[str, str], ...],
+) -> None:
+    lines.extend(["", f"## {title}"])
+    if not rows:
+        lines.append("- None")
+        return
+
+    for row in rows:
+        lines.append(f"- `{row['test_id']}`")
+        lines.extend([f"  - {label}: `{row[key]}`" for label, key in fields])
 
 
 def write_review_report(path: Path, summary: RuntimeReductionSummary) -> None:
@@ -495,49 +571,37 @@ def write_review_report(path: Path, summary: RuntimeReductionSummary) -> None:
         f"- tt-alchemist draft candidates: `{summary.tt_alchemist_draft_count}`",
         f"- attempt logs: `{summary.attempt_log_count}`",
         f"- debug evidence captured: `{summary.debug_evidence_count}`",
-        "",
-        "## TT-Metal Draft Candidates",
     ]
-    if tt_metal_rows:
-        for row in tt_metal_rows:
-            lines.extend(
-                [
-                    f"- `{row['test_id']}`",
-                    f"  - draft: `{row['draft_issue_path']}`",
-                    f"  - reduction signal: `{row['reduction_signal']}`",
-                    f"  - debug evidence: `{row['debug_evidence_path']}`",
-                ]
-            )
-    else:
-        lines.append("- None")
-
-    lines.extend(["", "## TT-Alchemist Draft Candidates"])
-    if tt_alchemist_rows:
-        for row in tt_alchemist_rows:
-            lines.extend(
-                [
-                    f"- `{row['test_id']}`",
-                    f"  - draft: `{row['draft_issue_path']}`",
-                    f"  - reduction signal: `{row['reduction_signal']}`",
-                    f"  - debug evidence: `{row['debug_evidence_path']}`",
-                ]
-            )
-    else:
-        lines.append("- None")
-
-    lines.extend(["", "## Attempt Logs"])
-    if attempt_rows:
-        for row in attempt_rows:
-            lines.extend(
-                [
-                    f"- `{row['test_id']}`",
-                    f"  - attempt log: `{row['attempt_log_path']}`",
-                    f"  - next step: `{row['next_manual_step']}`",
-                    f"  - debug evidence: `{row['debug_evidence_path']}`",
-                ]
-            )
-    else:
-        lines.append("- None")
+    append_result_section(
+        lines,
+        "TT-Metal Draft Candidates",
+        tt_metal_rows,
+        (
+            ("draft", "draft_issue_path"),
+            ("reduction signal", "reduction_signal"),
+            ("debug evidence", "debug_evidence_path"),
+        ),
+    )
+    append_result_section(
+        lines,
+        "TT-Alchemist Draft Candidates",
+        tt_alchemist_rows,
+        (
+            ("draft", "draft_issue_path"),
+            ("reduction signal", "reduction_signal"),
+            ("debug evidence", "debug_evidence_path"),
+        ),
+    )
+    append_result_section(
+        lines,
+        "Attempt Logs",
+        attempt_rows,
+        (
+            ("attempt log", "attempt_log_path"),
+            ("next step", "next_manual_step"),
+            ("debug evidence", "debug_evidence_path"),
+        ),
+    )
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -643,6 +707,59 @@ def write_debug_evidence(path: Path, debug_evidence: DebugEvidence) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def apply_rerun_classification_override(
+    classification: str,
+    owner_hint: str,
+    reduction_signal: str,
+    rerun_precondition_failure: str | None,
+    rerun_invalid_execution: str | None,
+) -> tuple[str, str, str]:
+    rerun_blocker = rerun_precondition_failure or rerun_invalid_execution
+    if rerun_blocker is None:
+        return classification, owner_hint, reduction_signal
+    return "attempt_log", "unknown", rerun_blocker
+
+
+def choose_next_manual_step(
+    *,
+    classification: str,
+    debug_evidence: DebugEvidence | None,
+    rerun_precondition_failure: str | None,
+    rerun_invalid_execution: str | None,
+    execute_rerun: bool,
+    rerun_attempted: bool,
+) -> str:
+    if classification == "draft_issue" and debug_evidence:
+        return (
+            "review the extracted runtime and TTNN/MLIR evidence, "
+            "trim to the smallest repro-worthy snippet, then attach it before filing."
+        )
+    if rerun_precondition_failure is not None:
+        return (
+            "install the missing pytest/runtime dependencies in the chosen TT-XLA environment, "
+            "then rerun the bounded runtime capture."
+        )
+    if rerun_invalid_execution is not None:
+        return _INVALID_EXECUTION_NEXT_STEPS.get(
+            rerun_invalid_execution,
+            (
+                "inspect the skip or early-runtime failure in the bounded rerun log, then decide whether to keep this row "
+                "as an explicit blocker case or replace it with a row that reaches TT runtime markers."
+            ),
+        )
+    if execute_rerun and rerun_attempted:
+        return (
+            "inspect the bounded rerun log, confirm whether runtime debug markers were emitted, "
+            "and refine the rerun command or environment before filing."
+        )
+    if classification == "draft_issue":
+        return (
+            "re-run the failing test with TTMLIR_LOGGER_LEVEL=DEBUG and TT_RUNTIME_DEBUG=ON, "
+            "capture the Executing operation line and enclosing TTNN MLIR, then attach the reduction evidence before filing."
+        )
+    return "capture real debug logs with TTMLIR_LOGGER_LEVEL=DEBUG and TT_RUNTIME_DEBUG=ON before assigning ownership."
+
+
 def reduce_test_entry(
     *,
     test_id: str,
@@ -659,99 +776,45 @@ def reduce_test_entry(
     output_dir = build_output_dir(output_root, test_id)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    debug_log_path = find_debug_log(debug_log_root, test_id)
-    rerun_attempted = False
-    rerun_command = None
-    rerun_log_path = None
-    rerun_returncode = None
-
-    if debug_log_path is None and execute_rerun:
-        environment_precondition_failure = probe_rerun_environment(pytest_bin)
-        if environment_precondition_failure is not None:
-            rerun_attempted = False
-            rerun_command = build_rerun_command(pytest_bin, test_id)
-            rerun_log_file = output_dir / "runtime_rerun.log"
-            rerun_log_file.write_text(
-                environment_precondition_failure + "\n", encoding="utf-8"
-            )
-            rerun_log_path = str(rerun_log_file)
-            debug_log_path = rerun_log_file
-        else:
-            rerun_attempted = True
-            rerun_log_file = output_dir / "runtime_rerun.log"
-            rerun_returncode, rerun_command = run_bounded_rerun(
-                pytest_bin=pytest_bin,
-                test_id=test_id,
-                log_path=rerun_log_file,
-                timeout_sec=rerun_timeout_sec,
-                force_run_skipped=force_run_skipped,
-            )
-            rerun_log_path = str(rerun_log_file)
-            debug_log_path = rerun_log_file
+    rerun_capture = capture_runtime_log(
+        debug_log_root=debug_log_root,
+        test_id=test_id,
+        output_dir=output_dir,
+        execute_rerun=execute_rerun,
+        pytest_bin=pytest_bin,
+        rerun_timeout_sec=rerun_timeout_sec,
+        force_run_skipped=force_run_skipped,
+    )
 
     debug_evidence = (
-        extract_debug_evidence(debug_log_path)
-        if debug_log_path and debug_log_path.exists()
+        extract_debug_evidence(rerun_capture.debug_log_path)
+        if rerun_capture.debug_log_path and rerun_capture.debug_log_path.exists()
         else None
     )
-    rerun_precondition_failure = detect_rerun_precondition_failure(debug_log_path)
-    rerun_invalid_execution = detect_rerun_invalid_execution(debug_log_path)
+    rerun_precondition_failure = detect_rerun_precondition_failure(
+        rerun_capture.debug_log_path
+    )
+    rerun_invalid_execution = detect_rerun_invalid_execution(
+        rerun_capture.debug_log_path
+    )
     classification, owner_hint, reduction_signal = classify_runtime_entry(
         bringup_status, reason, debug_evidence
     )
-
-    if rerun_precondition_failure is not None:
-        classification = "attempt_log"
-        owner_hint = "unknown"
-        reduction_signal = rerun_precondition_failure
-    elif rerun_invalid_execution is not None:
-        classification = "attempt_log"
-        owner_hint = "unknown"
-        reduction_signal = rerun_invalid_execution
-
-    if classification == "draft_issue" and debug_evidence:
-        next_manual_step = (
-            "review the extracted runtime and TTNN/MLIR evidence, "
-            "trim to the smallest repro-worthy snippet, then attach it before filing."
-        )
-    elif rerun_precondition_failure is not None:
-        next_manual_step = (
-            "install the missing pytest/runtime dependencies in the chosen TT-XLA environment, "
-            "then rerun the bounded runtime capture."
-        )
-    elif (
-        rerun_invalid_execution
-        == "rerun executed with PJRT_DEVICE=CPU instead of TT hardware"
-    ):
-        next_manual_step = (
-            "configure the rerun environment so the test runs on TT hardware and emits runtime debug markers, "
-            "then rerun the bounded runtime capture."
-        )
-    elif (
-        rerun_invalid_execution
-        == "rerun timed out before TT runtime evidence was captured"
-    ):
-        next_manual_step = (
-            "capture a staged or narrower debug run that emits TT runtime markers before the hang point, "
-            "or choose a runtime row that reaches operation-level evidence within the bounded timeout."
-        )
-    elif rerun_invalid_execution is not None:
-        next_manual_step = (
-            "inspect the skip or early-runtime failure in the bounded rerun log, then decide whether to keep this row "
-            "as an explicit blocker case or replace it with a row that reaches TT runtime markers."
-        )
-    elif execute_rerun and rerun_attempted:
-        next_manual_step = (
-            "inspect the bounded rerun log, confirm whether runtime debug markers were emitted, "
-            "and refine the rerun command or environment before filing."
-        )
-    elif classification == "draft_issue":
-        next_manual_step = (
-            "re-run the failing test with TTMLIR_LOGGER_LEVEL=DEBUG and TT_RUNTIME_DEBUG=ON, "
-            "capture the Executing operation line and enclosing TTNN MLIR, then attach the reduction evidence before filing."
-        )
-    else:
-        next_manual_step = "capture real debug logs with TTMLIR_LOGGER_LEVEL=DEBUG and TT_RUNTIME_DEBUG=ON before assigning ownership."
+    classification, owner_hint, reduction_signal = apply_rerun_classification_override(
+        classification,
+        owner_hint,
+        reduction_signal,
+        rerun_precondition_failure,
+        rerun_invalid_execution,
+    )
+    next_manual_step = choose_next_manual_step(
+        classification=classification,
+        debug_evidence=debug_evidence,
+        rerun_precondition_failure=rerun_precondition_failure,
+        rerun_invalid_execution=rerun_invalid_execution,
+        execute_rerun=execute_rerun,
+        rerun_attempted=rerun_capture.rerun_attempted,
+    )
 
     result = RuntimeReductionResult(
         test_id=test_id,
@@ -761,12 +824,14 @@ def reduce_test_entry(
         owner_hint=owner_hint,
         reduction_signal=reduction_signal,
         runtime_debug_captured=debug_evidence is not None,
-        debug_log_path=str(debug_log_path) if debug_log_path else None,
+        debug_log_path=(
+            str(rerun_capture.debug_log_path) if rerun_capture.debug_log_path else None
+        ),
         debug_evidence_path=None,
-        rerun_attempted=rerun_attempted,
-        rerun_command=rerun_command,
-        rerun_log_path=rerun_log_path,
-        rerun_returncode=rerun_returncode,
+        rerun_attempted=rerun_capture.rerun_attempted,
+        rerun_command=rerun_capture.rerun_command,
+        rerun_log_path=rerun_capture.rerun_log_path,
+        rerun_returncode=rerun_capture.rerun_returncode,
         force_run_skipped=force_run_skipped,
         next_manual_step=next_manual_step,
         output_dir=str(output_dir),
@@ -796,23 +861,53 @@ def collect_selected_tests(
     config: dict[str, Any], requested_tests: list[str]
 ) -> list[str]:
     if requested_tests:
-        missing = [test_id for test_id in requested_tests if test_id not in config]
-        if missing:
-            missing_text = ", ".join(sorted(missing))
-            raise KeyError(f"Requested test ids not found in config: {missing_text}")
+        require_requested_tests(config, requested_tests)
         return requested_tests
 
-    selected = []
-    for test_id, entry in config.items():
-        if not isinstance(entry, dict):
-            continue
-        bringup_status = entry.get("bringup_status")
-        reason = entry.get("reason", "")
-        if bringup_status == "FAILED_RUNTIME" or any(
-            token in reason for token in _RUNTIME_KEYWORDS
-        ):
-            selected.append(test_id)
-    return selected
+    return [
+        test_id
+        for test_id, entry in config.items()
+        if is_runtime_candidate_entry(entry)
+    ]
+
+
+def require_requested_tests(config: dict[str, Any], requested_tests: list[str]) -> None:
+    missing = [test_id for test_id in requested_tests if test_id not in config]
+    if missing:
+        missing_text = ", ".join(sorted(missing))
+        raise KeyError(f"Requested test ids not found in config: {missing_text}")
+
+
+def is_runtime_candidate_entry(entry: Any) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    reason = entry.get("reason") or ""
+    return entry.get("bringup_status") == "FAILED_RUNTIME" or contains_any(
+        reason, _RUNTIME_KEYWORDS
+    )
+
+
+def count_results(results: list[RuntimeReductionResult], field_name: str) -> int:
+    return sum(1 for result in results if getattr(result, field_name))
+
+
+def build_runtime_summary(
+    *, config_path: Path, output_root: Path, results: list[RuntimeReductionResult]
+) -> RuntimeReductionSummary:
+    return RuntimeReductionSummary(
+        config_path=str(config_path),
+        output_root=str(output_root),
+        selected_test_count=len(results),
+        tt_metal_draft_count=sum(
+            1 for result in results if result.owner_hint == "tt-metal"
+        ),
+        tt_alchemist_draft_count=sum(
+            1 for result in results if result.owner_hint == "tt-alchemist"
+        ),
+        attempt_log_count=count_results(results, "attempt_log_path"),
+        debug_evidence_count=count_results(results, "runtime_debug_captured"),
+        results=[asdict(result) for result in results],
+    )
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -882,23 +977,8 @@ def main(argv: list[str]) -> int:
         for test_id in selected_tests
     ]
 
-    summary = RuntimeReductionSummary(
-        config_path=str(args.config),
-        output_root=str(output_root),
-        selected_test_count=len(results),
-        tt_metal_draft_count=sum(
-            1 for result in results if result.owner_hint == "tt-metal"
-        ),
-        tt_alchemist_draft_count=sum(
-            1 for result in results if result.owner_hint == "tt-alchemist"
-        ),
-        attempt_log_count=sum(
-            1 for result in results if result.attempt_log_path is not None
-        ),
-        debug_evidence_count=sum(
-            1 for result in results if result.runtime_debug_captured
-        ),
-        results=[asdict(result) for result in results],
+    summary = build_runtime_summary(
+        config_path=args.config, output_root=output_root, results=results
     )
     output_root.mkdir(parents=True, exist_ok=True)
     write_summary(build_output_file(output_root, "summary.json"), summary)

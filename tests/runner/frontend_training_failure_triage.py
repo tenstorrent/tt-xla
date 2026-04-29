@@ -128,21 +128,33 @@ def build_loader_path(project_root: Path, test_id: str) -> Path:
     return require_path_within(loader_path, models_root, "loader path")
 
 
+def find_model_loader_class(tree: ast.AST) -> ast.ClassDef | None:
+    return next(
+        (
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ClassDef) and node.name == "ModelLoader"
+        ),
+        None,
+    )
+
+
+def class_defines_method(class_node: ast.ClassDef, method_name: str) -> bool:
+    return any(
+        isinstance(stmt, ast.FunctionDef) and stmt.name == method_name
+        for stmt in class_node.body
+    )
+
+
 def loader_has_custom_unpack_forward_output(loader_path: Path) -> bool:
     if not loader_path.is_file():
         return False
 
     tree = ast.parse(loader_path.read_text(encoding="utf-8"))
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == "ModelLoader":
-            for stmt in node.body:
-                if (
-                    isinstance(stmt, ast.FunctionDef)
-                    and stmt.name == "unpack_forward_output"
-                ):
-                    return True
-            return False
-    return False
+    model_loader = find_model_loader_class(tree)
+    return bool(
+        model_loader and class_defines_method(model_loader, "unpack_forward_output")
+    )
 
 
 def classify_frontend_reason(reason: str | None) -> str:
@@ -219,6 +231,22 @@ def write_summary(path: Path, summary: TriageSummary) -> None:
     )
 
 
+def append_result_section(
+    lines: list[str],
+    title: str,
+    rows: list[dict[str, Any]],
+    fields: tuple[tuple[str, str], ...],
+) -> None:
+    lines.extend(["", f"## {title}"])
+    if not rows:
+        lines.append("- None")
+        return
+
+    for row in rows:
+        lines.append(f"- `{row['test_id']}`")
+        lines.extend([f"  - {label}: `{row[key]}`" for label, key in fields])
+
+
 def write_review_report(path: Path, summary: TriageSummary) -> None:
     draft_rows = [result for result in summary.results if result["draft_issue_path"]]
     stale_rows = [
@@ -235,46 +263,25 @@ def write_review_report(path: Path, summary: TriageSummary) -> None:
         f"- draft issue packets: `{summary.draft_issue_count}`",
         f"- attempt logs: `{summary.attempt_log_count}`",
         f"- stale reason suspected: `{summary.stale_reason_suspected_count}`",
-        "",
-        "## Draft Candidates",
     ]
-
-    if draft_rows:
-        for row in draft_rows:
-            lines.extend(
-                [
-                    f"- `{row['test_id']}`",
-                    f"  - draft: `{row['draft_issue_path']}`",
-                    f"  - loader: `{row['loader_path']}`",
-                ]
-            )
-    else:
-        lines.append("- None")
-
-    lines.extend(["", "## Stale Reason Suspected"])
-    if stale_rows:
-        for row in stale_rows:
-            lines.extend(
-                [
-                    f"- `{row['test_id']}`",
-                    f"  - resolution: `{row['resolution']}`",
-                    f"  - next step: `{row['next_manual_step']}`",
-                ]
-            )
-    else:
-        lines.append("- None")
-
-    lines.extend(["", "## Attempt Logs"])
-    if attempt_rows:
-        for row in attempt_rows:
-            lines.extend(
-                [
-                    f"- `{row['test_id']}`",
-                    f"  - attempt log: `{row['attempt_log_path']}`",
-                ]
-            )
-    else:
-        lines.append("- None")
+    append_result_section(
+        lines,
+        "Draft Candidates",
+        draft_rows,
+        (("draft", "draft_issue_path"), ("loader", "loader_path")),
+    )
+    append_result_section(
+        lines,
+        "Stale Reason Suspected",
+        stale_rows,
+        (("resolution", "resolution"), ("next step", "next_manual_step")),
+    )
+    append_result_section(
+        lines,
+        "Attempt Logs",
+        attempt_rows,
+        (("attempt log", "attempt_log_path"),),
+    )
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -482,19 +489,59 @@ def collect_selected_tests(
     config: dict[str, Any], requested_tests: list[str]
 ) -> list[str]:
     if requested_tests:
-        missing = [test_id for test_id in requested_tests if test_id not in config]
-        if missing:
-            missing_text = ", ".join(sorted(missing))
-            raise KeyError(f"Requested test ids not found in config: {missing_text}")
+        require_requested_tests(config, requested_tests)
         return requested_tests
 
-    selected = []
-    for test_id, entry in config.items():
-        if not isinstance(entry, dict):
-            continue
-        if entry.get("reason") == _UNPACK_REASON:
-            selected.append(test_id)
-    return selected
+    return [
+        test_id
+        for test_id, entry in config.items()
+        if is_frontend_candidate_entry(entry)
+    ]
+
+
+def require_requested_tests(config: dict[str, Any], requested_tests: list[str]) -> None:
+    missing = [test_id for test_id in requested_tests if test_id not in config]
+    if missing:
+        missing_text = ", ".join(sorted(missing))
+        raise KeyError(f"Requested test ids not found in config: {missing_text}")
+
+
+def is_frontend_candidate_entry(entry: Any) -> bool:
+    return isinstance(entry, dict) and entry.get("reason") == _UNPACK_REASON
+
+
+def count_results(results: list[TriageResult], field_name: str) -> int:
+    return sum(1 for result in results if getattr(result, field_name))
+
+
+def build_triage_summary(
+    *, config_path: Path, output_root: Path, results: list[TriageResult]
+) -> TriageSummary:
+    return TriageSummary(
+        config_path=str(config_path),
+        output_root=str(output_root),
+        selected_test_count=len(results),
+        frontend_count=sum(
+            1 for result in results if result.classification == "frontend"
+        ),
+        draft_issue_count=count_results(results, "draft_issue_path"),
+        attempt_log_count=count_results(results, "attempt_log_path"),
+        stale_reason_suspected_count=count_results(results, "stale_reason_suspected"),
+        results=[asdict(result) for result in results],
+    )
+
+
+def write_config_refresh_outputs(
+    output_root: Path, recommendations: list[ConfigRefreshRecommendation]
+) -> None:
+    write_config_refresh_recommendations(
+        build_output_file(output_root, "config_refresh_recommendations.json"),
+        recommendations,
+    )
+    write_config_refresh_patch(
+        build_output_file(output_root, "config_refresh_patch.yaml"),
+        recommendations,
+    )
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -516,36 +563,19 @@ def main(argv: list[str]) -> int:
     output_root = args.output_root.expanduser().resolve()
     config = load_training_config(args.config)
     selected_tests = collect_selected_tests(config, args.test_id)
-    results: list[TriageResult] = []
-
-    for test_id in selected_tests:
-        results.append(
-            triage_test_entry(
-                project_root=args.project_root,
-                config_path=args.config,
-                test_id=test_id,
-                entry=config[test_id],
-                output_root=output_root,
-            )
+    results = [
+        triage_test_entry(
+            project_root=args.project_root,
+            config_path=args.config,
+            test_id=test_id,
+            entry=config[test_id],
+            output_root=output_root,
         )
+        for test_id in selected_tests
+    ]
 
-    summary = TriageSummary(
-        config_path=str(args.config),
-        output_root=str(output_root),
-        selected_test_count=len(results),
-        frontend_count=sum(
-            1 for result in results if result.classification == "frontend"
-        ),
-        draft_issue_count=sum(
-            1 for result in results if result.draft_issue_path is not None
-        ),
-        attempt_log_count=sum(
-            1 for result in results if result.attempt_log_path is not None
-        ),
-        stale_reason_suspected_count=sum(
-            1 for result in results if result.stale_reason_suspected
-        ),
-        results=[asdict(result) for result in results],
+    summary = build_triage_summary(
+        config_path=args.config, output_root=output_root, results=results
     )
     output_root.mkdir(parents=True, exist_ok=True)
     write_summary(build_output_file(output_root, "summary.json"), summary)
@@ -557,14 +587,7 @@ def main(argv: list[str]) -> int:
         )
         if recommendation is not None
     ]
-    write_config_refresh_recommendations(
-        build_output_file(output_root, "config_refresh_recommendations.json"),
-        recommendations,
-    )
-    write_config_refresh_patch(
-        build_output_file(output_root, "config_refresh_patch.yaml"),
-        recommendations,
-    )
+    write_config_refresh_outputs(output_root, recommendations)
 
     print(
         "Generated "

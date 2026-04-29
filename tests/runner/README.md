@@ -76,8 +76,9 @@ Bounded rerun path:
   - `pytest -vv -s tests/runner/test_models.py::test_all_models_torch[<test-id>]`
   - with `TTMLIR_LOGGER_LEVEL=DEBUG`
   - and `TT_RUNTIME_DEBUG=ON`
-- use `--pytest-bin` to point at a repo-local pytest, for example:
-  - `.venv/bin/pytest`
+- `--pytest-bin` is restricted to the literal `pytest` command; select a repo-local
+  or virtualenv pytest by activating the environment or prepending its `bin`
+  directory to `PATH`
 - this path writes `runtime_rerun.log` and then extracts debug evidence from that log if possible
 - before launching pytest, the tool now probes the paired Python environment for:
   - `psutil`
@@ -99,7 +100,7 @@ Current owner heuristics:
   - attempt log only until real debug-log capture exists
 
 Notes:
-- this tool is still draft-only and does not rerun tests
+- this tool is draft-only; it reruns tests only when `--execute-rerun` is explicitly supplied and does not file issues or mutate source YAML
 - without `--debug-log-root`, the next manual step remains to capture real `TTMLIR_LOGGER_LEVEL=DEBUG` and `TT_RUNTIME_DEBUG=ON` evidence before filing
 
 ## Bounded Workflow Validation
