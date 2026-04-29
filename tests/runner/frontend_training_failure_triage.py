@@ -25,11 +25,20 @@ import yaml
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_CONFIG_PATH = (
-    _PROJECT_ROOT / "tests" / "runner" / "test_config" / "torch" / "test_config_training_single_device.yaml"
+    _PROJECT_ROOT
+    / "tests"
+    / "runner"
+    / "test_config"
+    / "torch"
+    / "test_config_training_single_device.yaml"
 )
 _DEFAULT_OUTPUT_ROOT = _PROJECT_ROOT / "artifacts" / "frontend_training_triage"
-_TRAINING_UTILS_PATH = _PROJECT_ROOT / "third_party" / "tt_forge_models" / "training_utils.py"
-_UNPACK_REASON = "tt-forge-models doesn't implement unpack_forward_output for this model."
+_TRAINING_UTILS_PATH = (
+    _PROJECT_ROOT / "third_party" / "tt_forge_models" / "training_utils.py"
+)
+_UNPACK_REASON = (
+    "tt-forge-models doesn't implement unpack_forward_output for this model."
+)
 _KNOWN_FRONTEND_SIGNATURES = (
     "unpack_forward_output",
     "deformable_im2col",
@@ -40,6 +49,7 @@ _KNOWN_FRONTEND_SIGNATURES = (
     "targets should not be none",
     "'NoneType' object has no attribute 'max'",
 )
+_SAFE_PATH_COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 @dataclass
@@ -85,7 +95,9 @@ def load_training_config(config_path: Path) -> dict[str, Any]:
     with config_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
-        raise ValueError(f"Expected mapping at {config_path}, got {type(data).__name__}")
+        raise ValueError(
+            f"Expected mapping at {config_path}, got {type(data).__name__}"
+        )
     test_config = data.get("test_config", data)
     if not isinstance(test_config, dict):
         raise ValueError(
@@ -99,17 +111,21 @@ def build_loader_path(project_root: Path, test_id: str) -> Path:
     if len(parts) < 2:
         raise ValueError(f"Unsupported test_id format: {test_id}")
 
-    model_path_parts = parts[:-1]
+    model_path_parts = [
+        validate_safe_path_component(part, "test_id model path") for part in parts[:-1]
+    ]
     framework_and_variant = parts[-1]
-    framework = framework_and_variant.split("-", 1)[0]
-    return (
-        project_root
-        / "third_party"
-        / "tt_forge_models"
-        / Path(*model_path_parts)
-        / framework
-        / "loader.py"
+    framework = validate_safe_path_component(
+        framework_and_variant.split("-", 1)[0],
+        "test_id framework",
     )
+    models_root = (
+        project_root.expanduser().resolve() / "third_party" / "tt_forge_models"
+    ).resolve()
+    loader_path = (
+        models_root.joinpath(*model_path_parts) / framework / "loader.py"
+    ).resolve()
+    return require_path_within(loader_path, models_root, "loader path")
 
 
 def loader_has_custom_unpack_forward_output(loader_path: Path) -> bool:
@@ -120,7 +136,10 @@ def loader_has_custom_unpack_forward_output(loader_path: Path) -> bool:
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef) and node.name == "ModelLoader":
             for stmt in node.body:
-                if isinstance(stmt, ast.FunctionDef) and stmt.name == "unpack_forward_output":
+                if (
+                    isinstance(stmt, ast.FunctionDef)
+                    and stmt.name == "unpack_forward_output"
+                ):
                     return True
             return False
     return False
@@ -143,17 +162,59 @@ def sanitize_test_id(test_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", test_id)
 
 
+def validate_safe_path_component(component: str, label: str) -> str:
+    if component in {"", ".", ".."} or not _SAFE_PATH_COMPONENT_PATTERN.fullmatch(
+        component
+    ):
+        raise ValueError(f"Unsafe {label} component: {component!r}")
+    return component
+
+
+def require_path_within(path: Path, root: Path, label: str) -> Path:
+    resolved_root = root.expanduser().resolve()
+    resolved_path = path.expanduser().resolve()
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"{label} must stay within {resolved_root}: {resolved_path}"
+        ) from exc
+    return resolved_path
+
+
+def build_output_dir(output_root: Path, test_id: str) -> Path:
+    safe_name = validate_safe_path_component(
+        sanitize_test_id(test_id), "output directory"
+    )
+    resolved_root = output_root.expanduser().resolve()
+    return require_path_within(
+        resolved_root / safe_name, resolved_root, "output directory"
+    )
+
+
+def build_output_file(output_root: Path, file_name: str) -> Path:
+    safe_name = validate_safe_path_component(file_name, "output file")
+    resolved_root = output_root.expanduser().resolve()
+    return require_path_within(resolved_root / safe_name, resolved_root, "output file")
+
+
 def write_manifest(path: Path, result: TriageResult) -> None:
-    path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(result), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def write_summary(path: Path, summary: TriageSummary) -> None:
-    path.write_text(json.dumps(asdict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def write_review_report(path: Path, summary: TriageSummary) -> None:
     draft_rows = [result for result in summary.results if result["draft_issue_path"]]
-    stale_rows = [result for result in summary.results if result["stale_reason_suspected"]]
+    stale_rows = [
+        result for result in summary.results if result["stale_reason_suspected"]
+    ]
     attempt_rows = [result for result in summary.results if result["attempt_log_path"]]
 
     lines = [
@@ -213,10 +274,14 @@ def write_config_refresh_recommendations(
     path: Path, recommendations: list[ConfigRefreshRecommendation]
 ) -> None:
     payload = [asdict(recommendation) for recommendation in recommendations]
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
-def write_config_refresh_patch(path: Path, recommendations: list[ConfigRefreshRecommendation]) -> None:
+def write_config_refresh_patch(
+    path: Path, recommendations: list[ConfigRefreshRecommendation]
+) -> None:
     test_config: dict[str, Any] = {}
     for recommendation in recommendations:
         test_config[recommendation.test_id] = {
@@ -359,14 +424,18 @@ def triage_test_entry(
         loader_exists=loader_exists,
         has_custom_unpack_forward_output=has_custom_unpack,
     )
-    stale_reason_suspected = classification == "frontend" and loader_exists and has_custom_unpack
+    stale_reason_suspected = (
+        classification == "frontend" and loader_exists and has_custom_unpack
+    )
 
-    output_dir = output_root / sanitize_test_id(test_id)
+    output_dir = build_output_dir(output_root, test_id)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     draft_issue_path: Path | None = None
     attempt_log_path: Path | None = None
-    should_write_draft = classification == "frontend" and loader_exists and not has_custom_unpack
+    should_write_draft = (
+        classification == "frontend" and loader_exists and not has_custom_unpack
+    )
 
     result = TriageResult(
         test_id=test_id,
@@ -399,7 +468,9 @@ def triage_test_entry(
     return result
 
 
-def collect_selected_tests(config: dict[str, Any], requested_tests: list[str]) -> list[str]:
+def collect_selected_tests(
+    config: dict[str, Any], requested_tests: list[str]
+) -> list[str]:
     if requested_tests:
         missing = [test_id for test_id in requested_tests if test_id not in config]
         if missing:
@@ -432,6 +503,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    output_root = args.output_root.expanduser().resolve()
     config = load_training_config(args.config)
     selected_tests = collect_selected_tests(config, args.test_id)
     results: list[TriageResult] = []
@@ -443,23 +515,31 @@ def main(argv: list[str]) -> int:
                 config_path=args.config,
                 test_id=test_id,
                 entry=config[test_id],
-                output_root=args.output_root,
+                output_root=output_root,
             )
         )
 
     summary = TriageSummary(
         config_path=str(args.config),
-        output_root=str(args.output_root),
+        output_root=str(output_root),
         selected_test_count=len(results),
-        frontend_count=sum(1 for result in results if result.classification == "frontend"),
-        draft_issue_count=sum(1 for result in results if result.draft_issue_path is not None),
-        attempt_log_count=sum(1 for result in results if result.attempt_log_path is not None),
-        stale_reason_suspected_count=sum(1 for result in results if result.stale_reason_suspected),
+        frontend_count=sum(
+            1 for result in results if result.classification == "frontend"
+        ),
+        draft_issue_count=sum(
+            1 for result in results if result.draft_issue_path is not None
+        ),
+        attempt_log_count=sum(
+            1 for result in results if result.attempt_log_path is not None
+        ),
+        stale_reason_suspected_count=sum(
+            1 for result in results if result.stale_reason_suspected
+        ),
         results=[asdict(result) for result in results],
     )
-    args.output_root.mkdir(parents=True, exist_ok=True)
-    write_summary(args.output_root / "summary.json", summary)
-    write_review_report(args.output_root / "review_report.md", summary)
+    output_root.mkdir(parents=True, exist_ok=True)
+    write_summary(build_output_file(output_root, "summary.json"), summary)
+    write_review_report(build_output_file(output_root, "review_report.md"), summary)
     recommendations = [
         recommendation
         for recommendation in (
@@ -468,11 +548,11 @@ def main(argv: list[str]) -> int:
         if recommendation is not None
     ]
     write_config_refresh_recommendations(
-        args.output_root / "config_refresh_recommendations.json",
+        build_output_file(output_root, "config_refresh_recommendations.json"),
         recommendations,
     )
     write_config_refresh_patch(
-        args.output_root / "config_refresh_patch.yaml",
+        build_output_file(output_root, "config_refresh_patch.yaml"),
         recommendations,
     )
 

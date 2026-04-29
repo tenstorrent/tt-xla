@@ -27,7 +27,12 @@ import yaml
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _DEFAULT_CONFIG_PATH = (
-    _PROJECT_ROOT / "tests" / "runner" / "test_config" / "torch" / "test_config_training_single_device.yaml"
+    _PROJECT_ROOT
+    / "tests"
+    / "runner"
+    / "test_config"
+    / "torch"
+    / "test_config_training_single_device.yaml"
 )
 _DEFAULT_OUTPUT_ROOT = _PROJECT_ROOT / "artifacts" / "runtime_training_reduction"
 _RUNTIME_KEYWORDS = (
@@ -41,6 +46,7 @@ _RUNTIME_KEYWORDS = (
     "RuntimeError",
 )
 _DEBUG_LOG_SUFFIXES = (".log", ".txt")
+_SAFE_PATH_COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 @dataclass
@@ -94,14 +100,20 @@ def detect_rerun_precondition_failure(log_path: Path | None) -> str | None:
         return text.strip()
     if "TT-Metal installation could not be found" in text:
         return "rerun precondition violation: torch_xla could not locate TT-Metal installation"
-    if "Native library" in text and "pjrt_plugin_tt.so" in text and "does not exist" in text:
+    if (
+        "Native library" in text
+        and "pjrt_plugin_tt.so" in text
+        and "does not exist" in text
+    ):
         return "rerun precondition violation: torch_xla loaded source pjrt_plugin_tt without native plugin library"
     if "ImportError while loading conftest" in text and "ModuleNotFoundError" in text:
         missing = []
         for line in text.splitlines():
             if "ModuleNotFoundError" in line:
                 missing.append(line.strip())
-        detail = "; ".join(missing) if missing else "pytest environment dependency missing"
+        detail = (
+            "; ".join(missing) if missing else "pytest environment dependency missing"
+        )
         return f"rerun precondition violation: {detail}"
     return None
 
@@ -150,7 +162,7 @@ def probe_rerun_environment(pytest_bin: str) -> str | None:
         "    try:\n"
         "        importlib.import_module(m)\n"
         "    except Exception as e:\n"
-        "        missing.append(f\"MISSING::{m}: {e}\")\n"
+        '        missing.append(f"MISSING::{m}: {e}")\n'
         "print('\\n'.join(missing))\n"
     )
     completed = subprocess.run(
@@ -162,7 +174,11 @@ def probe_rerun_environment(pytest_bin: str) -> str | None:
         check=False,
     )
     output = completed.stdout.strip()
-    missing_lines = [line.strip() for line in output.splitlines() if line.strip().startswith("MISSING::")]
+    missing_lines = [
+        line.strip()
+        for line in output.splitlines()
+        if line.strip().startswith("MISSING::")
+    ]
     if missing_lines:
         detail = "; ".join(line.replace("MISSING::", "", 1) for line in missing_lines)
         return f"rerun precondition violation: {detail}"
@@ -173,7 +189,9 @@ def load_training_config(config_path: Path) -> dict[str, Any]:
     with config_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
-        raise ValueError(f"Expected mapping at {config_path}, got {type(data).__name__}")
+        raise ValueError(
+            f"Expected mapping at {config_path}, got {type(data).__name__}"
+        )
     test_config = data.get("test_config", data)
     if not isinstance(test_config, dict):
         raise ValueError(
@@ -186,16 +204,57 @@ def sanitize_test_id(test_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", test_id)
 
 
+def validate_safe_path_component(component: str, label: str) -> str:
+    if component in {"", ".", ".."} or not _SAFE_PATH_COMPONENT_PATTERN.fullmatch(
+        component
+    ):
+        raise ValueError(f"Unsafe {label} component: {component!r}")
+    return component
+
+
+def require_path_within(path: Path, root: Path, label: str) -> Path:
+    resolved_root = root.expanduser().resolve()
+    resolved_path = path.expanduser().resolve()
+    try:
+        resolved_path.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(
+            f"{label} must stay within {resolved_root}: {resolved_path}"
+        ) from exc
+    return resolved_path
+
+
+def build_output_dir(output_root: Path, test_id: str) -> Path:
+    safe_name = validate_safe_path_component(
+        sanitize_test_id(test_id), "output directory"
+    )
+    resolved_root = output_root.expanduser().resolve()
+    return require_path_within(
+        resolved_root / safe_name, resolved_root, "output directory"
+    )
+
+
+def build_output_file(output_root: Path, file_name: str) -> Path:
+    safe_name = validate_safe_path_component(file_name, "output file")
+    resolved_root = output_root.expanduser().resolve()
+    return require_path_within(resolved_root / safe_name, resolved_root, "output file")
+
+
 def find_debug_log(debug_log_root: Path | None, test_id: str) -> Path | None:
     if debug_log_root is None or not debug_log_root.exists():
         return None
 
     if debug_log_root.is_file():
-        return debug_log_root
+        return debug_log_root.expanduser().resolve()
 
-    base_name = sanitize_test_id(test_id)
+    resolved_root = debug_log_root.expanduser().resolve()
+    base_name = validate_safe_path_component(sanitize_test_id(test_id), "debug log")
     for suffix in _DEBUG_LOG_SUFFIXES:
-        candidate = debug_log_root / f"{base_name}{suffix}"
+        candidate = require_path_within(
+            resolved_root / f"{base_name}{suffix}",
+            resolved_root,
+            "debug log",
+        )
         if candidate.is_file():
             return candidate
 
@@ -204,7 +263,9 @@ def find_debug_log(debug_log_root: Path | None, test_id: str) -> Path | None:
 
 def extract_debug_evidence(debug_log_path: Path) -> DebugEvidence | None:
     lines = debug_log_path.read_text(encoding="utf-8").splitlines()
-    executing_operation_lines = [line.strip() for line in lines if "Executing operation" in line]
+    executing_operation_lines = [
+        line.strip() for line in lines if "Executing operation" in line
+    ]
     runtime_signal_lines = [
         line.strip()
         for line in lines
@@ -223,10 +284,16 @@ def extract_debug_evidence(debug_log_path: Path) -> DebugEvidence | None:
     ttnn_mlir_lines = [
         line.rstrip()
         for line in lines
-        if any(token in line for token in ("ttnn.", "tt.device", "ttnn::", "stablehlo."))
+        if any(
+            token in line for token in ("ttnn.", "tt.device", "ttnn::", "stablehlo.")
+        )
     ]
 
-    if not executing_operation_lines and not runtime_signal_lines and not ttnn_mlir_lines:
+    if (
+        not executing_operation_lines
+        and not runtime_signal_lines
+        and not ttnn_mlir_lines
+    ):
         return None
 
     return DebugEvidence(
@@ -266,13 +333,17 @@ def run_bounded_rerun(
         log_path.write_text(completed.stdout, encoding="utf-8")
         return completed.returncode, " ".join(command)
     except FileNotFoundError:
-        log_path.write_text(f"pytest binary not found: {pytest_bin}\n", encoding="utf-8")
+        log_path.write_text(
+            f"pytest binary not found: {pytest_bin}\n", encoding="utf-8"
+        )
         return None, " ".join(command)
     except subprocess.TimeoutExpired as exc:
         output = exc.stdout or ""
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
-        log_path.write_text(output + f"\nTIMEOUT after {timeout_sec}s\n", encoding="utf-8")
+        log_path.write_text(
+            output + f"\nTIMEOUT after {timeout_sec}s\n", encoding="utf-8"
+        )
         return None, " ".join(command)
 
 
@@ -283,9 +354,16 @@ def classify_runtime_entry(
 ) -> tuple[str, str, str]:
     reason = reason or ""
     bringup_status = bringup_status or ""
-    debug_signal_text = " ".join(
-        (debug_evidence.executing_operation_lines + debug_evidence.runtime_signal_lines)
-    ) if debug_evidence else ""
+    debug_signal_text = (
+        " ".join(
+            (
+                debug_evidence.executing_operation_lines
+                + debug_evidence.runtime_signal_lines
+            )
+        )
+        if debug_evidence
+        else ""
+    )
     signal_text = f"{reason} {debug_signal_text}"
 
     if any(
@@ -339,16 +417,24 @@ def classify_runtime_entry(
 
 
 def write_manifest(path: Path, result: RuntimeReductionResult) -> None:
-    path.write_text(json.dumps(asdict(result), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(result), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def write_summary(path: Path, summary: RuntimeReductionSummary) -> None:
-    path.write_text(json.dumps(asdict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(asdict(summary), indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def write_review_report(path: Path, summary: RuntimeReductionSummary) -> None:
-    tt_metal_rows = [result for result in summary.results if result["owner_hint"] == "tt-metal"]
-    tt_alchemist_rows = [result for result in summary.results if result["owner_hint"] == "tt-alchemist"]
+    tt_metal_rows = [
+        result for result in summary.results if result["owner_hint"] == "tt-metal"
+    ]
+    tt_alchemist_rows = [
+        result for result in summary.results if result["owner_hint"] == "tt-alchemist"
+    ]
     attempt_rows = [result for result in summary.results if result["attempt_log_path"]]
 
     lines = [
@@ -487,7 +573,9 @@ def write_debug_evidence(path: Path, debug_evidence: DebugEvidence) -> None:
         "## Executing Operation Lines",
     ]
     if debug_evidence.executing_operation_lines:
-        lines.extend([f"- `{line}`" for line in debug_evidence.executing_operation_lines])
+        lines.extend(
+            [f"- `{line}`" for line in debug_evidence.executing_operation_lines]
+        )
     else:
         lines.append("- None")
 
@@ -519,7 +607,7 @@ def reduce_test_entry(
 ) -> RuntimeReductionResult:
     bringup_status = entry.get("bringup_status")
     reason = entry.get("reason")
-    output_dir = output_root / sanitize_test_id(test_id)
+    output_dir = build_output_dir(output_root, test_id)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     debug_log_path = find_debug_log(debug_log_root, test_id)
@@ -534,7 +622,9 @@ def reduce_test_entry(
             rerun_attempted = False
             rerun_command = build_rerun_command(pytest_bin, test_id)
             rerun_log_file = output_dir / "runtime_rerun.log"
-            rerun_log_file.write_text(environment_precondition_failure + "\n", encoding="utf-8")
+            rerun_log_file.write_text(
+                environment_precondition_failure + "\n", encoding="utf-8"
+            )
             rerun_log_path = str(rerun_log_file)
             debug_log_path = rerun_log_file
         else:
@@ -550,10 +640,16 @@ def reduce_test_entry(
             rerun_log_path = str(rerun_log_file)
             debug_log_path = rerun_log_file
 
-    debug_evidence = extract_debug_evidence(debug_log_path) if debug_log_path and debug_log_path.exists() else None
+    debug_evidence = (
+        extract_debug_evidence(debug_log_path)
+        if debug_log_path and debug_log_path.exists()
+        else None
+    )
     rerun_precondition_failure = detect_rerun_precondition_failure(debug_log_path)
     rerun_invalid_execution = detect_rerun_invalid_execution(debug_log_path)
-    classification, owner_hint, reduction_signal = classify_runtime_entry(bringup_status, reason, debug_evidence)
+    classification, owner_hint, reduction_signal = classify_runtime_entry(
+        bringup_status, reason, debug_evidence
+    )
 
     if rerun_precondition_failure is not None:
         classification = "attempt_log"
@@ -574,12 +670,18 @@ def reduce_test_entry(
             "install the missing pytest/runtime dependencies in the chosen TT-XLA environment, "
             "then rerun the bounded runtime capture."
         )
-    elif rerun_invalid_execution == "rerun executed with PJRT_DEVICE=CPU instead of TT hardware":
+    elif (
+        rerun_invalid_execution
+        == "rerun executed with PJRT_DEVICE=CPU instead of TT hardware"
+    ):
         next_manual_step = (
             "configure the rerun environment so the test runs on TT hardware and emits runtime debug markers, "
             "then rerun the bounded runtime capture."
         )
-    elif rerun_invalid_execution == "rerun timed out before TT runtime evidence was captured":
+    elif (
+        rerun_invalid_execution
+        == "rerun timed out before TT runtime evidence was captured"
+    ):
         next_manual_step = (
             "capture a staged or narrower debug run that emits TT runtime markers before the hang point, "
             "or choose a runtime row that reaches operation-level evidence within the bounded timeout."
@@ -600,9 +702,7 @@ def reduce_test_entry(
             "capture the Executing operation line and enclosing TTNN MLIR, then attach the reduction evidence before filing."
         )
     else:
-        next_manual_step = (
-            "capture real debug logs with TTMLIR_LOGGER_LEVEL=DEBUG and TT_RUNTIME_DEBUG=ON before assigning ownership."
-        )
+        next_manual_step = "capture real debug logs with TTMLIR_LOGGER_LEVEL=DEBUG and TT_RUNTIME_DEBUG=ON before assigning ownership."
 
     result = RuntimeReductionResult(
         test_id=test_id,
@@ -643,7 +743,9 @@ def reduce_test_entry(
     return result
 
 
-def collect_selected_tests(config: dict[str, Any], requested_tests: list[str]) -> list[str]:
+def collect_selected_tests(
+    config: dict[str, Any], requested_tests: list[str]
+) -> list[str]:
     if requested_tests:
         missing = [test_id for test_id in requested_tests if test_id not in config]
         if missing:
@@ -657,7 +759,9 @@ def collect_selected_tests(config: dict[str, Any], requested_tests: list[str]) -
             continue
         bringup_status = entry.get("bringup_status")
         reason = entry.get("reason", "")
-        if bringup_status == "FAILED_RUNTIME" or any(token in reason for token in _RUNTIME_KEYWORDS):
+        if bringup_status == "FAILED_RUNTIME" or any(
+            token in reason for token in _RUNTIME_KEYWORDS
+        ):
             selected.append(test_id)
     return selected
 
@@ -708,13 +812,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    output_root = args.output_root.expanduser().resolve()
     config = load_training_config(args.config)
     selected_tests = collect_selected_tests(config, args.test_id)
     results = [
         reduce_test_entry(
             test_id=test_id,
             entry=config[test_id],
-            output_root=args.output_root,
+            output_root=output_root,
             debug_log_root=args.debug_log_root,
             execute_rerun=args.execute_rerun,
             pytest_bin=args.pytest_bin,
@@ -726,17 +831,25 @@ def main(argv: list[str]) -> int:
 
     summary = RuntimeReductionSummary(
         config_path=str(args.config),
-        output_root=str(args.output_root),
+        output_root=str(output_root),
         selected_test_count=len(results),
-        tt_metal_draft_count=sum(1 for result in results if result.owner_hint == "tt-metal"),
-        tt_alchemist_draft_count=sum(1 for result in results if result.owner_hint == "tt-alchemist"),
-        attempt_log_count=sum(1 for result in results if result.attempt_log_path is not None),
-        debug_evidence_count=sum(1 for result in results if result.runtime_debug_captured),
+        tt_metal_draft_count=sum(
+            1 for result in results if result.owner_hint == "tt-metal"
+        ),
+        tt_alchemist_draft_count=sum(
+            1 for result in results if result.owner_hint == "tt-alchemist"
+        ),
+        attempt_log_count=sum(
+            1 for result in results if result.attempt_log_path is not None
+        ),
+        debug_evidence_count=sum(
+            1 for result in results if result.runtime_debug_captured
+        ),
         results=[asdict(result) for result in results],
     )
-    args.output_root.mkdir(parents=True, exist_ok=True)
-    write_summary(args.output_root / "summary.json", summary)
-    write_review_report(args.output_root / "review_report.md", summary)
+    output_root.mkdir(parents=True, exist_ok=True)
+    write_summary(build_output_file(output_root, "summary.json"), summary)
+    write_review_report(build_output_file(output_root, "review_report.md"), summary)
 
     print(
         "Generated "

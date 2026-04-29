@@ -5,16 +5,22 @@
 from pathlib import Path
 
 from tests.runner.runtime_training_failure_reduction import (
+    build_output_dir,
     build_pytest_node_id,
     build_rerun_command,
-    derive_python_bin,
-    extract_debug_evidence,
     classify_runtime_entry,
     collect_selected_tests,
+    derive_python_bin,
+    extract_debug_evidence,
     find_debug_log,
     probe_rerun_environment,
     reduce_test_entry,
 )
+
+
+def write_executable_script(path: Path, body: str) -> None:
+    path.write_text(body, encoding="utf-8")
+    path.chmod(0o700)
 
 
 def test_build_pytest_node_id_uses_training_test_id():
@@ -48,7 +54,8 @@ def test_probe_rerun_environment_reports_missing_modules(tmp_path: Path):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_python = bin_dir / "python"
-    fake_python.write_text(
+    write_executable_script(
+        fake_python,
         "\n".join(
             [
                 "#!/bin/sh",
@@ -57,12 +64,9 @@ def test_probe_rerun_environment_reports_missing_modules(tmp_path: Path):
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
-    fake_python.chmod(0o755)
     fake_pytest = bin_dir / "pytest"
-    fake_pytest.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    fake_pytest.chmod(0o755)
+    write_executable_script(fake_pytest, "#!/bin/sh\nexit 0\n")
     result = probe_rerun_environment(str(fake_pytest))
     assert result is not None
     assert "psutil" in result
@@ -73,20 +77,18 @@ def test_probe_rerun_environment_ignores_non_missing_warning_output(tmp_path: Pa
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_python = bin_dir / "python"
-    fake_python.write_text(
+    write_executable_script(
+        fake_python,
         "\n".join(
             [
                 "#!/bin/sh",
-                "echo \"WARNING:root:Defaulting to PJRT_DEVICE=CPU\"",
+                'echo "WARNING:root:Defaulting to PJRT_DEVICE=CPU"',
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
-    fake_python.chmod(0o755)
     fake_pytest = bin_dir / "pytest"
-    fake_pytest.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    fake_pytest.chmod(0o755)
+    write_executable_script(fake_pytest, "#!/bin/sh\nexit 0\n")
     assert probe_rerun_environment(str(fake_pytest)) is None
 
 
@@ -149,8 +151,16 @@ def test_collect_selected_tests_defaults_to_runtime_rows():
 def test_find_debug_log_matches_sanitized_test_id(tmp_path: Path):
     log_path = tmp_path / "pointpillars_pytorch-pointpillars-single_device-training.log"
     log_path.write_text("Executing operation: ttnn.matmul\n", encoding="utf-8")
-    resolved = find_debug_log(tmp_path, "pointpillars/pytorch-pointpillars-single_device-training")
+    resolved = find_debug_log(
+        tmp_path, "pointpillars/pytorch-pointpillars-single_device-training"
+    )
     assert resolved == log_path
+
+
+def test_runtime_build_output_dir_keeps_sanitized_id_under_output_root(tmp_path: Path):
+    output_root = tmp_path / "artifacts"
+    output_dir = build_output_dir(output_root, "../../escape")
+    output_dir.relative_to(output_root.resolve())
 
 
 def test_extract_debug_evidence_pulls_runtime_signals(tmp_path: Path):
@@ -168,7 +178,9 @@ def test_extract_debug_evidence_pulls_runtime_signals(tmp_path: Path):
     )
     evidence = extract_debug_evidence(log_path)
     assert evidence is not None
-    assert evidence.executing_operation_lines == ["INFO Executing operation: ttnn.conv2d"]
+    assert evidence.executing_operation_lines == [
+        "INFO Executing operation: ttnn.conv2d"
+    ]
     assert "TT_FATAL" in evidence.runtime_signal_lines[0]
     assert "ttnn.conv2d" in evidence.ttnn_mlir_lines[0]
 
@@ -220,19 +232,18 @@ def test_reduce_test_entry_attaches_debug_evidence_when_present(tmp_path: Path):
 
 def test_reduce_test_entry_can_attempt_bounded_rerun(tmp_path: Path):
     fake_pytest = tmp_path / "fake_pytest.sh"
-    fake_pytest.write_text(
+    write_executable_script(
+        fake_pytest,
         "\n".join(
             [
                 "#!/bin/sh",
-                "echo \"INFO Executing operation: ttnn.add\"",
-                "echo \"RuntimeError: Index put requires the source and destination dtypes match\"",
-                "echo \"%0 = ttnn.add %arg0, %arg1 : tensor<...>\"",
+                'echo "INFO Executing operation: ttnn.add"',
+                'echo "RuntimeError: Index put requires the source and destination dtypes match"',
+                'echo "%0 = ttnn.add %arg0, %arg1 : tensor<...>"',
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
-    fake_pytest.chmod(0o755)
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -255,20 +266,19 @@ def test_reduce_test_entry_can_attempt_bounded_rerun(tmp_path: Path):
 
 def test_reduce_test_entry_can_force_run_skipped_rows_for_bounded_debug(tmp_path: Path):
     fake_pytest = tmp_path / "fake_pytest.sh"
-    fake_pytest.write_text(
+    write_executable_script(
+        fake_pytest,
         "\n".join(
             [
                 "#!/bin/sh",
-                "echo \"force=$TT_XLA_FORCE_RUN_SKIPPED_TEST_IDS\"",
-                "echo \"INFO Executing operation: ttnn.matmul\"",
-                "echo \"RuntimeError: Test Hangs\"",
-                "echo \"%0 = ttnn.matmul %arg0, %arg1 : tensor<...>\"",
+                'echo "force=$TT_XLA_FORCE_RUN_SKIPPED_TEST_IDS"',
+                'echo "INFO Executing operation: ttnn.matmul"',
+                'echo "RuntimeError: Test Hangs"',
+                'echo "%0 = ttnn.matmul %arg0, %arg1 : tensor<...>"',
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
-    fake_pytest.chmod(0o755)
     test_id = "stable_diffusion_unet/pytorch-Base-single_device-training"
     result = reduce_test_entry(
         test_id=test_id,
@@ -295,7 +305,8 @@ def test_reduce_test_entry_can_force_run_skipped_rows_for_bounded_debug(tmp_path
 
 def test_reduce_test_entry_surfaces_rerun_precondition_failure(tmp_path: Path):
     fake_pytest = tmp_path / "fake_pytest_fail.sh"
-    fake_pytest.write_text(
+    write_executable_script(
+        fake_pytest,
         "\n".join(
             [
                 "#!/bin/sh",
@@ -305,9 +316,7 @@ def test_reduce_test_entry_surfaces_rerun_precondition_failure(tmp_path: Path):
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
-    fake_pytest.chmod(0o755)
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -331,14 +340,12 @@ def test_reduce_test_entry_fast_fails_on_environment_preflight(tmp_path: Path):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     fake_python = bin_dir / "python"
-    fake_python.write_text(
+    write_executable_script(
+        fake_python,
         "#!/bin/sh\necho \"MISSING::torch: No module named 'torch'\"\n",
-        encoding="utf-8",
     )
-    fake_python.chmod(0o755)
     fake_pytest = bin_dir / "pytest"
-    fake_pytest.write_text("#!/bin/sh\necho should-not-run\nexit 99\n", encoding="utf-8")
-    fake_pytest.chmod(0o755)
+    write_executable_script(fake_pytest, "#!/bin/sh\necho should-not-run\nexit 99\n")
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -358,19 +365,18 @@ def test_reduce_test_entry_fast_fails_on_environment_preflight(tmp_path: Path):
 
 def test_reduce_test_entry_surfaces_cpu_fallback_or_skip_as_attempt_log(tmp_path: Path):
     fake_pytest = tmp_path / "fake_pytest_cpu_skip.sh"
-    fake_pytest.write_text(
+    write_executable_script(
+        fake_pytest,
         "\n".join(
             [
                 "#!/bin/sh",
-                "echo \"WARNING:root:Defaulting to PJRT_DEVICE=CPU\"",
-                "echo \"tests/runner/test_models.py::test_all_models_torch[densenet/pytorch-121_Xray-single_device-training] SKIPPED\"",
+                'echo "WARNING:root:Defaulting to PJRT_DEVICE=CPU"',
+                'echo "tests/runner/test_models.py::test_all_models_torch[densenet/pytorch-121_Xray-single_device-training] SKIPPED"',
                 "exit 0",
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
-    fake_pytest.chmod(0o755)
     result = reduce_test_entry(
         test_id="densenet/pytorch-121_Xray-single_device-training",
         entry={
@@ -391,19 +397,18 @@ def test_reduce_test_entry_surfaces_cpu_fallback_or_skip_as_attempt_log(tmp_path
 
 def test_reduce_test_entry_surfaces_timeout_as_attempt_log(tmp_path: Path):
     fake_pytest = tmp_path / "fake_pytest_timeout.sh"
-    fake_pytest.write_text(
+    write_executable_script(
+        fake_pytest,
         "\n".join(
             [
                 "#!/bin/sh",
-                "echo \"Running tests/runner/test_models.py::test_all_models_torch[stable_diffusion_unet/pytorch-Base-single_device-training]\"",
-                "echo \"TIMEOUT after 240s\"",
+                'echo "Running tests/runner/test_models.py::test_all_models_torch[stable_diffusion_unet/pytorch-Base-single_device-training]"',
+                'echo "TIMEOUT after 240s"',
                 "exit 0",
             ]
         )
         + "\n",
-        encoding="utf-8",
     )
-    fake_pytest.chmod(0o755)
     result = reduce_test_entry(
         test_id="stable_diffusion_unet/pytorch-Base-single_device-training",
         entry={
