@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 from pathlib import Path
 
 from tests.runner.runtime_training_failure_reduction import (
@@ -19,8 +20,9 @@ from tests.runner.runtime_training_failure_reduction import (
 
 
 def write_executable_script(path: Path, body: str) -> None:
-    path.write_text(body, encoding="utf-8")
-    path.chmod(0o700)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o700)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(body)
 
 
 def test_build_pytest_node_id_uses_training_test_id():
