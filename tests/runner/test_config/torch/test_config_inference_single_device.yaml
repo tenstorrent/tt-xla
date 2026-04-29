@@ -35,6 +35,10 @@ test_config:
     required_pcc: 0.97  # AssertionError: PCC comparison failed. Calculated: pcc=0.978873610496521. Required: pcc=0.98. Exposed by removal of consteval on host: https://github.com/tenstorrent/tt-xla/issues/1242
     status: EXPECTED_PASSING
 
+  chatgpt1_model/causal_lm/pytorch-model-single_device-inference:
+    status: EXPECTED_PASSING
+    assert_pcc: false # Llama 3 8B ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+
   qwen_2_5/causal_lm/pytorch-1.5B-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
