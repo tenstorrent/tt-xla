@@ -1447,7 +1447,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             self.maybe_get_kv_connector_output(scheduler_output)
                         )
                     with _tracy.zone("model_call"):
-                        with _tracy.zone("model_invoke"):
+                        with _tracy.zone("model_invoke"), _tracy.auto_profile():
                             hidden_states = self.model(
                                 input_ids=model_input_ids,
                                 positions=model_positions,
