@@ -218,3 +218,25 @@ def test_main_uncompressed_json_when_extension_is_json(tmp_path):
     assert rc == 0
     trace = json.loads(out.read_text())
     assert "traceEvents" in trace
+
+
+REAL_REPORTS = Path("/root/tt-xla/.tracy_artifacts/reports/2026_04_29_11_04_58")
+
+
+@pytest.mark.skipif(not REAL_REPORTS.exists(), reason="real artifacts not present in this checkout")
+def test_smoke_real_artifacts(tmp_path):
+    out = tmp_path / "real.json.gz"
+    rc = tracy_to_perfetto.main([str(REAL_REPORTS), "-o", str(out)])
+    assert rc == 0
+    assert out.stat().st_size > 1000  # sanity: non-trivial output
+
+    with gzip.open(out, "rt") as f:
+        trace = json.load(f)
+    x_events = [e for e in trace["traceEvents"] if e.get("ph") == "X"]
+    assert len(x_events) > 100
+
+    # At least one TRISC compute kernel got a real name
+    compute_events = [e for e in x_events if e.get("cat") == "compute"]
+    assert compute_events, "expected at least one compute-classified event"
+    # Kernel filename, not the firmware fallback
+    assert all(not e["name"].endswith("-KERNEL") for e in compute_events)
