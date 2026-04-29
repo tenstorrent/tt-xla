@@ -170,6 +170,15 @@ def validate_safe_path_component(component: str, label: str) -> str:
     return component
 
 
+def validate_safe_test_id(test_id: str) -> str:
+    parts = test_id.split("/")
+    if len(parts) < 2:
+        raise ValueError(f"Unsupported test_id format: {test_id}")
+    for part in parts:
+        validate_safe_path_component(part, "test_id")
+    return test_id
+
+
 def require_path_within(path: Path, root: Path, label: str) -> Path:
     resolved_root = root.expanduser().resolve()
     resolved_path = path.expanduser().resolve()
@@ -416,7 +425,8 @@ def triage_test_entry(
 ) -> TriageResult:
     reason = entry.get("reason")
     classification = classify_frontend_reason(reason)
-    loader_path = build_loader_path(project_root, test_id)
+    safe_test_id = validate_safe_test_id(test_id)
+    loader_path = build_loader_path(project_root, safe_test_id)
     loader_exists = loader_path.is_file()
     has_custom_unpack = loader_has_custom_unpack_forward_output(loader_path)
     resolution, next_manual_step = decide_resolution(
@@ -428,7 +438,7 @@ def triage_test_entry(
         classification == "frontend" and loader_exists and has_custom_unpack
     )
 
-    output_dir = build_output_dir(output_root, test_id)
+    output_dir = build_output_dir(output_root, safe_test_id)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     draft_issue_path: Path | None = None
