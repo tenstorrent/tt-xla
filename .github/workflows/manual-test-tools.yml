@@ -1,10 +1,12 @@
-name: Test Tool Packages
+name: Test tooling packages
 
 on:
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch:
     inputs:
       mlir_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        description: 'Git hash of commit in tenstorrent/tt-mlir'
         required: false
         type: string
 
@@ -14,7 +16,7 @@ permissions:
   checks: write
   contents: read
 
-run-name: 'Test Tool Packages ( mlir: ${{ inputs.mlir_override || ''latest'' }} )'
+run-name: 'Test tooling packages ( mlir: ${{ inputs.mlir_override || ''latest'' }} )'
 
 jobs:
   build-image:
