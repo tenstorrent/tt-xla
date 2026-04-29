@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  byteshape_devstral_small_2_24b_instruct_2512_gguf/causal_lm/pytorch-24B_Instruct_2512_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 24B model dequantized to BF16 (~48 GB) exceeds single-device DRAM"
