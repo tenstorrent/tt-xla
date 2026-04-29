@@ -2453,12 +2453,16 @@ test_config:
   siglip/image_text_similarity/pytorch-Base_Patch16_384-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
+      n150:
+        required_pcc: 0.98  # https://github.com/tenstorrent/tt-xla/issues/4409
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9847531158203227 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-Base_Patch16_512-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
+      n150:
+        required_pcc: 0.98  # https://github.com/tenstorrent/tt-xla/issues/4409
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9867153999500852 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
