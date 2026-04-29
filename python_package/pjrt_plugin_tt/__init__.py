@@ -55,12 +55,15 @@ def setup_tt_metal_home():
     will only verify that the path exists and raise an error if it does not.
 
     For setting the `tt-metal` home path we prioritize the path in the wheel package,
-    if it does not exist, we use the path in the source tree.
+    then the tt-mlir install tree (which has built firmware scripts), then the source tree.
     """
     plugin_dir = Path(__file__).resolve().parent
     tt_metal_path_in_whl = plugin_dir / "tt-metal"
 
     tt_xla_root = plugin_dir.parent.parent
+    tt_metal_path_in_install = (
+        tt_xla_root / "third_party" / "tt-mlir" / "install" / "tt-metal"
+    )
     tt_metal_path_in_source = (
         tt_xla_root
         / "third_party"
@@ -91,11 +94,17 @@ def setup_tt_metal_home():
         )
 
     # We need to set the `TT_METAL_RUNTIME_ROOT` environment variable.
-    # First priority is the path in the wheel package, if this doesn't exist - i.e. we are not installed via wheel,
-    # then we use the path in the source tree.
+    # Priority order: wheel package > tt-mlir install tree > source tree.
+    # The install tree contains built firmware scripts (runtime/hw/toolchain/) needed for
+    # JIT kernel compilation; the source tree alone does not have these artifacts.
     if tt_metal_path_in_whl.exists():
         os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_whl)
         logger.info(f"Using TT-Metal from wheel package: {tt_metal_path_in_whl}")
+        return
+
+    if tt_metal_path_in_install.exists():
+        os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_install)
+        logger.info(f"Using TT-Metal from install tree: {tt_metal_path_in_install}")
         return
 
     if tt_metal_path_in_source.exists():
