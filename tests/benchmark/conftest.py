@@ -104,6 +104,13 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--enable-trace",
+        action="store_true",
+        default=False,
+        help="Enable PJRT device trace optimization (vLLM benchmarks).",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -149,3 +156,8 @@ def check_fusions(request):
 def seed_torch():
     """Seed torch before every benchmark test for reproducible PCC runs."""
     torch.manual_seed(0)
+
+
+@pytest.fixture
+def enable_trace(request):
+    return request.config.getoption("--enable-trace")

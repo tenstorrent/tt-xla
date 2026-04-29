@@ -4,7 +4,7 @@
 
 import contextlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Union, cast
+from typing import TYPE_CHECKING, Optional, Tuple, Union, cast
 
 import torch
 from vllm.platforms.interface import Platform, PlatformEnum
@@ -66,6 +66,11 @@ class TTConfig:
     # Optimization level for tt-mlir compilation.
     optimization_level: int = 0
 
+    # Enable PJRT device trace optimization. Mirrors the `enable_trace` PJRT
+    # compile option used by the torch_xla benchmark path
+    # (tests/benchmark/benchmarks/llm_benchmark.py).
+    enable_trace: bool = False
+
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
@@ -94,7 +99,26 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
-    enable_trace: bool = False
+    # Optional explicit XLA/SPMD partition spec for KV cache tensors (per K/V
+    # tensor of shape (num_blocks, num_kv_heads, block_size, head_size)).
+    #
+    # Each entry is either:
+    # - None (replicated on that tensor dim), or
+    # - a mesh axis name string matching `xs.Mesh(..., axis_names=...)`
+    #   (typically "batch" / "model").
+    #
+    # This may be provided as a Python tuple/list (length 4). When vLLM passes
+    # JSON through `additional_config`, use JSON `null` for replicated dims.
+    #
+    # When unset, the runner applies a default that shards `num_kv_heads` on
+    # the "model" axis (see `TTModelRunner.initialize_kv_cache`).
+    kv_cache_partition_spec: Optional[Tuple[Optional[str], ...]] = None
+
+    # Optional PJRT / torch.compile IR export (same keys as `torch_xla.set_custom_compile_options`
+    # in benchmark_llm_torch_xla). When set, StableHLO / downstream MLIR may be written under
+    # `export_path` with filenames keyed by `export_model_name`.
+    export_path: Optional[str] = None
+    export_model_name: Optional[str] = None
 
     def __post_init__(self):
         # tt::sampling + enable_trace + optimization_level >= 1 hits a
@@ -113,13 +137,21 @@ class TTConfig:
             )
 
     def get_pjrt_compile_config(self) -> dict:
-        return {
+        cfg = {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
             "enable_trace": "true" if self.enable_trace else "false",
         }
+        if self.export_path:
+            cfg["export_path"] = self.export_path
+        if self.export_model_name:
+            name = self.export_model_name
+            if self.enable_tensor_parallel:
+                name = f"{name}_g{xrt.global_ordinal()}"
+            cfg["export_model_name"] = name
+        return cfg
 
 
 class TTPlatform(Platform):
