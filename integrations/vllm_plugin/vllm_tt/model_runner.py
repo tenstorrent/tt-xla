@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -263,6 +264,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.num_xla_graphs = 0
         self._update_num_xla_graphs("init")
 
+        # Per-step Tracy signpost counter. Step 0 is the first execute_model
+        # call with actual work (typically prefill); 1+ are decode iterations.
+        # Counts across warmup + benchmark; filter via --start-signpost
+        # benchmark_start in tt-perf-report to limit to the benchmark window.
+        self._tracy_step = 0
+
         self.pin_memory = is_pin_memory_available()
         self.dtype = self.model_config.dtype
         if cache_config.cache_dtype == "auto":
@@ -516,8 +523,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Check if this weight belongs to a layer that should be skipped
             should_skip = False
 
-            # Look for layer patterns like "layers.N." where N >= target_num_layers
-            if "layers." in weight_name:
+            # Look for layer patterns like "layers.N." where N >= target_num_layers.
+            #
+            # Important: multimodal models (e.g. Gemma 4) also have a vision tower
+            # with parameters named like `vision_tower.encoder.layers.N.*`.
+            # Those layers must NOT be filtered by the language layer override or
+            # vLLM's loader will report "weights were not initialized from
+            # checkpoint".
+            is_vision_weight = (
+                "vision_tower." in weight_name
+                or "vision_model." in weight_name
+                or ".vision_tower." in weight_name
+                or ".vision_model." in weight_name
+            )
+            if (not is_vision_weight) and "layers." in weight_name:
                 try:
                     # Extract layer number from weight name
                     parts = weight_name.split(".")
@@ -1355,6 +1374,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             return self.kv_connector_no_forward(scheduler_output, self.vllm_config)
 
+        step = self._tracy_step
+        self._signpost("prefill_start" if step == 0 else f"decode_{step}_start")
+
         mm_embed_inputs = None
         if self.supports_mm_inputs:
             # Run the multimodal encoder if any.
@@ -1438,6 +1460,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         local_idx = i - start_index
                         prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
+            if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
+                xm.wait_device_ops()
+                self._signpost("forward_end")
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
 
@@ -1465,6 +1490,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
+            if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
+                xm.wait_device_ops()
+                self._signpost("sampling_start")
             selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
@@ -1578,6 +1606,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
         self._verify_num_xla_graphs("execute_model")
+
+        step = self._tracy_step
+        self._signpost("prefill_end" if step == 0 else f"decode_{step}_end")
+        self._tracy_step += 1
 
         return model_runner_output
 
@@ -2024,12 +2056,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("gather_logprobs")
 
+    def _signpost(self, name: str) -> None:
+        try:
+            import tracy
+
+            tracy.signpost(name)
+        except (ImportError, AttributeError):
+            pass
+
     def capture_model(self) -> None:
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        self._signpost("precompile_start")
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
+            self._signpost("precompile_backbone_start")
             self._precompile_mm_encoder()
             # Ensure all pending lazy ops from MM encoder are fully compiled
             # and executed before backbone compilation. sync(wait=False) in
@@ -2039,16 +2081,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             torch_xla.sync()
             logger.info("Flush complete, starting backbone compilation.")
             self._precompile_backbone()
+            self._signpost("precompile_backbone_end")
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
+                self._signpost("precompile_sampling_start")
                 self._precompile_sample_from_logits()
+                self._signpost("precompile_sampling_end")
             else:
                 logger.warning(
                     "cpu_sampling=True: skipping device sampling precompilation"
                 )
             self._precompile_gather_logprobs()
+        self._signpost("precompile_end")
 
     def profile_run(
         self,
@@ -2252,7 +2298,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for kv_pair in self.kv_caches:
                 for cache in kv_pair:
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    xs.mark_sharding(cache, self.mesh, (None, "batch", None, None))
+                    xs.mark_sharding(cache, self.mesh, (None, "model", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)

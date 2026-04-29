@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
+from dataclasses import replace
 
 import pytest
 from benchmarks.vllm_benchmark import VLLMBenchmarkConfig, benchmark_vllm
@@ -76,6 +77,7 @@ _GEMMA4_BASE_ADDITIONAL_CONFIG = {
     "cpu_sampling": False,
     "experimental_enable_permute_matmul_fusion": False,
     "experimental_weight_dtype": "bfp_bf8",
+    "optimization_level": 0,
 }
 
 
@@ -127,6 +129,37 @@ BHQB_CONFIGS = [
 ]
 
 
+def _with_num_layers_override(
+    config: VLLMBenchmarkConfig, num_layers: int | None
+) -> VLLMBenchmarkConfig:
+    """Map pytest ``--num-layers`` to TT ``additional_config['num_hidden_layers']``."""
+    if num_layers is None:
+        return config
+    additional = dict(config.additional_config)
+    additional["num_hidden_layers"] = num_layers
+    return replace(config, additional_config=additional)
+
+
+def _with_max_output_tokens_override(
+    config: VLLMBenchmarkConfig, max_output_tokens: int | None
+) -> VLLMBenchmarkConfig:
+    """Map pytest ``--max-output-tokens`` to vLLM ``max_tokens``."""
+    if max_output_tokens is None:
+        return config
+    return replace(config, max_tokens=max_output_tokens)
+
+
+def _with_enable_trace_override(
+    config: VLLMBenchmarkConfig, enable_trace: bool
+) -> VLLMBenchmarkConfig:
+    """Map pytest ``--enable-trace`` to TT ``additional_config['enable_trace']``."""
+    if not enable_trace:
+        return config
+    additional = dict(config.additional_config)
+    additional["enable_trace"] = True
+    return replace(config, additional_config=additional)
+
+
 def _run_vllm_benchmark(config, output_file, request):
     display_name = "vllm_" + resolve_display_name(
         request=request, fallback=config.model
@@ -135,6 +168,9 @@ def _run_vllm_benchmark(config, output_file, request):
     print(f"\n{'='*60}")
     print(f"vLLM Benchmark: {display_name}")
     print(f"{'='*60}")
+    nl = config.additional_config.get("num_hidden_layers")
+    if nl:
+        print(f"num_hidden_layers override (TT): {nl}")
 
     results = benchmark_vllm(config, display_name)
 
@@ -147,12 +183,22 @@ def _run_vllm_benchmark(config, output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
+def test_vllm_benchmark(
+    config, output_file, request, num_layers, max_output_tokens, enable_trace
+):
+    config = _with_num_layers_override(config, num_layers)
+    config = _with_max_output_tokens_override(config, max_output_tokens)
+    config = _with_enable_trace_override(config, enable_trace)
     _run_vllm_benchmark(config, output_file, request)
 
 
 @pytest.mark.bhqb
 @pytest.mark.tensor_parallel
 @pytest.mark.parametrize("config", BHQB_CONFIGS)
-def test_vllm_benchmark_bhqb(config, output_file, request):
+def test_vllm_benchmark_bhqb(
+    config, output_file, request, num_layers, max_output_tokens, enable_trace
+):
+    config = _with_num_layers_override(config, num_layers)
+    config = _with_max_output_tokens_override(config, max_output_tokens)
+    config = _with_enable_trace_override(config, enable_trace)
     _run_vllm_benchmark(config, output_file, request)
