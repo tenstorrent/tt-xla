@@ -1224,6 +1224,10 @@ test_config:
   resnext/pytorch-50_32x4d-single_device-inference:
     status: EXPECTED_PASSING
 
+  deepseek_r1_distill_qwen_7b_gspo_basic_i1_gguf/causal_lm/pytorch-DISTILL_QWEN_7B_GSPO_BASIC_I1_Q4_K_M_GGUF-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.95 # CPU BF16 vs FP32 PCC = 0.954; Q4_K_M quantization + BF16 weight rounding sets the floor below 0.99
+
   deepseek/deepseek_coder/pytorch-1_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
