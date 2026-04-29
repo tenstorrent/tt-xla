@@ -434,6 +434,51 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Keep in int64 to avoid overflow with long context
         self.arange_np = np.arange(self.max_num_tokens, dtype=np.int64)
 
+        # Persistent device-side scratch buffers for `_prepare_inputs`.
+        # Reused via copy_ each step instead of issuing a fresh
+        # `cpu_tensor.to(self.device)` per call: under SPMD each H2D
+        # transfer is its own broadcast + barrier across hosts, so
+        # collapsing them into in-place updates of pre-allocated buffers
+        # cuts per-step host overhead. Allocated via cpu→device transfer
+        # rather than device=self.device so creation is not traced.
+        def _alloc_dev(shape, dtype):
+            return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
+
+        self._input_ids_dev = {
+            n: _alloc_dev((self.max_num_reqs, n), torch.int32)
+            for n in self.num_tokens_paddings
+        }
+        self._position_ids_dev = {
+            n: _alloc_dev((self.max_num_reqs, n), torch.int32)
+            for n in self.num_tokens_paddings
+        }
+        self._logits_indices_dev = _alloc_dev((self.max_num_reqs,), torch.int32)
+        self._page_table_dev_max = _alloc_dev(
+            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
+            self.block_table_cpu.dtype,
+        )
+        self._fill_page_table_dev_max = _alloc_dev(
+            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
+            self.block_table_cpu.dtype,
+        )
+        self._cache_position_dev_max = _alloc_dev(
+            (self.num_reqs_max_model_len,), self.seq_lens_cpu.dtype
+        )
+        if self.most_model_len is not None:
+            assert self.num_reqs_most_model_len is not None
+            assert self.num_blocks_per_most_len_req is not None
+            self._page_table_dev_most = _alloc_dev(
+                (self.num_reqs_most_model_len, self.num_blocks_per_most_len_req),
+                self.block_table_cpu.dtype,
+            )
+            self._fill_page_table_dev_most = _alloc_dev(
+                (self.num_reqs_most_model_len, self.num_blocks_per_most_len_req),
+                self.block_table_cpu.dtype,
+            )
+            self._cache_position_dev_most = _alloc_dev(
+                (self.num_reqs_most_model_len,), self.seq_lens_cpu.dtype
+            )
+
         # Layer pairings for cross-layer KV sharing.
         # If an Attention layer `layer_name` is in the keys of this dict, it
         # means this layer will perform attention using the keys and values
@@ -1032,8 +1077,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ]
 
         # Move input_ids and position_ids to the target device for execution.
-        self.input_ids = input_ids_cpu.to(self.device)
-        self.position_ids = arange.to(self.device)
+        # Reuse persistent device buffers and update in place via copy_ to
+        # avoid issuing a fresh H2D transfer (and on-device alloc) per step.
+        input_ids_dev = self._input_ids_dev[padded_total_num_scheduled_tokens]
+        input_ids_dev.copy_(input_ids_cpu)
+        self.input_ids = input_ids_dev
+        position_ids_dev = self._position_ids_dev[padded_total_num_scheduled_tokens]
+        position_ids_dev.copy_(arange)
+        self.position_ids = position_ids_dev
 
         # Prepare the attention metadata.
         self.query_start_loc_np[0] = 0
@@ -1093,13 +1144,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             fill_page_table = page_table
 
-        cache_position = cache_position.to(self.device)
-        page_table = page_table.to(self.device)
-        fill_page_table = (
-            fill_page_table.to(self.device)
-            if fill_page_table is not page_table
-            else page_table
-        )
+        if use_max_model_len:
+            cache_position_dev = self._cache_position_dev_max
+            page_table_dev = self._page_table_dev_max
+            fill_page_table_dev_buf = self._fill_page_table_dev_max
+        else:
+            cache_position_dev = self._cache_position_dev_most
+            page_table_dev = self._page_table_dev_most
+            fill_page_table_dev_buf = self._fill_page_table_dev_most
+
+        cache_position_dev.copy_(cache_position)
+        page_table_dev.copy_(page_table)
+        if fill_page_table is page_table:
+            fill_page_table_dev = page_table_dev
+        else:
+            fill_page_table_dev_buf.copy_(fill_page_table)
+            fill_page_table_dev = fill_page_table_dev_buf
+
+        cache_position = cache_position_dev
+        page_table = page_table_dev
+        fill_page_table = fill_page_table_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1128,7 +1192,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits_indices[: len(num_scheduled_tokens_per_req)] = (
             torch.from_numpy(num_scheduled_tokens_per_req) - 1
         )
-        logits_indices = logits_indices.to(self.device)
+        self._logits_indices_dev.copy_(logits_indices)
+        logits_indices = self._logits_indices_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters

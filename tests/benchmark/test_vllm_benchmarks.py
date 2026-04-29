@@ -77,7 +77,7 @@ _GEMMA4_BASE_ADDITIONAL_CONFIG = {
     "cpu_sampling": False,
     "experimental_enable_permute_matmul_fusion": False,
     "experimental_weight_dtype": "bfp_bf8",
-    "optimization_level": 0,
+    "optimization_level": 1,
 }
 
 
