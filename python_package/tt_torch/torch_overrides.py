@@ -31,6 +31,25 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # PyTorch eager silently clamps out-of-range negative slice indices
+        # (e.g. t[:, -999:] on a dim-23 tensor returns all 23 elements).
+        # The XLA lazy backend raises "Value out of range" instead of clamping.
+        # Pre-clamp start/end so XLA sees indices in [-size, size].
+        if func is torch.ops.aten.slice.Tensor:
+            kwargs = kwargs or {}
+            tensor = args[0] if args else kwargs.get("self")
+            dim = args[1] if len(args) > 1 else kwargs.get("dim", 0)
+            start = args[2] if len(args) > 2 else kwargs.get("start")
+            end = args[3] if len(args) > 3 else kwargs.get("end")
+            if tensor is not None and isinstance(dim, int) and 0 <= dim < tensor.dim():
+                size = tensor.shape[dim]
+                if isinstance(size, int):
+                    new_args = list(args)
+                    if start is not None and isinstance(start, int) and start < -size:
+                        new_args[2] = -size
+                    if end is not None and isinstance(end, int) and end < -size:
+                        new_args[3] = -size
+                    args = tuple(new_args)
         return func(*args, **(kwargs or {}))
 
 
