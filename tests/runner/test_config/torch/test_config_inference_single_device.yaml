@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  bartowski_thedrummer_valkyrie_49b_v1_gguf/causal_lm/pytorch-49B_V1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model exceeds single-device DRAM: Valkyrie 49B Q4_K_M GGUF is ~27.6 GB but P150b has only 16 GB device DRAM."
