@@ -64,3 +64,30 @@ def test_pair_zones_raises_on_unmatched_start():
     ]
     with pytest.raises(ValueError, match="unmatched ZONE_START"):
         pair_zones(bad)
+
+
+from tools.profiler.tracy_to_perfetto import load_ops
+
+
+def test_load_ops_indexes_by_global_call_count():
+    ops = load_ops(FIXTURES / "mini_ops.csv")
+    assert set(ops.keys()) == {32770, 32771}
+
+    op = ops[32770]
+    assert op.op_code == "PermuteDeviceOperation"
+    assert op.compute_kernels == [
+        "ttnn/cpp/ttnn/operations/data_movement/permute/device/kernels/compute/transpose_xw_rm_single_tile_size.cpp",
+    ]
+    assert sorted(op.data_movement_kernels) == [
+        "ttnn/cpp/ttnn/operations/data_movement/permute/device/kernels/dataflow/reader_permute_interleaved_rm_blocked_generic.cpp",
+        "ttnn/cpp/ttnn/operations/data_movement/permute/device/kernels/dataflow/writer_permute_interleaved_rm_blocked_generic.cpp",
+    ]
+
+
+def test_load_ops_handles_missing_source_lists():
+    # When an op has no COMPUTE KERNEL SOURCE entry the cell is empty.
+    from tools.profiler.tracy_to_perfetto import _split_kernel_list
+    assert _split_kernel_list("") == []
+    assert _split_kernel_list("[]") == []
+    assert _split_kernel_list("['a.cpp']") == ["a.cpp"]
+    assert _split_kernel_list("['a.cpp'; 'b.cpp']") == ["a.cpp", "b.cpp"]

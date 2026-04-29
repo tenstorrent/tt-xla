@@ -105,6 +105,39 @@ def pair_zones(events: Iterable[DeviceEvent]) -> list[Zone]:
     return zones
 
 
+@dataclass(frozen=True)
+class OpInfo:
+    op_code: str
+    global_call_count: int
+    compute_kernels: list[str]
+    data_movement_kernels: list[str]
+
+
+def _split_kernel_list(cell: str) -> list[str]:
+    """Parse a ['x.cpp'; 'y.cpp'] cell from the ops CSV."""
+    cell = cell.strip()
+    if not cell or cell == "[]":
+        return []
+    inner = cell.strip("[]")
+    return [piece.strip().strip("'\"") for piece in inner.split(";") if piece.strip()]
+
+
+def load_ops(path: Path) -> dict[int, OpInfo]:
+    """Index ops_perf_results_*.csv by GLOBAL CALL COUNT."""
+    out: dict[int, OpInfo] = {}
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            gcc = int(row["GLOBAL CALL COUNT"])
+            out[gcc] = OpInfo(
+                op_code=row["OP CODE"],
+                global_call_count=gcc,
+                compute_kernels=_split_kernel_list(row.get("COMPUTE KERNEL SOURCE", "")),
+                data_movement_kernels=_split_kernel_list(row.get("DATA MOVEMENT KERNEL SOURCE", "")),
+            )
+    return out
+
+
 def main() -> int:
     return 0
 
