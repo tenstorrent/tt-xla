@@ -172,6 +172,10 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
 
+  bartowski_nvidia_opencodereasoning_nemotron_32b_ioi_gguf/causal_lm/pytorch-Nvidia_OpenCodeReasoning_Nemotron_32B_IOI_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware-class: Nemotron-32B GGUF dequantizes to ~64 GB BF16, exceeds n150 12 GB DRAM"
+
   bart/pytorch-Large-single_device-inference:
     status: EXPECTED_PASSING
 
