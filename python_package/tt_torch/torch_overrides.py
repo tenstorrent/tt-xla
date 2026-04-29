@@ -7,6 +7,19 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        if func is torch.ops.aten.slice.Tensor or (
+            hasattr(func, "_schema")
+            and "aten::slice.Tensor" in str(getattr(func, "_schema", ""))
+        ):
+            # XLA rejects start indices outside [-size, size-1]; clamp to match
+            # PyTorch eager semantics which silently clamp out-of-bounds starts.
+            tensor = args[0] if args else kwargs.get("input")
+            if tensor is not None and len(args) >= 3 and isinstance(args[2], int):
+                dim = args[1]
+                start = args[2]
+                size = tensor.shape[dim]
+                if start < -size:
+                    args = (args[0], dim, -size) + args[3:]
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
