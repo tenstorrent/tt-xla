@@ -168,6 +168,84 @@ def classify_kernel(risc: str, op: Optional[OpInfo], fallback: str) -> tuple[str
     return (fallback, "unknown")
 
 
+_RISC_INDEX = {"BRISC": 0, "NCRISC": 1, "TRISC_0": 2, "TRISC_1": 3, "TRISC_2": 4, "ERISC": 5}
+
+
+def _tid(core_x: int, core_y: int, risc: str) -> int:
+    return core_x * 1_000_000 + core_y * 1_000 + _RISC_INDEX.get(risc, 9)
+
+
+def zones_to_perfetto(
+    zones: list[Zone],
+    ops: dict[int, OpInfo],
+    chip_freq_mhz: int,
+) -> list[dict]:
+    """Build Chrome Trace Event Format event list for Perfetto."""
+    events: list[dict] = []
+    seen_processes: set[int] = set()
+    seen_threads: set[tuple[int, int]] = set()  # (pcie_slot, tid)
+
+    cycles_to_us = 1.0 / chip_freq_mhz
+
+    for z in zones:
+        op = ops.get(z.run_host_id)
+        is_fw = z.zone_name.endswith("-FW")
+        if is_fw:
+            display_name, role = z.zone_name, "fw"
+            kernel_source = ""
+        else:
+            display_name, role = classify_kernel(z.risc, op, fallback=z.zone_name)
+            kernel_source = ""
+            if op is not None:
+                if z.risc.startswith("TRISC") and op.compute_kernels:
+                    kernel_source = op.compute_kernels[0]
+                elif z.risc in ("BRISC", "NCRISC"):
+                    prefix = "reader_" if z.risc == "BRISC" else "writer_"
+                    matched = [s for s in op.data_movement_kernels if _basename_no_ext(s).startswith(prefix)]
+                    if matched:
+                        kernel_source = matched[0]
+                    elif op.data_movement_kernels:
+                        idx = 0 if z.risc == "BRISC" else 1
+                        if idx < len(op.data_movement_kernels):
+                            kernel_source = op.data_movement_kernels[idx]
+
+        tid = _tid(z.core_x, z.core_y, z.risc)
+
+        if z.pcie_slot not in seen_processes:
+            events.append({
+                "ph": "M", "name": "process_name", "pid": z.pcie_slot,
+                "args": {"name": f"Chip {z.pcie_slot}"},
+            })
+            seen_processes.add(z.pcie_slot)
+
+        thread_key = (z.pcie_slot, tid)
+        if thread_key not in seen_threads:
+            events.append({
+                "ph": "M", "name": "thread_name", "pid": z.pcie_slot, "tid": tid,
+                "args": {"name": f"({z.core_x},{z.core_y}) {z.risc}"},
+            })
+            seen_threads.add(thread_key)
+
+        events.append({
+            "ph": "X",
+            "name": display_name,
+            "cat": role,
+            "ts": z.start_cycles * cycles_to_us,
+            "dur": (z.end_cycles - z.start_cycles) * cycles_to_us,
+            "pid": z.pcie_slot,
+            "tid": tid,
+            "args": {
+                "op_code": op.op_code if op else "",
+                "run_host_id": z.run_host_id,
+                "risc": z.risc,
+                "kernel_source": kernel_source,
+                "zone_name": z.zone_name,
+            },
+        })
+
+    return events
+
+
 def main() -> int:
     return 0
 

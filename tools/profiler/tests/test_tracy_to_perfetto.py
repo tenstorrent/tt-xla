@@ -142,3 +142,41 @@ def test_classify_uses_fallback_when_op_missing():
     name, role = classify_kernel("BRISC", None, fallback="BRISC-KERNEL")
     assert role == "unknown"
     assert name == "BRISC-KERNEL"
+
+
+from tools.profiler.tracy_to_perfetto import zones_to_perfetto
+
+
+def test_zones_to_perfetto_emits_complete_events_with_kernel_names():
+    zones = pair_zones(iter_device_events(FIXTURES / "mini_device.csv"))
+    ops = load_ops(FIXTURES / "mini_ops.csv")
+
+    events = zones_to_perfetto(zones, ops, chip_freq_mhz=1350)
+
+    # Pull the kernel events for op 32770
+    brisc_kernel = next(
+        e for e in events
+        if e.get("ph") == "X"
+        and e.get("args", {}).get("run_host_id") == 32770
+        and e.get("args", {}).get("risc") == "BRISC"
+        and e.get("name") != "BRISC-FW"
+    )
+    assert brisc_kernel["name"] == "reader_permute_interleaved_rm_blocked_generic"
+    assert brisc_kernel["cat"] == "reader"
+    assert brisc_kernel["dur"] == pytest.approx((5000 - 1100) / 1350, rel=1e-6)
+
+    # FW zones are also present, still labelled BRISC-FW
+    brisc_fw = next(
+        e for e in events
+        if e.get("ph") == "X"
+        and e.get("name") == "BRISC-FW"
+        and e.get("args", {}).get("run_host_id") == 32770
+    )
+    assert brisc_fw["cat"] == "fw"
+
+    # Metadata events: process and thread names exist
+    process_names = [e for e in events if e.get("ph") == "M" and e["name"] == "process_name"]
+    assert any(e["args"]["name"] == "Chip 2" for e in process_names)
+
+    thread_names = [e for e in events if e.get("ph") == "M" and e["name"] == "thread_name"]
+    assert any("BRISC" in e["args"]["name"] for e in thread_names)
