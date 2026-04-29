@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import csv
+import os
 import re
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Iterator, TextIO
+from typing import Iterable, Iterator, Optional, TextIO
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,35 @@ def load_ops(path: Path) -> dict[int, OpInfo]:
                 data_movement_kernels=_split_kernel_list(row.get("DATA MOVEMENT KERNEL SOURCE", "")),
             )
     return out
+
+
+def _basename_no_ext(path: str) -> str:
+    return os.path.splitext(os.path.basename(path))[0]
+
+
+def classify_kernel(risc: str, op: Optional[OpInfo], fallback: str) -> tuple[str, str]:
+    """Return (display_name, role) for a given RISC and op."""
+    if op is None:
+        return (fallback, "unknown")
+
+    if risc.startswith("TRISC"):
+        if op.compute_kernels:
+            return (_basename_no_ext(op.compute_kernels[0]), "compute")
+        return (fallback, "unknown")
+
+    if risc in ("BRISC", "NCRISC"):
+        prefix = "reader_" if risc == "BRISC" else "writer_"
+        for src in op.data_movement_kernels:
+            if _basename_no_ext(src).startswith(prefix):
+                return (_basename_no_ext(src), prefix.rstrip("_"))
+        # Fall back to list-order: BRISC = first, NCRISC = second
+        idx = 0 if risc == "BRISC" else 1
+        if idx < len(op.data_movement_kernels):
+            base = _basename_no_ext(op.data_movement_kernels[idx])
+            return (base, base)
+        return (fallback, "unknown")
+
+    return (fallback, "unknown")
 
 
 def main() -> int:

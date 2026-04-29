@@ -66,7 +66,7 @@ def test_pair_zones_raises_on_unmatched_start():
         pair_zones(bad)
 
 
-from tools.profiler.tracy_to_perfetto import load_ops
+from tools.profiler.tracy_to_perfetto import OpInfo, load_ops
 
 
 def test_load_ops_indexes_by_global_call_count():
@@ -91,3 +91,54 @@ def test_load_ops_handles_missing_source_lists():
     assert _split_kernel_list("[]") == []
     assert _split_kernel_list("['a.cpp']") == ["a.cpp"]
     assert _split_kernel_list("['a.cpp'; 'b.cpp']") == ["a.cpp", "b.cpp"]
+
+
+from tools.profiler.tracy_to_perfetto import classify_kernel
+
+
+def _make_op(compute=None, dm=None):
+    return OpInfo(
+        op_code="X",
+        global_call_count=0,
+        compute_kernels=compute or [],
+        data_movement_kernels=dm or [],
+    )
+
+
+def test_classify_compute_kernel_for_trisc():
+    op = _make_op(compute=["ttnn/.../compute/foo_kernel.cpp"])
+    name, role = classify_kernel("TRISC_0", op, fallback="TRISC-KERNEL")
+    assert role == "compute"
+    assert name == "foo_kernel"
+
+
+def test_classify_brisc_picks_reader_prefix():
+    op = _make_op(dm=[
+        "ttnn/.../dataflow/writer_perm.cpp",
+        "ttnn/.../dataflow/reader_perm.cpp",
+    ])
+    name, role = classify_kernel("BRISC", op, fallback="BRISC-KERNEL")
+    assert role == "reader"
+    assert name == "reader_perm"
+
+
+def test_classify_ncrisc_picks_writer_prefix():
+    op = _make_op(dm=[
+        "ttnn/.../dataflow/writer_perm.cpp",
+        "ttnn/.../dataflow/reader_perm.cpp",
+    ])
+    name, role = classify_kernel("NCRISC", op, fallback="NCRISC-KERNEL")
+    assert role == "writer"
+    assert name == "writer_perm"
+
+
+def test_classify_falls_back_to_list_order_when_no_prefix():
+    op = _make_op(dm=["ttnn/.../dm0.cpp", "ttnn/.../dm1.cpp"])
+    assert classify_kernel("BRISC", op, fallback="X") == ("dm0", "dm0")
+    assert classify_kernel("NCRISC", op, fallback="X") == ("dm1", "dm1")
+
+
+def test_classify_uses_fallback_when_op_missing():
+    name, role = classify_kernel("BRISC", None, fallback="BRISC-KERNEL")
+    assert role == "unknown"
+    assert name == "BRISC-KERNEL"
