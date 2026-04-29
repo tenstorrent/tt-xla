@@ -58,7 +58,7 @@ def _experts_forward(self, hidden_states, router_indices=None, routing_weights=N
     num_experts = routing_weights.shape[1]
     hidden_states = hidden_states.reshape(-1, self.hidden_size)
 
-    if hidden_states.device.type == "cpu":
+    if hidden_states.device.type == "cpu" or self.training:
         next_states = torch.zeros_like(hidden_states)
         with torch.no_grad():
             expert_mask = torch.nn.functional.one_hot(
