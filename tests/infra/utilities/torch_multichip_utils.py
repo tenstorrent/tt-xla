@@ -13,10 +13,11 @@ try:
 
     HAS_TORCH_XLA = True
 except ImportError:
+    Mesh = None
     HAS_TORCH_XLA = False
 
 
-def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]) -> Mesh:
+def get_mesh(mesh_shape: Tuple[int], mesh_names: Tuple[str]):
     """
     Creates and returns a Mesh object based on the provided mesh shape and mesh names.
     Args:
