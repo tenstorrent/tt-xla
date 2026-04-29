@@ -11,6 +11,83 @@ from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
 
 
+def _get_node_shape(node: torch.fx.Node):
+    """Return the tensor shape for an FX node, traversing passthrough ops.
+
+    Looks first in node.meta["tensor_meta"] (populated by ShapeProp), then in
+    node.meta["val"] (a FakeTensor set by torch.export).  Passthrough ops such
+    as tt.mark_argument_attributes preserve their input shape; we walk through
+    them so the caller does not need to know the chain structure.
+    """
+    visited = set()
+    current = node
+    while isinstance(current, torch.fx.Node) and id(current) not in visited:
+        visited.add(id(current))
+        meta = current.meta
+        if "tensor_meta" in meta and hasattr(meta["tensor_meta"], "shape"):
+            return meta["tensor_meta"].shape
+        if "val" in meta and hasattr(meta["val"], "shape"):
+            return meta["val"].shape
+        # Walk through ops that are known to be shape-preserving passthroughs.
+        if (
+            current.op == "call_function"
+            and current.target is torch.ops.tt.mark_argument_attributes
+            and current.args
+        ):
+            current = current.args[0]
+        else:
+            break
+    return None
+
+
+def canonicalize_slice_indices(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Clamp aten.slice.Tensor start index to [-size, size] before XLA lowering.
+
+    XLA rejects start indices more negative than -size (where size is the slice
+    dimension length). PyTorch CPU silently clamps such values to 0; we must do
+    it explicitly in the FX graph before execution on XLA.
+
+    This manifests for models with sliding-window KV caches where the cache
+    update slices with start = -sliding_window + 1 which can be far more
+    negative than -seq_len (e.g. -4095 for a 128-token input).
+    """
+    modified = False
+    for node in gm.graph.nodes:
+        if node.op != "call_function" or node.target is not torch.ops.aten.slice.Tensor:
+            continue
+
+        args = list(node.args)
+        if len(args) < 3:
+            continue
+
+        tensor_node = args[0]
+        dim = args[1] if len(args) > 1 else 0
+        start = args[2] if len(args) > 2 else None
+
+        if not isinstance(dim, int) or not isinstance(start, int) or start >= 0:
+            continue
+
+        if not isinstance(tensor_node, torch.fx.Node):
+            continue
+
+        shape = _get_node_shape(tensor_node)
+        if shape is None or dim >= len(shape):
+            continue
+
+        size = shape[dim]
+        if start < -size:
+            new_args = list(args)
+            new_args[2] = -size
+            node.args = tuple(new_args)
+            modified = True
+
+    if modified:
+        gm.graph.lint()
+        gm.recompile()
+
+    return gm
+
+
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """
     Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
