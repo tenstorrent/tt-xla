@@ -65,6 +65,9 @@ BATCH_SIZE = 32
 # test_deepseek_v4_tp_no_int.py:163).
 NUM_LAYERS = 16
 
+# see issue https://github.com/tenstorrent/tt-xla/issues/4444
+torch._dynamo.config.cache_size_limit = 100
+
 # One distinct prompt per batch row; len(PROMPTS) must equal BATCH_SIZE.
 PROMPTS = [
     "How are you today?",
