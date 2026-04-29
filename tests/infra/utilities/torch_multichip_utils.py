@@ -13,6 +13,7 @@ try:
 
     HAS_TORCH_XLA = True
 except ImportError:
+    Mesh = None
     HAS_TORCH_XLA = False
 
 
