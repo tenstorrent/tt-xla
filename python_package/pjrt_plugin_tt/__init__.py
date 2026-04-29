@@ -98,9 +98,23 @@ def setup_tt_metal_home():
         logger.info(f"Using TT-Metal from wheel package: {tt_metal_path_in_whl}")
         return
 
-    if tt_metal_path_in_source.exists():
+    if tt_metal_path_in_source.exists() and (
+        tt_metal_path_in_source / "runtime" / "hw" / "toolchain"
+    ).exists():
         os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_source)
         logger.info(f"Using TT-Metal from the source tree: {tt_metal_path_in_source}")
+        return
+
+    # When TTMLIR_TTMETAL_SOURCE_DIR override is used, the hw toolchain build
+    # outputs are in the install directory rather than the source tree.
+    tt_metal_path_in_install = (
+        tt_xla_root / "third_party" / "tt-mlir" / "install" / "tt-metal"
+    )
+    if tt_metal_path_in_install.exists():
+        os.environ["TT_METAL_RUNTIME_ROOT"] = str(tt_metal_path_in_install)
+        logger.info(
+            f"Using TT-Metal from install directory: {tt_metal_path_in_install}"
+        )
         return
 
     raise FileNotFoundError(
