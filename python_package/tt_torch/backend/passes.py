@@ -277,6 +277,52 @@ def insert_argument_type_markers(
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Clamp aten.slice.Tensor start indices that are more negative than -dim_size.
+
+    PyTorch CPU silently clamps such indices to 0; the XLA backend raises
+    "Value out of range" instead.  Triggered by SlidingWindowCache.update()
+    doing full_states[:, :, -sliding_window+1:, :] when seq_len < sliding_window.
+    """
+    modified = False
+    for node in gm.graph.nodes:
+        if not (
+            node.op == "call_function"
+            and node.target == torch.ops.aten.slice.Tensor
+        ):
+            continue
+        # args: (tensor, dim, start, end, step)
+        if len(node.args) < 3:
+            continue
+        start = node.args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+        tensor_node = node.args[0]
+        dim = node.args[1] if len(node.args) > 1 else 0
+        if not isinstance(dim, int):
+            continue
+        shape = None
+        if "val" in tensor_node.meta:
+            shape = tensor_node.meta["val"].shape
+        elif "tensor_meta" in tensor_node.meta:
+            shape = tensor_node.meta["tensor_meta"].shape
+        if shape is None or dim >= len(shape):
+            continue
+        dim_size = shape[dim]
+        if not isinstance(dim_size, int):
+            continue
+        clamped = max(-dim_size, start)
+        if clamped != start:
+            new_args = list(node.args)
+            new_args[2] = clamped
+            node.args = tuple(new_args)
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
