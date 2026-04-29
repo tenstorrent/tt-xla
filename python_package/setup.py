@@ -455,6 +455,12 @@ class CMakeBuildPy(build_py):
         _remove_bloat_dir(install_dir / "lib" / "pkgconfig")
         _remove_bloat_dir(install_dir / "lib64" / "cmake")
         _remove_bloat_dir(install_dir / "lib64" / "pkgconfig")
+        _resolve_symlink_to_file(install_dir / "lib64" / "libtt-umd.so.0")
+        _remove_bloat_file(install_dir / "lib64" / "libtt-umd.so")
+        _remove_bloat_file(install_dir / "lib64" / "libtt-umd.so.0.70.0")
+        _resolve_symlink_to_file(install_dir / "lib" / "libtt-umd.so.0")
+        _remove_bloat_file(install_dir / "lib" / "libtt-umd.so")
+        _remove_bloat_file(install_dir / "lib" / "libtt-umd.so.0.70.0")
         _remove_bloat_dir(install_dir / "include")
         # Remove bin when building manylinux wheel. This, however, removes multi-host feature.
         # issue: https://github.com/tenstorrent/tt-xla/issues/3531
@@ -482,6 +488,19 @@ def _remove_bloat_dir(dir_path: Path) -> None:
     if dir_path.exists() and dir_path.is_dir():
         print(f"Removing bloat directory: {dir_path}")
         shutil.rmtree(dir_path)
+
+
+def _remove_bloat_file(file_path: Path) -> None:
+    if file_path.exists() or file_path.is_symlink():
+        print(f"Removing bloat file: {file_path}")
+        file_path.unlink()
+
+
+def _resolve_symlink_to_file(file_path: Path) -> None:
+    if file_path.is_symlink():
+        target = file_path.resolve()
+        file_path.unlink()
+        shutil.copy2(target, file_path)
 
 
 def _remove_static_archives(root: Path) -> None:
