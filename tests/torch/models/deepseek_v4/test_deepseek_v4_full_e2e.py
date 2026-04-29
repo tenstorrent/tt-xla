@@ -250,6 +250,7 @@ def transformer_shard_spec(model: mdo.Transformer) -> Dict[torch.Tensor, Tuple]:
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
+@torch.inference_mode()
 def test_e2e_prefill_decode_full_real() -> None:
     enable_spmd()
     xr.set_device_type("TT")
