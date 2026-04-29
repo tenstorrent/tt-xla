@@ -2671,3 +2671,7 @@ test_config:
   bartowski_magnum_v4_72b_gguf/causal_lm/pytorch-magnum_v4_72b_GGUF-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: 72B param model dequantized to BF16 (~144 GB) exceeds single-device DRAM capacity"
+
+  brown_loafers_70b_i1_gguf/causal_lm/pytorch-BrownLoafers_70B_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 70B param model dequantized to BF16 (~141 GB) exceeds single-device DRAM capacity"
