@@ -1829,6 +1829,14 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
+  gemma_2_9b_it_ko_crypto_translate/causal_lm/pytorch-gemma_2_9b_it_ko_crypto_translate-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is ~18 GB BF16, exceeds n150 12 GB DRAM (12 GB); hardware-class XFAIL"
+    arch_overrides:
+      p150:
+        status: EXPECTED_PASSING
+        reason: "p150 has 32 GB DRAM; gemma/pytorch-2_9B_IT is EXPECTED_PASSING on p150 with same architecture"
+
   gemma/pytorch-2_27B_IT-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
