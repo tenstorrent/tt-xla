@@ -2675,3 +2675,7 @@ test_config:
   huihui_qwen_3_coder_next_abliterated/causal_lm/pytorch-Huihui_Qwen3_Coder_Next_Abliterated-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Hardware capacity: Qwen3Next 48-layer MoE (512 experts, hidden=2048) is ~159 GB BF16, far exceeding n150 DRAM (12 GB)."
+
+  hyperclovax/seed_think/pytorch-SEED_Think_32B-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: HyperCLOVAX-SEED-Think-32B (32B params) is ~64 GB BF16, far exceeding n150 DRAM (12 GB)."
