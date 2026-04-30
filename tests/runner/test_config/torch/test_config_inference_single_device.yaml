@@ -8,6 +8,10 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  glm_4_6v_fp8/conditional_generation/pytorch-glm_4_6v_fp8-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model too large for n150: 128 experts × 46 MoE layers ≈ 100 GB FP8 (12 GB DRAM limit)"
+
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     arch_overrides:
       n150:
