@@ -31,6 +31,15 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor:
+            # XLA validates slice start strictly; PyTorch silently clamps.
+            # Clamp out-of-range negative start indices before dispatch.
+            args = list(args)
+            if len(args) >= 3 and isinstance(args[2], int) and isinstance(args[0], torch.Tensor):
+                dim = args[1] if len(args) > 1 and isinstance(args[1], int) else 0
+                size = args[0].shape[dim]
+                if args[2] < -size:
+                    args[2] = -size
         return func(*args, **(kwargs or {}))
 
 
