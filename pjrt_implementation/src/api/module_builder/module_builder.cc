@@ -997,7 +997,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Static counter for auto-numbering graphs when perf metrics are enabled
   static std::atomic<int> graph_counter{0};
 
-  mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  mlir::tt::ttnn::TTIRToTTNNRuntimePipelineOptions options;
 
   // Optimizer passes are not supported in distributed runtime.
   if (tt::runtime::getCurrentHostRuntime() ==
@@ -1117,7 +1117,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
           ? defaultFabric1DMeshFabricConfig(devices_mesh_shape)
           : client_instance->computeFabricConfig(devices_mesh_shape);
   options.meshTopology = fabricConfigToMeshTopology(mesh_fabric_for_topology);
-  mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
+  mlir::tt::ttnn::createTTIRToTTNNRuntimePipeline(ttir_to_ttnn_pm, options);
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
