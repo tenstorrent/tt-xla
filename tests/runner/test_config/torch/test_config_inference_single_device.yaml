@@ -2625,6 +2625,14 @@ test_config:
   olmo3/causal_lm/pytorch-3_32b_think-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  glm_4_7_flash_awq/causal_lm/pytorch-W4A16_GS32-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model weights ~14 GB at W4A16 INT4 / ~58 GB at BF16 after decompression, exceeds single n150 device DRAM (12 GB)."
+
+  glm_4_7_flash_awq/causal_lm/pytorch-W8A16_GS32-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model weights ~29 GB at W8A16 INT8 / ~58 GB at BF16 after decompression, exceeds single n150 device DRAM (12 GB)."
+
   glm/causal_lm/pytorch-4.7-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
 
