@@ -7,6 +7,19 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        # XLA validates slice start strictly (raises if start < -dim_size).
+        # PyTorch CPU silently clamps. Sliding-window attention triggers this
+        # when seq_len < sliding_window (e.g. start=-127 on a seq_len=100 tensor).
+        if func is torch.ops.aten.slice.Tensor:
+            tensor = args[0] if args else None
+            if tensor is not None and len(args) >= 3:
+                dim = args[1] if len(args) > 1 else 0
+                start = args[2]
+                if isinstance(start, int):
+                    dim_size = tensor.shape[dim]
+                    if start < -dim_size:
+                        args = (tensor, dim, -dim_size) + args[3:]
+
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
