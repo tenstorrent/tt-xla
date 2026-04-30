@@ -194,8 +194,8 @@ test_config:
     reason: "RuntimeError: Cannot find callable resnext101_64x4d in hubconf"
   ssd300_vgg16/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "UNREACHABLE: ElementsAttr does not provide iteration facilities for type `int` (dense<4294967295> : tensor<ui32>)"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 6468096 B which is beyond max L1 size of 1572864 B"
   bi_lstm_crf/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -203,19 +203,19 @@ test_config:
   ssd300_resnet50/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "UNREACHABLE: ElementsAttr does not provide iteration facilities for type `int` (dense<4294967295> : tensor<ui32>)"
+    reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   oft_stable_diffusion/pytorch-Stable_Diffusion_v1_5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "ImportError: cannot import diffusers ip_adapter (No module named 'triton.language')"
+    reason: "ImportError: Failed to import diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion via diffusers.loaders.ip_adapter -- ModuleNotFoundError: No module named 'triton.language'"
   retinanet/pytorch-ResNet50_Backbone_with_FPN_V2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 1073741824 B DRAM buffer across 12 banks"
+    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 4294967296 B DRAM buffer across 8 banks"
   gliner/pytorch-Multi_v2.1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "python3: ArrayRef.h:253: Assertion `Index < Length && Invalid index!` failed (llvm assertion in TT-MLIR module builder)"
+    reason: "Fatal Python error: ArrayRef.h:253: Assertion `Index < Length && \"Invalid index!\"' failed"
   # yolov5/pytorch-yolov5n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -267,27 +267,27 @@ test_config:
   yolox/pytorch-Nano-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor. (yolox 0.3.0 upstream incompatibility with newer torch)"
   yolox/pytorch-Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor. (yolox 0.3.0 upstream incompatibility with newer torch)"
   yolox/pytorch-S-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor. (yolox 0.3.0 upstream incompatibility with newer torch)"
   yolox/pytorch-M-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor. (yolox 0.3.0 upstream incompatibility with newer torch)"
   yolox/pytorch-L-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor. (yolox 0.3.0 upstream incompatibility with newer torch)"
   yolox/pytorch-Darknet-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor. (yolox 0.3.0 upstream incompatibility with newer torch)"
   hippynn/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -306,8 +306,8 @@ test_config:
     reason: "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
   distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   pointpillars/pytorch-pointpillars-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -346,84 +346,84 @@ test_config:
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   albert/question_answering/pytorch-Squad2-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   bge_m3/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ImportError: cannot import name 'is_torch_fx_available' from 'transformers.utils.import_utils'"
   opt/qa/pytorch-125M-single_device-training:
-    status: EXPECTED_PASSING
-    markers: [notimeout]
-    assert_pcc: false
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=-0.675510170014566. Required: pcc=0.99."
   opt/qa/pytorch-350M-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   opt/qa/pytorch-1.3b-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=-1.0. Required: pcc=0.99."
   segformer/semantic_segmentation/pytorch-B0_Finetuned_Ade_512_512-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration. Tried up to 1 slices for width-slicing on output dimension 1. Available L1: 1396224 bytes. Operation requires more memory than available even with maximum slicing."
   segformer/semantic_segmentation/pytorch-B2_Finetuned_Ade_512_512-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration. Tried up to 1 slices for width-slicing on output dimension 1. Available L1: 1396224 bytes. Operation requires more memory than available even with maximum slicing."
   segformer/semantic_segmentation/pytorch-B3_Finetuned_Ade_512_512-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration. Tried up to 1 slices for width-slicing on output dimension 1. Available L1: 1396224 bytes. Operation requires more memory than available even with maximum slicing."
   segformer/semantic_segmentation/pytorch-B4_Finetuned_Ade_512_512-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "Test timed out"
   mgp_str_base/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: CB page size 64 should be greater than the config tensor page size 132"
   yolos/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   swin/image_classification/pytorch-Tiny_Patch4_Window7_224-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   swin/image_classification/pytorch-v2_Tiny_Patch4_Window8_256-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   swin/masked_image_modeling/pytorch-v2_Tiny_Patch4_Window8_256-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: CB page size 192 should be greater than the config tensor page size 392"
   # yolov8/pytorch-yolov8x-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   yolov9/pytorch-T-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Extension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, psutil._psutil_linux, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards,"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 2875904 B which is beyond max L1 size of 1572864 B"
   yolov9/pytorch-S-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "Extension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, psutil._psutil_linux, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards,"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 2875904 B which is beyond max L1 size of 1572864 B"
   yolov9/pytorch-M-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 2875904 B which is beyond max L1 size of 1572864 B"
   yolov9/pytorch-C-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 2875904 B which is beyond max L1 size of 1572864 B"
   yolov9/pytorch-E-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=0,y=0)] grow to 2875904 B which is beyond max L1 size of 1572864 B"
   retinanet/pytorch-ResNet18_Backbone_with_FPN-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -446,32 +446,32 @@ test_config:
     reason: "ValueError: too many values to unpack (expected 2)"
   bert/question_answering/pytorch-Large_Finetuned_Squad2-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "error: 'ttnn.pad' op Output tensor shape (32,768) must match the inferred shape: (47,768)"
   dpr/context_encoder/pytorch-Ctx_Encoder_Single_Nq_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   dpr/context_encoder/pytorch-Ctx_Encoder_Multiset_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   dpr/question_encoder/pytorch-Question_Encoder_Single_Nq_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   dpr/question_encoder/pytorch-Question_Encoder_Multiset_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   centernet/pytorch-Hourglass_Coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -526,7 +526,7 @@ test_config:
   segformer/semantic_segmentation/pytorch-B1_Finetuned_Ade_512_512-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration. Tried up to 1 slices for width-slicing on output dimension 1. Available L1: 1396224 bytes. Operation requires more memory than available even with maximum slicing."
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -546,7 +546,7 @@ test_config:
   detr3d/pytorch-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-    reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1330944 B"
+    reason: "Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 8 banks, where each bank needs to store 1073741824 B, but bank size is 4273390016 B"
   # yolov8/pytorch-yolov8n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -558,11 +558,11 @@ test_config:
   detr/object_detection/pytorch-ResNet50_Backbone-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration. Tried up to 7 slices for height-slicing on output dimension 7. Available L1: 1396224 bytes."
   detr/segmentation/pytorch-ResNet50_Backbone_Panoptic-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "Test timed out"
   dla/pytorch-34-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -644,7 +644,7 @@ test_config:
   maptr/pytorch-Tiny_R50_24e_Av2-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Test timed out (>5min)"
+    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 1073741824 B DRAM buffer across 8 banks"
   phi1_5/sequence_classification/pytorch-Phi_1_5-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -825,9 +825,6 @@ test_config:
   inception/pytorch-v4_OSMR-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
-  dla/pytorch-34.in1k-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
   googlenet/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -837,8 +834,8 @@ test_config:
     markers: [notimeout]
   resnet/pytorch-ResNet50_HuggingFace_High_Resolution-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Not enough space to allocate 2147483648 B DRAM buffer across 12 banks, where each bank needs to store 178958336 B, but bank size is only 1073741792 B"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Fatal Python error: ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   resnet/pytorch-ResNet50_TIMM-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1283,7 +1280,7 @@ test_config:
   monodepth2/pytorch-Stereo_No_Pt_640x192-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 262144000 B DRAM buffer across 12 banks, where each bank needs to store 21846016 B, but bank size is only 1073741792 B"
+    reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   monodepth2/pytorch-Mono+stereo_No_Pt_640x192-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1385,32 +1382,31 @@ test_config:
   unet_for_conditional_generation/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 125829120 B DRAM buffer across 12 banks, where each bank needs to store 10485760 B"
-    markers: [large]
+    reason: "Out of Memory: Not enough space to allocate 6710886400 B DRAM buffer across 8 banks, where each bank needs to store 838860800 B"
   whisper/pytorch-Tiny-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration ... Operation requires more memory than available even with maximum slicing"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration. Tried up to 1 slices for height-slicing on output dimension 1. Available L1: 1396224 bytes. Operation requires more memory than available even with maximum slicing."
   whisper/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration ... Operation requires more memory than available even with maximum slicing"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration (extrapolated from Tiny variant which OOMs)."
   whisper/pytorch-Small-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration ... Operation requires more memory than available even with maximum slicing"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration (extrapolated from Tiny variant which OOMs)."
   whisper/pytorch-Medium-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 72384512 B DRAM buffer across 12 banks"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration (extrapolated from Tiny variant which OOMs)."
   whisper/pytorch-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: Out of Memory: Not enough space to allocate DRAM buffer (extrapolated from Medium variant which OOMs at 72 MB)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration (extrapolated from Tiny variant which OOMs)."
   whisper/pytorch-Large_v3_Turbo-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: Out of Memory: Not enough space to allocate DRAM buffer (extrapolated from Medium variant which OOMs at 72 MB)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration (extrapolated from Tiny variant which OOMs)."
   mobilenetv3/pytorch-Mobilenet_v3_Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1526,24 +1522,39 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   qwen_3/causal_lm/pytorch-1_7B-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
   phi2/token_classification/pytorch-Phi_2_Pytdml-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   gemma/pytorch-1.1_2B_IT-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
   gemma/pytorch-2B-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "RuntimeError: Test Hangs"
   gemma/pytorch-2_2B_IT-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
   mamba/pytorch-2.8b_HF-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_TTMLIR_COMPILATION
@@ -1555,3 +1566,268 @@ test_config:
   qwen_2_5_coder/pytorch-1.5B_Instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
+  allam/causal_lm/pytorch-7B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  arcee/text_generation/pytorch-arcee_Spark-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  attention_denseunet/pytorch-Base-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
+  bevformer/pytorch-v2_R50_T1-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  bevformer/pytorch-v2_R50_T1_Base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  boltz2/pytorch-Default-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "cannot import name 'csc_tocsr' from 'scipy.sparse._sparsetools'"
+  deepseek/deepseek_coder/pytorch-1_3B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AttributeError: KeyError: 'shape' in pad_inputs"
+  deepseek/deepseek_math/pytorch-7B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  deepseek/qwen/pytorch-R1_Distill_32B-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
+    reason: "Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 8 banks, where each bank needs to store 1073741824 B, but bank size is 4273390016 B"
+  dinov2/image_classification/pytorch-Large-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  dinov2/image_classification/pytorch-Small-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  efficientdet/pytorch-D0-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
+  falcon/pytorch-3_3B_Base-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+  falcon/pytorch-3_10B_Base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  falcon/pytorch-3_7B_Base-single_device-training:
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
+  gemma/pytorch-2_27B_IT-single_device-training:
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
+  gemma/pytorch-2_9B_IT-single_device-training:
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  glm/causal_lm/pytorch-4.5_Air-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
+  gpt_neo/sequence_classification/pytorch-2_7B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+  huggyllama/pytorch-Llama_7B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
+  issac_groot/pytorch-Gr00t_N1.5_3B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  llama/causal_lm/pytorch-3.2_3B-single_device-training:
+    status: EXPECTED_PASSING
+    markers: [large, notimeout]
+    assert_pcc: false
+  llama/llama_3_2_vision/pytorch-3.2_11B_Vision_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  llama/sequence_classification/pytorch-3.1_70B_Instruct-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [large, notimeout]
+  llama/sequence_classification/pytorch-3.1_8B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Test timed out"
+  minicpm_o_2_6/pytorch-Default-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  mistral/pixtral/pytorch-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  mistral/pytorch-Ministral_8B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
+  olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0) - (x=12,y=9)] grow to 1745920 B which is beyond max L1 size of 1572864 B"
+  olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  olmo3/causal_lm/pytorch-3_1025_7b-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 33554432 B DRAM buffer"
+  openvla/pytorch-7B_Finetuned_Libero_Goal-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "cannot import name 'PaddingStrategy' from 'transformers.tokenization_utils'"
+  openvla_oft/pytorch-Finetuned_Libero_Goal-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  openvla_oft/pytorch-Finetuned_Libero_Object-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "AssertionError: assert 'sem_seg' in batched_inputs[0]"
+  petr/pytorch-Vovnet_Gridmask_P4_800x320-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  phi2/token_classification/pytorch-Phi_2-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  phi3/phi_3_5/pytorch-Mini_Instruct-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+  phi4/seq_cls/pytorch-Phi_4-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer"
+  phi4/token_cls/pytorch-Phi_4-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  pi_0/pytorch-lerobot_pi0_libero_base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
+  qwen_2_5/causal_lm/pytorch-3B_Instruct-single_device-training:
+    status: EXPECTED_PASSING
+    markers: [notimeout]
+    assert_pcc: false
+  qwen_2_5/causal_lm/pytorch-7B_Instruct-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  qwen_2_5/causal_lm/pytorch-7B_Instruct_1M-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  qwen_2_5_coder/pytorch-7B-single_device-training:
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        bringup_status: FAILED_RUNTIME
+        reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
+  qwen_3/causal_lm/pytorch-4B-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    markers: [notimeout]
+  qwen_3/causal_lm/pytorch-8B-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  qwen_3/causal_lm/pytorch-14B-single_device-training:
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  rt_detr/pytorch-R34vd-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
+  rt_detr/pytorch-R50vd-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  seamless_m4t/pytorch-Large-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ModuleNotFoundError: Could not import module 'SeamlessM4TModel'. RuntimeError: function '_has_torch_function' already has a docstring"
+  siglip/image_text_similarity/pytorch-So400m_Patch14_224-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "'ttir.sum' op Reduce dimensions are not unique"
+  siglip/image_text_similarity/pytorch-So400m_Patch16_256_I18n-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  smolvla/vision_language_action/pytorch-smolvla_base-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  stable_diffusion_xl/pytorch-Base_1.0-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "Model is not a torch.nn.Module"
+  ultra_fast_lane_detection/pytorch-TuSimple_ResNet34_Backbone-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  ultra_fast_lane_detection_v2/pytorch-TuSimple_ResNet34_Backbone-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  yolos_small/pytorch-Small-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+  yolov7/pytorch-Default-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  yolov7/pytorch-E6-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+  yoloworld/pytorch-Large_640-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "ValueError: IRD_LF_CACHE environment variable is not set. Please set it to the address of the IRD LF cache."
+  yoloworld/pytorch-Xlarge_640-single_device-training:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_FE_COMPILATION
+    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
