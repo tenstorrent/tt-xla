@@ -2667,3 +2667,8 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  huihui_qwen3_5_35b_a3b_gguf/causal_lm/pytorch-35B_A3B_MXFP4_MOE_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Hardware capacity ceiling: Qwen3.5-35B-A3B has 35B total parameters; at BF16 the model requires ~70 GB device DRAM but single-device p150b has only 24 GB. TT hardware has no native MXFP4 inference support so the GGUF weights must be dequantized to BF16 before execution."
