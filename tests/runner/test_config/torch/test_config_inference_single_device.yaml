@@ -8,6 +8,10 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  duckllm_1_0_0_6b_gguf/causal_lm/pytorch-1.0_0.6B_GGUF-single_device-inference:
+    required_pcc: 0.97  # 24-layer BF16 matmul accumulation: CPU BF16 vs FP32=0.9956, TT vs CPU BF16=0.9804 (ttmlir-f32-precision-not-preserved)
+    status: EXPECTED_PASSING
+
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     arch_overrides:
       n150:
