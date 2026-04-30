@@ -20,6 +20,16 @@ _ENABLE_TRACE = os.environ.get("VLLM_ENABLE_TRACE", "0").lower() in ("1", "true"
 # perf measurement (trace ON) and op-level tracy capture (trace OFF).
 _TRACY_ACTIVE = os.environ.get("TRACY_PROFILING_ACTIVE", "") == "1"
 
+# ttnn.sampling fused-op path is also currently incompatible with metal
+# trace: the sample()-side slice `sampled_padded[:batch].view(-1)` (where
+# batch comes from logits.shape[0]) forces a from_device round-trip on
+# the trace output edge, which the verifier rejects with
+# "All output tensors of trace function must be on device". Auto-disable
+# trace when ttnn.sampling is on so the sampling-quality configs still
+# run; address the trace-incompat separately. Polarity matches sampler.py
+# (TT_USE_TTNN_SAMPLING defaults to "1"; only "0" turns it off).
+_TTNN_SAMPLING_ACTIVE = os.environ.get("TT_USE_TTNN_SAMPLING", "1") != "0"
+
 SINGLE_DEVICE_CONFIGS = [
     pytest.param(
         VLLMBenchmarkConfig(
@@ -147,7 +157,11 @@ _QUALITY_OPTS = dict(
     cpu_sampling=False,
     optimization_level=1,
     experimental_weight_dtype="bfp_bf8",
-    enable_trace=not _TRACY_ACTIVE,
+    # TEMP: testing the int64-cast fix in Sampler.sample(). Force trace=True
+    # when ttnn.sampling is on to verify the trace incompat is gone. Restore
+    # the auto-disable below if the test fails.
+    # enable_trace=not _TRACY_ACTIVE,
+    enable_trace=not (_TRACY_ACTIVE or _TTNN_SAMPLING_ACTIVE),
 )
 
 _QUALITY_OPTS_CPU = dict(_QUALITY_OPTS, cpu_sampling=True)
@@ -193,4 +207,46 @@ SAMPLING_QUALITY_CONFIGS = [
 
 @pytest.mark.parametrize("config", SAMPLING_QUALITY_CONFIGS)
 def test_sampling_quality(config, output_file, request, max_output_tokens):
+    _run_vllm_benchmark(config, output_file, request, max_output_tokens)
+
+
+# Perf sweep across batch sizes for Llama 1B / 8B. Used to characterize
+# where the sampler stops being on the critical path as batch grows, and
+# to quantify the e2e impact of sampler-side optimizations + the
+# batch-pad-to-32 overhead at low batch sizes.
+#
+# Three variants (subset of the four in _QUALITY_VARIANTS — drops greedy-cpu
+# since the device/cpu sampler delta only matters under non-greedy):
+#   greedy-device      — argmax fast-path, no sampler graph; the ceiling
+#   nongreedy-device   — chunked-topk + ttnn.sampling, the optimization target
+#   nongreedy-cpu      — soft target (current production for non-greedy)
+_PERF_SWEEP_VARIANTS = [
+    ("greedy-device", _QUALITY_OPTS, {}),
+    ("nongreedy-device", _QUALITY_OPTS, {"temperature": 1.0}),
+    ("nongreedy-cpu", _QUALITY_OPTS_CPU, {"temperature": 1.0}),
+]
+
+_PERF_SWEEP_BATCH_SIZES = [1, 2, 8, 16, 32]
+
+
+def _perf_sweep_params(label, base, batch_size):
+    return [
+        pytest.param(
+            VLLMBenchmarkConfig(
+                **base, batch_size=batch_size, **extra, additional_config=opts
+            ),
+            id=f"{label}-b{batch_size}-{name}",
+        )
+        for name, opts, extra in _PERF_SWEEP_VARIANTS
+    ]
+
+
+PERF_SWEEP_CONFIGS = []
+for _bs in _PERF_SWEEP_BATCH_SIZES:
+    PERF_SWEEP_CONFIGS.extend(_perf_sweep_params("llama3.2-1b", _1B_BASE, _bs))
+    PERF_SWEEP_CONFIGS.extend(_perf_sweep_params("llama3.1-8b", _8B_BASE, _bs))
+
+
+@pytest.mark.parametrize("config", PERF_SWEEP_CONFIGS)
+def test_vllm_perf_sweep(config, output_file, request, max_output_tokens):
     _run_vllm_benchmark(config, output_file, request, max_output_tokens)
