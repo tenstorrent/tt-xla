@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  edensfall_l3_3_70b_0_1a_i1_gguf/causal_lm/pytorch-EDENSFALL_L3_3_70B_0_1A_I1_Q4_K_M_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 70B model at bfloat16 (~140 GB weights) exceeds single-device DRAM capacity (~32 GB)"
