@@ -243,11 +243,11 @@ test_config:
   yolox/pytorch-X-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "EOFError: Ran out of input"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 3-D tensor (yolox 0.3.0 incompatible with current torch)"
   unet/pytorch-Segmentation_Models_PyTorch_UNet_ResNet101_Backbone-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
+    reason: "RuntimeError: tensor.H is only supported on matrices (2-D tensors). Got 4-D tensor"
   mobilenetv2/pytorch-Deeplabv3_Mobilenet_v2_1.0_513-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
