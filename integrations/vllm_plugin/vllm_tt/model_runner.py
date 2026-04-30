@@ -217,7 +217,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
-        torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
+        logger.warning(
+            "TTConfig parsed from additional_config: "
+            "optimization_level=%s enable_trace=%s cpu_sampling=%s "
+            "experimental_weight_dtype=%r enable_const_eval=%s "
+            "enable_tensor_parallel=%s use_2d_mesh=%s "
+            "num_hidden_layers=%s min_context_len=%s",
+            self.tt_config.optimization_level,
+            self.tt_config.enable_trace,
+            self.tt_config.cpu_sampling,
+            self.tt_config.experimental_weight_dtype,
+            self.tt_config.enable_const_eval,
+            self.tt_config.enable_tensor_parallel,
+            self.tt_config.use_2d_mesh,
+            self.tt_config.num_hidden_layers,
+            self.tt_config.min_context_len,
+        )
+        pjrt_opts = self.tt_config.get_pjrt_compile_config()
+        logger.warning("PJRT compile options being set: %s", pjrt_opts)
+        torch_xla.set_custom_compile_options(pjrt_opts)
 
         self.vllm_config = vllm_config
         self.model_config = vllm_config.model_config
