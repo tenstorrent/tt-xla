@@ -2691,3 +2691,7 @@ test_config:
   kimi_k2/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Hardware capacity: Kimi K2 (1T total params, 384 experts, W4A16 quantized) is ~500 GB, far exceeding n150 (12 GB), n300 (24 GB), and p150b (32 GB) single-device DRAM."
+
+  l3_3_70b_euryale_heretic_gguf/causal_lm/pytorch-L3_3_70B_Euryale_v2_3_Heretic_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: L3.3-70B Euryale Heretic (70B params, Q4_K_M GGUF) dequantizes to ~140 GB BF16, far exceeding n150 (12 GB) and p150b (32 GB) single-device DRAM."
