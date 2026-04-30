@@ -31,6 +31,12 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # torch.histc only has a CPU kernel for float; TT has no native kernel.
+        # When the input is integer (e.g. from grouped_mm MoE expert routing),
+        # cast to float so the CPU fallback can handle it.
+        if func is torch.histc and args and isinstance(args[0], torch.Tensor):
+            if not args[0].is_floating_point():
+                args = (args[0].float(),) + args[1:]
         return func(*args, **(kwargs or {}))
 
 
