@@ -79,12 +79,12 @@ jobs:
           cat commit_list.txt
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         id: create-pr
         with:
           branch: uplift
           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: "ajakovljevicTT <ajakovljevic@tenstorrent.com>"
+          author: "acicovicTT <acicovic@tenstorrent.com>"
           base: main
           commit-message: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"
           title: "Uplift ${{ env.TT_MLIR_SUBMODULE_PATH }} to ${{ env.LATEST_TT_MLIR_VERSION }} ${{ env.TODAY }}"

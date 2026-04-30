@@ -234,7 +234,10 @@ def benchmark_vision_torch_xla(
     )
 
     # Evaluate PCC
-    pcc_value = compute_pcc(predictions[0], golden_output, required_pcc=required_pcc)
+    pcc_value = compute_pcc(predictions[0], golden_output)
+    assert (
+        pcc_value >= required_pcc
+    ), f"PCC comparison failed. PCC={pcc_value:.6f}, Required={required_pcc}"
     print(f"PCC verification passed with PCC={pcc_value:.6f}")
 
     result = create_benchmark_result(

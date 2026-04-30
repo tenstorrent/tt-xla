@@ -12,6 +12,7 @@ ALLOWED_ARCHES = {
     "n300-llmbox",
     "galaxy-wh-6u",
     "qb2-blackhole",
+    "lb-blackhole",
 }
 
 # Allowed fields in test_config YAML entries
@@ -41,6 +42,8 @@ ALLOWED_FIELDS = {
     "enable_weight_bfp8_conversion",
     # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
     "inject_custom_moe",
+    # EmitPy verification: assert exact match between emitpy and flatbuffer results
+    "emitpy_assert_exact",
 }
 
 # Single source of truth for the placeholders YAML filename
@@ -51,7 +54,22 @@ FRAMEWORKS = ("torch", "jax", "torch_llm")
 
 # Parallelism values for test ID cross-product
 PARALLELISMS_STANDARD = ("single_device", "data_parallel", "tensor_parallel")
-PARALLELISMS_LLM = ("single_device", "tensor_parallel")
+PARALLELISMS_LLM = (
+    "single_device",
+    "tensor_parallel",
+    "megatron-no_dp-tensor_parallel",
+    "fsdp-no_dp-tensor_parallel",
+    "fsdp-dp-tensor_parallel",
+    "megatron-dp-tensor_parallel",
+)
+LLM_MESH_SHAPES = (
+    "mesh_default",
+    "mesh_1x4",
+    "mesh_2x2",
+    "mesh_1x8",
+    "mesh_2x4",
+    "mesh_4x8",
+)
 
 # Run modes
 RUN_MODES_STANDARD = ("inference", "training")
@@ -62,7 +80,7 @@ LLM_PHASES = {"load_inputs_decode": "llm_decode", "load_inputs_prefill": "llm_pr
 
 # LLM parametrization values (mirrors test_models.py)
 LLM_SEQUENCE_LENGTHS = (128, 1024, 2048, 4096, 8192)
-LLM_BATCH_SIZES = (1, 2)
+LLM_BATCH_SIZES = (1, 4)
 
 # Models excluded from PyTorch discovery (matches dynamic_loader.py)
 TORCH_EXCLUDED_MODEL_DIRS = {"suryaocr"}

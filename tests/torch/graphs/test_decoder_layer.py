@@ -182,7 +182,12 @@ def test_llama_decoder_layer(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -267,7 +272,12 @@ def test_qwen3_decoder_layer(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -394,7 +404,12 @@ def test_gemma_decoder_layer(seq_len, variant, variant_config, arch):
     )
     cos_sin = torch.rand(batch_size, seq_len, config.head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
     past_key_states = None
 
     # For Gemma2, we need to provide position_ids and cache_position
@@ -490,7 +505,12 @@ def test_mistral_decoder_layer(seq_len, variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 
@@ -579,7 +599,12 @@ def test_qwen2_5_decoder_layer(seq_len, variant, variant_config, arch):
     head_dim = config.hidden_size // config.num_attention_heads
     cos_sin = torch.rand(batch_size, seq_len, head_dim, dtype=torch.bfloat16)
     position_embeddings = (cos_sin, cos_sin)
-    attention_mask = torch.rand(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    # Additive causal mask: 0 for attend, -inf for mask out
+    # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+    attention_mask = torch.zeros(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+    attention_mask.masked_fill_(
+        ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+    )
 
     past_key_states = None
 

@@ -123,6 +123,40 @@ def test_non_greedy(device, vocab_size):
 
 @pytest.mark.push
 @pytest.mark.single_device
+def test_greedy_batch32(device):
+    """Greedy at batch=32 produces valid tokens for all sequences."""
+    batch_size = 32
+    vocab_size = 201088  # gpt-oss-120b, largest production vocab
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+    expected = run_sampler_greedy(logits_cpu, None)
+
+    compiled_fn = torch.compile(run_sampler_greedy, backend="tt", dynamic=False)
+    actual = compiled_fn(logits_cpu.to(device), None).cpu()
+
+    assert actual.shape == (batch_size, 1)
+    assert torch.equal(
+        actual, expected
+    ), f"Greedy mismatch at batch=32: {actual} vs {expected}"
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_non_greedy_batch32(device):
+    """Stochastic sampling at batch=32 runs without OOM and returns valid tokens."""
+    batch_size = 32
+    vocab_size = 201088  # gpt-oss-120b, largest production vocab
+    logits_cpu = torch.randn(batch_size, vocab_size, dtype=torch.float32)
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    metadata_dev = make_metadata(batch_size=batch_size, device=device)
+    actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
+
+    assert actual.shape == (batch_size, 1)
+    assert_valid_tokens(actual, vocab_size)
+
+
+@pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
 def test_combined(device, vocab_size):
     """Different param combinations on the same logits produce diverse tokens.

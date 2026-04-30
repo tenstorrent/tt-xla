@@ -20,6 +20,7 @@
   // which is the only non-optional stat that has to be set in this function.
   // https://github.com/tenstorrent/tt-xla/issues/470
   _STUB(PJRT_Device_MemoryStats);
+  _STUB(PJRT_Device_ClearMemoryStats);
 
   // Not required to be implemented. Needs further investigation into if and how
   // clients utilize this function.
@@ -72,7 +73,6 @@
   // (if at all).
   _STUB(PJRT_Executable_GetCostAnalysis);
   _STUB(PJRT_Executable_ParameterMemoryKinds);
-  _STUB(PJRT_LoadedExecutable_GetDeviceAssignment);
 
   // This is not required to be implemented by all platforms. It should return
   // memory stats that allow callers to estimate device memory usage when

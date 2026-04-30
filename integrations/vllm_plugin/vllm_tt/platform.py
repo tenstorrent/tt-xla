@@ -72,6 +72,17 @@ class TTConfig:
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
+    # When True, `capture_model` precompiles only the graphs needed for decode
+    # (num_tokens == 1):
+    #   - `_precompile_backbone` is restricted to the decode shape.
+    #   - `_precompile_select_hidden_states` is restricted to the decode shape.
+    #   - `_precompile_mm_encoder` and `_precompile_structured_decoding` are
+    #     skipped entirely (multimodal and structured-output decoding are not
+    #     exercised in a plain decode-only run).
+    # Useful for speeding up startup when only decode performance matters
+    # (e.g. local debugging of decode-only tests).
+    decode_only: bool = False
+
     # Override number of hidden layers (0 = use model default)
     # For debugging and testing purposes, we allow overriding the number of hidden
     # layers in the model config to enable testing with smaller models or to
@@ -83,12 +94,15 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    enable_trace: bool = False
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
+            "enable_trace": "true" if self.enable_trace else "false",
         }
 
 

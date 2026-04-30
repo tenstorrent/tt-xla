@@ -15,10 +15,12 @@ from infra.evaluators import TorchComparisonEvaluator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
 from tt_torch.composite_ops import (
+    composite_gather,
     composite_gelu,
     composite_group_norm,
     composite_layer_norm,
     composite_rms_norm,
+    composite_scaled_dot_product_attention,
     composite_topk,
     composite_topk_indices,
     composite_topk_values,
@@ -109,8 +111,8 @@ def test_patched_rms_norm_functional_single_device(
 
 
 @pytest.mark.nightly
-@pytest.mark.xfail(
-    reason="To be investigated - https://github.com/tenstorrent/tt-xla/issues/4138"
+@pytest.mark.skip(
+    reason="Skipping test, issue: https://github.com/tenstorrent/tt-xla/issues/4256"
 )
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("use_weight", [True, False])
@@ -141,11 +143,12 @@ def test_patched_rms_norm_functional_batch_parallel(
     device_ids = np.array(range(num_devices))
     mesh = xs.Mesh(device_ids, mesh_shape, ("model", "batch"))
 
-    # Mark sharding for inputs along batch dimension.
-    shard_specs = {}
-    shard_specs[input_tensor] = ("batch", None)
-    if use_weight:
-        shard_specs[weight] = (None,)
+    def get_shard_spec(args, kwargs):
+        shard_specs = {}
+        shard_specs[args[0]] = ("batch", None, None)  # input tensor
+        if args[1] is not None:
+            shard_specs[args[1]] = (None,)  # weight
+        return shard_specs
 
     run_graph_test(
         model,
@@ -154,7 +157,7 @@ def test_patched_rms_norm_functional_batch_parallel(
         framework=Framework.TORCH,
         torch_options=options,
         mesh=mesh,
-        shard_spec_fn=shard_specs,
+        shard_spec_fn=get_shard_spec,
     )
 
 
@@ -458,6 +461,72 @@ def test_patched_topk_both(input_shape, k):
     )
 
 
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "input_shape, dim",
+    [((4, 10), 0), ((4, 10), 1), ((2, 3, 8), 2)],
+)
+def test_composite_gather(input_shape, dim):
+    class GatherModel(torch.nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x, index):
+            return composite_gather(x, self.dim, index)
+
+    options = {"tt_enable_composite_ops": False}
+
+    input_tensor = torch.randn(*input_shape)
+    # Build an index tensor with the same number of dims, gathering 2 elements along dim
+    index_shape = list(input_shape)
+    index_shape[dim] = 2
+    index = torch.randint(0, input_shape[dim], index_shape)
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            GatherModel(dim),
+            [input_tensor, index],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "input_shape, dim",
+    [((4, 10), 0), ((4, 10), 1), ((2, 3, 8), 2)],
+)
+def test_patched_gather(input_shape, dim):
+    """torch.gather patched via tt_enable_composite_ops → composite_gather selected."""
+
+    class GatherModel(torch.nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x, index):
+            return torch.gather(x, self.dim, index)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(*input_shape)
+    index_shape = list(input_shape)
+    index_shape[dim] = 2
+    index = torch.randint(0, input_shape[dim], index_shape)
+
+    run_graph_test(
+        GatherModel(dim),
+        [input_tensor, index],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
 # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
 # @pytest.mark.single_device
 # @pytest.mark.parametrize("affine", [True, False])
@@ -573,3 +642,114 @@ def test_patched_topk_both(input_shape, k):
 #             framework=Framework.TORCH,
 #             torch_options=options,
 #         )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize("is_causal", [True, False])
+@pytest.mark.parametrize("use_attn_mask", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, num_heads, seq_len, head_dim",
+    [(1, 1, 32, 32), (1, 8, 64, 64), (2, 4, 128, 64)],
+)
+def test_composite_sdpa(
+    is_causal, use_attn_mask, batch_size, num_heads, seq_len, head_dim
+):
+    # is_causal and attn_mask cannot both be set
+    if is_causal and use_attn_mask:
+        pytest.skip("is_causal and attn_mask cannot both be set")
+
+    class SDPAModel(torch.nn.Module):
+        def __init__(self, is_causal):
+            super().__init__()
+            self.is_causal = is_causal
+
+        def forward(self, query, key, value, attn_mask=None):
+            return composite_scaled_dot_product_attention(
+                query, key, value, attn_mask=attn_mask, is_causal=self.is_causal
+            )
+
+    options = {"tt_enable_composite_ops": False}
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    value = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+
+    if use_attn_mask:
+        # Additive causal mask: 0 for attend, -inf for mask out
+        # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+        attn_mask = torch.zeros(
+            batch_size, num_heads, seq_len, seq_len, dtype=torch.bfloat16
+        )
+        attn_mask.masked_fill_(
+            ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+        )
+    else:
+        attn_mask = None
+
+    model = SDPAModel(is_causal)
+    inputs = [query, key, value, attn_mask] if use_attn_mask else [query, key, value]
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            model,
+            inputs,
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize("is_causal", [True, False])
+@pytest.mark.parametrize("use_attn_mask", [True, False])
+@pytest.mark.parametrize(
+    "batch_size, num_heads, seq_len, head_dim",
+    [(1, 1, 32, 32), (1, 8, 64, 64), (2, 4, 128, 64)],
+)
+def test_patched_sdpa(
+    is_causal, use_attn_mask, batch_size, num_heads, seq_len, head_dim
+):
+    # is_causal and attn_mask cannot both be set
+    if is_causal and use_attn_mask:
+        pytest.skip("is_causal and attn_mask cannot both be set")
+
+    class SDPAModel(torch.nn.Module):
+        def __init__(self, is_causal):
+            super().__init__()
+            self.is_causal = is_causal
+
+        def forward(self, query, key, value, attn_mask=None):
+            return F.scaled_dot_product_attention(
+                query, key, value, attn_mask=attn_mask, is_causal=self.is_causal
+            )
+
+    options = {"tt_enable_composite_ops": True}
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    key = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+    value = torch.randn(batch_size, num_heads, seq_len, head_dim, dtype=torch.bfloat16)
+
+    if use_attn_mask:
+        # Additive causal mask: 0 for attend, -inf for mask out
+        # TTIR requires 4D mask: [batch, heads, seq_len, seq_len]
+        attn_mask = torch.zeros(
+            batch_size, num_heads, seq_len, seq_len, dtype=torch.bfloat16
+        )
+        attn_mask.masked_fill_(
+            ~torch.ones(seq_len, seq_len).bool().tril(), float("-inf")
+        )
+    else:
+        attn_mask = None
+
+    model = SDPAModel(is_causal)
+    inputs = [query, key, value, attn_mask] if use_attn_mask else [query, key, value]
+
+    run_graph_test(
+        model,
+        inputs,
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )

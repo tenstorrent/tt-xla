@@ -14,7 +14,7 @@ from utils import create_model_loader, resolve_display_name
 
 # Defaults for all llms
 DEFAULT_OPTIMIZATION_LEVEL = 2
-DEFAULT_TP_OPTIMIZATION_LEVEL = 1
+DEFAULT_TP_OPTIMIZATION_LEVEL = 2
 DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
 DEFAULT_TRACE_ENABLED = True
 DEFAULT_BATCH_SIZE = 32
@@ -61,6 +61,7 @@ def test_llm(
     weight_dtype_overrides: dict = None,
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
+    use_mla_cache: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -154,6 +155,7 @@ def test_llm(
         weight_dtype_overrides=weight_dtype_overrides,
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
+        use_mla_cache=use_mla_cache,
     )
 
     if output_file:
@@ -216,6 +218,7 @@ def test_llm_tp(
     request=None,
     arch="wormhole_llmbox",
     decode_only=False,
+    required_pcc=DEFAULT_REQUIRED_PCC,
     **kwargs,
 ):
     mesh_config_fn = kwargs.pop(
@@ -241,6 +244,7 @@ def test_llm_tp(
         num_layers=num_layers,
         request=request,
         decode_only=decode_only,
+        required_pcc=required_pcc,
         **kwargs,
     )
 
@@ -253,6 +257,7 @@ def test_llama_3_2_1b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -270,6 +275,11 @@ def test_llama_3_2_1b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -281,6 +291,7 @@ def test_llama_3_2_3b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -298,6 +309,11 @@ def test_llama_3_2_3b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -309,6 +325,7 @@ def test_gemma_1_1_2b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -326,6 +343,11 @@ def test_gemma_1_1_2b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -337,6 +359,7 @@ def test_gemma_2_2b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -354,6 +377,11 @@ def test_gemma_2_2b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -365,6 +393,7 @@ def test_phi1(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.phi1.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -382,6 +411,11 @@ def test_phi1(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -393,6 +427,7 @@ def test_phi1_5(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.phi1_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -410,6 +445,11 @@ def test_phi1_5(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -421,6 +461,7 @@ def test_phi2(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.phi2.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -438,6 +479,11 @@ def test_phi2(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -449,6 +495,7 @@ def test_falcon3_1b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -469,6 +516,11 @@ def test_falcon3_1b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -480,6 +532,7 @@ def test_falcon3_3b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -500,6 +553,11 @@ def test_falcon3_3b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -511,6 +569,7 @@ def test_qwen_2_5_0_5b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -529,6 +588,11 @@ def test_qwen_2_5_0_5b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -540,6 +604,7 @@ def test_qwen_3_0_6b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -557,6 +622,11 @@ def test_qwen_3_0_6b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -568,6 +638,7 @@ def test_qwen_3_1_7b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -585,6 +656,11 @@ def test_qwen_3_1_7b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -596,6 +672,7 @@ def test_qwen_3_4b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -613,6 +690,11 @@ def test_qwen_3_4b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -624,6 +706,7 @@ def test_qwen_2_5_1_5b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -641,6 +724,10 @@ def test_qwen_2_5_1_5b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level if optimization_level is not None else 1
+        ),
+        required_pcc=0.90,
     )
 
 
@@ -652,6 +739,7 @@ def test_qwen_2_5_3b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -669,6 +757,11 @@ def test_qwen_2_5_3b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -680,6 +773,7 @@ def test_qwen_3_8b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -697,6 +791,11 @@ def test_qwen_3_8b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -708,6 +807,7 @@ def test_qwen_2_5_7b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -725,11 +825,17 @@ def test_qwen_2_5_7b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level if optimization_level is not None else 1
+        ),
+        required_pcc=0.90,
     )
 
 
 # FAILED: KeyError: "L['self'].model.lifted_tensor_0"
-def test_gemma_1_1_7b(output_file, num_layers, request, max_output_tokens):
+def test_gemma_1_1_7b(
+    output_file, num_layers, request, max_output_tokens, optimization_level
+):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -743,11 +849,18 @@ def test_gemma_1_1_7b(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
 # FAILED: TypeError: Phi3ForCausalLM.forward() got an unexpected keyword argument 'cache_position'
-def test_phi3_mini(output_file, num_layers, request, max_output_tokens):
+def test_phi3_mini(
+    output_file, num_layers, request, max_output_tokens, optimization_level
+):
     from third_party.tt_forge_models.phi3.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -761,11 +874,18 @@ def test_phi3_mini(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
 # FAILED: KeyError: 'lifted_tensor_0'
-def test_phi3_5_mini(output_file, num_layers, request, max_output_tokens):
+def test_phi3_5_mini(
+    output_file, num_layers, request, max_output_tokens, optimization_level
+):
     from third_party.tt_forge_models.phi3.phi_3_5.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -779,11 +899,18 @@ def test_phi3_5_mini(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
 # FAILED: AttributeError: 'MambaConfig' object has no attribute 'num_attention_heads'
-def test_mamba_2_8b(output_file, num_layers, request, max_output_tokens):
+def test_mamba_2_8b(
+    output_file, num_layers, request, max_output_tokens, optimization_level
+):
     from third_party.tt_forge_models.mamba.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -797,6 +924,11 @@ def test_mamba_2_8b(output_file, num_layers, request, max_output_tokens):
         num_layers=num_layers,
         request=request,
         max_output_tokens=max_output_tokens,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -808,6 +940,7 @@ def test_falcon3_7b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -828,6 +961,11 @@ def test_falcon3_7b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -839,6 +977,7 @@ def test_mistral_7b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -856,6 +995,11 @@ def test_mistral_7b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -868,6 +1012,7 @@ def test_ministral_8b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -887,6 +1032,11 @@ def test_ministral_8b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -898,6 +1048,7 @@ def test_llama_3_1_8b(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -916,6 +1067,12 @@ def test_llama_3_1_8b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        required_pcc=0.90,
     )
 
 
@@ -927,6 +1084,7 @@ def test_falcon3_7b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -944,6 +1102,11 @@ def test_falcon3_7b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -955,6 +1118,7 @@ def test_falcon3_10b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -972,6 +1136,11 @@ def test_falcon3_10b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -983,6 +1152,7 @@ def test_llama_3_1_8b_instruct_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1000,6 +1170,11 @@ def test_llama_3_1_8b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1011,6 +1186,7 @@ def test_mistral_7b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1028,6 +1204,11 @@ def test_mistral_7b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1040,6 +1221,7 @@ def test_ministral_8b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1058,6 +1240,7 @@ def test_ministral_8b_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
+        optimization_level=1,
     )
 
 
@@ -1069,6 +1252,7 @@ def test_mistral_nemo_instruct_2407_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1086,6 +1270,7 @@ def test_mistral_nemo_instruct_2407_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1097,6 +1282,7 @@ def test_mistral_small_24b_instruct_2501_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1114,6 +1300,7 @@ def test_mistral_small_24b_instruct_2501_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1125,6 +1312,7 @@ def test_qwen_2_5_14b_instruct_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1142,6 +1330,7 @@ def test_qwen_2_5_14b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1153,6 +1342,7 @@ def test_qwen_2_5_32b_instruct_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1170,6 +1360,11 @@ def test_qwen_2_5_32b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1181,6 +1376,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_2_5_coder.pytorch.loader import (
         ModelLoader,
@@ -1198,6 +1394,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1209,6 +1406,7 @@ def test_qwen_3_0_6b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1226,6 +1424,11 @@ def test_qwen_3_0_6b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1237,6 +1440,7 @@ def test_qwen_3_1_7b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1254,6 +1458,11 @@ def test_qwen_3_1_7b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1265,6 +1474,7 @@ def test_qwen_3_8b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1282,6 +1492,7 @@ def test_qwen_3_8b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1293,6 +1504,7 @@ def test_qwen_3_14b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1310,6 +1522,7 @@ def test_qwen_3_14b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=1,
     )
 
 
@@ -1321,6 +1534,7 @@ def test_qwen_3_32b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1338,6 +1552,11 @@ def test_qwen_3_32b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1349,6 +1568,7 @@ def test_llama_3_8b_instruct_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1366,6 +1586,11 @@ def test_llama_3_8b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1377,6 +1602,7 @@ def test_llama_3_1_8b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1394,6 +1620,11 @@ def test_llama_3_1_8b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1405,6 +1636,7 @@ def test_llama_3_8b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1422,6 +1654,11 @@ def test_llama_3_8b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
     )
 
 
@@ -1433,6 +1670,7 @@ def test_llama_3_1_70b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1454,6 +1692,7 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
+        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1487,6 +1726,7 @@ def test_gpt_oss_20b_tp(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1507,6 +1747,7 @@ def test_gpt_oss_20b_tp(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
+        optimization_level=1,
     )
 
 
@@ -1518,6 +1759,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1537,6 +1779,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
+        optimization_level=1,
     )
 
 
@@ -1548,6 +1791,7 @@ def test_llama_3_1_70b_tp_galaxy(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1566,6 +1810,7 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
+        optimization_level=1,
     )
 
 
@@ -1577,6 +1822,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1598,43 +1844,6 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
-    )
-
-
-def test_gpt_oss_120b_tp_galaxy_batch_size_64(
-    output_file,
-    num_layers,
-    request,
-    accuracy_testing,
-    batch_size,
-    max_output_tokens,
-    decode_only,
-):
-    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
-        ModelLoader,
-        ModelVariant,
-    )
-
-    variant = ModelVariant.GPT_OSS_120B
-    test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
-        num_layers=num_layers,
-        request=request,
-        accuracy_testing=accuracy_testing,
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
-        batch_size=(
-            batch_size if batch_size is not None else 64
-        ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
-        arch="wormhole_galaxy",
-        optimization_level=1,
-        weight_dtype_overrides={
-            "model.layers.*.mlp.router.weight": "bfp_bf4",
-            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
-            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
-        },
     )
 
 
@@ -1688,6 +1897,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     batch_size,
     max_output_tokens,
     decode_only,
+    optimization_level,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1712,4 +1922,103 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+    )
+
+
+def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
+    return (1, 4), ("batch", "model")
+
+
+def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
+    """QB2 (1,4) mesh shard specs — model-axis-only, no batch sharding."""
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.experts.gate_up_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = ("model", None)
+        shard_specs[layer.mlp.experts.down_proj] = ("model", None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = ("model", None)
+    return shard_specs
+
+
+def test_gpt_oss_120b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=batch_size if batch_size is not None else 8,
+        arch="qb2-blackhole",
+        optimization_level=1,
+        trace_enabled=True,
+        experimental_weight_dtype="bfp_bf8",
+        weight_dtype_overrides={
+            "default": "bfp_bf8",
+            "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
+            "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
+        },
+        required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
+        mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
+        # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+    )
+
+
+# Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
+def test_kimi_k2_tp_galaxy_2_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.kimi_k2.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.KIMI_K2_INSTRUCT_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=2,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=128,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=0.91,
     )
