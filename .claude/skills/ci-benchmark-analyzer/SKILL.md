@@ -134,15 +134,25 @@ gh api repos/tenstorrent/tt-xla/actions/jobs/<JOB_DATABASE_ID>/logs
 
    | Log signal | Label |
    |------------|-------|
-   | `AssertionError: ... PCC failed. PCC=X, Required=Y` | `PCC below threshold: PCC=X, Required=Y` |
+   | `AssertionError: First decode PCC failed. PCC=X, Required=Y` | `First decode PCC failed. PCC=X, Required=Y` |
+   | `AssertionError: <other> PCC failed. PCC=X, Required=Y` | `<other> PCC failed. PCC=X, Required=Y` |
    | `TT_FATAL: Out of Memory: ... L1 buffer ...` | `L1 OOM: <size> B across <N> banks` |
    | `TT_THROW: ... circular buffers ... clash with L1 buffers ...` | `CB/L1 clash: <core range>` |
    | `error:` from MLIR output | `Compilation error: <op or pass name>` |
    | Other `RuntimeError` / `TT_FATAL` | `Runtime error: <one-clause excerpt>` |
 
+   **PCC labels**: use the AssertionError message verbatim (after `AssertionError: `) as the label — do NOT strip the step qualifier ("First decode", "Prefill", etc.). The step where PCC failed is essential diagnostic context.
+
    The same label is used in the Summary bullet AND in the Failed Jobs subsection's `**Error**` line — they must match.
 
-4. **Use Glean to find prior context — but stay factual.** Search for the error and surface what's already documented:
+4. **For device timeout / hang failures**, the hanging op is critical context. After identifying the `TIMEOUT: device timeout in fetch queue wait` error, scan the job log for the op being executed at the time of hang. Look for lines like:
+   - `BinaryNg`, `UnaryWithParam`, `MatmulMultiCore`, or other kernel/op names appearing shortly before the timeout
+   - tt-triage output lines that list the op name and its arguments
+   - Patterns like `Running op: <op_name>` or `Dispatching kernel: <name>`
+
+   Include the hanging op in the **Context** subsection under a "Hang details" note, e.g.: `Hang details: timed out during BinaryNg op (from job log)`. This makes it immediately actionable for the tt-metal/tt-mlir owners debugging the hang.
+
+5. **Use Glean to find prior context — but stay factual.** Search for the error and surface what's already documented:
    ```
    mcp__glean_default__search: "<core error message> tt-xla" or "<op name> failure"
    mcp__glean_default__chat: "What is known about this error in tt-xla/tt-mlir: <error message>"
@@ -214,9 +224,14 @@ For each failed model, create a subsection with an anchor matching the summary l
 - **Context**: <factual references only — issue numbers, filer + file date, related PRs, owners, Slack threads. State whether it's a known issue and link it. Do not write "no fix has merged yet", do not interpret PCC values, do not speculate about cause unless the linked issue states it explicitly.>
 ```
 
+**All issue and PR references must be hyperlinked** — never write bare `tt-xla#NNNN` text. Use full markdown links:
+- tt-xla issues/PRs: `[tt-xla#NNNN](https://github.com/tenstorrent/tt-xla/issues/NNNN)` (use `/pull/NNNN` for PRs)
+- tt-mlir issues/PRs: `[tt-mlir#NNNN](https://github.com/tenstorrent/tt-mlir/issues/NNNN)`
+- tt-metal issues/PRs: `[tt-metal#NNNN](https://github.com/tenstorrent/tt-metal/issues/NNNN)`
+
 **Good Context examples** (terse, factual, link-driven):
-- `Tracked in tt-xla#4394, tt-mlir#8044 (filed by pdeviTT, 2026-04-21, open). Owner: Vladan Kovacevic, pdeviTT.`
-- `Known issue from tt-xla#4318 (new decode PCC check, merged 2026-04-24). Active investigation in #tt-forge-models-code-changes Slack thread "Qwen PCC Drop Debugging". Owner: pdeviTT.`
+- `Tracked in [tt-xla#4394](https://github.com/tenstorrent/tt-xla/issues/4394), [tt-mlir#8044](https://github.com/tenstorrent/tt-mlir/issues/8044) (filed by pdeviTT, 2026-04-21, open). Owner: Vladan Kovacevic, pdeviTT.`
+- `Known issue from [tt-xla#4318](https://github.com/tenstorrent/tt-xla/pull/4318) (new decode PCC check, merged 2026-04-24). Active investigation in #tt-forge-models-code-changes Slack thread "Qwen PCC Drop Debugging". Owner: pdeviTT.`
 
 **Avoid**:
 - "No fix has merged yet" (unstated assumption — leave it out, the issue link tells the reader)

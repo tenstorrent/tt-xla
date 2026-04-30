@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """
 Batch-download perf report artifacts for a GitHub Actions run and extract metrics.
 
@@ -100,7 +103,9 @@ def download_artifact(repo: str, artifact_id: int, output_dir: Path) -> Path | N
 
 def extract_metrics(report: dict) -> dict:
     """Extract key metrics from a perf report JSON."""
-    measurements = {m["measurement_name"]: m["value"] for m in report.get("measurements", [])}
+    measurements = {
+        m["measurement_name"]: m["value"] for m in report.get("measurements", [])
+    }
 
     total_samples = measurements.get("total_samples", 0)
     total_time = measurements.get("total_time", 0)
@@ -134,7 +139,9 @@ def extract_metrics(report: dict) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fetch and process perf report artifacts")
+    parser = argparse.ArgumentParser(
+        description="Fetch and process perf report artifacts"
+    )
     parser.add_argument("run_id", help="GitHub Actions run ID")
     parser.add_argument(
         "--output-dir",

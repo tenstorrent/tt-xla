@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """
 Compare perf metrics between two nightly CI runs and produce a structured diff.
 
@@ -54,7 +57,9 @@ def get_perf_artifacts(repo: str, run_id: str) -> list[dict]:
     return artifacts
 
 
-def download_and_parse_report(repo: str, artifact_id: int, tmp_dir: Path) -> dict | None:
+def download_and_parse_report(
+    repo: str, artifact_id: int, tmp_dir: Path
+) -> dict | None:
     """Download a perf-report artifact and parse its JSON."""
     result = subprocess.run(
         ["gh", "api", f"repos/{repo}/actions/artifacts/{artifact_id}/zip"],
@@ -81,7 +86,9 @@ def download_and_parse_report(repo: str, artifact_id: int, tmp_dir: Path) -> dic
 
 def extract_model_metrics(report: dict) -> dict:
     """Extract key metrics from a perf report."""
-    measurements = {m["measurement_name"]: m["value"] for m in report.get("measurements", [])}
+    measurements = {
+        m["measurement_name"]: m["value"] for m in report.get("measurements", [])
+    }
     total_samples = measurements.get("total_samples", 0)
     total_time = measurements.get("total_time", 0)
 
@@ -123,11 +130,16 @@ def main():
     tmp_dir = Path(tempfile.mkdtemp())
 
     # Fetch artifacts for both runs
-    print(f"Fetching artifacts for current run {args.current_run_id}...", file=sys.stderr)
+    print(
+        f"Fetching artifacts for current run {args.current_run_id}...", file=sys.stderr
+    )
     current_artifacts = get_perf_artifacts(args.repo, args.current_run_id)
     print(f"  Found {len(current_artifacts)} perf report artifacts", file=sys.stderr)
 
-    print(f"Fetching artifacts for previous run {args.previous_run_id}...", file=sys.stderr)
+    print(
+        f"Fetching artifacts for previous run {args.previous_run_id}...",
+        file=sys.stderr,
+    )
     previous_artifacts = get_perf_artifacts(args.repo, args.previous_run_id)
     print(f"  Found {len(previous_artifacts)} perf report artifacts", file=sys.stderr)
 
@@ -174,9 +186,15 @@ def main():
 
         sps_diff = compute_diff(curr["samples_per_sec"], prev["samples_per_sec"])
         ttft_diff = None
-        if curr.get("ttft_ms") is not None and prev.get("ttft_ms") is not None and prev["ttft_ms"] > 0:
+        if (
+            curr.get("ttft_ms") is not None
+            and prev.get("ttft_ms") is not None
+            and prev["ttft_ms"] > 0
+        ):
             # For TTFT, lower is better, so invert: negative change in TTFT = improvement
-            ttft_diff = round(((prev["ttft_ms"] - curr["ttft_ms"]) / prev["ttft_ms"]) * 100, 2)
+            ttft_diff = round(
+                ((prev["ttft_ms"] - curr["ttft_ms"]) / prev["ttft_ms"]) * 100, 2
+            )
 
         if sps_diff is None:
             category = "unknown"
@@ -191,7 +209,11 @@ def main():
             {
                 **curr,
                 "previous_samples_per_sec": round(prev["samples_per_sec"], 2),
-                "previous_ttft_ms": round(prev["ttft_ms"], 2) if prev.get("ttft_ms") is not None else None,
+                "previous_ttft_ms": (
+                    round(prev["ttft_ms"], 2)
+                    if prev.get("ttft_ms") is not None
+                    else None
+                ),
                 "diff_percent": sps_diff,
                 "category": category,
                 "diff_ttft_percent": ttft_diff,
@@ -207,7 +229,11 @@ def main():
                     "device_type": prev["device_type"],
                     "samples_per_sec": None,
                     "previous_samples_per_sec": round(prev["samples_per_sec"], 2),
-                    "previous_ttft_ms": round(prev["ttft_ms"], 2) if prev.get("ttft_ms") is not None else None,
+                    "previous_ttft_ms": (
+                        round(prev["ttft_ms"], 2)
+                        if prev.get("ttft_ms") is not None
+                        else None
+                    ),
                     "diff_percent": None,
                     "category": "missing",
                     "ttft_ms": None,
@@ -230,7 +256,9 @@ def main():
         "current_run_id": args.current_run_id,
         "previous_run_id": args.previous_run_id,
         "threshold_percent": args.threshold,
-        "total_models_compared": len([c for c in comparisons if c["category"] not in ("new", "missing")]),
+        "total_models_compared": len(
+            [c for c in comparisons if c["category"] not in ("new", "missing")]
+        ),
         "regressions": len(regressions),
         "improvements": len(improvements),
         "stable": len(stable),
@@ -245,7 +273,9 @@ def main():
             "new": new_models,
             "missing": missing,
         },
-        "all_comparisons": sorted(comparisons, key=lambda x: (x["device_type"], x["display_name"])),
+        "all_comparisons": sorted(
+            comparisons, key=lambda x: (x["device_type"], x["display_name"])
+        ),
     }
 
     summary_path = output_dir / "comparison.json"
