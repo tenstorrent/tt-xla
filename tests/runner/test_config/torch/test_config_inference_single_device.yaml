@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  gpt_oss_heretic_gguf/causal_lm/pytorch-20B_Heretic_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model size ~40 GB BF16 (20B params) exceeds n150 DRAM capacity; INTERNAL: Error code: 13 during _run_cached_graph"
