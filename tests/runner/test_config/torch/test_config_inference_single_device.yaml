@@ -2592,6 +2592,10 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  gpt_oss/causal_lm/pytorch-20B_BF16_abliterated-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: 20B BF16 model (~40 GB) exceeds single-device DRAM (~32 GB on p150b). Out of Memory: Not enough space to allocate 1061683200 B DRAM buffer across 8 banks."
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
