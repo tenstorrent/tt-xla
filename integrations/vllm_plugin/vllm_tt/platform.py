@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from vllm.attention.selector import AttentionSelectorConfig
     from vllm.config import VllmConfig
     from vllm.config.cache import BlockSize
-    from vllm.inputs import ProcessorInputs, PromptType
+    from vllm.inputs import PromptType
     from vllm.pooling_params import PoolingParams
     from vllm.sampling_params import SamplingParams
 
@@ -294,7 +294,6 @@ class TTPlatform(Platform):
         cls,
         prompt: "PromptType",
         params: "ParamsType",
-        # processed_inputs: "ProcessorInputs",
     ) -> None:
         pass
 
