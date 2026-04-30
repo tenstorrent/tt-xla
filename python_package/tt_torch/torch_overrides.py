@@ -7,6 +7,13 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        # torch.histc is not implemented for integer dtypes on CPU.
+        # Cast the input to float so the CPU partitioner and golden-reference
+        # run can proceed; the result is equivalent for integer histogram inputs.
+        if getattr(func, "__name__", "") == "histc" and args:
+            inp = args[0]
+            if isinstance(inp, torch.Tensor) and not inp.is_floating_point():
+                args = (inp.float(),) + args[1:]
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
