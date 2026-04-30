@@ -31,6 +31,25 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # XLA requires all index tensors in aten.index.Tensor to share the same
+        # dtype. Standard PyTorch promotes int32→int64 silently, but XLA raises
+        # "Cannot concatenate arrays with different element types: S64 vs S32".
+        # Promote any int32 indices to int64 so XLA sees a homogeneous list.
+        if func is torch.ops.aten.index.Tensor:
+            tensor_arg = args[0]
+            indices = list(args[1]) if len(args) > 1 else list(kwargs.get("indices", []))
+            if any(
+                idx is not None and isinstance(idx, torch.Tensor) and idx.dtype == torch.int32
+                for idx in indices
+            ) and any(
+                idx is not None and isinstance(idx, torch.Tensor) and idx.dtype == torch.int64
+                for idx in indices
+            ):
+                indices = [
+                    idx.to(torch.int64) if (idx is not None and isinstance(idx, torch.Tensor)) else idx
+                    for idx in indices
+                ]
+                return func(tensor_arg, indices, **(kwargs or {}))
         return func(*args, **(kwargs or {}))
 
 
