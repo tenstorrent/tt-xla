@@ -31,6 +31,20 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor and not torch.compiler.is_compiling():
+            tensor = args[0] if len(args) > 0 else (kwargs or {}).get("self")
+            dim = args[1] if len(args) > 1 else (kwargs or {}).get("dim", 0)
+            start = args[2] if len(args) > 2 else (kwargs or {}).get("start", None)
+            end = args[3] if len(args) > 3 else (kwargs or {}).get("end", None)
+            step = args[4] if len(args) > 4 else (kwargs or {}).get("step", 1)
+            if tensor is not None and isinstance(dim, int) and dim < len(tensor.shape):
+                size = tensor.shape[dim]
+                if isinstance(size, int) and size > 0:
+                    if isinstance(start, int) and start < -size:
+                        start = -size
+                    if isinstance(end, int) and end < -size:
+                        end = -size
+                    args = (tensor, dim, start, end, step)
         return func(*args, **(kwargs or {}))
 
 
