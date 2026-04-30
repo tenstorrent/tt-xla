@@ -2670,4 +2670,4 @@ test_config:
 
   gpt_oss_heretic_gguf/causal_lm/pytorch-20B_Heretic_GGUF-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Model size ~40 GB BF16 (20B params) exceeds n150 DRAM capacity; INTERNAL: Error code: 13 during _run_cached_graph"
+    reason: "Out of Memory: Not enough space to allocate 1061683200 B DRAM buffer across 8 banks (8×~4 GB = ~32 GB total); 20B GPT-OSS BF16 ~40 GB exceeds n150 DRAM capacity"
