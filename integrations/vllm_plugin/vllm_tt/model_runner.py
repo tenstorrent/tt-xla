@@ -1206,10 +1206,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -1772,6 +1771,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
 
+        # Cache attention layer names once. `static_forward_context` is
+        # populated during model construction and stays fixed thereafter,
+        # so rebuilding the {layer_name: attn_metadata} mapping each step
+        # via dict comprehension is wasted Python work that scales with
+        # the number of attention layers.
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, Attention).keys()
+        )
+
     def reload_weights(self) -> None:
         assert (
             getattr(self, "model", None) is not None
@@ -1805,10 +1813,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=None,
         )
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
 
         with (
             torch_dynamo_jax_compatibility(),
