@@ -63,10 +63,7 @@ N_WARMUP = 3
 N_ITERS = 5 if TRACY_MODE else 100
 
 
-def run_sampler(logits, metadata):
-    from integrations.vllm_plugin.vllm_tt.sampler import Sampler
-
-    sampler = Sampler()
+def run_sampler(logits, metadata, sampler):
     return sampler(logits, metadata).sampled_token_ids
 
 
@@ -202,13 +199,16 @@ def benchmark(
         )
     else:
         import torch_xla.core.xla_model as xm
+        from integrations.vllm_plugin.vllm_tt.sampler import Sampler
 
+        device = xm.xla_device()
+
+        sampler = Sampler(device, 262144)
         global compiled_sampler, compiled_greedy
         if compiled_sampler is None:
             compiled_sampler = torch.compile(run_sampler, backend="tt", dynamic=False)
             compiled_greedy = torch.compile(run_greedy, backend="tt", dynamic=False)
 
-        device = xm.xla_device()
         logits = logits_base.repeat(batch, 1).to(device)
         metadata = make_metadata(batch, temperature, greedy, device, top_k, top_p)
 
@@ -225,12 +225,12 @@ def benchmark(
             )
         else:
             print("Compiling non-greedy sampler...")
-            _ = compiled_sampler(logits, metadata)
+            _ = compiled_sampler(logits, metadata, sampler)
             xm.mark_step()
             xm.wait_device_ops()
             print("Compile done.\n")
             mean_ms = timed_loop(
-                fn=lambda: compiled_sampler(logits, metadata),
+                fn=lambda: compiled_sampler(logits, metadata, sampler),
                 sync_fn=lambda out: out.cpu(),
                 label="device/non-greedy",
             )
@@ -274,21 +274,22 @@ def main():
     )
     args = parser.parse_args()
 
-    if not os.path.exists(args.fixture):
-        print(f"ERROR: fixture not found: {args.fixture}")
-        print("Generate it with:")
-        print("  python tests/integrations/vllm_plugin/sampling/capture_logits.py")
-        sys.exit(1)
+    # if not os.path.exists(args.fixture):
+    #     print(f"ERROR: fixture not found: {args.fixture}")
+    #     print("Generate it with:")
+    #     print("  python tests/integrations/vllm_plugin/sampling/capture_logits.py")
+    #     sys.exit(1)
+
+
+    # fixture = torch.load(args.fixture, weights_only=False)
+    # logits = fixture["logits"].float()  # [1, vocab_size] float32
+    logits = torch.randn(1, 262144)
+    # print(
+    #     f"Loaded fixture: vocab_size={logits.shape[-1]}, "
+    #     f"greedy_token={fixture.get('greedy_token')}"
+    # )
 
     t_start = time.perf_counter()
-
-    fixture = torch.load(args.fixture, weights_only=False)
-    logits = fixture["logits"].float()  # [1, vocab_size] float32
-    print(
-        f"Loaded fixture: vocab_size={logits.shape[-1]}, "
-        f"greedy_token={fixture.get('greedy_token')}"
-    )
-
     benchmark(
         logits_base=logits,
         batch=args.batch,
