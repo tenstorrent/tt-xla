@@ -28,6 +28,7 @@ from .metadata_propagation import (
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
+    bypass_prims_view_of,
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
@@ -85,6 +86,7 @@ def torch_pass_pipeline(
     compiled_graph = insert_argument_type_markers(
         compiled_graph, program.graph_signature, flat_name_to_original_fqn
     )
+    compiled_graph = bypass_prims_view_of(compiled_graph)
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs
     )
