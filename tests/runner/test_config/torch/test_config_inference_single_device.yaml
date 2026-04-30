@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  kimi_k2_5/pytorch-Kimi-K2.5-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: Kimi K2.5 text backbone is DeepSeek-V3 class (61 layers, hidden_size=7168, 384 routed experts), ~1T total params at BF16 far exceeds n150 (12 GB), n300 (24 GB), and p150b (32 GB) single-device DRAM."
