@@ -85,16 +85,13 @@ def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Te
 
 
 class Sampler(nn.Module):
-    def __init__(self, device, vocab_size):
+    def __init__(self):
         # TODO(houseroad): Add support for logprobs_mode.
         # Note: basic logprob support is already working — when logprobs are
         # requested, model_runner.py calls gather_logprobs() after forward()
         # and passes LogprobsLists directly to the engine.
         # logprobs_tensors is intentionally None in forward() — see comment there.
         super().__init__()
-        self.device = device
-        self.batch_padding = torch.ones(32, vocab_size).to(device)
-
 
     def forward(
         self,
@@ -246,7 +243,6 @@ class Sampler(nn.Module):
                 logits,
                 None,
                 None,
-                self.batch_padding,
             )
             random_sampled_padded = self._ttnn_sampling_padded(
                 filtered_logits,
@@ -462,7 +458,6 @@ def apply_top_k_top_p_fast(
     logits: torch.Tensor,
     k: torch.Tensor | None,
     p: torch.Tensor | None,
-    batch_padding: torch.Tensor | None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Top-k/top-p filtering via multi-core ttnn.topk.
 
@@ -484,14 +479,11 @@ def apply_top_k_top_p_fast(
     # [32, chunk] instead of [batch, chunk]. Multi-core topk is 14x faster
     # at batch=32 — hardware processes all rows simultaneously and
     # dummy -inf rows add negligible overhead.
-    if batch_padding is not None and batch == 1:
-        logits = logits * batch_padding
-    else:
-        logits = torch.nn.functional.pad(
-            logits,
-            (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
-            value=float("-inf"),
-        )
+    logits = torch.nn.functional.pad(
+        logits,
+        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
+        value=float("-inf"),
+    )
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)

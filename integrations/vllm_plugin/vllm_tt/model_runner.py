@@ -1620,7 +1620,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
 
         self.model.compile(backend="tt", dynamic=False)
-        self.sampler = Sampler(self.device, self.vocab_size)
+        self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
 
     def reload_weights(self) -> None:
