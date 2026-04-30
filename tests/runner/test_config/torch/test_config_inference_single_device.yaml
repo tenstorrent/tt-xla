@@ -2592,6 +2592,10 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  gpt_oss_120b_uncensored_bf16_gguf/causal_lm/pytorch-GPT_OSS_120B_UNCENSORED_BF16_Q4_K_M_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: 120B model at Q4_K_M quantization (~67 GB) far exceeds n150 DRAM (12 GB)."
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
