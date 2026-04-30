@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  dinerburger_qwen_3_5_27b_gguf/causal_lm/pytorch-27B_Q8_0_XXL-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: 27B Q8_0 GGUF dequantizes to ~54 GB bfloat16, exceeding n150 12 GB DRAM. Also: GGUF arch 'qwen35' not registered in transformers GGUF_CONFIG_MAPPING (Tier B new-infrastructure for hybrid GatedDeltaNet tensor mappings)."
