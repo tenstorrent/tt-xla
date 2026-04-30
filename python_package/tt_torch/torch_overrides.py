@@ -45,6 +45,33 @@ class TorchFunctionOverride(TorchFunctionMode):
                     if isinstance(end, int) and end < -size:
                         end = -size
                     args = (tensor, dim, start, end, step)
+        elif (
+            func is torch.Tensor.__getitem__
+            and not torch.compiler.is_compiling()
+        ):
+            tensor = args[0] if len(args) > 0 else (kwargs or {}).get("self")
+            idx = args[1] if len(args) > 1 else (kwargs or {}).get("indices")
+            if tensor is not None and idx is not None and hasattr(tensor, "shape"):
+                idx_tuple = idx if isinstance(idx, tuple) else (idx,)
+                if all(isinstance(s, slice) for s in idx_tuple):
+                    new_idx = list(idx_tuple)
+                    changed = False
+                    for dim, s in enumerate(new_idx):
+                        if dim < len(tensor.shape):
+                            size = tensor.shape[dim]
+                            if isinstance(size, int) and size > 0:
+                                new_start = s.start
+                                new_stop = s.stop
+                                if isinstance(new_start, int) and new_start < -size:
+                                    new_start = -size
+                                    changed = True
+                                if isinstance(new_stop, int) and new_stop < -size:
+                                    new_stop = -size
+                                    changed = True
+                                if new_start != s.start or new_stop != s.stop:
+                                    new_idx[dim] = slice(new_start, new_stop, s.step)
+                    if changed:
+                        args = (tensor, tuple(new_idx))
         return func(*args, **(kwargs or {}))
 
 
