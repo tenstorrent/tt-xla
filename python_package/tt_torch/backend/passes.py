@@ -295,6 +295,29 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def bypass_prims_view_of(gm):
+    """
+    Replaces prims.view_of(x) nodes with their input x.
+
+    prims.view_of creates an aliased view of its input. For XLA compilation this is
+    a no-op (XLA has no aliased-storage semantics), but torch_xla's
+    partition_fx_graph_for_cpu_fallback cannot functionalize prims::view_of because
+    it is a non-ATen op with alias annotations on its output. Eliminating these nodes
+    before handing the graph to the XLA bridge prevents the RuntimeError.
+
+    This arises when squeeze/view ops with non-unit dimensions appear in the graph
+    (e.g. squeeze(-1) on a 2D tensor decomposed to prims.view_of in the export step).
+    """
+    for node in list(gm.graph.nodes):
+        if (
+            node.op == "call_function"
+            and node.target == torch.ops.prims.view_of.default
+        ):
+            node.replace_all_uses_with(node.args[0])
+            gm.graph.erase_node(node)
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
