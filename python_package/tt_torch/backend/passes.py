@@ -277,6 +277,51 @@ def insert_argument_type_markers(
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm):
+    """
+    Clamp aten.slice.Tensor start indices that are more negative than -dim_size.
+    PyTorch CPU silently clamps such indices, but XLA raises ValueError. This
+    manifests in models with SlidingWindowCache when seq_len < sliding_window
+    (e.g. Gemma3: start=-1023 on a dim of size 23).
+    """
+    for node in gm.graph.nodes:
+        if (
+            node.op == "call_function"
+            and node.target == torch.ops.aten.slice.Tensor
+        ):
+            args = list(node.args)
+            # args: (input, dim, start, end, step)
+            if len(args) < 3:
+                continue
+            start = args[2]
+            if not isinstance(start, int) or start >= 0:
+                continue
+            input_node = args[0]
+            dim = args[1] if len(args) > 1 else 0
+            if not isinstance(dim, int):
+                continue
+            shape = None
+            if (
+                hasattr(input_node, "meta")
+                and "val" in input_node.meta
+                and hasattr(input_node.meta["val"], "shape")
+            ):
+                shape = input_node.meta["val"].shape
+            elif (
+                hasattr(input_node, "meta")
+                and "tensor_meta" in input_node.meta
+                and hasattr(input_node.meta["tensor_meta"], "shape")
+            ):
+                shape = input_node.meta["tensor_meta"].shape
+            if shape is None or dim >= len(shape):
+                continue
+            dim_size = shape[dim]
+            if start < -dim_size:
+                args[2] = -dim_size
+                node.args = tuple(args)
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
