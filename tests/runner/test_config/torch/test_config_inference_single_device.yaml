@@ -220,6 +220,9 @@ test_config:
   distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-inference:
     status: EXPECTED_PASSING
 
+  distilbert/question_answering/pytorch-Xenova_Base_Uncased_Distilled_Squad-single_device-inference:
+    status: EXPECTED_PASSING
+
   distilbert/masked_lm/pytorch-Base_Cased-single_device-inference:
     status: EXPECTED_PASSING
 
