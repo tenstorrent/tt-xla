@@ -103,7 +103,6 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
-    enable_trace: bool = False
     # Optional explicit XLA/SPMD partition spec for KV cache tensors (per K/V
     # tensor of shape (num_blocks, num_kv_heads, block_size, head_size)).
     #
@@ -130,7 +129,6 @@ class TTConfig:
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
-            "enable_trace": self.enable_trace,
             "experimental_weight_dtype": self.experimental_weight_dtype,
             "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
             "enable_trace": "true" if self.enable_trace else "false",
