@@ -27,7 +27,7 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         )
 
     @staticmethod
-    def _cache_to_legacy(cache: Cache) -> tuple:
+    def _cache_to_legacy(cache) -> tuple:
         """
         Convert a Cache (DynamicCache, StaticCache, etc.) to legacy tuple of
         (key, value) tensors per layer for comparison.
@@ -60,6 +60,13 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 TorchComparisonEvaluator._cache_to_legacy(cache.self_attention_cache),
                 TorchComparisonEvaluator._cache_to_legacy(cache.cross_attention_cache),
             )
+        # Duck-type handling for non-Cache cache objects that expose key_cache/value_cache
+        # as lists of tensors (e.g. Lfm2HybridConvCache which is not a Cache subclass).
+        if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
+            result = list(zip(cache.key_cache, cache.value_cache))
+            if hasattr(cache, "conv_cache"):
+                result.extend((c,) for c in cache.conv_cache)
+            return tuple(result)
         return cache
 
     # @override
@@ -72,10 +79,13 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache):
+            if isinstance(tensor, Cache) or (
+                hasattr(tensor, "key_cache") and hasattr(tensor, "value_cache")
+            ):
                 # New transformers library uses Cache classes (DynamicCache, StaticCache)
                 # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
                 # (keys, values) tuple per layer so the comparator can compare tensors.
+                # Also handles non-Cache objects with key_cache/value_cache (e.g. Lfm2HybridConvCache).
                 tensor = TorchComparisonEvaluator._cache_to_legacy(tensor)
             if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float64:
                 tensor = tensor.to(torch.float64)
