@@ -277,6 +277,46 @@ def insert_argument_type_markers(
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm):
+    """
+    Clamps negative start indices that are out of range in aten.slice.Tensor nodes.
+
+    PyTorch semantics allow start < -dim_size (clamped to 0), but the XLA/TT
+    backend validates strictly and raises ValueError for values outside
+    [-dim_size, dim_size-1].  Triggered by SlidingWindowCache.update() doing
+    full_states[:, :, -sliding_window+1:, :] when seq_len < sliding_window.
+    """
+    modified = False
+    for node in list(gm.graph.nodes):
+        if (
+            node.op != "call_function"
+            or node.target != torch.ops.aten.slice.Tensor
+        ):
+            continue
+        args = node.args
+        if len(args) < 3:
+            continue
+        start = args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+        tensor_node = args[0]
+        if not hasattr(tensor_node, "meta") or "val" not in tensor_node.meta:
+            continue
+        dim = args[1] if len(args) > 1 else 0
+        shape = tensor_node.meta["val"].shape
+        if not (0 <= dim < len(shape)):
+            continue
+        dim_size = shape[dim]
+        if not isinstance(dim_size, int):
+            continue
+        if start < -dim_size:
+            node.args = args[:2] + (-dim_size,) + args[3:]
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
