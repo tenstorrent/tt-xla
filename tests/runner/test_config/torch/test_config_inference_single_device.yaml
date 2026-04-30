@@ -1455,6 +1455,10 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
 
+  flux2_gguf/pytorch-flux2_dev_Q8_0-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "FLUX.2 Q8_0 has 32.2B parameters; at BF16 (dequantized) the weights require ~64GB, far exceeding single-device DRAM (~34GB). Even at Q8_0 the weights alone (~36GB) exceed device capacity."
+
   gliner/pytorch-Multi_v2.1-single_device-inference:
     status: NOT_SUPPORTED_SKIP #https://github.com/tenstorrent/tt-xla/issues/4267
 
