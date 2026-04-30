@@ -31,6 +31,23 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # The XLA lazy backend raises "Value out of range" for aten.slice with
+        # start/end < -size, whereas PyTorch eager silently clamps them.
+        if func is torch.ops.aten.slice.Tensor:
+            tensor = args[0] if len(args) > 0 else (kwargs or {}).get("self")
+            dim = args[1] if len(args) > 1 else (kwargs or {}).get("dim", 0)
+            if tensor is not None and isinstance(dim, int) and dim < tensor.dim():
+                size = tensor.shape[dim]
+                if isinstance(size, int) and size > 0:
+                    args = list(args)
+                    for idx in (2, 3):  # start and end positions
+                        if (
+                            idx < len(args)
+                            and isinstance(args[idx], int)
+                            and args[idx] < -size
+                        ):
+                            args[idx] = -size
+                    args = tuple(args)
         return func(*args, **(kwargs or {}))
 
 
