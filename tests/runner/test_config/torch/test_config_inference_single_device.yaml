@@ -2595,6 +2595,10 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  gpt_oss_20b_opus_uncensored_gguf/causal_lm/pytorch-20B_Opus_Uncensored_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "GPT-OSS 20B GGUF dequantizes to ~40 GB BF16 at load time, exceeding single-device DRAM (p150b: 24 GB)"
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
