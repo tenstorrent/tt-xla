@@ -2683,3 +2683,7 @@ test_config:
   devstral_small_mlx_4bit/causal_lm/pytorch-2507_MLX_4bit-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Hardware capacity: Devstral-Small-2507 is a 22B parameter Mistral model. Dequantized to bfloat16 it requires ~44 GB DRAM, far exceeding n150 single-device capacity of 12 GB."
+
+  glm/glm_4_5_air_awq/pytorch-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: GLM-4.5-Air-AWQ-4bit is a 128-expert MoE model with 104B total parameters. At 4-bit AWQ quantization the weights alone require ~52 GB, far exceeding n150 single-device DRAM capacity of 12 GB."
