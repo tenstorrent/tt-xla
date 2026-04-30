@@ -31,6 +31,19 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor and len(args) >= 3:
+            tensor, dim, start = args[0], args[1], args[2]
+            if (
+                isinstance(start, int)
+                and tensor is not None
+                and hasattr(tensor, "shape")
+            ):
+                rank = len(tensor.shape)
+                norm_dim = dim % rank if rank > 0 else 0
+                if 0 <= norm_dim < rank:
+                    dim_size = tensor.shape[norm_dim]
+                    if start < -dim_size:
+                        args = (tensor, dim, -dim_size) + args[3:]
         return func(*args, **(kwargs or {}))
 
 
