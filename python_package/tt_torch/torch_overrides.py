@@ -31,6 +31,25 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor:
+            tensor = args[0] if args else kwargs.get("self")
+            if (
+                tensor is not None
+                and hasattr(tensor, "device")
+                and tensor.device.type == "xla"
+            ):
+                dim = args[1] if len(args) > 1 else kwargs.get("dim", 0)
+                start = args[2] if len(args) > 2 else kwargs.get("start", None)
+                end = args[3] if len(args) > 3 else kwargs.get("end", None)
+                step = args[4] if len(args) > 4 else kwargs.get("step", 1)
+                try:
+                    dim_size = tensor.shape[dim]
+                except Exception:
+                    dim_size = None
+                # XLA requires start in [-dim_size, dim_size-1]; clamp to match PyTorch
+                if isinstance(dim_size, int) and isinstance(start, int):
+                    start = max(start, -dim_size)
+                return func(tensor, dim, start, end, step)
         return func(*args, **(kwargs or {}))
 
 
