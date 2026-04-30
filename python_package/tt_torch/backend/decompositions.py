@@ -207,6 +207,22 @@ def avg_pool2d(
     if stride == kernel_size == input_size and padding == [0, 0, 0, 0]:
         return input.mean(dim=[-2, -1], keepdim=True)
 
+    # Handle ceil_mode=True when the kernel is larger than the input (e.g. EfficientNet's
+    # AvgPool2d(hidden_dim, ceil_mode=True) on a 7x7 feature map). Without ceil_mode, the
+    # output size formula gives 0 in each spatial dim; with ceil_mode it gives 1. XLA does
+    # not honour ceil_mode in its reduce_window lowering, so we decompose explicitly.
+    #
+    # Condition: for each spatial dim, k > s AND k - s < stride (guarantees exactly 1 output
+    # position with ceil_mode=True and 0 without it).
+    #
+    # With padding=0, count_include_pad has no effect: the divisor is always the valid
+    # element count (input_size[0]*input_size[1]), equivalent to mean().
+    if ceil_mode and all(p == 0 for p in padding):
+        if all(k > s and k - s < st for s, k, st in zip(input_size, kernel_size, stride)):
+            if divisor_override is not None:
+                return input.sum(dim=[-2, -1], keepdim=True) / float(divisor_override)
+            return input.mean(dim=[-2, -1], keepdim=True)
+
     # If we call the regular torch.nn.functional.avg_pool2d, it will infinitely recurse into this function.
     # Returning NotImplemented allows the tracer to use the default implementation.
     return NotImplemented
