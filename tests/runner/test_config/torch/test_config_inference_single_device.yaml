@@ -1445,6 +1445,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
 
+  flux2_nvfp4/pytorch-NVFP4-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "OOM: FLUX.2-dev transformer is 32B parameters (64GB bfloat16), which exceeds single-device DRAM capacity. NVFP4 dequantization is not supported on TT hardware."
+
   flux/pytorch-Schnell-single_device-inference:
     supported_archs: ["p150"]
     assert_pcc: false
