@@ -2679,3 +2679,7 @@ test_config:
   hyperclovax/seed_think/pytorch-SEED_Think_32B-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Hardware capacity: HyperCLOVAX-SEED-Think-32B (32B params) is ~64 GB BF16, far exceeding n150 DRAM (12 GB)."
+
+  inferencerlabs_qwen3_5_27b_mlx_9bit/image_to_text/pytorch-27B_MLX_9bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: Qwen3.5-27B MLX 9-bit (27B params) dequantizes to ~54 GB BF16, exceeding n150 (12 GB) and p150b (32 GB) DRAM. Also: loader uses AutoModelForImageTextToText for a text-only model (no preprocessor_config.json in HF repo), and MLX affine quantization (mode=affine) is not supported by transformers."
