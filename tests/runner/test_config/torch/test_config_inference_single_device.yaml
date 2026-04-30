@@ -2595,6 +2595,14 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  hyperclassifier_gpt_oss_gguf/causal_lm/pytorch-Q4_K_M-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is 20.9B params (~41.8 GB BF16) which exceeds single-device DRAM capacity (32 GB on p150b). Device OOM manifests as INTERNAL: Error code: 13."
+
+  hyperclassifier_gpt_oss_gguf/causal_lm/pytorch-i1_Q4_K_M-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is 20.9B params (~41.8 GB BF16) which exceeds single-device DRAM capacity (32 GB on p150b). Device OOM manifests as INTERNAL: Error code: 13."
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
