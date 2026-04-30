@@ -2687,3 +2687,7 @@ test_config:
   jan_v2_vl_max_gguf/image_to_text/pytorch-jan_v2_vl_max_gguf-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Hardware capacity: Jan v2 VL Max (Qwen3-VL-30B-A3B, 128 experts x 30B total params) dequantizes to ~60 GB BF16, far exceeding n150 (12 GB) and p150b (32 GB) single-device DRAM."
+
+  kimi_k2/pytorch-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: Kimi K2 (1T total params, 384 experts, W4A16 quantized) is ~500 GB, far exceeding n150 (12 GB), n300 (24 GB), and p150b (32 GB) single-device DRAM."
