@@ -8,6 +8,9 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  lfm2/causal_lm/pytorch-lfm2_350m_unsloth-single_device-inference:
+    required_pcc: 0.98  # CPU BF16 vs FP32 PCC floor is 0.9659 for this hybrid conv model; TT measures 0.9825
+
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     arch_overrides:
       n150:
