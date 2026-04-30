@@ -2145,6 +2145,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 5468979200 B DRAM buffer across 12 banks, where each bank needs to store 455749632 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
 
+  detr/segmentation/pytorch-Xenova_ResNet50_Backbone_Panoptic-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Same model as facebook/detr-resnet-50-panoptic (Xenova/detr-resnet-50-panoptic is an ONNX-only export); OOM on n150: Not enough space to allocate 5468979200 B DRAM buffer - https://github.com/tenstorrent/tt-xla/issues/1722"
+
   panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Copy to host buffer failed with error: Buffer pointers must not be null (https://github.com/tenstorrent/tt-xla/issues/3722)"
