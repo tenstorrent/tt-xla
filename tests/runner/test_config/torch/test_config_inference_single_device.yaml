@@ -2671,3 +2671,7 @@ test_config:
   devstral_small_2_24b_instruct_abliterated_i1_gguf/causal_lm/pytorch-Devstral_Small_2_24B_Instruct_Abliterated_i1_GGUF-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: 24B bfloat16 model (~48 GB) exceeds single-device DRAM on all current TT hardware. bank_manager.cpp:439 TT_FATAL during tilize of model weight tensor."
+
+  ernie/causal_lm/pytorch-21B_A3B_PT-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: ERNIE 4.5 21B-A3B at bfloat16 (~42 GB) exceeds single-device DRAM on all current TT hardware (n150: 12 GB, n300: 32 GB). TT_FATAL in bank_manager.cpp:439 at runtime when loading weight tensors to device."
