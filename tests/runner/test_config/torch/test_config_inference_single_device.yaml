@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  legraphista_internlm2_5_20b_chat_imat_gguf/causal_lm/pytorch-InternLM2_5_20B_Chat_Q4_K_IMat_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 1137180672 B DRAM buffer across 8 banks, where each bank needs to store 142147584 B, but bank size is 4273390016 B — InternLM2.5-20B BF16 (~40 GB) exceeds p150b DRAM (32 GB)"
