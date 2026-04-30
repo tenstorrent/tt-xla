@@ -10,7 +10,7 @@ def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]
     if use_2d_mesh:
         # Use predefined mesh shapes based on number of devices
         mesh_shapes = {
-            2: (1, 2),
+            2: (2, 1),
             4: (2, 2),
             8: (2, 4),
             16: (4, 4),
