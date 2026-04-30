@@ -58,6 +58,55 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Normalize negative aten.slice.Tensor start indices to non-negative equivalents.
+
+    XLA's eager aten.slice.Tensor rejects negative start indices; static-shape
+    tensors (always the case after torch.export) allow us to compute the
+    positive equivalent: max(0, dim_size + start).
+    """
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if node.op != "call_function" or node.target is not torch.ops.aten.slice.Tensor:
+            continue
+
+        # slice.Tensor(input, dim=0, start=None, end=None, step=1)
+        if len(node.args) < 3:
+            continue
+
+        start = node.args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+
+        input_node = node.args[0]
+        dim = node.args[1] if len(node.args) > 1 else 0
+        if not isinstance(dim, int):
+            continue
+
+        val = input_node.meta.get("val")
+        if val is None or not hasattr(val, "shape"):
+            continue
+
+        shape = val.shape
+        if dim >= len(shape):
+            continue
+
+        dim_size = shape[dim]
+        if not isinstance(dim_size, int):  # symbolic dimension — skip
+            continue
+
+        new_start = max(0, dim_size + start)
+        node.args = (node.args[0], dim, new_start) + node.args[3:]
+        modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
 def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
     """
     Run all registered fusion passes on a GraphModule.
