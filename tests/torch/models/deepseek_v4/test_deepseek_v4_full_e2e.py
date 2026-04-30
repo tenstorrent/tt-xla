@@ -24,6 +24,7 @@ sparse-MLP swap, before `.to(torch_xla.device())` ships shards out.
 from __future__ import annotations
 
 import gc
+import math
 from typing import Dict, Tuple
 
 import numpy as np
@@ -276,12 +277,15 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     args = weight_loader.load_config_args()
     args.n_mtp_layers = 0
     args.max_batch_size = bsz
-    # 128 = window_size = max(compress_ratios). Decode steps wrap into the
-    # circular kv_cache modulo this size.
-    args.max_seq_len = 128
     if NUM_LAYERS < args.n_layers:
         args.n_layers = NUM_LAYERS
         args.compress_ratios = args.compress_ratios[:NUM_LAYERS]
+    # max_seq_len must cover both the prefill window (PROMPT_LEN) and all
+    # decode positions. Round up to the next multiple of the largest
+    # compress_ratio so every compressor's kv_cache has room for at least one
+    # extra compressed slot beyond the prefill fill.
+    max_compress_ratio = max(args.compress_ratios) if any(args.compress_ratios) else 1
+    args.max_seq_len = math.ceil((PROMPT_LEN + MAX_NEW_TOKENS) / max_compress_ratio) * max_compress_ratio
     print(f"[args] n_layers={args.n_layers}, n_routed_experts={args.n_routed_experts}, "
           f"n_activated_experts={args.n_activated_experts}, "
           f"bsz={bsz}, max_seq_len={args.max_seq_len}, "
@@ -335,6 +339,8 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
         "layers.*.ffn.mlp.experts.gate_proj": expert_dtype,
         "layers.*.ffn.mlp.experts.up_proj":   expert_dtype,
         "layers.*.ffn.mlp.experts.down_proj": expert_dtype,
+        # Router gate: keep at bf16 (quantizing to bfp4/8 flips topk choices).
+        "layers.*.ffn.mlp.router.gate.weight": "bf16",
     }
     applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
     print(f"[wdtype] applied {len(applied)} weight dtype overrides", flush=True)
