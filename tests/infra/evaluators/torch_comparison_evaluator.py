@@ -62,10 +62,16 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             )
         # Duck-type handling for non-Cache cache objects that expose key_cache/value_cache
         # as lists of tensors (e.g. Lfm2HybridConvCache which is not a Cache subclass).
+        # Hybrid caches store empty-tensor placeholders in key_cache/value_cache for
+        # conv-layer slots; filter those out so downstream comparisons get no empty tensors.
         if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
-            result = list(zip(cache.key_cache, cache.value_cache))
+            result = [
+                (k, v)
+                for k, v in zip(cache.key_cache, cache.value_cache)
+                if k.numel() > 0 and v.numel() > 0
+            ]
             if hasattr(cache, "conv_cache"):
-                result.extend((c,) for c in cache.conv_cache)
+                result.extend((c,) for c in cache.conv_cache if c.numel() > 0)
             return tuple(result)
         return cache
 
