@@ -2675,3 +2675,7 @@ test_config:
   ernie/causal_lm/pytorch-21B_A3B_PT-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: ERNIE 4.5 21B-A3B at bfloat16 (~42 GB) exceeds single-device DRAM on all current TT hardware (n150: 12 GB, n300: 32 GB). TT_FATAL in bank_manager.cpp:439 at runtime when loading weight tensors to device."
+
+  exaone_4_mlx_4bit/causal_lm/pytorch-4.0_32B_MLX_4bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: EXAONE 4.0 32B MLX 4-bit model weights consume ~31.4 GB of the 32 GB Blackhole DRAM, leaving ~62 MB free; inference buffers need an additional 268 MB. TT_FATAL in bank_manager.cpp:439 during tilize. Largest free block 29 MB per GDDR bank is insufficient."
