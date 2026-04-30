@@ -2663,3 +2663,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  hermes_4_70b_heretic_i1_gguf/causal_lm/pytorch-70B_heretic_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "70B LLaMA model (80 layers, hidden=8192) dequantizes to ~141 GB BF16, exceeding n150 single-device DRAM capacity (~32 GB). CI hangs at ~90% of GGUF dequantization due to host RAM exhaustion."
