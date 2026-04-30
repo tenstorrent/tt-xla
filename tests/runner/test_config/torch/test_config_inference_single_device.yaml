@@ -850,6 +850,10 @@ test_config:
   #   status: KNOWN_FAILURE_XFAIL  # Newly exposed in Aug26 tt-forge-models uplift.
   #   reason: "TypeError: AutoShape.forward() takes from 2 to 5 positional arguments but 7 were given - https://github.com/tenstorrent/tt-forge-models/issues/136"
 
+  fxmarty_qwen1_5_moe_a2_7b_chat_w_fp6_e3m2_a_fp6_e3m2/causal_lm/pytorch-A2.7B_Chat_w_fp6_e3m2_a_fp6_e3m2-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "AMD Quark FP6 E3M2: amd-quark incompatible with PyTorch 2.7.0 / transformers 5.2.0; even if fixed, 14.3B-param model dequantized to BF16 is 28.6 GB which exceeds p150b DRAM (24 GB)"
+
   qwen_1_5/causal_lm/pytorch-0.5B-single_device-inference:
     status: EXPECTED_PASSING
 
