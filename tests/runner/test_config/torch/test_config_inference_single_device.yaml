@@ -2673,5 +2673,4 @@ test_config:
     reason: "13.96B parameter model requires ~28GB in BF16; TT compiler dequantizes GGUF weights to BF16 at compile time, exceeding single-device DRAM (p150b: 24GB)"
 
   hunyuan_video_comfyui_gguf/pytorch-T2V_Q4_K_S-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "13.96B parameter model requires ~28GB in BF16; TT compiler dequantizes GGUF weights to BF16 at compile time, exceeding single-device DRAM (p150b: 24GB)"
+    required_pcc: 0.99
