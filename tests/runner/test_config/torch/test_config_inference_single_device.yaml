@@ -2622,6 +2622,10 @@ test_config:
   olmo3/causal_lm/pytorch-3_32b_think-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  glm_4_7_awq/causal_lm/pytorch-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: GLM-4.7 is a 253B-parameter MoE model; AWQ 4-bit checkpoint is ~126 GB, far exceeding n150 DRAM (12 GB)"
+
   glm/causal_lm/pytorch-4.7-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
 
