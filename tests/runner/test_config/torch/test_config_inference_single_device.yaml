@@ -2652,6 +2652,9 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
 
+  gemma3_270m_qat_gguf/causal_lm/pytorch-Q4_0-single_device-inference:
+    status: EXPECTED_PASSING
+
   gemma3/causal_lm/pytorch-270M_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
