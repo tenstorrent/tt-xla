@@ -2683,3 +2683,7 @@ test_config:
   inferencerlabs_qwen3_5_27b_mlx_9bit/image_to_text/pytorch-27B_MLX_9bit-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Hardware capacity: Qwen3.5-27B MLX 9-bit (27B params) dequantizes to ~54 GB BF16, exceeding n150 (12 GB) and p150b (32 GB) DRAM. Also: loader uses AutoModelForImageTextToText for a text-only model (no preprocessor_config.json in HF repo), and MLX affine quantization (mode=affine) is not supported by transformers."
+
+  jan_v2_vl_max_gguf/image_to_text/pytorch-jan_v2_vl_max_gguf-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: Jan v2 VL Max (Qwen3-VL-30B-A3B, 128 experts x 30B total params) dequantizes to ~60 GB BF16, far exceeding n150 (12 GB) and p150b (32 GB) single-device DRAM."
