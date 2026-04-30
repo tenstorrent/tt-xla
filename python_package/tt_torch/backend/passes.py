@@ -295,6 +295,52 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm):
+    """
+    Clamp aten.slice.Tensor start indices that are out of range.
+
+    PyTorch allows start < -dim_size in aten.slice.Tensor (semantically clamped
+    to 0), but the XLA/TT backend raises RuntimeError for such values.
+    Triggered by SlidingWindowCache.update() doing
+    full_value_states[:, :, -sliding_window+1:, :] when seq_len < sliding_window.
+    """
+    for node in gm.graph.nodes:
+        if node.op != "call_function":
+            continue
+        if node.target != torch.ops.aten.slice.Tensor:
+            continue
+
+        if len(node.args) < 3:
+            continue
+        start = node.args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+
+        input_node = node.args[0]
+        dim = node.args[1] if len(node.args) > 1 else 0
+        if not isinstance(dim, int):
+            continue
+
+        if not hasattr(input_node, "meta") or "val" not in input_node.meta:
+            continue
+        input_val = input_node.meta["val"]
+        if not hasattr(input_val, "shape"):
+            continue
+
+        ndim = len(input_val.shape)
+        actual_dim = dim % ndim
+        dim_size = input_val.shape[actual_dim]
+        if not isinstance(dim_size, int):
+            continue
+
+        if start < -dim_size:
+            new_args = list(node.args)
+            new_args[2] = -dim_size
+            node.args = tuple(new_args)
+
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
