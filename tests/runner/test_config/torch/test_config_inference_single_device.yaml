@@ -2595,6 +2595,9 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  gpt_oss_20b_claude_4_distill_i1_gguf/causal_lm/pytorch-20B_Claude_4_Distill_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL # 20B Qwen3MoE model: ~31.4 GB BF16 weights fill p150b 32 GB DRAM; activation buffers OOM
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
