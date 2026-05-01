@@ -277,6 +277,52 @@ def insert_argument_type_markers(
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Clamp out-of-range negative start indices for aten.slice.Tensor nodes.
+
+    PyTorch eager silently clamps negative slice start indices that are smaller
+    than -dim_size (e.g. t[:, :, -4095:, :] on a dim-8 tensor returns all 8
+    elements). The XLA/TT backend raises "Value out of range" instead.
+    This pass mirrors PyTorch eager semantics by clamping start to -dim_size.
+    """
+    modified = False
+    for node in gm.graph.nodes:
+        if not (
+            node.op == "call_function"
+            and node.target is torch.ops.aten.slice.Tensor
+        ):
+            continue
+        args = node.args
+        # aten.slice.Tensor(input, dim=0, start=None, end=None, step=1)
+        if len(args) < 3:
+            continue
+        start = args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+        input_node = args[0]
+        dim = args[1] if len(args) > 1 else 0
+        if not isinstance(dim, int):
+            continue
+        val = input_node.meta.get("val", None)
+        if val is None or not hasattr(val, "shape"):
+            continue
+        shape = val.shape
+        actual_dim = dim % len(shape)
+        try:
+            dim_size = shape[actual_dim]
+        except Exception:
+            continue
+        if not isinstance(dim_size, int):
+            continue
+        if start < -dim_size:
+            node.args = (args[0], args[1], -dim_size) + args[3:]
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
