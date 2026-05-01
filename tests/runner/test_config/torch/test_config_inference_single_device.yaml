@@ -1999,6 +1999,11 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
 
+  helios_distilled_int8/text_to_image/pytorch-Helios-Distilled-int8-single_device-inference:
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "Model exceeds hardware DRAM capacity: transformer 14.3B params (~28.6 GB BF16) + text encoder (~8 GB BF16) + VAE = ~37 GB > p150b 32 GB"
+
   maptr/pytorch-Tiny_R50_24e-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet - https://github.com/tenstorrent/tt-xla/issues/1586"
