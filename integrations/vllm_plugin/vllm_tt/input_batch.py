@@ -703,7 +703,11 @@ class InputBatch:
         return PoolingMetadata(
             prompt_lens=prompt_lens_tensor,
             prompt_token_ids=self.sampling_metadata.prompt_token_ids,
-            prompt_token_ids_cpu=self.sampling_metadata.prompt_token_ids,
+            prompt_token_ids_cpu=(
+                self.sampling_metadata.prompt_token_ids.to("cpu")
+                if self.sampling_metadata.prompt_token_ids is not None
+                else None
+            ),
             pooling_params=pooling_params,
             pooling_states=pooling_states,
         )

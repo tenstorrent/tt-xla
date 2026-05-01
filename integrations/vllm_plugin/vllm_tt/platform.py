@@ -276,7 +276,7 @@ class TTPlatform(Platform):
             )
 
     @classmethod
-    def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> None:
+    def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
         # TT backend requires a block size divisible by 32 for optimal performance.
         return 32
 
