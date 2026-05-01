@@ -534,6 +534,10 @@ test_config:
   mistral/pytorch-Ministral_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
+  ministral_3_8b/pytorch-unsloth/Ministral-3-8B-Instruct-2512-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 48586817536 B DRAM buffer across 8 banks on p150b (32 GB) — Ministral-3-8B vision forward pass with standard-resolution image produces ~9240 visual patches; model weights (~17 GB BF16) plus activation tensors exceed 32 GB DRAM capacity"
+
   mlp_mixer/pytorch-Mixer_B16_224-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
