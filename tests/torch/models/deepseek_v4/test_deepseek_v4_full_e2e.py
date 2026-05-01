@@ -138,7 +138,7 @@ def _toy_model_args(**overrides) -> mdo.ModelArgs:
         q_lora_rank=64,
         head_dim=32,
         rope_head_dim=16,
-        n_routed_experts=4,
+        n_routed_experts=32,  # Must be divisible by num_devices (32) for MoE sharding
         n_activated_experts=2,
         n_shared_experts=1,
         o_groups=2,
