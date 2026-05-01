@@ -2595,6 +2595,10 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  gpt_oss_sft_s1k_i1_gguf/causal_lm/pytorch-GPT_OSS_SFT_S1K_I1_Q4_K_M_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is 20.91B params (~41.8 GB BF16) exceeding single-device DRAM capacity of 32 GB on p150b"
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
