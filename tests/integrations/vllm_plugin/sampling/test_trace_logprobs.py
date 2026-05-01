@@ -15,12 +15,18 @@ together; this test should keep passing via the on-device path.
 """
 import pytest
 import vllm
+from utils import TTArch, get_torch_device_arch
 
 
 @pytest.mark.nightly
 @pytest.mark.single_device
 def test_opt125m_trace_logprobs():
     """Logprobs + trace at opt_level=1: exercised via CPU fallback."""
+    if get_torch_device_arch() == TTArch.WORMHOLE_B0:
+        pytest.skip(
+            "tt-xla#4422: ttnn.sort writes to device during metal-trace capture on Wormhole "
+            "(SortProgramFactoryCrossCoreDataExchange::override_runtime_arguments)"
+        )
     llm = vllm.LLM(
         model="facebook/opt-125m",
         max_num_batched_tokens=128,
