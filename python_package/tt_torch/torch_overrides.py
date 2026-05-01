@@ -175,7 +175,10 @@ def _qwen3moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
             final.index_add_(0, token_idx, cur_hidden.to(final.dtype))
     else:
         # Build sparse routing weights [T, E] — out-of-place scatter (XLA rejects in-place)
-        routing = torch.zeros(T, E, dtype=hidden_flat.dtype, device=hidden_flat.device).scatter(1, index_flat, weights_flat)
+        # Cast weights to match self dtype (routing weights may be f32 while hidden is bf16)
+        routing = torch.zeros(T, E, dtype=hidden_flat.dtype, device=hidden_flat.device).scatter(
+            1, index_flat, weights_flat.to(hidden_flat.dtype)
+        )
 
         # [E, T, H] via expand (no data copy)
         hs = hidden_flat.unsqueeze(0).expand(E, -1, -1)
