@@ -1822,6 +1822,12 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>>'"
 
+  llava/pytorch-1.5_13B-single_device-inference:
+    supported_archs: ["p150"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "OOM: LLaVA 1.5 13B (~26 GB BF16) exceeds single p150b device DRAM capacity"
+    bringup_status: FAILED_RUNTIME
+
   qwen_2_5/causal_lm/pytorch-72B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
