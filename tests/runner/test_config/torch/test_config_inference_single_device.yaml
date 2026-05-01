@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  llama_3_3_nemotron_super_49b_v1_gguf/causal_lm/pytorch-Llama_3_3_Nemotron_Super_49B_v1_Q4_K_M-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity ceiling: 49B model dequantized to BF16 requires ~98 GB which exceeds p150b single-device DRAM (96 GB). Also: deci arch not in CONFIG_MAPPING (transformers 5.x loader bug) and no standard transformers class supports this NAS-optimized variable per-layer architecture."
