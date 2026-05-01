@@ -2634,6 +2634,10 @@ test_config:
   glm/causal_lm/pytorch-4.5_Air-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
 
+  glm_4_7_flash_claude_opus_distill_gguf/causal_lm/pytorch-aiworksofbt_4_7_Flash_Claude_Opus_4_5_High_Reasoning_Distill_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "GLM-4.7-Flash architecture: 64 routed experts, 47 layers, ~32B params (~64 GB BF16 after GGUF dequantization) exceeds single-device DRAM on all supported hardware (12 GB n150, 24 GB p150b)"
+
   llama/causal_lm/pytorch-3.1_405B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
 
