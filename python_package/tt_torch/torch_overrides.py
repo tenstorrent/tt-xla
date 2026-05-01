@@ -7,6 +7,9 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        if func.__name__ == "histc" and args and hasattr(args[0], "is_floating_point") and not args[0].is_floating_point():
+            # histogram_cpu is not implemented for integer dtypes; cast to float
+            args = (args[0].float(),) + args[1:]
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
