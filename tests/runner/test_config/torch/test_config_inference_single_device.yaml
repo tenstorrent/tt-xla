@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  gpt_oss_swallow_20b_sft_v0_1_mxfp4_moe_gguf/causal_lm/pytorch-20B_SFT_V0_1_MXFP4_MOE_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "20B Qwen3MoE model: MXFP4 GGUF dequantizes to ~40 GB BF16, exceeding single-device DRAM (p150b 32 GB)"
