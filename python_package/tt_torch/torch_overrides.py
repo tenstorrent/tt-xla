@@ -211,3 +211,48 @@ try:
     Lfm2ShortConv.slow_forward = _lfm2_short_conv_slow_forward
 except ImportError:
     pass
+
+
+def _lfm2_vl_model_get_image_features(self, pixel_values, spatial_shapes, pixel_attention_mask=None, **kwargs):
+    """Monkey-patched Lfm2VlModel.get_image_features.
+
+    Avoids pjrt-device-to-host (INTERNAL Error 13): computes feature lengths from
+    spatial_shapes (numpy array, always CPU-accessible) instead of
+    pixel_attention_mask.sum(dim=1) (TT int32 tensor used as a Python slice bound
+    inside the compiled XLA graph, which requires a device-to-host transfer).
+
+    By NaFlex patchification design, pixel_attention_mask[i].sum() == h * w from
+    spatial_shapes[i], so this is numerically equivalent.
+    """
+    kwargs.pop("return_dict", None)  # consumed by the @can_return_tuple decorator in the original
+
+    image_outputs = self.vision_tower(
+        pixel_values=pixel_values,
+        spatial_shapes=spatial_shapes,
+        pixel_attention_mask=pixel_attention_mask,
+        return_dict=True,
+        **kwargs,
+    )
+    last_hidden_state = image_outputs.last_hidden_state
+
+    image_features = []
+    for img_idx in range(last_hidden_state.size(0)):
+        feature = last_hidden_state[img_idx]
+        feature_org_h = int(spatial_shapes[img_idx, 0])
+        feature_org_w = int(spatial_shapes[img_idx, 1])
+        feature = feature[: feature_org_h * feature_org_w, :].unsqueeze(0)
+        feature = feature.reshape(1, feature_org_h, feature_org_w, -1)
+        img_embedding = self.multi_modal_projector(feature)
+        img_embedding = img_embedding.reshape(-1, img_embedding.size(-1))
+        image_features.append(img_embedding)
+
+    image_outputs.pooler_output = image_features
+    return image_outputs
+
+
+try:
+    from transformers.models.lfm2_vl.modeling_lfm2_vl import Lfm2VlModel
+
+    Lfm2VlModel.get_image_features = _lfm2_vl_model_get_image_features
+except ImportError:
+    pass
