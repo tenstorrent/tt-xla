@@ -8,6 +8,10 @@
 #   - bringup_status (if present): BringupStatus names (e.g., FAILED_TTMLIR_COMPILATION) or values (e.g., failed_ttmlir_compilation)
 
 test_config:
+  dac/pytorch-DAC 24kHz-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.95  # BF16 floor: CPU BF16 vs F32 PCC ~0.95 (min 0.9509 over 5 seeds); TT observed 0.9654
+
   gpt_neo/causal_lm/pytorch-125M-single_device-inference:
     arch_overrides:
       n150:
