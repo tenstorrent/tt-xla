@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  dazipe_qwen3_next_80b_a3b_instruct_gptq_int4a16/causal_lm/pytorch-Qwen3-Next-80B-A3B-Instruct-GPTQ-Int4A16-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity ceiling: 80B model dequantizes to ~160 GB BF16 which exceeds single-device p150b DRAM (24 GB)"
