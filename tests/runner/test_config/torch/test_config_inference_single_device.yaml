@@ -154,6 +154,10 @@ test_config:
   attention_denseunet/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
 
+  mirxa2_mirxa_3_5_35b_a3b_uncensored_aggressive_gguf/causal_lm/pytorch-3_5_35B_A3B_Uncensored_Aggressive_Q4_K_M_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is 35B MoE (21B dequantized params) = ~42.2 GB BF16, exceeds p150b 32 GB DRAM — hardware capacity ceiling"
+
   mnist/image_classification/pytorch-Cnn_Dropout-single_device-inference:
     status: EXPECTED_PASSING
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
