@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  mozilla_ai_meta_llama_3_1_70b_instruct_llamafile/causal_lm/pytorch-Meta-Llama-3.1-70B-Instruct.Q4_K_M.llamafile-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: 70B Q4_K_M llamafile embeds a 42.52 GB GGUF which exceeds p150b 32 GB DRAM"
