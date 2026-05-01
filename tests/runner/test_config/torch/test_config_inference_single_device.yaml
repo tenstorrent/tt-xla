@@ -1983,6 +1983,10 @@ test_config:
   whisper/pytorch-Large_v3_Turbo-single_device-inference:
     status: EXCLUDE_MODEL
 
+  lmstudio_deepseek_r1_distill_llama_70b_gguf/causal_lm/pytorch-DeepSeek_R1_Distill_Llama_70B_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 469762048 B DRAM buffer across 8 banks, where each bank needs to store 58720256 B, but bank size is 4273390016 B (allocated: 4113318208 B, free: 160071808 B). 70B BF16 model (~140 GB) exceeds single p150b device DRAM (~32 GB)."
+
   uniad/pytorch-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 285081600 B L1 buffer across 64 banks, where each bank needs to store 4454400 B, but bank size is only 1366560 B"
