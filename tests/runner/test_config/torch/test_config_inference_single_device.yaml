@@ -2601,6 +2601,10 @@ test_config:
   gpt_oss/pytorch-120B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  gpt_oss_20b_derestricted_gguf/causal_lm/pytorch-20B_Derestricted_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "DRAM OOM: 20B BF16 model (~38 GB) exceeds p150b device DRAM (34 GB)"
+
   mistral/pytorch-Small_24B_INSTRUCT_2501-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 

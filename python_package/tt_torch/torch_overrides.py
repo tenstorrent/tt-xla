@@ -132,6 +132,72 @@ def _sparse_mlp_forward(self, hidden_states):
     return routed_out, router_scores
 
 
+def _qwen3moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Monkey-patched Qwen3MoeExperts.forward.
+
+    CPU path uses per-expert loop (memory-efficient, serves as PCC golden reference).
+    Device path uses dense bmm over all experts (static graph for torch.compile),
+    avoiding data-dependent nonzero/for-loop that segfaults in partition_fx_graph.
+
+    Args:
+        hidden_states: [T, H] flattened token sequences
+        top_k_index: [T, top_k] expert indices per token
+        top_k_weights: [T, top_k] routing weights per token (compact, not full sparse)
+    """
+    num_tokens = hidden_states.shape[0]
+    num_experts = self.num_experts
+
+    if hidden_states.device.type == "cpu":
+        # Per-expert loop (original logic, safe on CPU)
+        final_hidden_states = torch.zeros_like(hidden_states)
+        with torch.no_grad():
+            expert_mask = torch.nn.functional.one_hot(top_k_index, num_classes=num_experts)
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            if expert_idx == num_experts:
+                continue
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = torch.nn.functional.linear(
+                current_state, self.gate_up_proj[expert_idx]
+            ).chunk(2, dim=-1)
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = torch.nn.functional.linear(
+                current_hidden_states, self.down_proj[expert_idx]
+            )
+            current_hidden_states = (
+                current_hidden_states * top_k_weights[token_idx, top_k_pos, None]
+            )
+            final_hidden_states.index_add_(
+                0, token_idx, current_hidden_states.to(final_hidden_states.dtype)
+            )
+    else:
+        # Dense bmm over all experts — static graph, no nonzero/for-loop
+        # gate_up_proj: [E, 2*I, H], down_proj: [E, H, I]
+        # Expand hidden_states: [E, T, H]
+        hs = hidden_states.unsqueeze(0).expand(num_experts, -1, -1)
+        # gate_up: [E, T, 2*I] = bmm(hs, gate_up_proj^T)
+        gate_up = torch.bmm(hs, self.gate_up_proj.transpose(1, 2))
+        gate, up = gate_up.chunk(2, dim=-1)
+        expert_out = self.act_fn(gate) * up  # [E, T, I]
+        # down: [E, T, H] = bmm(expert_out, down_proj^T)
+        expert_out = torch.bmm(expert_out, self.down_proj.transpose(1, 2))  # [E, T, H]
+        # Build routing weights: [E, T] from top_k_index and top_k_weights
+        routing = torch.zeros(
+            num_experts, num_tokens, dtype=hidden_states.dtype, device=hidden_states.device
+        )
+        routing.scatter_add_(
+            0,
+            top_k_index.t(),  # [top_k, T] -> [E, T] indices
+            top_k_weights.t().to(hidden_states.dtype),  # [top_k, T] -> [E, T] values
+        )
+        # Weight and sum: [E, T, H] * [E, T, 1] -> sum over E -> [T, H]
+        final_hidden_states = (expert_out * routing.unsqueeze(-1)).sum(dim=0)
+    return final_hidden_states
+
+
 # Monkey patch to restore 4.57.1 interfaces:
 # - Router returns full [T, E] sparse routing weights
 # - Experts has CPU per-expert loop + device dense bmm
@@ -146,5 +212,15 @@ try:
     GptOssTopKRouter.forward = _router_forward
     GptOssExperts.forward = _experts_forward
     GptOssMLP.forward = _sparse_mlp_forward
+except ImportError:
+    pass
+
+# Monkey patch Qwen3MoeExperts to replace data-dependent nonzero/for-loop
+# with a device-friendly dense bmm forward (avoids segfault in
+# partition_fx_graph_for_cpu_fallback when TorchFunctionMode is active).
+try:
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeExperts
+
+    Qwen3MoeExperts.forward = _qwen3moe_experts_forward
 except ImportError:
     pass
