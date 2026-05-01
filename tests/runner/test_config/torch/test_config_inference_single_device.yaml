@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  granite_4_0_h/causal_lm/pytorch-4.0_H_Small-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 452984832 B DRAM buffer across 8 banks (allocated: 4201282176 B, free: 72107840 B, bank_size: 4273390016 B). granite-4.0-h-small (hidden_size=4096, 40 hybrid Mamba/MoE layers, 72 experts) exceeds single-device DRAM capacity after weights and compiled program buffers are loaded."
