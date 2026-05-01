@@ -340,8 +340,9 @@ def masked_scatter(
     source_flat = source.reshape(-1)
 
     # TTNN AccumulationDeviceOperation (cumsum) requires float dtype, not int.
-    # Use float32 for cumsum, then convert to int32 for gather indexing.
-    source_idx = torch.cumsum(mask_f.float(), 0) - 1
+    # Reshape to [N, 1] before cumsum: TILE layout pads both dims to multiples of 32.
+    # A 1D [N] tensor causes 1024x memory blowup (32x32 TILE); [N, 1] causes only 32x.
+    source_idx = torch.cumsum(mask_f.float().reshape(-1, 1), 0).reshape(-1) - 1
     source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1).to(torch.int32)
 
     gathered = source_flat[source_idx]
