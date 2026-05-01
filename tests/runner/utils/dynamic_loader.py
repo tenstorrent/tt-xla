@@ -203,9 +203,11 @@ class DynamicLoader:
         """
         models_root = cls.get_models_root(project_root)
 
-        # Add the models root to sys.path so relative imports work
-        if models_root not in sys.path:
-            sys.path.insert(0, models_root)
+        # Do NOT insert models_root into sys.path. The tt_forge_models/ directory
+        # contains subdirectories (e.g. spacy/) that would be registered as
+        # namespace packages, shadowing real third-party packages. The
+        # models_parent directory (one level up) is already added in
+        # import_model_loader, which is sufficient for relative imports.
 
         # Register tt_forge_models as a namespace package rooted at models_root.
         # When TT_FORGE_MODELS_ROOT points at a worktree, the directory name is
