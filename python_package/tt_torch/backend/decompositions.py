@@ -32,14 +32,14 @@ def compute_linear_weight(input_size, output_size, scale, align_corners, dtype, 
 
     inv_scale = 1 / scale
     sample_f = (
-        (torch.arange(output_size, dtype=torch.float64, device=device) + 0.5)
+        (torch.arange(output_size, dtype=torch.float32, device=device) + 0.5)
         * inv_scale
         - translation * inv_scale
         - 0.5
     )
     x = torch.abs(
         sample_f
-        - torch.arange(input_size, dtype=torch.float64, device=device).unsqueeze(1)
+        - torch.arange(input_size, dtype=torch.float32, device=device).unsqueeze(1)
     )
 
     weights = torch.relu(1 - torch.abs(x))
@@ -62,7 +62,7 @@ def compute_linear_weight(input_size, output_size, scale, align_corners, dtype, 
 
 def compute_nearest_weight(in_size, out_size, scale, dtype, device):
     scale = 1 / scale if scale is not None else in_size / out_size
-    out_idx = torch.arange(out_size, dtype=torch.float64, device=device)
+    out_idx = torch.arange(out_size, dtype=torch.float32, device=device)
     input_indices = torch.floor(out_idx * scale).to(torch.long)
     weight = (
         torch.nn.functional.one_hot(input_indices, num_classes=in_size)
