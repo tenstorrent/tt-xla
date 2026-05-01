@@ -339,9 +339,10 @@ def masked_scatter(
     data_flat = data.reshape(-1)
     source_flat = source.reshape(-1)
 
-    mask_i = mask_f.int()
-    source_idx = torch.cumsum(mask_i, 0) - 1
-    source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
+    # TTNN AccumulationDeviceOperation (cumsum) requires float dtype, not int.
+    # Use float32 for cumsum, then convert to int32 for gather indexing.
+    source_idx = torch.cumsum(mask_f.float(), 0) - 1
+    source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1).to(torch.int32)
 
     gathered = source_flat[source_idx]
     result_flat = torch.where(mask_f, gathered, data_flat)
