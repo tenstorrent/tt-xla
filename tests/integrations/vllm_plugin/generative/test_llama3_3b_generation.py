@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import vllm
+from utils import TTArch, get_torch_device_arch
 
 
 @pytest.mark.nightly
@@ -33,6 +34,11 @@ def test_llama3_3b_generation():
 @pytest.mark.single_device
 def test_llama3_3b_generation_trace():
     """Trace variant: greedy + device sampling so the metal-trace path is exercised."""
+    if get_torch_device_arch() == TTArch.WORMHOLE_B0:
+        pytest.skip(
+            "tt-xla#4422: ttnn.sort writes to device during metal-trace capture on Wormhole "
+            "(SortProgramFactoryCrossCoreDataExchange::override_runtime_arguments)"
+        )
     prompts = [
         "I like taking walks in the",
     ]
