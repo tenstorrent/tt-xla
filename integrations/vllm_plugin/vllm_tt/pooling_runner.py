@@ -18,7 +18,6 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
-from tt_torch.utils import torch_dynamo_jax_compatibility
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -1581,7 +1580,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         }
 
         with (
-            torch_dynamo_jax_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_tokens], dtype=np.int32)
             ),
