@@ -1224,6 +1224,10 @@ test_config:
   resnext/pytorch-50_32x4d-single_device-inference:
     status: EXPECTED_PASSING
 
+  deepseek_r1_distill_llama_70b_8bit/causal_lm/pytorch-DeepSeek_R1_Distill_Llama_70B_8bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity ceiling: 70B model dequantized to BF16 is ~141 GB, exceeding single p150b DRAM (96 GB)"
+
   deepseek/deepseek_coder/pytorch-1_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
