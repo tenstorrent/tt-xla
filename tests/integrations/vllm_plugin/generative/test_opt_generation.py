@@ -84,6 +84,36 @@ def test_opt_generation_3():
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
 
+
+@pytest.mark.push
+@pytest.mark.single_device
+def test_opt_generation_trace():
+    """Trace variant: greedy + device sampling so the metal-trace path is exercised."""
+    prompts = [
+        "The capital of France is",
+    ]
+    sampling_params = vllm.SamplingParams(temperature=0, max_tokens=32)
+    llm_args = {
+        "model": "facebook/opt-125m",
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.001,
+        "additional_config": {
+            "cpu_sampling": False,
+            "enable_trace": True,
+            "enable_const_eval": True,
+            "experimental_weight_dtype": "bfp_bf8",
+            "optimization_level": 0,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    print(f"prompt: {prompts[0]}, output: {output_text}")
+    assert len(output_text) > 0, "Expected non-empty generation"
+
+
 @pytest.mark.push
 @pytest.mark.single_device
 def test_opt_generation_multibatch():
