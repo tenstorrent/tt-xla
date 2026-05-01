@@ -2595,6 +2595,10 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  gpt_oss_cybersecurity_20b_merged_heretic_gguf/causal_lm/pytorch-20B_Cybersecurity_Merged_Heretic_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: 20B Qwen3MoE params dequantized to BF16 ~40 GB exceeds p150b 32 GB DRAM"
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
