@@ -2625,6 +2625,10 @@ test_config:
   olmo3/causal_lm/pytorch-3_32b_think-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  glm/causal_lm/pytorch-Z1_32B_0414-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "32B GLM-Z1 BF16 model (~62 GB) exceeds single p150b DRAM (32 GB): DRAM OOM at inference (32.7 GB allocated, 1.5 GB free)"
+
   glm/causal_lm/pytorch-4.7-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
 
