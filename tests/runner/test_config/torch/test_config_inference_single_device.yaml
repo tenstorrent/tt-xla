@@ -2671,3 +2671,7 @@ test_config:
   agentic_qwen_30b_a3b_i1_gguf/causal_lm/pytorch-30B_A3B_i1_GGUF-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "30B model dequantized to BF16 (~60 GB) exceeds single n150 DRAM capacity; Fatal Python error: Segmentation fault in XLA runtime during partition_fx_graph_for_cpu_fallback"
+
+  mradermacher_agentic_qwen_30b_a3b_i1_gguf/causal_lm/pytorch-30B_A3B_I1_Q4_K_M_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 30B-param model dequantized to BF16 (~60 GB) exceeds single-device DRAM (~34 GB on p150b)"
