@@ -2,7 +2,6 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Sampler layer implementing XLA supported operations."""
 
-import math
 import os
 
 import torch
@@ -26,14 +25,6 @@ def _next_power_of_2(n: int) -> int:
         p <<= 1
     return p
 
-
-def _get_topk_split_params(vocab_size: int) -> tuple[int, int, int, int]:
-    """Return (num_chunks, chunk_size, padded_chunk_size, pad_size) for vocab."""
-    num_chunks = math.ceil(vocab_size / _TOPK_MAX_CHUNK_SIZE)
-    chunk_size = math.ceil(vocab_size / num_chunks)
-    padded_chunk_size = _next_power_of_2(chunk_size)
-    pad_size = padded_chunk_size - chunk_size
-    return num_chunks, chunk_size, padded_chunk_size, pad_size
 
 _SAMPLING_EPS = 1e-5
 _TOPK_BEFORE_ARGMAX = os.environ.get("TT_TOPK_BEFORE_ARGMAX", "") == "1"
@@ -445,35 +436,46 @@ def apply_top_k_top_p_fast(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Top-k/top-p filtering via multi-core ttnn.topk.
 
-    Splits vocab into power-of-2 chunks (<= 32768) so torch.topk compiles
-    to multi-core ttnn.topk (~0.18ms/chunk) instead of single-core ttnn.sort
-    (~9ms). Returns (filtered_logits, candidate_indices) where both tensors
-    have shape [batch, num_chunks * k_per_chunk] and candidate_indices holds
+    Slices vocab into ``_TOPK_MAX_CHUNK_SIZE``-sized power-of-2 chunks so
+    torch.topk compiles to multi-core ttnn.topk (~0.18ms/chunk) instead of
+    single-core ttnn.sort (~9ms). Full chunks are taken directly with no
+    padding; only the trailing chunk (when vocab isn't a multiple of the
+    chunk size) is padded up to the next power of 2 before topk.
+
+    Returns (filtered_logits, candidate_indices) where both tensors have
+    shape [batch, num_chunks * k_per_chunk] and candidate_indices holds
     global vocab positions.
 
     The top-k and top-p filters are applied on the small candidate set
     (~128 tokens) rather than the full vocab.
     """
     batch, vocab_size = logits.shape
-    num_chunks, chunk_size, padded_chunk_size, pad_size = _get_topk_split_params(
-        vocab_size
-    )
+    full_chunks = vocab_size // _TOPK_MAX_CHUNK_SIZE
+    remainder = vocab_size - full_chunks * _TOPK_MAX_CHUNK_SIZE
 
-    # Batch is already pre-padded
-
-    # Split vocab, pad each chunk to power-of-2, run topk.
-    chunks = torch.split(logits, chunk_size, dim=-1)
     topk_values_list = []
     topk_indices_list = []
-    for i, chunk in enumerate(chunks):
-        if chunk.shape[-1] < padded_chunk_size:
+
+    # Full chunks are already a power of 2; topk runs directly.
+    for i in range(full_chunks):
+        start = i * _TOPK_MAX_CHUNK_SIZE
+        chunk = logits[:, start : start + _TOPK_MAX_CHUNK_SIZE]
+        vals, inds = torch.topk(chunk, k=_TOPK_K_PER_CHUNK, dim=-1)
+        topk_values_list.append(vals)
+        topk_indices_list.append(inds + start)
+
+    # At most one trailing chunk needs padding up to the next power of 2.
+    if remainder > 0:
+        start = full_chunks * _TOPK_MAX_CHUNK_SIZE
+        chunk = logits[:, start:]
+        padded = _next_power_of_2(remainder)
+        if padded > remainder:
             chunk = torch.nn.functional.pad(
-                chunk, (0, padded_chunk_size - chunk.shape[-1]), value=float("-inf")
+                chunk, (0, padded - remainder), value=float("-inf")
             )
         vals, inds = torch.topk(chunk, k=_TOPK_K_PER_CHUNK, dim=-1)
         topk_values_list.append(vals)
-        # Offset local chunk indices to global vocab positions.
-        topk_indices_list.append(inds + i * chunk_size)
+        topk_indices_list.append(inds + start)
 
     # Concat: [batch, num_chunks * k_per_chunk]
     all_values = torch.cat(topk_values_list, dim=-1)
