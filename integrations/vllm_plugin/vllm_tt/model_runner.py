@@ -106,7 +106,7 @@ from .sampler import Sampler
 # Pad hidden states / logits to this batch size before the LM head and topk.
 # Multi-core topk is 14x faster at batch=32 vs batch=1 on Blackhole hardware.
 from .vllm_distributed_utils import shard_model
-from .vllm_utils import determine_mesh_shape, prev_power_of_2, pad_to_tile
+from .vllm_utils import determine_mesh_shape, pad_to_tile, prev_power_of_2
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1548,8 +1548,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
                 xm.wait_device_ops()
                 self._signpost("forward_end")
-            hidden_states = self.select_hidden_states(hidden_states, logits_indices)
-            logits = self.compute_logits(hidden_states)
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -1570,20 +1568,43 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
-            if grammar_output is not None:
-                (
-                    require_struct_decoding,
-                    grammar_bitmask_padded,
-                    arange,
-                ) = self.prepare_structured_decoding_input(logits, grammar_output)
-                logits = self.structured_decode(
-                    require_struct_decoding, grammar_bitmask_padded, logits, arange
-                )
 
-            if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
-                xm.wait_device_ops()
-                self._signpost("sampling_start")
-            selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
+            # Fused select+compute+sample is used for the common path. The
+            # separate-graph fallback handles structured decoding (which
+            # injects a logit-modifying op between compute_logits and
+            # sample_from_logits) and CPU sampling (sample runs on the host
+            # outside @torch.compile).
+            use_fused_sampling = (
+                grammar_output is None and not self.tt_config.cpu_sampling
+            )
+            if use_fused_sampling:
+                if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
+                    xm.wait_device_ops()
+                    self._signpost("sampling_start")
+                selected_token_ids, logits = self.select_compute_sample(
+                    hidden_states, logits_indices, sampling_metadata
+                )
+            else:
+                hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+                logits = self.compute_logits(hidden_states)
+                if grammar_output is not None:
+                    (
+                        require_struct_decoding,
+                        grammar_bitmask_padded,
+                        arange,
+                    ) = self.prepare_structured_decoding_input(logits, grammar_output)
+                    logits = self.structured_decode(
+                        require_struct_decoding,
+                        grammar_bitmask_padded,
+                        logits,
+                        arange,
+                    )
+                if os.environ.get("TTXLA_SAMPLING_SIGNPOST"):
+                    xm.wait_device_ops()
+                    self._signpost("sampling_start")
+                selected_token_ids = self.sample_from_logits_func(
+                    logits, sampling_metadata
+                )
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -2139,6 +2160,58 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("sample_from_logits")
 
+    def _precompile_select_compute_sample(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
+        logger.info("Compiling select_compute_sample with different input shapes.")
+        start = time.perf_counter()
+        hsize = self.model_config.get_hidden_size()
+        padded_num_reqs = pad_to_tile(self.max_num_reqs)
+        for num_tokens in self.num_tokens_paddings:
+            for all_greedy in [False, True]:
+                # Fresh tensor per iteration — reusing across SPMD compilations
+                # causes stale tensor IDs that misclassify inputs as constants
+                # (#3672).
+                dummy_hidden = torch.zeros(
+                    (self.max_num_reqs, num_tokens, hsize),
+                    dtype=self._hidden_states_dtype,
+                ).to(self.device)
+                indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
+                    self.device
+                )
+                if self.enable_tensor_parallel and self.use_2d_mesh:
+                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+
+                generate_params_if_all_greedy = not all_greedy
+                sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+                    self.input_batch,
+                    padded_num_reqs,
+                    self.device,
+                    generate_params_if_all_greedy,
+                    vocab_size=self.vocab_size,
+                )
+                sampling_metadata.all_greedy = all_greedy
+
+                logger.info(
+                    "  -- num_tokens: %d, hsize: %d, num_seqs: %d, all_greedy: %s",
+                    num_tokens,
+                    hsize,
+                    self.max_num_reqs,
+                    all_greedy,
+                )
+                with (
+                    torch_dynamo_jax_compatibility(),
+                    self.maybe_select_dummy_loras(
+                        self.lora_config,
+                        np.array([self.max_num_reqs], dtype=np.int32),
+                    ),
+                ):
+                    self.select_compute_sample(dummy_hidden, indices, sampling_metadata)
+
+        xm.wait_device_ops()
+        end = time.perf_counter()
+        logger.info("Compilation finished in %.2f [secs].", end - start)
+        self._update_num_xla_graphs("select_compute_sample")
+
     def _precompile_gather_logprobs(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling gather_logprobs with different input shapes.")
@@ -2208,6 +2281,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not self.tt_config.cpu_sampling:
                 self._signpost("precompile_sampling_start")
                 self._precompile_sample_from_logits()
+                self._precompile_select_compute_sample()
                 self._signpost("precompile_sampling_end")
             else:
                 logger.warning(
@@ -2220,7 +2294,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not self.tt_config.enable_trace:
                 self._precompile_gather_logprobs()
         self._signpost("precompile_end")
-
 
     def profile_run(
         self,
@@ -2449,16 +2522,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             compiled_model.compiled = False
             TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def select_hidden_states(self, hidden_states, indices_do_sample):
+    def _select_hidden_states_impl(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
         if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
+    def _compute_logits_impl(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         batch, _ = sample_hidden_states.size()
         padding = pad_to_tile(batch) - batch
         if padding > 0:
@@ -2470,14 +2541,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def sample_from_logits(
+    def _sample_from_logits_impl(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
-        """
-        Sample with xla-friendly function. This function is to be traced
-        separately from `forward` for lighter compilation overhead.
-        """
         if (
             sampling_metadata.all_greedy
             and sampling_metadata.no_penalties
@@ -2487,10 +2553,52 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
-        else:
-            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
-        return out_tokens
+            return torch.argmax(logits, dim=-1, keepdim=True)
+        return self.sampler(logits, sampling_metadata).sampled_token_ids
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def select_hidden_states(self, hidden_states, indices_do_sample):
+        return self._select_hidden_states_impl(hidden_states, indices_do_sample)
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
+        return self._compute_logits_impl(sample_hidden_states)
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def sample_from_logits(
+        self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
+    ) -> torch.Tensor:
+        """
+        Sample with xla-friendly function. This function is to be traced
+        separately from `forward` for lighter compilation overhead.
+        """
+        return self._sample_from_logits_impl(logits, sampling_metadata)
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def select_compute_sample(
+        self,
+        hidden_states: torch.Tensor,
+        indices_do_sample: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Fused select_hidden_states + compute_logits + sample_from_logits.
+
+        One graph instead of three to eliminate per-step dispatch boundaries
+        and intermediate device materializations. Used only for the common
+        on-device-sampling, no-structured-decoding path; the separate
+        graphs are still used for the structured-decoding, CPU-sampling, and
+        prompt-logprobs paths.
+
+        Returns ``(selected_token_ids, logits)``. ``logits`` is returned for
+        the optional ``gather_logprobs`` follow-up; if logprobs are not
+        requested it is dropped on the host without forcing a transfer.
+        """
+        sample_hidden = self._select_hidden_states_impl(
+            hidden_states, indices_do_sample
+        )
+        logits = self._compute_logits_impl(sample_hidden)
+        out_tokens = self._sample_from_logits_impl(logits, sampling_metadata)
+        return out_tokens, logits
 
     def sample_from_logits_cpu(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
