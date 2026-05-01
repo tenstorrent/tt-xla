@@ -7,6 +7,13 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        # prims::view_of has alias annotations (Tensor(a)->Tensor(a)) that the
+        # Functionalize dispatch key cannot handle when re-dispatched via
+        # _autograd_impl/redispatch_prim under _AutoDispatchBelowAutograd.
+        # Return the input tensor directly; it is semantically equivalent to
+        # the view for any eager or graph-collection use (same data, same storage).
+        if func is torch.ops.prims.view_of.default:
+            return args[0]
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
