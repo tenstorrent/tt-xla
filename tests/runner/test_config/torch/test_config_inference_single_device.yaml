@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  granite_4_0_h_small_gguf/causal_lm/pytorch-H_SMALL_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model exceeds hardware DRAM capacity: 32.21B params dequantize to ~64 GB BF16 which exceeds p150b single-device DRAM (32 GB)"
