@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  k2_v2/causal_lm/pytorch-K2_V2_Instruct-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "LLM360/K2-V2-Instruct is a 70.5B-parameter LlamaForCausalLM (~141 GB at BF16). Single p150b device has 144 GB DRAM — insufficient headroom for weights plus KV-cache and runtime allocations."
