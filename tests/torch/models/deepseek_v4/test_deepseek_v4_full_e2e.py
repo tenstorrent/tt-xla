@@ -46,17 +46,24 @@ from third_party.tt_forge_models.deepseek_v4.modified_model import (
 
 from . import weight_loader
 
+# ============================================================================
+# TOY MODEL CONFIG FOR INFRASTRUCTURE TESTING
+# Set USE_TOY_MODEL = False and revert other constants for real model runs.
+# ============================================================================
+USE_TOY_MODEL = True
+
 # Maximum prompt length after tokenization. Prompts longer than this are
 # truncated from the left. For test_e2e_prefill_decode_full_real, no padding
 # is applied — prompts keep their natural length and the prefill runs up to
 # min(prompt_lens). Other tests (PCC tests) still use left-padding to
 # PROMPT_LEN for simpler CPU-vs-device comparison.
-MAX_PROMPT_LEN = 128
+MAX_PROMPT_LEN = 16 if USE_TOY_MODEL else 128
 PROMPT_LEN = MAX_PROMPT_LEN  # Alias for PCC tests that use padding
-MAX_NEW_TOKENS = 64
+MAX_NEW_TOKENS = 8 if USE_TOY_MODEL else 64
 
 # Batch size is a hard requirement of the A2aSparseMLP op; on the (4, 8)
-# mesh this shards to 8 rows per _axis_0 device.
+# mesh this shards to 8 rows per _axis_0 device. Always 32 regardless of
+# toy model mode.
 BATCH_SIZE = 32
 
 # Number of transformer blocks to load + run. Real config has 43; truncating
@@ -64,13 +71,13 @@ BATCH_SIZE = 32
 # real_args.compress_ratios so the included layers stay consistent with the
 # real-checkpoint layout (mirrors transformer_args in
 # test_deepseek_v4_tp_no_int.py:163).
-NUM_LAYERS = 43
+NUM_LAYERS = 3 if USE_TOY_MODEL else 43
 
 # see issue https://github.com/tenstorrent/tt-xla/issues/4444
 torch._dynamo.config.cache_size_limit = 100
 
 # One distinct prompt per batch row; len(PROMPTS) must equal BATCH_SIZE.
-PROMPTS = [
+_PROMPTS_FULL = [
     "How are you today?",
     "What is the capital of France?",
     "Explain machine learning briefly.",
@@ -104,9 +111,61 @@ PROMPTS = [
     "What was the French Revolution about?",
     "How do volcanoes form?",
 ]
+# For toy model, we still need 32 prompts to match BATCH_SIZE; just use
+# shorter/simpler ones.
+PROMPTS = _PROMPTS_FULL
 assert len(PROMPTS) == BATCH_SIZE, (
     f"PROMPTS has {len(PROMPTS)} entries, must equal BATCH_SIZE={BATCH_SIZE}"
 )
+
+
+# ----------------------------------------------------------------------------
+# Toy model helpers (for infrastructure testing without real weights).
+# ----------------------------------------------------------------------------
+
+
+def _toy_model_args(**overrides) -> mdo.ModelArgs:
+    """Small ModelArgs for fast infrastructure testing."""
+    defaults = dict(
+        max_batch_size=32,  # Must match BATCH_SIZE for 4x8 mesh
+        max_seq_len=64,  # Must fit MAX_PROMPT_LEN + MAX_NEW_TOKENS
+        vocab_size=129280,  # Keep real vocab_size so tokenizer works
+        dim=128,
+        moe_inter_dim=64,
+        n_layers=3,
+        n_mtp_layers=0,
+        n_heads=4,
+        q_lora_rank=64,
+        head_dim=32,
+        rope_head_dim=16,
+        n_routed_experts=4,
+        n_activated_experts=2,
+        n_shared_experts=1,
+        o_groups=2,
+        o_lora_rank=32,
+        window_size=8,
+        compress_ratios=(0, 4, 8),
+        index_n_heads=4,
+        index_head_dim=16,
+        index_topk=4,
+        hc_mult=2,
+        hc_sinkhorn_iters=3,
+    )
+    defaults.update(overrides)
+    return mdo.ModelArgs(**defaults)
+
+
+def _init_weights(module: torch.nn.Module, std: float = 0.02) -> None:
+    """Initialize all parameters with a normal distribution."""
+    from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt import (
+        RMSNorm,
+    )
+    with torch.no_grad():
+        for sub in module.modules():
+            if isinstance(sub, RMSNorm):
+                continue
+            for _, param in sub.named_parameters(recurse=False):
+                torch.nn.init.normal_(param, mean=0.0, std=std)
 
 
 # ----------------------------------------------------------------------------
@@ -130,6 +189,9 @@ def _build_and_load_full_model(args: mdo.ModelArgs, mesh_shape: Tuple[int, int])
     """Construct Transformer, load all real weights in one call, then swap
     every block's MoE in one enable_sparse_mlp call. Returns the CPU-side
     model; caller is expected to .to(torch_xla.device()).
+
+    When USE_TOY_MODEL is True, skips real weight loading and uses random
+    initialization instead.
     """
     print(f"[build] constructing Transformer skeleton (n_layers={args.n_layers}, "
           f"n_routed_experts={args.n_routed_experts}) ...", flush=True)
@@ -144,14 +206,18 @@ def _build_and_load_full_model(args: mdo.ModelArgs, mesh_shape: Tuple[int, int])
     finally:
         torch.set_default_dtype(prev_default)
 
-    print(f"[load] full state_dict for all {args.n_layers} layers ...", flush=True)
-    sd = weight_loader.load_transformer_state_dict(
-        range(args.n_layers), include_mtp=False
-    )
-    missing, unexpected = model.load_state_dict(sd, strict=False)
-    print(f"[load] missing={len(missing)} unexpected={len(unexpected)}", flush=True)
-    del sd
-    gc.collect()
+    if USE_TOY_MODEL:
+        print("[load] USE_TOY_MODEL=True, using random weight initialization ...", flush=True)
+        _init_weights(model)
+    else:
+        print(f"[load] full state_dict for all {args.n_layers} layers ...", flush=True)
+        sd = weight_loader.load_transformer_state_dict(
+            range(args.n_layers), include_mtp=False
+        )
+        missing, unexpected = model.load_state_dict(sd, strict=False)
+        print(f"[load] missing={len(missing)} unexpected={len(unexpected)}", flush=True)
+        del sd
+        gc.collect()
 
     print(f"[swap] enable_sparse_mlp on all {args.n_layers} blocks ...", flush=True)
     enable_sparse_mlp(
@@ -273,19 +339,23 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     #     f"BATCH_SIZE={bsz} must be divisible by mesh_shape[0]={mesh_shape[0]}"
     # )
 
-    # --- Real config, MTP off, layer-prefix truncation --------------------
-    args = weight_loader.load_config_args()
-    args.n_mtp_layers = 0
-    args.max_batch_size = bsz
-    if NUM_LAYERS < args.n_layers:
-        args.n_layers = NUM_LAYERS
-        args.compress_ratios = args.compress_ratios[:NUM_LAYERS]
-    # max_seq_len must cover both the longest prompt (up to MAX_PROMPT_LEN)
-    # and all decode positions. Round up to the next multiple of the largest
-    # compress_ratio so every compressor's kv_cache has room for at least one
-    # extra compressed slot beyond the prefill fill.
-    max_compress_ratio = max(args.compress_ratios) if any(args.compress_ratios) else 1
-    args.max_seq_len = math.ceil((MAX_PROMPT_LEN + MAX_NEW_TOKENS) / max_compress_ratio) * max_compress_ratio
+    # --- Model config, MTP off, layer-prefix truncation --------------------
+    if USE_TOY_MODEL:
+        args = _toy_model_args()
+        print("[config] USE_TOY_MODEL=True, using toy model config", flush=True)
+    else:
+        args = weight_loader.load_config_args()
+        args.n_mtp_layers = 0
+        args.max_batch_size = bsz
+        if NUM_LAYERS < args.n_layers:
+            args.n_layers = NUM_LAYERS
+            args.compress_ratios = args.compress_ratios[:NUM_LAYERS]
+        # max_seq_len must cover both the longest prompt (up to MAX_PROMPT_LEN)
+        # and all decode positions. Round up to the next multiple of the largest
+        # compress_ratio so every compressor's kv_cache has room for at least one
+        # extra compressed slot beyond the prefill fill.
+        max_compress_ratio = max(args.compress_ratios) if any(args.compress_ratios) else 1
+        args.max_seq_len = math.ceil((MAX_PROMPT_LEN + MAX_NEW_TOKENS) / max_compress_ratio) * max_compress_ratio
     print(f"[args] n_layers={args.n_layers}, n_routed_experts={args.n_routed_experts}, "
           f"n_activated_experts={args.n_activated_experts}, "
           f"bsz={bsz}, max_seq_len={args.max_seq_len}, "
