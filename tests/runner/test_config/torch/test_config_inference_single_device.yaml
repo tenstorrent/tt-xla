@@ -2613,6 +2613,10 @@ test_config:
   mistral/pytorch-Magistral_Small_2506-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  mistral_nemo_instruct_2407_heretic_noslop_mpoa_gguf/causal_lm/pytorch-Nemo_Instruct_2407_Heretic_Noslop_MPOA_GGUF-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.97  # BF16 floor for 40-layer 12B GGUF Q4_K_M; CPU BF16 self-consistency=1.0, TT vs CPU BF16=0.9766
+
   mistral/pytorch-mistral_small_3.1_24b_instruct_2503-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
