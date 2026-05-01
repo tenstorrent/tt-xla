@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  mradermacher_qwen3_30b_a3b_instruct_reamini_i1_gguf/causal_lm/pytorch-30B_A3B_INSTRUCT_REAMINI_I1_Q4_K_M_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Qwen3-30B-A3B has 30B total parameters (~60 GB BF16) which exceeds p150b DRAM (32 GB); hardware-class capacity XFAIL"
