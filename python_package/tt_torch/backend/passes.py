@@ -295,6 +295,50 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm):
+    """Clamp out-of-range negative start indices on aten.slice.Tensor nodes.
+
+    PyTorch eager silently clamps start indices outside [-dim_size, dim_size-1].
+    The XLA lazy backend raises "Value out of range" instead. This pass
+    replicates the eager clamping so sliding-window attention (e.g. Mistral's
+    `full_kv[:, :, -sliding_window+1:, :]`) works when seq_len < sliding_window.
+    """
+    modified = False
+    for node in gm.graph.nodes:
+        if not (
+            node.op == "call_function"
+            and node.target is torch.ops.aten.slice.Tensor
+        ):
+            continue
+        args = node.args
+        if len(args) < 3:
+            continue
+        start = args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+        input_node = args[0]
+        dim = args[1] if len(args) > 1 else 0
+        if not isinstance(dim, int):
+            continue
+        val = input_node.meta.get("val", None)
+        if val is None or not hasattr(val, "shape"):
+            continue
+        shape = val.shape
+        actual_dim = dim % len(shape)
+        try:
+            dim_size = shape[actual_dim]
+        except Exception:
+            continue
+        if not isinstance(dim_size, int):
+            continue
+        if start < -dim_size:
+            node.args = (args[0], args[1], -dim_size) + args[3:]
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
