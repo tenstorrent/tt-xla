@@ -7,6 +7,30 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        # XLA lazy backend raises "Value out of range" when aten.slice receives a
+        # start/end index < -dim_size. PyTorch eager silently clamps it to 0.
+        # Pre-clamp to [-size, size] for statically-known dimensions.
+        if func is torch.ops.aten.slice.Tensor:
+            tensor = args[0] if len(args) > 0 else (kwargs or {}).get("self")
+            dim = args[1] if len(args) > 1 else (kwargs or {}).get("dim", 0)
+            start = args[2] if len(args) > 2 else (kwargs or {}).get("start")
+            end = args[3] if len(args) > 3 else (kwargs or {}).get("end")
+            if (
+                isinstance(tensor, torch.Tensor)
+                and isinstance(dim, int)
+                and dim < len(tensor.shape)
+            ):
+                size = tensor.shape[dim]
+                if isinstance(size, int) and size > 0:
+                    new_start = max(start, -size) if isinstance(start, int) else start
+                    new_end = max(end, -size) if isinstance(end, int) else end
+                    if new_start != start or new_end != end:
+                        new_args = list(args)
+                        if len(args) > 2:
+                            new_args[2] = new_start
+                        if len(args) > 3:
+                            new_args[3] = new_end
+                        args = tuple(new_args)
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
