@@ -1596,6 +1596,15 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+  llama_3_1_bnb_4bit/pytorch-3.1_8B_Unsloth_BNB_4bit-single_device-inference:
+    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "Too large for single chip"
+        bringup_status: FAILED_RUNTIME
+
   llama/causal_lm/pytorch-3.1_405B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
