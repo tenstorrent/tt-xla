@@ -31,6 +31,35 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func.__name__ == "masked_scatter":
+            data = args[0] if args else kwargs.get("input")
+            mask = args[1] if len(args) > 1 else kwargs.get("mask")
+            source = args[2] if len(args) > 2 else kwargs.get("source")
+            if (
+                data is not None
+                and mask is not None
+                and source is not None
+                and data.dim() == 3
+                and mask.shape == data.shape
+            ):
+                # mask is [B, S, H] bool, uniform across H (image-token flag per
+                # position). Use token-level cumsum on [B, S] to avoid TTNN
+                # AccumulationDeviceOperation 1024x TILE blowup on flat [B*S*H].
+                # Avoid integer index types (TT has no int64 — values >256 silently
+                # corrupt in bfloat16): use one-hot matmul gather with float32 only.
+                B, S, H = data.shape
+                token_mask = mask[..., 0]  # [B, S] bool
+                source_2d = source.reshape(-1, H)  # [N, H]
+                N = source_2d.shape[0]
+                # float32 cumsum — integer-valued, exact up to 2^24 >> N
+                src_idx_f = (
+                    (torch.cumsum(token_mask.float(), dim=-1) - 1).clamp(0, N - 1)
+                )  # [B, S] float32, values in [0, N-1]
+                # one-hot via float equality — no int types needed
+                range_n = torch.arange(N, dtype=torch.float32, device=source_2d.device)
+                one_hot = (src_idx_f.reshape(-1, 1) == range_n).float()  # [B*S, N]
+                gathered = torch.mm(one_hot, source_2d.float()).to(data.dtype).reshape(B, S, H)
+                return torch.where(mask, gathered, data)
         return func(*args, **(kwargs or {}))
 
 
