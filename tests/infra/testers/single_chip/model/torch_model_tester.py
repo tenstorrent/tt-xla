@@ -182,6 +182,11 @@ class TorchModelTester(ModelTester):
         with _mask_jax_accelerator():
             return super()._run_on_cpu(compiled_workload)
 
+    def _sync_tt_device(self) -> None:
+        """Flush all pending XLA lazy computations and wait for the device to finish."""
+        if torch_xla is not None:
+            torch_xla.sync(wait=True)
+
     def _compile_for_tt_device(self, workload: Workload, options=None) -> None:
         """Compile Torch workload for TT device."""
         compile_torch_workload_for_tt_device(workload=workload, torch_options=options)

@@ -187,6 +187,10 @@ class ModelTester(BaseTester, ABC):
             return None
         return (self._compare(tt_res, cpu_res),)
 
+    def _sync_tt_device(self) -> None:
+        """Synchronize the TT device after a run. Override in framework-specific subclasses."""
+        pass
+
     def _test_e2e_perf(self) -> dict[str, float]:
         warmup_iters_count = 3
         perf_iters_count = 2
@@ -194,12 +198,18 @@ class ModelTester(BaseTester, ABC):
         # warmup runs
         for _ in range(warmup_iters_count):
             _ = self._run_on_tt_device(self._workload)
+            # Flush pending lazy computations before the next run so they don't
+            # accumulate across iterations, which causes hangs on XLA backends.
+            self._sync_tt_device()
 
         # e2e perf
         perf_times = []
         for _ in range(perf_iters_count):
             iter_start = time.perf_counter()
             tt_res = self._run_on_tt_device(self._workload)
+            # Sync before stopping the timer so the measurement includes actual
+            # device execution time, not just lazy-graph construction time.
+            self._sync_tt_device()
             iter_end = time.perf_counter()
             perf_times.append(iter_end - iter_start)
 
