@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  huihui_qwen3_5_27b_claude_4_6_opus_abliterated_4bit/causal_lm/pytorch-27B_Claude_4.6_Opus_Abliterated_4bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Qwen3.5-27B VLM with MLX 4-bit affine quantization: uint32-packed weights are not loadable by transformers (all model weights randomly initialized); full BF16 model ~53 GB exceeds p150b 32 GB DRAM"
