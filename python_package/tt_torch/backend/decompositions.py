@@ -339,8 +339,9 @@ def masked_scatter(
     data_flat = data.reshape(-1)
     source_flat = source.reshape(-1)
 
-    mask_i = mask_f.long()
-    source_idx = torch.cumsum(mask_i, 0) - 1
+    # Use float32 cumsum: ttnn does not support INT64 cumsum (stablehlo.reduce_window s64 fails to legalize)
+    mask_i = mask_f.float()
+    source_idx = (torch.cumsum(mask_i, 0) - 1).long()
     source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
 
     gathered = source_flat[source_idx]
