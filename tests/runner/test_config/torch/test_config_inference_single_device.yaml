@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  inferencerlabs_nvidia_nemotron_3_super_120b_a12b_mlx_4_5bit/causal_lm/pytorch-NVIDIA-Nemotron-3-Super-120B-A12B-MLX-4.5bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "NemotronH 120B hybrid-Mamba/MoE/Attention model weights are 68.02 GB (7 safetensors shards) which far exceeds any single-device DRAM (max 32 GB on p150b Blackhole)"
