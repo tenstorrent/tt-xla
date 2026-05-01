@@ -78,7 +78,7 @@ class TorchFunctionOverride(TorchFunctionMode):
                 # one-hot via float equality — no int types needed
                 range_n = torch.arange(N, dtype=torch.float32, device=source_2d.device)
                 one_hot = (src_idx_f.reshape(-1, 1) == range_n).float()  # [B*S, N]
-                gathered = torch.mm(one_hot, source_2d).reshape(B, S, H)
+                gathered = torch.mm(one_hot, source_2d.float()).to(data.dtype).reshape(B, S, H)
                 return torch.where(mask, gathered, data)
         return func(*args, **(kwargs or {}))
 
