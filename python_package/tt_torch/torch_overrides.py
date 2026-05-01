@@ -148,3 +148,68 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _qwen3_moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Device-friendly forward for Qwen3MoeExperts, avoids nonzero/for-loop.
+
+    CPU path: per-expert loop (serves as PCC golden reference).
+    Device path: dense einsum over gathered expert weights (static graph, no dynamic shapes).
+
+    Args:
+        hidden_states: [T, H] flattened token hidden states
+        top_k_index:   [T, K] top-K expert indices per token
+        top_k_weights: [T, K] routing weights for the top-K experts
+    """
+    import torch.nn.functional as F
+
+    if hidden_states.device.type == "cpu":
+        final_hidden_states = torch.zeros_like(hidden_states)
+        expert_mask = F.one_hot(top_k_index, num_classes=self.num_experts)
+        expert_mask = expert_mask.permute(2, 1, 0)  # [E, K, T]
+        expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = F.linear(current_state, self.gate_up_proj[expert_idx]).chunk(
+                2, dim=-1
+            )
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = F.linear(
+                current_hidden_states, self.down_proj[expert_idx]
+            )
+            current_hidden_states = current_hidden_states * top_k_weights[
+                token_idx, top_k_pos, None
+            ]
+            final_hidden_states.index_add_(
+                0, token_idx, current_hidden_states.to(final_hidden_states.dtype)
+            )
+        return final_hidden_states
+
+    # Device path: gather expert weight slices → einsum (static shapes, no nonzero)
+    # gate_up_proj: [E, 2*I, H];  down_proj: [E, H, I]
+    K = top_k_index.shape[1]
+    expert_gate_up = self.gate_up_proj[top_k_index]  # [T, K, 2*I, H]
+    expert_down = self.down_proj[top_k_index]          # [T, K, H, I]
+
+    # Gate+up projection: h[T,K,H] × gate_up[T,K,2I,H] (contract H) → [T,K,2I]
+    h = hidden_states.unsqueeze(1).expand(-1, K, -1)   # [T, K, H]
+    gate_up = torch.einsum("tkh,tkoh->tko", h, expert_gate_up)
+
+    I = gate_up.shape[-1] // 2
+    out = self.act_fn(gate_up[..., :I]) * gate_up[..., I:]  # [T, K, I]
+
+    # Down projection: out[T,K,I] × down[T,K,H,I] (contract I) → [T, K, H]
+    out = torch.einsum("tki,tkhi->tkh", out, expert_down)
+
+    # Weight by routing scores and sum over top-K experts → [T, H]
+    return (out * top_k_weights.unsqueeze(-1)).sum(dim=1)
+
+
+try:
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeExperts
+
+    Qwen3MoeExperts.forward = _qwen3_moe_experts_forward
+except ImportError:
+    pass
