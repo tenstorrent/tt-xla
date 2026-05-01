@@ -233,7 +233,13 @@ class TTWorker:
         # total_memory_size = m["bytes_limit"]
         # current_mem = m["bytes_used"]
         # @LPanosTT: For now we will always report that no memory has been used.
-        total_memory_size = 12 * 1024**3  # m["bytes_limit"]
+        # Bumped from 12 GB to 32 GB to match Blackhole p150 / DC-class
+        # Wormhole DRAM. Wormhole n150/n300 only have 12 GB per chip — be
+        # careful committing this upstream without a hardware-detection or
+        # env-var gate. PJRT memory-info APIs (PJRT_Device_MemoryStats) not
+        # yet implemented; revisit once those are wired up so this can be
+        # queried from the device instead of hardcoded.
+        total_memory_size = 32 * 1024**3  # m["bytes_limit"]
         current_mem = 0  # m["bytes_used"]
 
         # Ideally we would use profiled = m["peak_bytes_used"] to

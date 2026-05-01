@@ -164,7 +164,10 @@ MODULE_TYPE_TO_TT_OVERRIDE = OrderedDict(
 
 # isinstance-based overrides for classes where subclasses need the same treatment
 ISINSTANCE_OVERRIDES = [
-    (RotaryEmbedding, tt_rotary_embedding_module),
+    # TEMP DISABLED 2026-04-30: RotaryEmbedding -> TTRotaryEmbedding override
+    # (be826f45a [vLLM] Fix trace for RoPE models by computing cos/sin
+    # on-the-fly) is currently disabled. Re-enable by un-commenting:
+    # (RotaryEmbedding, tt_rotary_embedding_module),
 ]
 
 
