@@ -375,6 +375,22 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
     ]
 
 
+def _index_put_boolean(self, indices, values, accumulate=False):
+    # Boolean-mask index_put_ (e.g. `t[t == 0] = 1`) lowers to
+    # stablehlo.scatter with dynamic K, which fails in flattenMultiDimScatterIndices.
+    # Decompose to torch.where which lowers to stablehlo.select instead.
+    if (
+        len(indices) == 1
+        and indices[0] is not None
+        and indices[0].dtype == torch.bool
+        and not accumulate
+    ):
+        return torch.where(indices[0], values.expand_as(self), self)
+    raise NotImplementedError(
+        "index_put_ decomposition only handles single boolean mask without accumulation"
+    )
+
+
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
@@ -412,6 +428,8 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
         aten.masked_scatter.default: masked_scatter,
         aten.sum.dim_IntList: sum_dim_IntList,
+        aten.index_put_.default: _index_put_boolean,
+        aten.index_put.default: _index_put_boolean,
     }
 
 
