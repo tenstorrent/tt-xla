@@ -11,6 +11,7 @@
 #include "api_bindings.h"
 
 #include "api/buffer_instance.h"
+#include "api/buffer_metadata_extension.h"
 #include "api/client_instance.h"
 #include "api/device_description.h"
 #include "api/device_instance.h"
@@ -26,7 +27,7 @@ namespace tt::pjrt {
 
 void bindApi(PJRT_Api *api) {
   api->struct_size = PJRT_Api_STRUCT_SIZE;
-  api->extension_start = nullptr;
+  api->extension_start = getBufferMetadataExtension();
   api->pjrt_api_version.major_version = PJRT_API_MAJOR;
   api->pjrt_api_version.minor_version = PJRT_API_MINOR;
 

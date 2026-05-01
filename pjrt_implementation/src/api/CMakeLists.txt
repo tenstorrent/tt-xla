@@ -15,6 +15,7 @@ find_package(Protobuf REQUIRED)
 
 add_library(TTPJRTApi
     "buffer_instance.cc"
+    "buffer_metadata_extension.cc"
     "client_instance.cc"
     "device_description.cc"
     "device_instance.cc"
