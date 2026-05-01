@@ -208,7 +208,7 @@ class XlaQKVParallelLinear(nn.Module):
 
 
 def partition_merged_column_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, use_2d_mesh: bool
 ) -> torch.nn.Module:
     assert isinstance(layer, MergedColumnParallelLinear)
     xla_layer = XlaMergedColumnParallelLinear(layer, mesh)
@@ -217,7 +217,7 @@ def partition_merged_column_parallel_linear(
 
 
 def partition_qkv_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, use_2d_mesh: bool
 ) -> torch.nn.Module:
     assert isinstance(layer, QKVParallelLinear)
     xla_layer = XlaQKVParallelLinear(layer, mesh)
@@ -226,16 +226,16 @@ def partition_qkv_parallel_linear(
 
 
 def partition_column_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, use_2d_mesh: bool
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    xs.mark_sharding(layer.weight, mesh, ("batch", None))
+    xs.mark_sharding(layer.weight, mesh, ("model", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
 
 def partition_row_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, use_2d_mesh: bool
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
     xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
@@ -244,20 +244,21 @@ def partition_row_parallel_linear(
 
 
 def partition_parallel_lm_head(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, use_2d_mesh: bool
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, ("batch", None))
+    xs.mark_sharding(layer.weight, mesh, ("model", None))
     return layer
 
 
 def partition_vocab_parallel_embedding(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, use_2d_mesh: bool
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, (None, "batch"))
+    # xs.mark_sharding(layer.weight, mesh, (None, "batch" if use_2d_mesh else "model"))
+    xs.mark_sharding(layer.weight, mesh, (None, "model"))
     # Apply sharding constraint to the output of the layer.
     hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
@@ -281,7 +282,7 @@ def get_fqn(module):
     return module.__class__.__qualname__
 
 
-def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
+def shard_model(model: torch.nn.Module, mesh: "xs.Mesh", use_2d_mesh: bool) -> None:
     """
     Recursively check a PyTorch model and apply appropriate sharding based on
     the MODULE_TYPE_TO_WRAPPING_FUNC mapping.
@@ -289,13 +290,15 @@ def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
     Args:
         model: torch.nn.Module to process
         mesh: An XLA SPMD mesh object used for sharding
+        use_2d_mesh: Whether to use a 2D mesh for sharding. If True, the sharding
+                     constraints will be applied differently.
     """
     logger.info("Applying parallel sharding to the model...")
 
     def _process_module(module, name=None, parent=None):
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
             if get_fqn(module) == module_type:
-                wrapped_module = wrapping_func(module, mesh)
+                wrapped_module = wrapping_func(module, mesh, use_2d_mesh)
 
                 assert (
                     parent is not None and name is not None

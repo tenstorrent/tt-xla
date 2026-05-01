@@ -1580,7 +1580,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
-                    shard_model(model, self.mesh)
+                    shard_model(model, self.mesh, self.use_2d_mesh)
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -1599,7 +1599,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if (
             self.enable_tensor_parallel
-            and self.use_2d_mesh
             and self.model.lm_head is not None
             and isinstance(self.model.lm_head, ParallelLMHead)
         ):
@@ -1798,7 +1797,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Mark dummy inputs to match the generated hidden_states shardings
             # (during execution) to avoid re-compilation of select_hidden_states
             # graph later.
-            if self.enable_tensor_parallel and self.use_2d_mesh:
+            if self.enable_tensor_parallel:
                 xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
 
             self.select_hidden_states(dummy_hidden, indices)
@@ -1818,6 +1817,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, hsize), dtype=self._hidden_states_dtype
         )
         dummy_hidden = dummy_hidden.to(self.device)
+        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
+            xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
 
         self.compute_logits(dummy_hidden)
 
@@ -2184,7 +2185,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        if self.enable_tensor_parallel and self.use_2d_mesh:
+        if self.enable_tensor_parallel:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
@@ -2195,9 +2196,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # (quant_method.apply bypasses __call__) and all_gather is a
         # no-op (world_size=1). Must be inside the compiled graph —
         # external sharding_constraint between compiled functions breaks.
-        if self.enable_tensor_parallel and (
-            not self.use_2d_mesh or self.is_sharded_compute_logits
-        ):
+        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
