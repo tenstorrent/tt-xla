@@ -46,13 +46,13 @@ from third_party.tt_forge_models.deepseek_v4.modified_model import (
 
 from . import weight_loader
 
-# Prefill length must be a multiple of args.window_size (=128) so the
-# attention's circular kv_cache update lands on a window boundary; otherwise
-# the cache contents become inconsistent for the first decode step. It also
-# must be >= max(args.compress_ratios) so the Compressor's
-# `rope_idx = start_pos + 1 - ratio` stays non-negative
-# (model_decode_opt.py:414). 128 satisfies both.
-PROMPT_LEN = 128
+# Maximum prompt length after tokenization. Prompts longer than this are
+# truncated from the left. For test_e2e_prefill_decode_full_real, no padding
+# is applied — prompts keep their natural length and the prefill runs up to
+# min(prompt_lens). Other tests (PCC tests) still use left-padding to
+# PROMPT_LEN for simpler CPU-vs-device comparison.
+MAX_PROMPT_LEN = 128
+PROMPT_LEN = MAX_PROMPT_LEN  # Alias for PCC tests that use padding
 MAX_NEW_TOKENS = 64
 
 # Batch size is a hard requirement of the A2aSparseMLP op; on the (4, 8)
@@ -280,45 +280,52 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     if NUM_LAYERS < args.n_layers:
         args.n_layers = NUM_LAYERS
         args.compress_ratios = args.compress_ratios[:NUM_LAYERS]
-    # max_seq_len must cover both the prefill window (PROMPT_LEN) and all
-    # decode positions. Round up to the next multiple of the largest
+    # max_seq_len must cover both the longest prompt (up to MAX_PROMPT_LEN)
+    # and all decode positions. Round up to the next multiple of the largest
     # compress_ratio so every compressor's kv_cache has room for at least one
     # extra compressed slot beyond the prefill fill.
     max_compress_ratio = max(args.compress_ratios) if any(args.compress_ratios) else 1
-    args.max_seq_len = math.ceil((PROMPT_LEN + MAX_NEW_TOKENS) / max_compress_ratio) * max_compress_ratio
+    args.max_seq_len = math.ceil((MAX_PROMPT_LEN + MAX_NEW_TOKENS) / max_compress_ratio) * max_compress_ratio
     print(f"[args] n_layers={args.n_layers}, n_routed_experts={args.n_routed_experts}, "
           f"n_activated_experts={args.n_activated_experts}, "
           f"bsz={bsz}, max_seq_len={args.max_seq_len}, "
           f"compress_ratios={args.compress_ratios}", flush=True)
 
     # --- Tokenizer + 32 distinct prompts ----------------------------------
-    # Each row gets its own prompt, left-padded to PROMPT_LEN so the actual
-    # text sits at the right edge (most-recent context is intact for the
-    # first decode token). Truncate from the left if a prompt overflows.
+    # Each row gets its own prompt with no padding. Prompts are truncated
+    # from the left if they exceed MAX_PROMPT_LEN. The generation loop
+    # prefills up to the shortest prompt and then generates tokens,
+    # overriding model predictions with ground-truth tokens for positions
+    # still within each row's prompt.
     from transformers import AutoTokenizer  # noqa: WPS433
 
     tokenizer = AutoTokenizer.from_pretrained(weight_loader.REPO_ID)
-    pad_id = (
-        tokenizer.pad_token_id
-        if tokenizer.pad_token_id is not None
-        else tokenizer.eos_token_id
-    )
-    prompt_rows = []
+    eos_id = tokenizer.eos_token_id
+    prompt_tokens: list[list[int]] = []
     for prompt in PROMPTS:
         ids = tokenizer(
             prompt, return_tensors="pt", add_special_tokens=False
-        ).input_ids[0]
-        if ids.shape[0] >= PROMPT_LEN:
-            ids = ids[-PROMPT_LEN:]
-        else:
-            pad = torch.full(
-                (PROMPT_LEN - ids.shape[0],), pad_id, dtype=torch.long
-            )
-            ids = torch.cat([pad, ids], dim=0)
-        prompt_rows.append(ids)
-    prompt_ids = torch.stack(prompt_rows, dim=0).contiguous()
-    assert prompt_ids.shape == (bsz, PROMPT_LEN)
-    print(f"[tokenize] prompt_ids[0][-8:]={prompt_ids[0][-8:].tolist()}", flush=True)
+        ).input_ids[0].tolist()
+        if len(ids) > MAX_PROMPT_LEN:
+            ids = ids[-MAX_PROMPT_LEN:]
+        prompt_tokens.append(ids)
+
+    prompt_lens = [len(t) for t in prompt_tokens]
+    min_prompt_len = min(prompt_lens)
+    max_prompt_len = max(prompt_lens)
+    total_len = min(args.max_seq_len, MAX_NEW_TOKENS + max_prompt_len)
+
+    # Static output tensor: fill with -1, then insert each prompt's tokens.
+    tokens = torch.full((bsz, total_len), -1, dtype=torch.long)
+    for i, t in enumerate(prompt_tokens):
+        tokens[i, : len(t)] = torch.tensor(t, dtype=torch.long)
+    prompt_mask = tokens != -1  # True where tokens are from the prompt
+
+    print(
+        f"[tokenize] prompt_lens={prompt_lens[:8]}... min={min_prompt_len} "
+        f"max={max_prompt_len} total_len={total_len}",
+        flush=True,
+    )
 
     # --- Build model on CPU, load real weights, swap MoE per layer --------
     model = _build_and_load_full_model(args, mesh_shape)
@@ -360,42 +367,69 @@ def test_e2e_prefill_decode_full_real(expert_dtype: str) -> None:
     #compile_options = {"tt_legacy_compile": True}
     compiled = torch.compile(model, backend="tt")
 
-    # Per-row generation tracker. generated[i] is the list of token ids
-    # produced for row i across prefill + every decode step.
-    generated: list[list[int]] = [[] for _ in range(bsz)]
+    prev_pos = 0
 
-    # =================== PREFILL =====================================
-    print("[prefill] compiling + running ...", flush=True)
-    prompt_ids_tt = prompt_ids.to(device)
-    xs.mark_sharding(prompt_ids_tt, mesh, ("_axis_0", None))
-    sp_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
-    prefill_logits = compiled(prompt_ids_tt, sp_tt)  # [bsz, vocab]
-    torch_xla.sync(wait=True)
-    next_ids = prefill_logits.detach().to("cpu").argmax(dim=-1)  # [bsz]
-    for i in range(bsz):
-        generated[i].append(int(next_ids[i].item()))
-    print(f"[prefill] first ids[:8]={next_ids[:8].tolist()}", flush=True)
+    # =================== PREFILL + DECODE LOOP =======================
+    # The first forward pass processes [0:min_prompt_len] tokens (prefill).
+    # Subsequent passes generate one token at a time (decode). For positions
+    # still within a row's prompt, the ground-truth token overrides the
+    # model's prediction.
+    #
+    # Note: The model does not support batch size < max_batch_size, so we
+    # continue decoding for the full batch even after rows hit EOS. EOS
+    # trimming happens at output extraction time.
+    for cur_pos in range(min_prompt_len, total_len):
+        input_tokens = tokens[:, prev_pos:cur_pos]
+        input_tokens_tt = input_tokens.to(device)
+        xs.mark_sharding(input_tokens_tt, mesh, ("_axis_0", None))
+        sp_tt = torch.tensor(cur_pos, dtype=torch.long).to(device)
 
-    # =================== DECODE LOOP =================================
-    # All rows step together; we don't early-exit on per-row EOS so the
-    # graph stays shape-stable. EOS trimming happens at print time.
-    prev_token = next_ids.unsqueeze(1)  # [bsz, 1]
-    for step in range(MAX_NEW_TOKENS - 1):
-        start_pos = PROMPT_LEN + step
-        prev_token_tt = prev_token.to(device)
-        xs.mark_sharding(prev_token_tt, mesh, ("_axis_0", None))
-        sp_tt = torch.tensor(start_pos, dtype=torch.long).to(device)
-        decode_logits = compiled(prev_token_tt, sp_tt)
-        #torch_xla.sync()
+        if prev_pos == 0:
+            print(
+                f"[prefill] compiling + running (positions 0:{cur_pos}) ...",
+                flush=True,
+            )
+        else:
+            print(
+                f"[decode] cur_pos={cur_pos} prev_pos={prev_pos}",
+                flush=True,
+            )
 
-        next_ids = decode_logits.detach().to("cpu").argmax(dim=-1)  # [bsz]
-        for i in range(bsz):
-            generated[i].append(int(next_ids[i].item()))
-        print(f"[decode {step + 1:>2}] sp={start_pos}: "
-              f"ids[:8]={next_ids[:8].tolist()}", flush=True)
-        prev_token = next_ids.unsqueeze(1)
+        logits = compiled(input_tokens_tt, sp_tt)  # [bsz, vocab]
+        torch_xla.sync(wait=True)
 
-    _print_decoded(tokenizer, PROMPTS, generated)
+        # Sample next token (greedy argmax).
+        next_token = logits.detach().to("cpu").argmax(dim=-1)  # [bsz]
+
+        # For positions still within a row's prompt, override with ground
+        # truth so the model sees the correct context.
+        next_token = torch.where(
+            prompt_mask[:, cur_pos], tokens[:, cur_pos], next_token
+        )
+        tokens[:, cur_pos] = next_token
+
+        if prev_pos == 0:
+            print(
+                f"[prefill] done. next_ids[:8]={next_token[:8].tolist()}",
+                flush=True,
+            )
+        else:
+            print(
+                f"[decode] cur_pos={cur_pos}: ids[:8]={next_token[:8].tolist()}",
+                flush=True,
+            )
+
+        prev_pos = cur_pos
+
+    # Extract completion tokens (everything after the prompt).
+    completion_tokens: list[list[int]] = []
+    for i, toks in enumerate(tokens.tolist()):
+        toks = toks[prompt_lens[i] : prompt_lens[i] + MAX_NEW_TOKENS]
+        if eos_id in toks:
+            toks = toks[: toks.index(eos_id)]
+        completion_tokens.append(toks)
+
+    _print_decoded(tokenizer, PROMPTS, completion_tokens)
 
 
 def _print_decoded(tokenizer, prompts: list, generated: list) -> None:
