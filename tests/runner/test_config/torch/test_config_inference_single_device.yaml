@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  joycaption/pytorch-Beta_One_HF_LLaVA-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: LLaVA (Llama-3.1-8B + SigLIP) at bf16 (~17 GB weights) exceeds single-device DRAM capacity after compilation overhead (allocated 29.6 GB of 34.2 GB)"
