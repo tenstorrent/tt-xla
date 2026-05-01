@@ -698,6 +698,9 @@ def get_xla_device_arch():
     if os.environ.get("TT_COMPILE_ONLY_SYSTEM_DESC"):
         return ""
 
+    if not torch_xla._XLAC._xla_computation_cache_is_initialized():
+        return ""
+
     all_attributes = xr.global_runtime_device_attributes()
     device_attributes = all_attributes[0]
 
