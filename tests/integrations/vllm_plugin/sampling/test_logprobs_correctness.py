@@ -38,7 +38,8 @@ def test_compute_logprobs_non_positive():
     torch.manual_seed(0)
     logits = torch.randn(4, 1000)
     lp = Sampler().compute_logprobs(logits)
-    assert (lp <= 0).all(), f"max log-prob is {lp.max().item():.4f}, expected <= 0"
+    if not (lp <= 0).all():
+        pytest.fail(f"max log-prob is {lp.max().item():.4f}, expected <= 0")
 
 
 @pytest.mark.push
@@ -48,9 +49,8 @@ def test_compute_logprobs_exp_sums_to_one():
     logits = torch.randn(3, 500)
     lp = Sampler().compute_logprobs(logits)
     sums = lp.exp().sum(dim=-1)
-    assert torch.allclose(
-        sums, torch.ones(3), atol=1e-4
-    ), f"probability sums: {sums.tolist()}, expected ~1.0"
+    if not torch.allclose(sums, torch.ones(3), atol=1e-4):
+        pytest.fail(f"probability sums: {sums.tolist()}, expected ~1.0")
 
 
 @pytest.mark.push
@@ -60,10 +60,14 @@ def test_compute_logprobs_preserves_ordering():
     lp = Sampler().compute_logprobs(logits)
     ranked = lp.argsort(dim=-1, descending=True)[0]
     # token 0 (logit 3.0) must be most probable, then token 2, then token 1, then token 3
-    assert ranked[0].item() == 0
-    assert ranked[1].item() == 2
-    assert ranked[2].item() == 1
-    assert ranked[3].item() == 3
+    if ranked[0].item() != 0:
+        pytest.fail(f"Expected token 0 at rank 0, got {ranked[0].item()}")
+    if ranked[1].item() != 2:
+        pytest.fail(f"Expected token 2 at rank 1, got {ranked[1].item()}")
+    if ranked[2].item() != 1:
+        pytest.fail(f"Expected token 1 at rank 2, got {ranked[2].item()}")
+    if ranked[3].item() != 3:
+        pytest.fail(f"Expected token 3 at rank 3, got {ranked[3].item()}")
 
 
 # ---------------------------------------------------------------------------
@@ -83,10 +87,11 @@ def test_gather_logprobs_sampled_token_at_index_zero():
     result = Sampler().gather_logprobs(lp, num_logprobs=5, token_ids=token_ids)
 
     for i in range(batch):
-        assert result.logprob_token_ids[i, 0].item() == token_ids[i].item(), (
-            f"row {i}: expected token {token_ids[i].item()} at index 0, "
-            f"got {result.logprob_token_ids[i, 0].item()}"
-        )
+        if result.logprob_token_ids[i, 0].item() != token_ids[i].item():
+            pytest.fail(
+                f"row {i}: expected token {token_ids[i].item()} at index 0, "
+                f"got {result.logprob_token_ids[i, 0].item()}"
+            )
 
 
 @pytest.mark.push
@@ -103,10 +108,11 @@ def test_gather_logprobs_token_logprob_at_index_zero():
     for i in range(batch):
         expected = lp[i, token_ids[i]].item()
         actual = result.logprobs[i, 0].item()
-        assert abs(actual - expected) < 1e-5, (
-            f"row {i}: logprob at index 0 is {actual:.6f}, "
-            f"expected {expected:.6f} for token {token_ids[i].item()}"
-        )
+        if abs(actual - expected) >= 1e-5:
+            pytest.fail(
+                f"row {i}: logprob at index 0 is {actual:.6f}, "
+                f"expected {expected:.6f} for token {token_ids[i].item()}"
+            )
 
 
 @pytest.mark.push
@@ -122,7 +128,8 @@ def test_gather_logprobs_topk_are_sorted_descending():
 
     topk_lp = result.logprobs[:, 1:]  # columns 1..k are the top-k entries
     diffs = topk_lp[:, :-1] - topk_lp[:, 1:]
-    assert (diffs >= -1e-5).all(), "Top-k log-probs are not sorted descending"
+    if not (diffs >= -1e-5).all():
+        pytest.fail("Top-k log-probs are not sorted descending")
 
 
 @pytest.mark.push
@@ -139,9 +146,10 @@ def test_gather_logprobs_topk_are_actual_topk():
     for i in range(batch):
         actual_topk, _ = torch.topk(lp[i], k)
         returned_topk = result.logprobs[i, 1:].sort(descending=True).values
-        assert torch.allclose(
-            returned_topk, actual_topk, atol=1e-5
-        ), f"row {i}: returned top-{k} log-probs don't match actual top-{k}"
+        if not torch.allclose(returned_topk, actual_topk, atol=1e-5):
+            pytest.fail(
+                f"row {i}: returned top-{k} log-probs don't match actual top-{k}"
+            )
 
 
 @pytest.mark.push
@@ -156,9 +164,10 @@ def test_gather_logprobs_rank_semantics():
         tid = torch.tensor([token_id])
         result = Sampler().gather_logprobs(lp, num_logprobs=1, token_ids=tid)
         actual_rank = result.selected_token_ranks[0].item()
-        assert (
-            actual_rank == expected_rank
-        ), f"token {token_id}: expected rank {expected_rank}, got {actual_rank}"
+        if actual_rank != expected_rank:
+            pytest.fail(
+                f"token {token_id}: expected rank {expected_rank}, got {actual_rank}"
+            )
 
 
 @pytest.mark.push
@@ -175,15 +184,30 @@ def test_gather_logprobs_known_values():
     result = Sampler().gather_logprobs(lp, num_logprobs=2, token_ids=token_ids)
 
     # Index 0: token 1's log-prob
-    assert result.logprob_token_ids[0, 0].item() == 1
-    assert abs(result.logprobs[0, 0].item() - expected_lp[0, 1].item()) < 1e-5
+    if result.logprob_token_ids[0, 0].item() != 1:
+        pytest.fail(
+            f"Expected token 1 at index 0, got {result.logprob_token_ids[0, 0].item()}"
+        )
+    if abs(result.logprobs[0, 0].item() - expected_lp[0, 1].item()) >= 1e-5:
+        pytest.fail(
+            f"Token 1 log-prob mismatch: got {result.logprobs[0, 0].item()}, expected {expected_lp[0, 1].item()}"
+        )
 
     # Rank of token 1 = 2 (token 0 has higher log-prob)
-    assert result.selected_token_ranks[0].item() == 2
+    if result.selected_token_ranks[0].item() != 2:
+        pytest.fail(
+            f"Expected rank 2 for token 1, got {result.selected_token_ranks[0].item()}"
+        )
 
     # Top-2 (columns 1,2): should be tokens 0 and 1 (highest and 2nd highest)
-    assert result.logprob_token_ids[0, 1].item() == 0  # most probable
-    assert result.logprob_token_ids[0, 2].item() == 1  # 2nd most probable
+    if result.logprob_token_ids[0, 1].item() != 0:
+        pytest.fail(
+            f"Expected token 0 at top-1 position, got {result.logprob_token_ids[0, 1].item()}"
+        )
+    if result.logprob_token_ids[0, 2].item() != 1:
+        pytest.fail(
+            f"Expected token 1 at top-2 position, got {result.logprob_token_ids[0, 2].item()}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -204,10 +228,11 @@ def test_gather_logprobs_ranks_are_int32():
     lp = Sampler().compute_logprobs(logits)
     token_ids = torch.randint(0, 1000, (4,))
     result = Sampler().gather_logprobs(lp, num_logprobs=5, token_ids=token_ids)
-    assert result.selected_token_ranks.dtype == torch.int32, (
-        f"selected_token_ranks must be int32 to avoid numpy.int64 serialization "
-        f"crash (#3310), got {result.selected_token_ranks.dtype}"
-    )
+    if result.selected_token_ranks.dtype != torch.int32:
+        pytest.fail(
+            f"selected_token_ranks must be int32 to avoid numpy.int64 serialization "
+            f"crash (#3310), got {result.selected_token_ranks.dtype}"
+        )
 
 
 @pytest.mark.push
@@ -218,9 +243,10 @@ def test_gather_logprobs_indices_are_int32():
     lp = Sampler().compute_logprobs(logits)
     token_ids = torch.randint(0, 500, (2,))
     result = Sampler().gather_logprobs(lp, num_logprobs=3, token_ids=token_ids)
-    assert (
-        result.logprob_token_ids.dtype == torch.int32
-    ), f"logprob_token_ids must be int32, got {result.logprob_token_ids.dtype}"
+    if result.logprob_token_ids.dtype != torch.int32:
+        pytest.fail(
+            f"logprob_token_ids must be int32, got {result.logprob_token_ids.dtype}"
+        )
 
 
 @pytest.mark.push
@@ -234,12 +260,22 @@ def test_gather_logprobs_large_vocab(vocab_size):
     token_ids = torch.randint(0, vocab_size, (batch,))
     result = Sampler().gather_logprobs(lp, num_logprobs=5, token_ids=token_ids)
 
-    assert result.logprob_token_ids.dtype == torch.int32
-    assert result.selected_token_ranks.dtype == torch.int32
-    assert (result.logprobs <= 0).all()
-    assert (result.logprob_token_ids >= 0).all()
-    assert (result.logprob_token_ids < vocab_size).all()
-    assert (result.selected_token_ranks >= 1).all()
+    if result.logprob_token_ids.dtype != torch.int32:
+        pytest.fail(
+            f"logprob_token_ids must be int32, got {result.logprob_token_ids.dtype}"
+        )
+    if result.selected_token_ranks.dtype != torch.int32:
+        pytest.fail(
+            f"selected_token_ranks must be int32, got {result.selected_token_ranks.dtype}"
+        )
+    if not (result.logprobs <= 0).all():
+        pytest.fail("All logprobs must be <= 0")
+    if not (result.logprob_token_ids >= 0).all():
+        pytest.fail("All logprob_token_ids must be >= 0")
+    if not (result.logprob_token_ids < vocab_size).all():
+        pytest.fail(f"All logprob_token_ids must be < {vocab_size}")
+    if not (result.selected_token_ranks >= 1).all():
+        pytest.fail("All selected_token_ranks must be >= 1")
 
 
 # ---------------------------------------------------------------------------
@@ -276,13 +312,15 @@ def test_gather_logprobs_rank_clamp_guards_precision_artifact():
     # One float32 ULP above the true max: nothing in logprobs satisfies >=.
     true_max = logprobs.max(dim=-1, keepdim=True).values
     artifact = torch.nextafter(true_max, torch.full_like(true_max, float("inf")))
-    assert (
-        (logprobs >= artifact).sum(-1) == 0
-    ).all(), "Prerequisite: artifact threshold exceeds all logprobs → raw rank=0"
+    if not ((logprobs >= artifact).sum(-1) == 0).all():
+        pytest.fail(
+            "Prerequisite: artifact threshold exceeds all logprobs → raw rank=0"
+        )
 
     # count_tokens_ge (used by gather_logprobs) must clamp 0 → 1.
     ranks = count_tokens_ge(logprobs, artifact)
-    assert (ranks >= 1).all(), "count_tokens_ge must return >= 1 (rank is 1-based)."
+    if not (ranks >= 1).all():
+        pytest.fail("count_tokens_ge must return >= 1 (rank is 1-based).")
 
 
 # ---------------------------------------------------------------------------
@@ -314,16 +352,18 @@ def test_gather_logprobs_topk_indices_are_exact():
 
     returned_topk = result.logprob_token_ids[:, 1:]  # columns 1..k are top-k
 
-    assert returned_topk.dtype == torch.int32
+    if returned_topk.dtype != torch.int32:
+        pytest.fail(f"returned_topk must be int32, got {returned_topk.dtype}")
     for b in range(batch):
         for k in range(num_logprobs):
             expected = expected_topk[b, k].item()
             actual = returned_topk[b, k].item()
-            assert actual == expected, (
-                f"batch={b} rank={k+1}: expected token {expected}, "
-                f"got {actual} (bfloat16 rounding: "
-                f"{expected} → {int(torch.tensor(expected, dtype=torch.bfloat16).item())})"
-            )
+            if actual != expected:
+                pytest.fail(
+                    f"batch={b} rank={k+1}: expected token {expected}, "
+                    f"got {actual} (bfloat16 rounding: "
+                    f"{expected} → {int(torch.tensor(expected, dtype=torch.bfloat16).item())})"
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -345,10 +385,11 @@ def test_gather_logprobs_prompt_target_token_at_index_zero():
     result = Sampler().gather_logprobs(lp, num_logprobs=3, token_ids=target_tokens)
 
     for i in range(seq_len - 1):
-        assert result.logprob_token_ids[i, 0].item() == target_tokens[i].item(), (
-            f"position {i}: expected target token {target_tokens[i].item()} "
-            f"at index 0, got {result.logprob_token_ids[i, 0].item()}"
-        )
+        if result.logprob_token_ids[i, 0].item() != target_tokens[i].item():
+            pytest.fail(
+                f"position {i}: expected target token {target_tokens[i].item()} "
+                f"at index 0, got {result.logprob_token_ids[i, 0].item()}"
+            )
 
 
 @pytest.mark.push
@@ -366,10 +407,11 @@ def test_gather_logprobs_prompt_logprob_values():
     for i in range(seq_len - 1):
         expected = lp[i, target_tokens[i]].item()
         actual = result.logprobs[i, 0].item()
-        assert abs(actual - expected) < 1e-5, (
-            f"position {i}: logprob {actual:.6f} != expected {expected:.6f} "
-            f"for target token {target_tokens[i].item()}"
-        )
+        if abs(actual - expected) >= 1e-5:
+            pytest.fail(
+                f"position {i}: logprob {actual:.6f} != expected {expected:.6f} "
+                f"for target token {target_tokens[i].item()}"
+            )
 
 
 @pytest.mark.push
@@ -386,13 +428,31 @@ def test_gather_logprobs_prompt_sequence(vocab_size):
     lp = sampler.compute_logprobs(logits)
     result = sampler.gather_logprobs(lp, num_logprobs=5, token_ids=target_tokens)
 
-    assert result.logprob_token_ids.shape == (seq_len - 1, 6)
-    assert result.logprobs.shape == (seq_len - 1, 6)
-    assert result.selected_token_ranks.shape == (seq_len - 1,)
-    assert result.logprob_token_ids.dtype == torch.int32
-    assert result.selected_token_ranks.dtype == torch.int32
-    assert (result.logprobs <= 0).all()
-    assert (result.selected_token_ranks >= 1).all()
+    if result.logprob_token_ids.shape != (seq_len - 1, 6):
+        pytest.fail(
+            f"Wrong logprob_token_ids shape: got {result.logprob_token_ids.shape}, expected {(seq_len - 1, 6)}"
+        )
+    if result.logprobs.shape != (seq_len - 1, 6):
+        pytest.fail(
+            f"Wrong logprobs shape: got {result.logprobs.shape}, expected {(seq_len - 1, 6)}"
+        )
+    if result.selected_token_ranks.shape != (seq_len - 1,):
+        pytest.fail(
+            f"Wrong selected_token_ranks shape: got {result.selected_token_ranks.shape}, expected {(seq_len - 1,)}"
+        )
+    if result.logprob_token_ids.dtype != torch.int32:
+        pytest.fail(
+            f"Wrong logprob_token_ids dtype: got {result.logprob_token_ids.dtype}, expected int32"
+        )
+    if result.selected_token_ranks.dtype != torch.int32:
+        pytest.fail(
+            f"Wrong selected_token_ranks dtype: got {result.selected_token_ranks.dtype}, expected int32"
+        )
+    if not (result.logprobs <= 0).all():
+        pytest.fail("All logprobs must be <= 0")
+    if not (result.selected_token_ranks >= 1).all():
+        pytest.fail("All selected_token_ranks must be >= 1")
 
     # Target tokens at column 0.
-    assert torch.equal(result.logprob_token_ids[:, 0], target_tokens.to(torch.int32))
+    if not torch.equal(result.logprob_token_ids[:, 0], target_tokens.to(torch.int32)):
+        pytest.fail("Target tokens must be at column 0")

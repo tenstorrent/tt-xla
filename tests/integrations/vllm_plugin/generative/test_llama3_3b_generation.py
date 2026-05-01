@@ -55,4 +55,5 @@ def test_llama3_3b_generation_trace():
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
-    assert len(output_text) > 0, "Expected non-empty generation"
+    if len(output_text) == 0:
+        pytest.fail("Expected non-empty generation")

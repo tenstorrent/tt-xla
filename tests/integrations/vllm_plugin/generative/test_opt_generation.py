@@ -78,6 +78,7 @@ def test_opt_generation_large_batch(batch_size):
     }
     llm = vllm.LLM(**llm_args)
     outputs = llm.generate(prompts, sampling_params)
-    assert len(outputs) == batch_size
+    if len(outputs) != batch_size:
+        pytest.fail(f"Expected {batch_size} outputs, got {len(outputs)}")
     for i, out in enumerate(outputs):
         print(f"[{i}] {out.outputs[0].text}")

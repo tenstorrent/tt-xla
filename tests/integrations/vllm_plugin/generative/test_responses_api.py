@@ -184,17 +184,20 @@ def test_responses_api_basic(vllm_server, input_value):
     }
 
     response = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
-    assert (
-        response.status_code == 200
-    ), f"Expected 200, got {response.status_code}: {response.text}"
+    if not (response.status_code == 200):
+        pytest.fail(f"Expected 200, got {response.status_code}: {response.text}")
 
     result = response.json()
-    assert "id" in result, "Response should contain an 'id' field"
-    assert "output" in result, "Response should contain an 'output' field"
-    assert len(result["output"]) > 0, "Response should have at least one output item"
+    if not ("id" in result):
+        pytest.fail("Response should contain an 'id' field")
+    if not ("output" in result):
+        pytest.fail("Response should contain an 'output' field")
+    if not (len(result["output"]) > 0):
+        pytest.fail("Response should have at least one output item")
 
     output_text = get_output_text(result)
-    assert len(output_text) > 0, "Expected non-empty output text"
+    if not (len(output_text) > 0):
+        pytest.fail("Expected non-empty output text")
     print(f"Input: {input_value!r}")
     print(f"Output: {output_text}")
 
@@ -217,9 +220,8 @@ def test_responses_api_streaming(vllm_server):
 
     collected_events = []
     with _session.post(url, json=data, stream=True, timeout=REQUEST_TIMEOUT) as resp:
-        assert (
-            resp.status_code == 200
-        ), f"Expected 200, got {resp.status_code}: {resp.text}"
+        if not (resp.status_code == 200):
+            pytest.fail(f"Expected 200, got {resp.status_code}: {resp.text}")
         for line in resp.iter_lines(decode_unicode=True):
             if not line:
                 continue
@@ -233,22 +235,22 @@ def test_responses_api_streaming(vllm_server):
                 except json.JSONDecodeError:
                     pass
 
-    assert len(collected_events) > 0, "Expected at least one streaming event"
+    if not (len(collected_events) > 0):
+        pytest.fail("Expected at least one streaming event")
 
     event_types = [e.get("type") for e in collected_events]
-    assert (
-        "response.output_text.delta" in event_types
-    ), f"Expected text delta events, got types: {event_types}"
-    assert (
-        "response.completed" in event_types
-    ), f"Expected response.completed event, got types: {event_types}"
+    if not ("response.output_text.delta" in event_types):
+        pytest.fail(f"Expected text delta events, got types: {event_types}")
+    if not ("response.completed" in event_types):
+        pytest.fail(f"Expected response.completed event, got types: {event_types}")
 
     streamed_text = "".join(
         e.get("delta", "")
         for e in collected_events
         if e.get("type") == "response.output_text.delta"
     )
-    assert len(streamed_text) > 0, "Expected non-empty streamed text"
+    if not (len(streamed_text) > 0):
+        pytest.fail("Expected non-empty streamed text")
 
     print(f"Input: 'The capital of France is'")
     print(f"Received {len(collected_events)} streaming events")
@@ -268,21 +270,26 @@ def test_responses_api_deterministic(vllm_server):
     }
 
     response1 = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
-    assert response1.status_code == 200, f"Request 1 failed: {response1.text}"
+    if not (response1.status_code == 200):
+        pytest.fail(f"Request 1 failed: {response1.text}")
 
     response2 = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
-    assert response2.status_code == 200, f"Request 2 failed: {response2.text}"
+    if not (response2.status_code == 200):
+        pytest.fail(f"Request 2 failed: {response2.text}")
 
     text1 = get_output_text(response1.json())
     text2 = get_output_text(response2.json())
 
-    assert len(text1) > 0, "Expected non-empty output from request 1"
-    assert len(text2) > 0, "Expected non-empty output from request 2"
-    assert text1 == text2, (
-        f"Expected deterministic output with temperature=0.\n"
-        f"Response 1: {text1!r}\n"
-        f"Response 2: {text2!r}"
-    )
+    if not (len(text1) > 0):
+        pytest.fail("Expected non-empty output from request 1")
+    if not (len(text2) > 0):
+        pytest.fail("Expected non-empty output from request 2")
+    if not (text1 == text2):
+        pytest.fail(
+            f"Expected deterministic output with temperature=0.\n"
+            f"Response 1: {text1!r}\n"
+            f"Response 2: {text2!r}"
+        )
     print(f"Deterministic output: {text1!r}")
 
 
@@ -299,12 +306,12 @@ def test_responses_api_instructions(vllm_server):
     }
 
     response = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
-    assert (
-        response.status_code == 200
-    ), f"Expected 200, got {response.status_code}: {response.text}"
+    if not (response.status_code == 200):
+        pytest.fail(f"Expected 200, got {response.status_code}: {response.text}")
 
     output_text = get_output_text(response.json())
-    assert len(output_text) > 0, "Expected non-empty output text"
+    if not (len(output_text) > 0):
+        pytest.fail("Expected non-empty output text")
     print(f"Instructions: {data['instructions']!r}")
     print(f"Input: {data['input']!r}")
     print(f"Output: {output_text}")
@@ -325,13 +332,13 @@ def test_responses_api_top_logprobs(vllm_server):
     }
 
     response = _session.post(url, json=data, timeout=REQUEST_TIMEOUT)
-    assert (
-        response.status_code == 200
-    ), f"Expected 200, got {response.status_code}: {response.text}"
+    if not (response.status_code == 200):
+        pytest.fail(f"Expected 200, got {response.status_code}: {response.text}")
 
     result = response.json()
     output_text = get_output_text(result)
-    assert len(output_text) > 0, "Expected non-empty output text"
+    if not (len(output_text) > 0):
+        pytest.fail("Expected non-empty output text")
 
     # Verify logprobs are present in the output content
     for item in result.get("output", []):
@@ -339,12 +346,16 @@ def test_responses_api_top_logprobs(vllm_server):
             for content in item.get("content", []):
                 if content.get("type") == "output_text":
                     logprobs = content.get("logprobs") or []
-                    assert len(logprobs) > 0, "Expected logprobs in output_text content"
+                    if not (len(logprobs) > 0):
+                        pytest.fail("Expected logprobs in output_text content")
                     for entry in logprobs:
-                        assert "token" in entry, "Logprob entry should have 'token'"
-                        assert "logprob" in entry, "Logprob entry should have 'logprob'"
+                        if not ("token" in entry):
+                            pytest.fail("Logprob entry should have 'token'")
+                        if not ("logprob" in entry):
+                            pytest.fail("Logprob entry should have 'logprob'")
                         top = entry.get("top_logprobs", [])
-                        assert len(top) > 0, "Expected top_logprobs alternatives"
+                        if not (len(top) > 0):
+                            pytest.fail("Expected top_logprobs alternatives")
                     print(f"Input: 'The sky is'")
                     print(f"Output: {output_text}")
                     print(f"First token logprobs: {logprobs[0]}")

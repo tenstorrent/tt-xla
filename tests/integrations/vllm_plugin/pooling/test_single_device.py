@@ -50,9 +50,10 @@ def test_embed_qwen3_reduced_dims():
     print(f"Prompt: {prompts[0]}")
     print(f"Embeddings: {output_embedding[0].outputs.embedding}")
     print(f"len={len(output_embedding[0].outputs.embedding)}")
-    assert (
-        len(output_embedding[0].outputs.embedding) == 128
-    ), f"vLLM generated incorrect number of embedding dimensions; Expected dims=128 but got {len(output_embedding[0].outputs.embedding)}"
+    if len(output_embedding[0].outputs.embedding) != 128:
+        pytest.fail(
+            f"vLLM generated incorrect number of embedding dimensions; Expected dims=128 but got {len(output_embedding[0].outputs.embedding)}"
+        )
 
 
 @pytest.mark.nightly

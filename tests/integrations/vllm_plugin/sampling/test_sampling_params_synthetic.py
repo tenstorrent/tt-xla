@@ -69,10 +69,11 @@ def run_sampler(logits, metadata):
 def assert_valid_tokens(actual, vocab_size, context=""):
     for i in range(actual.shape[0]):
         token = actual[i].item()
-        assert 0 <= token < vocab_size, (
-            f"Token {token} out of range [0, {vocab_size})"
-            f"{' ' + context if context else ''}"
-        )
+        if not (0 <= token < vocab_size):
+            pytest.fail(
+                f"Token {token} out of range [0, {vocab_size})"
+                f"{' ' + context if context else ''}"
+            )
 
 
 VOCAB_SIZES = [
@@ -101,9 +102,8 @@ def test_greedy(device, vocab_size):
     compiled_fn = torch.compile(run_sampler_greedy, backend="tt", dynamic=False)
     actual = compiled_fn(logits_cpu.to(device), None).cpu()
 
-    assert torch.equal(
-        actual, expected
-    ), f"Greedy mismatch: expected {expected.item()}, got {actual.item()}"
+    if not torch.equal(actual, expected):
+        pytest.fail(f"Greedy mismatch: expected {expected.item()}, got {actual.item()}")
 
 
 @pytest.mark.push
@@ -117,7 +117,8 @@ def test_non_greedy(device, vocab_size):
     metadata_dev = make_metadata(device=device)
     actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
 
-    assert actual.shape == (1, 1)
+    if actual.shape != (1, 1):
+        pytest.fail(f"Wrong shape: expected (1, 1), got {actual.shape}")
     assert_valid_tokens(actual, vocab_size)
 
 
@@ -133,10 +134,10 @@ def test_greedy_batch32(device):
     compiled_fn = torch.compile(run_sampler_greedy, backend="tt", dynamic=False)
     actual = compiled_fn(logits_cpu.to(device), None).cpu()
 
-    assert actual.shape == (batch_size, 1)
-    assert torch.equal(
-        actual, expected
-    ), f"Greedy mismatch at batch=32: {actual} vs {expected}"
+    if actual.shape != (batch_size, 1):
+        pytest.fail(f"Wrong shape: expected ({batch_size}, 1), got {actual.shape}")
+    if not torch.equal(actual, expected):
+        pytest.fail(f"Greedy mismatch at batch=32: {actual} vs {expected}")
 
 
 @pytest.mark.push
@@ -151,7 +152,8 @@ def test_non_greedy_batch32(device):
     metadata_dev = make_metadata(batch_size=batch_size, device=device)
     actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
 
-    assert actual.shape == (batch_size, 1)
+    if actual.shape != (batch_size, 1):
+        pytest.fail(f"Wrong shape: expected ({batch_size}, 1), got {actual.shape}")
     assert_valid_tokens(actual, vocab_size)
 
 
@@ -188,10 +190,11 @@ def test_combined(device, vocab_size):
         tokens.append(actual.item())
 
     unique = len(set(tokens))
-    assert unique >= 2, (
-        f"Expected diverse tokens across param configs, got {tokens} "
-        f"(all same — sampler may be ignoring params)"
-    )
+    if unique < 2:
+        pytest.fail(
+            f"Expected diverse tokens across param configs, got {tokens} "
+            f"(all same — sampler may be ignoring params)"
+        )
 
 
 @pytest.mark.push
@@ -246,7 +249,8 @@ def test_penalties(device, vocab_size):
     compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
     actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
 
-    assert actual.shape == (1, 1)
+    if actual.shape != (1, 1):
+        pytest.fail(f"Wrong shape: expected (1, 1), got {actual.shape}")
     assert_valid_tokens(actual, vocab_size, context="with penalties")
 
 
@@ -279,11 +283,13 @@ def test_logit_bias(device, vocab_size):
     compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
     actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
 
-    assert actual.shape == (1, 1)
+    if actual.shape != (1, 1):
+        pytest.fail(f"Wrong shape: expected (1, 1), got {actual.shape}")
     assert_valid_tokens(actual, vocab_size, context="logit_bias")
-    assert (
-        actual.item() >= 10
-    ), f"tokens 0-9 have bias=-100 and must not be selected, got {actual.item()}"
+    if actual.item() < 10:
+        pytest.fail(
+            f"tokens 0-9 have bias=-100 and must not be selected, got {actual.item()}"
+        )
 
 
 @pytest.mark.push
@@ -315,11 +321,13 @@ def test_bad_words(device, vocab_size):
     compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
     actual = compiled_fn(logits_cpu.to(device), metadata).cpu()
 
-    assert actual.shape == (1, 1)
+    if actual.shape != (1, 1):
+        pytest.fail(f"Wrong shape: expected (1, 1), got {actual.shape}")
     assert_valid_tokens(actual, vocab_size, context="bad_words")
-    assert (
-        actual.item() >= 10
-    ), f"tokens 0-9 are banned with -inf and must not be selected, got {actual.item()}"
+    if actual.item() < 10:
+        pytest.fail(
+            f"tokens 0-9 are banned with -inf and must not be selected, got {actual.item()}"
+        )
 
 
 def run_logprobs_pipeline(logits, token_ids):
@@ -374,31 +382,40 @@ def test_gather_logprobs(device, vocab_size):
     ranks = ranks_dev.cpu()
 
     num_logprobs = 5
-    assert ids.shape == (batch_size, num_logprobs + 1), f"shape mismatch: {ids.shape}"
-    assert lp.shape == (batch_size, num_logprobs + 1), f"shape mismatch: {lp.shape}"
-    assert ranks.shape == (batch_size,), f"shape mismatch: {ranks.shape}"
+    if ids.shape != (batch_size, num_logprobs + 1):
+        pytest.fail(f"shape mismatch: {ids.shape}")
+    if lp.shape != (batch_size, num_logprobs + 1):
+        pytest.fail(f"shape mismatch: {lp.shape}")
+    if ranks.shape != (batch_size,):
+        pytest.fail(f"shape mismatch: {ranks.shape}")
 
-    assert ids.dtype == torch.int32, f"logprob_token_ids must be int32, got {ids.dtype}"
-    assert (
-        ranks.dtype == torch.int32
-    ), f"selected_token_ranks must be int32, got {ranks.dtype}"
-    assert lp.dtype == torch.float32, f"logprobs must be float32, got {lp.dtype}"
+    if ids.dtype != torch.int32:
+        pytest.fail(f"logprob_token_ids must be int32, got {ids.dtype}")
+    if ranks.dtype != torch.int32:
+        pytest.fail(f"selected_token_ranks must be int32, got {ranks.dtype}")
+    if lp.dtype != torch.float32:
+        pytest.fail(f"logprobs must be float32, got {lp.dtype}")
 
-    assert (lp <= 0).all(), "Log-probabilities must be <= 0"
-    assert (ids >= 0).all() and (ids < vocab_size).all(), "Token IDs out of vocab range"
-    assert (ranks >= 1).all(), "Token ranks must be >= 1 (rank is 1-based)"
+    if not (lp <= 0).all():
+        pytest.fail("Log-probabilities must be <= 0")
+    if not ((ids >= 0).all() and (ids < vocab_size).all()):
+        pytest.fail("Token IDs out of vocab range")
+    if not (ranks >= 1).all():
+        pytest.fail("Token ranks must be >= 1 (rank is 1-based)")
 
     # Sampled token ID (column 0) must be returned exactly.
     for i in range(batch_size):
-        assert ids[i, 0].item() == token_ids_cpu[i].item(), (
-            f"row {i}: sampled token {token_ids_cpu[i].item()} must be "
-            f"returned exactly, got {ids[i, 0].item()}"
-        )
+        if ids[i, 0].item() != token_ids_cpu[i].item():
+            pytest.fail(
+                f"row {i}: sampled token {token_ids_cpu[i].item()} must be "
+                f"returned exactly, got {ids[i, 0].item()}"
+            )
 
     # Top-k log-probs (columns 1..) must be sorted descending
     topk_lp = lp[:, 1:]
     diffs = topk_lp[:, :-1] - topk_lp[:, 1:]
-    assert (diffs >= -1e-4).all(), "Top-k log-probs must be sorted descending"
+    if not (diffs >= -1e-4).all():
+        pytest.fail("Top-k log-probs must be sorted descending")
 
 
 def _seeded_q(seed, batch_size, vocab_size):
@@ -456,10 +473,12 @@ def test_seed_precomputed_noise(device, vocab_size):
         .item()
     )
 
-    assert (
-        token_a == token_b
-    ), f"Same seed must produce same token: seed=42 run1={token_a}, run2={token_b}"
-    assert 0 <= token_a < vocab_size
+    if token_a != token_b:
+        pytest.fail(
+            f"Same seed must produce same token: seed=42 run1={token_a}, run2={token_b}"
+        )
+    if not (0 <= token_a < vocab_size):
+        pytest.fail(f"Token {token_a} out of range [0, {vocab_size})")
 
     # Different seed — may produce a different token.
     token_c = (
@@ -470,7 +489,8 @@ def test_seed_precomputed_noise(device, vocab_size):
         .cpu()
         .item()
     )
-    assert 0 <= token_c < vocab_size
+    if not (0 <= token_c < vocab_size):
+        pytest.fail(f"Token {token_c} out of range [0, {vocab_size})")
     # Not asserting token_c != token_a — different seeds usually diverge but
     # it's not guaranteed for every vocab_size. The determinism check above
     # is the critical contract.
@@ -513,11 +533,10 @@ def test_gather_logprobs_rank_nonzero_outside_topk(device, vocab_size):
     )
     ranks = compiled_fn(logits_cpu.to(device)).cpu()
 
-    assert (
-        ranks >= 1
-    ).all(), (
-        f"count_tokens_ge must return >= 1 (rank is 1-based); got {ranks.tolist()}."
-    )
+    if not (ranks >= 1).all():
+        pytest.fail(
+            f"count_tokens_ge must return >= 1 (rank is 1-based); got {ranks.tolist()}."
+        )
 
 
 @pytest.mark.push
@@ -549,15 +568,17 @@ def test_gather_logprobs_topk_indices_exact_on_device(device):
     result = sampler.gather_logprobs(logprobs_dev, num_logprobs, sampled.to(device))
     topk_ids = result.logprob_token_ids.cpu()[0, 1:].tolist()  # cols 1-5 are top-k
 
-    assert 19585 in topk_ids, (
-        f"Token 19585 must appear in top-k logprob IDs but got {topk_ids}. "
-        "bfloat16 rounding collapsed 19585 → 19584: "
-        "fix by converting topk_indices via CPU in gather_logprobs."
-    )
-    assert len(set(topk_ids)) == num_logprobs, (
-        f"All top-k IDs must be distinct but got {topk_ids} (duplicates present). "
-        "bfloat16 rounding caused two different tokens to map to the same ID."
-    )
+    if 19585 not in topk_ids:
+        pytest.fail(
+            f"Token 19585 must appear in top-k logprob IDs but got {topk_ids}. "
+            "bfloat16 rounding collapsed 19585 → 19584: "
+            "fix by converting topk_indices via CPU in gather_logprobs."
+        )
+    if len(set(topk_ids)) != num_logprobs:
+        pytest.fail(
+            f"All top-k IDs must be distinct but got {topk_ids} (duplicates present). "
+            "bfloat16 rounding caused two different tokens to map to the same ID."
+        )
 
 
 @pytest.mark.push
@@ -594,13 +615,15 @@ def test_seed_mixed_batch(device, vocab_size):
             q_samples=q_cpu.to(device),
         )
         tokens = compiled_fn(logits_cpu.to(device), metadata).cpu()
-        assert tokens.shape == (batch_size, 1)
+        if tokens.shape != (batch_size, 1):
+            pytest.fail(f"Wrong shape: expected ({batch_size}, 1), got {tokens.shape}")
         results.append(tokens.squeeze(-1).tolist())
 
     # All tokens must be in vocab range.
     for run in results:
         for tok in run:
-            assert 0 <= tok < vocab_size, f"Token {tok} out of range [0, {vocab_size})"
+            if not (0 <= tok < vocab_size):
+                pytest.fail(f"Token {tok} out of range [0, {vocab_size})")
 
     # Seeded rows must be deterministic across runs.
     for idx in seeded_indices:

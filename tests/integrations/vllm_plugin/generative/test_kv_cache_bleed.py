@@ -227,6 +227,8 @@ def test_kv_cache_no_cross_user_bleed(vllm_server):
         texts = _send_round(vllm_server, stagger_delay=0.8, max_tokens=96)
         all_failures.extend(_check_bleed(texts, f"staggered r{r + 1}"))
 
-    assert (
-        not all_failures
-    ), f"KV cache bleed in {len(all_failures)} cases:\n" + "\n".join(all_failures[:10])
+    if all_failures:
+        pytest.fail(
+            f"KV cache bleed in {len(all_failures)} cases:\n"
+            + "\n".join(all_failures[:10])
+        )
