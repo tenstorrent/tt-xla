@@ -2659,6 +2659,10 @@ test_config:
     status: EXPECTED_PASSING
     assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3860 - AssertionError: PCC comparison failed. Calculated: pcc=0.955831792289353. Required: pcc=0.99
 
+  granite_moe/causal_lm/pytorch-3.1_1B_A400M_Base-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.98  # Measured TT BF16 vs CPU BF16 PCC=0.989; CPU BF16 vs FP32=0.999 (correct computation); TT hardware BF16 matmul precision for large logit values (max ~30 for full 24-layer model)
+
   gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007 "
