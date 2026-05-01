@@ -168,3 +168,46 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _lfm2_short_conv_slow_forward(self, x, past_key_values=None, cache_position=None, attention_mask=None):
+    """Monkey-patched Lfm2ShortConv.slow_forward that avoids cache_position[0] > 0,
+    which causes aten.item() inside the compiled XLA graph (INTERNAL Error code: 13).
+    Uses seqlen == 1 as a compile-friendly proxy: decode is always single-token."""
+    import torch.nn.functional as _F
+    from transformers.models.lfm2.modeling_lfm2 import apply_mask_to_padding_states
+
+    seqlen = x.shape[1]
+    x = apply_mask_to_padding_states(x, attention_mask)
+    BCx = self.in_proj(x).transpose(-1, -2)
+    B, C, x = BCx.chunk(3, dim=-2)
+    Bx = B * x
+
+    if past_key_values is not None and seqlen == 1:
+        conv_state = past_key_values.conv_cache[self.layer_idx]
+        cache_position = cache_position.clamp(0, self.L_cache - 1)
+        conv_state = conv_state.roll(shifts=-1, dims=-1)
+        conv_state[:, :, cache_position] = Bx.to(device=conv_state.device, dtype=conv_state.dtype)
+        past_key_values.conv_cache[self.layer_idx].copy_(conv_state)
+        conv_out = torch.sum(conv_state.to(Bx.device) * self.conv.weight[:, 0, :], dim=-1)
+        if self.bias:
+            conv_out += self.conv.bias
+        conv_out = conv_out.unsqueeze(-1)
+    else:
+        if past_key_values is not None:
+            conv_state = _F.pad(Bx, (self.L_cache - Bx.shape[-1], 0))
+            past_key_values.conv_cache[self.layer_idx].copy_(conv_state)
+        conv_out = self.conv(Bx)[..., :seqlen]
+
+    y = C * conv_out
+    y = y.transpose(-1, -2).contiguous()
+    y = self.out_proj(y)
+    return y
+
+
+try:
+    from transformers.models.lfm2.modeling_lfm2 import Lfm2ShortConv
+
+    Lfm2ShortConv.slow_forward = _lfm2_short_conv_slow_forward
+except ImportError:
+    pass
