@@ -132,6 +132,70 @@ def _sparse_mlp_forward(self, hidden_states):
     return routed_out, router_scores
 
 
+def _qwen3moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Device-friendly Qwen3MoeExperts.forward that avoids nonzero() and Python loops.
+
+    The original uses nonzero() + a for-loop which produces data-dependent output
+    shapes and segfaults during partition_fx_graph_for_cpu_fallback.
+
+    CPU path uses per-expert loop (serves as PCC golden reference).
+    Device path uses dense bmm (static graph for torch.compile).
+
+    Args:
+        hidden_states: [B, S, H] or [T, H]
+        top_k_index:   [B, S, K] or [T, K]  (top-k expert indices, long)
+        top_k_weights: [B, S, K] or [T, K]  (top-k routing weights)
+    """
+    orig_shape = hidden_states.shape
+    T = 1
+    for d in orig_shape[:-1]:
+        T *= d
+    H = orig_shape[-1]
+    hidden_flat = hidden_states.reshape(T, H)
+    index_flat = top_k_index.reshape(T, -1)    # [T, K]
+    weights_flat = top_k_weights.reshape(T, -1)  # [T, K]
+    E = self.num_experts
+
+    if hidden_flat.device.type == "cpu":
+        final = torch.zeros_like(hidden_flat)
+        with torch.no_grad():
+            expert_mask = torch.nn.functional.one_hot(index_flat, num_classes=E)
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for idx in expert_hit:
+            e = idx[0]
+            top_k_pos, token_idx = torch.where(expert_mask[e])
+            cur = hidden_flat[token_idx]
+            gate, up = torch.nn.functional.linear(
+                cur, self.gate_up_proj[e]
+            ).chunk(2, dim=-1)
+            cur_hidden = self.act_fn(gate) * up
+            cur_hidden = torch.nn.functional.linear(cur_hidden, self.down_proj[e])
+            cur_hidden = cur_hidden * weights_flat[token_idx, top_k_pos, None]
+            final.index_add_(0, token_idx, cur_hidden.to(final.dtype))
+    else:
+        # Build sparse routing weights [T, E]
+        routing = torch.zeros(T, E, dtype=hidden_flat.dtype, device=hidden_flat.device)
+        routing.scatter_(1, index_flat, weights_flat)
+
+        # [E, T, H] via expand (no data copy)
+        hs = hidden_flat.unsqueeze(0).expand(E, -1, -1)
+
+        # gate_up_proj: [E, 2*I, H] → transpose → [E, H, 2*I]
+        gate_up = torch.bmm(hs, self.gate_up_proj.transpose(1, 2))  # [E, T, 2*I]
+        gate, up = gate_up.chunk(2, dim=-1)  # each [E, T, I]
+        cur_hidden = self.act_fn(gate) * up   # [E, T, I]
+
+        # down_proj: [E, H, I] → transpose → [E, I, H]
+        expert_out = torch.bmm(cur_hidden, self.down_proj.transpose(1, 2))  # [E, T, H]
+
+        # Weight by routing: routing.T = [E, T], unsqueeze(-1) → [E, T, 1]
+        expert_out = expert_out * routing.T.unsqueeze(-1)
+        final = expert_out.sum(dim=0)  # [T, H]
+
+    return final.reshape(orig_shape)
+
+
 # Monkey patch to restore 4.57.1 interfaces:
 # - Router returns full [T, E] sparse routing weights
 # - Experts has CPU per-expert loop + device dense bmm
@@ -146,5 +210,14 @@ try:
     GptOssTopKRouter.forward = _router_forward
     GptOssExperts.forward = _experts_forward
     GptOssMLP.forward = _sparse_mlp_forward
+except ImportError:
+    pass
+
+# Patch Qwen3MoeExperts to avoid nonzero()/for-loop segfault in
+# partition_fx_graph_for_cpu_fallback (data-dependent output shapes).
+try:
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeExperts
+
+    Qwen3MoeExperts.forward = _qwen3moe_experts_forward
 except ImportError:
     pass
