@@ -339,7 +339,7 @@ def masked_scatter(
     data_flat = data.reshape(-1)
     source_flat = source.reshape(-1)
 
-    mask_i = mask_f.long()
+    mask_i = mask_f.int()
     source_idx = torch.cumsum(mask_i, 0) - 1
     source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
 
@@ -400,6 +400,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         aten.upsample_nearest3d.default: upsample_nearest_default,
         aten.upsample_linear1d.default: upsample_linear_default,
         aten.upsample_bilinear2d.default: upsample_linear_default,
+        aten._upsample_bilinear2d_aa.default: upsample_linear_default,
         aten.upsample_trilinear3d.default: upsample_linear_default,
         # TODO: Test if this is still necessary when compiling via torch-xla
         aten.adaptive_avg_pool2d.default: aten._adaptive_avg_pool2d,
