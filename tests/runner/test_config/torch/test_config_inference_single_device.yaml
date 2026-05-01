@@ -2595,6 +2595,11 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  gpt_oss_20b_counsel_mindbuddi_gguf/causal_lm/pytorch-20B_Counsel_MindBuddi_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "DRAM OOM: 20B MoE model dequantized to BF16 (~40 GB) exceeds single-device DRAM capacity (~34 GB on p150b)"
+    markers: [large]
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
