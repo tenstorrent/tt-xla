@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import torch
+import torch.nn.functional as _torch_F
 from torch.overrides import TorchFunctionMode
 
 
@@ -31,6 +32,25 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # _upsample_bilinear2d_aa / _upsample_bicubic2d_aa kernels don't support
+        # BFloat16 on CPU. Cast to float32, interpolate, cast back.  PyTorch
+        # disables this mode for the recursive func() call below, so no infinite
+        # recursion occurs.
+        if func is _torch_F.interpolate and not torch.compiler.is_compiling():
+            kwargs = kwargs or {}
+            inp = args[0] if args else kwargs.get("input")
+            antialias = kwargs.get("antialias", False)
+            mode = args[3] if len(args) > 3 else kwargs.get("mode", "nearest")
+            if (
+                inp is not None
+                and inp.dtype == torch.bfloat16
+                and antialias
+                and mode in ("bilinear", "bicubic")
+            ):
+                src_dtype = inp.dtype
+                new_args = (inp.to(torch.float32),) + args[1:]
+                result = func(*new_args, **(kwargs or {}))
+                return result.to(src_dtype)
         return func(*args, **(kwargs or {}))
 
 
