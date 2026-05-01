@@ -51,6 +51,31 @@ class TorchFunctionOverride(TorchFunctionMode):
                 new_args = (inp.to(torch.float32),) + args[1:]
                 result = func(*new_args, **(kwargs or {}))
                 return result.to(src_dtype)
+        if func.__name__ == "masked_scatter":
+            data = args[0] if args else kwargs.get("input")
+            mask = args[1] if len(args) > 1 else kwargs.get("mask")
+            source = args[2] if len(args) > 2 else kwargs.get("source")
+            if (
+                data is not None
+                and mask is not None
+                and source is not None
+                and data.dim() == 3
+                and mask.shape == data.shape
+            ):
+                # mask is [B, S, H] bool, uniform across H (image-token flag per
+                # position). Use token-level cumsum on [B, S] instead of element-level
+                # [B*S*H] to avoid TTNN AccumulationDeviceOperation 1024x TILE blowup
+                # (a [3.67M] 1D cumsum allocates 15 GB). [B, S] = [1, 1794] ~ 228 KB.
+                B, S, H = data.shape
+                token_mask = mask[..., 0]  # [B, S] bool
+                source_2d = source.reshape(-1, H)  # [N, H]
+                N = source_2d.shape[0]
+                src_idx = (
+                    (torch.cumsum(token_mask.float(), dim=-1) - 1).clamp(0, N - 1).long()
+                )  # [B, S]
+                idx_expanded = src_idx.reshape(-1).unsqueeze(-1).expand(-1, H)  # [B*S, H]
+                gathered = torch.gather(source_2d, 0, idx_expanded).reshape(B, S, H)
+                return torch.where(mask, gathered, data)
         return func(*args, **(kwargs or {}))
 
 
