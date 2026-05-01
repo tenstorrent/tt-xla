@@ -105,9 +105,8 @@ from .sampler import Sampler
 
 # Pad hidden states / logits to this batch size before the LM head and topk.
 # Multi-core topk is 14x faster at batch=32 vs batch=1 on Blackhole hardware.
-_SAMPLING_PAD_BATCH = 32
 from .vllm_distributed_utils import shard_model
-from .vllm_utils import determine_mesh_shape, prev_power_of_2
+from .vllm_utils import determine_mesh_shape, prev_power_of_2, pad_to_tile
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -1560,9 +1559,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 self.tt_config.cpu_sampling,
             )
+            sampling_padded_num_reqs = (
+                self.max_num_reqs
+                if self.tt_config.cpu_sampling
+                else pad_to_tile(self.max_num_reqs)
+            )
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
-                self.max_num_reqs,
+                sampling_padded_num_reqs,
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
@@ -1790,7 +1794,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
 
         self.model.compile(backend="tt", dynamic=False)
-        self.sampler = Sampler()
+        self.sampler = Sampler(self.max_num_reqs)
         logger.info(f"Compiled model: \n{self.model}")
 
         # Cache attention layer names once. `static_forward_context` is
@@ -2041,6 +2045,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         start = time.perf_counter()
         hsize = self.model_config.get_hidden_size()
         logger.info("  -- num_seqs: %d, hsize: %d", self.max_num_reqs, hsize)
+
         dummy_hidden = torch.zeros(
             (self.max_num_reqs, hsize), dtype=self._hidden_states_dtype
         )
@@ -2093,8 +2098,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling sample_from_logits with different input shapes.")
         start = time.perf_counter()
+        padded_num_reqs = pad_to_tile(self.max_num_reqs)
         logger.info(
-            "  -- num_seqs: %d, vocab_size: %d", self.max_num_reqs, self.vocab_size
+            "  -- num_seqs: %d, vocab_size: %d", padded_num_reqs, self.vocab_size
         )
         # The first dimension of dummy_logits cannot be mark_dynamic
         # because some operations in the sampler require it to be static.
@@ -2102,13 +2108,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Fresh tensor per iteration — reusing across SPMD compilations
             # causes stale tensor IDs that misclassify inputs as constants (#3672).
             dummy_logits = torch.zeros(
-                (self.max_num_reqs, self.vocab_size),
+                (padded_num_reqs, self.vocab_size),
                 dtype=self._hidden_states_dtype,
             ).to(self.device)
             generate_params_if_all_greedy = not all_greedy
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
-                self.max_num_reqs,
+                padded_num_reqs,
                 self.device,
                 generate_params_if_all_greedy,
                 vocab_size=self.vocab_size,
@@ -2137,15 +2143,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling gather_logprobs with different input shapes.")
         start = time.perf_counter()
+        padded_num_reqs = pad_to_tile(self.max_num_reqs)
         logger.info(
-            "  -- num_seqs: %d, vocab_size: %d", self.max_num_reqs, self.vocab_size
+            "  -- num_seqs: %d, vocab_size: %d", padded_num_reqs, self.vocab_size
         )
         dummy_logits = torch.zeros(
-            (self.max_num_reqs, self.vocab_size),
+            (padded_num_reqs, self.vocab_size),
             dtype=self._hidden_states_dtype,
         )
         dummy_logits = dummy_logits.to(self.device)
-        dummy_tokens = torch.zeros((self.max_num_reqs, 1), dtype=torch.int64).to(
+        dummy_tokens = torch.zeros((padded_num_reqs, 1), dtype=torch.int64).to(
             self.device
         )
         with (
@@ -2452,6 +2459,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
+        batch, _ = sample_hidden_states.size()
+        padding = pad_to_tile(batch) - batch
+        if padding > 0:
+            sample_hidden_states = torch.nn.functional.pad(
+                sample_hidden_states, (0, 0, 0, padding)
+            )
         logits = self.model.compute_logits(sample_hidden_states)
         if self.enable_tensor_parallel and not self.use_2d_mesh:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
@@ -2488,7 +2501,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
         All operations run on CPU to avoid compiling a device sampling graph.
         """
-        logits = logits.cpu()
+        # compute_logits pads hidden_states to a tile boundary on device, but
+        # CPU sampling metadata is sized at max_num_reqs — drop padding rows.
+        logits = logits.cpu()[: self.max_num_reqs]
 
         if not sampling_metadata.no_penalties:
             output_counts = sampling_metadata.output_token_counts

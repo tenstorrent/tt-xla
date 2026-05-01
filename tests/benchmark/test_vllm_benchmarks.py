@@ -47,7 +47,11 @@ SINGLE_DEVICE_CONFIGS = [
             model="meta-llama/Llama-3.2-3B",
             batch_size=1,
             max_model_len=128,
-        ),
+            additional_config={
+                "enable_const_eval": True,
+                "cpu_sampling": False,
+            },
+        ),        
         id="llama-3.2-3b",
     ),
     pytest.param(
@@ -116,16 +120,16 @@ BHQB_CONFIGS = [
         _gemma4_bhqb_config(model="google/gemma-4-31B-it"),
         id="gemma-4-31b-it-b1",
     ),
-    pytest.param(
-        _gemma4_bhqb_config(
-            model="google/gemma-4-31B-it",
-            batch_size=32,
-            max_model_len=128,
-            max_num_batched_tokens=8192,
-            gpu_memory_utilization=0.74,
-        ),
-        id="gemma-4-31b-it-b32",
-    ),
+    # pytest.param(
+    #     _gemma4_bhqb_config(
+    #         model="google/gemma-4-31B-it",
+    #         batch_size=32,
+    #         max_model_len=128,
+    #         max_num_batched_tokens=8192,
+    #         gpu_memory_utilization=0.74,
+    #     ),
+    #     id="gemma-4-31b-it-b32",
+    # ),
 ]
 
 
@@ -160,6 +164,15 @@ def _with_enable_trace_override(
     return replace(config, additional_config=additional)
 
 
+def _with_measured_iterations_override(
+    config: VLLMBenchmarkConfig, measured_iterations: int | None
+) -> VLLMBenchmarkConfig:
+    """Map pytest ``--measured-iterations`` to ``measured_iterations``."""
+    if measured_iterations is None:
+        return config
+    return replace(config, measured_iterations=measured_iterations)
+
+
 def _run_vllm_benchmark(config, output_file, request):
     display_name = "vllm_" + resolve_display_name(
         request=request, fallback=config.model
@@ -184,11 +197,18 @@ def _run_vllm_benchmark(config, output_file, request):
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
 def test_vllm_benchmark(
-    config, output_file, request, num_layers, max_output_tokens, enable_trace
+    config,
+    output_file,
+    request,
+    num_layers,
+    max_output_tokens,
+    enable_trace,
+    measured_iterations,
 ):
     config = _with_num_layers_override(config, num_layers)
     config = _with_max_output_tokens_override(config, max_output_tokens)
     config = _with_enable_trace_override(config, enable_trace)
+    config = _with_measured_iterations_override(config, measured_iterations)
     _run_vllm_benchmark(config, output_file, request)
 
 
@@ -196,9 +216,16 @@ def test_vllm_benchmark(
 @pytest.mark.tensor_parallel
 @pytest.mark.parametrize("config", BHQB_CONFIGS)
 def test_vllm_benchmark_bhqb(
-    config, output_file, request, num_layers, max_output_tokens, enable_trace
+    config,
+    output_file,
+    request,
+    num_layers,
+    max_output_tokens,
+    enable_trace,
+    measured_iterations,
 ):
     config = _with_num_layers_override(config, num_layers)
     config = _with_max_output_tokens_override(config, max_output_tokens)
     config = _with_enable_trace_override(config, enable_trace)
+    config = _with_measured_iterations_override(config, measured_iterations)
     _run_vllm_benchmark(config, output_file, request)

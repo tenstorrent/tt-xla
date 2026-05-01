@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import socket
+import statistics
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -44,6 +45,10 @@ class VLLMBenchmarkConfig:
     batch_size: int = 1
     max_tokens: int = 128
     warmup_iterations: int = 1
+    # Number of measured benchmark iterations; >1 prints per-iteration stats
+    # (mean / min / max / p15 / p50 / p85 / stdev) to characterize run-to-run
+    # variation within a single test invocation.
+    measured_iterations: int = 1
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
@@ -167,6 +172,39 @@ def _assert_token_counts(
         )
 
 
+def _percentile(sorted_vals: List[float], pct: float) -> float:
+    """Linear-interpolated percentile over an already-sorted list (ascending)."""
+    if not sorted_vals:
+        return 0.0
+    if len(sorted_vals) == 1:
+        return sorted_vals[0]
+    rank = (pct / 100.0) * (len(sorted_vals) - 1)
+    lo = int(rank)
+    hi = min(lo + 1, len(sorted_vals) - 1)
+    frac = rank - lo
+    return sorted_vals[lo] * (1 - frac) + sorted_vals[hi] * frac
+
+
+def _print_stats(label: str, values: List[float], unit: str) -> None:
+    """Print mean / min / max / p15 / p50 / p85 / stdev for a sample list."""
+    if not values:
+        print(f"  {label}: <no samples>")
+        return
+    sorted_vals = sorted(values)
+    mean = statistics.fmean(values)
+    stdev = statistics.stdev(values) if len(values) > 1 else 0.0
+    spread_pct = (sorted_vals[-1] - sorted_vals[0]) / mean * 100.0 if mean else 0.0
+    print(
+        f"  {label} ({unit}, n={len(values)}): "
+        f"mean={mean:.2f} stdev={stdev:.2f} "
+        f"min={sorted_vals[0]:.2f} max={sorted_vals[-1]:.2f} "
+        f"p15={_percentile(sorted_vals, 15):.2f} "
+        f"p50={_percentile(sorted_vals, 50):.2f} "
+        f"p85={_percentile(sorted_vals, 85):.2f} "
+        f"(max-min)/mean={spread_pct:.1f}%"
+    )
+
+
 def _assert_no_preemptions(llm: vllm.LLM):
     """
     Assert the engine had zero preemptions during the run.
@@ -191,7 +229,7 @@ def benchmark_vllm(
     """Run a vLLM benchmark and return a standardised result dict."""
     prompts = [DEFAULT_PROMPT] * config.batch_size
     sampling_params = vllm.SamplingParams(
-        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.0
+        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.6
     )
 
     llm = _create_llm(config)
@@ -202,16 +240,53 @@ def benchmark_vllm(
             llm.generate(prompts, sampling_params)
         print("Warmup complete.")
 
-    print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
-    outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
-
-    # Assert decode is consistent
-    _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
-    _assert_no_preemptions(llm)
-
-    avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user = (
-        _extract_metrics(outputs, config.batch_size)
+    n_iter = max(1, config.measured_iterations)
+    print(
+        f"\nStarting benchmark ({config.max_tokens} tokens, "
+        f"{n_iter} measured iteration(s)) ..."
     )
+
+    iter_ttft_ms: List[float] = []
+    iter_tokens_per_user: List[int] = []
+    iter_decode_time: List[float] = []
+    iter_tps: List[float] = []
+    per_request_tps: List[float] = []
+
+    for it in range(n_iter):
+        if n_iter > 1:
+            print(f"\n--- Iteration {it + 1}/{n_iter} ---")
+        outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+
+        _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
+        _assert_no_preemptions(llm)
+
+        avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user = (
+            _extract_metrics(outputs, config.batch_size)
+        )
+        iter_ttft_ms.append(avg_ttft_ms)
+        iter_tokens_per_user.append(tokens_per_user)
+        iter_decode_time.append(decode_total_time)
+        iter_tps.append(tokens_per_sec_per_user)
+        for o in outputs:
+            stats = o.metrics
+            decode_tokens = stats.num_generation_tokens - 1
+            decode_time = stats.last_token_ts - stats.first_token_ts
+            if decode_time > 0 and decode_tokens > 0:
+                per_request_tps.append(decode_tokens / decode_time)
+
+    if n_iter > 1:
+        print("\n=== Aggregate stats across measured iterations ===")
+        _print_stats("decode_tps (per-iter, per-user)", iter_tps, "tok/s")
+        _print_stats("ttft", iter_ttft_ms, "ms")
+        _print_stats("decode_total_time", iter_decode_time, "s")
+        if config.batch_size > 1:
+            _print_stats("decode_tps (per-request)", per_request_tps, "tok/s")
+        print()
+
+    avg_ttft_ms = statistics.fmean(iter_ttft_ms)
+    tokens_per_user = iter_tokens_per_user[-1]
+    decode_total_time = statistics.fmean(iter_decode_time)
+    tokens_per_sec_per_user = statistics.fmean(iter_tps)
 
     metadata = get_benchmark_metadata()
     full_model_name = config.model

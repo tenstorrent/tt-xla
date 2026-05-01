@@ -100,6 +100,14 @@ def pytest_addoption(parser):
         help="Enable PJRT device trace optimization (vLLM benchmarks).",
     )
 
+    parser.addoption(
+        "--measured-iterations",
+        action="store",
+        default=None,
+        type=make_validator_positive_int("--measured-iterations"),
+        help="Run the measured benchmark loop N times and print mean/min/max/p15/p50/p85 stats.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -139,3 +147,8 @@ def decode_only(request):
 @pytest.fixture
 def enable_trace(request):
     return request.config.getoption("--enable-trace")
+
+
+@pytest.fixture
+def measured_iterations(request):
+    return request.config.getoption("--measured-iterations")

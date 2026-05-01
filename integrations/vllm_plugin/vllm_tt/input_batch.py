@@ -18,6 +18,8 @@ from vllm.v1.sample.metadata import SamplingMetadata
 from vllm.v1.worker.block_table import MultiGroupBlockTable
 from vllm.v1.worker.gpu_input_batch import CachedRequestState
 
+from .vllm_utils import pad_to_tile
+
 _SAMPLING_EPS = 1e-5
 
 
@@ -91,12 +93,15 @@ class InputBatch:
             cp_kv_cache_interleave_size=cp_kv_cache_interleave_size,
         )
 
-        # Sampling-related.
+        # Sampling-related. CPU buffers are sized to a tile-aligned bound so
+        # device sampling can build padded metadata without reallocating.
+        sampling_size = pad_to_tile(max_num_reqs)
+
         self.temperature = torch.empty(
             (max_num_reqs,), dtype=torch.float32, device=device
         )
         self.temperature_cpu_tensor = torch.empty(
-            (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
+            (sampling_size,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
         self.temperature_cpu = self.temperature_cpu_tensor.numpy()
         self.greedy_reqs: set[str] = set()
@@ -104,21 +109,21 @@ class InputBatch:
 
         self.top_p = torch.empty((max_num_reqs,), dtype=torch.float32, device=device)
         self.top_p_cpu_tensor = torch.empty(
-            (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
+            (sampling_size,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
         self.top_p_cpu = self.top_p_cpu_tensor.numpy()
         self.top_p_reqs: set[str] = set()
 
         self.top_k = torch.empty((max_num_reqs,), dtype=torch.int32, device=device)
         self.top_k_cpu_tensor = torch.empty(
-            (max_num_reqs,), dtype=torch.int32, device="cpu", pin_memory=pin_memory
+            (sampling_size,), dtype=torch.int32, device="cpu", pin_memory=pin_memory
         )
         self.top_k_cpu = self.top_k_cpu_tensor.numpy()
         self.top_k_reqs: set[str] = set()
 
         self.min_p = torch.empty((max_num_reqs,), dtype=torch.float32, device=device)
         self.min_p_cpu_tensor = torch.empty(
-            (max_num_reqs,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
+            (sampling_size,), dtype=torch.float32, device="cpu", pin_memory=pin_memory
         )
         self.min_p_cpu = self.min_p_cpu_tensor.numpy()
         self.min_p_reqs: set[str] = set()

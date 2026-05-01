@@ -64,13 +64,15 @@ def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Te
 
 
 class Sampler(nn.Module):
-    def __init__(self):
+    def __init__(self, max_num_reqs):
         # TODO(houseroad): Add support for logprobs_mode.
         # Note: basic logprob support is already working — when logprobs are
         # requested, model_runner.py calls gather_logprobs() after forward()
         # and passes LogprobsLists directly to the engine.
         # logprobs_tensors is intentionally None in forward() — see comment there.
         super().__init__()
+
+        self.max_num_reqs = max_num_reqs
 
     def forward(
         self,
@@ -220,6 +222,7 @@ class Sampler(nn.Module):
             # after the batch=32 padding in apply_top_k_top_p_fast.
             filtered_logits, candidate_indices = apply_top_k_top_p_fast(
                 logits,
+                self.max_num_reqs,
                 None,
                 None,
             )
@@ -258,6 +261,7 @@ class Sampler(nn.Module):
 
             filtered_logits, candidate_indices = apply_top_k_top_p_fast(
                 logits,
+                self.max_num_reqs,
                 sampling_metadata.top_k,
                 sampling_metadata.top_p,
             )
@@ -417,7 +421,7 @@ class Sampler(nn.Module):
         temp_tensor = temp_recip.to(torch.bfloat16)
 
         # Pad batch to 32 (kernel requirement).
-        if batch < pad_batch:
+        if self.max_num_reqs < pad_batch:
             pad_size = pad_batch - batch
             values = torch.nn.functional.pad(
                 values, (0, 0, 0, pad_size), value=float("-inf")
@@ -435,6 +439,7 @@ class Sampler(nn.Module):
 
 def apply_top_k_top_p_fast(
     logits: torch.Tensor,
+    max_num_reqs: int,
     k: torch.Tensor | None,
     p: torch.Tensor | None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -454,15 +459,7 @@ def apply_top_k_top_p_fast(
         vocab_size
     )
 
-    # Pad batch to _TTNN_SAMPLING_BATCH_SIZE (32) so topk runs on
-    # [32, chunk] instead of [batch, chunk]. Multi-core topk is 14x faster
-    # at batch=32 — hardware processes all rows simultaneously and
-    # dummy -inf rows add negligible overhead.
-    logits = torch.nn.functional.pad(
-        logits,
-        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
-        value=float("-inf"),
-    )
+    # Batch is already pre-padded
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)

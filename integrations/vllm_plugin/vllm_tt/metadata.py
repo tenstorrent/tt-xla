@@ -20,6 +20,28 @@ DEFAULT_SAMPLING_PARAMS = dict(
 )
 
 
+def _build_padded_cpu(
+    src: torch.Tensor,
+    num_reqs: int,
+    padded_num_reqs: int,
+    fill_val,
+) -> torch.Tensor:
+    """Return a CPU tensor of shape [padded_num_reqs, *src.shape[1:]].
+
+    First ``num_reqs`` rows come from ``src``; remaining rows are ``fill_val``.
+    Handles ``src.size(0) < padded_num_reqs`` (sampling pads to a tile boundary
+    larger than ``input_batch.max_num_reqs``) by allocating a fresh tensor.
+    """
+    if src.size(0) >= padded_num_reqs:
+        src[num_reqs:padded_num_reqs] = fill_val
+        return src[:padded_num_reqs]
+    out_shape = (padded_num_reqs,) + tuple(src.shape[1:])
+    out = torch.full(out_shape, fill_val, dtype=src.dtype)
+    if num_reqs > 0:
+        out[:num_reqs] = src[:num_reqs]
+    return out
+
+
 @dataclass
 class XLASupportedSamplingMetadata:
     # This class exposes a more xla-friendly interface than SamplingMetadata
@@ -114,7 +136,9 @@ class XLASupportedSamplingMetadata:
         repetition penalty covers prompt ∪ output, matching the vLLM GPU spec.
         """
         mask = torch.zeros(padded_num_reqs, vocab_size, dtype=torch.bool)
-        for i in range(padded_num_reqs):
+        # num_prompt_tokens may be shorter than padded_num_reqs when sampling
+        # pads to a tile boundary larger than max_num_reqs; padding rows stay zero.
+        for i in range(min(padded_num_reqs, num_prompt_tokens.shape[0])):
             n = int(num_prompt_tokens[i])
             if n > 0:
                 prompt_ids = torch.from_numpy(token_ids_cpu[i, :n].copy()).long()
@@ -265,7 +289,12 @@ class XLASupportedSamplingMetadata:
         # hardware issues at certain batch×vocab shapes.
         has_allowed = not input_batch.no_allowed_token_ids
         if has_allowed:
-            bool_mask = input_batch.allowed_token_ids_mask_cpu_tensor[:padded_num_reqs]
+            bool_mask = _build_padded_cpu(
+                input_batch.allowed_token_ids_mask_cpu_tensor,
+                num_reqs,
+                padded_num_reqs,
+                False,
+            )
             float_mask = torch.zeros(
                 padded_num_reqs, input_batch.vocab_size, dtype=torch.float32
             )
@@ -335,16 +364,30 @@ class XLASupportedSamplingMetadata:
                 min_tokens_mask=min_tokens_mask,
             )
 
-        def fill_slice(cpu_tensor: torch.Tensor, fill_val) -> torch.Tensor:
-            # Pad value is the default one.
-            cpu_tensor[num_reqs:padded_num_reqs] = fill_val
-
-        fill_slice(
-            input_batch.temperature_cpu_tensor, DEFAULT_SAMPLING_PARAMS["temperature"]
+        temperature_cpu = _build_padded_cpu(
+            input_batch.temperature_cpu_tensor,
+            num_reqs,
+            padded_num_reqs,
+            DEFAULT_SAMPLING_PARAMS["temperature"],
         )
-        fill_slice(input_batch.min_p_cpu_tensor, DEFAULT_SAMPLING_PARAMS["min_p"])
-        fill_slice(input_batch.top_k_cpu_tensor, DEFAULT_SAMPLING_PARAMS["top_k"])
-        fill_slice(input_batch.top_p_cpu_tensor, DEFAULT_SAMPLING_PARAMS["top_p"])
+        min_p_cpu = _build_padded_cpu(
+            input_batch.min_p_cpu_tensor,
+            num_reqs,
+            padded_num_reqs,
+            DEFAULT_SAMPLING_PARAMS["min_p"],
+        )
+        top_k_cpu = _build_padded_cpu(
+            input_batch.top_k_cpu_tensor,
+            num_reqs,
+            padded_num_reqs,
+            DEFAULT_SAMPLING_PARAMS["top_k"],
+        )
+        top_p_cpu = _build_padded_cpu(
+            input_batch.top_p_cpu_tensor,
+            num_reqs,
+            padded_num_reqs,
+            DEFAULT_SAMPLING_PARAMS["top_p"],
+        )
 
         has_penalties = not input_batch.no_penalties
         output_token_counts = None
@@ -353,27 +396,24 @@ class XLASupportedSamplingMetadata:
         frequency_penalties_t = None
         repetition_penalties_t = None
         if has_penalties and vocab_size is not None:
-            fill_slice(
+            presence_penalties_t = _build_padded_cpu(
                 input_batch.presence_penalties_cpu_tensor,
+                num_reqs,
+                padded_num_reqs,
                 DEFAULT_SAMPLING_PARAMS["presence_penalties"],
-            )
-            fill_slice(
+            ).to(xla_device)
+            frequency_penalties_t = _build_padded_cpu(
                 input_batch.frequency_penalties_cpu_tensor,
+                num_reqs,
+                padded_num_reqs,
                 DEFAULT_SAMPLING_PARAMS["frequency_penalties"],
-            )
-            fill_slice(
+            ).to(xla_device)
+            repetition_penalties_t = _build_padded_cpu(
                 input_batch.repetition_penalties_cpu_tensor,
+                num_reqs,
+                padded_num_reqs,
                 DEFAULT_SAMPLING_PARAMS["repetition_penalties"],
-            )
-            presence_penalties_t = input_batch.presence_penalties_cpu_tensor[
-                :padded_num_reqs
-            ].to(xla_device)
-            frequency_penalties_t = input_batch.frequency_penalties_cpu_tensor[
-                :padded_num_reqs
-            ].to(xla_device)
-            repetition_penalties_t = input_batch.repetition_penalties_cpu_tensor[
-                :padded_num_reqs
-            ].to(xla_device)
+            ).to(xla_device)
             output_token_counts = cls._compute_token_counts(
                 input_batch.req_output_token_ids,
                 padded_num_reqs,
@@ -388,14 +428,12 @@ class XLASupportedSamplingMetadata:
 
         # Slice persistent device tensors to a fixed pre-compiled padded shape.
         return cls(
-            temperature=input_batch.temperature_cpu_tensor[:padded_num_reqs].to(
-                xla_device
-            ),
+            temperature=temperature_cpu.to(xla_device),
             all_greedy=input_batch.all_greedy,
             all_random=input_batch.all_random,
-            top_p=input_batch.top_p_cpu_tensor[:padded_num_reqs].to(xla_device),
-            top_k=input_batch.top_k_cpu_tensor[:padded_num_reqs].to(xla_device),
-            min_p=input_batch.min_p_cpu_tensor[:padded_num_reqs].to(xla_device),
+            top_p=top_p_cpu.to(xla_device),
+            top_k=top_k_cpu.to(xla_device),
+            min_p=min_p_cpu.to(xla_device),
             logprobs=needs_logprobs,
             no_penalties=not has_penalties,
             output_token_counts=output_token_counts,

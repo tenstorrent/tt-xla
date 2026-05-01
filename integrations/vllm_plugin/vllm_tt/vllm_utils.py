@@ -6,6 +6,13 @@ from .logger import tt_init_logger
 logger = tt_init_logger(__name__)
 
 
+_SAMPLING_PAD_BATCH = 32
+
+
+def pad_to_tile(sz):
+    return ((sz + _SAMPLING_PAD_BATCH - 1) // _SAMPLING_PAD_BATCH) * _SAMPLING_PAD_BATCH
+
+
 def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]:
     if use_2d_mesh:
         # Use predefined mesh shapes based on number of devices
