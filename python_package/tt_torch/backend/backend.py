@@ -65,14 +65,24 @@ def torch_pass_pipeline(
 
     decompositions = populate_decompositions()
 
-    program = torch.export.export(
+    _exported = torch.export.export(
         gm,
         tuple(example_inputs),
         strict=False,
     )
-    program = program.run_decompositions(decompositions)
 
-    compiled_graph = program.module()
+    # ep.module() with check_guards=True (default) inserts a _guards_fn submodule
+    # whose generated code references 'L' (Dynamo's locals dict). When guard
+    # expressions reference keys that are not model inputs, the 'L' substitution
+    # is incomplete, causing NameError during subsequent AOT re-export or graph
+    # interpretation. Inductor strips _guards_fn for the same reason; we suppress
+    # it at the source via check_guards=False. Guard checking was already done by
+    # Dynamo at torch.compile time.
+    _orig_module = _exported.module
+    _exported.module = lambda **kw: _orig_module(check_guards=False, **kw)
+    program = _exported.run_decompositions(decompositions)
+
+    compiled_graph = program.module(check_guards=False)
     # When torch.compile traces a model, it flattens the module hierarchy and
     # mangles parameter names (e.g., "model.layers.0.weight" becomes something
     # like "L__self___model_layers___0___weight"). Dynamo stores a reverse
