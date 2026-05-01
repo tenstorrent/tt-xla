@@ -109,6 +109,23 @@ assert len(PROMPTS) == BATCH_SIZE, (
 )
 
 
+# Longer-content variant of PROMPTS used by the OOD-margin diagnostic. The
+# fixed prefix bulks each prompt up to ~55-65 content tokens after
+# tokenization, so that under the standard PROMPT_LEN=128 left-pad each row
+# ends up with ~60 content tokens and ~68 pad tokens — the regime in which
+# the user empirically observed the logits PCC improving relative to the
+# default short-prompt 10/118 split.
+LONG_CONTENT_PREFIX = (
+    "In a recent thoughtful conversation held at an academic gathering "
+    "about science, technology, history, philosophy, and a wide variety "
+    "of other interesting modern topics that often come up in everyday "
+    "discussions among curious people, one particularly enthusiastic "
+    "participant raised the following important question: "
+)
+LONGER_PROMPTS = [LONG_CONTENT_PREFIX + p for p in PROMPTS]
+assert len(LONGER_PROMPTS) == BATCH_SIZE
+
+
 # ----------------------------------------------------------------------------
 # All-at-once weight loader. Builds the Transformer skeleton, loads every
 # real-checkpoint param in a single pass, then swaps every block's MoE for
@@ -513,11 +530,12 @@ def _tokenize_prompts(tokenizer, prompts: list) -> torch.Tensor:
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
-@pytest.mark.parametrize("num_layers", [10, 15, 20, 30, 43])
+@pytest.mark.parametrize("num_layers", [1, 10, 15, 20, 30, 43])
 @torch.inference_mode()
 def test_e2e_prefill_pcc(num_layers: int) -> None:
     """Run prefill on CPU and on the TT device with a `num_layers`-deep
-    swapped Transformer and PCC-compare the final hidden-states output.
+    swapped Transformer and PCC-compare both the final hidden-states output
+    and the post-head logits.
 
     Both paths share one model object: the A2aSparseMLP swap routes through
     `_cpu_forward` -> original MoE while `hidden_states.device.type == "cpu"`
@@ -526,11 +544,11 @@ def test_e2e_prefill_pcc(num_layers: int) -> None:
     compressor / indexer cache mutations are zeroed before the device move
     so the device prefill starts from the same blank state.
 
-    The "final output hidden states" tensor compared here is the post-block,
-    pre-head activation `h` of shape `[bsz, seq, hc_mult, dim]` — the first
-    element of the tuple returned by
-    `Transformer.forward(..., return_hidden_states=True)`
-    (model_decode_opt.py:972-981).
+    `Transformer.forward(..., return_hidden_states=True)` returns
+    `(hidden_states, logits)` (model_decode_opt.py:972-981). hidden_states
+    is the post-block, pre-head activation `h` of shape
+    `[bsz, seq, hc_mult, dim]`; logits is `[bsz, vocab_size]` at the last
+    position. Both are PCC-compared and both must clear PREFILL_PCC_REQUIRED.
     """
     enable_spmd()
     xr.set_device_type("TT")
@@ -570,9 +588,14 @@ def test_e2e_prefill_pcc(num_layers: int) -> None:
     # --- CPU prefill ------------------------------------------------------
     print("[cpu] prefill ...", flush=True)
     sp_cpu = torch.tensor(PROMPT_LEN, dtype=torch.long)
-    cpu_h, _ = model(prompt_ids, sp_cpu, return_hidden_states=True)
+    cpu_h, cpu_logits = model(prompt_ids, sp_cpu, return_hidden_states=True)
     cpu_out = cpu_h.detach().to(torch.float32).cpu().clone()
-    print(f"[cpu] hidden_states shape={tuple(cpu_out.shape)}", flush=True)
+    cpu_logits_out = cpu_logits.detach().to(torch.float32).cpu().clone()
+    print(
+        f"[cpu] hidden_states shape={tuple(cpu_out.shape)} "
+        f"logits shape={tuple(cpu_logits_out.shape)}",
+        flush=True,
+    )
 
     # CPU prefill mutated kv_cache / kv_state / score_state in place. Reset
     # them so the device prefill sees the same fresh-model starting state.
@@ -587,8 +610,8 @@ def test_e2e_prefill_pcc(num_layers: int) -> None:
         xs.mark_sharding(tensor, mesh, spec)
 
     # head is computed even under return_hidden_states=True (logits are the
-    # second tuple element, ignored here) — re-attach the sharding hook so
-    # head's output carries the standard `(None, None)` constraint, matching
+    # second tuple element) — re-attach the sharding hook so head's output
+    # carries the standard `(None, None)` constraint, matching
     # test_e2e_prefill_decode_full_real.
     hook = sharding_constraint_hook(model.head, mesh, (None, None))
     model.head.register_forward_hook(hook)
@@ -601,24 +624,41 @@ def test_e2e_prefill_pcc(num_layers: int) -> None:
 
     # --- Device prefill ---------------------------------------------------
     print("[device] compiling + running prefill ...", flush=True)
-    device_h, _ = compiled(prompt_ids_tt, sp_tt, return_hidden_states=True)
+    device_h, device_logits = compiled(
+        prompt_ids_tt, sp_tt, return_hidden_states=True
+    )
     torch_xla.sync(wait=True)
     device_out = device_h.detach().to("cpu").to(torch.float32).clone()
-    print(f"[device] hidden_states shape={tuple(device_out.shape)}", flush=True)
-
-    assert cpu_out.shape == device_out.shape, (
-        f"shape mismatch: cpu={tuple(cpu_out.shape)} "
-        f"device={tuple(device_out.shape)}"
-    )
-
-    pcc = _pcc(cpu_out, device_out)
+    device_logits_out = device_logits.detach().to("cpu").to(torch.float32).clone()
     print(
-        f"[pcc] cpu vs device prefill hidden_states pcc={pcc:.6f} "
-        f"(required >= {PREFILL_PCC_REQUIRED})",
+        f"[device] hidden_states shape={tuple(device_out.shape)} "
+        f"logits shape={tuple(device_logits_out.shape)}",
         flush=True,
     )
-    assert pcc >= PREFILL_PCC_REQUIRED, (
-        f"PCC failed: got {pcc:.6f}, required >= {PREFILL_PCC_REQUIRED}"
+
+    assert cpu_out.shape == device_out.shape, (
+        f"hidden_states shape mismatch: cpu={tuple(cpu_out.shape)} "
+        f"device={tuple(device_out.shape)}"
+    )
+    assert cpu_logits_out.shape == device_logits_out.shape, (
+        f"logits shape mismatch: cpu={tuple(cpu_logits_out.shape)} "
+        f"device={tuple(device_logits_out.shape)}"
+    )
+
+    pcc_h = _pcc(cpu_out, device_out)
+    pcc_logits = _pcc(cpu_logits_out, device_logits_out)
+    print(
+        f"[pcc] cpu vs device prefill hidden_states pcc={pcc_h:.6f} "
+        f"logits pcc={pcc_logits:.6f} (required >= {PREFILL_PCC_REQUIRED})",
+        flush=True,
+    )
+    failures = []
+    if pcc_h < PREFILL_PCC_REQUIRED:
+        failures.append(f"hidden_states={pcc_h:.6f}")
+    if pcc_logits < PREFILL_PCC_REQUIRED:
+        failures.append(f"logits={pcc_logits:.6f}")
+    assert not failures, (
+        f"PCC failed for: {failures} (required >= {PREFILL_PCC_REQUIRED})"
     )
 
 
@@ -988,3 +1028,446 @@ def test_prefill_and_decode_pcc(
     assert not failures, (
         f"PCC failed for: {failures} (required >= {PREFILL_PCC_REQUIRED})"
     )
+
+
+# ----------------------------------------------------------------------------
+# Diagnostic: pinpoint *which* sub-step inside ParallelHead causes the logits
+# PCC to fall well below hidden-states PCC. Runs prefill with
+# `return_head_intermediates=True` so both CPU and device emit
+#   (h, logits, hc_out, norm_out, last_token)
+# and PCC-compares each pair. The first stage that drops below a threshold
+# localizes the responsible op inside the head pipeline.
+# ----------------------------------------------------------------------------
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("num_layers", [1])
+@torch.inference_mode()
+def test_e2e_prefill_head_intermediates_pcc(num_layers: int) -> None:
+    enable_spmd()
+    xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    mesh, mesh_shape = make_mesh()
+    bsz = BATCH_SIZE
+
+    args = weight_loader.load_config_args()
+    args.n_mtp_layers = 0
+    args.max_batch_size = bsz
+    args.max_seq_len = 128
+    if num_layers < args.n_layers:
+        args.n_layers = num_layers
+        args.compress_ratios = args.compress_ratios[:num_layers]
+
+    from transformers import AutoTokenizer  # noqa: WPS433
+
+    tokenizer = AutoTokenizer.from_pretrained(weight_loader.REPO_ID)
+    prompt_ids = _tokenize_prompts(tokenizer, PROMPTS)
+    assert prompt_ids.shape == (bsz, PROMPT_LEN)
+
+    model = _build_and_load_full_model(args, mesh_shape)
+
+    # --- CPU prefill, returning all head intermediates --------------------
+    print("[cpu] prefill (with head intermediates) ...", flush=True)
+    sp_cpu = torch.tensor(PROMPT_LEN, dtype=torch.long)
+    cpu_h, cpu_logits, cpu_hc_out, cpu_norm_out, cpu_last_token = model(
+        prompt_ids, sp_cpu, return_head_intermediates=True
+    )
+    cpu_h_f32 = cpu_h.detach().to(torch.float32).cpu().clone()
+    cpu_hc_f32 = cpu_hc_out.detach().to(torch.float32).cpu().clone()
+    cpu_norm_f32 = cpu_norm_out.detach().to(torch.float32).cpu().clone()
+    cpu_last_f32 = cpu_last_token.detach().to(torch.float32).cpu().clone()
+    cpu_logits_f32 = cpu_logits.detach().to(torch.float32).cpu().clone()
+    print(
+        f"[cpu] shapes: h={tuple(cpu_h_f32.shape)} hc={tuple(cpu_hc_f32.shape)} "
+        f"norm={tuple(cpu_norm_f32.shape)} last={tuple(cpu_last_f32.shape)} "
+        f"logits={tuple(cpu_logits_f32.shape)}",
+        flush=True,
+    )
+
+    _reset_attn_caches(model)
+
+    # --- Move to device + shard ------------------------------------------
+    print("[device] moving model to TT ...", flush=True)
+    device = torch_xla.device()
+    model = model.to(device)
+    gc.collect()
+    for tensor, spec in transformer_shard_spec(model).items():
+        xs.mark_sharding(tensor, mesh, spec)
+
+    # Replicate the (None, None) constraint that test_e2e_prefill_pcc applies
+    # to the head's logits output, but apply it only to the logits element of
+    # the (logits, hc_out, norm_out, last_token) tuple that head returns when
+    # `return_intermediates=True`. Otherwise the default
+    # sharding_constraint_hook wraps the whole tuple and torch.compile rejects
+    # it (sharding_constraint expects a Tensor).
+    base_hook = sharding_constraint_hook(model.head, mesh, (None, None))
+
+    def _logits_only_hook(mod, input, output):
+        if isinstance(output, tuple):
+            logits = base_hook(mod, input, output[0])
+            return (logits,) + output[1:]
+        return base_hook(mod, input, output)
+
+    model.head.register_forward_hook(_logits_only_hook)
+
+    compiled = torch.compile(model, backend="tt")
+
+    prompt_ids_tt = prompt_ids.to(device)
+    xs.mark_sharding(prompt_ids_tt, mesh, ("_axis_0", None))
+    sp_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
+
+    print("[device] compiling + running prefill ...", flush=True)
+    dev_h, dev_logits, dev_hc_out, dev_norm_out, dev_last_token = compiled(
+        prompt_ids_tt, sp_tt, return_head_intermediates=True
+    )
+    torch_xla.sync(wait=True)
+    dev_h_f32 = dev_h.detach().to("cpu").to(torch.float32).clone()
+    dev_hc_f32 = dev_hc_out.detach().to("cpu").to(torch.float32).clone()
+    dev_norm_f32 = dev_norm_out.detach().to("cpu").to(torch.float32).clone()
+    dev_last_f32 = dev_last_token.detach().to("cpu").to(torch.float32).clone()
+    dev_logits_f32 = dev_logits.detach().to("cpu").to(torch.float32).clone()
+    print(
+        f"[device] shapes: h={tuple(dev_h_f32.shape)} hc={tuple(dev_hc_f32.shape)} "
+        f"norm={tuple(dev_norm_f32.shape)} last={tuple(dev_last_f32.shape)} "
+        f"logits={tuple(dev_logits_f32.shape)}",
+        flush=True,
+    )
+
+    stages = [
+        ("h            (post-blocks, pre-head)", cpu_h_f32, dev_h_f32),
+        ("hc_out       (post hc_head, pre norm)", cpu_hc_f32, dev_hc_f32),
+        ("norm_out     (post RMSNorm, pre slice)", cpu_norm_f32, dev_norm_f32),
+        ("last_token   (post slice [:, -1].float())", cpu_last_f32, dev_last_f32),
+        ("logits       (post head matmul + gather)", cpu_logits_f32, dev_logits_f32),
+    ]
+
+    print("\n[head-pcc] CPU vs device per-stage PCC:", flush=True)
+    for label, cpu_t, dev_t in stages:
+        assert cpu_t.shape == dev_t.shape, (
+            f"shape mismatch for {label}: cpu={tuple(cpu_t.shape)} "
+            f"device={tuple(dev_t.shape)}"
+        )
+        diff = (cpu_t - dev_t).abs()
+        rel = diff / (cpu_t.abs().clamp_min(1e-9))
+        p = _pcc(cpu_t, dev_t)
+        print(
+            f"  {label:48s} pcc={p:.6f}  "
+            f"max_abs_diff={float(diff.max()):.4e}  "
+            f"mean_abs_diff={float(diff.mean()):.4e}  "
+            f"max_rel_diff={float(rel.max()):.4e}",
+            flush=True,
+        )
+
+    # --- Per-position PCC localization ----------------------------------
+    # The slice [:, -1] cliff (norm_out 0.998 -> last_token 0.91) means
+    # position 127 specifically diverges far more than the average
+    # position. Confirm by computing PCC at each individual seq position
+    # of norm_out and h.
+    def _per_pos_pcc(label: str, cpu_3d: torch.Tensor, dev_3d: torch.Tensor):
+        # accept both [B, S, D] (norm/hc) and [B, S, hc, D] (h) by flattening
+        # the trailing dims so we always end up with one PCC per seq position.
+        assert cpu_3d.shape == dev_3d.shape
+        S = cpu_3d.shape[1]
+        cpu_flat = cpu_3d.reshape(cpu_3d.shape[0], S, -1)
+        dev_flat = dev_3d.reshape(dev_3d.shape[0], S, -1)
+        per_pos = [_pcc(cpu_flat[:, s, :], dev_flat[:, s, :]) for s in range(S)]
+        worst_idx = int(min(range(S), key=lambda i: per_pos[i]))
+        best_idx = int(max(range(S), key=lambda i: per_pos[i]))
+        print(
+            f"  {label:24s} per-pos PCC: pos{worst_idx:>3d}(worst)={per_pos[worst_idx]:.6f}  "
+            f"pos{best_idx:>3d}(best)={per_pos[best_idx]:.6f}  "
+            f"pos127(last)={per_pos[127]:.6f}  pos0={per_pos[0]:.6f}  "
+            f"pos64={per_pos[64]:.6f}",
+            flush=True,
+        )
+        # surface the bottom 5 positions for full visibility
+        bottom = sorted(range(S), key=lambda i: per_pos[i])[:5]
+        print(
+            f"  {label:24s} bottom 5 positions: "
+            + ", ".join(f"pos{i}={per_pos[i]:.4f}" for i in bottom),
+            flush=True,
+        )
+
+    print("\n[per-pos-pcc] per-sequence-position PCC:", flush=True)
+    _per_pos_pcc("h", cpu_h_f32, dev_h_f32)
+    _per_pos_pcc("hc_out", cpu_hc_f32, dev_hc_f32)
+    _per_pos_pcc("norm_out", cpu_norm_f32, dev_norm_f32)
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("num_layers", [1])
+@pytest.mark.parametrize("content_variant", ["short", "long"])
+@torch.inference_mode()
+def test_e2e_prefill_block_intermediates_pcc(num_layers: int, content_variant: str) -> None:
+    """Block-level diagnostic: capture (h, attn_out, post_attn, ffn_out) from
+    layer 0 on both CPU and device, then compute per-sequence-position PCC for
+    each tensor. Localizes whether the boundary divergence (positions 125-127
+    in `h` for prefill_len=128) lives in the attention sub-block or the
+    MoE/FFN sub-block.
+
+    `content_variant`:
+      - "short": uses the default `PROMPTS` (4-10 content tokens per row,
+        ~118 left-pad). The original 10/118-split diagnostic.
+      - "long": uses `LONGER_PROMPTS` (≈55-65 content tokens per row,
+        ≈63-73 left-pad). Used to test the OOD-router-margin prediction
+        that pos127 PCC improves when content tokens dominate the
+        attention context.
+
+    Only valid for num_layers=1.
+    """
+    enable_spmd()
+    xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    mesh, mesh_shape = make_mesh()
+    bsz = BATCH_SIZE
+
+    args = weight_loader.load_config_args()
+    args.n_mtp_layers = 0
+    args.max_batch_size = bsz
+    args.max_seq_len = 128
+    if num_layers < args.n_layers:
+        args.n_layers = num_layers
+        args.compress_ratios = args.compress_ratios[:num_layers]
+
+    from transformers import AutoTokenizer  # noqa: WPS433
+
+    tokenizer = AutoTokenizer.from_pretrained(weight_loader.REPO_ID)
+    prompts_source = PROMPTS if content_variant == "short" else LONGER_PROMPTS
+    print(f"[content_variant] {content_variant!r} ({len(prompts_source)} prompts)", flush=True)
+    prompt_ids = _tokenize_prompts(tokenizer, prompts_source)
+
+    # Print per-position pad-token-count so we can correlate position vs
+    # content distribution. For short: positions 124-127 are content-heavy
+    # across batch rows; for long: positions ~68-127 are content-heavy.
+    pad_id = (
+        tokenizer.pad_token_id
+        if tokenizer.pad_token_id is not None
+        else tokenizer.eos_token_id
+    )
+    pad_count_per_pos = (prompt_ids == pad_id).sum(dim=0).tolist()
+    content_per_row = (prompt_ids != pad_id).sum(dim=-1).tolist()
+    print(
+        f"[content] per-row content-token counts: {content_per_row}",
+        flush=True,
+    )
+    # Find the first all-content position (where every row is non-pad).
+    all_content_positions = [
+        p for p in range(PROMPT_LEN)
+        if pad_count_per_pos[p] == 0
+    ]
+    first_all_content = all_content_positions[0] if all_content_positions else PROMPT_LEN
+    print(
+        f"[content] first all-content position: {first_all_content}",
+        flush=True,
+    )
+    sample_positions = sorted(set([
+        0, 32, 64, first_all_content - 4, first_all_content - 2,
+        first_all_content - 1, first_all_content, first_all_content + 2,
+        120, 124, 125, 126, 127,
+    ]))
+    sample_positions = [p for p in sample_positions if 0 <= p < PROMPT_LEN]
+    print(
+        "[content] non-pad rows at sampled positions: "
+        + ", ".join(
+            f"pos{p}={bsz - pad_count_per_pos[p]}/{bsz}"
+            for p in sample_positions
+        ),
+        flush=True,
+    )
+
+    model = _build_and_load_full_model(args, mesh_shape)
+
+    # --- CPU prefill, returning all block + head intermediates ---------
+    print("[cpu] prefill (with block intermediates) ...", flush=True)
+    sp_cpu = torch.tensor(PROMPT_LEN, dtype=torch.long)
+    (
+        cpu_h, cpu_logits, cpu_hc_out, cpu_norm_out, cpu_last_token,
+        cpu_attn_out, cpu_post_attn, cpu_ffn_out,
+    ) = model(prompt_ids, sp_cpu, return_block_intermediates=True)
+
+    cpu_h_f32 = cpu_h.detach().to(torch.float32).cpu().clone()
+    cpu_attn_f32 = cpu_attn_out.detach().to(torch.float32).cpu().clone()
+    cpu_post_attn_f32 = cpu_post_attn.detach().to(torch.float32).cpu().clone()
+    cpu_ffn_f32 = cpu_ffn_out.detach().to(torch.float32).cpu().clone()
+    print(
+        f"[cpu] shapes: attn_out={tuple(cpu_attn_f32.shape)} "
+        f"post_attn={tuple(cpu_post_attn_f32.shape)} "
+        f"ffn_out={tuple(cpu_ffn_f32.shape)}",
+        flush=True,
+    )
+
+    _reset_attn_caches(model)
+
+    # --- Move to device + shard --------------------------------------
+    print("[device] moving model to TT ...", flush=True)
+    device = torch_xla.device()
+    model = model.to(device)
+    gc.collect()
+    for tensor, spec in transformer_shard_spec(model).items():
+        xs.mark_sharding(tensor, mesh, spec)
+
+    base_hook = sharding_constraint_hook(model.head, mesh, (None, None))
+
+    def _logits_only_hook(mod, input, output):
+        if isinstance(output, tuple):
+            logits = base_hook(mod, input, output[0])
+            return (logits,) + output[1:]
+        return base_hook(mod, input, output)
+
+    model.head.register_forward_hook(_logits_only_hook)
+
+    compiled = torch.compile(model, backend="tt")
+
+    prompt_ids_tt = prompt_ids.to(device)
+    xs.mark_sharding(prompt_ids_tt, mesh, ("_axis_0", None))
+    sp_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
+
+    print("[device] compiling + running prefill ...", flush=True)
+    (
+        dev_h, dev_logits, dev_hc_out, dev_norm_out, dev_last_token,
+        dev_attn_out, dev_post_attn, dev_ffn_out,
+    ) = compiled(prompt_ids_tt, sp_tt, return_block_intermediates=True)
+    torch_xla.sync(wait=True)
+
+    dev_h_f32 = dev_h.detach().to("cpu").to(torch.float32).clone()
+    dev_attn_f32 = dev_attn_out.detach().to("cpu").to(torch.float32).clone()
+    dev_post_attn_f32 = dev_post_attn.detach().to("cpu").to(torch.float32).clone()
+    dev_ffn_f32 = dev_ffn_out.detach().to("cpu").to(torch.float32).clone()
+
+    def _per_pos_pcc(label: str, cpu_t: torch.Tensor, dev_t: torch.Tensor):
+        assert cpu_t.shape == dev_t.shape, (
+            f"shape mismatch for {label}: cpu={tuple(cpu_t.shape)} dev={tuple(dev_t.shape)}"
+        )
+        S = cpu_t.shape[1]
+        cpu_flat = cpu_t.reshape(cpu_t.shape[0], S, -1)
+        dev_flat = dev_t.reshape(dev_t.shape[0], S, -1)
+        per_pos = [_pcc(cpu_flat[:, s, :], dev_flat[:, s, :]) for s in range(S)]
+        bottom = sorted(range(S), key=lambda i: per_pos[i])[:6]
+        # Print PCC at the same sampled positions used for the content
+        # histogram, so the cliff position is visible regardless of variant.
+        spline = "  ".join(f"pos{p}={per_pos[p]:.4f}" for p in sample_positions)
+        print(
+            f"  {label:18s} aggregate={_pcc(cpu_t, dev_t):.6f}",
+            flush=True,
+        )
+        print(f"  {label:18s} {spline}", flush=True)
+        print(
+            f"  {label:18s} bottom 6: "
+            + ", ".join(f"pos{i}={per_pos[i]:.4f}" for i in bottom),
+            flush=True,
+        )
+
+    print("\n[per-pos-pcc] block-level per-position PCC:", flush=True)
+    _per_pos_pcc("attn_out", cpu_attn_f32, dev_attn_f32)
+    _per_pos_pcc("post_attn", cpu_post_attn_f32, dev_post_attn_f32)
+    _per_pos_pcc("ffn_out", cpu_ffn_f32, dev_ffn_f32)
+    _per_pos_pcc("h (block out)", cpu_h_f32, dev_h_f32)
+
+
+# ----------------------------------------------------------------------------
+# CPU-only prefill: sanity-check model output without any device involvement.
+# Complements the cross-implementation PCC tests by isolating the model
+# behavior from CPU-vs-device numerical disagreement — useful when
+# diagnosing whether a "low PCC" failure is a model-quality issue (would
+# show up here too) or just a router-tiebreak disagreement (would not).
+# ----------------------------------------------------------------------------
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("num_layers", [1, 10, 15, 20, 30, 43])
+@torch.inference_mode()
+def test_cpu_only_prefill(num_layers: int) -> None:
+    """Run prefill on CPU only with a `num_layers`-deep swapped Transformer
+    and print the next-token prediction (decoded to text) for each prompt
+    in PROMPTS.
+
+    No `.to(device)` call: the model and all its weights stay on the host;
+    the A2aSparseMLP swap routes through `_cpu_forward` -> original MoE
+    while `hidden_states.device.type == "cpu"`. Output of one prefill is
+    `[bsz, vocab_size]`; the printed token is `argmax(dim=-1)` for each
+    row.
+
+    Mesh setup mirrors the PCC tests so the build_and_load path is
+    identical (the swap needs a `mesh_shape` tuple), but the mesh is never
+    actually used for sharding since nothing crosses the device boundary.
+    """
+    # enable_spmd()
+    # xr.set_device_type("TT")
+    torch.manual_seed(0)
+
+    _, mesh_shape = make_mesh()
+    bsz = BATCH_SIZE
+
+    args = weight_loader.load_config_args()
+    args.n_mtp_layers = 0
+    args.max_batch_size = bsz
+    args.max_seq_len = 128
+    if num_layers < args.n_layers:
+        args.n_layers = num_layers
+        args.compress_ratios = args.compress_ratios[:num_layers]
+    print(
+        f"[args] n_layers={args.n_layers}, "
+        f"n_routed_experts={args.n_routed_experts}, "
+        f"n_activated_experts={args.n_activated_experts}, bsz={bsz}, "
+        f"max_seq_len={args.max_seq_len}, "
+        f"compress_ratios={args.compress_ratios}",
+        flush=True,
+    )
+
+    from transformers import AutoTokenizer  # noqa: WPS433
+
+    tokenizer = AutoTokenizer.from_pretrained(weight_loader.REPO_ID)
+    prompt_ids = _tokenize_prompts(tokenizer, PROMPTS)
+    assert prompt_ids.shape == (bsz, PROMPT_LEN)
+
+    # Print per-position pad/content distribution so the reader can see
+    # how heavily left-padded these prompts are. Most PROMPTS in this
+    # file are 5-10 tokens, so positions 0-117 are pad-dominated and the
+    # actual content sits at the right edge.
+    pad_id = (
+        tokenizer.pad_token_id
+        if tokenizer.pad_token_id is not None
+        else tokenizer.eos_token_id
+    )
+    content_per_row = (prompt_ids != pad_id).sum(dim=-1).tolist()
+    print(
+        f"[content] per-row content-token counts (out of {PROMPT_LEN}): "
+        f"{content_per_row}",
+        flush=True,
+    )
+
+    model = _build_and_load_full_model(args, mesh_shape)
+
+    print("[cpu] running prefill ...", flush=True)
+    sp_cpu = torch.tensor(PROMPT_LEN, dtype=torch.long)
+    logits = model(prompt_ids, sp_cpu)  # [bsz, vocab_size]
+    next_ids = logits.detach().cpu().argmax(dim=-1)  # [bsz]
+    print(f"[cpu] logits shape={tuple(logits.shape)}", flush=True)
+
+    bar = "=" * 72
+    print(f"\n{bar}", flush=True)
+    print(
+        f"[cpu_only_prefill] num_layers={num_layers} — next-token "
+        f"prediction per prompt (CPU reference, no device):",
+        flush=True,
+    )
+    print(f"{bar}", flush=True)
+    for i, prompt in enumerate(PROMPTS):
+        next_tok_id = int(next_ids[i].item())
+        # Print both the special-tokens-included form (so EOS / BOS show
+        # up if the model predicted them) and the user-readable form.
+        next_tok_raw = tokenizer.decode([next_tok_id], skip_special_tokens=False)
+        next_tok_clean = tokenizer.decode([next_tok_id], skip_special_tokens=True)
+        print(f"[row {i:02d}] prompt={prompt!r}")
+        print(
+            f"         content_tokens={content_per_row[i]}  "
+            f"next_id={next_tok_id}  "
+            f"next_tok_raw={next_tok_raw!r}  "
+            f"next_tok={next_tok_clean!r}"
+        )
+    print(f"{bar}\n", flush=True)
