@@ -187,24 +187,30 @@ def _qwen3_moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
             )
         return final_hidden_states
 
-    # Device path: gather expert weight slices → einsum (static shapes, no nonzero)
+    # Device path: compute output for ALL experts (avoids per-token weight gathering that
+    # creates large [T,K,2I,H] intermediates and OOMs for large models).
     # gate_up_proj: [E, 2*I, H];  down_proj: [E, H, I]
-    K = top_k_index.shape[1]
-    expert_gate_up = self.gate_up_proj[top_k_index]  # [T, K, 2*I, H]
-    expert_down = self.down_proj[top_k_index]          # [T, K, H, I]
+    T = hidden_states.shape[0]
+    E = self.gate_up_proj.shape[0]
 
-    # Gate+up projection: h[T,K,H] × gate_up[T,K,2I,H] (contract H) → [T,K,2I]
-    h = hidden_states.unsqueeze(1).expand(-1, K, -1)   # [T, K, H]
-    gate_up = torch.einsum("tkh,tkoh->tko", h, expert_gate_up)
+    # Expand hidden states to all experts: [E, T, H]
+    h_exp = hidden_states.unsqueeze(0).expand(E, -1, -1)  # [E, T, H]
 
+    # Gate+up projection: [E, T, H] × [E, H, 2*I] = [E, T, 2*I]
+    gate_up = torch.bmm(h_exp, self.gate_up_proj.transpose(-1, -2))  # [E, T, 2*I]
     I = gate_up.shape[-1] // 2
-    out = self.act_fn(gate_up[..., :I]) * gate_up[..., I:]  # [T, K, I]
+    out = self.act_fn(gate_up[..., :I]) * gate_up[..., I:]  # [E, T, I]
 
-    # Down projection: out[T,K,I] × down[T,K,H,I] (contract I) → [T, K, H]
-    out = torch.einsum("tki,tkhi->tkh", out, expert_down)
+    # Down projection: [E, T, I] × [E, I, H] = [E, T, H]
+    out = torch.bmm(out, self.down_proj.transpose(-1, -2))  # [E, T, H]
 
-    # Weight by routing scores and sum over top-K experts → [T, H]
-    return (out * top_k_weights.unsqueeze(-1)).sum(dim=1)
+    # Build full [T, E] routing weight matrix (zeros for non-selected experts)
+    routing_full = torch.zeros(T, E, dtype=top_k_weights.dtype, device=top_k_weights.device)
+    routing_full.scatter_(1, top_k_index, top_k_weights)
+
+    # Weighted sum over all experts: [T, E, H] → [T, H]
+    out = out.permute(1, 0, 2)  # [T, E, H]
+    return (out * routing_full.unsqueeze(-1)).sum(dim=1)
 
 
 try:
