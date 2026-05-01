@@ -308,6 +308,54 @@ def bypass_redundant_getitem(gm):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm):
+    """
+    Clamp negative aten.slice.Tensor start indices that fall below -dim_size.
+
+    PyTorch eager silently clips out-of-range negative indices (e.g. t[-4095:]
+    on a length-8 tensor returns all 8 elements). The XLA/TT backend raises
+    "Value out of range" instead. This pass pre-clamps the static start
+    argument to -dim_size whenever start < -dim_size, matching eager semantics.
+
+    Typical trigger: sliding-window KV-cache update
+    `full_kv[:, :, -sliding_window+1:, :]` when seq_len < sliding_window.
+    """
+    modified = False
+    for node in gm.graph.nodes:
+        if not (
+            node.op == "call_function"
+            and node.target is torch.ops.aten.slice.Tensor
+        ):
+            continue
+        args = node.args
+        if len(args) < 3:
+            continue
+        start = args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+        input_node = args[0]
+        dim = args[1] if len(args) > 1 else 0
+        if not isinstance(dim, int):
+            continue
+        val = input_node.meta.get("val", None)
+        if val is None or not hasattr(val, "shape"):
+            continue
+        shape = val.shape
+        actual_dim = dim % len(shape)
+        try:
+            dim_size = shape[actual_dim]
+        except Exception:
+            continue
+        if not isinstance(dim_size, int):
+            continue
+        if start < -dim_size:
+            node.args = (args[0], args[1], -dim_size) + args[3:]
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def run_shape_prop(gm, example_inputs):
     """
     Propagates shape and dtype information through the graph.
