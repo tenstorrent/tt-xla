@@ -1795,6 +1795,10 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
+  melinoe_qwen3_omni_gguf/causal_lm/pytorch-30B_A3B_Thinking_i1-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "30B MoE model (~60 GB BF16) exceeds single-device DRAM (~32 GB on p150b)"
+
   qwen_3/causal_lm/pytorch-30B_A3b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
