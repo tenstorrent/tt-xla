@@ -365,6 +365,49 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     return gm
 
 
+def clamp_out_of_range_slice_starts(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Clamp aten.slice.Tensor start indices to be within valid tensor bounds.
+
+    XLA validates slice start indices strictly: for a tensor of size S in the
+    sliced dimension, the start must be in [-S, S-1]. Standard PyTorch silently
+    clamps out-of-range starts (e.g. -1023 on a 91-element tensor becomes 0),
+    but XLA raises an error. Sliding-window attention caches commonly produce
+    such out-of-range negative starts during the prefill phase when the input is
+    shorter than the window size.
+    """
+    changed = False
+    for node in gm.graph.nodes:
+        if node.op != "call_function":
+            continue
+        if node.target is not torch.ops.aten.slice.Tensor:
+            continue
+        args = list(node.args)
+        # aten.slice.Tensor(self, dim=0, start=None, end=None, step=1)
+        if len(args) < 3:
+            continue
+        start = args[2]
+        if not isinstance(start, int) or start >= 0:
+            continue
+        input_node = args[0]
+        dim = int(args[1]) if len(args) > 1 else 0
+        val = getattr(input_node, "meta", {}).get("val", None)
+        if val is None or not hasattr(val, "shape"):
+            continue
+        try:
+            size = val.shape[dim]
+            if not isinstance(size, int):
+                continue
+            if start < -size:
+                args[2] = -size
+                node.args = tuple(args)
+                changed = True
+        except (IndexError, TypeError):
+            pass
+    if changed:
+        gm.recompile()
+    return gm
+
+
 def _demangle_name(mangled_name, normalized_fqn_lookup):
     """Look up the original clean name (e.g., "classifier.6.weight") for a mangled
     FX node name by normalizing it and matching against the lookup table."""
