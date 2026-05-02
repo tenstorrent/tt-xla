@@ -80,6 +80,10 @@ test_config:
     required_pcc: 0.98
     status: EXPECTED_PASSING
 
+  magistral_small_mlx_4bit/causal_lm/pytorch-2506_MLX_4bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 335544320 B DRAM buffer across 8 banks - Magistral Small 24B BF16 (~46 GB) exceeds p150b DRAM (~32 GB)"
+
   mamba/pytorch-790M_HF-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended"]
