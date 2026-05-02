@@ -383,6 +383,9 @@ test_config:
   mobilenetv2/pytorch-Mobilenet_v2-single_device-inference:
     status: EXPECTED_PASSING
 
+  mp_senet/pytorch-DNS-single_device-inference:
+    required_pcc: 0.97 # BF16 floor: phase output atan2+GRU(100-161 steps) → CPU FP32 vs BF16=0.988; measured TT=0.9794
+
   nanogpt/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
 
