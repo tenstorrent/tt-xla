@@ -308,6 +308,31 @@ def bypass_redundant_getitem(gm):
     return gm
 
 
+def bypass_prims_view_of(gm):
+    """
+    Replaces prims::view_of(a) nodes with the input tensor a.
+
+    prims::view_of is semantically an identity (it only creates a view alias).
+    XLA functionalization cannot handle the alias annotation on this non-ATen
+    op, raising "Found a custom (non-ATen) operator whose output has alias
+    annotations". Replacing the node with its input is safe because TT hardware
+    does not perform in-place mutations on the aliased storage.
+    """
+    changed = False
+    for node in list(gm.graph.nodes):
+        if (
+            node.op == "call_function"
+            and hasattr(node.target, "name")
+            and "prims::view_of" in node.target.name()
+        ):
+            node.replace_all_uses_with(node.args[0])
+            changed = True
+    if changed:
+        gm.graph.eliminate_dead_code()
+        gm.graph.lint()
+    return gm
+
+
 def run_shape_prop(gm, example_inputs):
     """
     Propagates shape and dtype information through the graph.
