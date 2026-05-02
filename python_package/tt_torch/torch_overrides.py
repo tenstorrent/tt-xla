@@ -31,6 +31,33 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func.__name__ == "masked_scatter":
+            data = args[0] if args else kwargs.get("input")
+            mask = args[1] if len(args) > 1 else kwargs.get("mask")
+            source = args[2] if len(args) > 2 else kwargs.get("source")
+            if (
+                data is not None
+                and mask is not None
+                and source is not None
+                and data.dim() == 3
+                and mask.shape == data.shape
+            ):
+                B, S, H = data.shape
+                token_mask = mask[..., 0]  # [B, S] bool, uniform across H
+                source_2d = source.reshape(-1, H)  # [N, H]
+                N = source_2d.shape[0]
+                # float32 cumsum: integer-valued, exact up to 2^24 (no int64 needed)
+                src_idx_f = (
+                    torch.cumsum(token_mask.float(), dim=-1) - 1
+                ).clamp(0, N - 1)  # [B, S]
+                range_n = torch.arange(
+                    N, dtype=torch.float32, device=source_2d.device
+                )
+                one_hot = (src_idx_f.reshape(-1, 1) == range_n).float()  # [B*S, N]
+                gathered = (
+                    torch.mm(one_hot, source_2d.float()).to(data.dtype).reshape(B, S, H)
+                )
+                return torch.where(mask, gathered, data)
         return func(*args, **(kwargs or {}))
 
 
