@@ -2652,6 +2652,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: "Dynamic shapes from get_placeholder_mask cause ValueError in _xla_warm_up_cache - https://github.com/tenstorrent/tt-xla/issues/3854"
 
+  model_007/pytorch-Model_007-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "pankajmathur/model_007 is a LLaMA-2-70B fine-tune (~69B params, ~138 GB BF16) which exceeds single-device DRAM on all supported hardware (n150: 12 GB, p150b: 32 GB). Loading the model weights causes a CI timeout before device transfer can be attempted."
+
   gemma3/causal_lm/pytorch-270M_Instruct-single_device-inference:
     status: EXPECTED_PASSING
 
