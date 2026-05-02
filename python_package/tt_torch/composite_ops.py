@@ -251,6 +251,11 @@ def composite_scaled_dot_product_attention(
     )
 
     if attn_mask is not None:
+        # ttir.scaled_dot_product_attention requires a 4D mask.
+        # Some rel-pos implementations (e.g. RelPosBiasTf) return 3D (H, S, S);
+        # broadcast to (1, H, S, S) so the TTIR validator is satisfied.
+        if attn_mask.dim() == 3:
+            attn_mask = attn_mask.unsqueeze(0)
         query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
     else:
         query, key, value = builder.mark_inputs(query, key, value)
