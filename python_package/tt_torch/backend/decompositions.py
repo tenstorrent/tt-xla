@@ -327,29 +327,15 @@ def copy_default(
     # Then clone to ensure contiguous memory
     return src_converted.expand(dst.shape).clone()
 
-
 def masked_scatter(
     data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
 ) -> torch.Tensor:
-    # Custom decomposition for masked_scatter.
-    #
-    # When the mask was broadcast along the last dimension (stride==0),
-    # uses an optimized path: row-level cumsum on [S] elements + mul+add
-    # flat index linearization. This avoids:
-    #   - cumsum OOM on [S*D] elements (tt-xla#4167, moreh_cumsum L1/DRAM)
-    #   - PCC drop from ttnn.matmul in torch.gather (tt-metal#42845)
-    #
-    # For arbitrary mask patterns, falls back to the original flatten-based
-    # cumsum + where decomposition.
     mask, data = torch.broadcast_tensors(mask, data)
 
     if source.numel() == 0:
         return data.clone()
 
     if mask.dim() >= 2 and mask.stride(-1) == 0:
-        # Optimized path: mask is constant along last dim (e.g. VLM models
-        # where mask_1d.unsqueeze(-1) is broadcast to [S, D] or [B, S, D]).
-        # Cumsum operates on [leading_dims] instead of [leading_dims * D].
         orig_shape = data.shape
         D = data.shape[-1]
         data_2d = data.reshape(-1, D)
@@ -369,7 +355,6 @@ def masked_scatter(
         result_2d = torch.where(mask_1d.unsqueeze(-1), gathered_rows, data_2d)
         return result_2d.view(orig_shape)
 
-    # Fallback: flatten everything (works for arbitrary mask patterns)
     mask_f = mask.reshape(-1)
     data_flat = data.reshape(-1)
     source_flat = source.reshape(-1)
@@ -382,6 +367,12 @@ def masked_scatter(
     result_flat = torch.where(mask_f, gathered, data_flat)
 
     return result_flat.view_as(data)
+
+
+def masked_scatter_(
+    data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
+) -> torch.Tensor:
+    return masked_scatter(data, mask, source)
 
 
 # TODO: DO we ever need this?
@@ -446,6 +437,7 @@ def _get_custom_decompositions() -> DecompositionTable:
         torch.ops.aten.bitwise_and.Tensor: boolean_bitwise_and,
         torch.ops.aten.bitwise_or.Tensor: boolean_bitwise_or,
         aten.masked_scatter.default: masked_scatter,
+        aten.masked_scatter_.default: masked_scatter_,
         aten.sum.dim_IntList: sum_dim_IntList,
     }
 
