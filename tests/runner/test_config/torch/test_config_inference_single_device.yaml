@@ -88,7 +88,6 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Xxlarge_v2-single_device-inference:
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Large_v2-single_device-inference:
