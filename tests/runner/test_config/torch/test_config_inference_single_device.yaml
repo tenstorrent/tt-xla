@@ -1798,6 +1798,10 @@ test_config:
   qwen_3/causal_lm/pytorch-30B_A3b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  huihui_qwen3_30b_a3b_thinking_2507_abliterated_gguf/causal_lm/pytorch-30B_A3B_Thinking_2507_abliterated_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 805306368 B DRAM buffer across 8 banks (allocated: 4263102208 B, free: 10287808 B) — Qwen3-30B-A3B BF16 requires ~32.5 GB, exceeds p150b 32 GB DRAM"
+
   qwen_3/causal_lm/pytorch-32B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
