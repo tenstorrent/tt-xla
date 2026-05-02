@@ -60,6 +60,21 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 TorchComparisonEvaluator._cache_to_legacy(cache.self_attention_cache),
                 TorchComparisonEvaluator._cache_to_legacy(cache.cross_attention_cache),
             )
+        # Qwen3_5DynamicCache and similar: flat key_cache/value_cache lists per layer
+        # (not a Cache subclass, no .layers, but duck-type detectable).
+        if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
+            result = []
+            for i in range(len(cache.key_cache)):
+                k = cache.key_cache[i]
+                v = cache.value_cache[i]
+                if k is not None and k.numel() > 0 and v is not None and v.numel() > 0:
+                    result.append((k, v))
+                else:
+                    c = cache.conv_states[i] if hasattr(cache, "conv_states") else None
+                    r = cache.recurrent_states[i] if hasattr(cache, "recurrent_states") else None
+                    if c is not None and r is not None:
+                        result.append((c, r))
+            return tuple(result)
         return cache
 
     # @override
@@ -72,10 +87,14 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache):
+            if isinstance(tensor, Cache) or (
+                hasattr(tensor, "key_cache") and hasattr(tensor, "value_cache")
+            ):
                 # New transformers library uses Cache classes (DynamicCache, StaticCache)
                 # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
                 # (keys, values) tuple per layer so the comparator can compare tensors.
+                # Also handles non-Cache types (e.g. Qwen3_5DynamicCache) that store KV
+                # state in flat key_cache/value_cache lists.
                 tensor = TorchComparisonEvaluator._cache_to_legacy(tensor)
             if isinstance(tensor, torch.Tensor) and tensor.dtype != torch.float64:
                 tensor = tensor.to(torch.float64)
