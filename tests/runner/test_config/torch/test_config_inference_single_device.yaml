@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  ltx_2_gguf/pytorch-2_dev_Q4_K_M-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: LTX-2 19B params ~37.75 GB BF16 exceeds device DRAM capacity (~34 GB). TT_FATAL bank_manager.cpp:439 after 34 min compilation."
