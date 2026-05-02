@@ -28,6 +28,7 @@ from .metadata_propagation import (
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
+    bypass_prims_view_of,
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
@@ -207,6 +208,11 @@ class XLAExecutor:
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)
+
+            # Remove prims.view_of alias-annotated nodes before XLA partitioning.
+            # partition_fx_graph_for_cpu_fallback rejects ops with alias annotations;
+            # prims.view_of is an identity op that decomposition inserts after prims.squeeze.
+            bypass_prims_view_of(program.graph_module)
 
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
