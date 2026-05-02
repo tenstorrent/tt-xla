@@ -28,12 +28,18 @@ from .metadata_propagation import (
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
+    bypass_prims_view_of,
     bypass_redundant_getitem,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
     run_fusion_passes,
 )
+
+# Sentinel used by _call_experimental_compile to mark subgraphs that have no
+# tensor outputs (all side effects are in-place mutations on caller tensors).
+# These subgraphs bypass extract_compiled_graph and run via XLA lazy evaluation.
+_EMPTY_OUTPUT_SENTINEL = object()
 
 
 # This function runs a series of passes on a torch GraphModule.
@@ -205,16 +211,34 @@ class XLAExecutor:
             # All this is a problem because DynamoBridge Partitioner can get confused by wrong next nodes and partition the graph in a way which fails to execute.
             legalize_graph(program.graph_module)
 
-            # Collect the params and constants from the exported program.
-            self.params_and_consts = self._build_params_and_consts(program)
+            if not program.graph_signature.output_specs:
+                # The graph has no tensor outputs — all side effects are in-place mutations
+                # on XLA tensors already held by the caller (e.g. a pre-processing subgraph
+                # produced by a dynamo graph break before the main transformer forward).
+                # extract_compiled_graph requires a non-empty output set, so we bypass it
+                # and run the module directly via XLA lazy evaluation on each call.
+                # The sentinel value marks that this executor should always run eagerly.
+                self.params_and_consts = ()
+                self.compiled_graph = _EMPTY_OUTPUT_SENTINEL
+            else:
+                # Collect the params and constants from the exported program.
+                self.params_and_consts = self._build_params_and_consts(program)
 
-            # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
-            # This helps us avoid tracing the graph on the subsequent model execution. On the next
-            # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
-            # without any tracing.
-            self.compiled_graph = bridge.extract_compiled_graph(
-                program.graph_module, self.params_and_consts + args
-            )
+                # Remove prims.view_of alias-annotated nodes before XLA partitioning.
+                # partition_fx_graph_for_cpu_fallback rejects ops with alias annotations;
+                # prims.view_of is an identity op that decomposition inserts after prims.squeeze.
+                bypass_prims_view_of(program.graph_module)
+
+                # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
+                # This helps us avoid tracing the graph on the subsequent model execution. On the next
+                # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
+                # without any tracing.
+                self.compiled_graph = bridge.extract_compiled_graph(
+                    program.graph_module, self.params_and_consts + args
+                )
+
+        if self.compiled_graph is _EMPTY_OUTPUT_SENTINEL:
+            return self.module(*args)
 
         full_args = self.params_and_consts + args
 
