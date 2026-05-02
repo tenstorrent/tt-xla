@@ -172,6 +172,10 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     reason: "MiniCPM model has a larger test execution time, hence skipping it for now."
 
+  mirothinker_v1_5_30b_gguf/causal_lm/pytorch-v1.5_30B_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "INTERNAL: Error code: 13 (allocate_device_buffer) — Qwen3-30B-A3B based model (~64 GB BF16) exceeds single p150b DRAM capacity with runtime buffers."
+
   bart/pytorch-Large-single_device-inference:
     status: EXPECTED_PASSING
 
