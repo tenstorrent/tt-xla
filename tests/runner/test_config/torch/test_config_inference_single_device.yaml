@@ -1798,6 +1798,10 @@ test_config:
   qwen_3/causal_lm/pytorch-30B_A3b-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  qwen_3_30b_a3b_thinking_claude_gguf/causal_lm/pytorch-30B_A3B_Thinking_2507_Claude_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity: 30B-param MoE model dequantized to BF16 requires ~60 GB, exceeding p150b 32 GB DRAM; RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13 (OOM)"
+
   qwen_3/causal_lm/pytorch-32B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
