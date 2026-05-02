@@ -260,3 +260,7 @@ test_config:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
     enable_weight_bfp8_conversion: true
+
+  mozilla_ai_meta_llama_3_1_70b_instruct_llamafile/causal_lm/pytorch-Meta-Llama-3.1-70B-Instruct.Q4_K_M.llamafile-tensor_parallel-inference:
+    supported_archs: [n300-llmbox, galaxy-wh-6u]
+    status: NOT_STARTED
