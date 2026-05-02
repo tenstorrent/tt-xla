@@ -2601,6 +2601,10 @@ test_config:
   gpt_oss/pytorch-120B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  kldzj_gpt_oss_120b_heretic_v2_gguf/causal_lm/pytorch-KLDZJ_GPT_OSS_120B_HERETIC_V2_MXFP4_MOE_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model too large for single device: 120B parameters require ~240 GB BF16 (TT hardware dequantizes MXFP4 to BF16) which exceeds single-device DRAM capacity."
+
   mistral/pytorch-Small_24B_INSTRUCT_2501-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
