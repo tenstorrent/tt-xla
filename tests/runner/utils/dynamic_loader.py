@@ -258,8 +258,12 @@ class DynamicLoader:
         mod = importlib.util.module_from_spec(spec)
         mod.__package__ = package_name
 
-        # Add the module to sys.modules to support relative imports
+        # Add the module to sys.modules to support relative imports.
+        # Also register under mod.__name__ (underscore key) so that
+        # transformers 5.x sys.modules[cls.__module__] lookups succeed
+        # (e.g. _can_set_experts_implementation, _can_set_attn_implementation).
         sys.modules[module_path] = mod
+        sys.modules[mod.__name__] = mod
         spec.loader.exec_module(mod)
 
         return mod.ModelLoader
