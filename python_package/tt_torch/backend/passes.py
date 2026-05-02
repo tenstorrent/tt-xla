@@ -295,6 +295,30 @@ def bypass_assert_tensor_metadata(gm):
     return gm
 
 
+def bypass_prims_view_of(gm):
+    """
+    Replace prims::view_of nodes with their input tensor.
+
+    prims::view_of has alias annotations (Tensor(a) -> Tensor(a)) that the
+    functionalization layer in partition_fx_graph_for_cpu_fallback cannot handle,
+    raising "Found a custom (non-ATen) operator whose output has alias annotations".
+    view_of is semantically a no-op (it returns a view of the same storage), so
+    replacing it with its input is correct for inference.
+    """
+    modified = False
+    for node in list(gm.graph.nodes):
+        if (
+            node.op == "call_function"
+            and node.target == torch.ops.prims.view_of.default
+        ):
+            node.replace_all_uses_with(node.args[0])
+            gm.graph.erase_node(node)
+            modified = True
+    if modified:
+        gm.recompile()
+    return gm
+
+
 def bypass_redundant_getitem(gm):
     """
     Replaces `getitem` calls with a direct reference to the tensor being retrieved.
