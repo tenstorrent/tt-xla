@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  llama_3_70b_instruct_abliterated_v3_gguf/causal_lm/pytorch-70B_Instruct_Abliterated_v3_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "70B model (Q4_K_M GGUF, 723 tensors) dequantizes to ~140 GB BF16, far exceeding single-device DRAM (~96 GB p150b); dequantization alone takes ~69 min, causing CI timeout before device OOM"
