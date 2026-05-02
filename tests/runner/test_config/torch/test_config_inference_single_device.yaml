@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  mradermacher_nvidia_nemotron_3_nano_30b_a3b_bf16_heretic_i1_gguf/causal_lm/pytorch-NVIDIA_Nemotron_3_Nano_30B_A3B_BF16_heretic_i1_GGUF-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 30B-parameter NemotronH model requires ~60 GB BF16 weight storage, exceeding single-device DRAM capacity (~32 GB)"
