@@ -2413,6 +2413,11 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
 
+  openvla_oft/pytorch-openvla_oft_sft_libero10_trajall-single_device-inference:
+    supported_archs: ["p150"]
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
+
   mistral/pytorch-Nemo_INSTRUCT_2407-single_device-inference:
     supported_archs: ["p150"] # 12B param model
     status: EXPECTED_PASSING
