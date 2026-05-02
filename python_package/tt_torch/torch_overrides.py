@@ -31,6 +31,19 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # XLA validates slice indices strictly; PyTorch silently clamps.
+        # Sliding-window attention produces start=-sliding_window+1 which is
+        # below -seq_len and rejected by XLA.  Clamp both start and end.
+        if func is torch.ops.aten.slice.Tensor and not torch.compiler.is_compiling():
+            tensor = args[0]
+            dim = args[1] if len(args) > 1 else 0
+            if isinstance(dim, int) and dim < len(tensor.shape):
+                dim_size = tensor.shape[dim]
+                args = list(args)
+                for idx in (2, 3):
+                    if idx < len(args) and isinstance(args[idx], int) and args[idx] < -dim_size:
+                        args[idx] = -dim_size
+                args = tuple(args)
         return func(*args, **(kwargs or {}))
 
 
