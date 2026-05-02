@@ -33,6 +33,7 @@
 #include "api/client_instance.h"
 #include "api/device_instance.h"
 #include "api/error_instance.h"
+#include "api/event_instance.h"
 #include "api/executable_image.h"
 #include "api/executable_instance.h"
 #include "api/tensor.h"
@@ -275,8 +276,12 @@ tt_pjrt_status LoadedExecutableInstance::createDefaultOutputBuffers(
                         strides.rbegin(), std::uint32_t(1),
                         std::multiplies<>());
 
-    tt::runtime::Tensor host_tensor = tt::runtime::createOwnedHostTensor(
-        nullptr, *output_shape, strides, element_size, runtime_data_type);
+    // Only create host tensor when not in compile-only mode
+    std::optional<tt::runtime::Tensor> host_tensor;
+    if (!isCompileOnly()) {
+      host_tensor = tt::runtime::createOwnedHostTensor(
+          nullptr, *output_shape, strides, element_size, runtime_data_type);
+    }
 
     std::vector<BufferInstance *> shards;
     shards.reserve(num_devices);
@@ -296,7 +301,10 @@ tt_pjrt_status LoadedExecutableInstance::createDefaultOutputBuffers(
       output_lists[device_index][output_index] = *output_buffer.release();
     }
 
-    PjrtTensor::from_runtime_tensor(shards, std::move(host_tensor));
+    // Only link to runtime tensor when not in compile-only mode
+    if (host_tensor.has_value()) {
+      PjrtTensor::from_runtime_tensor(shards, std::move(*host_tensor));
+    }
   }
   return tt_pjrt_status::kSuccess;
 }
@@ -473,9 +481,21 @@ onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
       LoadedExecutableInstance::unwrap(args->executable);
 
   if (instance->isCompileOnly()) {
-    LOG_F(ERROR, "Early aborting execution in compile-only mode "
-                 "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
-    return *ErrorInstance::makeError(tt_pjrt_status::kInternal).release();
+    LOG_F(INFO, "Compile-only mode: returning default output buffers "
+                "(TT_COMPILE_ONLY_SYSTEM_DESC is set).");
+    instance->createDefaultOutputBuffers(args->output_lists, args->num_devices);
+
+    if (args->device_complete_events) {
+      for (int device_num = 0; device_num < args->num_devices; ++device_num) {
+        std::unique_ptr<EventInstance> device_complete_event =
+            EventInstance::createInstance();
+        EventInstance::markAsReadyAndCallback(device_complete_event.get(),
+                                              tt_pjrt_status::kSuccess);
+        args->device_complete_events[device_num] =
+            *device_complete_event.release();
+      }
+    }
+    return nullptr;
   }
 
   tt_pjrt_status status = instance->execute(args);
