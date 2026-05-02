@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  mozilla_ai_gemma_2_27b_it_llamafile/causal_lm/pytorch-gemma-2-27b-it-llamafile-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: 27B model dequantized to BF16 requires ~54 GB but p150b has only ~34 GB device DRAM (8 banks x 4.27 GB). Not enough space to allocate 339738624 B across 8 banks."
