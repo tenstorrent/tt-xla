@@ -277,6 +277,80 @@ def insert_argument_type_markers(
     return gm
 
 
+def rewrite_bool_index_put_to_where(gm):
+    """
+    Rewrite aten.index_put[_].default with a single boolean mask index to
+    aten.where.self.
+
+    x[bool_mask] = fill  =>  where(bool_mask, full_like(x, fill), x)
+
+    XLA lowers boolean-masked index_put to stablehlo.scatter with
+    index_vector_dim != 1, which tt-mlir's
+    StableHLOToTTIRScatterOpConversionPattern cannot legalize.  Replacing
+    with where avoids scatter entirely (becomes stablehlo.select).
+    """
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if node.op != "call_function":
+            continue
+        if node.target not in (
+            torch.ops.aten.index_put_.default,
+            torch.ops.aten.index_put.default,
+        ):
+            continue
+
+        if len(node.args) < 3:
+            continue
+
+        indices_arg = node.args[1]
+        if not isinstance(indices_arg, (list, tuple)) or len(indices_arg) != 1:
+            continue
+
+        idx_node = indices_arg[0]
+        if not isinstance(idx_node, torch.fx.Node):
+            continue
+
+        # Determine dtype from available metadata.
+        idx_dtype = None
+        if "tensor_meta" in idx_node.meta:
+            idx_dtype = idx_node.meta["tensor_meta"].dtype
+        elif "val" in idx_node.meta and hasattr(idx_node.meta["val"], "dtype"):
+            idx_dtype = idx_node.meta["val"].dtype
+
+        if idx_dtype != torch.bool:
+            continue
+
+        input_node = node.args[0]
+        fill_arg = node.args[2]
+
+        with graph.inserting_before(node):
+            if isinstance(fill_arg, (int, float)):
+                fill_node = graph.call_function(
+                    torch.ops.aten.full_like.default,
+                    args=(input_node, float(fill_arg)),
+                )
+            else:
+                fill_node = fill_arg
+
+            where_node = graph.call_function(
+                torch.ops.aten.where.self,
+                args=(idx_node, fill_node, input_node),
+            )
+
+        node.replace_all_uses_with(where_node)
+        graph.erase_node(node)
+        modified = True
+
+    if modified:
+        gm.graph.eliminate_dead_code()
+        gm.graph.lint()
+        gm.recompile()
+
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.

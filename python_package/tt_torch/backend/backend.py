@@ -32,6 +32,7 @@ from .passes import (
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
+    rewrite_bool_index_put_to_where,
     run_fusion_passes,
 )
 
@@ -90,6 +91,7 @@ def torch_pass_pipeline(
     )
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
+    compiled_graph = rewrite_bool_index_put_to_where(compiled_graph)
 
     # Recompile the GraphModule to ensure the modifications made by the above
     # passes are reflected during execution.
