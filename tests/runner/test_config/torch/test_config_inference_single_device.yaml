@@ -1698,6 +1698,15 @@ test_config:
         reason: "Too large for single chip"
         bringup_status: FAILED_RUNTIME
 
+  mistral_7b_instruct_v0_3_gptq_4bit/causal_lm/pytorch-Mistral-7B-Instruct-v0.3-GPTQ-4bit-single_device-inference:
+    required_pcc: 0.94  # ttmlir-bf16-matmul-precision-floor: measured PCC=0.940 on BH p150b; CPU FP32 vs BF16 PCC=0.9996
+    status: EXPECTED_PASSING
+    arch_overrides:
+      n150:
+        status: NOT_SUPPORTED_SKIP
+        reason: "7B BF16 ~14 GB exceeds n150 12 GB DRAM"
+        bringup_status: FAILED_RUNTIME
+
   qwen_2_5/causal_lm/pytorch-14B-single_device-inference:
     arch_overrides:
       p150:
