@@ -277,6 +277,29 @@ def insert_argument_type_markers(
     return gm
 
 
+def bypass_prims_view_of(gm):
+    """
+    Replace prims.view_of nodes with their input.
+
+    prims.view_of is an identity/alias op that decomposition inserts after
+    prims.squeeze (and similar shape ops). It carries alias annotations
+    (Tensor(a) -> Tensor(a)) that cause partition_fx_graph_for_cpu_fallback
+    to raise "We only support functionalizing operators whose outputs do not
+    have alias annotations." Replacing each node with its input is semantically
+    correct because view_of is a no-op alias.
+    """
+    for node in list(gm.graph.nodes):
+        if (
+            node.op == "call_function"
+            and hasattr(torch.ops, "prims")
+            and node.target == torch.ops.prims.view_of.default
+        ):
+            node.replace_all_uses_with(node.args[0])
+            gm.graph.erase_node(node)
+    gm.graph.eliminate_dead_code()
+    return gm
+
+
 def bypass_assert_tensor_metadata(gm):
     """
     Bypass assert_tensor_metadata nodes.
