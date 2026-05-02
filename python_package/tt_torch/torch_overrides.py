@@ -1,8 +1,28 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import operator as _operator
+
 import torch
 from torch.overrides import TorchFunctionMode
+
+# Map torch method names to Python operators so that Dynamo records
+# numpy scalar arithmetic as __sub__/__add__ etc. (which tnp.ndarray supports)
+# rather than sub/add (which tnp.ndarray lacks), preventing fake-tensor eval failure.
+_NUMPY_SCALAR_OP_MAP = {
+    "sub": _operator.sub,
+    "__sub__": _operator.sub,
+    "__rsub__": lambda a, b: _operator.sub(b, a),
+    "add": _operator.add,
+    "__add__": _operator.add,
+    "__radd__": lambda a, b: _operator.add(b, a),
+    "mul": _operator.mul,
+    "__mul__": _operator.mul,
+    "__rmul__": lambda a, b: _operator.mul(b, a),
+    "truediv": _operator.truediv,
+    "__truediv__": _operator.truediv,
+    "__rtruediv__": lambda a, b: _operator.truediv(b, a),
+}
 
 
 class TorchFunctionOverride(TorchFunctionMode):
@@ -31,6 +51,17 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        # When all dispatch types are numpy array wrappers (not torch.Tensor subclasses),
+        # Dynamo inlines __torch_function__ and records func(*args) as
+        # numpy_method_wrapper('sub') instead of numpy_method_wrapper('__sub__').
+        # tnp.ndarray has __sub__ but not sub, so fake-tensor evaluation fails.
+        # Use Python operator dispatch here to ensure __sub__ is recorded instead.
+        if (
+            func.__name__ in _NUMPY_SCALAR_OP_MAP
+            and not kwargs
+            and not any(issubclass(t, torch.Tensor) for t in types)
+        ):
+            return _NUMPY_SCALAR_OP_MAP[func.__name__](*args)
         return func(*args, **(kwargs or {}))
 
 
