@@ -132,6 +132,50 @@ def _sparse_mlp_forward(self, hidden_states):
     return routed_out, router_scores
 
 
+def _qwen3moe_experts_forward(self, hidden_states, top_k_index, top_k_weights):
+    """Device-friendly Qwen3MoeExperts.forward that avoids nonzero() on device path.
+
+    nonzero() causes a segfault in partition_fx_graph_for_cpu_fallback; replace
+    the data-dependent loop with a dense bmm over all experts on the device path.
+    """
+    if hidden_states.device.type == "cpu":
+        import torch.nn.functional as F
+
+        final_hidden_states = torch.zeros_like(hidden_states)
+        with torch.no_grad():
+            expert_mask = F.one_hot(top_k_index, num_classes=self.num_experts)
+            expert_mask = expert_mask.permute(2, 1, 0)
+            expert_hit = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hit:
+            expert_idx = expert_idx[0]
+            if expert_idx == self.num_experts:
+                continue
+            top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
+            current_state = hidden_states[token_idx]
+            gate, up = F.linear(current_state, self.gate_up_proj[expert_idx]).chunk(2, dim=-1)
+            current_hidden_states = self.act_fn(gate) * up
+            current_hidden_states = F.linear(current_hidden_states, self.down_proj[expert_idx])
+            current_hidden_states = current_hidden_states * top_k_weights[token_idx, top_k_pos, None]
+            final_hidden_states.index_add_(0, token_idx, current_hidden_states.to(final_hidden_states.dtype))
+        return final_hidden_states
+    else:
+        T, H = hidden_states.shape
+        E = self.num_experts
+        # gate_up_proj: [E, 2I, H] — apply as batched linear over all experts
+        hs_exp = hidden_states.unsqueeze(0).expand(E, -1, -1)  # [E, T, H]
+        gate_up = torch.bmm(hs_exp, self.gate_up_proj.transpose(-2, -1))  # [E, T, 2I]
+        gate, up = gate_up.chunk(2, dim=-1)  # [E, T, I] each
+        hidden_act = self.act_fn(gate) * up  # [E, T, I]
+        # down_proj: [E, H, I]
+        out = torch.bmm(hidden_act, self.down_proj.transpose(-2, -1))  # [E, T, H]
+        # scatter compact [T, K] routing into dense [T, E] then weight outputs
+        routing_sparse = torch.zeros(T, E, dtype=top_k_weights.dtype, device=hidden_states.device)
+        routing_sparse.scatter_(1, top_k_index, top_k_weights)
+        # out[e,t,h] * routing_sparse[t,e] summed over e → [T, H]
+        final_hidden_states = (out * routing_sparse.T.unsqueeze(-1)).sum(0)
+        return final_hidden_states
+
+
 # Monkey patch to restore 4.57.1 interfaces:
 # - Router returns full [T, E] sparse routing weights
 # - Experts has CPU per-expert loop + device dense bmm
@@ -146,5 +190,12 @@ try:
     GptOssTopKRouter.forward = _router_forward
     GptOssExperts.forward = _experts_forward
     GptOssMLP.forward = _sparse_mlp_forward
+except ImportError:
+    pass
+
+try:
+    from transformers.models.qwen3_moe.modeling_qwen3_moe import Qwen3MoeExperts
+
+    Qwen3MoeExperts.forward = _qwen3moe_experts_forward
 except ImportError:
     pass
