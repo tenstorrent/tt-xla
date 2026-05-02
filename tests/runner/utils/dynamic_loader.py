@@ -193,7 +193,7 @@ class DynamicLoader:
 
     @classmethod
     def setup_models_path(cls, project_root: str) -> str:
-        """Setup models root path and add to sys.path for imports.
+        """Setup models root path and register tt_forge_models namespace package.
 
         Args:
             project_root: Root directory of the project
@@ -202,10 +202,6 @@ class DynamicLoader:
             Path to the models root directory
         """
         models_root = cls.get_models_root(project_root)
-
-        # Add the models root to sys.path so relative imports work
-        if models_root not in sys.path:
-            sys.path.insert(0, models_root)
 
         # Register tt_forge_models as a namespace package rooted at models_root.
         # When TT_FORGE_MODELS_ROOT points at a worktree, the directory name is
