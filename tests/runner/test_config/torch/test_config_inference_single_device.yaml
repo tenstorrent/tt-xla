@@ -1812,6 +1812,11 @@ test_config:
   qwen_2/causal_lm/pytorch-Qwq_32B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
+  kirillr_qwq_32b_preview_awq/causal_lm/pytorch-QwQ_32B_Preview_AWQ-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "32B model dequantized to BF16 (~64 GB) exceeds single-device DRAM (~34 GB available on p150b)"
+    bringup_status: FAILED_RUNTIME
+
   deepseek/deepseek_math/pytorch-7B_Instruct-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Too large for single chip - https://github.com/tenstorrent/tt-xla/issues/2208"
