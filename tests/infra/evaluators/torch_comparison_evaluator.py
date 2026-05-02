@@ -106,6 +106,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         def _atol_leaf(x, y):
             if x is None and y is None:
                 return torch.tensor(0.0)
+            if x.shape != y.shape:
+                return torch.tensor(float("nan"))
             return torch.max(torch.abs(x - y))
 
         leaf_atols = tree_map(_atol_leaf, device_output, golden_output)
@@ -130,6 +132,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             # PCC is undefined for single-element tensors (no variance), but we want to fail if we came to this.
             if self._is_single_element(x):
                 return 0.0
+
+            if x.shape != y.shape:
+                return torch.tensor(float("nan"))
 
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()

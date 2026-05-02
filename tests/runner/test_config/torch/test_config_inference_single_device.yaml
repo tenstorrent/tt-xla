@@ -776,6 +776,10 @@ test_config:
   stereo/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
 
+  melotts/pytorch-French-single_device-inference:
+    assert_pcc: false
+    status: EXPECTED_PASSING
+
   pocket_tts/pytorch-Pocket_tts-single_device-inference:
     assert_pcc: false
     status: NOT_SUPPORTED_SKIP
