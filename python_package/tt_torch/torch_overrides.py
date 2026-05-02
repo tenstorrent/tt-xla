@@ -22,8 +22,12 @@ class TorchFunctionOverride(TorchFunctionMode):
             if (
                 inp is not None
                 and weight is not None
-                and (len(inp.shape) >= 4 or len(weight.shape) >= 4)
+                and (inp.dtype != weight.dtype or len(inp.shape) >= 4 or len(weight.shape) >= 4)
             ):
+                # Cast inp to weight dtype so bias/weight stay in the model's native dtype.
+                # This avoids cascading float32 promotions when attention masks are float32.
+                if inp.dtype != weight.dtype:
+                    inp = inp.to(weight.dtype)
                 if func.__name__ == "linear":
                     res = torch.einsum("...mk,...nk->...mn", inp, weight)
                 else:
