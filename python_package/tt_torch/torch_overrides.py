@@ -31,6 +31,44 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.index_put.default:
+            # XLA scatter requires all index tensors to share the same integer
+            # dtype. torch.arange() produces int64 while arithmetic on int32
+            # inputs stays int32, causing "Cannot concatenate arrays with
+            # different element types: S64 vs S32". Normalize all non-float
+            # indices to int64 before dispatch.
+            if len(args) >= 2 and isinstance(args[1], (list, tuple)):
+                indices = [
+                    idx.to(torch.int64)
+                    if isinstance(idx, torch.Tensor)
+                    and not torch.is_floating_point(idx)
+                    and idx.dtype != torch.int64
+                    else idx
+                    for idx in args[1]
+                ]
+                args = list(args)
+                args[1] = indices
+        if func is torch.ops.aten.index_put_.default:
+            if len(args) >= 3 and isinstance(args[1], (list, tuple)):
+                indices = list(args[1])
+                # Single boolean mask: x[bool_mask] = val
+                # Rewrite as stablehlo.select to avoid a scatter pattern
+                # whose scatter_dims_to_operand_dims != [0], which
+                # tt-mlir's StableHLOToTTIRScatterOpConversionPattern
+                # cannot legalize.
+                if (
+                    len(indices) == 1
+                    and isinstance(indices[0], torch.Tensor)
+                    and indices[0].dtype == torch.bool
+                ):
+                    mask = indices[0]
+                    val = args[2]
+                    if isinstance(val, (int, float)):
+                        fill = torch.full_like(args[0], val)
+                    else:
+                        fill = val
+                    result = torch.where(mask, fill, args[0])
+                    return args[0].copy_(result)
         return func(*args, **(kwargs or {}))
 
 
