@@ -29,6 +29,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    canonicalize_slice_indices,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
@@ -88,6 +89,7 @@ def torch_pass_pipeline(
     compiled_graph = bypass_dtype_promotion_and_redundant_cast(
         compiled_graph, example_inputs
     )
+    compiled_graph = canonicalize_slice_indices(compiled_graph)
     compiled_graph = bypass_redundant_getitem(compiled_graph)
     compiled_graph = bypass_assert_tensor_metadata(compiled_graph)
 
