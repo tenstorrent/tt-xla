@@ -7,6 +7,18 @@ from torch.overrides import TorchFunctionMode
 
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        if func is torch.ops.aten.slice.Tensor and len(args) >= 3:
+            tensor, dim = args[0], args[1] if len(args) > 1 else 0
+            dim_size = tensor.shape[dim]
+            new_args = list(args)
+            for idx in (2, 3):
+                if (
+                    idx < len(new_args)
+                    and isinstance(new_args[idx], int)
+                    and new_args[idx] < -dim_size
+                ):
+                    new_args[idx] = -dim_size
+            args = tuple(new_args)
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():
