@@ -2595,6 +2595,10 @@ test_config:
       p150:
         status: EXPECTED_PASSING
 
+  openai_oss_20b_evo/causal_lm/pytorch-Default-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Model is 20B params (~40 GB BF16) which exceeds single-device DRAM capacity on all TT hardware (max 32 GB on p150b). Base model unsloth/gpt-oss-20b-unsloth-bnb-4bit deqantizes from NF4 to ~40 GB BF16."
+
   gpt_oss/pytorch-20B-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
