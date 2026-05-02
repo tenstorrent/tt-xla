@@ -2512,6 +2512,10 @@ test_config:
       p150:
         assert_pcc: false  # Actual PCC: 0.9661477411303401 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
+  naflexvit/pytorch-So400m_Patch16_SigLIP_v2_WebLI-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.98  # TT BF16 floor: measured 0.9889 on p150b; CPU BF16 floor 0.9998; same So400m attention accumulation pattern as siglip/So400m models
+
   vocoder_speecht5/pytorch-hifigan-single_device-inference:
     status: EXPECTED_PASSING
 
