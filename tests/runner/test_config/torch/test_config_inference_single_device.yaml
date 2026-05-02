@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  mlx_community_qwen3_coder_next_6bit/causal_lm/pytorch-Coder_Next_6bit-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Hardware capacity ceiling: Qwen3-Coder-Next-6bit has 79.7B parameters (~159 GB BF16), exceeding single-device DRAM on p150b (~34 GB)"
