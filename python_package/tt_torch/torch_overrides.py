@@ -31,6 +31,21 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if bias is not None:
                     res = res + bias
                 return res
+        if func is torch.ops.aten.slice.Tensor:
+            # XLA validates slice bounds strictly; PyTorch silently clamps.
+            # Clamp out-of-range start/end before dispatch so sliding-window
+            # attention models (e.g. Gemma-3 sliding_window=1024, seq_len=23)
+            # don't raise "Value out of range (... got -1023)".
+            args = list(args)
+            if len(args) >= 1 and isinstance(args[0], torch.Tensor):
+                dim = args[1] if len(args) > 1 and isinstance(args[1], int) else 0
+                size = args[0].shape[dim]
+                for idx in (2, 3):
+                    if len(args) > idx and isinstance(args[idx], int):
+                        if args[idx] < -size:
+                            args[idx] = -size
+                        elif args[idx] > size:
+                            args[idx] = size
         return func(*args, **(kwargs or {}))
 
 
