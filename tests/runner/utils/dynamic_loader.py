@@ -188,10 +188,6 @@ class DynamicLoader:
         """
         models_root = cls.get_models_root(project_root)
 
-        # Add the models root to sys.path so relative imports work
-        if models_root not in sys.path:
-            sys.path.insert(0, models_root)
-
         return models_root
 
     @classmethod
