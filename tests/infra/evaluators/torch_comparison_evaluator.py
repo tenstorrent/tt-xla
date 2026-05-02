@@ -60,6 +60,17 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
                 TorchComparisonEvaluator._cache_to_legacy(cache.self_attention_cache),
                 TorchComparisonEvaluator._cache_to_legacy(cache.cross_attention_cache),
             )
+        # Duck-type fallback for hybrid caches that do not subclass Cache
+        # (e.g. Lfm2HybridConvCache: key_cache/value_cache/conv_cache lists).
+        if hasattr(cache, "key_cache") and hasattr(cache, "value_cache"):
+            result = [
+                (k, v)
+                for k, v in zip(cache.key_cache, cache.value_cache)
+                if k.numel() > 0 and v.numel() > 0
+            ]
+            if hasattr(cache, "conv_cache"):
+                result.extend((c,) for c in cache.conv_cache if c.numel() > 0)
+            return tuple(result)
         return cache
 
     # @override
@@ -72,7 +83,9 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             return tensor
 
         def convert_and_match(tensor):
-            if isinstance(tensor, Cache):
+            if isinstance(tensor, Cache) or (
+                hasattr(tensor, "key_cache") and hasattr(tensor, "value_cache")
+            ):
                 # New transformers library uses Cache classes (DynamicCache, StaticCache)
                 # with CacheLayers/StaticLayers instead of raw tensors. Convert to legacy
                 # (keys, values) tuple per layer so the comparator can compare tensors.
