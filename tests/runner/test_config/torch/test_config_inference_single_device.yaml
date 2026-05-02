@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  maxvit/pytorch-MaxViT_Base_TF_224_IN1K-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.86  # BF16 precision floor: CPU f32 vs BF16 PCC=0.831, TT BF16 measured 0.879
