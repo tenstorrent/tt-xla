@@ -189,17 +189,19 @@ def _mixtral_experts_forward(self, hidden_states, top_k_index, top_k_weights):
             final_hidden_states.index_add_(0, token_idx, out.to(final_hidden_states.dtype))
         return final_hidden_states
 
-    # Device path: dense bmm over all experts — no nonzero, no histc, no _grouped_mm.
+    # Device path: dense einsum over all experts — no nonzero, no histc, no _grouped_mm.
     # gate_up_proj: [E, 2*I, H],  down_proj: [E, H, I]
-    hidden_3d = hidden_states.unsqueeze(0).expand(E, -1, -1).contiguous()  # [E, T, H]
+    # Use einsum instead of bmm+permute to avoid materialising a contiguous transposed
+    # copy of the weight tensors (which would OOM the 34 GB Blackhole DRAM).
+    hidden_3d = hidden_states.unsqueeze(0).expand(E, -1, -1)  # [E, T, H]
 
-    # Gate+up: [E, T, H] @ [E, H, 2*I] → [E, T, 2*I]
-    gate_up = torch.bmm(hidden_3d, self.gate_up_proj.permute(0, 2, 1))
+    # Gate+up: [E, T, H] x [E, 2I, H] → [E, T, 2I]
+    gate_up = torch.einsum("eth,eih->eti", hidden_3d, self.gate_up_proj)
     half = gate_up.shape[-1] // 2
     activated = self.act_fn(gate_up[..., :half]) * gate_up[..., half:]  # [E, T, I]
 
-    # Down: [E, T, I] @ [E, I, H] → [E, T, H]
-    down = torch.bmm(activated, self.down_proj.permute(0, 2, 1))  # [E, T, H]
+    # Down: [E, T, I] x [E, H, I] → [E, T, H]
+    down = torch.einsum("eti,ehi->eth", activated, self.down_proj)  # [E, T, H]
 
     # Convert top-k indices/weights to full routing tensor [T, E]
     top_k_one_hot = (
