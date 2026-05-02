@@ -124,6 +124,11 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             if x is None and y is None:
                 return None
+            # Can't compare tensors with different shapes (e.g. variable-length TTS output
+            # where bfloat16 ceil() in the duration predictor gives a different total
+            # frame count than float32). Return NaN so disabled PCC checks pass silently.
+            if x.shape != y.shape:
+                return torch.tensor(float("nan"))
             # PCC formula can be ill conditioned. If inputs are allclose, fudge the result to 1.0.
             # Done per tensor to avoid cases where some pairs in a pytree are not allclose and others enter the ill-conditioned region.
             if TorchComparisonEvaluator._compare_allclose(x, y, pcc_config.allclose):
@@ -132,9 +137,6 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             # PCC is undefined for single-element tensors (no variance), but we want to fail if we came to this.
             if self._is_single_element(x):
                 return 0.0
-
-            if x.shape != y.shape:
-                return torch.tensor(float("nan"))
 
             x_flat, y_flat = x.flatten(), y.flatten()
             vx, vy = x_flat - x_flat.mean(), y_flat - y_flat.mean()
@@ -159,6 +161,8 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         def _allclose_leaf(x, y):
             if x is None and y is None:
                 return True
+            if x.shape != y.shape:
+                return False
             return torch.allclose(
                 x, y, rtol=allclose_config.rtol, atol=allclose_config.atol
             )
