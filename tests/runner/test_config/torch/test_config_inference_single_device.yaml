@@ -2670,4 +2670,4 @@ test_config:
 
   mlx_community_llama_4_scout_17b_16e_instruct_4bit/causal_lm/pytorch-Scout_17B_16E_Instruct_4bit-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Llama-4-Scout-17B-16E at BF16 ~34 GB exceeds single-device DRAM on all supported hardware (p150b 32 GB, n150 12 GB)"
+    reason: "Llama-4-Scout-17B-16E has 107.8B total params (16 MoE experts stored); BF16 ~215 GB exceeds single-device DRAM on all supported hardware (p150b 32 GB, n150 12 GB)"
