@@ -2667,3 +2667,7 @@ test_config:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+
+  ministral_8b_gguf/causal_lm/pytorch-8B_Instruct_2512_GGUF-single_device-inference:
+    status: EXPECTED_PASSING
+    required_pcc: 0.98  # TT BF16 hardware floor for Ministral 8B Q4_K_M GGUF (consistent with ministral_3_8b_instruct_2512_tainted_heresy PCC 0.9819)
