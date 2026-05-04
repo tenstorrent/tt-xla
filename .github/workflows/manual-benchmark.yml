@@ -32,7 +32,7 @@ on:
         required: false
         type: boolean
         default: true
-      perf_regression_check:
+      regression_check:
         description: "Enable perf metrics regression testing"
         required: false
         type: boolean
@@ -119,7 +119,7 @@ jobs:
         echo "Test filter: ${{ inputs.test_filter }}" >> $GITHUB_STEP_SUMMARY
         echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> $GITHUB_STEP_SUMMARY
         echo "Skip device perf: ${{ inputs.skip-device-perf }}" >> $GITHUB_STEP_SUMMARY
-        echo "Perf regression check: ${{ inputs.perf_regression_check }}" >> $GITHUB_STEP_SUMMARY
+        echo "Perf regression check: ${{ inputs.regression_check }}" >> $GITHUB_STEP_SUMMARY
         echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}" >> $GITHUB_STEP_SUMMARY
 
   run-perf-benchmarks:
@@ -134,7 +134,7 @@ jobs:
       artifact_suffix: ${{ inputs.should_build_wheel && needs.build.outputs.artifact_suffix || '' }}
       use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
-      perf_regression_check: ${{ inputs.perf_regression_check || false }}
+      regression_check: ${{ inputs.regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
 

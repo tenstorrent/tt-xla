@@ -34,7 +34,7 @@ on:
         required: false
         type: boolean
         default: true
-      perf_regression_check:
+      regression_check:
         description: "Enable perf metrics regression testing"
         required: false
         type: boolean
@@ -182,7 +182,7 @@ jobs:
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
         source venv/activate
-        pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build['accuracy-testing'] && '--accuracy-testing' || '' }} ${{ matrix.build['batch-size'] && format('--batch-size {0}', matrix.build['batch-size']) || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
+        pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
       id: dump-stablehlo
@@ -417,12 +417,12 @@ jobs:
     # Perf / Accuracy Regression Check
     - name: Set perf query strings
       id: set-query-strings
-      if: inputs.perf_regression_check
+      if: inputs.regression_check
       shell: bash
       run: |
         echo "display_name=$(cat ${{ steps.strings.outputs.perf_report_json_file }} | jq -r '.config.display_name')" >> $GITHUB_OUTPUT
 
-        if [[ "${{ matrix.build['accuracy-testing'] }}" == "true" ]]; then
+        if [[ "${{ matrix.build.accuracy-testing }}" == "true" ]]; then
           mode="accuracy"
           workflow_file="schedule-benchmark-experimental.yml"
         else
@@ -450,14 +450,14 @@ jobs:
 
     - name: Fetch previous perf results
       id: prev-perf
-      if: inputs.perf_regression_check
+      if: inputs.regression_check
       uses: ./.github/actions/superset-api
       with:
         query: 'benchmarks/last_measurement'
         query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
 
     - name: Check perf regression
-      if: inputs.perf_regression_check
+      if: inputs.regression_check
       shell: bash
       run: |
         python3 .github/scripts/check_regression.py \
