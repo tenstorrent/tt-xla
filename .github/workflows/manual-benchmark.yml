@@ -103,7 +103,7 @@ jobs:
         # Prepare the advanced filter for the perf benchmarks
         echo "[" > adv_filter.json
         if [ "${{ inputs.runs-on-filter }}" = "All" ]; then
-          echo '{ "skip": false, "accuracy-testing": true }' >> adv_filter.json
+          echo '{ "skip": false, "accuracy-testing": false }' >> adv_filter.json
         else
           echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": false }' >> adv_filter.json
         fi
