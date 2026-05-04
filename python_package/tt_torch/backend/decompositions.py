@@ -327,9 +327,43 @@ def copy_default(
     # Then clone to ensure contiguous memory
     return src_converted.expand(dst.shape).clone()
 
-def masked_scatter(
+def masked_scatter_flatten(
     data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
 ) -> torch.Tensor:
+    """OLD flatten-based masked_scatter decomposition.
+
+    Flattens everything to 1D and runs cumsum on S*D elements.
+    Prone to OOM on large VLM embeddings due to moreh_cumsum on
+    millions of elements.
+    """
+    mask, data = torch.broadcast_tensors(mask, data)
+
+    if source.numel() == 0:
+        return data.clone()
+
+    mask_f = mask.reshape(-1)
+    data_flat = data.reshape(-1)
+    source_flat = source.reshape(-1)
+
+    mask_i = mask_f.long()
+    source_idx = torch.cumsum(mask_i, 0) - 1
+    source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
+
+    gathered = source_flat[source_idx]
+    result_flat = torch.where(mask_f, gathered, data_flat)
+
+    return result_flat.view_as(data)
+
+
+def masked_scatter_optimized(
+    data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
+) -> torch.Tensor:
+    """NEW optimized masked_scatter decomposition.
+
+    For row-constant masks (stride(-1)==0), runs cumsum on S rows instead
+    of S*D flattened elements, avoiding OOM on large VLM embeddings.
+    Falls back to the flatten path for arbitrary mask patterns.
+    """
     mask, data = torch.broadcast_tensors(mask, data)
 
     if source.numel() == 0:
@@ -355,18 +389,10 @@ def masked_scatter(
         result_2d = torch.where(mask_1d.unsqueeze(-1), gathered_rows, data_2d)
         return result_2d.view(orig_shape)
 
-    mask_f = mask.reshape(-1)
-    data_flat = data.reshape(-1)
-    source_flat = source.reshape(-1)
+    return masked_scatter_flatten(data, mask, source)
 
-    mask_i = mask_f.long()
-    source_idx = torch.cumsum(mask_i, 0) - 1
-    source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
 
-    gathered = source_flat[source_idx]
-    result_flat = torch.where(mask_f, gathered, data_flat)
-
-    return result_flat.view_as(data)
+masked_scatter = masked_scatter_optimized
 
 
 def masked_scatter_(
