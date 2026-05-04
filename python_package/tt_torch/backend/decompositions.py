@@ -342,6 +342,7 @@ def masked_scatter(
     The fast path is valid when the mask is row-constant (same True/False for every
     element in a row).
     """
+    # Optimised row-wise fast path: O(B*S) cumsum instead of O(B*S*H).
     H = data.shape[-1] if data.ndim >= 2 else 0
     n_true = source.numel() // H if H > 0 else 0
     _row_constant = (
@@ -369,7 +370,6 @@ def masked_scatter(
         return result.view_as(data)
 
     # Original flat decomposition (fallback for non-row-constant masks)
-    # mask, data = torch.broadcast_tensors(mask, data)
     # mask_f = mask.reshape(-1)
     # data_flat = data.reshape(-1)
     # source_flat = source.reshape(-1)
