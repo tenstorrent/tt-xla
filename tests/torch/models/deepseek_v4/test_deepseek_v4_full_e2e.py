@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import gc
 import math
+from functools import lru_cache
 from typing import Dict, Tuple
 
 import numpy as np
@@ -70,39 +71,45 @@ NUM_LAYERS = 43
 torch._dynamo.config.cache_size_limit = 100
 
 # One distinct prompt per batch row; len(PROMPTS) must equal BATCH_SIZE.
+# Each prompt is a unique, content-rich question on its own topic, sliced in
+# token space so it tokenizes to exactly 128 DeepSeek-V4 tokens (verified by
+# test_prompts via get_num_tokens). This matches PROMPT_LEN, so the left-pad
+# in _tokenize_prompts is a no-op for these rows. Some prompts end mid-word
+# because the slice lands inside a multi-token unit; that is intentional and
+# avoids the boilerplate-loop behavior we saw with repeated padding text.
 PROMPTS = [
-    "How are you today?",
-    "What is the capital of France?",
-    "Explain machine learning briefly.",
-    "Who painted the Mona Lisa?",
-    "What is two plus two?",
-    "Tell me a fun fact about space.",
-    "What is photosynthesis?",
-    "How does a transformer model work?",
-    "What is the speed of light?",
-    "Name three programming languages.",
-    "What causes earthquakes?",
-    "How do you make pasta from scratch?",
-    "What is the largest planet in our solar system?",
-    "Who wrote the play Hamlet?",
-    "What is gravity?",
-    "How does the internet work?",
-    "What is the human brain made of?",
-    "Tell me about black holes.",
-    "What is DNA?",
-    "How does a car engine work?",
-    "What is the meaning of recursion?",
-    "Who was Albert Einstein?",
-    "What is climate change?",
-    "How do plants grow?",
-    "What is quantum entanglement?",
-    "Tell me a short story about a robot.",
-    "What is a relational database?",
-    "How does Wi-Fi work?",
-    "What is the Pythagorean theorem?",
-    "Name three renewable energy sources.",
-    "What was the French Revolution about?",
-    "How do volcanoes form?",
+    "Yesterday I was hiking on a forested trail in the Cascade Mountains of Washington State at around fifteen hundred meters elevation when I spotted a small mammal with reddish brown fur, a bushy tail nearly as long as its body, large dark eyes, and prominent tufted ears, scampering up a Douglas fir tree only ten meters from me. It paused on a branch, chittered loudly for almost a minute, and then vanished into the upper canopy. Could you help me figure out what species it most likely was, what it eats during the colder months, whether it stays active through winter or hibernates underground, and whether it c",
+    "I have been maintaining a sourdough starter for about three weeks using a mix of whole wheat and rye flour at fifty percent hydration kept on the kitchen counter near twenty two degrees Celsius. For the first ten days it bubbled vigorously and doubled within four hours of feeding, but over the last few days it has slowed dramatically and developed a sharp acetone smell along with a darker liquid layer pooling on top. What is going on biochemically with the yeast and bacterial populations, how should I rescue it without throwing everything out and starting again from scratch, and would shifting to a stiffer dough or a colder fermentation temperature help reset the microbial balance back",
+    "While debugging a long running Python service in production I noticed that resident memory climbs steadily over many hours even though my heap profiler shows the live Python object set stays flat near four hundred megabytes. The process eventually grows past sixteen gigabytes and gets killed by the kernel oom reaper. I am calling into a third party C library through ctypes that returns large numpy arrays, and I suspect a leak somewhere along that boundary. What strategies do you recommend for narrowing down whether the leak lives in pure Python, the C extension code itself, or in glibc allocator fragmentation, and would tools like valgrind, jemalloc heap profiles",
+    "I am forty years old, have never played piano before, and want to learn well enough within two years to perform a Chopin nocturne for friends at a small living room gathering. I can practice forty five minutes on weekdays and an hour each weekend day. I do not currently read sheet music at all. Should I take weekly lessons with a teacher from the very start, work through method books like Alfred or Faber by myself first, or use an app like Simply Piano. What pacing of theory drills, technique exercises, and actual repertoire would you suggest for me, and which specific nocturne in the canon would be a realistic",
+    "The Perseid meteor shower peaks next week and I am driving out to Joshua Tree National Park to view it on Tuesday night around two in the morning when the radiant is high overhead and the moon has already set below the horizon. I will be bringing a full frame camera with a fast wide angle lens. What camera settings, focusing technique, exposure length, and shooting cadence would maximize my chances of capturing several bright meteor trails against the Milky Way without trailing the stars too obviously, should I shoot raw stills or use a video mode, and how should I plan a stacking workflow afterward to combine multiple frames into a single final image. I",
+    "I want to paint a watercolor of a misty pine forest at dawn with warm shafts of light filtering through the trunks and a small deer standing in the middle distance. I have decent technique with wet on wet washes for skies, but my forests always end up looking flat and muddy because my greens turn dull whenever I layer them on top of each other. What pigment combinations would you recommend for a luminous range of greens, what order should I lay down the washes, and how can I preserve the glowing atmosphere through the trunks rather than killing every highlight by overworking the paper, and would lifting with a damp brush help once the underwash has",
+    "I have been reading about ancient Roman aqueducts and I find it astonishing they used purely gravity fed channels across distances of more than a hundred kilometers with gradients as gentle as one part in a thousand. How did Roman engineers actually survey such precise gradients across hilly terrain without any modern optical instruments, what tools like the chorobates or the groma did they use to keep alignment correct over multiple generations of construction, and how did they handle the inevitable settling, leaks, and biological fouling once the lines were operating, so that water kept reaching cities reliably across many centuries of continuous service. I am most curious about the urban distribution at the",
+    "I am trying to teach my twelve year old daughter why prime numbers matter beyond just being a definition we memorize in school. She finds them arbitrary and keeps asking why mathematicians care about them so much. What concrete examples would you suggest for showing her that primes are the fundamental building blocks of all integers, how they appear in surprising places like cicada life cycles or the distribution of energy levels in chaotic quantum systems, and how internet encryption depends on the fact that factoring a product of two large primes is computationally hard for any classical computer running today, even given many years of patient effort. She just learned modular arithmetic in school last month, so I can",
+    "I am an English speaker who has been studying Mandarin for about six months using flashcards and a textbook, and I can recognize maybe four hundred characters and hold a basic conversation about food or weather. I am traveling to Chengdu for two months this fall and want to make rapid progress in spoken comprehension before I go. What daily routine combining listening practice, tutoring sessions, shadowing native speakers, and writing in a journal would you recommend so I can hold real conversations with locals in Sichuanese accented Mandarin by the end of my visit, and which specific apps, podcasts, or YouTube channels are worth a serious time commitment. I will be staying with",
+    "Tardigrades are tiny microscopic animals that can survive temperatures near absolute zero, the vacuum of outer space, doses of ionizing radiation that would instantly kill any human, and dehydration for many years on end. What molecular and cellular mechanisms allow them to enter their cryptobiotic state and then revive afterward without losing their internal cellular structure, how is research into these mechanisms being applied to practical problems like preserving organs for transplant or shipping live vaccines without refrigeration into remote regions where reliable cold chains do not yet exist, and what is the ongoing scientific debate about how they evolved. I read that some lab strains have even been revived from museum samples decades old",
+    "I want to make handmade soap from scratch in my own kitchen using olive oil and coconut oil with sodium hydroxide as the saponifying agent. I am nervous about handling lye safely and about getting the chemistry exactly right so the final bar ends up mild rather than still caustic after curing. Could you walk me through a beginner appropriate cold process recipe with safe oil to lye ratios, the order in which to combine ingredients, what the trace stage actually looks like in the bowl, how many weeks the bars need to cure before they are gentle on skin, and what protective equipment I should put on before opening the lye container. I",
+    "Philosophers have argued about free will for centuries and I find the debate genuinely confusing because compatibilists, libertarians, and hard determinists all seem to be using the words free and choice in subtly different ways. Could you map out the main positions clearly, explain what each side actually claims about whether we could have done otherwise in a strict physical sense, describe how recent neuroscience experiments like the Libet readiness potential studies are interpreted very differently by each camp without ever quite resolving the underlying philosophical question one way or the other, and which thinkers would you recommend reading first. I am especially interested in whether the recent neuroscience evidence really should move me",
+    "My partner and I are planning a three week trip to Japan next April for our very first visit and we want a balance of major cultural sites, deep food experiences, and quieter rural areas to escape the cherry blossom crowds. We will arrive in Tokyo and depart from Osaka. We love hiking, traditional crafts, hot springs, and small family run inns. Could you sketch a possible itinerary that hits the headline Tokyo, Kyoto, and Osaka highlights but also spends meaningful time in less touristed regions like Kyushu, Shikoku, or the Japan Sea coast, how should we move between them by rail or rental car, and what should",
+    "I have been playing tennis recreationally for about ten years and my forehand is reliable, but my one handed backhand collapses under any real pressure, especially on high balls above shoulder height. I keep dumping the ball into the net or popping it up short for an easy putaway. Could you diagnose what the most common technical breakdowns tend to be at that contact point, what footwork or preparation changes would give me more time and stability, what drills could I practice alone against a wall to build confidence before applying it in a match situation, and would switching to a slightly heavier racket or different string tension help. My current racket",
+    "My tomato plants in the backyard greenhouse are showing a strange wilting pattern where the lower leaves yellow and curl while the upper canopy still looks green and healthy, and there are dark concentric rings on some of the older leaves that look almost like archery target patterns. The fruits themselves seem fine so far. What disease are these symptoms most consistent with, how do I confirm the diagnosis without sending samples to a lab, what organic options do I have for treatment and for preventing a recurrence next season without resorting to synthetic fungicides, and should I rotate to a different bed. I have been watering by drip line at the soil level only, never",
+    "Modern earthquake resistant skyscrapers in Tokyo and San Francisco use a combination of base isolation systems, tuned mass dampers, and specially designed structural frames to ride out strong ground shaking instead of resisting it rigidly with brute mass. Could you explain at an intuitive physics level what each of those three systems actually does to absorb or redirect seismic energy, why a counter intuitive flexible building outperforms a much stiffer one in a strong earthquake, how engineers tune the parameters of a damper to match the resonant frequencies of a specific structure, and what tradeoffs they accept in everyday wind loading. I would also love a sense of how this compares",
+    "I love magical realism in Latin American literature, especially Garcia Marquez and Borges, where the fantastical is woven into the everyday without any narrative explanation or apology. Could you recommend half a dozen lesser known novels in that tradition from authors outside the very famous names, explain what specifically distinguishes magical realism from ordinary fantasy or surrealism in how it treats the impossible, suggest the best translations to read first if I do not yet read Spanish well enough to tackle the originals on my own, and identify any contemporary writers continuing the tradition today. I have already read One Hundred Years of Solitude, Pedro Paramo, and most of the major Borg",
+    "My grandmother on a fixed income is worried that her savings are losing real purchasing power because of inflation, and she has asked me to explain what is actually causing prices to rise and whether she should buy gold or move into bonds. Could you give me a clear explanation that a non economist can follow about the difference between cost push and demand pull inflation, why central banks raise interest rates as a response to it, what investment strategies actually preserve real purchasing power for someone close to retirement age who cannot afford much risk, and whether treasury inflation protected securities are appropriate here. She has about four hundred thousand dollars in mostly cash and short term certificates of deposit at",
+    "I have been getting only about five hours of sleep on average for the last six months because of work pressure and a young child at home, and I am noticing that my memory, mood, and motivation are all suffering even though I keep telling myself I am adapting fine. What is actually happening in my brain biochemically and structurally during chronic partial sleep deprivation, are these effects fully reversible if I get back to seven or eight hours nightly, what specific recovery strategies are most effective beyond just sleeping in a little more on weekends, and how long would the recovery realistically take to reach a reasonable baseline again. I tried melatonin earlier this year and it",
+    "I have read that black holes have a finite entropy proportional to the area of their event horizon rather than their interior volume, and that this leads to the holographic principle suggesting our three dimensional universe could in principle be encoded on a two dimensional boundary surface. Could you walk me through why entropy scales with area instead of volume in this case, what that tells us about how information is fundamentally stored in a gravitational system, whether the holographic principle has any concrete experimental consequences beyond pure theoretical speculation, and how Hawking radiation interacts with the famous information paradox in this picture. I have a physics undergrad background, so you can use moderate equations rather than",
+    "My five year old daughter has had a runny nose, a mild fever around thirty eight degrees Celsius, and a barking cough for two days now, and she is sleeping poorly because of the cough waking her at night. I want to avoid antibiotics unless they are truly needed because I know most childhood respiratory illnesses are viral. What specific symptoms or signs should make me bring her in to a pediatrician immediately rather than treating supportively at home with fluids and rest, which over the counter remedies are actually safe and effective for a child of her age, and is a humidifier or steam shower worth trying. She is fully vaccinated for her age and",
+    "I read recently that a new pedestrian bridge in Norway is a cantilever extending almost a hundred meters out from a cliffside with no support underneath at all. Mechanically, what makes a long cantilever such a demanding structure to design compared to a more conventional beam supported at both ends, how do engineers actually handle the bending moments and tip deflections that grow with the cube of the cantilever length, what materials and cross sectional geometries make modern cantilevers possible at lengths that would have been completely unthinkable a century ago, and how do they manage wind induced oscillation. The bridge in question reportedly uses high strength weathering steel and a tapered",
+    "I have always been fascinated by the relationships among the Indo European languages and how scholars reconstructed Proto Indo European purely from comparative evidence in dozens of daughter languages spoken thousands of years later. Could you walk me through the basic methods of historical linguistics that allow us to work backwards from modern Hindi, Greek, Latin, and English to a single common ancestor language, what kinds of evidence are most reliable for that reconstruction, where the limits of the comparative method break down so that we cannot reach back further than a few thousand years, and which proposed deeper macrofamilies remain controversial among specialists. I am especially curious about whether Anatolian languages like Hittite genuinely",
+    "I am traveling through Iceland next month and I want to actually understand the volcanic geology I will be looking at on my drives around the ring road. The island sits on the slow spreading mid Atlantic ridge and is also over an active mantle plume, which together create an unusual variety of volcanic rock types in close proximity. Could you help me distinguish basalt, rhyolite, hyaloclastite, and palagonite tuff in the field, what each tells me about the eruption history of a given site, which iconic Icelandic landscapes correspond to particularly clear examples of each rock type, and what I should look for at lava tube sites. I",
+    "I am directing my first short film and I want to use lighting to shape mood without relying heavily on overt color grading in post production. The key scene is a quiet conversation between two characters in a small kitchen at dusk that should feel intimate and warm, but with a thread of unease running underneath the surface. How would you approach the lighting setup with practical lamps versus dedicated film lights, what color temperatures and contrast ratios would you target, how do small adjustments in the height and softness of the key light register on the actors emotionally, and where should I place a subtle backlight to suggest tension. The kitchen has one practical pendant lamp above",
+    "I want to build a wardrobe that is durable, ethically produced, and largely free of fast fashion. I have a moderate but not unlimited budget. Could you help me think through how to evaluate brands for actual sustainability claims rather than greenwashing marketing copy, which natural fibers like wool, hemp, and linen are most resilient and biodegradable in practice, how to build a small versatile capsule of around thirty pieces that can carry me through several years of weekday and weekend wear, where to find good secondhand options for higher end items, and how to care for these pieces so they truly last. I work in an office four days a week with a smart",
+    "The thermohaline circulation in the North Atlantic Ocean has been weakening over recent decades according to several independent published measurements, and there are growing concerns this could shift European climate patterns or disrupt fisheries. Could you explain what physically drives the circulation, what role salinity and temperature gradients each play in setting it up, what feedback loops involving Greenland meltwater and Arctic sea ice could push the system toward an abrupt rather than a gradual change, and how confident climate scientists currently are about whether a complete shutdown is plausible within this century or remains a remote tail risk at this time. I would also love your view on whether recent paleoclimate proxy reconstructions back to",
+    "I keep hearing that quantum computers will eventually break public key cryptography using Shor's algorithm and that we need post quantum schemes ready and deployed before that happens. Could you explain at a conceptual level how a quantum computer can factor large composite numbers exponentially faster than a classical machine, what physical platforms like superconducting qubits or trapped ions are most likely to scale up first to relevant problem sizes, which of the post quantum cryptographic candidates such as lattice based or hash based schemes are currently considered most promising for widespread deployment, and what realistic timelines we should plan around for migration. My organization runs a lot of long lived TLS certificates and signed firmware, so we are",
+    "Octopuses have nine brains, copper based blue blood, and the ability to taste with their suckers, and there is growing experimental evidence that they can solve complex puzzles, recognize individual humans by face, and use tools in the wild. Could you describe what is unusual about their distributed nervous system compared to vertebrate brains, how they likely experience the world through their unique sensory apparatus spread across their arms, what ethical implications biologists and philosophers are drawing about how we should treat them in research labs and in the food industry given this evidence, and how solitary their daily lives actually are. I just watched the documentary My Octopus Teacher and have been thinking",
+    "I have been told there are two distinct photosynthetic pathways called C three and C four that allow plants to fix carbon dioxide rather differently, and that crops like sugarcane and corn use the C four pathway while wheat and rice use C three. Could you explain what physical and biochemical differences make C four plants so much more efficient in hot dry conditions with limited water available, why most plants did not happen to evolve C four metabolism over geological time, what serious efforts are underway to engineer the more efficient pathway directly into rice plants, and how the CAM pathway used by succulents differs from both. I am especially interested in the C four rice project at the",
+    "I am shopping for a new car and torn among a regular hybrid like a Toyota RAV4 Prime, a fully electric vehicle like a Hyundai Ioniq, and a plug in hybrid. My commute is about fifty kilometers each day and I take road trips of around eight hundred kilometers maybe four or five times a year. Charging at home overnight would be straightforward but rural fast charging on my road trip routes is still patchy. Given my use case what total cost of ownership, environmental, and practical considerations should drive my decision over a five to seven year horizon, and how should I think about long term battery degradation. I would also be",
+    "Norse mythology features a complex pantheon with two warring families of gods called the Aesir and Vanir who eventually unite in peace, a cosmic ash tree called Yggdrasil holding nine separate worlds in its branches and roots, and a prophesied apocalyptic battle called Ragnarok in which most of the gods are slain. Could you walk through the main characters of the pantheon, the major myths that explain how the universe was created and how it is ultimately destined to end, how these stories were preserved through the Eddas after Christianization disrupted the oral tradition, and which retellings would you recommend for a modern",
 ]
 assert len(PROMPTS) == BATCH_SIZE, (
     f"PROMPTS has {len(PROMPTS)} entries, must equal BATCH_SIZE={BATCH_SIZE}"
@@ -504,6 +511,58 @@ def _emulate_post_prefill_caches(
                 attn.indexer.compressor.score_state.normal_(
                     mean=0.0, std=std, generator=generator
                 )
+
+
+@lru_cache(maxsize=1)
+def _get_deepseek_v4_tokenizer():
+    from transformers import AutoTokenizer  # noqa: WPS433
+
+    return AutoTokenizer.from_pretrained(weight_loader.REPO_ID)
+
+
+def get_num_tokens(text: str) -> int:
+    """Return the number of tokens DeepSeek-V4's tokenizer produces for `text`.
+
+    Matches the encoding used by `_tokenize_prompts` (add_special_tokens=False).
+    """
+    tokenizer = _get_deepseek_v4_tokenizer()
+    ids = tokenizer(text, add_special_tokens=False).input_ids
+    return len(ids)
+
+
+def test_prompts() -> None:
+    """Sanity-check the structure of PROMPTS:
+
+    - len(PROMPTS) == BATCH_SIZE (one prompt per batch row).
+    - Every prompt tokenizes to exactly PROMPT_LEN (=128) DeepSeek-V4 tokens,
+      so the left-pad in _tokenize_prompts is a no-op for these rows.
+    - No tokenized prompt contains the EOS id, which would otherwise
+      short-circuit the decode loop on the very first step.
+    """
+    tokenizer = _get_deepseek_v4_tokenizer()
+    eos_id = tokenizer.eos_token_id
+
+    assert len(PROMPTS) == BATCH_SIZE, (
+        f"PROMPTS has {len(PROMPTS)} entries, must equal BATCH_SIZE={BATCH_SIZE}"
+    )
+
+    bad_len: list[tuple[int, int]] = []
+    bad_eos: list[int] = []
+    for i, prompt in enumerate(PROMPTS):
+        ids = tokenizer(prompt, add_special_tokens=False).input_ids
+        n = len(ids)
+        assert n == get_num_tokens(prompt), "get_num_tokens disagrees with tokenizer"
+        if n != PROMPT_LEN:
+            bad_len.append((i, n))
+        if eos_id is not None and eos_id in ids:
+            bad_eos.append(i)
+
+    assert not bad_len, (
+        f"prompts not at {PROMPT_LEN} tokens (idx, len): {bad_len}"
+    )
+    assert not bad_eos, (
+        f"prompts containing eos_id={eos_id}: {bad_eos}"
+    )
 
 
 def _tokenize_prompts(tokenizer, prompts: list) -> torch.Tensor:
