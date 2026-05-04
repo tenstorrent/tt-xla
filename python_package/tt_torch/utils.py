@@ -11,38 +11,38 @@ import torch
 
 
 class MockStream:
-    """Mock stream class for JAX device compatibility."""
+    """Mock stream class for TorchDynamo compilation with TT devices."""
 
     def __init__(self, device_index=0):
         self.device = torch.device("cpu", device_index)
 
 
 def cpu_device_index():
-    """Return CPU device index for JAX compatibility."""
+    """Return CPU device index for TorchDynamo compatibility."""
     return 0
 
 
 def cpu_stream(device_index=0):
-    """Return mock CPU stream for JAX compatibility."""
+    """Return mock CPU stream for TorchDynamo compatibility."""
     return MockStream(device_index)
 
 
-def apply_jax_compatibility_patches():
-    """Apply JAX compatibility patches globally."""
+def apply_dynamo_compatibility_patches():
+    """Apply TorchDynamo compatibility patches for TT devices."""
     torch._C._accelerator_getDeviceIndex = cpu_device_index
     torch._C._accelerator_getStream = cpu_stream
 
 
 @contextlib.contextmanager
-def torch_dynamo_jax_compatibility():
+def torch_dynamo_tt_device_compatibility():
     """
-    Context manager to temporarily patch torch accelerator functions to be compatible with JAX devices.
+    Context manager to temporarily patch torch accelerator functions for TorchDynamo compilation with TT devices.
 
-    This fixes TorchDynamo compilation errors when using JAX/TT devices by temporarily patching:
+    This fixes TorchDynamo compilation errors when using TT devices by temporarily patching:
     - torch._C._accelerator_getDeviceIndex() to return CPU device index
     - torch._C._accelerator_getStream() to return CPU stream
 
-    TorchDynamo calls these functions during compilation but they fail with JAX devices,
+    TorchDynamo calls these functions during compilation but they fail with TT devices,
     so we temporarily redirect them to CPU equivalents during compilation.
     """
     # Store original functions
@@ -51,7 +51,7 @@ def torch_dynamo_jax_compatibility():
 
     try:
         # Apply patches
-        apply_jax_compatibility_patches()
+        apply_dynamo_compatibility_patches()
         yield
     finally:
         # Restore original functions
