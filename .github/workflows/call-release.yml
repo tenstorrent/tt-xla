@@ -84,6 +84,6 @@ jobs:
     needs: [ publish-release-wheel, build-and-test-release-docker-ubuntu ]
     secrets: inherit
     with:
-      release_tag: ${{ needs.publish-release-wheel.outputs.release_tag }}
+      tag_name: ${{ needs.publish-release-wheel.outputs.release_tag }}
       docker_image_base: ${{ needs.build-and-test-release-docker-ubuntu.outputs.docker_image_base }}
       xla_sha_override: ${{ inputs.xla_sha_override }}
