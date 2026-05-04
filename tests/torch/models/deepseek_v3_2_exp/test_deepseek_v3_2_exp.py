@@ -8,14 +8,19 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
-from modified_model import ModelArgs
-from modified_model import Transformer as ModifiedTransformer
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch import ModelLoader
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.src.modified_model import (
+    ModelArgs,
+    Transformer as ModifiedTransformer,
+)
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
 
-# This model is modified from the original deepseek_v3_2_exp model.py to:
+# ModelArgs and Transformer are sourced from:
+#   third_party/tt_forge_models/deepseek/deepseek_v3_2_exp/pytorch/src/modified_model.py
+# That module is modified from the original deepseek_v3_2_exp model.py to:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
 #    - fast_hadamard_transform requires a CUDA enviroment and fails to install
 # 2. Disable FP8 quantization features (act_quant, fp8_gemm, fp8_index) with stubs
@@ -58,7 +63,7 @@ def test_deepseek_modified_transformer_single_layer():
 def test_deepseek_complex_rotary_emb():
     xr.set_device_type("TT")
 
-    # apply_rotary_emb function copied from model.py
+    # apply_rotary_emb function copied from modified_model.py
     def apply_rotary_emb(
         x: torch.Tensor, freqs_cis: torch.Tensor, interleaved: bool = True
     ) -> torch.Tensor:
