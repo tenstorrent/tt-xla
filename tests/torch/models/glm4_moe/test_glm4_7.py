@@ -630,7 +630,7 @@ def test_glm4_7_full_sparse_moe():
 
 
 # ---------- decode test ----------
-@pytest.mark.llmbox
+@pytest.mark.galaxy
 @pytest.mark.nightly
 def test_glm4_7_decode_static_cache():
     """Autoregressive greedy decode on TT using StaticCache.
