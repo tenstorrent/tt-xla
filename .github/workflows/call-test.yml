@@ -410,6 +410,28 @@ jobs:
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
 
+    - name: Prune oversized IR dump folders
+      if: inputs.dump_irs && (success() || failure())
+      shell: bash
+      run: |
+        ir_root="collected_irs"
+        max_bytes=$((100 * 1024 * 1024))
+
+        if [[ ! -d "$ir_root" ]]; then
+          echo "$ir_root/ does not exist, nothing to prune"
+          exit 0
+        fi
+
+        for dir in "$ir_root"/*/; do
+          size_bytes=$(du -sb "$dir" | cut -f1)
+
+          if (( size_bytes > max_bytes )); then
+            size_human=$(du -sh "$dir" | cut -f1)
+            echo "::warning::Pruning IR dump folder larger than 100MB (${size_human}): ${dir%/}"
+            rm -rf -- "$dir"
+          fi
+        done
+
     - name: Upload IR Dumps
       if: inputs.dump_irs && (success() || failure())
       uses: actions/upload-artifact@v6
