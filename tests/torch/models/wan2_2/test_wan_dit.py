@@ -16,6 +16,7 @@ OUT: velocity (1, 48, latent_frames, latent_h, latent_w)
 """
 
 import time
+import copy
 
 import torch
 import torch_xla
@@ -43,6 +44,9 @@ from .shared import (
 _patch_apply_lora_scale()
 _disable_tt_torch_function_override()
 
+# Set to 0 to run the full model, otherwise set to the number of blocks to run.
+MAX_BLOCKS = 0
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -66,12 +70,12 @@ def test_wan_dit_720p_sharded():
 
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
-    compiler_config = CompilerConfig(optimization_level=1)
+    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True)
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
     t, h, w = shapes["latent_frames"], shapes["latent_h"], shapes["latent_w"]
 
-    wrapper = WanDiTWrapper(load_dit()).eval().bfloat16()
+    wrapper = WanDiTWrapper(load_dit(max_blocks=MAX_BLOCKS)).eval().bfloat16()
 
     hidden_states = torch.randn(1, 48, t, h, w, dtype=torch.bfloat16)
     num_patches = t * (h // 2) * (w // 2)  # patchify stride (1, 2, 2)
@@ -86,6 +90,7 @@ def _run(resolution: str, sharded: bool):
     device = xm.xla_device()
     torch_xla.set_custom_compile_options(compiler_config.to_torch_compile_options())
 
+    wrapper_cpu = copy.deepcopy(wrapper).to("cpu")
     wrapper_on_device = wrapper.to(device)
     inputs_on_device = [
         hidden_states.to(device),
@@ -112,7 +117,6 @@ def _run(resolution: str, sharded: bool):
 
     tt_out_cpu = tt_out.to("cpu")
 
-    wrapper_cpu = wrapper_on_device.to("cpu")
     with torch.no_grad():
         cpu_out = wrapper_cpu(hidden_states, timestep, encoder_hidden_states)
 
