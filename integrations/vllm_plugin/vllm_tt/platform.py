@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from vllm.attention.selector import AttentionSelectorConfig
     from vllm.config import VllmConfig
     from vllm.config.cache import BlockSize
-    from vllm.inputs import ProcessorInputs, PromptType
+    from vllm.inputs import PromptType
     from vllm.pooling_params import PoolingParams
     from vllm.sampling_params import SamplingParams
 
@@ -132,6 +132,7 @@ class TTPlatform(Platform):
         cls,
         selected_backend: "AttentionBackendEnum",
         attn_selector_config: "AttentionSelectorConfig",
+        num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
             raise NotImplementedError(
@@ -275,6 +276,11 @@ class TTPlatform(Platform):
             )
 
     @classmethod
+    def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
+        # TT backend requires a block size divisible by 32 for optimal performance.
+        return 32
+
+    @classmethod
     def is_pin_memory_available(cls):
         logger.warning("Pin memory is not supported on TT.")
         return False
@@ -288,7 +294,6 @@ class TTPlatform(Platform):
         cls,
         prompt: "PromptType",
         params: "ParamsType",
-        processed_inputs: "ProcessorInputs",
     ) -> None:
         pass
 
