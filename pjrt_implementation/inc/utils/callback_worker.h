@@ -40,7 +40,7 @@ struct CallbackWorkItem {
 // internal worker thread.
 class CallbackWorker {
 public:
-  explicit CallbackWorker(size_t queue_capacity = 8192);
+  explicit CallbackWorker(size_t queue_capacity = 1024);
 
   // Signals shutdown and joins the worker thread.
   ~CallbackWorker();
