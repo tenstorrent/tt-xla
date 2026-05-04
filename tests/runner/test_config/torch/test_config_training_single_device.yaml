@@ -1574,9 +1574,6 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
-  attention_denseunet/pytorch-Base-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
   bevformer/pytorch-v2_R50_T1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1621,24 +1618,6 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
-  falcon/pytorch-3_7B_Base-single_device-training:
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        bringup_status: FAILED_RUNTIME
-        reason: "RuntimeError: function '_has_torch_function' already has a docstring"
-      p150:
-        status: EXPECTED_PASSING
-        assert_pcc: false
-  gemma/pytorch-2_27B_IT-single_device-training:
-    arch_overrides:
-      n150:
-        status: NOT_SUPPORTED_SKIP
-        bringup_status: FAILED_RUNTIME
-        reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 12 banks"
-      p150:
-        status: EXPECTED_PASSING
-        assert_pcc: false
   gemma/pytorch-2_9B_IT-single_device-training:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
@@ -1646,9 +1625,6 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
-  glm/causal_lm/pytorch-4.5_Air-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
   gpt_neo/sequence_classification/pytorch-2_7B-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: INCORRECT_RESULT
@@ -1661,10 +1637,6 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
-  llama/causal_lm/pytorch-3.2_3B-single_device-training:
-    status: EXPECTED_PASSING
-    markers: [large, notimeout]
-    assert_pcc: false
   llama/llama_3_2_vision/pytorch-3.2_11B_Vision_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1744,10 +1716,6 @@ test_config:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
-  qwen_2_5/causal_lm/pytorch-3B_Instruct-single_device-training:
-    status: EXPECTED_PASSING
-    markers: [notimeout]
-    assert_pcc: false
   qwen_2_5/causal_lm/pytorch-7B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1765,9 +1733,6 @@ test_config:
       p150:
         status: EXPECTED_PASSING
         assert_pcc: false
-  qwen_3/causal_lm/pytorch-4B-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    markers: [notimeout]
   qwen_3/causal_lm/pytorch-8B-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
