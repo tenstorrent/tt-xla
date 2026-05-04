@@ -43,7 +43,7 @@ protected:
   // Runs before every test.
   void SetUp() override {
     m_device = DeviceInstance::createInstance(
-        TT_DEVICE_HOST,
+        /*client=*/nullptr, TT_DEVICE_HOST,
         /*is_addressable=*/true, LOCAL_HARDWARE_ID_UNDEFINED, TT_ARCH_WH);
 
     m_device_as_vector.push_back(m_device.get());

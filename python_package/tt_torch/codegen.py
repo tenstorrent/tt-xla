@@ -35,6 +35,7 @@ def codegen_py(
     torch_xla.set_custom_compile_options(real_compile_options)
     device = xm.xla_device()
     # Using legacy compile is a temporary hack to 1) Make MetaDataProp work 2) Decrease odds of codegenning for graphs that never need to get executed.
+    # Example of 2) happening to us is https://github.com/tenstorrent/tt-xla/issues/2139
     # New compile serves to primarily reduce execution overhead, which we don't really care about if executing only once for codegen.
     # TODO(sgligorijevic): Clean this up
     model.compile(backend="tt", options={"tt_legacy_compile": True})

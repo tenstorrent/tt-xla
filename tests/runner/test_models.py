@@ -110,6 +110,8 @@ def _run_model_test_impl(
         comparison_result = None
         tester = None
 
+        comparison_config = test_metadata.to_comparison_config()
+
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -120,7 +122,7 @@ def _run_model_test_impl(
                         run_mode,
                         run_phase=run_phase,
                         loader=loader,
-                        comparison_config=test_metadata.to_comparison_config(),
+                        comparison_config=comparison_config,
                         compiler_config=compiler_config,
                         parallelism=parallelism,
                         test_metadata=test_metadata,
@@ -133,7 +135,7 @@ def _run_model_test_impl(
                         tester = DynamicJaxMultiChipModelTester(
                             model_loader=loader,
                             run_mode=run_mode,
-                            comparison_config=test_metadata.to_comparison_config(),
+                            comparison_config=comparison_config,
                             compiler_config=compiler_config,
                             parallelism=parallelism,
                         )
@@ -142,7 +144,7 @@ def _run_model_test_impl(
                             # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
                             tester = DynamicJaxMultiChipModelTester(
                                 model_loader=loader,
-                                comparison_config=test_metadata.to_comparison_config(),
+                                comparison_config=comparison_config,
                                 num_devices=1,
                                 compiler_config=compiler_config,
                                 parallelism=parallelism,
@@ -151,7 +153,7 @@ def _run_model_test_impl(
                             tester = DynamicJaxModelTester(
                                 run_mode,
                                 loader=loader,
-                                comparison_config=test_metadata.to_comparison_config(),
+                                comparison_config=comparison_config,
                                 compiler_config=compiler_config,
                             )
                 else:
@@ -163,14 +165,28 @@ def _run_model_test_impl(
                         pytest.mark.filecheck(test_metadata.filechecks)
                     )
 
-                comparison_result = tester.test(request=request)
+                comparison_result, tt_result = tester.test(request=request)
 
                 # All results must pass for the test to succeed
                 succeeded = all(result.passed for result in comparison_result)
 
-                # Trigger assertion after comparison_result is cached, and
-                #     fallthrough to finally block on failure.
-                Evaluator._assert_on_results(comparison_result)
+                # assert_on_failure is disabled by default, don't assert if
+                # all subcomponets are disabled
+                if not comparison_config.all_disabled():
+                    Evaluator._assert_on_results(comparison_result)
+
+                # EmitPy verification: re-run via codegen_py and compare
+                # against flatbuffer result. Only for passing torch inference tests.
+                emitpy_enabled = request.config.getoption("--emitpy", default=False)
+                if emitpy_enabled and succeeded:
+                    print(
+                        f"Running EmitPy verification for {request.node.nodeid}",
+                        flush=True,
+                    )
+                    tester.verify_emitpy(
+                        fb_reference=tt_result,
+                        assert_exact=test_metadata.emitpy_assert_exact,
+                    )
 
         except Exception as e:
             try:
@@ -411,6 +427,13 @@ def _supports_strategy_shard_spec(model_loader_cls) -> bool:
     return "strategy" in params and "batch_axis" in params
 
 
+# Mesh shapes that support explicit FSDP/Megatron sharding strategies.
+#   n300-llmbox (8 chips):   (1, 8), (2, 4)
+#   galaxy-wh-6u (32 chips): (4, 8)
+#   qb2-blackhole (4 chips): (1, 4), (2, 2)
+_EXPLICIT_STRATEGY_MESH_SHAPES = {(1, 4), (2, 2), (1, 8), (2, 4), (4, 8)}
+
+
 def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
     """Return skip reason for invalid LLM sharding strategy/mesh combinations."""
     strategy = sharding_config.shard_strategy
@@ -424,21 +447,23 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
     if mesh_shape is None:
         return "Explicit sharding strategy requires mesh_shape"
 
-    if mesh_shape == (1, 8):
-        if strategy != ShardingStrategy.MEGATRON or shard_inputs:
-            return (
-                "For mesh_1x8, only megatron-no_dp is kept because fsdp-no_dp is "
-                "effectively equivalent here (non-model mesh dimension is size 1). "
-                "Use strategy=megatron with shard_inputs=False, or switch to mesh_2x4 "
-                "if you want distinct fsdp behavior."
-            )
-        return None
-
-    if mesh_shape != (2, 4):
+    if mesh_shape not in _EXPLICIT_STRATEGY_MESH_SHAPES:
         return (
             f"Unsupported mesh_shape={mesh_shape} for explicit sharding strategy. "
-            "Supported explicit strategy mesh shapes: mesh_1x8 and mesh_2x4."
+            f"Supported: {sorted(_EXPLICIT_STRATEGY_MESH_SHAPES)}"
         )
+
+    # When the non-model mesh dim is 1, FSDP collapses to Megatron, so we keep
+    # only megatron-no_dp to avoid redundant tests.
+    if mesh_shape == (1, 8) or mesh_shape == (1, 4):
+        if strategy != ShardingStrategy.MEGATRON or shard_inputs:
+            return (
+                f"For mesh_{mesh_shape[0]}x{mesh_shape[1]}, only megatron-no_dp is kept "
+                "because fsdp-no_dp is effectively equivalent here (non-model mesh "
+                "dimension is size 1). Use strategy=megatron with shard_inputs=False, "
+                "or switch to a mesh with non-model dim > 1 if you want distinct fsdp "
+                "behavior."
+            )
 
     return None
 
@@ -454,7 +479,7 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
 )
 @pytest.mark.parametrize(
     "mesh_shape",
-    [None, (1, 8), (2, 4)],
+    [None, (1, 4), (2, 2), (1, 8), (2, 4), (4, 8)],
     ids=_generate_mesh_shape_id,
 )
 @pytest.mark.parametrize(

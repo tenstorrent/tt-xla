@@ -101,6 +101,21 @@ fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
   return meshTopology;
 }
 
+// Matches the FABRIC_1D shortcut in ClientInstance::computeFabricConfig when
+// TT_RUNTIME_ENABLE_DISTRIBUTED is set: global1D fabric for multi-device,
+// empty per-axis list (same as distributed compile path).
+static tt::runtime::MeshFabricConfig
+defaultFabric1DMeshFabricConfig(llvm::ArrayRef<uint32_t> mesh_shape) {
+  uint32_t num_devices = 1;
+  for (uint32_t d : mesh_shape) {
+    num_devices *= d;
+  }
+  const tt::runtime::FabricConfig global =
+      num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
+                      : tt::runtime::FabricConfig::DISABLED;
+  return {global, {}};
+}
+
 // Helper function to get current timestamp in milliseconds.
 static std::string getCurrentTimeStamp() {
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -982,7 +997,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Static counter for auto-numbering graphs when perf metrics are enabled
   static std::atomic<int> graph_counter{0};
 
-  mlir::tt::ttnn::TTIRToTTNNBackendPipelineOptions options;
+  mlir::tt::ttnn::TTIRToTTNNCommonPipelineOptions options;
 
   // Optimizer passes are not supported in distributed runtime.
   if (tt::runtime::getCurrentHostRuntime() ==
@@ -993,11 +1008,11 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.optimizationLevel = compile_options.optimization_level;
-  // Map user-facing dtype names to WeightDtype enum values.
+  // Map user-facing dtype names to BFPDtype enum values.
   if (compile_options.experimental_weight_dtype == "bfp_bf8") {
-    options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat8;
+    options.experimentalWeightDtype = mlir::tt::ttnn::BFPDtype::BFP_BFloat8;
   } else if (compile_options.experimental_weight_dtype == "bfp_bf4") {
-    options.experimentalWeightDtype = mlir::tt::ttnn::WeightDtype::BFP_BFloat4;
+    options.experimentalWeightDtype = mlir::tt::ttnn::BFPDtype::BFP_BFloat4;
   } else if (!compile_options.experimental_weight_dtype.empty()) {
     LOG_F(ERROR,
           "Unknown experimental_weight_dtype: '%s'. Valid values: 'bfp_bf8', "
@@ -1084,21 +1099,26 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
             submesh_for_optim.handle);
   }
 
-  // TODO(dmilinkovic): Temporarily disable const-eval on CPU for Codegen
-  // backends until the pipeline restructuring on TT-MLIR side is done.
-  // https://github.com/tenstorrent/tt-mlir/issues/6927
-  if (compile_options.backend == BackendRuntime::TTNNCodegenCpp ||
-      compile_options.backend == BackendRuntime::TTNNCodegenPy) {
+  // TODO(dmilinkovic): Disable const-eval on CPU for EmitC backend until
+  // CPU hoisting support is added.
+  // https://github.com/tenstorrent/tt-mlir/issues/6100
+  if (compile_options.backend == BackendRuntime::TTNNCodegenCpp) {
     options.enableCPUHoistedConstEval = false;
   }
 
   // Map per-axis fabric config to mesh topology for CCL operations.
   // Compute fabric config for the compilation mesh shape directly, since the
   // parent mesh may still have a different shape (e.g. [1,8]) at compile time.
-  options.meshTopology = fabricConfigToMeshTopology(
-      client_instance->computeFabricConfig(devices_mesh_shape));
-  mlir::tt::ttnn::createTTIRToTTNNBackendPipeline(ttir_to_ttnn_pm, options);
+  // Compile-only clients use default FABRIC_1D mesh config instead of
+  // computeMeshFabricConfig (system desc may omit fabric topology details).
+  const tt::runtime::MeshFabricConfig mesh_fabric_for_topology =
+      client_instance->isCompileOnly()
+          ? defaultFabric1DMeshFabricConfig(devices_mesh_shape)
+          : client_instance->computeFabricConfig(devices_mesh_shape);
+  options.meshTopology = fabricConfigToMeshTopology(mesh_fabric_for_topology);
 
+  // Run the common TTIR-to-TTNN pipeline.
+  mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
@@ -1108,7 +1128,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   client_instance->closeOptimizerSubmesh();
 
   if (mlir::failed(mlir_result)) {
-    LOG_F(ERROR, "Failed to convert from TTIR to TTNN module");
+    LOG_F(ERROR, "Failed to run TTIRToTTNNCommon pipeline");
     return tt_pjrt_status::kInternal;
   }
 
@@ -1321,6 +1341,21 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
+  mlir::PassManager runtime_pm(mlir_module.get()->getName());
+  mlir::tt::ttnn::TTNNCommonToRuntimePipelineOptions runtime_options;
+  mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
+                                                    runtime_options);
+  enableVerboseIRPrinting(runtime_pm);
+
+  mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
+  if (mlir::failed(mlir_result)) {
+    LOG_F(ERROR, "Failed to run TTNNCommonToRuntime pipeline");
+    return {tt_pjrt_status::kInternal, nullptr};
+  }
+
+  printModule(mlir_module, compile_options.export_path, "ttnn_runtime",
+              compile_options.export_model_name);
+
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
                                                  output_shardings, flatbuffer);
@@ -1443,6 +1478,7 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string split_files =
         compile_options.codegen_split_files ? "true" : "false";
     pipeline_options += " split-files=" + split_files;
+    pipeline_options += " create-main-for-test=true";
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,

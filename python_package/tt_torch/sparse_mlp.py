@@ -617,7 +617,7 @@ class A2aSparseMLP(nn.Module):
                     activated = (up_out + 1) * glu
 
             # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
-            act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
+            act_per_expert = activated.reshape(
                 dim_a * dim_b * M, E, self.intermediate_size
             )
             act_per_expert = act_per_expert.permute(
@@ -630,9 +630,6 @@ class A2aSparseMLP(nn.Module):
             down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
             down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
 
-            # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
-            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
             if down_bias is not None:
                 down_out = down_out + down_bias
             # E to front, merge all spatial dims into one token dim
@@ -957,7 +954,11 @@ class A2aSparseMLPWithSharedExperts(nn.Module):
 
     def forward(self, hidden_states):
         out, _ = self.mlp(hidden_states)
-        if self.shared_experts is not None:
+        # On CPU, _cpu_forward delegates to the original MoE which already adds
+        # shared_experts internally (DS V4 MoE.forward: y += self.shared_experts(x)).
+        # On TT, dispatch/combine produces routed-only output, so shared must be
+        # added here. Skip on CPU to avoid double-counting.
+        if self.shared_experts is not None and hidden_states.device.type != "cpu":
             out = out + self.shared_experts(hidden_states)
         return out
 

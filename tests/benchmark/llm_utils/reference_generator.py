@@ -19,12 +19,7 @@ from pathlib import Path
 
 import torch
 import transformers
-from llm_utils.decode_utils import (
-    LLMSamplingWrapper,
-    extract_topk,
-    generate_and_benchmark,
-    init_static_cache,
-)
+from llm_utils.decode_utils import extract_topk, init_static_cache
 from loguru import logger
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
@@ -50,15 +45,6 @@ def generate_reference_outputs(total_length, output_file, model_name):
 
     # Load model and tokenizer from HuggingFace
     config = AutoConfig.from_pretrained(model_name)
-
-    # Qwen only: add rope scaling to the config, for long context support.
-    # https://huggingface.co/Qwen/Qwen2.5-7B-Instruct#processing-long-texts
-    if "Qwen" in model_name:
-        config.rope_scaling = {
-            "factor": 4.0,
-            "original_max_position_embeddings": 32768,
-            "type": "yarn",
-        }
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(
@@ -100,39 +86,39 @@ def generate_reference_outputs(total_length, output_file, model_name):
         dtype=torch.bfloat16,
     )
 
-    # Construct input_args dict matching the format used by device benchmarks
-    input_args = {
-        "input_ids": tokens_1d[:split_point].unsqueeze(0),  # [1, split_point]
-        "past_key_values": static_cache,
-        "cache_position": torch.arange(0, split_point),
-        "use_cache": True,
-    }
-    ground_truth_tokens = tokens_1d[split_point:]  # [decode_len]
-    decode_len = len(ground_truth_tokens)
-
     logger.info(f"Generating reference topk on CPU (split_point={split_point})")
 
-    cpu_wrapper = LLMSamplingWrapper(
-        model, lambda output: output.logits, return_logits=True
-    )
-    cpu_wrapper.eval()
-    output_logits, _ = generate_and_benchmark(
-        cpu_wrapper,
-        input_args,
-        torch.device("cpu"),
-        decode_len,
-        verbose=False,
-        ground_truth_tokens=ground_truth_tokens,
-        collect_logits=True,
-    )
-
-    # Post-processing: extract top-k predictions from raw logits
     all_top1 = []
     all_top5 = []
-    for logits in output_logits:
-        top1, top5 = extract_topk(logits, k=5)
-        all_top1.append(top1.squeeze(0).cpu())
-        all_top5.append(top5.squeeze(0).cpu())
+
+    with torch.no_grad():
+        # Prefill: process all split_point tokens, capture ALL position logits
+        prefill_output = model(
+            input_ids=tokens_1d[:split_point].unsqueeze(0),
+            past_key_values=static_cache,
+            cache_position=torch.arange(0, split_point),
+            use_cache=True,
+        )
+        prefill_logits = prefill_output.logits[0]  # [split_point, vocab_size]
+        for pos in range(split_point):
+            top1, top5 = extract_topk(prefill_logits[pos], k=5)
+            all_top1.append(top1.view(-1).cpu())
+            all_top5.append(top5.view(-1, 5).cpu())
+
+        # Decode: process remaining tokens one at a time (teacher forcing)
+        decode_steps = total_length - 1 - split_point
+        for step in range(decode_steps):
+            token_idx = split_point + step
+            decode_output = model(
+                input_ids=tokens_1d[token_idx].view(1, 1),
+                past_key_values=static_cache,
+                cache_position=torch.tensor([token_idx]),
+                use_cache=True,
+            )
+            logits = decode_output.logits[0, -1]  # [vocab_size]
+            top1, top5 = extract_topk(logits, k=5)
+            all_top1.append(top1.view(-1).cpu())
+            all_top5.append(top5.view(-1, 5).cpu())
 
     top1_tokens = torch.cat(all_top1, dim=0)  # [total_length - 1]
     top5_tokens = torch.cat(all_top5, dim=0)  # [total_length - 1, 5]

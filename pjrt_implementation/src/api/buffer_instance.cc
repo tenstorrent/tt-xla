@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstring>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -334,7 +335,19 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
-  TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
+
+  // In compile-only mode, output buffers have no associated tensor (no
+  // hardware to compute on). Zero-fill the host buffer and signal success.
+  if (!m_pjrt_tensor) {
+    TT_FATAL(m_device->getClient()->isCompileOnly(),
+             "Copy from buffer without an associated tensor.");
+    std::memset(host_buffer, 0, host_buffer_size);
+    std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    *out_copy_done_event = event.release();
+    return tt_pjrt_status::kSuccess;
+  }
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -510,6 +523,17 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
     args->dst_size = buffer->logicalTensorSize();
 
+    return nullptr;
+  }
+
+  // Empty tensors (e.g. shape [0]) have zero bytes and no device-side
+  // allocation, so there is nothing to copy. Return a ready event immediately
+  // to avoid calling into the runtime with null buffer pointers.
+  if (buffer->logicalTensorSize() == 0) {
+    std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    args->event = *event.release();
     return nullptr;
   }
 

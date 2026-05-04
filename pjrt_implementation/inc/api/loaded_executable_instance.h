@@ -84,6 +84,11 @@ public:
   // Runs execution of this loaded executable.
   virtual tt_pjrt_status execute(PJRT_LoadedExecutable_Execute_Args *args) = 0;
 
+  // Create default-initialized (zero-filled) output buffers, used in
+  // compile-only mode or when actual execution is skipped.
+  tt_pjrt_status createDefaultOutputBuffers(PJRT_Buffer **const *output_lists,
+                                            size_t num_devices);
+
 protected:
   // Creates loaded executable instance from the executable image.
   LoadedExecutableInstance(
@@ -96,6 +101,19 @@ protected:
 
   // Save all graph inputs as files, in metal's tensorbin format.
   void dumpInputs(const std::vector<tt::runtime::Tensor> &input_tensors);
+
+  // Returns the per-device shape for the output at the given index, accounting
+  // for sharding. For sharded outputs the full shape is divided by the shard
+  // shape; for replicated/identity outputs the full shape is returned as-is.
+  std::optional<std::vector<std::uint32_t>>
+  getOutputShape(size_t output_index) const;
+
+  // Fills the PJRT output lists from the runtime output tensors produced by
+  // execution, creating one BufferInstance shard per device per output.
+  tt_pjrt_status fillPJRTOutputLists(
+      const std::vector<tt::runtime::Tensor> &output_tensors,
+      size_t num_devices, PJRT_Buffer **const *output_lists,
+      const std::vector<PJRT_Buffer_Type> &expected_output_data_types);
 
   // Opens devices on which input arguments are placed, which we assume are the
   // the devices where computation will run, if their count is equal to the

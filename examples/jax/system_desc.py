@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 import jax
 import numpy as np
 from tt_jax import serialize_compiled_artifacts_to_disk
-from ttxla_tools import enable_compile_only, save_system_descriptor_to_disk
+from ttxla_tools import save_system_descriptor_to_disk
 
 
 def add(x, y):
@@ -24,7 +25,7 @@ def save_system_desc(output_prefix: str):
 
 def compile_only(system_desc_path: str):
     """Compile for a target system using a saved system descriptor (no hardware needed)."""
-    enable_compile_only(system_desc_path)
+    os.environ["TT_COMPILE_ONLY_SYSTEM_DESC"] = system_desc_path
 
     # Use numpy arrays, not jnp.array: jnp.array would eagerly dispatch to the
     # TT device and fail. serialize_compiled_artifacts only needs shape/dtype to
