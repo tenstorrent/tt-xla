@@ -195,19 +195,21 @@ class DynamicLoader:
         return models_root
 
     @classmethod
-    def import_model_loader(cls, loader_path: str, models_root: str):
-        """Dynamically import a loader.py and return ``(module, ModelLoader)``.
+    def import_loader_module(cls, loader_path: str, models_root: str):
+        """Dynamically import a loader.py and return its module.
 
-        Returning the module lets callers inspect sibling classes (e.g.
-        ``ForgeFocusModel`` subclasses living in the same file) without having
-        to recompute the dashed ``sys.modules`` key used below.
+        Returning the module (rather than just ``ModelLoader``) lets callers
+        inspect sibling classes — e.g. ``ForgeFocusModel`` subclasses living in
+        the same file — without having to recompute the dashed ``sys.modules``
+        key used below.
 
         Args:
             loader_path: Path to the loader.py file
             models_root: Root directory of the models
 
         Returns:
-            Tuple of (module object, ModelLoader class)
+            The imported module object. Callers access ``mod.ModelLoader`` (and
+            any sibling classes) directly.
         """
         # Import the base module first to ensure it's available
         models_parent = os.path.dirname(models_root)
@@ -240,7 +242,7 @@ class DynamicLoader:
         sys.modules[module_path] = mod
         spec.loader.exec_module(mod)
 
-        return mod, mod.ModelLoader
+        return mod
 
     @classmethod
     def get_model_variants(cls, loader_path: str, loader_paths: Dict, models_root: str):
@@ -256,7 +258,8 @@ class DynamicLoader:
             models_root: Root directory of the models
         """
         try:
-            mod, ModelLoader = cls.import_model_loader(loader_path, models_root)
+            mod = cls.import_loader_module(loader_path, models_root)
+            ModelLoader = mod.ModelLoader
 
             # Lazy import: must come from the same namespace the dynamically
             # loaded module uses, so issubclass sees the same class object.
