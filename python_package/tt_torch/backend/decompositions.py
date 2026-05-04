@@ -331,21 +331,62 @@ def copy_default(
 def masked_scatter(
     data: torch.Tensor, mask: torch.Tensor, source: torch.Tensor
 ) -> torch.Tensor:
-    # Custom decomposition for masked_scatter
-    # Decomposes masked_scatter into basic operations: broadcast, reshape, cumsum, clamp, gather, where
+    """
+    Custom decomposition for masked_scatter.
+    Decomposes masked_scatter into basic operations: broadcast, reshape, cumsum, clamp, gather, where.
+
+    Row-wise fast path: O(B*S) cumsum instead of O(B*S*H).
+    The flat cumsum on B*S*H elements OOMs on TT hardware (TTNN allocates one 32x32
+    tile per output element, so 277*2560=709k elements -> 2.9 GB for the cumsum alone).
+
+    The fast path is valid when the mask is row-constant (same True/False for every
+    element in a row).
+    """
+    H = data.shape[-1] if data.ndim >= 2 else 0
+    n_true = source.numel() // H if H > 0 else 0
+    _row_constant = (
+        data.ndim >= 2
+        and mask.ndim >= 2
+        and (
+            mask.stride(-1) == 0
+            or mask.ndim < data.ndim
+            or (n_true > 0 and source.numel() == n_true * H)
+        )
+    )
+
     mask, data = torch.broadcast_tensors(mask, data)
 
+    if _row_constant and n_true > 0:
+        mask_outer = mask[..., 0]
+        mask_f = mask_outer.reshape(-1)
+        data_2d = data.reshape(-1, H)
+        source_2d = source.reshape(n_true, H)
+        mask_i = mask_f.long()
+        source_idx = torch.cumsum(mask_i, 0) - 1
+        source_idx = torch.clamp(source_idx, 0, n_true - 1)
+        gathered = source_2d[source_idx]
+        result = torch.where(mask_f.unsqueeze(-1), gathered, data_2d)
+        return result.view_as(data)
+
+    # Original flat decomposition (fallback for non-row-constant masks)
+    # mask, data = torch.broadcast_tensors(mask, data)
+    # mask_f = mask.reshape(-1)
+    # data_flat = data.reshape(-1)
+    # source_flat = source.reshape(-1)
+    # mask_i = mask_f.long()
+    # source_idx = torch.cumsum(mask_i, 0) - 1
+    # source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
+    # gathered = source_flat[source_idx]
+    # result_flat = torch.where(mask_f, gathered, data_flat)
+    # return result_flat.view_as(data)
     mask_f = mask.reshape(-1)
     data_flat = data.reshape(-1)
     source_flat = source.reshape(-1)
-
     mask_i = mask_f.long()
     source_idx = torch.cumsum(mask_i, 0) - 1
     source_idx = torch.clamp(source_idx, 0, source_flat.numel() - 1)
-
     gathered = source_flat[source_idx]
     result_flat = torch.where(mask_f, gathered, data_flat)
-
     return result_flat.view_as(data)
 
 
