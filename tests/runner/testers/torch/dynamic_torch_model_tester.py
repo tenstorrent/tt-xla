@@ -133,6 +133,8 @@ class DynamicTorchModelTester(TorchModelTester):
             if self._test_metadata
             else None
         )
+        if batch_size is None and self._run_mode == RunMode.TRAINING:
+            batch_size = 2
 
         inputs = self.dynamic_loader.load_inputs(
             run_phase=self.run_phase,
