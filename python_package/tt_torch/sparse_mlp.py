@@ -549,6 +549,30 @@ class A2aSparseMLP(nn.Module):
             self.router(router_input, *extra_args, **extra_kwargs), self.num_experts
         )
 
+        # Pad batch so (batch * seq_len) is a multiple of TILE (32). The
+        # downstream MoE ops (moe_expert_token_remap, sparse_matmul) assume
+        # tile-aligned token counts and either segfault or fail validation
+        # otherwise — typical trigger is small-batch decode (e.g. bsz=8
+        # seq_len=1 → 8 tokens; pad batch by 4× → 32 tokens).
+        # The padded entries get zero router scores/indices, get processed
+        # alongside real tokens through dispatch/sparse_matmul/combine, and
+        # are sliced off the final output before return.
+        TILE = 32
+        total_tokens = batch_size * seq_len
+        pad_batch = 0
+        if total_tokens % TILE != 0:
+            pad_tokens = (-total_tokens) % TILE
+            assert pad_tokens % seq_len == 0, (
+                f"Cannot pad batch to tile-align tokens: pad_tokens={pad_tokens} "
+                f"not divisible by seq_len={seq_len}."
+            )
+            pad_batch = pad_tokens // seq_len
+            # F.pad's pad-tuple is (last dim ... first dim) pairs of (left, right).
+            hidden_states = F.pad(hidden_states, (0, 0, 0, 0, 0, pad_batch))
+            # router_indices / router_scores are [B*S, K] / [B*S, E] (flat).
+            router_indices = F.pad(router_indices, (0, 0, 0, pad_batch * seq_len))
+            router_scores = F.pad(router_scores, (0, 0, 0, pad_batch * seq_len))
+
         # 2. Dispatch: route tokens to devices along cluster_axis
         # Dispatch accepts [B, S, H] and [B*S, K] directly.
         effective_dispatch = self.dispatch_devices
@@ -708,7 +732,13 @@ class A2aSparseMLP(nn.Module):
             topk_weights.permute(1, 0).unsqueeze(1).unsqueeze(-1)
         )  # [K, 1, B*S, 1]
         output = (combined * topk_weights).sum(dim=0)  # [1, B*S, H]
-        output = output.view(batch_size, seq_len, hidden_size)
+        padded_batch = batch_size + pad_batch
+        output = output.view(padded_batch, seq_len, hidden_size)
+        if pad_batch > 0:
+            # Drop the padded batch entries (and matching router_scores rows)
+            # so callers see the original [batch_size, ...] shape.
+            output = output[:batch_size]
+            router_scores = router_scores[: batch_size * seq_len]
 
         return output.to(hidden_states.dtype), router_scores
 
