@@ -24,7 +24,6 @@ from llm_utils import (
     init_indexer_cache,
     init_mla_cache,
     init_static_cache,
-    reset_indexer_cache,
 )
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
@@ -92,6 +91,8 @@ def construct_inputs(
     input_prompt: str = None,
     input_prompt_tokens: Optional[torch.Tensor] = None,
     use_mla_cache: bool = False,
+    model: torch.nn.Module = None,
+    use_indexer_cache: bool = False,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -103,6 +104,9 @@ def construct_inputs(
         max_cache_len: Maximum cache length
         input_prompt: Input text prompt (optional, defaults to DEFAULT_INPUT_PROMPT)
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
+        use_mla_cache: Whether to use MLA cache
+        model: Model instance (used for indexer cache initialization)
+        use_indexer_cache: Whether to use indexer cache (needs to be initialized before model.to(device))
 
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
@@ -159,12 +163,9 @@ def construct_inputs(
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
     cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
 
-    # Initialize indexer cache once on CPU before model.to(device) so it is bundled into the model
-    # transfer rather than compiled as a separate XLA graph. This is done externally so that
-    # the tensor size uses the exact batch_size/max_cache_len — not ModelArgs defaults — to match
-    # the sharded computation graph. Models using this cache are expected to handle stale values
-    # since we cannot reset the indexer once the model is transferred to device:
-    # prefill overwrites past positions and the causal mask suppresses future ones.
+    # Initialize indexer cache before model.to(device) so it's not compiled as a separate XLA
+    # graph. Models using this cache are expected to handle stale values since we cannot reset
+    # the indexer key cache once the model is transferred to device.
     if use_indexer_cache:
         init_indexer_cache(
             model,
