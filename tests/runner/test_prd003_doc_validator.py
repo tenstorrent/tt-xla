@@ -8,7 +8,6 @@ from pathlib import Path
 
 from tests.runner.prd003_doc_validator import CONTRACT_VERSION, run_validation
 
-
 REQUIRED_RECORD_FIELDS = {
     "contract_version",
     "run_id",
