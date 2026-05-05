@@ -5,7 +5,7 @@
 import pytest
 import torch
 from benchmark.utils import compute_pcc
-from infra import Framework, run_op_test_with_random_inputs
+from infra import Framework, run_op_test, run_op_test_with_random_inputs
 from utils import Category
 
 
@@ -189,4 +189,78 @@ def test_topk_both(input_shape: tuple, k: int):
         dtype=torch.float32,
         framework=Framework.TORCH,
         custom_comparator=topk_both_comparator,
+    )
+
+
+# ---------------------------------------------------------------------------
+# vLLM sampling shapes: power-of-2 chunks used in apply_top_k_top_p_fast
+# ---------------------------------------------------------------------------
+
+
+def _topk_vllm_comparator(device_output, golden_output, args, kwargs):
+    """Correct comparator for topk: gathered values must match, not exact indices.
+
+    topk ordering is non-deterministic — CPU may return [0,1,2,3] while
+    device returns [3,2,1,0]. Both are valid. Compare by gathering original
+    values at the returned indices and checking cosine similarity.
+    """
+    device_vals, device_idx = device_output
+    golden_vals, golden_idx = golden_output
+    input_tensor = args[0]
+
+    device_idx = device_idx.cpu()
+    golden_idx = golden_idx.cpu()
+
+    device_gathered = torch.gather(input_tensor, -1, device_idx)
+    golden_gathered = torch.gather(input_tensor, -1, golden_idx)
+    cos_sim = torch.nn.functional.cosine_similarity(
+        device_gathered.flatten().unsqueeze(0).float(),
+        golden_gathered.flatten().unsqueeze(0).float(),
+    )
+    idx_match = (device_idx == golden_idx).float().mean().item()
+    k = device_idx.shape[-1]
+    print(
+        f"\n  values_cos_sim={cos_sim.item():.6f}"
+        f"  index_exact_match={idx_match:.3f} ({int(idx_match * k)}/{k})"
+        f"  (ordering non-deterministic — only values matter)"
+    )
+    assert cos_sim > 0.99, f"topk gathered values wrong: cos_sim={cos_sim.item():.6f}"
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    torch_op_name="torch.topk",
+)
+@pytest.mark.parametrize(
+    ["input_shape", "k"],
+    [
+        pytest.param((1, 32768), 32, id="32768-k32"),
+        pytest.param((1, 32768), 64, id="32768-k64"),
+        pytest.param((1, 16384), 32, id="16384-k32"),
+        pytest.param((1, 65536), 32, id="65536-k32"),
+    ],
+)
+def test_topk_vllm_sampling_shapes(input_shape: tuple, k: int):
+    """topk on power-of-2 shapes used in vLLM chunked sampling (apply_top_k_top_p_fast).
+
+    Splits the vocab into 32768-element power-of-2 chunks and runs topk(k=32)
+    per chunk to get candidates for Gumbel-max sampling. Ordering is
+    non-deterministic so correctness is verified via gathered value similarity.
+    """
+
+    class TopKBoth(torch.nn.Module):
+        def __init__(self, k):
+            super().__init__()
+            self.k = k
+
+        def forward(self, x):
+            return torch.topk(x, self.k, dim=-1)
+
+    run_op_test(
+        TopKBoth(k),
+        [torch.randn(*input_shape, dtype=torch.float32)],
+        framework=Framework.TORCH,
+        custom_comparator=_topk_vllm_comparator,
     )
