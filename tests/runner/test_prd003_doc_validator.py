@@ -10,6 +10,7 @@ import pytest
 
 from tests.runner.prd003_doc_validator import (
     CONTRACT_VERSION,
+    PHASE1_FLOWS,
     PROJECT_ROOT,
     run_validation,
 )
@@ -61,25 +62,38 @@ def test_prd003_doc_validator_emits_contract_records():
     assert results_path.is_file()
     assert summary_path.is_file()
     assert result.summary["contract_version"] == CONTRACT_VERSION
-    assert result.summary["record_count"] == 6
+    assert result.summary["record_count"] == len(PHASE1_FLOWS)
 
     records = [
         json.loads(line)
         for line in results_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert len(records) == 6
+    assert len(records) == len(PHASE1_FLOWS)
     assert all(REQUIRED_RECORD_FIELDS <= record.keys() for record in records)
     assert all(record["contract_version"] == CONTRACT_VERSION for record in records)
     assert all(record["repo"] == "tt-xla" for record in records)
     assert all(record["evidence"]["command"] for record in records)
 
     if require_pass:
-        assert result.summary["counts_by_status"] == {"pass": 6}
+        assert result.summary["counts_by_status"] == {"pass": len(PHASE1_FLOWS)}
     else:
-        assert result.summary["counts_by_status"] == {"fail": 6}
-        assert all(record["reason_code"] == "doc-ambiguous-step" for record in records)
-        assert all(record["doc_clarity"]["is_ambiguous"] for record in records)
+        assert result.summary["counts_by_status"] == {"error": 5, "fail": 6}
+        doc_records = [
+            record
+            for record in records
+            if record["reason_code"] == "doc-ambiguous-step"
+        ]
+        demo_records = [
+            record for record in records if record["reason_code"] == "infra-unavailable"
+        ]
+        assert len(doc_records) == 6
+        assert len(demo_records) == 5
+        assert all(record["doc_clarity"]["is_ambiguous"] for record in doc_records)
+        assert all(
+            record["environment"]["execution_target"] == "ird"
+            for record in demo_records
+        )
 
 
 def test_prd003_doc_validator_rejects_output_paths_outside_artifacts(tmp_path: Path):

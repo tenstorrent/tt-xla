@@ -2,12 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""PRD-003 docs/install validation harness.
+"""PRD-003 docs/demo validation harness.
 
-This runner emits PRD-003 contract records for the phase-1 docs/install
-surfaces. It is intentionally fail-closed: manifest entries with unresolved
-doc-clarity blockers are recorded as documentation failures instead of running
-ambiguous package install, Docker, or source-build commands.
+This runner emits PRD-003 contract records for the phase-1 docs/install and
+hardware-sensitive demo surfaces. It is intentionally conservative: unresolved
+doc-clarity blockers fail closed, while hardware-sensitive gates emit explicit
+infrastructure-unavailable records unless an IRD or equivalent target has been
+proven and execution is enabled.
 """
 
 from __future__ import annotations
@@ -186,6 +187,135 @@ PHASE1_DOC_FLOWS: list[dict[str, Any]] = [
 ]
 
 
+PHASE1_IRD_DEMO_GATES: list[dict[str, Any]] = [
+    {
+        "flow_id": "IRD-GATE-001",
+        "surface_id": "source-tt-device-discovery",
+        "surface_type": "demo",
+        "priority": "P0",
+        "source_mode": "documented",
+        "source_path": "docs/src/getting_started.md",
+        "source_section": "Building from Source",
+        "command": "python -c \"import jax; print(jax.devices('tt'))\"",
+        "expected_target": {
+            "execution_target": "ird",
+            "target_id": "unavailable",
+            "hardware": "tt",
+            "os_image": "unknown",
+            "runtime": "scheduler",
+        },
+        "success_signal": {"type": "stdout_regex", "value": r"TTDevice\\("},
+        "doc_clarity": {"fail_closed": False, "blocker_ids": [], "notes": ""},
+        "infra_unavailable": {
+            "reason_code": "infra-unavailable",
+            "summary": "IRD target was unavailable before TT device discovery could be scheduled.",
+            "recommended_fix": (
+                "Confirm IRD quota, queue policy, target identifiers, and "
+                "reservation mechanism."
+            ),
+        },
+    },
+    {
+        "flow_id": "IRD-GATE-002",
+        "surface_id": "jax-simple-regression",
+        "surface_type": "demo",
+        "priority": "P0",
+        "source_mode": "source-backed",
+        "source_path": "examples/jax",
+        "source_section": "JAX demo gate",
+        "command": "pytest -q tests/jax/single_chip",
+        "expected_target": {
+            "execution_target": "ird",
+            "target_id": "unavailable",
+            "hardware": "tt",
+            "os_image": "unknown",
+            "runtime": "scheduler",
+        },
+        "success_signal": {"type": "exit_zero", "value": ""},
+        "doc_clarity": {"fail_closed": False, "blocker_ids": [], "notes": ""},
+        "infra_unavailable": {
+            "reason_code": "infra-unavailable",
+            "summary": "IRD target was unavailable before JAX demo gate could be scheduled.",
+            "recommended_fix": "Provide a reachable IRD or equivalent TT hardware lane.",
+        },
+    },
+    {
+        "flow_id": "IRD-GATE-003",
+        "surface_id": "pytorch-mnist",
+        "surface_type": "demo",
+        "priority": "P0",
+        "source_mode": "source-backed",
+        "source_path": "examples/pytorch/mnist.py",
+        "source_section": "PyTorch MNIST demo",
+        "command": "python examples/pytorch/mnist.py",
+        "expected_target": {
+            "execution_target": "ird",
+            "target_id": "unavailable",
+            "hardware": "tt",
+            "os_image": "unknown",
+            "runtime": "scheduler",
+        },
+        "success_signal": {"type": "exit_zero", "value": ""},
+        "doc_clarity": {"fail_closed": False, "blocker_ids": [], "notes": ""},
+        "infra_unavailable": {
+            "reason_code": "infra-unavailable",
+            "summary": "IRD target was unavailable before PyTorch demo gate could be scheduled.",
+            "recommended_fix": "Provide a reachable IRD or equivalent TT hardware lane.",
+        },
+    },
+    {
+        "flow_id": "IRD-GATE-008",
+        "surface_id": "tinyllama-vllm-service",
+        "surface_type": "demo",
+        "priority": "P1",
+        "source_mode": "source-backed",
+        "source_path": "examples/vllm/TinyLlama-1.1B-Chat-v1.0",
+        "source_section": "vLLM service gate",
+        "command": "bash examples/vllm/TinyLlama-1.1B-Chat-v1.0/service.sh",
+        "expected_target": {
+            "execution_target": "ird",
+            "target_id": "unavailable",
+            "hardware": "tt",
+            "os_image": "unknown",
+            "runtime": "scheduler",
+        },
+        "success_signal": {"type": "http_ready", "value": "/v1/models"},
+        "doc_clarity": {"fail_closed": False, "blocker_ids": [], "notes": ""},
+        "infra_unavailable": {
+            "reason_code": "infra-unavailable",
+            "summary": "IRD target was unavailable before vLLM service gate could be scheduled.",
+            "recommended_fix": "Provide a reachable IRD or equivalent TT hardware lane.",
+        },
+    },
+    {
+        "flow_id": "IRD-GATE-009",
+        "surface_id": "tinyllama-vllm-client",
+        "surface_type": "demo",
+        "priority": "P1",
+        "source_mode": "source-backed",
+        "source_path": "examples/vllm/TinyLlama-1.1B-Chat-v1.0/responses_client.py",
+        "source_section": "vLLM client gate",
+        "command": "python examples/vllm/TinyLlama-1.1B-Chat-v1.0/responses_client.py",
+        "expected_target": {
+            "execution_target": "ird",
+            "target_id": "unavailable",
+            "hardware": "tt",
+            "os_image": "unknown",
+            "runtime": "scheduler",
+        },
+        "success_signal": {"type": "stdout_contains", "value": "response"},
+        "doc_clarity": {"fail_closed": False, "blocker_ids": [], "notes": ""},
+        "infra_unavailable": {
+            "reason_code": "infra-unavailable",
+            "summary": "IRD target was unavailable before vLLM client gate could be scheduled.",
+            "recommended_fix": "Provide a reachable IRD or equivalent TT hardware lane.",
+        },
+    },
+]
+
+PHASE1_FLOWS: list[dict[str, Any]] = PHASE1_DOC_FLOWS + PHASE1_IRD_DEMO_GATES
+
+
 @dataclass
 class ValidationRun:
     run_id: str
@@ -312,6 +442,29 @@ def fail_closed_record(
             "before execution."
         ),
         "next_step": "resolve-doc-clarity-blocker",
+    }
+    return record
+
+
+def infra_unavailable_record(
+    flow: dict[str, Any],
+    run_id: str,
+    output_root: Path,
+    target_id: str,
+) -> dict[str, Any]:
+    record = base_record(flow, run_id, output_root, target_id)
+    infra = flow["infra_unavailable"]
+    record["status"] = "error"
+    record["reason_code"] = infra["reason_code"]
+    record["severity"] = "medium"
+    record["summary"] = infra["summary"]
+    record["evidence"]["exit_code"] = None
+    record["evidence"]["stdout_ref"] = None
+    record["evidence"]["stderr_ref"] = None
+    record["actionability"] = {
+        "owner_team": "infra-validation",
+        "recommended_fix": infra["recommended_fix"],
+        "next_step": "retry-after-target-proof",
     }
     return record
 
@@ -451,7 +604,7 @@ def run_validation(
         },
     )
 
-    for flow in PHASE1_DOC_FLOWS:
+    for flow in PHASE1_FLOWS:
         flow_id = str(flow["flow_id"])
         write_text(
             output_root / "snapshots" / "commands" / f"{flow_id}.command.txt",
@@ -459,6 +612,8 @@ def run_validation(
         )
         if flow["doc_clarity"].get("fail_closed"):
             record = fail_closed_record(flow, run_id, output_root, target_id)
+        elif flow.get("infra_unavailable") and not execute:
+            record = infra_unavailable_record(flow, run_id, output_root, target_id)
         elif execute:
             record = execute_flow(flow, run_id, output_root, target_id, timeout_seconds)
         else:
