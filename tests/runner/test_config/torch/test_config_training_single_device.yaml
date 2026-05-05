@@ -406,24 +406,24 @@ test_config:
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   yolov9/pytorch-T-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "torch._dynamo.exc.InternalTorchDynamoError: TypeError: eval() arg 1 must be a string, bytes or code object"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   yolov9/pytorch-S-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   yolov9/pytorch-M-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   yolov9/pytorch-C-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   yolov9/pytorch-E-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   retinanet/pytorch-ResNet18_Backbone_with_FPN-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION

@@ -1253,10 +1253,7 @@ test_config:
 
   yolov9/pytorch-T-single_device-inference:
     required_pcc: 0.94
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "torch._dynamo.exc.InternalTorchDynamoError: TypeError: eval() arg 1 must be a string, bytes or code object"
-    markers: [push, nightly]
+    status: EXPECTED_PASSING
 
   yolov9/pytorch-S-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
