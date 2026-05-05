@@ -426,6 +426,17 @@ def _seeded_metadata(q_cpu, device):
 @pytest.mark.push
 @pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Device sampler does not honor per-row seeds: the tt::sampling "
+        "kernel uses a single shared seed across all 32 cores and ignores "
+        "per-row q_samples, so seeded sampling is no longer deterministic. "
+        "Tracked in tt-xla #4539. Workaround: set "
+        "additional_config={'cpu_sampling': True}. Remove this xfail once "
+        "the kernel grows per-row seed support."
+    ),
+)
 def test_seed_precomputed_noise(device, vocab_size):
     """Pre-computed Gumbel noise (q_samples) produces deterministic sampling on TT.
 
@@ -563,6 +574,17 @@ def test_gather_logprobs_topk_indices_exact_on_device(device):
 @pytest.mark.push
 @pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Device sampler does not honor per-row seeds: the tt::sampling "
+        "kernel uses a single shared seed across all 32 cores and ignores "
+        "per-row q_samples, so seeded sampling is no longer deterministic. "
+        "Tracked in tt-xla #4539. Workaround: set "
+        "additional_config={'cpu_sampling': True}. Remove this xfail once "
+        "the kernel grows per-row seed support."
+    ),
+)
 def test_seed_mixed_batch(device, vocab_size):
     """Mixed batch on TT: seeded rows deterministic, all tokens valid.
 
