@@ -11,6 +11,7 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -49,6 +50,21 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
       shards, rt_tensor_from_strategy(shards, strategy, mesh_shape));
 }
 
+void PjrtTensor::force_migrate_to_device(const tt::runtime::Device &device) {
+  // STUB: requires `tt::runtime::isTensorOnHost` and
+  // `tt::runtime::migrateHostTensorToDevice` to be added to tt-mlir
+  // runtime's public API (and a corresponding ttnn-side impl using
+  // `ttnn::Tensor::to_device(meshDevice)`). Without those, plugin
+  // can't access ttnn::Tensor without bringing in detail headers
+  // and tt-metal's full include surface.
+  //
+  // Until tt-mlir is patched, this is a no-op so the plugin still
+  // builds and the rest of the experiment harness works.
+  // See streaming/DEBUG_HYBRID_NOTES.md for the analysis showing
+  // this would be the correct fix path.
+  (void)device;
+}
+
 // Creates new pjrt tensor for provided shards from an existing runtime tensor.
 PjrtTensor &
 PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
@@ -85,6 +101,21 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   const bool retain = tt::runtime::getTensorRetain(m_runtime_tensor);
   m_runtime_tensor =
       tt::runtime::toLayout(m_runtime_tensor, device, layout, retain);
+
+  // Vanilla torch-xla compatibility: under kImmutableUntilTransferCompletes
+  // semantics the framework holds the source at::Tensor alive until the
+  // on_done callback fires. copyFromHost stashes that callback on each
+  // shard's BufferInstance without firing it; fire it here, after the
+  // host->device migration above is complete, so the framework drops its
+  // at::Tensor reference and the per-shard host RAM is freed at this
+  // point instead of at BufferInstance teardown.
+  // No-op for the kImmutableOnlyDuringCall path (event already fired in
+  // copyFromHost) and for output-buffer instances (no event set).
+  for (BufferInstance *shard : m_shards) {
+    if (shard != nullptr) {
+      shard->fireDoneWithHostBufferEvent();
+    }
+  }
 }
 
 // Moves pjrt tensor to host.

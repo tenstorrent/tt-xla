@@ -89,6 +89,25 @@ struct CompileOptions {
   // precision for all operations, which can improve accuracy for some models.
   bool enable_const_eval_on_cpu = true;
 
+  // Forces const-eval function inputs to be stored on host (system) memory.
+  //
+  // When ON (tt-mlir default), the TTNNConstEvalInputsToSystemMemory pass
+  // converts every block argument that is consumed only by `LoadCachedOp`
+  // to `BufferType::SystemMemory`. The result is that the executable's
+  // expected layout for those args is HOST, so PJRT plugin's
+  // ensure_layout (`hasLayout` check) returns true and never migrates the
+  // host data — the per-shard plugin staging stays alive for the
+  // BufferInstance's lifetime, which leaks ~14 GB / layer in
+  // streaming/run_hybrid.py.
+  //
+  // Setting this to false keeps those inputs in device memory, so
+  // ensure_layout migrates host -> device on first use, releasing the
+  // multi-device DistributedHostBuffer's shared_ptr ref to per-shard
+  // host data via RAII.
+  //
+  // See streaming/DEBUG_HYBRID_NOTES.md for the analysis.
+  bool enable_const_eval_inputs_to_system_memory = true;
+
   // Enables transpose + matmul and transpose + linear ops fusion.
   // This controls fusing of transpose + matmul and transpose + linear ops.
   // When disabled, transpose is kept as a separate op which can be constevaled,

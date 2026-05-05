@@ -258,6 +258,14 @@ private:
   // Enables IR printing between passes with VERBOSE or higher logger level.
   static void enableVerboseIRPrinting(mlir::PassManager &pm);
 
+  // When TT_PJRT_PM_TIMING=1, runs the given PM on the given module
+  // wrapped in a chrono measurement and prints
+  // "[pm-timing] <stage_name>: <wall_time>s" to stderr. Avoids MLIR's
+  // built-in PassTiming which serializes multithreaded passes.
+  static mlir::LogicalResult runPMWithTiming(mlir::PassManager &pm,
+                                             mlir::ModuleOp module,
+                                             const char *stage_name);
+
   // Checks if a particular type is scalar.
   static bool isScalarType(mlir::Type type);
 

@@ -94,6 +94,19 @@ public: // Constructors needs to be public for std::shared_ptr.
   void ensure_layout(const tt::runtime::Device &device,
                      const tt::runtime::Layout &layout);
 
+  // DEBUG_HYBRID_LEAK: forcibly migrate the runtime tensor from host
+  // to device storage (TILE layout, default DRAM memory config). The
+  // OLD host wrapper is destructed at reassignment, releasing the
+  // multi-device DistributedHostBuffer's shared_ptr ref to the per-
+  // shard host data. Used to break the cache-hit shortcut in
+  // `from_pjrt_buffers` that would otherwise leave host data alive
+  // for the lifetime of the BufferInstance.
+  // No-op if the tensor is already device-resident.
+  // Called automatically after `from_runtime_tensor` if the env var
+  // `TTPJRT_AUTO_MIGRATE_AFTER_CONSOLIDATE` is set.
+  // See streaming/DEBUG_HYBRID_NOTES.md.
+  void force_migrate_to_device(const tt::runtime::Device &device);
+
   // Removes shard from shards (by setting shard to nullptr).
   void remove_shard(const BufferInstance *shard) noexcept;
 

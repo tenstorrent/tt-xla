@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -444,7 +445,8 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
 
   enableVerboseIRPrinting(vhlo_to_shlo_pm);
 
-  if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
+  if (mlir::failed(
+          runPMWithTiming(vhlo_to_shlo_pm, mlir_module.get(), "vhlo_to_shlo"))) {
     LOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
     return tt_pjrt_status::kInternal;
   }
@@ -835,7 +837,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
 
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
 
-  if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
+  if (mlir::failed(runPMWithTiming(stablehlo_pipeline_pm, mlir_module.get(),
+                                   "stablehlo_pipeline"))) {
     LOG_F(ERROR, "Failed to run stablehlo pipeline");
     return tt_pjrt_status::kInternal;
   }
@@ -870,7 +873,8 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
 
   enableVerboseIRPrinting(shlo_to_ttir_pm);
 
-  if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
+  if (mlir::failed(
+          runPMWithTiming(shlo_to_ttir_pm, mlir_module.get(), "shlo_to_ttir"))) {
     LOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
     return tt_pjrt_status::kInternal;
   }
@@ -1029,6 +1033,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
   options.enableCPUHoistedConstEval = compile_options.enable_const_eval_on_cpu;
+  options.enableConstEvalInputsToSystemMemory =
+      compile_options.enable_const_eval_inputs_to_system_memory;
   options.dramSpaceSavingOptimizationEnabled =
       compile_options.experimental_enable_dram_space_saving_optimization;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
@@ -1102,7 +1108,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
-  mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
+  mlir::LogicalResult mlir_result =
+      runPMWithTiming(ttir_to_ttnn_pm, mlir_module.get(), "ttir_to_ttnn");
 
   // Close the optimizer submesh now that the compilation is complete.
   client_instance->closeOptimizerSubmesh();
@@ -1255,6 +1262,41 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   pm.enableIRPrinting();
 }
 
+namespace {
+// Per-stage wall-time profiler. When TT_PJRT_PM_TIMING=1 is set,
+// ModuleBuilder wraps each PassManager's run() with chrono so we get
+// total wall-time per pipeline stage (vhlo->shlo, shlo->ttir, etc.).
+// MLIR's built-in pm.enableTiming() serializes the multithreaded
+// pass execution which makes large compiles unusable; this manual
+// wall-time measurement keeps multithreading intact.
+inline bool shouldEnablePMTiming() {
+  static const bool enabled = []() {
+    const char *v = std::getenv("TT_PJRT_PM_TIMING");
+    return v != nullptr && v[0] == '1';
+  }();
+  return enabled;
+}
+} // namespace
+
+mlir::LogicalResult
+ModuleBuilder::runPMWithTiming(mlir::PassManager &pm, mlir::ModuleOp module,
+                               const char *stage_name) {
+  if (!shouldEnablePMTiming()) {
+    return pm.run(module);
+  }
+  size_t op_count = 0;
+  module->walk([&](mlir::Operation *) { ++op_count; });
+  std::fprintf(stderr, "[pm-entry]  %-32s ops=%zu\n", stage_name, op_count);
+  auto t0 = std::chrono::steady_clock::now();
+  mlir::LogicalResult result = pm.run(module);
+  auto elapsed_ns = std::chrono::steady_clock::now() - t0;
+  double elapsed_s =
+      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed_ns).count() /
+      1000.0;
+  std::fprintf(stderr, "[pm-timing] %-32s %7.2fs\n", stage_name, elapsed_s);
+  return result;
+}
+
 bool ModuleBuilder::isUsingShardy(
     const mlir::OwningOpRef<mlir::ModuleOp> &module) {
   // After running through the SdyRoundTripImportPipeline, the module which uses
@@ -1327,7 +1369,8 @@ ModuleBuilder::buildModuleForTTNNRuntime(
                                                     runtime_options);
   enableVerboseIRPrinting(runtime_pm);
 
-  mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
+  mlir::LogicalResult mlir_result =
+      runPMWithTiming(runtime_pm, mlir_module.get(), "runtime");
   if (mlir::failed(mlir_result)) {
     LOG_F(ERROR, "Failed to run TTNNCommonToRuntime pipeline");
     return {tt_pjrt_status::kInternal, nullptr};
