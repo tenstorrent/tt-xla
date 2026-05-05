@@ -23,9 +23,10 @@ from infra.utilities.torch_multichip_utils import enable_spmd
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
-    _patch_tt_torch_getitem_clamp,
     _patch_wan_resample_avoid_4d_fold,
     _patch_wan_resample_rep_sentinel,
+    _disable_tt_torch_function_override,
+    safe_xla_slicing,
 )
 from .shared import (
     RESOLUTIONS,
@@ -40,9 +41,9 @@ from .shared import (
 # Monkey patches
 # ---------------------------------------------------------------------------
 
-_patch_tt_torch_getitem_clamp()
 _patch_wan_resample_rep_sentinel()
 _patch_wan_resample_avoid_4d_fold()
+_disable_tt_torch_function_override()
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -105,12 +106,14 @@ def _run(resolution: str, sharded: bool):
 
     with torch.no_grad():
         warmup_start = time.perf_counter_ns()
-        _ = compiled(*inputs_on_device)
+        with safe_xla_slicing():
+            _ = compiled(*inputs_on_device)
         torch_xla.sync(wait=True)
         warmup_end = time.perf_counter_ns()
 
         warm_start = time.perf_counter_ns()
-        tt_out = compiled(*inputs_on_device)
+        with safe_xla_slicing():
+            tt_out = compiled(*inputs_on_device)
         torch_xla.sync(wait=True)
         warm_end = time.perf_counter_ns()
 
