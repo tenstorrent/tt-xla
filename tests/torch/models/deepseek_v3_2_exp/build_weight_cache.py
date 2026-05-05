@@ -376,6 +376,9 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*", args.repo):
+        parser.error(f"Invalid repo ID {args.repo!r}: expected 'org/model' format")
+
     n_dense_layers = args.n_dense_layers
     if n_dense_layers is None:
         config_path = hf_hub_download(args.repo, "config.json")
