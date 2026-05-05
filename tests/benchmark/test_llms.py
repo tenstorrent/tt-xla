@@ -1769,7 +1769,7 @@ def test_gpt_oss_20b_tp(
 
 
 # Test with D2M fusion enabled (enable-create-d2m-subgraphs=true).
-def test_gpt_oss_20b_tp_d2m_subgraphs(
+def test_gpt_oss_20b_tp_d2m(
     output_file,
     num_layers,
     request,

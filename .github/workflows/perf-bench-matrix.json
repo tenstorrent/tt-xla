@@ -177,9 +177,9 @@
         "runs-on": "n300-llmbox"
       },
       {
-        "name": "gpt_oss_20b_tp_d2m_subgraphs",
+        "name": "gpt_oss_20b_tp_d2m",
         "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==5.2.0",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_d2m_subgraphs",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_d2m",
         "runs-on": "n300-llmbox"
       },
       {
@@ -543,9 +543,9 @@
         "accuracy-testing": true
       },
       {
-        "name": "gpt_oss_20b_tp_d2m_subgraphs_accuracy",
+        "name": "gpt_oss_20b_tp_d2m_accuracy",
         "pyreq": "datasets loguru pytest requests accelerate torch==2.9.0 tqdm transformers==5.2.0",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_d2m_subgraphs",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_d2m",
         "runs-on": "n300-llmbox",
         "accuracy-testing": true
       },
