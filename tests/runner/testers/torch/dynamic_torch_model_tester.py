@@ -29,6 +29,8 @@ class DynamicTorchModelTester(TorchModelTester):
     for flexible model loading without subclassing for each model variant.
     """
 
+    DEFAULT_TRAINING_BATCH_SIZE = 2
+
     def __init__(
         self,
         run_mode: RunMode,
@@ -134,7 +136,11 @@ class DynamicTorchModelTester(TorchModelTester):
             else None
         )
         if batch_size is None and self._run_mode == RunMode.TRAINING:
-            batch_size = 2
+            batch_size = self.DEFAULT_TRAINING_BATCH_SIZE
+            logger.info(
+                f"No batch_size specified in test_metadata; defaulting to "
+                f"batch_size={batch_size} for RunMode.TRAINING"
+            )
 
         inputs = self.dynamic_loader.load_inputs(
             run_phase=self.run_phase,
