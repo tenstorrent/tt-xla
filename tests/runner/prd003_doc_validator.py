@@ -24,7 +24,8 @@ from typing import Any
 
 CONTRACT_VERSION = "1.0.0"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT_ROOT = PROJECT_ROOT / "artifacts" / "prd003_doc_validator"
+SAFE_OUTPUT_ROOT = PROJECT_ROOT / "artifacts"
+DEFAULT_OUTPUT_ROOT = SAFE_OUTPUT_ROOT / "prd003_doc_validator"
 
 
 PHASE1_DOC_FLOWS: list[dict[str, Any]] = [
@@ -212,6 +213,17 @@ def write_json(path: Path, payload: Any) -> None:
 def write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def resolve_output_root(output_root: Path) -> Path:
+    root = output_root if output_root.is_absolute() else PROJECT_ROOT / output_root
+    resolved = root.resolve(strict=False)
+    safe_root = SAFE_OUTPUT_ROOT.resolve(strict=False)
+    try:
+        resolved.relative_to(safe_root)
+    except ValueError as exc:
+        raise ValueError(f"output_root must be under {safe_root}") from exc
+    return resolved
 
 
 def redact(text: str) -> str:
@@ -424,6 +436,7 @@ def run_validation(
     execute: bool = False,
     timeout_seconds: int = 1800,
 ) -> ValidationRun:
+    output_root = resolve_output_root(output_root)
     output_root.mkdir(parents=True, exist_ok=True)
     records = []
     write_json(

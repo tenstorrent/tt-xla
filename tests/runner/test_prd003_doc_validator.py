@@ -6,7 +6,13 @@ import json
 import os
 from pathlib import Path
 
-from tests.runner.prd003_doc_validator import CONTRACT_VERSION, run_validation
+import pytest
+
+from tests.runner.prd003_doc_validator import (
+    CONTRACT_VERSION,
+    PROJECT_ROOT,
+    run_validation,
+)
 
 REQUIRED_RECORD_FIELDS = {
     "contract_version",
@@ -33,9 +39,9 @@ def _env_flag(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def test_prd003_doc_validator_emits_contract_records(tmp_path: Path):
+def test_prd003_doc_validator_emits_contract_records():
     output_root = Path(
-        os.getenv("TT_XLA_PRD003_OUTPUT_ROOT", tmp_path / "prd003_doc_validator")
+        os.getenv("TT_XLA_PRD003_OUTPUT_ROOT", "artifacts/prd003_doc_validator_pytest")
     )
     run_id = os.getenv("TT_XLA_PRD003_RUN_ID", "prd003-doc-validator-pytest")
     target_id = os.getenv("TT_XLA_PRD003_TARGET_ID", "local")
@@ -74,3 +80,11 @@ def test_prd003_doc_validator_emits_contract_records(tmp_path: Path):
         assert result.summary["counts_by_status"] == {"fail": 6}
         assert all(record["reason_code"] == "doc-ambiguous-step" for record in records)
         assert all(record["doc_clarity"]["is_ambiguous"] for record in records)
+
+
+def test_prd003_doc_validator_rejects_output_paths_outside_artifacts(tmp_path: Path):
+    with pytest.raises(ValueError, match="output_root must be under"):
+        run_validation(output_root=tmp_path / "outside")
+
+    with pytest.raises(ValueError, match="output_root must be under"):
+        run_validation(output_root=PROJECT_ROOT / ".." / "prd003-outside")
