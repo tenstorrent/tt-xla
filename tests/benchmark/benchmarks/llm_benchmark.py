@@ -262,6 +262,7 @@ def benchmark_llm_torch_xla(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    enable_create_d2m_subgraphs: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -448,6 +449,8 @@ def benchmark_llm_torch_xla(
     }
     if fp32_dest_acc_en is not None:
         options["fp32_dest_acc_en"] = fp32_dest_acc_en
+    if enable_create_d2m_subgraphs:
+        options["enable_create_d2m_subgraphs"] = enable_create_d2m_subgraphs
 
     torch_xla.set_custom_compile_options(options)
 

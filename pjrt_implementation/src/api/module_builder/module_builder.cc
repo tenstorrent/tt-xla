@@ -1046,6 +1046,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableCPUHoistedConstEval = compile_options.enable_const_eval_on_cpu;
   options.dramSpaceSavingOptimizationEnabled =
       compile_options.experimental_enable_dram_space_saving_optimization;
+  options.enableCreateD2MSubgraphs =
+      compile_options.enable_create_d2m_subgraphs;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
 
   // Auto-number performance metrics output file if enabled
