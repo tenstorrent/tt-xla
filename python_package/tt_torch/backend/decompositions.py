@@ -467,6 +467,14 @@ def populate_decompositions() -> DecompositionTable:
     decompositions.pop(torch.ops.aten.sum.default)
     decompositions.pop(torch.ops.aten.sum.out)
 
+    # The core decomposition for aten.detach rewrites it as aten.alias. AOTAutograd
+    # inserts detach() around saved-for-backward tensors as markers; rewriting them
+    # to alias() (a view) confuses the downstream FunctionalTensor / torch-xla
+    # extract_compiled_graph machinery under SPMD multichip and causes user outputs
+    # to be mapped to the wrong tensors (loss/logits resolve to attention
+    # intermediates). Keep detach as a no-op aten op instead.
+    decompositions.pop(torch.ops.aten.detach.default)
+
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())
 
