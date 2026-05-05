@@ -11,7 +11,7 @@ import torch_xla.runtime as xr
 from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
-from transformers import AutoModelForCausalLM
+from transformers.models.gpt_oss.modeling_gpt_oss import GptOssMLP
 from tt_torch.sparse_mlp import A2aSparseMLP
 
 from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
@@ -32,20 +32,17 @@ def _setup_mesh():
     return mesh, mesh_shape, torch_xla.device(), num_devices
 
 
-def _build_model(num_devices: int):
+def _build_mlp(num_devices: int):
     config = GPTOSSModelLoader(num_layers=1).load_config()
-    config.num_hidden_layers = 1
     config.num_local_experts = 32
     config.num_experts_per_tok = 2
     config.hidden_size = 64
     config.intermediate_size = 64
     assert config.num_local_experts % num_devices == 0
 
-    model = AutoModelForCausalLM.from_config(
-        config, trust_remote_code=True, torch_dtype=torch.float32
-    )
-    override_gpt_oss_modules(model)
-    return model, config
+    mlp = GptOssMLP(config).to(torch.float32)
+    override_gpt_oss_modules(mlp)
+    return mlp, config
 
 
 def _wrap_with_a2a(mlp, config, num_devices: int) -> A2aSparseMLP:
@@ -79,16 +76,12 @@ def test_a2a_sparse_mlp_backward_pcc():
     batch_size, seq_len = 2, 32
 
     torch.manual_seed(0)
-    model_cpu, config = _build_model(num_devices=num_devices)
-    model_tt, _ = _build_model(num_devices=num_devices)
-    model_tt.load_state_dict(model_cpu.state_dict())
+    base_mlp_cpu, config = _build_mlp(num_devices=num_devices)
+    base_mlp_tt, _ = _build_mlp(num_devices=num_devices)
+    base_mlp_tt.load_state_dict(base_mlp_cpu.state_dict())
 
-    mlp_cpu = _wrap_with_a2a(
-        model_cpu.model.layers[0].mlp, config, num_devices=num_devices
-    )
-    mlp_tt = _wrap_with_a2a(
-        model_tt.model.layers[0].mlp, config, num_devices=num_devices
-    )
+    mlp_cpu = _wrap_with_a2a(base_mlp_cpu, config, num_devices=num_devices)
+    mlp_tt = _wrap_with_a2a(base_mlp_tt, config, num_devices=num_devices)
 
     hidden_states = torch.randn(
         (batch_size, seq_len, config.hidden_size), dtype=torch.float32
