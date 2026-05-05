@@ -6,7 +6,7 @@
 Loads real BF16 weights via a post-sparse cache built by
 ``build_weight_cache_glm.py``. Runs a single prefill through
 ``Glm4MoeForCausalLM`` with ``A2aSparseMLP`` MoE layers, and prints the
-top-k next-token predictions. No CPU reference.
+top-k next-token predictions. CPU reference can be run by setting ``cpu_reference`` to True.
 """
 import json
 import os
@@ -46,7 +46,6 @@ from build_weight_cache_glm import (
 GLM_REPO = "zai-org/GLM-4.7"
 
 
-# TODO(issue): link tracking issue once filed.
 # Stock Glm4MoeTopkRouter.forward (transformers modeling_glm4_moe.py) upcasts
 # both input and weight to float32 before the gate linear. On TT, the fp32
 # linear kernel has accuracy issues large enough to flip top-k routing
@@ -66,8 +65,10 @@ def _patch_router_bf16():
 
     Glm4MoeTopkRouter.forward = _bf16_forward
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-# ---------- helpers ----------
 def _load_cache_chunked(cache_dir):
     state_dict = {}
     for fname in sorted(os.listdir(cache_dir)):
@@ -439,200 +440,15 @@ def _apply_shard_specs(
                 mark_sharding(shared.down_proj.weight, mesh, ("_axis_0", None))
 
 
-# ---------- test ----------
-@pytest.mark.llmbox
-@pytest.mark.nightly
-def test_glm4_7_full_sparse_moe():
-    t_start = time.perf_counter()
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
 
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-    xr.set_device_type("TT")
-    torch_xla.runtime.use_spmd()
-    _patch_router_bf16()
-
-    batch_size = 32
-    seq_len = 32
-    n_layers = int(os.environ.get("GLM_N_LAYERS", 4))
-    mesh_shape = (4, 8)
-    run_cpu_reference = os.environ.get("GLM_CPU_REFERENCE", "0") == "1"
-
-    # ----- Config -----
-    config = Glm4MoeConfig.from_pretrained(GLM_REPO)
-    config.num_hidden_layers = n_layers
-    config.use_cache = True
-    config._attn_implementation = "eager"
-    # Don't build MTP/next-n head — not needed for prefill.
-    if hasattr(config, "num_nextn_predict_layers"):
-        config.num_nextn_predict_layers = 0
-    print(
-        f"[config] n_layers={n_layers}, n_dense={config.first_k_dense_replace}, "
-        f"n_experts={config.n_routed_experts}, top_k={config.num_experts_per_tok}, "
-        f"cpu_reference={run_cpu_reference}",
-        flush=True,
-    )
-
-    # ----- Model + weights -----
-    model = _build_and_load_model(
-        config, GLM_REPO, mesh_shape, prefer_cpu_capable=run_cpu_reference
-    )
-
-    # ----- Tokenizer / inputs -----
-    tokenizer = AutoTokenizer.from_pretrained(
-        GLM_REPO, trust_remote_code=True, padding_side="left"
-    )
-    prompt_text = (
-        "Tenstorrent is a company that builds AI accelerators. "
-        "Their chips are designed to"
-    )
-    encoded = tokenizer(
-        prompt_text,
-        return_tensors="pt",
-        max_length=seq_len,
-        truncation=True,
-        padding="max_length",
-    )
-    tokens_single = encoded["input_ids"][:, :seq_len]
-    tokens_cpu = tokens_single.repeat(batch_size, 1)
-    token_attn_mask_cpu = encoded["attention_mask"][:, :seq_len].repeat(batch_size, 1)
-    print(
-        f"[input] prompt: {tokenizer.decode(tokens_single[0].tolist())!r}", flush=True
-    )
-    print(
-        f"[input] real tokens: {int(token_attn_mask_cpu[0].sum())}/{seq_len}",
-        flush=True,
-    )
-
-    # HF default: position_ids = cache_position.unsqueeze(0). RoPE is purely
-    # relative, so absolute offset doesn't affect attention scores.
-    cache_position = torch.arange(seq_len)
-    position_ids = cache_position.unsqueeze(0).expand(batch_size, -1).contiguous()
-
-    # StaticCache — sized exactly to the prefill (no decode in this test).
-    max_cache_len = seq_len
-
-    def _make_static_cache():
-        cache = StaticCache(
-            config=config,
-            max_batch_size=batch_size,
-            max_cache_len=max_cache_len,
-            device="cpu",
-            dtype=torch.bfloat16,
-        )
-        cache.early_initialization(
-            batch_size=batch_size,
-            num_heads=config.num_key_value_heads,
-            head_dim=config.head_dim,
-            dtype=torch.bfloat16,
-            device="cpu",
-        )
-        return cache
-
-    full_attn_mask = _build_full_attention_mask(
-        token_attn_mask_cpu, max_cache_len, batch_size
-    )
-
-    # ===== CPU reference (opt-in via GLM_CPU_REFERENCE=1) =====
-    cpu_logits = None
-    if run_cpu_reference:
-        print("[cpu] running prefill eagerly...", flush=True)
-        t_cpu_start = time.perf_counter()
-        cpu_cache = _make_static_cache()
-        with torch.no_grad():
-            cpu_out = model(
-                input_ids=tokens_cpu,
-                attention_mask=full_attn_mask,
-                position_ids=position_ids,
-                past_key_values=cpu_cache,
-                cache_position=cache_position,
-                use_cache=True,
-            )
-        # Detach + clone so cpu_logits doesn't keep cpu_out's graph alive.
-        cpu_logits = cpu_out.logits.detach().clone()
-        del cpu_out, cpu_cache
-        print(
-            f"[timing] CPU prefill: {time.perf_counter() - t_cpu_start:.1f}s",
-            flush=True,
-        )
-        cpu_top5 = cpu_logits[0, -1].topk(5)
-        cpu_tokens = [tokenizer.decode([t]) for t in cpu_top5.indices.tolist()]
-        print(f"[CPU top-5] tokens={cpu_tokens}", flush=True)
-        print(f"[CPU top-5] logits={cpu_top5.values.tolist()}", flush=True)
-
-        # Drop the per-expert originals so only stacked weights transfer to TT.
-        _release_cpu_originals(model)
-    else:
-        print("[cpu] SKIPPED — set GLM_CPU_REFERENCE=1 to run CPU golden", flush=True)
-
-    # ----- TT path -----
-    torch._dynamo.reset()
-
-    num_devices = xr.global_runtime_device_count()
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
-    device = torch_xla.device()
-
-    torch_xla.set_custom_compile_options(
-        CompilerConfig(experimental_weight_dtype="bfp_bf8").to_torch_compile_options()
-    )
-
-    # Move to device — use to_empty + load_state_dict for meta path; to() for CPU path.
-    t0 = time.perf_counter()
-    model = model.to(device)
-    tokens_device = tokens_cpu.to(device)
-    position_ids_device = position_ids.to(device)
-    cache_position_device = cache_position.to(device)
-    full_attn_mask_device = full_attn_mask.to(device)
-    tt_cache = _make_static_cache()
-    for layer_cache in tt_cache.layers:
-        layer_cache.keys = layer_cache.keys.to(device)
-        layer_cache.values = layer_cache.values.to(device)
-    print(f"[timing] move to device: {time.perf_counter() - t0:.1f}s", flush=True)
-
-    _apply_shard_specs(
-        model,
-        mesh,
-        tokens_device,
-        position_ids_device,
-        cache_position_device,
-        tt_cache,
-        config,
-    )
-    mark_sharding(full_attn_mask_device, mesh, ("_axis_1", None))
-
-    compiled_model = torch.compile(model, backend="tt")
-
-    print("[tt] running prefill (compile + run)...", flush=True)
-    t0 = time.perf_counter()
-    with torch.no_grad():
-        out = compiled_model(
-            input_ids=tokens_device,
-            attention_mask=full_attn_mask_device,
-            position_ids=position_ids_device,
-            past_key_values=tt_cache,
-            cache_position=cache_position_device,
-            use_cache=True,
-        )
-    logits_tt_cpu = out.logits.to("cpu").detach()
-    print(f"[timing] TT prefill: {time.perf_counter() - t0:.1f}s", flush=True)
-
-    # Top-5 next-token predictions from the last prefill position.
-    top5 = logits_tt_cpu[0, -1].topk(5)
-    tokens = [tokenizer.decode([t]) for t in top5.indices.tolist()]
-    print(f"[TT top-5] tokens={tokens}", flush=True)
-    print(f"[TT top-5] logits={top5.values.tolist()}", flush=True)
-
-    if cpu_logits is not None:
-        pcc = _pcc(logits_tt_cpu, cpu_logits)
-        print(f"[pcc] logits PCC (TT vs CPU) = {pcc:.4f} (required: 0.99)", flush=True)
-        assert pcc >= 0.99, f"PCC {pcc:.4f} below required 0.99"
-
-    print(f"[timing] total: {time.perf_counter() - t_start:.1f}s", flush=True)
-
-
-# ---------- decode test ----------
 @pytest.mark.galaxy
 @pytest.mark.nightly
-def test_glm4_7_decode_static_cache():
+@pytest.mark.parametrize("cpu_reference", [True, False], ids=["cpu_reference", "no_cpu_reference"])
+@pytest.mark.parametrize("n_layers", [4])
+def test_glm4_7_decode_static_cache(cpu_reference, n_layers):
     """Autoregressive greedy decode on TT using StaticCache.
 
     Two torch.compile traces: prefill (seq=prompt_len) and decode (seq=1).
@@ -649,9 +465,8 @@ def test_glm4_7_decode_static_cache():
     batch_size = 32
     prompt_seq_len = 32
     n_decode = 10
-    n_layers = int(os.environ.get("GLM_N_LAYERS", 4))
     mesh_shape = (4, 8)
-    run_cpu_reference = os.environ.get("GLM_CPU_REFERENCE", "0") == "1"
+    run_cpu_reference = cpu_reference
 
     # ----- Config -----
     config = Glm4MoeConfig.from_pretrained(GLM_REPO)

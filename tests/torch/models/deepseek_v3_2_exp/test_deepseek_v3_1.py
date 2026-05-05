@@ -51,7 +51,7 @@ DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
 
 
 # ---------------------------------------------------------------------------
-# Weight loading / cache
+# Helpers
 # ---------------------------------------------------------------------------
 
 
@@ -399,132 +399,11 @@ def _pcc(a, b):
 # Tests
 # ---------------------------------------------------------------------------
 
-
-def test_deepseek_v3_1_full_sparse_moe():
-    """Prefill-only forward on the (4,8) mesh with A2aSparseMLP. Real input,
-    real weights, CPU PCC comparison."""
-    t_start = time.perf_counter()
-
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-    xr.set_device_type("TT")
-    torch_xla.runtime.use_spmd()
-
-    from transformers import AutoTokenizer
-
-    batch_size = 32
-    seq_len = 32
-
-    repo_id = DEEPSEEK_V3_1_REPO
-    args = load_deepseek_config(repo_id)
-    args.n_layers = int(os.environ.get("DEEPSEEK_N_LAYERS", args.n_dense_layers + 1))
-    args.max_batch_size = batch_size
-    # max_seq_len must exceed original_seq_len (4096) to activate YaRN mscale.
-    args.max_seq_len = args.original_seq_len + 1
-    print(
-        f"[config] n_layers={args.n_layers}, max_seq_len={args.max_seq_len}", flush=True
-    )
-
-    t0 = time.perf_counter()
-    print(f"[timing] config + init: {t0 - t_start:.1f}s", flush=True)
-
-    # DEEPSEEK_CPU_REFERENCE=1 runs the CPU eager reference and reports PCC.
-    # Requires the dequant cache (which keeps the original MoE alive for CPU
-    # forward); post-sparse cache is incompatible. Disabled by default so
-    # large-layer runs use the fast post-sparse path.
-    run_cpu_reference = os.environ.get("DEEPSEEK_CPU_REFERENCE", "0") == "1"
-
-    model, mesh_shape = _build_and_load_model(
-        args, repo_id, prefer_cpu_capable=run_cpu_reference
-    )
-
-    t1 = time.perf_counter()
-    print(f"[timing] model build + weight load: {t1 - t0:.1f}s", flush=True)
-
-    tokenizer = AutoTokenizer.from_pretrained(
-        repo_id, trust_remote_code=True, add_bos_token=True, padding_side="left"
-    )
-    prompt_text = (
-        "Tenstorrent is a company that builds AI accelerators. "
-        "Their chips are designed to"
-    )
-    encoded = tokenizer(
-        prompt_text,
-        return_tensors="pt",
-        max_length=seq_len,
-        truncation=True,
-        padding="max_length",
-    )
-    tokens_single = encoded["input_ids"][:, :seq_len]
-    tokens_cpu = tokens_single.repeat(batch_size, 1)
-    print(
-        f"[input] prompt: {tokenizer.decode(tokens_single[0].tolist())!r}", flush=True
-    )
-
-    # ===== CPU reference (opt-in via DEEPSEEK_CPU_REFERENCE=1) =====
-    cpu_logits = None
-    if run_cpu_reference:
-        print("[cpu] running prefill eagerly (int path)...", flush=True)
-        t_cpu_start = time.perf_counter()
-        with torch.no_grad():
-            cpu_logits = model(tokens_cpu, start_pos=0)
-        t_cpu_end = time.perf_counter()
-        cpu_top5 = cpu_logits[0].topk(5, dim=-1).indices
-        print(f"[timing] CPU prefill: {t_cpu_end - t_cpu_start:.1f}s", flush=True)
-        print(
-            f"[CPU top-5] {[tokenizer.decode([t]) for t in cpu_top5.tolist()]}",
-            flush=True,
-        )
-        _reset_caches(model)
-    else:
-        print(
-            "[cpu] SKIPPED — set DEEPSEEK_CPU_REFERENCE=1 to run CPU golden",
-            flush=True,
-        )
-
-    # ===== TT path =====
-    torch._dynamo.reset()
-
-    num_devices = xr.global_runtime_device_count()
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
-    device = torch_xla.device()
-
-    torch_xla.set_custom_compile_options(
-        CompilerConfig(experimental_weight_dtype="bfp_bf8").to_torch_compile_options()
-    )
-    compiled_model = torch.compile(model, backend="tt")
-
-    t_mv_start = time.perf_counter()
-    model = model.to(device)
-    tokens_device = tokens_cpu.to(device)
-    t_mv_end = time.perf_counter()
-    print(f"[timing] move to device: {t_mv_end - t_mv_start:.1f}s", flush=True)
-
-    _apply_shard_specs(model, mesh, args, batch_size, tokens_device)
-
-    print("[tt] running prefill...", flush=True)
-    t_tt_start = time.perf_counter()
-    with torch.no_grad():
-        tt_logits = compiled_model(tokens_device, start_pos=0)
-    tt_logits_cpu = tt_logits.to("cpu").detach()
-    t_tt_end = time.perf_counter()
-    print(
-        f"[timing] TT prefill (compile + run): {t_tt_end - t_tt_start:.1f}s", flush=True
-    )
-
-    tt_top5 = tt_logits_cpu[0].topk(5, dim=-1).indices
-    print(
-        f"[TT  top-5] {[tokenizer.decode([t]) for t in tt_top5.tolist()]}", flush=True
-    )
-
-    if cpu_logits is not None:
-        pcc = _pcc(tt_logits_cpu, cpu_logits.detach())
-        print(f"[pcc] logits PCC (TT vs CPU) = {pcc:.4f} (required: 0.99)", flush=True)
-    else:
-        print("[pcc] SKIPPED — no CPU reference", flush=True)
-
-
-def test_deepseek_v3_1_decode_static_cache():
+@pytest.mark.galaxy
+@pytest.mark.nightly
+@pytest.mark.parametrize("cpu_reference", [True, False] , ids=["cpu_reference", "no_cpu_reference"])
+@pytest.mark.parametrize("n_layers", [4])
+def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
     """Autoregressive greedy decode on TT using the MLACache path.
 
     Two compiles: prefill (prompt_seq_len), decode (seq_len=1, reused).
@@ -545,7 +424,7 @@ def test_deepseek_v3_1_decode_static_cache():
 
     repo_id = DEEPSEEK_V3_1_REPO
     args = load_deepseek_config(repo_id)
-    args.n_layers = int(os.environ.get("DEEPSEEK_N_LAYERS", args.n_dense_layers + 1))
+    args.n_layers = n_layers
     args.max_batch_size = batch_size
     args.max_seq_len = args.original_seq_len + 1  # = 4097, activates YaRN
     print(
@@ -559,7 +438,7 @@ def test_deepseek_v3_1_decode_static_cache():
     # loop) and reports per-step PCC. Requires the dequant cache; post-sparse
     # cache is incompatible. Disabled by default so 61-layer runs use the fast
     # post-sparse path.
-    run_cpu_reference = os.environ.get("DEEPSEEK_CPU_REFERENCE", "0") == "1"
+    run_cpu_reference = cpu_reference
 
     model, mesh_shape = _build_and_load_model(
         args, repo_id, prefer_cpu_capable=run_cpu_reference
