@@ -41,6 +41,13 @@ def _build_mlp(num_devices: int):
     assert config.num_local_experts % num_devices == 0
 
     mlp = GptOssMLP(config).to(torch.float32)
+    std = config.initializer_range
+    torch.nn.init.normal_(mlp.experts.gate_up_proj, mean=0.0, std=std)
+    torch.nn.init.zeros_(mlp.experts.gate_up_proj_bias)
+    torch.nn.init.normal_(mlp.experts.down_proj, mean=0.0, std=std)
+    torch.nn.init.zeros_(mlp.experts.down_proj_bias)
+    torch.nn.init.normal_(mlp.router.weight, mean=0.0, std=std)
+    torch.nn.init.normal_(mlp.router.bias, mean=0.0, std=std)
     override_gpt_oss_modules(mlp)
     return mlp, config
 
