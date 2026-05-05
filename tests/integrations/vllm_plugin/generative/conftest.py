@@ -5,7 +5,6 @@
 import re
 
 import psutil
-import pytest
 
 # Common English function words used by `assert_output_coherent` to detect
 # the 2D-mesh sampler garbage-output bug (issue #4440). Coherent natural-
@@ -33,24 +32,20 @@ def assert_output_coherent(text: str) -> None:
     introduces non-English prompts or code-completion prompts.
     """
     s = text.strip()
-    if not s:
-        pytest.fail(f"empty output: {text!r}")
+    assert s, f"empty output: {text!r}"
     nlr = sum(1 for c in s if ord(c) > 127) / len(s)
-    if nlr > _MAX_NON_LATIN_RATIO:
-        pytest.fail(
-            f"non-Latin char ratio too high ({nlr:.3f} > {_MAX_NON_LATIN_RATIO}): "
-            f"{text!r}"
-        )
+    assert nlr <= _MAX_NON_LATIN_RATIO, (
+        f"non-Latin char ratio too high ({nlr:.3f} > {_MAX_NON_LATIN_RATIO}): "
+        f"{text!r}"
+    )
     words = [w.lower() for w in _WORD_RE.findall(s)]
-    if not words:
-        pytest.fail(f"output has no word characters: {text!r}")
+    assert words, f"output has no word characters: {text!r}"
     if len(words) < _MIN_WORDS:
         return
     sr = sum(1 for w in words if w in _STOPWORDS) / len(words)
-    if sr < _MIN_STOPWORD_RATIO:
-        pytest.fail(
-            f"stopword ratio too low ({sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
-        )
+    assert (
+        sr >= _MIN_STOPWORD_RATIO
+    ), f"stopword ratio too low ({sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
 
 
 def check_host_memory(model_name: str) -> float:
@@ -81,10 +76,9 @@ def check_host_memory(model_name: str) -> float:
     print(f"[MEM] {model_name}: max child RSS = {rss_gb:.1f} GB (limit: {limit_str})")
 
     if threshold is not None:
-        if rss_gb >= threshold:
-            pytest.fail(
-                f"Max child RSS {rss_gb:.1f} GB exceeds {threshold} GB "
-                f"for {model_name} — possible host memory regression"
-            )
+        assert rss_gb < threshold, (
+            f"Max child RSS {rss_gb:.1f} GB exceeds {threshold} GB "
+            f"for {model_name} — possible host memory regression"
+        )
 
     return rss_gb

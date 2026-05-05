@@ -69,5 +69,4 @@ def run_pooling_test(
         print("-" * 60)
         pcc_values.append(pcc.item())
 
-    if not all(p >= 0.99 for p in pcc_values):
-        pytest.fail(f"Low PCC values: {pcc_values}")
+    assert all(p >= 0.99 for p in pcc_values), f"Low PCC values: {pcc_values}"

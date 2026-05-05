@@ -37,5 +37,4 @@ def test_opt125m_trace_logprobs():
     )
     sp = vllm.SamplingParams(temperature=0, max_tokens=8, logprobs=1)
     out = llm.generate(["Hello, my name is"], sp)[0]
-    if out.outputs[0].logprobs is None:
-        pytest.fail("Expected logprobs but got None")
+    assert out.outputs[0].logprobs is not None
