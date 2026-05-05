@@ -165,7 +165,7 @@ jobs:
       run: |
         source venv/activate
         pip install ${{ matrix.build.pyreq }}
-        pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
+        pip install torchvision==0.25.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
