@@ -81,6 +81,22 @@ namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
 
+// Returns true if the public entry point of the module has at least one
+// argument.
+static bool
+moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
+  std::vector<mlir::func::FuncOp> public_func_ops;
+  m.get().walk([&](mlir::func::FuncOp funcOp) {
+    if (funcOp.isPublic()) {
+      public_func_ops.push_back(funcOp);
+    }
+  });
+  TT_FATAL(public_func_ops.size() == 1,
+           "Expected exactly one public function in module, got {}",
+           public_func_ops.size());
+  return public_func_ops[0].getNumArguments() > 0;
+}
+
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
 fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
@@ -845,6 +861,13 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
+
+  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
+      !moduleHasAnyFuncArguments(mlir_module)) {
+    stablehlo_pipeline_options.meshShape = {
+        static_cast<int64_t>((*current_mesh_shape)[0]),
+        static_cast<int64_t>((*current_mesh_shape)[1])};
+  }
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 
