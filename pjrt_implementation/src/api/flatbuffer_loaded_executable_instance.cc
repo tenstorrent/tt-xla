@@ -5,6 +5,11 @@
 
 #include "api/flatbuffer_loaded_executable_instance.h"
 
+// DEBUG_HYBRID_LEAK includes for RSS logging
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
 // tracy includes
 #include "tracy/Tracy.hpp"
 
@@ -77,6 +82,21 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
 
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
+
+  // DEBUG_HYBRID_LEAK: optionally force host→device migration right
+  // after consolidation. The point is to drop the multi-device
+  // DistributedHostBuffer's shared_ptr refs to per-shard host data
+  // (RAII chain when OLD m_runtime_tensor is reassigned). Gated by
+  // env var; if the executable expects HOST for this input,
+  // ensure_layout below will migrate it back unless
+  // TTPJRT_NO_DEVICE_TO_HOST_MIGRATION=1 is also set.
+  static const bool auto_migrate = []() {
+    const char *v = std::getenv("TTPJRT_AUTO_MIGRATE_AFTER_CONSOLIDATE");
+    return v != nullptr && v[0] == '1';
+  }();
+  if (auto_migrate) {
+    tensor.force_migrate_to_device(runtime_device);
+  }
 
   tensor.ensure_layout(runtime_device, expected_layout);
 
@@ -186,11 +206,36 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 }
 
 // TODO(mrakita): Make this method work in asynchronous fashion.
+// DEBUG_HYBRID_LEAK: per-call RSS logger inside execute. Gated by env
+// var TTPJRT_DEBUG_EXECUTE_RSS=1. Reads /proc/self/status VmRSS line.
+// See streaming/DEBUG_HYBRID_NOTES.md.
+static void debug_log_rss_if_enabled(const char *tag) {
+  static const bool enabled = []() {
+    const char *v = std::getenv("TTPJRT_DEBUG_EXECUTE_RSS");
+    return v != nullptr && v[0] == '1';
+  }();
+  if (!enabled) return;
+  FILE *f = std::fopen("/proc/self/status", "r");
+  if (!f) return;
+  char line[256];
+  while (std::fgets(line, sizeof(line), f)) {
+    if (std::strncmp(line, "VmRSS:", 6) == 0) {
+      // Strip newline.
+      size_t n = std::strlen(line);
+      if (n && line[n - 1] == '\n') line[n - 1] = '\0';
+      std::fprintf(stderr, "[execute-rss %s] %s\n", tag, line);
+      break;
+    }
+  }
+  std::fclose(f);
+}
+
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
   LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
+  debug_log_rss_if_enabled("entry");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
     LOG_F(ERROR, "Device count mismatch: %zu vs %zu", args->num_devices,
@@ -207,6 +252,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   std::optional<tt::runtime::Device> runtime_device =
       getOrCreateMeshDevice(args->argument_lists, args->num_args,
                             args->num_devices, args->execute_device);
+  debug_log_rss_if_enabled("after-getOrCreateMeshDevice");
 
   if (!runtime_device) {
     // Logging is done inside `getOrCreateMeshDevice`.
@@ -221,6 +267,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   tt_pjrt_status status = getInputRuntimeTensors(
       args->argument_lists, args->num_args, args->num_devices, *runtime_device,
       program_index, input_tensors);
+  debug_log_rss_if_enabled("after-getInputRuntimeTensors");
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
@@ -235,6 +282,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
                                   executable_image->getFlatbufferBinary(),
                                   program_index, input_tensors);
+  debug_log_rss_if_enabled("after-tt-runtime-submit");
 
   if (!r) {
     m_client_instance->closeMeshDevice();
@@ -253,6 +301,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 
   fillPJRTOutputLists(output_tensors, args->num_devices, args->output_lists,
                       m_executable_image->getOutputTypes());
+  debug_log_rss_if_enabled("after-fillPJRTOutputLists");
 
   if (args->device_complete_events) {
     for (int device_num = 0; device_num < args->num_devices; ++device_num) {

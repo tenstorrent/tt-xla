@@ -33,12 +33,15 @@ from . import weight_loader
 # Cache file lives next to the tests so it ships with the repo. Versioned
 # field in the saved dict lets us invalidate when generation logic changes.
 _CACHE_DIR = os.path.join(os.path.dirname(__file__), "_cached_inputs")
-_CACHE_VERSION = 2  # bumped: now generated from modified_model (no QAT sim).
+_CACHE_VERSION = 3  # bumped: _CACHE_SEQ raised to 128 for prefill+decode use.
 
 # Largest shape we materialize. Tests with smaller (batch, seq) slice this.
 # Pinned so the cache shape is deterministic across machines.
+# seq=128 was picked to be ≥ max(compress_ratios)=128 in the V4-Flash config,
+# which is the minimum prompt length for decode steps to satisfy the
+# Compressor's `start_pos + 1 - ratio >= 0` rope_idx constraint.
 _CACHE_BATCH = 64
-_CACHE_SEQ = 32
+_CACHE_SEQ = 128
 
 # A passage of natural English, long enough to tokenize to >= _CACHE_BATCH *
 # _CACHE_SEQ tokens with the DeepSeek tokenizer. Keep it deterministic — the
@@ -268,7 +271,16 @@ def _is_compatible(entry: dict, layer_id: int, args) -> bool:
 def _tokenize_passage(args, batch: int, seq: int) -> torch.Tensor:
     """Tokenize `_TEXT_SAMPLE` with the model's tokenizer and reshape the
     flat token stream to `[batch, seq]`. Drops trailing tokens that don't
-    fill the last row. Raises if the passage is too short for the request."""
+    fill the last row.
+
+    If the passage is shorter than `batch * seq`, the token stream is
+    looped (concatenated with itself) until it covers the requested
+    shape, then truncated. Different rows still see different content
+    because the slicing offset advances per row; the only artifact is
+    that distant rows wrap back to passage-start material rather than
+    seeing fresh text. This is fine for activation-distribution
+    purposes (gate routing, attention pattern) which is what the
+    cached input is used for."""
     from huggingface_hub import hf_hub_download
     from tokenizers import Tokenizer
 
@@ -278,10 +290,8 @@ def _tokenize_passage(args, batch: int, seq: int) -> torch.Tensor:
     ids = torch.tensor(encoding.ids, dtype=torch.long)
     needed = batch * seq
     if ids.numel() < needed:
-        raise RuntimeError(
-            f"Tokenized passage has {ids.numel()} tokens, need {needed} for "
-            f"batch={batch} seq={seq}. Extend _TEXT_SAMPLE."
-        )
+        reps = (needed + ids.numel() - 1) // ids.numel()
+        ids = ids.repeat(reps)
     ids = ids[:needed].view(batch, seq)
     # Clip into valid vocab range (DeepSeek tokenizer should produce ids
     # within vocab_size, but guard against any out-of-range artifacts so the

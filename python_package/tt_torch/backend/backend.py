@@ -95,8 +95,25 @@ def torch_pass_pipeline(
     # passes are reflected during execution.
     compiled_graph.recompile()
 
-    # Extract metadata from FX nodes in order to inject them into locs
-    node_info = extract_nodes_info(compiled_graph)
+    # Extract metadata from FX nodes in order to inject them into locs.
+    # extract_nodes_info() walks every FX call_function node and parses
+    # Python source via `ast.parse` + `inspect`-style lookups to
+    # reconstruct the source-level (file, line, function, module
+    # hierarchy) for the corresponding op. Profiling on
+    # DeepSeek-V4-Flash sparse-MoE blocks (cr=4) showed this dominates
+    # cold-compile time at 21s/31s `t_trace`, with `_find_enclosing_function`
+    # alone consuming 14-21s/layer due to repeated AST parsing.
+    #
+    # The metadata is *only* consumed by MetadataInterpreter +
+    # MetadataDispatchMode, which run only when `XLA_HLO_DEBUG=1` (see
+    # `XLAExecutor.inject_metadata`). When XLA_HLO_DEBUG is unset (the
+    # default), the dict is built and immediately dropped — wasted
+    # work. Gate the extraction on the same env var so production runs
+    # skip the AST parsing cost.
+    if os.environ.get("XLA_HLO_DEBUG", "0") == "1":
+        node_info = extract_nodes_info(compiled_graph)
+    else:
+        node_info = {}
 
     return compiled_graph, program.graph_signature, node_info
 

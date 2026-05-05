@@ -138,6 +138,26 @@ public:
   // device) and marks data ready event as ready (if it is already created).
   void markAsDataReady();
 
+  // STREAM_HYBRID_LEAK_FIX (vanilla torch-xla support): early-fires the
+  // done_with_host_buffer event so that framework-side at::Tensor data
+  // is released. With kImmutableUntilTransferCompletes semantics
+  // (vanilla torch-xla, env var `XLA_RELEASE_HOST_BUFFER_EAGERLY` not
+  // set), the framework holds the source at::Tensor alive via the
+  // on_done callback registered when the BufferInstance was created.
+  // Normally that callback fires only in `deleteData()` (= when
+  // BufferInstance is being torn down at the end of its lifetime),
+  // which for streaming inference patterns means the host data
+  // accumulates for the entire model lifetime.
+  //
+  // Called from PjrtTensor::ensure_layout right after toLayout has
+  // migrated host->device, so the source at::Tensor is no longer
+  // needed: the callback runs in the framework, framework drops its
+  // at::Tensor reference, and the per-layer host RAM is released.
+  // No-op when m_done_with_host_buffer_event is nullptr (= patched
+  // torch-xla path which uses createOwnedHostTensor and fires the
+  // event inside copyFromHost).
+  void fireDoneWithHostBufferEvent();
+
   // Creates data ready event. Returns error status if data ready event was
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);

@@ -47,6 +47,10 @@ CompileOptions CompileOptions::parse(
   options.enable_const_eval_on_cpu =
       internal::parseBoolOption(compile_options, "enable_const_eval_on_cpu")
           .value_or(options.enable_const_eval_on_cpu);
+  options.enable_const_eval_inputs_to_system_memory =
+      internal::parseBoolOption(compile_options,
+                                "enable_const_eval_inputs_to_system_memory")
+          .value_or(options.enable_const_eval_inputs_to_system_memory);
   options.experimental_enable_permute_matmul_fusion =
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_permute_matmul_fusion")

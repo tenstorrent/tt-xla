@@ -1,0 +1,311 @@
+/localdev/sshon/tt-xla/venv/lib/python3.12/site-packages/torchvision/io/image.py:14: UserWarning: Failed to load image Python extension: 'libc10_cuda.so: cannot open shared object file: No such file or directory'If you don't plan on using image functionality from `torchvision.io`, you can ignore this warning. Otherwise, there might be something wrong with your environment. Did you have `libjpeg` or `libpng` installed before building `torchvision` from source?
+  warn(
+2026-04-30 21:09:08.734 | WARNING  | torch_plugin_tt:__init__:38 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+2026-04-30 21:09:11.656113: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+[args] layers=43 bsz=32 prompt=16 new=2 max_seq_len=128
+[baseline                              ] rss=  1.12 sys= 40.76 GB
+[post-top-level                        ] rss= 27.41 sys= 67.12 GB
+
+[init] persistent kv_cache buffers per layer ...
+[post-init-buffers-l0                  ] rss= 27.46 sys= 67.09 GB
+[post-init-buffers-l1                  ] rss= 27.49 sys= 67.35 GB
+[post-init-buffers-l2                  ] rss= 27.54 sys= 67.57 GB
+[post-init-buffers-l3                  ] rss= 27.63 sys= 67.80 GB
+[post-init-buffers-l4                  ] rss= 27.67 sys= 67.84 GB
+[post-init-buffers-l5                  ] rss= 27.77 sys= 67.98 GB
+[post-init-buffers-l6                  ] rss= 27.82 sys= 67.97 GB
+[post-init-buffers-l7                  ] rss= 27.90 sys= 68.00 GB
+[post-init-buffers-l8                  ] rss= 27.94 sys= 68.18 GB
+[post-init-buffers-l9                  ] rss= 28.03 sys= 68.15 GB
+[post-init-buffers-l10                 ] rss= 28.07 sys= 68.30 GB
+[post-init-buffers-l11                 ] rss= 28.15 sys= 68.38 GB
+[post-init-buffers-l12                 ] rss= 28.19 sys= 68.43 GB
+[post-init-buffers-l13                 ] rss= 28.28 sys= 68.51 GB
+[post-init-buffers-l14                 ] rss= 28.32 sys= 68.57 GB
+[post-init-buffers-l15                 ] rss= 28.40 sys= 68.69 GB
+[post-init-buffers-l16                 ] rss= 28.44 sys= 68.72 GB
+[post-init-buffers-l17                 ] rss= 28.53 sys= 68.86 GB
+[post-init-buffers-l18                 ] rss= 28.56 sys= 68.88 GB
+[post-init-buffers-l19                 ] rss= 28.65 sys= 68.96 GB
+[post-init-buffers-l20                 ] rss= 28.68 sys= 69.04 GB
+[post-init-buffers-l21                 ] rss= 28.77 sys= 69.14 GB
+[post-init-buffers-l22                 ] rss= 28.81 sys= 69.20 GB
+[post-init-buffers-l23                 ] rss= 28.89 sys= 69.30 GB
+[post-init-buffers-l24                 ] rss= 28.93 sys= 69.32 GB
+[post-init-buffers-l25                 ] rss= 29.01 sys= 69.43 GB
+[post-init-buffers-l26                 ] rss= 29.05 sys= 69.50 GB
+[post-init-buffers-l27                 ] rss= 29.13 sys= 69.65 GB
+[post-init-buffers-l28                 ] rss= 29.17 sys= 69.72 GB
+[post-init-buffers-l29                 ] rss= 29.25 sys= 69.77 GB
+[post-init-buffers-l30                 ] rss= 29.29 sys= 69.81 GB
+[post-init-buffers-l31                 ] rss= 29.37 sys= 69.96 GB
+[post-init-buffers-l32                 ] rss= 29.41 sys= 70.12 GB
+[post-init-buffers-l33                 ] rss= 29.50 sys= 70.16 GB
+[post-init-buffers-l34                 ] rss= 29.53 sys= 70.13 GB
+[post-init-buffers-l35                 ] rss= 29.62 sys= 70.27 GB
+[post-init-buffers-l36                 ] rss= 29.65 sys= 70.39 GB
+[post-init-buffers-l37                 ] rss= 29.74 sys= 70.46 GB
+[post-init-buffers-l38                 ] rss= 29.77 sys= 70.49 GB
+[post-init-buffers-l39                 ] rss= 29.86 sys= 70.52 GB
+[post-init-buffers-l40                 ] rss= 29.89 sys= 70.58 GB
+[post-init-buffers-l41                 ] rss= 29.98 sys= 70.65 GB
+[post-init-buffers-l42                 ] rss= 30.01 sys= 70.71 GB
+
+[infer] starting layer-streaming v5 ...
+[s0 post-embed                         ] rss= 30.33 sys= 70.99 GB
+[infer s0 l 0 cr=  0] total=52.99s load=40.50s exec=11.09s rt=0.11s n=24 rss=45.27 sys=86.01 GB
+[infer s0 l 1 cr=  0] total=47.69s load=37.87s exec=8.44s rt=0.11s n=24 rss=50.17 sys=91.02 GB
+[infer s0 l 2 cr=  4] total=57.49s load=36.53s exec=19.49s rt=0.15s n=34 rss=64.12 sys=104.92 GB
+[infer s0 l 3 cr=128] total=50.67s load=37.68s exec=11.41s rt=0.13s n=28 rss=75.50 sys=116.51 GB
+[infer s0 l 4 cr=  4] total=58.71s load=38.25s exec=18.88s rt=0.14s n=34 rss=77.72 sys=118.74 GB
+[infer s0 l 5 cr=128] total=45.13s load=32.15s exec=11.44s rt=0.12s n=28 rss=79.25 sys=120.29 GB
+[infer s0 l 6 cr=  4] total=60.76s load=39.18s exec=19.98s rt=0.15s n=34 rss=81.47 sys=122.48 GB
+[infer s0 l 7 cr=128] total=49.96s load=37.13s exec=11.30s rt=0.12s n=28 rss=84.40 sys=125.42 GB
+W0430 21:41:35.762000 2683403 venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:964] [1/8] torch._dynamo hit config.recompile_limit (8)
+W0430 21:41:35.762000 2683403 venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:964] [1/8]    function: 'run_block' (/localdev/sshon/tt-xla/streaming/run_layer_stream_v5.py:255)
+W0430 21:41:35.762000 2683403 venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:964] [1/8]    last reason: 1/0: Cache line invalidated because L['block'] got deallocated
+W0430 21:41:35.762000 2683403 venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:964] [1/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+W0430 21:41:35.762000 2683403 venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:964] [1/8] To diagnose recompilation issues, see https://pytorch.org/docs/main/torch.compiler_troubleshooting.html.
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l 8 cr=  4] total=44.75s load=39.04s exec=4.54s rt=0.14s n=34 rss=94.42 sys=135.43 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l 9 cr=128] total=45.49s load=41.02s exec=3.32s rt=0.12s n=28 rss=101.63 sys=142.69 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l10 cr=  4] total=39.83s load=35.18s exec=3.48s rt=0.13s n=34 rss=110.83 sys=151.86 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l11 cr=128] total=43.18s load=38.91s exec=3.08s rt=0.13s n=28 rss=121.99 sys=163.04 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l12 cr=  4] total=42.14s load=38.36s exec=2.69s rt=0.15s n=34 rss=128.85 sys=169.93 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l13 cr=128] total=37.77s load=34.23s exec=2.46s rt=0.14s n=28 rss=134.78 sys=175.80 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l14 cr=  4] total=41.45s load=37.72s exec=2.66s rt=0.14s n=34 rss=142.04 sys=183.14 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l15 cr=128] total=41.58s load=38.05s exec=2.48s rt=0.12s n=28 rss=143.07 sys=184.12 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l16 cr=  4] total=40.91s load=37.17s exec=2.65s rt=0.14s n=34 rss=150.81 sys=191.86 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l17 cr=128] total=41.52s load=37.88s exec=2.46s rt=0.13s n=28 rss=164.33 sys=205.32 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l18 cr=  4] total=41.68s load=38.04s exec=2.45s rt=0.15s n=34 rss=174.00 sys=215.04 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l19 cr=128] total=40.24s load=36.57s exec=2.50s rt=0.13s n=28 rss=177.96 sys=218.97 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l20 cr=  4] total=41.69s load=37.86s exec=2.64s rt=0.15s n=34 rss=191.51 sys=232.57 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l21 cr=128] total=42.86s load=39.23s exec=2.47s rt=0.13s n=28 rss=199.42 sys=240.48 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l22 cr=  4] total=43.83s load=39.97s exec=2.67s rt=0.14s n=34 rss=205.14 sys=246.18 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l23 cr=128] total=36.70s load=33.30s exec=2.24s rt=0.13s n=28 rss=220.70 sys=261.85 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l24 cr=  4] total=39.50s load=35.99s exec=2.40s rt=0.15s n=34 rss=224.95 sys=266.09 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l25 cr=128] total=31.66s load=28.19s exec=2.39s rt=0.15s n=28 rss=237.83 sys=279.04 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l26 cr=  4] total=35.41s load=31.70s exec=2.62s rt=0.14s n=34 rss=247.37 sys=288.56 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l27 cr=128] total=32.78s load=29.19s exec=2.44s rt=0.12s n=28 rss=255.84 sys=297.02 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l28 cr=  4] total=31.88s load=28.18s exec=2.53s rt=0.14s n=34 rss=265.86 sys=307.02 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l29 cr=128] total=32.72s load=29.19s exec=2.36s rt=0.13s n=28 rss=277.44 sys=318.63 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l30 cr=  4] total=28.85s load=24.78s exec=2.88s rt=0.14s n=34 rss=287.58 sys=327.97 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l31 cr=128] total=30.47s load=26.76s exec=2.53s rt=0.12s n=28 rss=298.04 sys=337.85 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l32 cr=  4] total=30.64s load=26.87s exec=2.58s rt=0.14s n=34 rss=309.25 sys=348.87 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l33 cr=128] total=31.10s load=27.14s exec=2.77s rt=0.13s n=28 rss=318.24 sys=357.55 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l34 cr=  4] total=32.04s load=28.07s exec=2.77s rt=0.15s n=34 rss=330.82 sys=370.06 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l35 cr=128] total=29.37s load=25.81s exec=2.39s rt=0.12s n=28 rss=342.72 sys=382.01 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l36 cr=  4] total=29.16s load=24.98s exec=2.94s rt=0.17s n=34 rss=353.34 sys=392.72 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l37 cr=128] total=24.96s load=21.55s exec=2.22s rt=0.14s n=28 rss=365.47 sys=405.19 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l38 cr=  4] total=27.41s load=23.85s exec=2.37s rt=0.15s n=34 rss=378.61 sys=418.35 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l39 cr=128] total=27.89s load=24.57s exec=2.15s rt=0.13s n=28 rss=389.03 sys=430.72 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l40 cr=  4] total=28.14s load=23.03s exec=3.35s rt=0.22s n=34 rss=402.11 sys=443.60 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l41 cr=128] total=24.48s load=20.90s exec=2.30s rt=0.14s n=28 rss=413.30 sys=456.55 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s0 l42 cr=  4] total=24.52s load=20.66s exec=2.68s rt=0.14s n=34 rss=425.66 sys=470.00 GB
+[infer s0] total 1673.46s ids[:4]=[7704, 0, 0, 0]
+[s1 post-embed                         ] rss= 11.68 sys= 58.31 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 0 cr=  0] total=25.11s load=20.71s exec=3.34s rt=0.12s n=24 rss=51.81 sys=100.36 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 1 cr=  0] total=34.13s load=30.49s exec=2.58s rt=0.11s n=24 rss=67.15 sys=118.43 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 2 cr=  4] total=38.62s load=30.95s exec=6.50s rt=0.12s n=34 rss=81.07 sys=135.28 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 3 cr=128] total=45.53s load=39.58s exec=4.87s rt=0.13s n=28 rss=95.43 sys=151.35 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 4 cr=  4] total=45.08s load=37.74s exec=6.24s rt=0.14s n=34 rss=109.82 sys=165.80 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 5 cr=128] total=42.33s load=37.18s exec=3.99s rt=0.11s n=28 rss=123.85 sys=179.86 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 6 cr=  4] total=43.38s load=36.82s exec=5.39s rt=0.12s n=34 rss=131.50 sys=187.56 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 7 cr=128] total=41.10s load=35.92s exec=4.03s rt=0.12s n=28 rss=131.89 sys=187.89 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 8 cr=  4] total=44.96s load=38.44s exec=5.37s rt=0.12s n=34 rss=140.80 sys=196.79 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l 9 cr=128] total=43.83s load=38.65s exec=4.04s rt=0.11s n=28 rss=141.33 sys=197.37 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l10 cr=  4] total=43.13s load=36.64s exec=5.34s rt=0.12s n=34 rss=143.32 sys=199.37 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l11 cr=128] total=43.27s load=38.78s exec=3.35s rt=0.11s n=28 rss=156.39 sys=212.40 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l12 cr=  4] total=42.74s load=36.95s exec=4.71s rt=0.13s n=34 rss=169.98 sys=226.07 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l13 cr=128] total=42.69s load=38.34s exec=3.30s rt=0.12s n=28 rss=183.42 sys=239.40 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l14 cr=  4] total=43.43s load=37.70s exec=4.65s rt=0.14s n=34 rss=196.91 sys=252.92 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l15 cr=128] total=38.97s load=33.98s exec=3.93s rt=0.12s n=28 rss=208.01 sys=263.99 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l16 cr=  4] total=42.39s load=35.97s exec=5.34s rt=0.13s n=34 rss=208.75 sys=264.73 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l17 cr=128] total=39.28s load=34.91s exec=3.32s rt=0.12s n=28 rss=211.15 sys=267.10 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l18 cr=  4] total=44.19s load=37.81s exec=5.32s rt=0.13s n=34 rss=223.54 sys=279.48 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l19 cr=128] total=43.51s load=39.83s exec=2.62s rt=0.12s n=28 rss=236.96 sys=292.79 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l20 cr=  4] total=42.08s load=37.00s exec=4.01s rt=0.13s n=34 rss=239.00 sys=294.93 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l21 cr=128] total=44.23s load=39.23s exec=3.93s rt=0.12s n=28 rss=249.72 sys=305.61 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l22 cr=  4] total=44.85s load=38.44s exec=5.34s rt=0.13s n=34 rss=259.28 sys=315.15 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l23 cr=128] total=40.83s load=35.81s exec=3.95s rt=0.12s n=28 rss=266.83 sys=322.73 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l24 cr=  4] total=41.79s load=35.40s exec=5.33s rt=0.13s n=34 rss=274.13 sys=330.07 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l25 cr=128] total=46.70s load=38.89s exec=6.66s rt=0.11s n=28 rss=283.08 sys=339.02 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l26 cr=  4] total=43.02s load=36.59s exec=5.34s rt=0.12s n=34 rss=294.12 sys=350.07 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l27 cr=128] total=44.17s load=38.92s exec=4.18s rt=0.12s n=28 rss=297.80 sys=353.66 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l28 cr=  4] total=43.90s load=37.23s exec=5.55s rt=0.14s n=34 rss=307.66 sys=364.74 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l29 cr=128] total=46.96s load=41.30s exec=4.59s rt=0.12s n=28 rss=318.29 sys=373.47 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l30 cr=  4] total=48.27s load=40.99s exec=6.11s rt=0.13s n=34 rss=330.44 sys=383.36 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l31 cr=128] total=47.71s load=41.77s exec=4.78s rt=0.11s n=28 rss=339.88 sys=391.99 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l32 cr=  4] total=49.06s load=41.53s exec=6.34s rt=0.12s n=34 rss=352.97 sys=402.43 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l33 cr=128] total=46.13s load=40.19s exec=4.86s rt=0.13s n=28 rss=363.29 sys=412.03 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l34 cr=  4] total=48.81s load=41.34s exec=6.39s rt=0.14s n=34 rss=373.99 sys=422.28 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l35 cr=128] total=46.07s load=40.12s exec=4.84s rt=0.14s n=28 rss=381.91 sys=429.72 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l36 cr=  4] total=45.01s load=38.59s exec=5.33s rt=0.15s n=34 rss=394.88 sys=442.82 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l37 cr=128] total=44.36s load=39.29s exec=3.91s rt=0.13s n=28 rss=406.78 sys=456.21 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l38 cr=  4] total=46.24s load=36.30s exec=8.76s rt=0.13s n=34 rss=416.09 sys=465.55 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l39 cr=128] total=39.52s load=35.43s exec=3.00s rt=0.13s n=28 rss=421.94 sys=471.43 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l40 cr=  4] total=42.64s load=36.48s exec=5.08s rt=0.14s n=34 rss=428.15 sys=475.97 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l41 cr=128] total=39.50s load=35.48s exec=2.95s rt=0.13s n=28 rss=428.16 sys=475.91 GB
+Multiwait::Wait called
+Multiwait::Wait acquired lock
+[infer s1 l42 cr=  4] total=39.67s load=34.11s exec=4.49s rt=0.14s n=34 rss=428.21 sys=476.12 GB
+[infer s1] total 1871.97s ids[:4]=[270, 14, 14, 223]
+
+[done] decoded:
+  [0] 'How are you today?' -> ' math the'
+  [1] 'What is the capital of France?' -> ','
+  [2] 'Prompt 2' -> ','
+  [3] 'Prompt 3' -> ' '
