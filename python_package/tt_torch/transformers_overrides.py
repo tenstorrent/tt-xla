@@ -4,7 +4,13 @@
 from typing import Any, Optional
 
 import torch
-from transformers.cache_utils import StaticCache, StaticLayer, StaticSlidingWindowLayer
+from transformers.cache_utils import (
+    DynamicLayer,
+    DynamicSlidingWindowLayer,
+    StaticCache,
+    StaticLayer,
+    StaticSlidingWindowLayer,
+)
 from transformers.masking_utils import create_sliding_window_causal_mask
 
 
@@ -19,6 +25,27 @@ def override_gpt_oss_sliding_window_causal_mask():
     import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_mod
 
     gpt_oss_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
+
+
+def override_gemma3_sliding_window_causal_mask():
+    """
+    Override gemma3's modeling for TT-friendly sliding window attention.
+
+    Globally replaces cache_utils.DynamicSlidingWindowLayer with
+    TTDynamicSlidingWindowLayer so that any DynamicCache created internally
+    by the model uses the TT-friendly layer (positive-index slicing).
+    Also patches the modeling module so dynamo traces the TT mask function,
+    which falls back to the original for dynamic caches — preserving the
+    bidirectional attention overlay used for image tokens.
+
+    Call this before torch.compile so that dynamo traces through the
+    patched functions.
+    """
+    import transformers.cache_utils as cache_utils
+    import transformers.models.gemma3.modeling_gemma3 as gemma3_mod
+
+    cache_utils.DynamicSlidingWindowLayer = TTDynamicSlidingWindowLayer
+    gemma3_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
 
 
 def override_cache_sliding_window_layers(
@@ -48,6 +75,14 @@ def override_cache_sliding_window_layers(
         cache.layers[i] = tt_layer
 
 
+def _has_tt_sliding_window_layers(past_key_values) -> bool:
+    """Check if any cache layer is a TTStaticSlidingWindowLayer."""
+    return any(
+        isinstance(layer, TTStaticSlidingWindowLayer)
+        for layer in getattr(past_key_values, "layers", [])
+    )
+
+
 def tt_create_sliding_window_causal_mask(
     config,
     inputs_embeds: torch.Tensor,
@@ -63,8 +98,12 @@ def tt_create_sliding_window_causal_mask(
     only broadcasting tensor operations — no get_mask_sizes(),
     and no mutable Python state.  Designed to run with torch.compile on TT
     hardware as part of the model forward graph.
+
+    Falls back to the original transformers implementation when the cache
+    does not contain TTStaticSlidingWindowLayer instances (e.g. dynamic caches),
+    preserving any model-specific mask logic such as bidirectional image attention.
     """
-    if past_key_values is None:
+    if past_key_values is None or not _has_tt_sliding_window_layers(past_key_values):
         return create_sliding_window_causal_mask(
             config,
             inputs_embeds,
@@ -81,7 +120,9 @@ def tt_create_sliding_window_causal_mask(
         layer_idx = past_key_values.is_sliding.index(True)
     else:
         layer_idx = 0
-    sliding_window = past_key_values.layers[layer_idx].max_cache_len
+    _layer = past_key_values.layers[layer_idx]
+    # DynamicSlidingWindowLayer exposes .sliding_window; static layers use .max_cache_len
+    sliding_window = getattr(_layer, "sliding_window", None) or _layer.max_cache_len
 
     batch_size = inputs_embeds.shape[0]
     query_length = cache_position.shape[0]
@@ -184,3 +225,68 @@ class TTStaticSlidingWindowLayer(StaticLayer):
         if not self.is_initialized:
             return 0
         return (self.keys[0, 0].any(dim=-1)).sum().item()
+
+
+class TTDynamicSlidingWindowLayer(DynamicLayer):
+    """
+    DynamicSlidingWindowLayer for multimodal models that require a growing cache.
+
+    Upstream trims the KV buffer with a large negative slice literal
+    (e.g. keys[:, :, -1023:, :] for sliding_window=1024). The TT backend
+    represents slice indices as bounded integers, so constants like -1023
+    exceed the allowed scalar range and cause a compile error.
+
+    This class replaces that slice with an equivalent positive index:
+        start = full_len - (sliding_window - 1)
+    which stays within range regardless of window size.
+    """
+
+    is_sliding = True
+
+    def __init__(self, sliding_window: int):
+        super().__init__()
+        self.sliding_window = sliding_window
+        self.cumulative_length = 0
+
+    def update(
+        self,
+        key_states: torch.Tensor,
+        value_states: torch.Tensor,
+        cache_kwargs: dict[str, Any] | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if not self.is_initialized:
+            self.lazy_initialization(key_states, value_states)
+
+        self.cumulative_length += key_states.shape[-2]
+
+        full_key_states = torch.cat([self.keys, key_states], dim=-2)
+        full_value_states = torch.cat([self.values, value_states], dim=-2)
+
+        # Keep at most `sliding_window - 1` tokens in the cache, without
+        # using large negative slice literals.
+        if full_key_states.shape[-2] < self.sliding_window:
+            self.keys = full_key_states
+            self.values = full_value_states
+        else:
+            keep_len = self.sliding_window - 1
+            start = full_key_states.shape[-2] - keep_len
+            self.keys = full_key_states[:, :, start:, :]
+            self.values = full_value_states[:, :, start:, :]
+
+        return full_key_states, full_value_states
+
+    def get_mask_sizes(self, cache_position: torch.Tensor) -> tuple[int, int]:
+        query_length = cache_position.shape[0]
+        is_full = self.cumulative_length >= self.sliding_window
+        kv_offset = max(self.cumulative_length - self.sliding_window + 1, 0)
+        if is_full:
+            kv_length = self.sliding_window - 1 + query_length
+        else:
+            kv_length = self.cumulative_length + query_length
+        return kv_length, kv_offset
+
+    def get_seq_length(self) -> int:
+        return self.cumulative_length
+
+    def get_max_cache_shape(self) -> int:
+        return self.sliding_window
