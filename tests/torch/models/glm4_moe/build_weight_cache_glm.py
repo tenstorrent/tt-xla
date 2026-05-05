@@ -231,7 +231,9 @@ if __name__ == "__main__":
     parser.add_argument("--n-layers", type=int, default=92, help="Number of layers")
     args = parser.parse_args()
 
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*", args.repo):
+    if not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*", args.repo
+    ):
         parser.error(f"Invalid repo ID {args.repo!r}: expected 'org/model' format")
 
     config_path = hf_hub_download(args.repo, "config.json")
