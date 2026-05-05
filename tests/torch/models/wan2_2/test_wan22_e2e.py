@@ -20,7 +20,7 @@ from pathlib import Path
 
 import torch
 
-from .monkey_patch import _patch_apply_lora_scale, _patch_tt_torch_getitem_clamp, _patch_wan_resample_rep_sentinel, _patch_wan_resample_avoid_4d_fold
+from .monkey_patch import _patch_apply_lora_scale, _patch_wan_resample_rep_sentinel, _patch_wan_resample_avoid_4d_fold, safe_xla_slicing, _disable_tt_torch_function_override
 from .shared import (
     LATENT_CHANNELS,
     RESOLUTIONS,
@@ -57,10 +57,10 @@ RESOLUTION = "480p"  # "480p" or "720p"
 NUM_STEPS = 40  # denoising steps
 GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
 
-TT_TEXT_ENCODER = False
+TT_TEXT_ENCODER = True
 TT_VAE_ENCODER = False  # only used when MODE == "i2v"
 TT_DIT = True
-TT_VAE_DECODER = False
+TT_VAE_DECODER = True
 
 # Mesh shared by every component that runs on TT in this pipeline. Built once
 # so callers pass the same mesh object each time. None means CPU-only run.
@@ -69,6 +69,7 @@ _mesh = (
     if (TT_TEXT_ENCODER or TT_VAE_ENCODER or TT_DIT or TT_VAE_DECODER)
     else None
 )
+# _mesh = None
 
 # Simple single-subject prompt for smoke-test readability. Failure is
 # immediately obvious by eye; success is unambiguous. Fallback options
@@ -119,9 +120,9 @@ def _output_path() -> Path:
 # ---------------------------------------------------------------------------
 
 _patch_apply_lora_scale()
-_patch_tt_torch_getitem_clamp()
 _patch_wan_resample_rep_sentinel()
 _patch_wan_resample_avoid_4d_fold()
+_disable_tt_torch_function_override()
 
 # ---------------------------------------------------------------------------
 # Test
@@ -291,14 +292,15 @@ def _run_vae(vae, latents: torch.Tensor, mesh) -> torch.Tensor:
     # VAE decoder has bf16 weights — cast at the boundary (same pattern as
     # the DiT call in _denoise). Unscaling happens in float32 for precision.
     decoder_wrapper = VAEDecoderWrapper(vae).eval().bfloat16()
-    return run_component(
-        decoder_wrapper,
-        [latents_unscaled.to(torch.bfloat16)],
-        on_tt=TT_VAE_DECODER,
-        mesh=mesh,
-        shard_module=decoder_wrapper.vae,
-        shard_fn=shard_vae_decoder_specs,
-    )
+    with safe_xla_slicing():
+        return run_component(
+            decoder_wrapper,
+            [latents_unscaled.to(torch.bfloat16)],
+            on_tt=TT_VAE_DECODER,
+            mesh=mesh,
+            shard_module=decoder_wrapper.vae,
+            shard_fn=shard_vae_decoder_specs,
+        )
 
 
 def _postprocess_and_save(pixels: torch.Tensor, out_path: Path) -> None:

@@ -22,6 +22,7 @@ import torch
 import torch.nn as nn
 from infra.utilities import Mesh
 from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
+from tests.infra.testers.compiler_config import CompilerConfig
 
 MODEL_ID = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
 
@@ -403,7 +404,8 @@ def run_component(
     xr.set_device_type("TT")
     device = xm.xla_device()
 
-    torch_xla.set_custom_compile_options({"optimization_level": 1})
+    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True)
+    torch_xla.set_custom_compile_options(compiler_config.to_torch_compile_options())
 
     # Move the raw wrapper and inputs to device first. shard_fn needs to see
     # XLA tensors, so sharding must happen *after* this move.
