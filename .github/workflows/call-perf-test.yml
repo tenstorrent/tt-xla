@@ -490,3 +490,49 @@ jobs:
         fi
 
         echo "Performance check passed. Diff: ${perf_diff}%"
+
+    - name: Check latency metrics regression
+      if: inputs.perf_regression_check
+      shell: bash
+      run: |
+        if [[ "${{ steps.prev-perf.outputs.response }}" == "[]" ]]; then
+          echo "No previous perf report found; skipping latency check."
+          exit 0
+        fi
+
+        apt-get install -y -qq bc
+
+        prev_perf='${{ steps.prev-perf.outputs.response }}'
+        current_file=${{ steps.strings.outputs.perf_report_json_file }}
+        failed=0
+
+        for metric in "avg_denoise_latency_s" "per_step_denoise_latency_s"; do
+          current_val=$(jq -r --arg m "$metric" \
+            '.measurements[] | select(.measurement_name == $m) | .value' "$current_file")
+
+          if [[ -z "$current_val" || "$current_val" == "null" ]]; then
+            echo "$metric: not present in report, skipping"
+            continue
+          fi
+
+          prev_val=$(echo "$prev_perf" | jq -r --arg m "$metric" \
+            '.[] | select(.name == $m) | .last_value')
+
+          if [[ -z "$prev_val" || "$prev_val" == "null" ]]; then
+            echo "$metric: no previous baseline, skipping"
+            continue
+          fi
+
+          perf_diff=$(echo "scale=4; (($current_val - $prev_val) / $prev_val) * 100" | bc -l)
+          echo "$metric: prev=${prev_val}s current=${current_val}s diff=${perf_diff}%"
+
+          if (( $(echo "$perf_diff >= 5.0" | bc -l) )); then
+            echo "Latency regression >5% detected for $metric!"
+            failed=1
+          fi
+        done
+
+        if [[ $failed -eq 1 ]]; then
+          exit 1
+        fi
+        echo "Latency regression check passed."
