@@ -445,8 +445,13 @@ def _apply_shard_specs(
 # ---------------------------------------------------------------------------
 
 @pytest.mark.galaxy
-@pytest.mark.nightly
-@pytest.mark.parametrize("cpu_reference", [True, False], ids=["cpu_reference", "no_cpu_reference"])
+ @pytest.mark.parametrize(
+      "cpu_reference",                                                                                                                                                                                                                                                                               
+      [                                                                                                                                                                                                                                                                                              
+          pytest.param(True, marks=pytest.mark.nightly, id="cpu_reference"),
+          pytest.param(False, id="no_cpu_reference"),                                                                                                                                                                                                                                                
+      ],                                                                                                                                                                                                                                                                                             
+  )
 @pytest.mark.parametrize("n_layers", [4])
 def test_glm4_7_decode_static_cache(cpu_reference, n_layers):
     """Autoregressive greedy decode on TT using StaticCache.
