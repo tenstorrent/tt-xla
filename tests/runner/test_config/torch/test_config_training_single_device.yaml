@@ -407,7 +407,7 @@ test_config:
   yolov9/pytorch-T-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    reason: "torch._dynamo.exc.InternalTorchDynamoError: TypeError: eval() arg 1 must be a string, bytes or code object"
   yolov9/pytorch-S-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
