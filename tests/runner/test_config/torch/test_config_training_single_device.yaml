@@ -458,20 +458,20 @@ test_config:
     reason: "error: 'ttnn.pad' op Output tensor shape (32,768) must match the inferred shape: (47,768)"
   dpr/context_encoder/pytorch-Ctx_Encoder_Single_Nq_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   dpr/context_encoder/pytorch-Ctx_Encoder_Multiset_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   dpr/question_encoder/pytorch-Question_Encoder_Single_Nq_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   dpr/question_encoder/pytorch-Question_Encoder_Multiset_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   centernet/pytorch-Hourglass_Coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION

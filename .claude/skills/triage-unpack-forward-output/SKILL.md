@@ -1,6 +1,6 @@
 ---
 name: triage-unpack-forward-output
-description: Triage and auto-fix one tt-forge-models training test stuck at FAILED_FE_COMPILATION with reason "tt-forge-models doesn't implement unpack_forward_output for this model." Runs the model on CPU, inspects forward outputs, gathers model docs, writes a documented unpack_forward_output override on the loader, re-runs the training and inference tests, and updates the YAML status. Operates on exactly one test at a time.
+description: Triage and auto-fix one tt-forge-models training test stuck at FAILED_FE_COMPILATION with reason "tt-forge-models doesn't implement unpack_forward_output for this model." Runs the model on CPU, inspects forward outputs, gathers model docs, then either registers a handler in training_utils.py (preferred for HuggingFace ModelOutput classes) or writes a per-loader unpack_forward_output override (for bare list/tuple/dict outputs or structural transforms). Re-runs the affected training and inference tests and updates the YAML.
 allowed-tools: Bash Read Edit Write Grep Glob WebFetch
 argument-hint: <test-name>
 ---
@@ -24,12 +24,16 @@ Auto-detect both:
 
 - Default `unpack_forward_output` lives in `third_party/tt_forge_models/base.py` and delegates to `third_party/tt_forge_models/training_utils.py`. The util has a registry keyed by output class name (`BaseModelOutputWithPast`, `CausalLMOutputWithPast`, `CLIPOutput`, `ImageClassifierOutput`, …).
 - When the model returns a class **not in the registry** (a bare `list`/`tuple`/`dict`, or a custom dataclass), the call raises `ValueError("No handler for class … exists in unpack_forward_output. Register a handler or implement custom unpack_forward_output for the specific model.")`. The runner then surfaces the failure with `bringup_status: FAILED_FE_COMPILATION` and the canonical `reason:` shown above.
-- The fix is per-model: override `unpack_forward_output` on that model's `ModelLoader` to return only the tensors that participate in the training loss.
-- Existing override examples to mimic:
+- **Two ways to fix.** Pick one:
+  1. **Registry entry** in `third_party/tt_forge_models/training_utils.py` — `_register_attr("<OutputClassName>", "<attr>")`. Preferred for HuggingFace `ModelOutput` dataclasses (any class that lives in `transformers.models.*.modeling_*`), and for any case where the loss-relevant tensor is a single attribute lookup. This is how `CausalLMOutputWithPast → logits`, `DPRReaderOutput → end_logits`, `DepthEstimatorOutput → predicted_depth`, etc. are already wired.
+  2. **Per-loader override** — add `def unpack_forward_output(self, forward_output)` to that model's `ModelLoader`. Required when the output has no stable class name to key on (bare `list`/`tuple`/`dict`), when extracting the loss-relevant tensors needs a structural transform (concat, stack, slice), or when two models share an output class but legitimately need different loss targets.
+- Existing per-loader override examples to mimic when the override is the right tool:
   - `third_party/tt_forge_models/yolov9/pytorch/loader.py:171-194` — list-of-tensors via `extract_tensors_recursive`
   - `third_party/tt_forge_models/centernet/pytorch/loader.py:190-209` — list-of-dicts
   - `third_party/tt_forge_models/clip/pytorch/loader.py:209-220` — tuple
+- **Implication of choosing the registry path:** the registry entry is global by class name, so it fixes every variant of the current model **and** every other model in the codebase that returns the same output class. You must therefore re-run *all* affected training tests, not just the one you were invoked with, and update each of their YAML entries.
 - Test-runner glue: `tests/runner/test_models.py` parametrizes `test_all_models_torch` with `(test_entry, parallelism, run_mode)`. Pytest test IDs combine in stack order: `<test_entry_id>-<parallelism_id>-<run_mode_id>`. The `<test_entry_id>` is `<model_path>-<variant>` (see `tests/runner/utils/dynamic_loader.py:319`).
+- Test-runner gates on YAML status: when an entry is `NOT_SUPPORTED_SKIP`, pytest reports `SKIPPED` and your fix never runs. Before invoking pytest for verification, temporarily flip the affected entries to `status: EXPECTED_PASSING` (drop `bringup_status` and `reason`), run the tests, then write the final YAML based on the observed outcome.
 
 ## Workflow
 
@@ -44,6 +48,7 @@ Auto-detect both:
 
 1. Read the YAML entry. Its `reason:` must contain the substring `unpack_forward_output`. If not, abort: `This skill only handles unpack_forward_output failures. The failing reason here is: <reason>.`
 2. `grep -n "def unpack_forward_output(" <loader_path>`. If the override **already exists**, skip to Step 6 — the YAML entry may simply be stale. Note this in the final report.
+3. `grep -n "<OutputClassName>" third_party/tt_forge_models/training_utils.py` once you know the output class name (after Step 3). If the class is **already registered**, also skip to Step 6 — same staleness case.
 
 ### Step 3 — CPU triage script
 
@@ -105,32 +110,78 @@ Defaults if docs are silent or model fits a known family:
 | Depth / dense regression         | the regressed tensor (e.g. `predicted_depth`)                      |
 | Encoder-only feature extractors  | `last_hidden_state` (or `pooler_output` if that's what loss reads) |
 
-### Step 5 — Write the `unpack_forward_output` override
+### Step 5 — Decide registry vs override, then apply the fix
 
-Add the method to the `ModelLoader` class in the loader file. Two non-negotiable rules:
+**Universal rule (both paths):** return only what the loss depends on. Never include auxiliary outputs (attention weights, hidden-state caches, FPN side branches, raw anchors, debug tensors) just because they are tensors. Including unused tensors inflates the autograd graph and changes what is exercised on TT.
 
-1. **Return only what the loss depends on.** Never include auxiliary outputs (attention weights, hidden-state caches, FPN side branches, raw anchors, debug tensors) just because they are tensors. Including unused tensors inflates the autograd graph and changes what is exercised on TT.
-2. **Docstring with these three sections.** The override must carry them — they are the audit trail for why this override exists:
+**Decision — registry entry (Step 5a) is the default. Override (Step 5b) is the escape hatch.**
+
+Use the **registry** when *all* of the following hold:
+- The forward output is a class instance (a HuggingFace `ModelOutput` dataclass or any other named dataclass) with a stable class name. Bare `list`/`tuple`/`dict` cannot use the registry.
+- The loss-relevant tensor is a single attribute lookup on that class — no concat/stack/slice needed.
+- The class name is specific to one model family, OR the chosen attribute is universally the loss target across every model that emits that class. For HF transformer outputs this is almost always true (`CausalLMOutputWithPast → logits` everywhere).
+
+Use the **per-loader override** when any of the following hold:
+- Output is a bare `list`/`tuple`/`dict` (no class name to key on).
+- Loss-relevant tensors require a structural transform (concat, stack, slice, recursive walk).
+- Two models share an output class but legitimately need different loss targets — register one and override the other.
+- The output class is custom (defined in the model's own repo, not in `transformers`) and unlikely to be reused — case-by-case judgment.
+
+#### Step 5a — Registry entry (preferred path)
+
+Add one line in `third_party/tt_forge_models/training_utils.py`, alphabetically ordered next to existing `_register_attr` calls:
+
+```python
+_register_attr("<OutputClassName>", "<loss_relevant_attr>")
+```
+
+That's it — no docstring needed; the registry table itself is the audit trail. The class name is what the CPU triage script reported in Step 3 (e.g. `DPRContextEncoderOutput`). Confirm `python -c "from third_party.tt_forge_models.training_utils import _DISPATCH; assert '<OutputClassName>' in _DISPATCH"` (or just re-import `training_utils` cleanly).
+
+**Expand the verification scope.** A registry entry is global — every model in the codebase that returns this output class is now affected. Find them:
+
+```bash
+grep -rln "<OutputClassName>" third_party/tt_forge_models/
+grep -rln "<OutputClassName>" venv/lib/python3.12/site-packages/transformers/  # for HF classes, to confirm which model families emit it
+```
+
+For every YAML entry whose `reason:` is the canonical `unpack_forward_output` message and whose loader returns this same class, verify it as part of Step 6 and update its YAML in Step 8. Do **not** silently leave stale entries — they will misrepresent the test state.
+
+#### Step 5b — Per-loader override
+
+Add `def unpack_forward_output(self, forward_output)` to that model's `ModelLoader` class. Two non-negotiable rules:
+
+1. **Return only what the loss depends on** (universal rule above).
+2. **Docstring with these three sections.** The override must carry them — they are the audit trail for why this override exists when a registry entry would otherwise have sufficed:
    - **Forward output structure** — full type/shape signature of what the model returns. Example: `list[Tensor] of length 3, shapes [(B, 256, 80, 80), (B, 256, 40, 40), (B, 256, 20, 20)]`.
    - **What is selected and why** — which subset is returned and which loss it is the gradient source of. Example: `returning the three detection-head tensors concatenated; these are the only outputs consumed by YOLOLoss; auxiliary feature maps are dropped`.
-   - **Why the override is needed at all** — one line. Example: `default registry has no handler for list[Tensor]`.
+   - **Why a registry entry was not sufficient** — one line. Example: `default registry cannot key on bare list[Tensor]`, or `output class is shared with model X which uses a different loss target`.
 
 Implementation guidance:
 
 - For nested list/tuple/dict structures: import `extract_tensors_recursive` from `third_party.tt_forge_models.tools.utils`, walk the loss-relevant subtree, and `torch.cat(tensors, dim=0)` (or stack) — see `yolov9/pytorch/loader.py:171-194`.
-- For dataclass-shaped HF-style outputs not in the registry: pick the loss-relevant attribute (typically `logits`) and return it directly.
 - For a plain tuple where only one element is the loss target: index it.
 - Keep the implementation minimal. No extra abstractions, no inline comments beyond the required docstring.
 
-After writing, run `pre-commit run --files <loader_path>` if pre-commit is installed; otherwise just confirm `python -c "from third_party.tt_forge_models.<model_dir>.pytorch.loader import ModelLoader"` succeeds.
+After writing (either path), run `pre-commit run --files <changed_files>` if pre-commit is installed; otherwise just confirm `python -c "from third_party.tt_forge_models.<model_dir>.pytorch.loader import ModelLoader"` succeeds.
 
 ### Step 6 — Verify with pytest
 
-Run two commands. **No `less`. No `tail`. No piping into anything that hides exit codes.** Dump straight to a file and Read it back:
+**Before running pytest, temporarily flip every affected training entry to `status: EXPECTED_PASSING`** (drop `bringup_status` and `reason`). Otherwise the test runner skips them at collection (`tests/runner/test_models.py:118` gates on `NOT_SUPPORTED_SKIP`) and you observe `SKIPPED` instead of the real outcome. The set of "affected entries" depends on the path you took in Step 5:
+
+- Step 5a (registry): every YAML entry whose loader emits the registered class and currently fails with the `unpack_forward_output` reason.
+- Step 5b (override): just the one entry tied to the loader you edited.
+
+Then run pytest. **No `less`. No `tail`. No piping into anything that hides exit codes.** Dump straight to a file and Read it back. Run the affected training tests in a single pytest invocation, plus the inference test for the originally-requested entry:
 
 ```bash
-timeout 300 pytest tests/runner/test_models.py::test_all_models_torch[<model_dir>/pytorch-<variant>-single_device-training] -svv &> /tmp/verify_<model_dir>_<variant>_training.log
-timeout 300 pytest tests/runner/test_models.py::test_all_models_torch[<model_dir>/pytorch-<variant>-single_device-inference] -svv &> /tmp/verify_<model_dir>_<variant>_inference.log
+timeout 600 pytest -svv \
+  "tests/runner/test_models.py::test_all_models_torch[<entry1>-single_device-training]" \
+  "tests/runner/test_models.py::test_all_models_torch[<entry2>-single_device-training]" \
+  &> /tmp/verify_<scope>_training.log
+
+timeout 300 pytest -svv \
+  "tests/runner/test_models.py::test_all_models_torch[<original_entry>-single_device-inference]" \
+  &> /tmp/verify_<scope>_inference.log
 ```
 
 Read both logs.
@@ -150,7 +201,7 @@ Read both logs.
 
 ### Step 8 — Update the YAML
 
-Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. Modify only the **training** entry:
+Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. Update **every** training entry that you flipped to `EXPECTED_PASSING` in Step 6 — not just the original one. For each:
 
 - **Pass case:**
   ```yaml
@@ -158,7 +209,7 @@ Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. M
     status: EXPECTED_PASSING
   ```
   Drop `bringup_status` and `reason` entirely.
-- **Fail case:** keep the existing `status:` (`KNOWN_FAILURE_XFAIL` if it was that, otherwise `NOT_SUPPORTED_SKIP`), set `bringup_status:` to the new category, set `reason:` to a one-line excerpt of the real error (the `TT_FATAL`/`TT_THROW` line if applicable, trimmed to ~120 chars).
+- **Fail case:** restore the prior `status:` (`KNOWN_FAILURE_XFAIL` if it was that, otherwise `NOT_SUPPORTED_SKIP`), set `bringup_status:` to the new category, set `reason:` to a one-line excerpt of the real error (the `TT_FATAL`/`TT_THROW` line if applicable, trimmed to ~120 chars).
 
 The inference log is **informational only**. Do not modify the inference YAML entry. Flag any inference regression to the user in the final report so they can investigate separately.
 
@@ -168,17 +219,21 @@ Print a single concise summary to the user:
 
 1. Resolved test → loader path + YAML key
 2. Forward output structure observed on CPU (one or two lines)
-3. Override added: file, method signature, what it returns
-4. Pytest outcome — training pass/fail (with real error if fail), inference pass/fail
-5. YAML diff (the few lines that changed)
-6. Anything that needs human review (e.g. inference regression, ambiguous loss target, `extract_tensors_recursive` returned an unexpected number of tensors).
+3. Fix path taken: registry entry (which class → which attr, which other YAML entries it covered) **or** per-loader override (file, method signature, what it returns). State explicitly which path you chose and why the other was not used.
+4. Pytest outcome for every affected training entry (pass/fail with real error if fail), plus the original inference entry.
+5. YAML diff (the lines that changed across all affected entries).
+6. Anything that needs human review (e.g. inference regression, ambiguous loss target, registry entry that affected an unexpected number of tests, `extract_tensors_recursive` returned an unexpected number of tensors).
 
 ## Hard rules (do not violate)
 
-- One test at a time. If `<test-name>` is missing or matches multiple entries, abort and ask.
+- Invoked with one test at a time. If `<test-name>` is missing or matches multiple entries, abort and ask.
 - Only act when `reason:` contains `unpack_forward_output`. Anything else: abort, do not edit.
-- Override must return only loss-relevant tensors and must carry the three-part docstring above.
+- Prefer the registry path (Step 5a) over per-loader override (Step 5b). Use the override only when the decision criteria in Step 5 require it.
+- Per-loader override must return only loss-relevant tensors and must carry the three-part docstring above (including the line stating why a registry entry was not sufficient).
+- Whichever path is taken, the fix must return only loss-relevant tensors — never aux outputs (attentions, hidden states, FPN side branches).
+- A registry entry has global scope. Re-verify and update YAML for **every** affected training entry, not just the originally requested one.
+- Before running pytest verification, flip affected entries to `EXPECTED_PASSING` so they actually run — `NOT_SUPPORTED_SKIP` causes the runner to skip them.
 - Never use `tail` or `less` on pytest output. Dump to a file with `&>`, then Read.
 - "Error code 13" is generic — always look further for `TT_FATAL` / `TT_THROW`.
-- Touch only the training YAML entry. Inference is informational.
+- Touch only the training YAML entries. Inference is informational.
 - Do not commit or push. Leave changes staged-but-uncommitted unless the user asks otherwise.
