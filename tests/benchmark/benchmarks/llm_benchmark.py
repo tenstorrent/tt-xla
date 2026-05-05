@@ -24,6 +24,7 @@ from llm_utils import (
     init_indexer_cache,
     init_mla_cache,
     init_static_cache,
+    reset_indexer_cache,
 )
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
@@ -157,6 +158,21 @@ def construct_inputs(
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
     cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
+
+    # Initialize indexer cache once on CPU before model.to(device) so it is bundled into the model
+    # transfer rather than compiled as a separate XLA graph. This is done externally so that
+    # the tensor size uses the exact batch_size/max_cache_len — not ModelArgs defaults — to match
+    # the sharded computation graph. Models using this cache are expected to handle stale values
+    # since we cannot reset the indexer once the model is transferred to device:
+    # prefill overwrites past positions and the causal mask suppresses future ones.
+    if use_indexer_cache:
+        init_indexer_cache(
+            model,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
 
     input_args = {
         "input_ids": input_ids,
@@ -377,15 +393,9 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
+        model=model,  # used for indexer cache initialization
+        use_indexer_cache=use_indexer_cache,
     )
-    if use_indexer_cache:
-        init_indexer_cache(
-            model,
-            batch_size=batch_size,
-            max_cache_len=max_cache_len,
-            device="cpu",
-            dtype=torch.bfloat16,
-        )
 
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:
@@ -425,26 +435,7 @@ def benchmark_llm_torch_xla(
 
         cpu_output_logits = prefill_logits + decode_logits
 
-    # Transfer model and inputs to device
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        past_key_values=decode_only_cache if decode_only else None,
-        use_mla_cache=use_mla_cache,
-    )
-    if use_indexer_cache:
-        init_indexer_cache(
-            model,
-            batch_size=batch_size,
-            max_cache_len=max_cache_len,
-            device="cpu",
-            dtype=torch.bfloat16,
-        )
-    input_args = transfer_to_device(input_args, device)
+    # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
 
     # Shard model if shard spec function is provided
