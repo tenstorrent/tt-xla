@@ -657,7 +657,7 @@ def record_model_test_properties(
         else:
             bringup_status = BringupStatus.INCORRECT_RESULT
 
-        reason = static_reason or runtime_reason or "Not specified"
+        reason = runtime_reason or static_reason or "Not specified"
 
     tags = {
         "test_name": str(request.node.originalname),
