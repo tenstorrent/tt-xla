@@ -38,12 +38,22 @@ To install a wheel and run an example model, do the following:
 
 Download the latest wheel with pip.
 ```bash
-pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
+python -m pip install --upgrade pip
+python -m pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.com/
 ```
 
 Run the tt-forge-install script to install missing system dependencies.
-```
+```bash
 tt-forge-install
+```
+
+Confirm the installed wheel version and TT device visibility before running demos.
+These commands should complete without error and print the installed
+`pjrt-plugin-tt` version followed by the visible TT devices.
+
+```bash
+python -c "import importlib.metadata as m; print(m.version('pjrt-plugin-tt'))"
+python -c "import jax; print(jax.devices('tt'))"
 ```
 
 #### Step 2. Run some models:
@@ -95,6 +105,7 @@ This section walks through the installation steps for using a Docker container f
 #### Step 1. Run the Docker container:
 
    ```bash
+   docker pull ghcr.io/tenstorrent/tt-xla-slim:latest
    docker run -it --rm \
    --device /dev/tenstorrent \
    -v /dev/hugepages-1G:/dev/hugepages-1G \
@@ -107,6 +118,18 @@ This section walks through the installation steps for using a Docker container f
 
    ```bash
    docker ps
+   ```
+
+For a non-interactive readiness check, run the container with the same device
+mounts and ask JAX to list TT devices. The command should complete without
+error and print the visible TT devices.
+
+   ```bash
+   docker run --rm \
+   --device /dev/tenstorrent \
+   -v /dev/hugepages-1G:/dev/hugepages-1G \
+   ghcr.io/tenstorrent/tt-xla-slim:latest \
+   python -c "import jax; print(jax.devices('tt'))"
    ```
 
 #### Step 2: Running Models in Docker
@@ -176,6 +199,16 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    sudo apt install libnsl-dev
    ```
 
+- Confirm the required tools are available before building:
+
+   ```bash
+   python3.12 --version
+   clang-20 --version
+   gcc-13 --version
+   ninja --version
+   cmake --version
+   ```
+
 #### Step 2: Building the TT-MLIR Toolchain
 
 - Before compiling TT-XLA, the TT-MLIR toolchain needs to be built:
@@ -217,6 +250,10 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    cmake -G Ninja -B build # -DCMAKE_BUILD_TYPE=Debug in case you want debug build
    cmake --build build
    ```
+
+   The `source venv/activate` command creates `venv` on first use, installs
+   `python_package/requirements.txt` and `venv/requirements-dev.txt`, and
+   exports the TT-XLA/TT-MLIR environment variables needed by the build.
 
 5. To verify that everything is working correctly, run the following command:
 
