@@ -173,7 +173,10 @@ PHASE1_DOC_FLOWS: list[dict[str, Any]] = [
             "os_image": "ubuntu-22.04",
             "runtime": "python",
         },
-        "success_signal": {"type": "artifact_exists", "value": "dist/pjrt_plugin_tt*.whl"},
+        "success_signal": {
+            "type": "artifact_exists",
+            "value": "dist/pjrt_plugin_tt*.whl",
+        },
         "doc_clarity": {
             "fail_closed": True,
             "blocker_ids": ["DOC-GAP-004"],
@@ -202,7 +205,9 @@ def utc_now() -> str:
 
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"{json.dumps(payload, indent=2, sort_keys=True)}\n", encoding="utf-8")
+    path.write_text(
+        f"{json.dumps(payload, indent=2, sort_keys=True)}\n", encoding="utf-8"
+    )
 
 
 def write_text(path: Path, text: str) -> None:
@@ -311,7 +316,9 @@ def classify_execution(
         record["reason_code"] = "broken-command"
         record["severity"] = "high"
         record["summary"] = f"{flow['flow_id']} exited non-zero."
-        record["actionability"]["recommended_fix"] = "Fix the documented command or prerequisites."
+        record["actionability"][
+            "recommended_fix"
+        ] = "Fix the documented command or prerequisites."
         record["actionability"]["next_step"] = "open-docs-or-install-defect"
         return record
 
@@ -340,7 +347,9 @@ def classify_execution(
         record["summary"] = (
             f"{flow['flow_id']} exited zero but did not match the expected success signal."
         )
-        record["actionability"]["recommended_fix"] = "Align the command or expected success signal."
+        record["actionability"][
+            "recommended_fix"
+        ] = "Align the command or expected success signal."
         record["actionability"]["next_step"] = "open-validation-defect"
     return record
 
@@ -373,9 +382,9 @@ def execute_flow(
         record["reason_code"] = "timeout"
         record["summary"] = f"{flow_id} timed out after {timeout_seconds} seconds."
         record["evidence"]["exit_code"] = 124
-        record["actionability"]["recommended_fix"] = (
-            "Increase timeout or split the validation step."
-        )
+        record["actionability"][
+            "recommended_fix"
+        ] = "Increase timeout or split the validation step."
         record["actionability"]["next_step"] = "rerun-with-adjusted-timeout"
         return record
 
@@ -388,7 +397,9 @@ def build_summary(run_id: str, records: list[dict[str, Any]]) -> dict[str, Any]:
     counts_by_status: dict[str, int] = {}
     blockers: dict[str, int] = {}
     for record in records:
-        counts_by_status[record["status"]] = counts_by_status.get(record["status"], 0) + 1
+        counts_by_status[record["status"]] = (
+            counts_by_status.get(record["status"], 0) + 1
+        )
         for flag in record["doc_clarity"]["flags"]:
             blockers[flag] = blockers.get(flag, 0) + 1
     return {
@@ -446,7 +457,9 @@ def run_validation(
                 f"{flow_id} was not executed because execute mode was not enabled."
             )
         records.append(record)
-        write_json(output_root / "records" / "by-flow" / f"{flow_id}.result.json", record)
+        write_json(
+            output_root / "records" / "by-flow" / f"{flow_id}.result.json", record
+        )
 
     jsonl_path = output_root / "records" / "jsonl" / "results.jsonl"
     jsonl_path.parent.mkdir(parents=True, exist_ok=True)
@@ -456,7 +469,9 @@ def run_validation(
     )
     summary = build_summary(run_id, records)
     write_json(output_root / "summaries" / "coverage-summary.json", summary)
-    return ValidationRun(run_id=run_id, output_root=output_root, records=records, summary=summary)
+    return ValidationRun(
+        run_id=run_id, output_root=output_root, records=records, summary=summary
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

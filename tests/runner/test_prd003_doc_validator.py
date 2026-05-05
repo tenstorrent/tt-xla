@@ -35,7 +35,9 @@ def _env_flag(name: str) -> bool:
 
 
 def test_prd003_doc_validator_emits_contract_records(tmp_path: Path):
-    output_root = Path(os.getenv("TT_XLA_PRD003_OUTPUT_ROOT", tmp_path / "prd003_doc_validator"))
+    output_root = Path(
+        os.getenv("TT_XLA_PRD003_OUTPUT_ROOT", tmp_path / "prd003_doc_validator")
+    )
     run_id = os.getenv("TT_XLA_PRD003_RUN_ID", "prd003-doc-validator-pytest")
     target_id = os.getenv("TT_XLA_PRD003_TARGET_ID", "local")
     execute = _env_flag("TT_XLA_PRD003_EXECUTE")
