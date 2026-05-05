@@ -118,6 +118,10 @@ struct CompileOptions {
   // Enable DRAM space saving optimization pass (TTNNMemoryManagement).
   bool experimental_enable_dram_space_saving_optimization = false;
 
+  // Enable D2M subgraph creation pass for d2m elementwise fusion.
+  // Only effective when optimization_level >= 1 (optimizer must be enabled)
+  bool enable_create_d2m_subgraphs = false;
+
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;
 

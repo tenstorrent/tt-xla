@@ -66,6 +66,7 @@ def test_llm(
     expected_ops: list = None,
     check_fusions: bool = False,
     use_indexer_cache: bool = False,
+    enable_create_d2m_subgraphs: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -165,6 +166,7 @@ def test_llm(
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
+        enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
     )
 
     if output_file:
@@ -1763,6 +1765,41 @@ def test_gpt_oss_20b_tp(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
         optimization_level=1,
+    )
+
+
+# Test with D2M fusion enabled (enable-create-d2m-subgraphs=true).
+def test_gpt_oss_20b_tp_d2m_subgraphs(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        trace_enabled=False,
+        optimization_level=1,
+        enable_create_d2m_subgraphs=True,
     )
 
 

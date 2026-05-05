@@ -72,6 +72,10 @@ class CompilerConfig:
     # useful when generating code.
     codegen_try_recover_structure: bool = False
 
+    # Enable D2M subgraph creation pass for d2m elementwise fusion.
+    # Only effective when optimization_level >= 1 (optimizer must be enabled)
+    enable_create_d2m_subgraphs: bool = False
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -113,6 +117,9 @@ class CompilerConfig:
 
         if self.codegen_try_recover_structure:
             options["codegen_try_recover_structure"] = "true"
+
+        if self.enable_create_d2m_subgraphs:
+            options["enable_create_d2m_subgraphs"] = "true"
 
         return options
 
