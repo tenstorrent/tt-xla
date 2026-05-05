@@ -124,6 +124,11 @@ class TTPlatform(Platform):
         # "TPU_CHIPS_PER_HOST_BOUNDS", "TPU_HOST_BOUNDS"
     ]
 
+    # Stashed from the active TTConfig so validate_request() can decide
+    # whether seeded sampling is supported (host path supports it; the
+    # device-side tt::sampling kernel does not yet).
+    _cpu_sampling: bool = False
+
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
 
@@ -185,8 +190,39 @@ class TTPlatform(Platform):
         return torch.no_grad()
 
     @classmethod
+    def validate_request(cls, prompt, params, processed_inputs) -> None:
+        """Reject requests this platform can't currently handle.
+
+        SamplingParams(seed=...) is not supported on the device sampler
+        because the tt::sampling kernel passes a single scalar seed to
+        all 32 cores, breaking per-row reproducibility. The host-side
+        path (cpu_sampling=True) handles seeded sampling correctly via
+        the legacy Sampler.random_sample() Gumbel-max chain. Raising
+        here returns a clean per-request error to the caller without
+        killing the engine; remove this once the kernel grows per-row
+        seed support (see perf_debug/SEEDED_SAMPLING_NOTES.md).
+        """
+        if cls._cpu_sampling:
+            return
+        seed = getattr(params, "seed", None)
+        if seed is not None:
+            raise ValueError(
+                "SamplingParams(seed=...) is not supported by the TT "
+                "device sampler — the tt::sampling kernel does not honor "
+                "per-row seeds yet. Set additional_config="
+                "{'cpu_sampling': True} to use the host-side sampler "
+                "which handles seeded sampling correctly."
+            )
+
+    @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
+
+        # Stash cpu_sampling so validate_request() can read it without
+        # rebuilding TTConfig per request.
+        cls._cpu_sampling = bool(
+            (vllm_config.additional_config or {}).get("cpu_sampling", False)
+        )
 
         # Use AscendScheduler as the default scheduler for TT (except for pooling models)
         if vllm_config.model_config.runner_type != "pooling":
