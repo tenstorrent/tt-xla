@@ -65,9 +65,11 @@ def _patch_router_bf16():
 
     Glm4MoeTopkRouter.forward = _bf16_forward
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _load_cache_chunked(cache_dir):
     state_dict = {}
@@ -444,13 +446,14 @@ def _apply_shard_specs(
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.galaxy
 @pytest.mark.parametrize(
-    "cpu_reference",                                                                                                                                                                                                                                                                               
-    [                                                                                                                                                                                                                                                                                              
+    "cpu_reference",
+    [
         pytest.param(True, marks=pytest.mark.nightly, id="cpu_reference"),
-        pytest.param(False, id="no_cpu_reference"),                                                                                                                                                                                                                                                
-    ],                                                                                                                                                                                                                                                                                             
+        pytest.param(False, id="no_cpu_reference"),
+    ],
 )
 @pytest.mark.parametrize("n_layers", [4])
 def test_glm4_7_decode_static_cache(cpu_reference, n_layers):

@@ -399,13 +399,14 @@ def _pcc(a, b):
 # Tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.galaxy
 @pytest.mark.parametrize(
-    "cpu_reference",                                                                                                                                                                                                                                                                               
-    [                                                                                                                                                                                                                                                                                              
+    "cpu_reference",
+    [
         pytest.param(True, marks=pytest.mark.nightly, id="cpu_reference"),
-        pytest.param(False, id="no_cpu_reference"),                                                                                                                                                                                                                                                
-    ],                                                                                                                                                                                                                                                                                             
+        pytest.param(False, id="no_cpu_reference"),
+    ],
 )
 @pytest.mark.parametrize("n_layers", [4])
 def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
