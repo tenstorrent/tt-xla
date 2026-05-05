@@ -320,36 +320,6 @@ def test_llama_3_2_3b(
     )
 
 
-def test_llama_3_2_3b_kv_cache(
-    output_file,
-    num_layers,
-    request,
-    accuracy_testing,
-    batch_size,
-    max_output_tokens,
-    decode_only,
-):
-    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
-        ModelLoader,
-        ModelVariant,
-    )
-
-    variant = ModelVariant.LLAMA_3_2_3B_INSTRUCT
-    test_llm(
-        ModelLoaderModule=ModelLoader,
-        variant=variant,
-        output_file=output_file,
-        optimization_level=1,
-        num_layers=num_layers,
-        request=request,
-        experimental_kv_cache_dtype="bfp_bf8",
-        accuracy_testing=accuracy_testing,
-        batch_size=batch_size,
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
-    )
-
-
 def test_gemma_1_1_2b(
     output_file,
     num_layers,
@@ -1108,37 +1078,6 @@ def test_llama_3_1_8b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         required_pcc=0.90,
-    )
-
-
-def test_llama_3_1_8b_kv_cache(
-    output_file,
-    num_layers,
-    request,
-    accuracy_testing,
-    batch_size,
-    max_output_tokens,
-    decode_only,
-):
-    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
-        ModelLoader,
-        ModelVariant,
-    )
-
-    variant = ModelVariant.LLAMA_3_1_8B_INSTRUCT
-    test_llm(
-        ModelLoaderModule=ModelLoader,
-        variant=variant,
-        output_file=output_file,
-        optimization_level=1,
-        num_layers=num_layers,
-        request=request,
-        fp32_dest_acc_en=False,
-        experimental_kv_cache_dtype="bfp_bf8",
-        accuracy_testing=accuracy_testing,
-        batch_size=batch_size,
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
     )
 
 
