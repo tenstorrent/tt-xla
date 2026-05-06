@@ -22,11 +22,11 @@ jobs:
       project-filter: tt-xla
 
   demo-tests:
-    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@main
+    uses: tenstorrent/tt-forge/.github/workflows/demo-tests.yml@vvukoman/add-filter-test-matrix
     secrets: inherit
     with:
       docker-image: ${{ inputs.release_docker_image }}
-      ref: main
+      ref: vvukoman/add-filter-test-matrix
       project-filter: tt-xla
 
   fail-notify:
