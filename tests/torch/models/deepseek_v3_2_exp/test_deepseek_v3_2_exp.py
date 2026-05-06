@@ -29,6 +29,7 @@ def _fix_layernorm_dtype(model):
             module.weight.data = module.weight.data.to(torch.float32)
             module.bias.data = module.bias.data.to(torch.float32)
 
+
 # This model is modified from the original deepseek_v3_2_exp model.py. Comments about each modification made can be found in
 # third_party/tt_forge_models/deepseek/deepseek_v3_2_exp/pytorch/src/modified_model.py. Some of the notable modifications include:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
