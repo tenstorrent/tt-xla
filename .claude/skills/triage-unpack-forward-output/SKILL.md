@@ -1,7 +1,6 @@
 ---
 name: triage-unpack-forward-output
-description: Triage and auto-fix one tt-forge-models training test stuck at FAILED_FE_COMPILATION with reason "tt-forge-models doesn't implement unpack_forward_output for this model." Runs the model on CPU, inspects forward outputs, gathers model docs, then either registers a handler in training_utils.py (preferred for HuggingFace ModelOutput classes) or writes a per-loader unpack_forward_output override (for bare list/tuple/dict outputs or structural transforms). Re-runs the affected training and inference tests and updates the YAML.
-allowed-tools: Bash Read Edit Write Grep Glob WebFetch
+description: Triage one tt-forge-models training test stuck at FAILED_FE_COMPILATION with reason "tt-forge-models doesn't implement unpack_forward_output for this model." Inspects the model's forward output, registers a handler or writes a per-loader override, and updates the YAML.
 argument-hint: <test-name>
 ---
 
@@ -55,13 +54,16 @@ Auto-detect both:
 Write `/tmp/triage_<model_dir>_<variant>.py`:
 
 ```python
-import sys, torch
+import sys, inspect, torch
 sys.path.insert(0, "/localdev/<user>/tt-xla")
 from third_party.tt_forge_models.<model_dir>.pytorch.loader import ModelLoader, ModelVariant
 
 loader = ModelLoader(variant=ModelVariant.<VARIANT>)  # omit variant arg if loader has no ModelVariant
 model = loader.load_model().eval()
-inputs = loader.load_inputs()
+load_inputs_kwargs = {}
+if "batch_size" in inspect.signature(loader.load_inputs).parameters:
+    load_inputs_kwargs["batch_size"] = 2
+inputs = loader.load_inputs(**load_inputs_kwargs)
 
 with torch.no_grad():
     out = model(**inputs) if isinstance(inputs, dict) else (
@@ -93,7 +95,7 @@ Run it: `python /tmp/triage_<model_dir>_<variant>.py &> /tmp/triage_<model_dir>_
 
 **Read the log with the Read tool. Never use `tail` or `less` — they hide errors behind generic exit codes** (this is a hard rule from feedback memory).
 
-If the script errored out before producing structure (e.g. `load_inputs` requires a non-default kwarg), adjust the script (try `dtype_override=torch.bfloat16`, or `seq_len`/`batch_size` if `load_inputs` accepts them — see `tests/runner/utils/dynamic_loader.py:380-419` for what the test runner passes) and re-run.
+If the script errored out before producing structure, adjust the script (try `dtype_override=torch.bfloat16`, or `seq_len` if `load_inputs` accepts it — see `tests/runner/utils/dynamic_loader.py:380-419` for what the test runner passes) and re-run.
 
 ### Step 4 — Gather model docs
 
@@ -201,15 +203,29 @@ Read both logs.
 
 ### Step 8 — Update the YAML
 
-Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. Update **every** training entry that you flipped to `EXPECTED_PASSING` in Step 6 — not just the original one. For each:
+Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. Update **every** training entry that you flipped to `EXPECTED_PASSING` in Step 6 — not just the original one. The goal: get tests out of `NOT_SUPPORTED_SKIP` so they actually run in nightly/weekly. Pick by outcome:
 
-- **Pass case:**
+- **Pass:**
   ```yaml
-  <model_dir>/pytorch-<variant>-single_device-training:
+  <key>:
     status: EXPECTED_PASSING
   ```
   Drop `bringup_status` and `reason` entirely.
-- **Fail case:** restore the prior `status:` (`KNOWN_FAILURE_XFAIL` if it was that, otherwise `NOT_SUPPORTED_SKIP`), set `bringup_status:` to the new category, set `reason:` to a one-line excerpt of the real error (the `TT_FATAL`/`TT_THROW` line if applicable, trimmed to ~120 chars).
+- **Fail with `INCORRECT_RESULT` (PCC failure):** the test is functionally running, just inaccurate. Run it as `EXPECTED_PASSING` with PCC checks disabled:
+  ```yaml
+  <key>:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+  ```
+  Drop `bringup_status` and `reason`.
+- **Any other failure** (`FAILED_TTMLIR_COMPILATION`, `FAILED_RUNTIME`, or even still `FAILED_FE_COMPILATION` for an unrelated env/import reason like `_has_torch_function` docstring, `is_torch_fx_available`, `Boolean value of Tensor … ambiguous`, `ModuleNotFoundError`): mark as `KNOWN_FAILURE_XFAIL` so nightly/weekly invokes the test and reports XFAIL with the documented reason instead of silently skipping:
+  ```yaml
+  <key>:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: <FAILED_FE_COMPILATION | FAILED_TTMLIR_COMPILATION | FAILED_RUNTIME>
+    reason: "<one-line excerpt of the real error, ~120 chars>"
+  ```
+  Do not add a `markers:` field unless one was already present for an unrelated reason. Never leave a triaged entry at `NOT_SUPPORTED_SKIP` — the runner skips those (`tests/runner/test_models.py:118`) and the failure is invisible in nightly reports.
 
 The inference log is **informational only**. Do not modify the inference YAML entry. Flag any inference regression to the user in the final report so they can investigate separately.
 

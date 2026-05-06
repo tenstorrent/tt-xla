@@ -1254,6 +1254,7 @@ test_config:
   yolov9/pytorch-T-single_device-inference:
     required_pcc: 0.94
     status: EXPECTED_PASSING
+    markers: [push, nightly]
 
   yolov9/pytorch-S-single_device-inference:
     required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
