@@ -10,6 +10,8 @@ globs the IR files produced by the current run, and searches for each op by simp
 string match. A pattern must appear in every graph file.
 
 IR type is inferred from the op prefix e.g. "ttnn." -> ttnn, "ttir." -> ttir.
+The current run is identified by `export_model_name`, which embeds a unique
+`_run<hex>_` token, so files from previous runs are naturally excluded.
 """
 
 from __future__ import annotations
@@ -26,30 +28,26 @@ def _collect_ir_files(
     modules_dir: str | Path,
     ir_type: str,
     export_model_name: str,
-    min_mtime: float,
 ) -> list[Path]:
     """
     Return graph-IR files produced by the current benchmark run.
 
-    Globs `{modules_dir}/irs/{ir_type}_{export_model_name}_*.mlir` and
-    filters to files whose mtime is >= min_mtime (to exclude stale files
-    from previous runs). Sorted for deterministic iteration.
+    Globs `{modules_dir}/irs/{ir_type}_{export_model_name}_*.mlir`. The
+    `export_model_name` carries a unique `_run<hex>_` token so the match is
+    already scoped to the current run. Sorted for deterministic iteration.
     """
     irs_dir = Path(modules_dir) / "irs"
     if not irs_dir.is_dir():
         return []
 
     prefix = f"{ir_type}_{export_model_name}_"
-    return sorted(
-        p for p in irs_dir.glob(f"{prefix}*.mlir") if p.stat().st_mtime >= min_mtime
-    )
+    return sorted(irs_dir.glob(f"{prefix}*.mlir"))
 
 
 def check_fusions(
-    expected_ops: list[str | tuple[str, int]],
+    expected_ops: list[str],
     export_model_name: str,
     modules_dir: str | Path,
-    before_compile_ts: float,
 ) -> None:
     """
     Verify that expected ops appear in the IR produced by this benchmark run.
@@ -61,9 +59,8 @@ def check_fusions(
     Args:
         expected_ops: List of op strings like "ttnn.rms_norm".
         export_model_name: Model export name used to glob IR file names.
+            Already unique per run via the `_run<hex>_` token it embeds.
         modules_dir: Directory containing the "irs/" subdirectory.
-        before_compile_ts: Unix timestamp recorded before compilation; only
-            IR files newer than this are considered to belong to the current run.
 
     Raises:
         AssertionError: if any op is absent from any graph file for this run,
@@ -74,21 +71,19 @@ def check_fusions(
 
     failures: list[str] = []
 
-    for entry in expected_ops:
-        op = entry[0] if isinstance(entry, tuple) else entry
+    for op in expected_ops:
         ir_type = _infer_ir_type(op)
 
         ir_files = _collect_ir_files(
             modules_dir=modules_dir,
             ir_type=ir_type,
             export_model_name=export_model_name,
-            min_mtime=before_compile_ts,
         )
         if not ir_files:
             failures.append(
                 f"Op '{op}': no IR files found "
                 f"(looked for {ir_type}_{export_model_name}_*.mlir under "
-                f"{modules_dir}/irs/ with mtime >= {before_compile_ts})"
+                f"{modules_dir}/irs/)"
             )
             continue
 

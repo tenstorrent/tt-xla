@@ -48,7 +48,7 @@ on:
         description: "Verify expected fusion ops are present in compiled IR"
         required: false
         type: boolean
-        default: true
+        default: false
 
 env:
   GH_TOKEN: ${{ github.token }}

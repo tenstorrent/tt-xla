@@ -6,7 +6,6 @@
 import os
 import socket
 import sys
-import time
 from typing import Optional, Union
 
 import numpy as np
@@ -17,6 +16,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
 import transformers
+from fusion_check import check_fusions
 from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
@@ -483,7 +483,6 @@ def benchmark_llm_torch_xla(
         output_sharding_spec=input_output_sharding_spec,
     )
     perf_wrapper.eval()
-    before_compile_ts = time.time()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
     warmup_kv_cache = None
@@ -766,13 +765,10 @@ def benchmark_llm_torch_xla(
     )
 
     if check_fusions_enabled and expected_ops:
-        from fusion_check import check_fusions
-
         check_fusions(
             expected_ops=expected_ops,
             export_model_name=export_model_name,
             modules_dir=MODULE_EXPORT_PATH,
-            before_compile_ts=before_compile_ts,
         )
 
     return result
