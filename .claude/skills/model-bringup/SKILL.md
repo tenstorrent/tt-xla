@@ -33,7 +33,10 @@ Run the following loop (max 5 iterations total across repair cycles):
 ```
 VALIDATE  →  FIRST_RUN
                 ↓ pass → CONFIG_UPDATE → PASSED
-                ↓ timeout → CONFIG_UPDATE(TIMEOUT) → STOP
+                ↓ timeout (300s) → MANUAL-RUN PAUSE  (handled inside model-bringup-run)
+                                       ↓ user provides log, tail = passed → CONFIG_UPDATE → PASSED
+                                       ↓ user provides log, tail = failed → DIAGNOSE
+                                       ↓ user replies "skip" or log inconclusive → CONFIG_UPDATE(TIMEOUT) → STOP
                 ↓ fail → DIAGNOSE
                             ↓ low confidence → ESCALATE
                             ↓ → REPAIR
@@ -50,7 +53,15 @@ VALIDATE  →  FIRST_RUN
 
 **FIRST_RUN / VERIFY**: Invoke `model-bringup-run` skill with model_key and arch.
 - On pass → transition to CONFIG_UPDATE.
-- On timeout → transition to CONFIG_UPDATE with result=TIMEOUT, then STOP.
+- On timeout → the run skill pauses internally and asks the user for a manual
+  longer-budget run. The orchestrator should not transition until the run skill
+  returns a final verdict. The verdict can be:
+    - `passed` (manual log shows pytest pass) → CONFIG_UPDATE.
+    - `failed` (manual log shows pytest fail / traceback) → DIAGNOSE, with
+      `details.source: "manual_run"` on the history entry so DIAGNOSE knows the
+      log came from a longer-budget run.
+    - `timeout` (user replied "skip" or manual log was still inconclusive) →
+      CONFIG_UPDATE with result=TIMEOUT, then STOP.
 - On fail → save log path to state, transition to DIAGNOSE.
 
 **DIAGNOSE**: Invoke `model-bringup-diagnose` skill with the log from the last run.

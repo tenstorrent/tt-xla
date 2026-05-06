@@ -65,7 +65,67 @@ Set env var `TT_XLA_ARCH=<arch>` for the subprocess.
 Do not suppress any output — the full stdout+stderr must be captured.
 
 ### 3. Handle TIMEOUT result
-If result is `"timeout"`:
+
+If `exit_code == 124`, do **NOT** immediately mark as UNKNOWN. The 300s budget
+is often too short for first-run weight downloads, HF cache misses, or initial
+JIT/XLA compilation, and the actual pass/fail signal usually appears within a
+few extra minutes. **Pause the pipeline and ask the user to run the test
+manually with a longer budget**, then resume with their log.
+
+#### 3a. Print the manual-run prompt and stop the turn
+
+Print exactly this block, then **end the assistant turn without further tool
+calls** so the user can reply:
+
+```
+[run] iter=<N>  TIMEOUT at 300s — pipeline paused, manual run required.
+
+Please run the test yourself with a longer budget and share the log:
+
+  TT_XLA_ARCH=<arch> timeout 1800 python -m pytest \
+    '<test_node_id>' \
+    -v --tb=short -s 2>&1 | tee /tmp/<safe_key>_manual.log
+
+Then reply with one of:
+  - the path to the log file (e.g. /tmp/<safe_key>_manual.log), or
+  - the pasted log content, or
+  - "skip" to fall through to the original TIMEOUT/UNKNOWN escalation.
+```
+
+Do not proceed past this point until the user has replied.
+
+#### 3b. Process the user's reply
+
+When the user replies, branch on what they provided:
+
+- **Log path** (file exists, e.g. `/tmp/<safe_key>_manual.log`):
+  Copy it to `.claude/bringup/<safe_key>/logs/iter_<N>_manual.log` and inspect
+  the tail.
+
+- **Pasted log content**:
+  Write it to `.claude/bringup/<safe_key>/logs/iter_<N>_manual.log` and inspect
+  the tail.
+
+- **"skip"** (or any clear opt-out):
+  Fall through to the original TIMEOUT escalation in **3c** below.
+
+Inspect the tail of the manual log and classify:
+
+| Tail signature | Recorded `result` | Next stage |
+|---|---|---|
+| `=== <N> passed in <T>s ===` | `passed` | continue to Step 4, then orchestrator → CONFIG_UPDATE(PASSED) |
+| `=== <N> failed in <T>s ===` or traceback / `1 error` | `failed` | continue to Step 4 with the manual log path; orchestrator → DIAGNOSE |
+| Truncated / still timed out at the larger budget / no clear verdict | (treat as still TIMEOUT) | fall through to **3c** |
+
+When recording a passed/failed result from a manual log, use the manual log
+path in `details.log` and add `details.source: "manual_run"` plus the budget
+the user used (`details.manual_timeout_seconds`).
+
+#### 3c. Fallback: original TIMEOUT/UNKNOWN escalation
+
+Only reached if the user replied "skip" or the manual log was still
+inconclusive.
+
 - Append to `history`:
   ```json
   {
@@ -76,7 +136,7 @@ If result is `"timeout"`:
       "log": "logs/iter_<N>_run.log",
       "returncode": 124,
       "duration_seconds": 300,
-      "failure_reason": "Test exceeded 300s wall-clock limit — likely downloading large model weights or OOM. Marking UNKNOWN (bringup not attempted)."
+      "failure_reason": "Test exceeded 300s wall-clock limit and manual run did not produce a verdict. Marking UNKNOWN (bringup not attempted)."
     }
   }
   ```
@@ -87,7 +147,8 @@ If result is `"timeout"`:
 Output:
 ```
 [run] iter=<N>  result=TIMEOUT  duration=300s
-  Marking as UNKNOWN (bringup not attempted) — exceeded 5-minute execution limit.
+  Marking as UNKNOWN (bringup not attempted) — exceeded 5-minute execution limit
+  and manual run did not produce a verdict.
   log: .claude/bringup/<safe_key>/logs/iter_<N>_run.log
 ```
 
