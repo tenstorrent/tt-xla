@@ -52,12 +52,27 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
 // Creates new pjrt tensor for provided shards from an existing runtime tensor.
 PjrtTensor &
 PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
-                                tt::runtime::Tensor rt_tensor) {
+                                tt::runtime::Tensor rt_tensor,
+                                std::optional<HostTensorShell> shell) {
 
   tt::runtime::setTensorRetain(rt_tensor, true);
 
   auto tensor = std::make_shared<PjrtTensor>(Private{}, std::move(shards),
                                              std::move(rt_tensor));
+  tensor->m_host_tensor_shell = std::move(shell);
+
+  for (BufferInstance *shard : tensor->shards()) {
+    shard->setPjrtTensor(tensor);
+  }
+
+  return *tensor;
+}
+
+PjrtTensor &PjrtTensor::from_host_tensor_shell(
+    std::vector<BufferInstance *> shards, HostTensorShell shell) {
+  auto tensor = std::make_shared<PjrtTensor>(Private{}, std::move(shards),
+                                             std::nullopt);
+  tensor->m_host_tensor_shell = std::move(shell);
 
   for (BufferInstance *shard : tensor->shards()) {
     shard->setPjrtTensor(tensor);
@@ -67,7 +82,7 @@ PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
 }
 
 PjrtTensor::PjrtTensor(Private, std::vector<BufferInstance *> shards,
-                       tt::runtime::Tensor rt_tensor)
+                       std::optional<tt::runtime::Tensor> rt_tensor)
     : m_uid{next_uid()}, m_shards{std::move(shards)},
       m_runtime_tensor{std::move(rt_tensor)} {
 
@@ -78,13 +93,15 @@ PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
 
 void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
                                const tt::runtime::Layout &layout) {
+  TT_FATAL(m_runtime_tensor.has_value(),
+           "Cannot ensure layout for shell-only PjrtTensor");
 
-  if (tt::runtime::hasLayout(m_runtime_tensor, layout))
+  if (tt::runtime::hasLayout(*m_runtime_tensor, layout))
     return;
 
-  const bool retain = tt::runtime::getTensorRetain(m_runtime_tensor);
+  const bool retain = tt::runtime::getTensorRetain(*m_runtime_tensor);
   m_runtime_tensor =
-      tt::runtime::toLayout(m_runtime_tensor, device, layout, retain);
+      tt::runtime::toLayout(*m_runtime_tensor, device, layout, retain);
 
   // Notify each shard so the host-buffer-done event fires now and the
   // framework releases its source reference, instead of holding it for
@@ -123,8 +140,10 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
 // remove_shard().
 void PjrtTensor::move_to_host() noexcept {
   ZoneScoped;
+  TT_FATAL(m_runtime_tensor.has_value(),
+           "Cannot move shell-only PjrtTensor to host");
   std::vector<tt::runtime::Tensor> tensors =
-      tt::runtime::toHost(m_runtime_tensor, /*untilize=*/true);
+      tt::runtime::toHost(*m_runtime_tensor, /*untilize=*/true);
 
   TT_FATAL(tensors.size() == m_shards.size() || tensors.size() == 1,
            "Unexpected number of tensors after move to host: "
@@ -139,7 +158,7 @@ void PjrtTensor::move_to_host() noexcept {
     }
 
     tt::runtime::Tensor rt_tensor =
-        tensors.size() == 1 ? m_runtime_tensor : std::move(tensors[i]);
+        tensors.size() == 1 ? *m_runtime_tensor : std::move(tensors[i]);
     PjrtTensor::from_runtime_tensor({m_shards[i]}, std::move(rt_tensor));
   }
 

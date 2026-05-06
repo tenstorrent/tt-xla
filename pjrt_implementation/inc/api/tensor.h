@@ -13,6 +13,7 @@
 
 // c++ standard library includes
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -50,6 +51,14 @@ class PjrtTensor {
   };
 
 public:
+  struct HostTensorShell {
+    const void *host_buffer;
+    std::vector<std::uint32_t> shape;
+    std::vector<std::uint32_t> strides;
+    std::uint32_t element_size;
+    ::tt::target::DataType runtime_data_type;
+  };
+
   // Initializes pjrt tensor from pjrt buffers.
   //
   // If tensor already exists (shards already share same tensor) tensor will be
@@ -63,11 +72,15 @@ public:
   // Creates new pjrt tensor for provided shards from an existing runtime
   // tensor.
   static PjrtTensor &from_runtime_tensor(std::vector<BufferInstance *> shards,
-                                         tt::runtime::Tensor device_tensor);
+                                         tt::runtime::Tensor device_tensor,
+                                         std::optional<HostTensorShell> shell =
+                                             std::nullopt);
+  static PjrtTensor &from_host_tensor_shell(
+      std::vector<BufferInstance *> shards, HostTensorShell shell);
 
 public: // Constructors needs to be public for std::shared_ptr.
   PjrtTensor(Private, std::vector<BufferInstance *> shards,
-             tt::runtime::Tensor tensor);
+             std::optional<tt::runtime::Tensor> tensor);
 
   ~PjrtTensor();
 
@@ -80,8 +93,20 @@ public: // Constructors needs to be public for std::shared_ptr.
   std::vector<BufferInstance *> &shards() { return m_shards; };
   const std::vector<BufferInstance *> &shards() const { return m_shards; };
 
-  tt::runtime::Tensor &runtime_tensor() { return m_runtime_tensor; }
-  const tt::runtime::Tensor &runtime_tensor() const { return m_runtime_tensor; }
+  tt::runtime::Tensor &runtime_tensor() {
+    TT_FATAL(m_runtime_tensor.has_value(),
+             "Accessing runtime tensor on shell-only PjrtTensor");
+    return *m_runtime_tensor;
+  }
+  const tt::runtime::Tensor &runtime_tensor() const {
+    TT_FATAL(m_runtime_tensor.has_value(),
+             "Accessing runtime tensor on shell-only PjrtTensor");
+    return *m_runtime_tensor;
+  }
+  bool has_runtime_tensor() const noexcept { return m_runtime_tensor.has_value(); }
+  const std::optional<HostTensorShell> &host_tensor_shell() const {
+    return m_host_tensor_shell;
+  }
 
   uint64_t uid() const noexcept { return m_uid; }
 
@@ -120,8 +145,13 @@ private:
   // Tensor shards. Each shard hold pjrt tensor reference to this pjrt tensor.
   std::vector<BufferInstance *> m_shards;
 
-  // Underlying runtime tensor.
-  tt::runtime::Tensor m_runtime_tensor;
+  // Underlying runtime tensor. May be absent for shell-only host tensors until
+  // runtime materialization in prepareInputTensor.
+  std::optional<tt::runtime::Tensor> m_runtime_tensor;
+
+  // Optional metadata for host-submitted tensors used to recreate worker-local
+  // runtime tensors without depending on the initial runtime tensor descriptor.
+  std::optional<HostTensorShell> m_host_tensor_shell;
 };
 
 // Shared pointer to pjrt tensor used by all shards that holds tensor.
