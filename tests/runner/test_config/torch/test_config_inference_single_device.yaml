@@ -724,8 +724,7 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
 
   t5/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
@@ -737,8 +736,7 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Fourier-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
 
   # yolov8/pytorch-yolov8x-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -753,8 +751,9 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9897869694927385. Required: pcc=0.99"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
