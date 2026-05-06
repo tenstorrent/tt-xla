@@ -46,6 +46,7 @@ _disable_tt_torch_function_override()
 
 # Set to 0 to run the full model, otherwise set to the number of blocks to run.
 MAX_BLOCKS = 0
+N_RUNS = 3
 
 # ---------------------------------------------------------------------------
 # Tests
@@ -70,7 +71,7 @@ def test_wan_dit_720p_sharded():
 
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
-    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True)
+    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True, enable_trace=True)
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
     t, h, w = shapes["latent_frames"], shapes["latent_h"], shapes["latent_w"]
@@ -106,29 +107,31 @@ def _run(resolution: str, sharded: bool):
 
     with torch.no_grad():
         warmup_start = time.perf_counter_ns()
-        _ = compiled(*inputs_on_device)
-        torch_xla.sync(wait=True)
+        out = compiled(*inputs_on_device)
+        cpu_out = out.to("cpu")
         warmup_end = time.perf_counter_ns()
 
-        warm_start = time.perf_counter_ns()
-        tt_out = compiled(*inputs_on_device)
-        torch_xla.sync(wait=True)
-        warm_end = time.perf_counter_ns()
-
-    tt_out_cpu = tt_out.to("cpu")
+        
+        warm_times = []
+        for _ in range(N_RUNS):
+            warm_start = time.perf_counter_ns()
+            tt_out = compiled(*inputs_on_device)
+            tt_out = tt_out.to("cpu")
+            warm_end = time.perf_counter_ns()
+            warm_times.append(warm_end - warm_start)
 
     with torch.no_grad():
         cpu_out = wrapper_cpu(hidden_states, timestep, encoder_hidden_states)
 
-    pcc = compute_pcc(tt_out_cpu, cpu_out)
+    pcc = compute_pcc(tt_out, cpu_out)
 
     warmup_ms = (warmup_end - warmup_start) / 1e6
-    warm_ms = (warm_end - warm_start) / 1e6
+    warm_times_ms = [t / 1e6 for t in warm_times]
 
     print("====================================================================")
     print(f"| PERF: wan_dit {resolution} {'sharded' if sharded else 'single'}")
     print("--------------------------------------------------------------------")
-    print(f"| warmup (compile + run) e2e: {warmup_ms:.4f} ms")
-    print(f"| warm                   e2e: {warm_ms:.4f} ms")
+    print(f"| cold (compile + run) e2e: {warmup_ms:.4f} ms")
+    print(f"| warm times: {', '.join(f'{t:.4f} ms' for t in warm_times_ms)}")
     print(f"| PCC: {pcc}")
     print("====================================================================")

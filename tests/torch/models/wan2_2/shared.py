@@ -404,7 +404,7 @@ def run_component(
     xr.set_device_type("TT")
     device = xm.xla_device()
 
-    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True)
+    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True, enable_trace=True)
     torch_xla.set_custom_compile_options(compiler_config.to_torch_compile_options())
 
     # Move the raw wrapper and inputs to device first. shard_fn needs to see
