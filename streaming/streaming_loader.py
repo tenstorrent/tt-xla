@@ -127,7 +127,12 @@ def _strip_cpu_golden_refs(block) -> None:
 
 
 def _block_shard_spec(block, mesh) -> Dict[torch.Tensor, Tuple]:
-    """SPMD shard spec for one Block (post-sparse-MLP rewrite)."""
+    """SPMD shard spec for one Block (post-sparse-MLP rewrite). Default
+    Flash-style sharding: minimal collectives, replicated shared experts +
+    small attention linears. Run-hybrid uses this by default; pass
+    `block_shard_spec_fn=_block_shard_spec_pro` for Pro to enable extra
+    sharding required to fit 60+ layers in device DRAM.
+    """
     specs: Dict[torch.Tensor, Tuple] = {}
     compound = ("_axis_0", "_axis_1")
 
@@ -165,12 +170,113 @@ def _block_shard_spec(block, mesh) -> Dict[torch.Tensor, Tuple]:
     return specs
 
 
+def _block_shard_spec_pro(block, mesh) -> Dict[torch.Tensor, Tuple]:
+    """SPMD shard spec for Pro: aggressive sharding to fit 60+ layers in
+    device DRAM. Adds sharding for small attention linears (wq_a / wkv),
+    fp32 compressor / indexer linears, and converts shared experts from
+    replicated to column/row-parallel.
+
+    Trade-off: extra all-gather/all-reduce collectives vs replicated
+    weights. For Pro this is mandatory — without it 60 layers won't fit.
+    """
+    specs: Dict[torch.Tensor, Tuple] = {}
+    compound = ("_axis_0", "_axis_1")
+
+    # Attention — Megatron-pattern sharding consistent with hidden-sharded
+    # block input (embed.weight is `(None, "_axis_1")` in Pro top-level spec).
+    #
+    # The first matmul of each path (wq_a, wkv, compressor.wkv/wgate) is
+    # ROW-PARALLEL: weight `(None, "_axis_1")` shards the contracting
+    # `dim` axis to match the hidden-sharded activation. Compiler emits
+    # an all-reduce after each matmul to assemble the full latent
+    # output. The expand matmul (wq_b) is COL-PARALLEL — full latent
+    # input → output sharded on `n_heads*head_dim`. wo_a (col) → wo_b
+    # (row) mirrors this for the output projection.
+    #
+    # Choosing col-parallel for wq_a / wkv would also shrink memory but
+    # forces an extra all_gather of the hidden-sharded activation
+    # before the matmul AND another after (to feed wq_b's full-input
+    # expectation) — net 2 all_gathers vs 1 all-reduce here. Avoids
+    # collective_permute in the lowered IR.
+    attn = block.attn
+    specs[attn.wq_a.weight] = (None, "_axis_1")
+    specs[attn.wq_b.weight] = ("_axis_1", None)
+    specs[attn.wkv.weight] = (None, "_axis_1")
+    specs[attn.wo_a.weight] = ("_axis_1", None)
+    specs[attn.wo_b.weight] = (None, "_axis_1")
+    specs[attn.kv_cache] = ("_axis_0", None, None)
+    if attn.compress_ratio:
+        # Compressor wkv / wgate are fp32 Linear weights producing the
+        # latent KV. Hidden-sharded input → row-parallel matches; the
+        # f32 output stays full (latent) for the compressor norm /
+        # downstream matmuls.
+        specs[attn.compressor.wkv.weight] = (None, "_axis_1")
+        specs[attn.compressor.wgate.weight] = (None, "_axis_1")
+        specs[attn.compressor.kv_cache] = ("_axis_0", None, None)
+        specs[attn.compressor.kv_state] = ("_axis_0", None, None)
+        specs[attn.compressor.score_state] = ("_axis_0", None, None)
+        if getattr(attn, "indexer", None) is not None:
+            specs[attn.indexer.wq_b.weight] = ("_axis_1", None)
+            specs[attn.indexer.weights_proj.weight] = ("_axis_1", None)
+            specs[attn.indexer.compressor.wkv.weight] = (None, "_axis_1")
+            specs[attn.indexer.compressor.wgate.weight] = (None, "_axis_1")
+            specs[attn.indexer.compressor.kv_cache] = ("_axis_0", None, None)
+            specs[attn.indexer.compressor.kv_state] = ("_axis_0", None, None)
+            specs[attn.indexer.compressor.score_state] = ("_axis_0", None, None)
+
+    # MoE (post-swap A2aSparseMLPWithSharedExperts)
+    a2a_with_shared = block.ffn
+    mlp = a2a_with_shared.mlp
+    specs[mlp.router.gate.weight] = (None, None)
+    specs[mlp.experts.gate_proj] = (compound, None, None)
+    specs[mlp.experts.up_proj] = (compound, None, None)
+    specs[mlp.experts.down_proj] = (compound, None, None)
+
+    # Shared experts: column/row-parallel pattern instead of replicate.
+    # w1 [inter, dim] / w3 [inter, dim]: col-parallel ('_axis_1' on inter).
+    # w2 [dim, inter]: row-parallel ('_axis_1' on the inter contracting dim;
+    # SPMD compiler inserts the all-reduce after the matmul).
+    # Saves ~132 MB / device / layer (replicated bf16) → ~16 MB sharded.
+    shared = getattr(a2a_with_shared, "shared_experts", None)
+    if shared is not None:
+        specs[shared.w1.weight] = ("_axis_1", None)
+        specs[shared.w2.weight] = (None, "_axis_1")
+        specs[shared.w3.weight] = ("_axis_1", None)
+
+    return specs
+
+
 def _top_level_shard_spec(model) -> Dict[torch.Tensor, Tuple]:
-    """SPMD shard spec for embed / norm / head / hc_head_*."""
+    """SPMD shard spec for embed / norm / head / hc_head_*. Default
+    Flash-style: replicate embed and head; the small top-level params
+    aren't worth the all-gather/all-reduce cost.
+    """
     return {
         model.embed.weight: (None, None),
         model.norm.weight: (None,),
         model.head.weight: (None, None),
+        model.hc_head_fn: (None, None),
+        model.hc_head_base: (None,),
+        model.hc_head_scale: (None,),
+    }
+
+
+def _top_level_shard_spec_pro(model) -> Dict[torch.Tensor, Tuple]:
+    """Pro top-level spec: hidden-shards embed and head. Saves ~232 MB
+    embed (bf16 1.85 GB → 232 MB / device) and ~464 MB head (fp32
+    3.7 GB → 464 MB / device). Compiler inserts the all-gather after
+    embed lookup and all-reduce before head logits.
+
+    `model.norm.weight` (final RMSNorm, shape [dim]) is also
+    `("_axis_1",)`-sharded to match the hidden-sharded activation
+    flowing in from the layer stack — keeps the elementwise weight*x
+    multiply collective-free. Memory savings are negligible (28 KB →
+    3.5 KB / device); the change is for sharding consistency.
+    """
+    return {
+        model.embed.weight: (None, "_axis_1"),
+        model.norm.weight: ("_axis_1",),
+        model.head.weight: (None, "_axis_1"),
         model.hc_head_fn: (None, None),
         model.hc_head_base: (None,),
         model.hc_head_scale: (None,),

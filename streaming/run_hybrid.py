@@ -34,7 +34,7 @@ from __future__ import annotations
 import gc
 import os
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import torch
@@ -48,11 +48,15 @@ from torch_xla.distributed.spmd import Mesh
 from infra.utilities.torch_multichip_utils import enable_spmd
 from tt_torch.sparse_mlp import enable_sparse_mlp
 from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from tests.torch.models.deepseek_v4 import weight_loader
 from streaming.streaming_loader import (
     _block_shard_spec,
+    _block_shard_spec_pro,
     _ship_module_handle_path,
     _strip_cpu_golden_refs,
+    _top_level_shard_spec,
+    _top_level_shard_spec_pro,
     _upload_with_sharding,
 )
 from streaming.run_layer_stream import (
@@ -263,6 +267,21 @@ def _reinit_mutable_kv_buffers(block, persistent_bufs_for_layer, mesh, device):
     torch_xla.sync(wait=True)
 
 
+def _block_relative_overrides(weight_overrides: Dict[str, str]) -> Dict[str, str]:
+    """Strip `layers.*.` prefix from override patterns so they apply against a
+    single `block` instead of the full model. Patterns without the prefix
+    (e.g. top-level `embed.weight` or a literal `default`) pass through.
+    """
+    relative: Dict[str, str] = {}
+    layer_prefix = "layers.*."
+    for pattern, dtype in weight_overrides.items():
+        if pattern.startswith(layer_prefix):
+            relative[pattern[len(layer_prefix):]] = dtype
+        elif pattern == "default":
+            relative["default"] = dtype
+    return relative
+
+
 def make_mesh():
     n = xr.global_runtime_device_count()
     if n == 32:
@@ -275,7 +294,32 @@ def make_mesh():
     return Mesh(np.arange(n), mesh_shape, ("_axis_0", "_axis_1")), mesh_shape
 
 
-def main():
+def main(
+    weight_overrides: Optional[Dict[str, str]] = None,
+    block_shard_spec_fn=None,
+    top_level_shard_spec_fn=None,
+):
+    """Hybrid streaming runner.
+
+    Args:
+        weight_overrides: optional dict of `{glob: dtype_str}` for
+            `apply_weight_dtype_overrides`. Default `None` keeps weights at
+            their native dtype (Flash). Pass the Pro override dict for
+            `bfp_bf4`/`bfp_bf8` packing.
+        block_shard_spec_fn: factory `(block, mesh) -> Dict[Tensor, Tuple]`
+            that returns SPMD shard spec for a single Block. Default
+            `_block_shard_spec` (Flash). Pass `_block_shard_spec_pro` for
+            Pro's aggressive sharding.
+        top_level_shard_spec_fn: factory `(model) -> Dict[Tensor, Tuple]`
+            for embed/head/norm/hc_head_* sharding. Default
+            `_top_level_shard_spec` (Flash). Pass
+            `_top_level_shard_spec_pro` for Pro.
+    """
+    if block_shard_spec_fn is None:
+        block_shard_spec_fn = _block_shard_spec
+    if top_level_shard_spec_fn is None:
+        top_level_shard_spec_fn = _top_level_shard_spec
+
     enable_spmd()
     xr.set_device_type("TT")
     torch.manual_seed(0)
@@ -336,7 +380,8 @@ def main():
     model = _build_skeleton(args)
     t_skel = time.time() - t_section
     t_ship = time.time()
-    _ship_top_level(model, mesh, device)
+    _ship_top_level(model, mesh, device,
+                    top_level_shard_spec_fn=top_level_shard_spec_fn)
     print(
         f"[step] skeleton+top-level: skeleton={t_skel:.1f}s "
         f"ship={time.time() - t_ship:.1f}s "
@@ -413,7 +458,20 @@ def main():
     # phase. Same-shape per-block subgraphs may also reduce some XLA
     # internal staging vs. arbitrary dummy shapes.
     dummy_bsz = bsz
-    dummy_seqlen = PROMPT_LEN
+    # Dummy flush graph runs block forward to trigger each weight's
+    # parametrize-wrapped matmul (so const_eval typecasts bf16 → bfp4
+    # and Plan B's retain-clear frees the bf16 input). seqlen MUST
+    # match whole-model's PROMPT_LEN — otherwise the const_eval
+    # function-body SHA256 ends up subtly different, the cache key
+    # misses at whole-model compile time, and the runtime tries to
+    # re-run const_eval with the already-freed bf16 input → assertion
+    # fail in load_cached. The seqlen=1 attempt was empirically
+    # confirmed to break cache reuse despite the body looking
+    # identical at the printed-IR level. Override via
+    # `STREAM_DUMMY_SEQLEN` only for diagnostic small-shape runs that
+    # don't need cache reuse.
+    dummy_seqlen = int(os.environ.get("STREAM_DUMMY_SEQLEN",
+                                       str(PROMPT_LEN)))
     dim = args.dim
     print(
         f"[hybrid] dummy forward shape: "
@@ -602,7 +660,7 @@ def main():
         # _ship_module_handle_path skips already-device buffers from
         # step 3, so we only ship parameters here.
         t_ship = time.time()
-        block_specs = _block_shard_spec(block, mesh)
+        block_specs = block_shard_spec_fn(block, mesh)
         block_specs_by_id = {id(t): ps for t, ps in block_specs.items()}
         del block_specs
         _ship_module_handle_path(
@@ -616,6 +674,30 @@ def main():
         _log(f"l{layer_id} post-ship")
         if TRACE_OBJECTS:
             _log_tensor_inventory(f"l{layer_id} post-ship")
+
+        # 4b. Apply per-layer weight dtype overrides BEFORE the dummy flush
+        # so each per-layer flush graph traces with weight_dtype_override ops
+        # → const_eval typecasts bf16 → bfp_bf4/bfp_bf8 at flush-compile time
+        # → packed weights cached on device per layer (instead of only at
+        # whole-model compile, by which time 60 layers of bf16 expert weights
+        # would already have OOM'd device DRAM).
+        # Done AFTER ship/mark_sharding (line 587) so parametrization wraps
+        # the device-resident sharded original.
+        # Done AFTER `_block_shard_spec` (which uses tensor identity) — that
+        # ran inside `_ship_module_handle_path` already.
+        if weight_overrides:
+            applied_block = apply_weight_dtype_overrides(
+                block, _block_relative_overrides(weight_overrides)
+            )
+            if layer_id == 0:
+                # Log only once — pattern is the same for every layer.
+                print(
+                    f"[wdtype] per-layer apply: {len(applied_block)} overrides "
+                    f"per block",
+                    flush=True,
+                )
+                for path, dtype_str in applied_block:
+                    print(f"[wdtype]   {path} -> {dtype_str}", flush=True)
 
         # 5. DUMMY EXECUTE: triggers PJRT
         # LoadedExecutableInstance::execute → ensure_layout → release
@@ -709,6 +791,14 @@ def main():
     _log("post-all-layers")
     if TRACE_OBJECTS:
         _log_tensor_inventory("post-all-layers")
+
+    # Weight dtype overrides are applied PER-LAYER in the streaming loop
+    # above (after each block's ship, before its dummy flush) — see step 4b
+    # for the rationale. Doing it here (post all-layers) was the original
+    # design but only triggered bf16 → bfp_bf4 typecast at whole-model
+    # compile, by which time 60 layers of bf16 expert weights had already
+    # OOM'd device DRAM. Per-layer apply ensures each flush's const_eval
+    # caches the packed weight before the next ship adds more pressure.
 
     head_hook = sharding_constraint_hook(model.head, mesh, (None, None))
     model.head.register_forward_hook(head_hook)

@@ -196,15 +196,31 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.
-    if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
-                   "be deallocated during execution.");
-      return tt_pjrt_status::kInternal;
-    }
-    if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
-                   "means it was deallocated by a previous operation.");
-      return tt_pjrt_status::kInternal;
+    //
+    // `TT_RUNTIME_FREE_CONST_EVAL_INPUTS=1` intentionally lets the
+    // runtime's load_cached path clear retain on const-eval input args
+    // so the compiler-emitted ttnn.deallocate frees the bf16 source
+    // bytes (the bfp-packed cache output is what the program actually
+    // consumes on subsequent calls). Inputs returning here with
+    // retain=false / is_allocated=false are this exact case — relax
+    // both checks since the load_cached cache hit reuses the cached
+    // BFP outputs and the compiler-emitted dealloc ops on stale args
+    // are made tolerant in deletion::run.
+    static const bool freeConstEvalInputs = []() {
+      const char *v = std::getenv("TT_RUNTIME_FREE_CONST_EVAL_INPUTS");
+      return v != nullptr && v[0] == '1';
+    }();
+    if (!freeConstEvalInputs) {
+      if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
+                     "be deallocated during execution.");
+        return tt_pjrt_status::kInternal;
+      }
+      if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
+                     "means it was deallocated by a previous operation.");
+        return tt_pjrt_status::kInternal;
+      }
     }
   }
   return tt_pjrt_status::kSuccess;

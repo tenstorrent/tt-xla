@@ -168,7 +168,7 @@ def _build_skeleton(args):
         torch.set_default_dtype(prev)
 
 
-def _ship_top_level(model, mesh, device):
+def _ship_top_level(model, mesh, device, top_level_shard_spec_fn=None):
     # load_top_level_state_dict() returns head/norm/hc_head_* but NOT
     # embed.weight (which lives under its own loader function).
     embed_sd = weight_loader.load_embed_state_dict()
@@ -178,7 +178,9 @@ def _ship_top_level(model, mesh, device):
     model.load_state_dict(top_sd, strict=False)
     del top_sd
     gc.collect()
-    top_specs = _top_level_shard_spec(model)
+    if top_level_shard_spec_fn is None:
+        top_level_shard_spec_fn = _top_level_shard_spec
+    top_specs = top_level_shard_spec_fn(model)
     top_specs_by_id = {id(t): ps for t, ps in top_specs.items()}
     del top_specs
     _ship_module_handle_path(model.embed, top_specs_by_id, mesh, device,

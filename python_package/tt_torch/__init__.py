@@ -27,3 +27,7 @@ from .weight_dtype import (
     dump_weight_names,
     remove_weight_dtype_overrides,
 )
+from .pre_quantize import pack_to_bfp, weight_pre_quantized
+
+# Register the custom op via import side-effect (mirrors custom_ops above).
+import tt_torch.pre_quantize  # noqa: F401
