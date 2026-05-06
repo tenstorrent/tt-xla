@@ -1260,6 +1260,54 @@ def all_to_all_dispatch_fake(
     return dispatched, metadata
 
 
+def _a2a_dispatch_setup_context(ctx, inputs, output):
+    input_tensor = inputs[0]
+    expert_indices = inputs[1]
+    expert_mapping = inputs[2]
+    num_devices = inputs[3]
+    cluster_axis = inputs[4]
+
+    ctx.save_for_backward(expert_indices, expert_mapping)
+    ctx.input_shape = tuple(input_tensor.shape)
+    ctx.num_devices = int(num_devices)
+    ctx.cluster_axis = int(cluster_axis)
+
+    _, metadata = output
+    ctx.mark_non_differentiable(metadata)
+
+
+def _a2a_dispatch_backward(ctx, grad_dispatched, grad_metadata):
+    """
+    Forward replicates each input token across `num_devices` slots of the
+    cluster axis (each slot may later be zero-masked by the kernel when the
+    token's expert isn't local). The backward is therefore a plain sum of
+    grad_dispatched over that replicated D dimension.
+
+    Per-device math: reshape grad_dispatched `[1, B*D, S, H]` to
+    `[1, D, B, S, H]`, sum over dim=1, then restore the input layout.
+    """
+    input_shape = ctx.input_shape
+    D = ctx.num_devices
+
+    input_was_3d = len(input_shape) == 3
+    if input_was_3d:
+        B, S, H = input_shape
+    else:
+        B, _, S, H = input_shape
+
+    g = grad_dispatched.reshape(1, D, B, S, H).sum(dim=1)
+    g = g.permute(1, 0, 2, 3).contiguous()
+    if input_was_3d:
+        g = g.reshape(B, S, H)
+    return g, None, None, None, None
+
+
+all_to_all_dispatch.register_autograd(
+    _a2a_dispatch_backward,
+    setup_context=_a2a_dispatch_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::all_to_all_combine", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1400,6 +1448,90 @@ def all_to_all_combine_fake(
             device=input_tensor.device,
         )
     raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
+
+
+def _a2a_combine_setup_context(ctx, inputs, output):
+    # inputs: (input_tensor, expert_metadata, expert_mapping, num_devices,
+    #          cluster_axis, num_experts_per_tok, output_shard_dim)
+    input_tensor = inputs[0]
+    expert_metadata = inputs[1]
+    expert_mapping = inputs[2]
+    num_devices = inputs[3]
+    cluster_axis = inputs[4]
+    K = inputs[5]
+    output_shard_dim = inputs[6]
+
+    ctx.save_for_backward(expert_metadata, expert_mapping)
+    ctx.input_shape = tuple(input_tensor.shape)
+    ctx.num_devices = int(num_devices)
+    ctx.cluster_axis = int(cluster_axis)
+    ctx.K = int(K)
+    ctx.output_shard_dim = int(output_shard_dim)
+
+
+def _a2a_combine_backward(ctx, grad_combined):
+    """
+    Forward (per device d, with tpd = BD*S / D tokens on d):
+        combined[k, tok_local, :] = input[metadata[d*tpd+tok_local, k],
+                                          d*tpd+tok_local, :]
+    Backward:
+        d_input[metadata[d*tpd+tok_local, k], d*tpd+tok_local, :]
+            += grad_combined[k, tok_local, :]
+
+    Uses a one-hot/einsum contraction rather than torch.scatter_add_ — scatter
+    lowers to a per-chunk decomposition on TT that multiplies the ttnn op
+    count by ~15000 per scatter, stalling the backward compile.
+    """
+    (expert_metadata,) = ctx.saved_tensors[:1]
+    input_shape = ctx.input_shape
+    D = ctx.num_devices
+    K = ctx.K
+    output_shard_dim = ctx.output_shard_dim
+
+    E_local = input_shape[0]
+    tokens_total = expert_metadata.shape[2]  # BD*S
+    H = input_shape[-1]
+    tpd = tokens_total // D  # B*S per device
+
+    # Undo shard_dim insertion from forward to recover [K, tpd, H].
+    if output_shard_dim == 1:
+        g = grad_combined.squeeze(2)
+    elif output_shard_dim == 2:
+        g = grad_combined.squeeze(1)
+    else:
+        raise ValueError(f"output_shard_dim must be 1 or 2, got {output_shard_dim}")
+
+    # Device-local metadata slice: each device sees its own tokens' expert.
+    metadata_local = expert_metadata[0, 0, :tpd, :].long()  # [tpd, K]
+
+    expert_ids_KT = metadata_local.transpose(0, 1).contiguous()  # [K, tpd]
+    valid_KT = (expert_ids_KT >= 0) & (expert_ids_KT < E_local)
+    expert_ids_clamped = expert_ids_KT.clamp(0, E_local - 1)
+    e_range = torch.arange(E_local, device=g.device)
+    one_hot = (e_range.view(E_local, 1, 1) == expert_ids_clamped.view(1, K, tpd)).to(
+        g.dtype
+    )  # [E_local, K, tpd]
+    one_hot = one_hot * valid_KT.unsqueeze(0).to(g.dtype)
+    partial = torch.einsum("ekt,kth->eth", one_hot, g)
+    if tokens_total > tpd:
+        zero_pad = torch.zeros(
+            E_local,
+            tokens_total - tpd,
+            H,
+            dtype=g.dtype,
+            device=g.device,
+        )
+        d_input_flat = torch.cat([partial, zero_pad], dim=1)
+    else:
+        d_input_flat = partial
+    d_input = d_input_flat.reshape(input_shape)
+    return d_input, None, None, None, None, None, None
+
+
+all_to_all_combine.register_autograd(
+    _a2a_combine_backward,
+    setup_context=_a2a_combine_setup_context,
+)
 
 
 @torch.library.custom_op(
