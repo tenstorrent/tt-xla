@@ -121,6 +121,31 @@ def test_non_greedy(device, vocab_size):
     assert_valid_tokens(actual, vocab_size)
 
 
+# Vocabs whose chunk count under chunked_topk_candidates is unsupported by
+# the tt::sampling kernel: Wt=1 (single chunk) or Wt not a power of 2.
+# Covers the kernel-hang cases from #4560 that VOCAB_SIZES doesn't reach.
+UNSUPPORTED_WT_VOCAB_SIZES = [
+    pytest.param(32000, id="wt1_1chunk"),
+    pytest.param(65537, id="wt3_3chunks"),
+    pytest.param(196608, id="wt6_6chunks"),
+]
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", UNSUPPORTED_WT_VOCAB_SIZES)
+def test_non_greedy_unsupported_wt(device, vocab_size):
+    """Regression: unsupported Wt (=1, or non-power-of-2) must not hang the kernel (#4560)."""
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    metadata_dev = make_metadata(device=device)
+    actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size)
+
+
 @pytest.mark.push
 @pytest.mark.single_device
 def test_greedy_batch32(device):
