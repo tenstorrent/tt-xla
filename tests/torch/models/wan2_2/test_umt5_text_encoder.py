@@ -29,6 +29,8 @@ from .shared import (
     wan22_mesh,
 )
 
+N_RUNS = 3
+
 
 def test_umt5_480p():  # OOM on single device
     _run(resolution="480p", sharded=False)
@@ -49,7 +51,7 @@ def test_umt5_720p_sharded():
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
     torch.manual_seed(42)
-    compiler_config = CompilerConfig(optimization_level=1)
+    compiler_config = CompilerConfig(optimization_level=1, enable_trace=True)
     _ = RESOLUTIONS[resolution]  # resolution is a no-op for UMT5 shapes
 
     wrapper = UMT5Wrapper(load_umt5()).eval().bfloat16()
@@ -79,16 +81,17 @@ def _run(resolution: str, sharded: bool):
 
     with torch.no_grad():
         warmup_start = time.perf_counter_ns()
-        _ = compiled(*inputs_on_device)
-        torch_xla.sync(wait=True)
+        out = compiled(*inputs_on_device)
+        cpu_out = out.to("cpu")
         warmup_end = time.perf_counter_ns()
 
-        warm_start = time.perf_counter_ns()
-        tt_out = compiled(*inputs_on_device)
-        torch_xla.sync(wait=True)
-        warm_end = time.perf_counter_ns()
-
-    tt_out_cpu = tt_out.to("cpu")
+        warm_times = []
+        for _ in range(N_RUNS):
+            warm_start = time.perf_counter_ns()
+            tt_out = compiled(*inputs_on_device)
+            tt_out = tt_out.to("cpu")
+            warm_end = time.perf_counter_ns()
+            warm_times.append(warm_end - warm_start)
 
     wrapper_cpu = wrapper_on_device.to("cpu")
     if hasattr(wrapper_cpu, "tie_weights"):
@@ -96,15 +99,15 @@ def _run(resolution: str, sharded: bool):
     with torch.no_grad():
         cpu_out = wrapper_cpu(input_ids, attention_mask)
 
-    pcc = compute_pcc(tt_out_cpu, cpu_out)
+    pcc = compute_pcc(tt_out, cpu_out)
 
     warmup_ms = (warmup_end - warmup_start) / 1e6
-    warm_ms = (warm_end - warm_start) / 1e6
+    warm_times_ms = [t / 1e6 for t in warm_times]
 
     print("====================================================================")
     print(f"| PERF: umt5 {resolution} {'sharded' if sharded else 'single'}")
     print("--------------------------------------------------------------------")
-    print(f"| warmup (compile + run) e2e: {warmup_ms:.4f} ms")
-    print(f"| warm                   e2e: {warm_ms:.4f} ms")
+    print(f"| cold (compile + run) e2e: {warmup_ms:.4f} ms")
+    print(f"| warm times: {', '.join(f'{t:.4f} ms' for t in warm_times_ms)}")
     print(f"| PCC: {pcc}")
     print("====================================================================")
