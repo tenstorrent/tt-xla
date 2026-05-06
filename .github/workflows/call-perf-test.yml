@@ -44,6 +44,11 @@ on:
         required: false
         type: boolean
         default: false
+      check_fusions:
+        description: "Verify expected fusion ops are present in compiled IR"
+        required: false
+        type: boolean
+        default: false
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -182,7 +187,7 @@ jobs:
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
         source venv/activate
-        pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
+        pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} ${{ inputs.check_fusions && '--check-fusions' || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
       id: dump-stablehlo

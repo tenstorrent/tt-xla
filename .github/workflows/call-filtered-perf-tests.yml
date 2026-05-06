@@ -45,6 +45,11 @@ on:
         required: false
         type: boolean
         default: false
+      check_fusions:
+        description: "Verify expected fusion ops are present in compiled IR"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   packages: write
@@ -101,3 +106,4 @@ jobs:
       regression_check: ${{ inputs.regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
       use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
+      check_fusions: ${{ inputs.check_fusions }}
