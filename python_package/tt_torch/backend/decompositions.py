@@ -345,19 +345,104 @@ def masked_scatter(
     # Optimised row-wise fast path: O(B*S) cumsum instead of O(B*S*H).
     H = data.shape[-1] if data.ndim >= 2 else 0
     n_true = source.numel() // H if H > 0 else 0
+    _stride_broadcast = mask.ndim >= 1 and mask.stride(-1) == 0
+    _ndim_broadcast = mask.ndim < data.ndim
+    _numel_match = n_true > 0 and source.numel() == n_true * H
     _row_constant = (
         data.ndim >= 2
         and mask.ndim >= 2
-        and (
-            mask.stride(-1) == 0
-            or mask.ndim < data.ndim
-            or (n_true > 0 and source.numel() == n_true * H)
-        )
+        and (_stride_broadcast or _ndim_broadcast or _numel_match)
     )
+
+    # Identify which condition triggered the row-constant decision so the
+    # log is unambiguous even when concrete values aren't reachable.
+    _reasons = []
+    if _stride_broadcast:
+        _reasons.append("stride_last==0(broadcast)")
+    if _ndim_broadcast:
+        _reasons.append(f"mask.ndim<data.ndim({mask.ndim}<{data.ndim})")
+    if _numel_match:
+        _reasons.append(
+            f"source.numel({source.numel()})==n_true({n_true})*H({H})"
+        )
+    _reason_str = ",".join(_reasons) if _reasons else "none"
+
+    print(
+        f"[masked_scatter decomp] data={tuple(data.shape)} dtype={data.dtype} | "
+        f"mask={tuple(mask.shape)} dtype={mask.dtype} stride={tuple(mask.stride()) if mask.ndim>=1 else None} | "
+        f"source={tuple(source.shape)} | H={H} n_true={n_true} row_constant={_row_constant} reason=[{_reason_str}]",
+        flush=True,
+    )
+
+    # Detect tracing / fake tensor: in those modes element-level access
+    # (.item(), tensor __repr__) goes through aten._local_scalar_dense
+    # which is not implemented and raises. Use the canonical is_fake()
+    # which sees through FunctionalTensor / proxy wrappers.
+    def _has_real_data(t):
+        try:
+            if torch.compiler.is_compiling():
+                return False
+        except Exception:
+            pass
+        try:
+            from torch._subclasses.fake_tensor import is_fake, FakeTensor
+            if is_fake(t) or isinstance(t, FakeTensor):
+                return False
+        except Exception:
+            pass
+        try:
+            from torch._subclasses.functional_tensor import FunctionalTensor
+            if isinstance(t, FunctionalTensor):
+                return False
+        except Exception:
+            pass
+        try:
+            return t.device.type in ("cpu", "cuda")
+        except Exception:
+            return False
+
+    if not _has_real_data(mask):
+        # Cannot read element values during tracing. Emit shape/stride
+        # diagnostics and the metadata-based row-constant verdict so the
+        # OPT path decision is fully auditable from the log.
+        print(
+            f"[masked_scatter decomp] mask values not materializable during trace "
+            f"(FakeTensor / Functional / xla:0). Verdict by metadata: row_constant={_row_constant} "
+            f"because [{_reason_str}].",
+            flush=True,
+        )
+    else:
+        with torch.no_grad():
+            try:
+                torch.set_printoptions(
+                    threshold=float("inf"),
+                    edgeitems=10000,
+                    linewidth=200,
+                    profile="full",
+                )
+                m = mask.detach().cpu()
+                if m.ndim >= 2:
+                    row_const = (m.all(dim=-1) == m.any(dim=-1))
+                    bad = int((~row_const).sum().item())
+                    total = int(row_const.numel())
+                    print(
+                        f"[masked_scatter decomp] row-constant check: rows_uniform={total - bad}/{total}, inconsistent_rows={bad}",
+                        flush=True,
+                    )
+                    print(
+                        f"[masked_scatter decomp] mask[..., 0] (one True/False per row):\n{m[..., 0]}",
+                        flush=True,
+                    )
+                else:
+                    print(f"[masked_scatter decomp] mask:\n{m}", flush=True)
+                torch.set_printoptions(profile="default")
+            except Exception as _e:
+                print(f"[masked_scatter decomp] mask print failed: {_e}", flush=True)
 
     mask, data = torch.broadcast_tensors(mask, data)
 
     if _row_constant and n_true > 0:
+        print("[masked_scatter decomp] -> OPT path (row-constant)", flush=True)
         mask_outer = mask[..., 0]
         mask_f = mask_outer.reshape(-1)
         data_2d = data.reshape(-1, H)
@@ -368,6 +453,8 @@ def masked_scatter(
         gathered = source_2d[source_idx]
         result = torch.where(mask_f.unsqueeze(-1), gathered, data_2d)
         return result.view_as(data)
+
+    print("[masked_scatter decomp] -> FALLBACK path (flat)", flush=True)
 
     # Original flat decomposition (fallback for non-row-constant masks)
     # mask_f = mask.reshape(-1)

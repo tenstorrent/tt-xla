@@ -1,8 +1,12 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import threading
+
 import torch
 from torch.overrides import TorchFunctionMode
+
+_masked_scatter_inspect_state = threading.local()
 
 
 class TorchFunctionOverride(TorchFunctionMode):
@@ -19,6 +23,105 @@ class TorchFunctionOverride(TorchFunctionMode):
                 if len(args) > 2 and args[2] is not None:
                     res = res + args[2]
                 return res
+
+        # Eager-time mask-scatter inspection. The custom decomposition in
+        # tt_torch/backend/decompositions.py runs under AOT autograd with
+        # FakeTensors, so it can verify row-constancy by metadata only.
+        # Here we sit on the eager path (real CPU/CUDA tensors) and dump
+        # the actual row-level mask once per call, so the row-constant
+        # claim used by the OPT path can be confirmed against real data.
+        # masked_scatter dispatches re-enter __torch_function__ via the
+        # function/method/aten chain; the thread-local flag ensures we
+        # log exactly once per outer call.
+        _already_inspecting = getattr(
+            _masked_scatter_inspect_state, "active", False
+        )
+        if (
+            func.__name__ == "masked_scatter"
+            and not torch.compiler.is_compiling()
+            and not _already_inspecting
+            and len(args) >= 2
+        ):
+            data, mask = args[0], args[1]
+            source = args[2] if len(args) > 2 else (kwargs or {}).get("source")
+            _masked_scatter_inspect_state.active = True
+            try:
+                if (
+                    isinstance(mask, torch.Tensor)
+                    and mask.device.type in ("cpu", "cuda")
+                    and mask.dtype == torch.bool
+                    and mask.ndim >= 2
+                ):
+                    H = data.shape[-1] if data.ndim >= 2 else 0
+                    n_true = (
+                        source.numel() // H
+                        if (H > 0 and isinstance(source, torch.Tensor))
+                        else 0
+                    )
+                    print(
+                        f"[masked_scatter eager] data={tuple(data.shape)} dtype={data.dtype} | "
+                        f"mask={tuple(mask.shape)} dtype={mask.dtype} stride={tuple(mask.stride())} | "
+                        f"source={tuple(source.shape) if isinstance(source, torch.Tensor) else None} | "
+                        f"H={H} n_true={n_true}",
+                        flush=True,
+                    )
+                    with torch.no_grad():
+                        m = mask.detach().cpu()
+                        row_const = m.all(dim=-1) == m.any(dim=-1)
+                        bad = int((~row_const).sum().item())
+                        total = int(row_const.numel())
+                        print(
+                            f"[masked_scatter eager] row-constant check: rows_uniform={total - bad}/{total}, inconsistent_rows={bad}",
+                            flush=True,
+                        )
+                        # Print each row separately so each row is on its
+                        # own line. For uniform rows we summarise (all
+                        # True / all False) since the row is huge; for
+                        # non-uniform rows we dump the full row to expose
+                        # the bad pattern.
+                        flat = m.reshape(-1, m.shape[-1])
+                        H_ = flat.shape[-1]
+                        print(
+                            f"[masked_scatter eager] per-row mask dump ({flat.shape[0]} rows, each row length={H_}):",
+                            flush=True,
+                        )
+                        old_opts = torch._tensor_str.PRINT_OPTS
+                        torch.set_printoptions(
+                            threshold=float("inf"),
+                            edgeitems=10000,
+                            linewidth=10**9,
+                        )
+                        try:
+                            for i in range(flat.shape[0]):
+                                row = flat[i]
+                                all_t = bool(row.all().item())
+                                any_t = bool(row.any().item())
+                                if all_t:
+                                    tag = "all_True "
+                                elif not any_t:
+                                    tag = "all_False"
+                                else:
+                                    n_true_row = int(row.sum().item())
+                                    tag = f"NON-UNIFORM(n_true={n_true_row}/{H_})"
+                                print(
+                                    f"  row[{i:>4}] all_true={all_t} any_true={any_t} {tag}: {row.tolist()}",
+                                    flush=True,
+                                )
+                        finally:
+                            torch.set_printoptions(
+                                threshold=old_opts.threshold,
+                                edgeitems=old_opts.edgeitems,
+                                linewidth=old_opts.linewidth,
+                                precision=old_opts.precision,
+                                profile="default",
+                            )
+            except Exception as _e:
+                print(f"[masked_scatter eager] inspect failed: {_e}", flush=True)
+            try:
+                return func(*args, **(kwargs or {}))
+            finally:
+                _masked_scatter_inspect_state.active = False
+
         return func(*args, **(kwargs or {}))
 
 
