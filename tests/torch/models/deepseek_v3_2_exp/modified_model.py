@@ -1,6 +1,10 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+
+# This version of the modified model is only for tests/torch/models/deepseek_v3_2_exp/test_deepseek_v3_1.py. 
+# For other tests, please use the modified model found in third_party/deepseek/deepseek_v3_2_exp
+
 import math
 from dataclasses import dataclass
 from typing import Literal, Optional, Tuple
