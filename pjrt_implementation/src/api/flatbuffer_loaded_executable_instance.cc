@@ -156,19 +156,23 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
       continue;
     }
 
-    // Use the first buffer's existing (borrowed) runtime tensor to recover the
-    // shape/stride/itemsize/dtype metadata needed to materialize an owned
-    // host copy. All buffers that share this host_base are expected to have
-    // identical TensorDesc since they alias the same client host array.
-    const tt::runtime::TensorDesc desc =
-        tt::runtime::getTensorDesc(buffers.front()->runtimeTensor());
+    const auto &shell = buffers.front()->getPjrtTensor()->host_tensor_shell();
+    if (!shell.has_value()) {
+      LOG_F(ERROR,
+            "Missing host tensor shell metadata for buffer uid=%lu ptr=%p",
+            buffers.front()->getUID(),
+            static_cast<const void *>(buffers.front()));
+      return std::nullopt;
+    }
 
     // First buffer gets a newly-allocated owned host tensor that actually
     // copies the bytes from the client's host_base pointer. Subsequent
     // buffers in the group get unsafe-borrowed tensors aliasing that owned
     // tensor, so we only hold one copy of the data on the worker side.
     tt::runtime::Tensor owned_tensor =
-        tt::runtime::createOwnedHostTensor(host_base, desc);
+        tt::runtime::createOwnedHostTensor(
+            const_cast<void *>(shell->host_buffer), shell->shape, shell->strides,
+            shell->element_size, shell->runtime_data_type);
     LOG_F(INFO,
           "Group %zu: created owned host tensor (copied from host_base=%p)",
           group_idx, host_base);
