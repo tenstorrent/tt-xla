@@ -88,7 +88,6 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Xxlarge_v2-single_device-inference:
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Large_v2-single_device-inference:
@@ -2133,7 +2132,7 @@ test_config:
   sam/pytorch-Vit_Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  deepseek/qwen/pytorch-single_device-inference:
+  deepseek/qwen/pytorch-R1_Distill_32B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
     markers: [large]
@@ -2212,7 +2211,6 @@ test_config:
     reason: "Can't convert shape rank - https://github.com/tenstorrent/tt-xla/issues/3379"
 
   gemma/codegemma/pytorch-2B-single_device-inference:
-    assert_pcc: false # https://github.com/tenstorrent/tt-mlir/issues/6461
     status: EXPECTED_PASSING
 
   llama/causal_lm/pytorch-Tinyllama_v1.1-single_device-inference:
@@ -2378,8 +2376,8 @@ test_config:
     status: EXPECTED_PASSING
 
   dense_unet_3d/pytorch-Base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 1536736 B which is beyond max L1 size of 1499136 B - https://github.com/tenstorrent/tt-xla/issues/4239"
+    status: NOT_SUPPORTED_SKIP
+    reason: "Test hangs and times out after 240 minutes in CI - https://github.com/tenstorrent/tt-xla/issues/4239"
     markers: [large]
 
   openvla_oft/pytorch-Finetuned_Libero_10-single_device-inference:
@@ -2454,12 +2452,16 @@ test_config:
   siglip/image_text_similarity/pytorch-Base_Patch16_384-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
+      n150:
+        required_pcc: 0.98  # https://github.com/tenstorrent/tt-xla/issues/4409
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9847531158203227 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-Base_Patch16_512-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
+      n150:
+        required_pcc: 0.98  # https://github.com/tenstorrent/tt-xla/issues/4409
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9867153999500852 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
@@ -2651,7 +2653,6 @@ test_config:
 
   gemma3/causal_lm/pytorch-1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false  # https://github.com/tenstorrent/tt-xla/issues/3860 - AssertionError: PCC comparison failed. Calculated: pcc=0.955831792289353. Required: pcc=0.99
 
   gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
     status: KNOWN_FAILURE_XFAIL

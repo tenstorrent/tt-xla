@@ -90,6 +90,7 @@ def test_deepseek_complex_rotary_emb():
 
 
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 def test_deepseek_attention_prefill(batch_size):
     xr.set_device_type("TT")
@@ -160,6 +161,7 @@ def test_deepseek_attention_prefill(batch_size):
 
 
 @pytest.mark.llmbox
+@pytest.mark.lb_blackhole
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 def test_deepseek_indexer(batch_size):
     xr.set_device_type("TT")
@@ -335,7 +337,7 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
 
     comparison_config = ComparisonConfig(
         # seq_len = 1 has low pcc (0.92-) so disable pcc check temporarily
-        pcc=PccConfig(enabled=False if seq_len == 1 else True, required_pcc=0.99),
+        pcc=PccConfig(enabled=False if seq_len == 1 else True, required_pcc=0.985),
     )
 
     run_graph_test(

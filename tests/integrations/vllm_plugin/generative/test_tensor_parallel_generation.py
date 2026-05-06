@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 import vllm
-from conftest import check_host_memory
+from conftest import assert_output_coherent, check_host_memory
 
 
 @pytest.mark.push
@@ -33,6 +33,7 @@ def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
+    assert_output_coherent(output_text)
 
 
 @pytest.mark.push
@@ -73,6 +74,7 @@ def test_tensor_parallel_generation_llmbox_small(
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
+    assert_output_coherent(output_text)
 
     check_host_memory(model_name)
 
@@ -83,9 +85,9 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-32B", False, "", "True"),
-        pytest.param("Qwen/Qwen2.5-32B", False, "", "False"),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", "True"),
+        pytest.param("Qwen/Qwen3-32B", False, "", True),
+        pytest.param("Qwen/Qwen2.5-32B", False, "", False),
+        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
@@ -116,5 +118,6 @@ def test_tensor_parallel_generation_llmbox_large(
 
     output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
     print(f"prompt: {prompts[0]}, output: {output_text}")
+    assert_output_coherent(output_text)
 
     check_host_memory(model_name)

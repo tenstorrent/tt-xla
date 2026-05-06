@@ -73,7 +73,7 @@ jobs:
           query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}"}'
           output_file: coverage_nightly.json
           max_attempts: 12
-          retry_interval_seconds: 300
+          retry_interval_seconds: 120
 
       - name: Fetch model coverage (On weekly)
         uses: ./.github/actions/superset-api
@@ -95,6 +95,8 @@ jobs:
           query: report/model_performance
           query_params: '{"project": "tt-xla", "workflow_name": "On nightly", "commit_hash": "${{ steps.get-release.outputs.commit_hash }}", "architecture": "wormhole"}'
           output_file: perf.json
+          max_attempts: 12
+          retry_interval_seconds: 120
 
       - name: Generate reports
         run: python3 .github/scripts/generate_release_reports.py

@@ -378,7 +378,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
     std::unique_ptr<DeviceInstance> device_instance =
         DeviceInstance::createInstance(
-            global_device_id, is_addressable, local_device_id,
+            this, global_device_id, is_addressable, local_device_id,
             m_system_descriptor->chip_descs()->Get(i)->arch());
 
     m_devices_raw.push_back(device_instance.get());
@@ -912,10 +912,23 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                                                 args->num_dims, device_instance,
                                                 memory_instance);
 
-  buffer->copyFromHost(
-      args->data, args->type, args->dims, args->num_dims, args->byte_strides,
-      args->num_byte_strides, args->host_buffer_semantics,
-      reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
+  if (client_instance->isCompileOnly()) {
+    // No tt::runtime / host tensor work: compile-only clients must not execute.
+    DLOG_F(LOG_DEBUG,
+           "Compile-only mode: PJRT_Client_BufferFromHostBuffer no-op "
+           "(TT_COMPILE_ONLY_SYSTEM_DESC)");
+    std::unique_ptr<EventInstance> done_with_host =
+        EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(done_with_host.get(),
+                                          tt_pjrt_status::kSuccess);
+    args->done_with_host_buffer = *done_with_host.release();
+    buffer->markAsDataReady();
+  } else {
+    buffer->copyFromHost(
+        args->data, args->type, args->dims, args->num_dims, args->byte_strides,
+        args->num_byte_strides, args->host_buffer_semantics,
+        reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
+  }
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Buffer_Destroy` on the buffer.

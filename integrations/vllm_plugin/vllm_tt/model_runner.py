@@ -36,6 +36,7 @@ from vllm.model_executor.layers.attention.chunked_local_attention import (
 )
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
 from vllm.model_executor.models.interfaces import (
@@ -237,12 +238,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
+        self.is_sharded_compute_logits = False
 
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            # Updating the config to reflect the actual mesh shape used.
+            if self.use_2d_mesh and 1 in mesh_shape:
+                self.use_2d_mesh = False
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -290,6 +295,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             min_token_size=self.tt_config.min_context_len,
             max_token_size=self.max_model_len,
         )
+        if self.tt_config.decode_only:
+            # Restrict all num_tokens bucketing to the decode shape so every
+            # precompile pass (and anything else that reads
+            # self.num_tokens_paddings) only compiles num_tokens=1.
+            self.num_tokens_paddings = [1]
+            logger.info("decode_only=True; restricting num_tokens_paddings to [1].")
 
         # In case `max_num_tokens < max(num_tokens_paddings)` use the actual
         # padded max value to pre-allocate data structures and pre-compile.
@@ -447,14 +458,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.tt_config.cpu_sampling:
+            logger.warning("cpu_sampling=True: using CPU sampling path")
             self.sample_from_logits_func = self.sample_from_logits_cpu
-        elif not self.enable_tensor_parallel:
-            self.sample_from_logits_func = torch.compile(
-                self.sample_from_logits,
-                backend="tt",
-                fullgraph=True,
-                dynamic=False,
-            )
         else:
             self.sample_from_logits_func = self.sample_from_logits
 
@@ -1364,7 +1369,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
-            tpu_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+            logger.warning_once(
+                "Sampling on %s (cpu_sampling=%s)",
+                sampling_device,
+                self.tt_config.cpu_sampling,
+            )
+            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
                 self.max_num_reqs,
                 sampling_device,
@@ -1380,28 +1390,40 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding, grammar_bitmask_padded, logits, arange
                 )
 
-            selected_token_ids = self.sample_from_logits(logits, tpu_sampling_metadata)
+            selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
             # sure `sample_from_logits` does not modify the logits in-place.
-            logprobs = (
-                self.gather_logprobs(logits, selected_token_ids)
-                if tpu_sampling_metadata.logprobs
-                else None
-            )
+            if not sampling_metadata.logprobs:
+                logprobs = None
+            elif self.tt_config.enable_trace:
+                # TODO(#4387): remove once trace-insertion pass handles
+                # ttir.embedding on on-device indices. The on-device
+                # gather_logprobs graph fails trace at opt_level=1, so
+                # fall back to CPU — post-processing is cheap and only
+                # the sampled-token id + logits need to move to host.
+                logits_cpu = logits.cpu()
+                tokens_cpu = selected_token_ids.cpu()
+                logprobs = self.sampler.gather_logprobs(
+                    self.sampler.compute_logprobs(logits_cpu),
+                    self.model_config.max_logprobs,
+                    token_ids=tokens_cpu.squeeze(-1),
+                )
+            else:
+                logprobs = self.gather_logprobs(logits, selected_token_ids)
 
             # Remove padding on cpu and keep dynamic op outside of xla graph.
             selected_token_ids = selected_token_ids.cpu()[:num_reqs]
 
             combined_selected_tokens.append(selected_token_ids)
-            if tpu_sampling_metadata.logprobs:
+            if sampling_metadata.logprobs:
                 combined_logprobs.append(logprobs.tolists())
 
             start_index = end_index
 
         selected_token_ids = torch.cat(combined_selected_tokens, dim=0)
-        if tpu_sampling_metadata.logprobs:
+        if sampling_metadata.logprobs:
             logprobs_lists = LogprobsLists(
                 logprob_token_ids=np.concatenate(
                     [lp.logprob_token_ids for lp in combined_logprobs]
@@ -1572,6 +1594,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if not hasattr(self, "model"):
             self.model = model
+
+        if (
+            self.enable_tensor_parallel
+            and self.use_2d_mesh
+            and self.model.lm_head is not None
+            and isinstance(self.model.lm_head, ParallelLMHead)
+        ):
+            self.is_sharded_compute_logits = True
 
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
@@ -1763,12 +1793,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
-            if self.enable_tensor_parallel:
-                xs.mark_sharding(
-                    dummy_hidden,
-                    self.mesh,
-                    (None, None if num_tokens == 1 else "batch", "model"),
-                )
+            # Mark dummy inputs to match the generated hidden_states shardings
+            # (during execution) to avoid re-compilation of select_hidden_states
+            # graph later.
+            if self.enable_tensor_parallel and self.use_2d_mesh:
+                xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+
             self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
@@ -1786,8 +1816,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, hsize), dtype=self._hidden_states_dtype
         )
         dummy_hidden = dummy_hidden.to(self.device)
-        if self.enable_tensor_parallel:
-            xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
         self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
@@ -1900,20 +1928,33 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Precompile all the subgraphs with possible input shapes.
         """
         torch._dynamo.config.dynamic_shapes = False
+        decode_only = self.tt_config.decode_only
         with self.maybe_setup_dummy_loras(self.lora_config):
-            self._precompile_mm_encoder()
             self._precompile_backbone()
+            if self.tt_config.decode_only:
+                return
+            self._precompile_mm_encoder()
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
             self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
                 self._precompile_sample_from_logits()
-            self._precompile_gather_logprobs()
+            else:
+                logger.warning(
+                    "cpu_sampling=True: skipping device sampling precompilation"
+                )
+            # TODO(#4387): precompile fails trace-insertion at opt_level=1;
+            # skip when trace is on. Paired with the CPU fallback at the
+            # runtime call site. Remove both once the compiler bug is fixed.
+            if not self.tt_config.enable_trace:
+                self._precompile_gather_logprobs()
 
     def profile_run(
         self,
         num_tokens: int,
     ) -> None:
+        if self.tt_config.decode_only:
+            return
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
@@ -2137,13 +2178,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        if self.enable_tensor_parallel:
+        if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
+        # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
+        # (quant_method.apply bypasses __call__) and all_gather is a
+        # no-op (world_size=1). Must be inside the compiled graph —
+        # external sharding_constraint between compiled functions breaks.
+        if self.enable_tensor_parallel and (
+            not self.use_2d_mesh or self.is_sharded_compute_logits
+        ):
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -2174,12 +2223,96 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Sample on CPU instead of compiling a device sampling graph.
 
-        This function mainly exists as a workaround for https://github.com/tenstorrent/tt-xla/issues/3610.
-        Only support greedy sampling for now to reduce maintenance overhead.
+        Supports greedy, temperature, top-k/top-p, and penalty-based sampling.
+        All operations run on CPU to avoid compiling a device sampling graph.
         """
         logits = logits.cpu()
-        out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
-        return out_tokens
+
+        if not sampling_metadata.no_penalties:
+            output_counts = sampling_metadata.output_token_counts
+            occurred_output = output_counts > 0
+            prompt_mask = sampling_metadata.prompt_token_mask
+            rep_pen = sampling_metadata.repetition_penalties.unsqueeze(1)
+            rep_mask = occurred_output | prompt_mask
+            penalty_factor = torch.where(logits > 0, torch.reciprocal(rep_pen), rep_pen)
+            logits = torch.where(rep_mask, logits * penalty_factor, logits)
+            freq_pen = sampling_metadata.frequency_penalties.unsqueeze(1)
+            logits -= freq_pen * output_counts.to(logits.dtype)
+            pres_pen = sampling_metadata.presence_penalties.unsqueeze(1)
+            logits -= pres_pen * occurred_output.to(logits.dtype)
+
+        if sampling_metadata.all_greedy:
+            return torch.argmax(logits, dim=-1, keepdim=True)
+
+        temp = sampling_metadata.temperature
+        temp = torch.where(temp < 1e-6, torch.ones_like(temp), temp)
+        logits = logits / temp.unsqueeze(1)
+
+        has_topk = sampling_metadata.top_k is not None
+        has_topp = sampling_metadata.top_p is not None
+        top_k = sampling_metadata.top_k if has_topk else None
+        top_p = sampling_metadata.top_p if has_topp else None
+
+        # Fast path: all requests share the same k > 0 — single batched topk
+        # reduces vocab from 128K to k before top-p sort.
+        uniform_k = 0
+        if has_topk:
+            k = int(top_k[0].item())
+            if 0 < k < logits.size(1) and (top_k == k).all():
+                uniform_k = k
+
+        if uniform_k > 0:
+            topk_vals, topk_idx = torch.topk(logits, uniform_k, dim=-1)
+
+            if has_topp:
+                for i in range(topk_vals.size(0)):
+                    p = float(top_p[i].item())
+                    if p < 1.0:
+                        sorted_vals, sort_idx = torch.sort(
+                            topk_vals[i], descending=True
+                        )
+                        probs = torch.softmax(sorted_vals, dim=-1)
+                        mask = torch.cumsum(probs, dim=-1) - probs >= p
+                        sorted_vals[mask] = float("-inf")
+                        topk_vals[i].scatter_(0, sort_idx, sorted_vals)
+
+            greedy = torch.argmax(topk_vals, dim=-1)
+            gumbel = -torch.log(
+                -torch.log(torch.rand_like(topk_vals.float()) + 1e-20) + 1e-20
+            )
+            random = torch.argmax(topk_vals + gumbel, dim=-1)
+            sampled_local = torch.where(temp < 1e-6, greedy, random)
+            return topk_idx.gather(-1, sampled_local.unsqueeze(-1))
+        else:
+            # Slow path: mixed k values or k=0 — per-request filtering on full vocab.
+            if has_topk:
+                for i in range(logits.size(0)):
+                    k = int(top_k[i].item())
+                    if k > 0 and k < logits.size(1):
+                        topk_vals, _ = torch.topk(logits[i], k)
+                        logits[i][logits[i] < topk_vals[-1]] = float("-inf")
+
+            if has_topp:
+                for i in range(logits.size(0)):
+                    p = float(top_p[i].item())
+                    if p < 1.0:
+                        sorted_logits, sorted_indices = torch.sort(
+                            logits[i], descending=True
+                        )
+                        probs = torch.softmax(sorted_logits, dim=-1)
+                        mask = torch.cumsum(probs, dim=-1) - probs >= p
+                        sorted_logits[mask] = float("-inf")
+                        logits[i].scatter_(0, sorted_indices, sorted_logits)
+
+            # Gumbel-max: mathematically equivalent to softmax + multinomial
+            # but implemented as argmax(logits + Gumbel noise) — avoids
+            # torch.multinomial which processes each batch element sequentially.
+            greedy = torch.argmax(logits, dim=-1)
+            gumbel = -torch.log(
+                -torch.log(torch.rand_like(logits.float()) + 1e-20) + 1e-20
+            )
+            random = torch.argmax(logits + gumbel, dim=-1)
+            return torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def gather_logprobs(
