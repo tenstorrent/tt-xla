@@ -404,4 +404,15 @@ def chunked_topk_candidates(
     # Concat: [batch, num_chunks * k_per_chunk]
     all_values = torch.cat(topk_values_list, dim=-1)
     all_indices = torch.cat(topk_indices_list, dim=-1)
+
+    # Pad W so that Wt = W/32 is a power of 2 AND Wt >= 2 to avoid the
+    # tt::sampling kernel hang (#4560). -inf values can't win the topk /
+    # multinomial draw, so output is unchanged.
+    cur_w = all_values.shape[-1]
+    target_w = max(64, _next_power_of_2(cur_w))
+    if cur_w < target_w:
+        pad = target_w - cur_w
+        all_values = torch.nn.functional.pad(all_values, (0, pad), value=float("-inf"))
+        all_indices = torch.nn.functional.pad(all_indices, (0, pad), value=0)
+
     return all_values[:batch], all_indices[:batch]
