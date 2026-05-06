@@ -1,7 +1,6 @@
 ---
 name: triage-dtype-bfloat16
-description: Triage and auto-mark one tt-forge-models training test stuck on a bfloat16 dtype-mismatch RuntimeError (e.g. "mat1 and mat2 must have the same dtype, but got Float and BFloat16", "'deformable_im2col' not implemented for 'BFloat16'", "Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."). Reproduces the failure on plain CPU in bfloat16, confirms the same model trains in float32, then sets status KNOWN_FAILURE_XFAIL / bringup_status FAILED_FE_COMPILATION with the verbatim error string in reason. Updates every training entry that shares the affected loader. Does not touch inference entries, model loaders, or torch_overrides.py.
-allowed-tools: Bash Read Edit Write Grep Glob
+description: Triage one tt-forge-models training test stuck on a bfloat16 dtype-mismatch RuntimeError (e.g. "mat1 and mat2 must have the same dtype, but got Float and BFloat16", "Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source.", "expected scalar type Float but found BFloat16", "'deformable_im2col' not implemented for 'BFloat16'"). For the **cross-dtype operands** flavor, attempts a minimal loader fix that propagates `dtype_override` into the offending tensor constructor, then re-runs CPU + pytest and updates the YAML to reflect the post-fix outcome (passing → EXPECTED_PASSING; new failure → KNOWN_FAILURE_XFAIL with new reason). For the **op-not-implemented for BFloat16** flavor (no PyTorch kernel), goes straight to KNOWN_FAILURE_XFAIL with the verbatim error string. Updates every training entry that shares the affected loader. Never edits inference YAML or `dynamic_loader.py`.
 argument-hint: <test-name>
 ---
 
@@ -14,7 +13,12 @@ This skill handles **one** failure pattern only: a training-mode `RuntimeError` 
 - `RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source.`
 - `RuntimeError: expected scalar type Float but found BFloat16` (and similar `expected … got BFloat16` shapes)
 
-It works on exactly one test (passed as `<test-name>`). If the failure reason is anything else, abort immediately. It does not attempt a fix — the right outcome is a YAML label, because the failure originates in plain PyTorch on CPU before TT compilation. There is nothing TT-XLA can do for these models without changing global infrastructure (out of scope here).
+It works on exactly one test (passed as `<test-name>`). If the failure reason is anything else, abort immediately.
+
+The skill recognizes **two flavors** of bfloat16 failure and treats them differently:
+
+- **Cross-dtype operands** (e.g. `mat1 and mat2 must have the same dtype, but got Float and BFloat16`, `Index put … dtypes match`, `expected scalar type Float but found BFloat16`). Almost always caused by a tensor that the loader constructs without honoring `dtype_override` — `torch.zeros(...)`, `torch.ones(...)`, `torch.tensor(...)`, etc. without a `dtype=` argument. The skill **attempts a minimal loader fix** that adds `dtype=dtype_override` to the offending constructor, then re-verifies. If the fix works the test may now pass (mark `EXPECTED_PASSING`) or progress to a different unrelated failure (mark `KNOWN_FAILURE_XFAIL` with the new reason). If the fix doesn't apply (the offending tensor isn't in the loader), fall back to the xfail-only path.
+- **Op-not-implemented for BFloat16** (e.g. `'deformable_im2col' not implemented for 'BFloat16'`). A specific PyTorch op simply lacks a bfloat16 kernel. **Not loader-fixable.** Go straight to `KNOWN_FAILURE_XFAIL` with the verbatim error.
 
 ## Argument: `<test-name>` accepted forms
 
@@ -25,16 +29,16 @@ Auto-detect both:
 
 ## Background (load into context, do not paraphrase to the user)
 
-- The runner forces bfloat16. `tests/runner/utils/dynamic_loader.py:362-419` unconditionally passes `dtype_override=torch.bfloat16` to `load_model` and `load_inputs` whenever the loader signature accepts it. There is no per-test float32 escape hatch in the YAML or runner.
+- The runner forces bfloat16 for both training and inference. `tests/runner/utils/dynamic_loader.py:362-419` unconditionally passes `dtype_override=torch.bfloat16` to `load_model` and `load_inputs` whenever the loader signature accepts it. There is no per-test float32 escape hatch in the YAML or runner.
 - All loaders in `third_party/tt_forge_models/<model>/pytorch/loader.py` default to **float32** when `dtype_override` is not passed. HuggingFace loaders pass `torch_dtype=dtype_override` to `from_pretrained`; non-HF loaders call `.to(dtype_override)` after loading. So a CPU script can flip dtypes simply by passing or omitting that kwarg.
 - Where the error fires. The CPU forward + backward at `tests/infra/testers/single_chip/model/torch_model_tester.py:244-263` runs in plain PyTorch *before* any TT compilation. `cpu_res = unpack_forward_output(model(**inputs))` is followed by `cpu_res.backward(gradient=...)`, and both bfloat16 op-not-implemented and cross-dtype mismatch errors fire there. Reproducing the failure on plain CPU is therefore conclusive — no hardware involved.
-- Training-only by construction. Forward in bfloat16 often succeeds; the failing ops are usually backward-only (e.g. autograd of `index_put`, deformable conv backward). Inference YAML entries for the same model are typically `EXPECTED_PASSING` — leave them alone.
-- Two failure flavors both belong to this skill:
-  - **Op-not-implemented for BFloat16** — a specific PyTorch op has no bfloat16 kernel. Example: `'deformable_im2col' not implemented for 'BFloat16'` (TorchVision deformable conv).
-  - **Cross-dtype operands** — bfloat16 weights/activations meet float32 buffers (masks, indices) inside an op that requires matching dtypes. Example: `mat1 and mat2 must have the same dtype, but got Float and BFloat16`.
-- Canonical YAML treatment. Existing entries in `tests/runner/test_config/torch/test_config_training_single_device.yaml` (lines 143-158 for the four `centernet` variants on `deformable_im2col`, 179-182 for `speecht5/Tts` on `mat1 and mat2`, 1046-1049 for `densenet/121_Xray` on `Index put`) currently use `status: NOT_SUPPORTED_SKIP` with the verbatim `RuntimeError: …BFloat16…` in `reason:`. **This skill instead uses `status: KNOWN_FAILURE_XFAIL`** so the runner keeps executing the test (xfail-tracking) rather than silently skipping it; this lets us notice if/when the bfloat16 op gets implemented upstream. `bringup_status` stays `FAILED_FE_COMPILATION` (or `FAILED_RUNTIME` only when prior precedent for that loader uses it). When the skill rewrites a stale `NOT_SUPPORTED_SKIP` entry, it migrates it to `KNOWN_FAILURE_XFAIL` and notes the migration in the final report.
-- **Loader-wide scope.** When one variant of a model fails on an op-not-implemented or fixed-dtype op, every variant of that loader that exercises the same op fails identically. The four `centernet` variants all hit `deformable_im2col` for that reason. This skill therefore updates every training entry sharing the affected loader, not only the one passed in. (Variants whose loader path is the same but whose CPU bfloat16 phase actually passes — e.g. `centernet/pytorch-Hourglass_Coco` — are left untouched. Confirm per-variant.)
-- Test-runner gates on YAML status: only `NOT_SUPPORTED_SKIP` causes the runner to skip at collection time (`tests/runner/test_models.py:118`). `KNOWN_FAILURE_XFAIL` lets the test run and is treated as an xfail — that is exactly what we want here, so verification needs no temporary status flip. (If a stale entry was previously `NOT_SUPPORTED_SKIP`, edit it to `KNOWN_FAILURE_XFAIL` *before* the verification pytest call so the test actually runs.)
+- Why training-mode hits this more than inference. Forward in bfloat16 often succeeds; the failing ops are usually backward-only (e.g. autograd of `index_put`, deformable conv backward). For cross-dtype operands the same float32 input may be silently upcast in a forward kernel but trigger a strict dtype check in a different op or in the backward. Inference YAML entries for the same model are often `EXPECTED_PASSING` even when training fails. Note that the runner forces bfloat16 for *inference too*, so a loader-side fix can affect inference behavior — see Step 7's check for stale inference entries.
+- **Two failure flavors → two code paths in this skill.**
+  - **Cross-dtype operands** → try a loader fix in Step 5, then act on the post-fix outcome.
+  - **Op-not-implemented for BFloat16** → skip the loader-fix step entirely, go to Step 6.
+- **Loader-wide scope.** When one variant of a model fails on a fixed dtype-mismatch or op-not-implemented in shared loader code, every variant of that loader that exercises the same path fails identically. Loader fixes and YAML updates apply to every training entry sharing the affected loader, not only the one passed in. Variants whose loader path is the same but whose CPU bfloat16 phase actually passes are left untouched. Confirm per-variant before adding to the update set.
+- Test-runner gates on YAML status: only `NOT_SUPPORTED_SKIP` causes the runner to skip at collection time (`tests/runner/test_models.py:118`). `KNOWN_FAILURE_XFAIL` lets the test run and is treated as an xfail. `EXPECTED_PASSING` lets the test run and is required to pass. The runner unconditionally calls `pytest.xfail(reason)` at the end of any `KNOWN_FAILURE_XFAIL` test (`tests/runner/test_utils.py:748-749`), so pytest output alone cannot distinguish "still failing" from "now passing"; rely on Step 6 / Step 7 evidence (CPU outcome + recorded `bringup_status` in the JUnit properties or actual exception trace) to decide.
+- `third_party/tt_forge_models` is a git submodule with its own working tree. Loader edits land there. **Do not commit in the submodule.** Leave changes uncommitted so the user can review.
 
 ## Workflow
 
@@ -49,16 +53,35 @@ Auto-detect both:
 ### Step 2 — Gate on the failure pattern
 
 1. Read the YAML entry. Its `reason:` must contain `BFloat16` and at least one of: `must have the same dtype`, `not implemented for 'BFloat16'`, `dtypes match`, `expected scalar type`. If not, abort: `This skill only handles bfloat16 dtype-mismatch training failures. The failing reason here is: <reason>.`
-2. Note the prior `status` and `bringup_status` for the report. They may already be `NOT_SUPPORTED_SKIP` / `FAILED_FE_COMPILATION` from a stale triage — that is fine, this skill will migrate them to `KNOWN_FAILURE_XFAIL` regardless.
+2. Classify the flavor:
+   - `not implemented for 'BFloat16'` → **op-not-implemented**, set `flavor = "op_not_implemented"`.
+   - `must have the same dtype`, `dtypes match`, or `expected scalar type` → **cross-dtype operands**, set `flavor = "cross_dtype"`.
+3. Note the prior `status` and `bringup_status` for the report. They may already be `NOT_SUPPORTED_SKIP` / `FAILED_FE_COMPILATION` from a stale triage — that is fine, this skill will migrate them to `KNOWN_FAILURE_XFAIL` (or `EXPECTED_PASSING` after a successful fix) regardless.
 
-### Step 3 — CPU triage script (combined bfloat16 + float32)
+### Step 3 — CPU triage script (combined bfloat16 + float32, with input-dtype dump)
 
-One script, one process, two phases. Per-phase try/except so a bfloat16 raise doesn't skip the float32 phase. Write `/tmp/triage_dtype_<model_dir>_<variant>.py`:
+One script, one process, two phases. Per-phase try/except so a bfloat16 raise doesn't skip the float32 phase. The script also prints the dtype of every tensor returned by `load_inputs(dtype_override=torch.bfloat16)` — that's the diagnostic for Step 5. Write `/tmp/triage_dtype_<model_dir>_<variant>.py`:
 
 ```python
 import sys, traceback, torch
 sys.path.insert(0, "/localdev/<user>/tt-xla")
 from third_party.tt_forge_models.<model_dir>.pytorch.loader import ModelLoader  # add , ModelVariant if used
+
+
+def _dump_input_dtypes(label, inputs):
+    print(f"[{label}] Input tensor dtypes:", flush=True)
+    if isinstance(inputs, dict):
+        items = inputs.items()
+    elif isinstance(inputs, (list, tuple)):
+        items = enumerate(inputs)
+    else:
+        items = [("<single>", inputs)]
+    for k, v in items:
+        if isinstance(v, torch.Tensor):
+            print(f"  {k}: dtype={v.dtype} shape={tuple(v.shape)}", flush=True)
+        else:
+            print(f"  {k}: not a tensor ({type(v).__name__})", flush=True)
+
 
 def run(label, dtype):
     print(f"\n===== {label} (dtype_override={dtype}) =====", flush=True)
@@ -70,6 +93,7 @@ def run(label, dtype):
         for p in model.parameters():
             p.requires_grad_(True)
         inputs = loader.load_inputs(**kw)
+        _dump_input_dtypes(label, inputs)
 
         out = (model(**inputs) if isinstance(inputs, dict)
                else model(*inputs) if isinstance(inputs, (list, tuple))
@@ -78,16 +102,21 @@ def run(label, dtype):
         # Mimic torch_model_tester._test_training: random-gradient backward over the unpacked tensor.
         grad = torch.randn(unpacked.shape, dtype=unpacked.dtype)
         unpacked.backward(gradient=grad)
-        print(f"{label}: OK — forward+backward completed", flush=True)
+        print(f"{label}: OK -- forward+backward completed", flush=True)
     except Exception as e:
-        print(f"{label}: FAILED — {type(e).__name__}: {e}", flush=True)
+        print(f"{label}: FAILED -- {type(e).__name__}: {e}", flush=True)
         traceback.print_exc()
+
 
 run("BFLOAT16", torch.bfloat16)
 run("FLOAT32",  None)  # None = use loader default, which is float32
 ```
 
-Run it: `python /tmp/triage_dtype_<model_dir>_<variant>.py &> /tmp/triage_dtype_<model_dir>_<variant>.log` (cwd must be the tt-xla repo root, with `source venv/activate` already done).
+Run from the tt-xla repo root with `source venv/activate` already done:
+
+```bash
+python /tmp/triage_dtype_<model_dir>_<variant>.py &> /tmp/triage_dtype_<model_dir>_<variant>.log
+```
 
 **Read the log with the Read tool. Never use `tail` or `less` — they hide errors behind generic exit codes** (this is a hard rule from feedback memory).
 
@@ -101,40 +130,133 @@ Read the two phase headers (`BFLOAT16: …` and `FLOAT32: …`) from the log:
 
 | BFLOAT16 phase | FLOAT32 phase | Action |
 | --- | --- | --- |
-| FAILED with `BFloat16` + dtype-mismatch / not-implemented | OK | **Proceed.** Capture the bfloat16 `RuntimeError: …` line verbatim. Continue to Step 5. |
-| FAILED with `BFloat16` signature | FAILED (any) | **Abort, escalate.** Model has a non-bfloat16 problem too. Print both error excerpts in the report; do not edit YAML. |
-| OK | (any) | **Abort.** Failure didn't reproduce on CPU — YAML entry may be stale or the env differs. Tell the user to re-run pytest first; do not edit YAML. |
+| FAILED with `BFloat16` + dtype-mismatch / not-implemented | OK | **Proceed.** Capture the bfloat16 `RuntimeError: …` line verbatim. Continue. |
+| FAILED with `BFloat16` signature | FAILED (any) | **Abort, escalate.** Model has a non-bfloat16 problem too. Print both error excerpts in the report; do not edit anything. |
+| OK | (any) | **Abort.** Failure didn't reproduce on CPU — YAML entry may be stale or the env differs. Tell the user to re-run pytest first; do not edit anything. |
 | FAILED but error has no `BFloat16` / dtype-mismatch | (any) | **Abort.** Pattern gate misfired or upstream change moved the failure mode. Tell the user to use a different skill. |
 
 If "Error code 13" is the only thing in the log, that is generic — `grep -nE "RuntimeError" /tmp/triage_dtype_<model_dir>_<variant>.log` and use the first matching line as the canonical error.
 
-### Step 5 — Determine loader-level scope
+Branch on `flavor`:
 
-This skill operates loader-wide (every training entry pointing to the same `third_party/tt_forge_models/<model_dir>/pytorch/loader.py`). Enumerate them:
+- `flavor == "op_not_implemented"` → **skip Step 5, jump to Step 6** (xfail-only, no loader fix).
+- `flavor == "cross_dtype"` → **continue to Step 5** to attempt a loader fix.
+
+### Step 5 — (cross-dtype only) Attempt a loader fix
+
+The cross-dtype error is almost always caused by a tensor in `load_inputs` (sometimes `load_model`) that's constructed without honoring `dtype_override`. The dtype dump from Step 3 makes the offender obvious: in the BFLOAT16 phase any *floating-point* input whose dtype is `torch.float32` (instead of `torch.bfloat16`) is a candidate. Integer/bool tensors (`torch.long`, `torch.int64`, `torch.bool`) are expected and should not be touched.
+
+1. **Identify the offending tensor.** Read `[BFLOAT16] Input tensor dtypes:` block from the log. List every entry with `dtype=torch.float32`. If there is exactly one such tensor, that's the offender. If there are several, the bfloat16 traceback often names the operand (e.g., `decoder_input_values`); cross-reference with the input keys.
+
+2. **Find the constructor in the loader.** Open `third_party/tt_forge_models/<model_dir>/pytorch/loader.py`. Grep for tensor constructors that don't take `dtype=`:
+
+   ```bash
+   grep -nE "torch\.(zeros|ones|full|empty|randn|rand|randint|tensor|arange|eye|linspace)\(" third_party/tt_forge_models/<model_dir>/pytorch/loader.py
+   ```
+
+   For each match, check whether `dtype=` already appears in the call. If not, and the constructor produces the offending input from step 1, that's your fix site. Common pattern:
+
+   ```python
+   decoder_input_values = torch.zeros((1, 1, num_mel_bins))            # before
+   decoder_input_values = torch.zeros((1, 1, num_mel_bins), dtype=dtype_override)  # after
+   ```
+
+   `torch.zeros(shape, dtype=None)` falls back to the global default (float32), so passing `dtype=dtype_override` is safe in the unset path too.
+
+   For tensors that come from external sources (a `.npy` file, a processor that always returns float32, etc.), the fix is `t = t.to(dtype_override) if dtype_override is not None else t` after the load.
+
+   **Scope of the loader edit.** Allowed: add `dtype=dtype_override` to a tensor constructor, or add a single `.to(dtype_override)` cast on a tensor returned by a non-dtype-aware helper. Forbidden: any other refactoring, renaming, helper extraction, or behavior change. One offender per invocation; if the diagnostic shows several float32 offenders that aren't all clearly traceable to fixable constructors, fall back to xfail (Step 6) and note the situation in the report.
+
+3. **If no fix site is identifiable** (e.g., the input is built by a HuggingFace processor that we can't reach without monkey-patching, or all candidate constructors already pass `dtype=dtype_override`), set `loader_fix_attempted = False` and **jump to Step 6** (xfail-only).
+
+4. **Apply the fix, re-run the CPU triage script.** Read the new log. There are three outcomes:
+
+   | New CPU outcome | Decision |
+   | --- | --- |
+   | BFLOAT16: OK and FLOAT32: OK | **Loader fix worked at the CPU level.** Set `loader_fix_attempted = True`, `loader_fix_works_cpu = True`. Continue to Step 6 to determine TT-XLA outcome. |
+   | BFLOAT16: still FAILED with the same dtype-mismatch | **Wrong fix site or the bug isn't loader-side.** Revert the loader edit (`git -C third_party/tt_forge_models checkout -- <model_dir>/pytorch/loader.py`). Set `loader_fix_attempted = False`. Continue to Step 6 (xfail-only). |
+   | BFLOAT16: FAILED but with a *different* error (no longer dtype-mismatch) | **Loader fix moved the failure to CPU.** This is rare (e.g. backward of an op that doesn't support bfloat16). Keep the loader edit (it's correct) — the new error becomes the canonical reason. Set `loader_fix_attempted = True`, `loader_fix_works_cpu = False`, capture the new error verbatim, continue to Step 6. |
+
+### Step 6 — Determine loader-level scope
+
+Skill operates loader-wide (every training entry pointing to the same `third_party/tt_forge_models/<model_dir>/pytorch/loader.py`). Enumerate them:
 
 ```bash
-grep -nE "^<model_dir>/pytorch.*-single_device-training:" tests/runner/test_config/torch/test_config_training_single_device.yaml
+grep -nE "^  <model_dir>/pytorch.*-single_device-training:" tests/runner/test_config/torch/test_config_training_single_device.yaml
 ```
 
-For loaders with multiple variants where some pass on TT (`status: EXPECTED_PASSING`), do **not** assume those also fail on bfloat16. Re-run the CPU triage script for each candidate variant before adding it to the update set. Only variants whose CPU-bfloat16 phase actually fails get marked.
+For loaders with multiple variants where some pass on TT (`status: EXPECTED_PASSING`) before the fix, do **not** assume those also failed on bfloat16. Re-run the CPU triage script for each candidate variant before adding it to the update set. After a successful loader fix, every previously-failing variant should now have CPU bfloat16 OK; if any still fails, do not include it in the update set and flag it for human review.
 
-### Step 6 — Update the YAML
+### Step 7 — Update the YAML and verify
 
-Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. For every training entry in the update set from Step 5:
+Open `tests/runner/test_config/torch/test_config_training_single_device.yaml`. The action depends on whether a loader fix was applied and what TT-XLA does with it.
+
+For each entry in the update set, run pytest **once** with the candidate YAML state, dump to a file, and Read it back. **No `less`. No `tail`.**
+
+```bash
+timeout 1200 pytest -svv \
+  "tests/runner/test_models.py::test_all_models_torch[<entry1>-single_device-training]" \
+  "tests/runner/test_models.py::test_all_models_torch[<entry2>-single_device-training]" \
+  &> /tmp/verify_dtype_<model_dir>_bf16_training.log
+```
+
+#### Branch A — `flavor == "op_not_implemented"` OR (`flavor == "cross_dtype"` AND `loader_fix_attempted == False`)
+
+No loader change. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical bfloat16 reason from the table below. Verification: each entry runs, hits the CPU bfloat16 error before TT compilation, and is reported as `XFAIL`. Confirm the failure trace in the log contains the same `RuntimeError: …BFloat16…` captured in Step 4.
 
 ```yaml
 <model_dir>/pytorch-<variant>-single_device-training:
   status: KNOWN_FAILURE_XFAIL
   bringup_status: FAILED_FE_COMPILATION
-  reason: "<exact error string from Step 4>"
+  reason: "<canonical bfloat16 reason>"
 ```
 
-`bringup_status` selection:
+#### Branch B — `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == True`
+
+Loader fix succeeded at the CPU level. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical bfloat16 reason as a starting placeholder, then run pytest. Then read the test result:
+
+- **Pytest reports `1 passed`** (test passed on TT-XLA): change YAML to `EXPECTED_PASSING`. Note: `EXPECTED_PASSING` makes the test required to pass — only set this after a clean pytest pass, not based on CPU evidence alone.
+
+  ```yaml
+  <model_dir>/pytorch-<variant>-single_device-training:
+    status: EXPECTED_PASSING
+  ```
+
+- **Pytest reports `1 xfailed`** with a *new, non-bfloat16* error in the trace (look for `RuntimeError`, `error:`, MLIR pass failures, etc.): the test now fails for an unrelated TT-XLA / TT-MLIR reason. Update YAML reason to the new error verbatim:
+
+  ```yaml
+  <model_dir>/pytorch-<variant>-single_device-training:
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_FE_COMPILATION  # or FAILED_RUNTIME if the failure is past compilation
+    reason: "<exact new error string>"
+  ```
+
+  Pick the most signal-bearing error line — usually an MLIR `error:` line or a runtime `RuntimeError`. Skip noise like deprecation warnings and "Found an argument on non-XLA device".
+
+- **Pytest reports `1 xfailed`** *but* the trace still contains the original bfloat16 dtype-mismatch error: the loader fix passed CPU but something else (the runner re-creates inputs, or a buffer is constructed inside the model when not on CPU) reintroduces the float32 tensor. Revert the loader fix, fall back to Branch A. Note this in the final report — it's worth human review.
+
+#### Branch C — `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == False`
+
+Loader fix is correct (it eliminated the dtype-mismatch) but a different CPU error appeared. Keep the loader edit. YAML stays `KNOWN_FAILURE_XFAIL` but with the new CPU error as the reason:
+
+```yaml
+<model_dir>/pytorch-<variant>-single_device-training:
+  status: KNOWN_FAILURE_XFAIL
+  bringup_status: FAILED_FE_COMPILATION
+  reason: "<exact new CPU error string from Step 5>"
+```
+
+Run pytest just to confirm the test still xfails (no `XPASS`).
+
+#### `bringup_status` selection
 
 | Situation | Use |
 | --- | --- |
-| Default — frontend never compiles because the CPU forward/backward errors out first | `FAILED_FE_COMPILATION` |
-| Prior precedent for this loader/op already uses `FAILED_RUNTIME` (e.g. the `densenet/121_Xray` `Index put` precedent at line 1046-1049) | `FAILED_RUNTIME` |
+| Default — frontend never compiles because the CPU forward/backward errors out first, OR TT-MLIR fails before/at compilation | `FAILED_FE_COMPILATION` |
+| Test reaches runtime/execution and fails there (rare for this skill, but possible after a loader fix) | `FAILED_RUNTIME` |
+| Test now passes on TT-XLA | drop `bringup_status` (status: EXPECTED_PASSING is enough) |
+
+#### Canonical bfloat16 reason strings (Branch A and as placeholder)
 
 `reason` — verbatim, single-line, double-quoted. Match these canonical strings exactly when they apply:
 
@@ -145,49 +267,40 @@ Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. F
 | `RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source.` | `"RuntimeError: Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source."` |
 | `RuntimeError: expected scalar type Float but found BFloat16` | `"RuntimeError: expected scalar type Float but found BFloat16"` |
 
-Trim only if the error line is longer than ~120 chars; never re-paraphrase. Do not re-wrap or re-punctuate. Do not modify the inference YAML.
+Trim only if the error line is longer than ~120 chars; never re-paraphrase. Do not re-wrap or re-punctuate.
 
-### Step 7 — Verify with pytest
+#### Inference YAML
 
-`KNOWN_FAILURE_XFAIL` lets the runner execute the test (no skip), so no temporary status flip is needed. Run pytest in a single invocation, dump straight to a file, and Read it back. **No `less`. No `tail`. No piping into anything that hides exit codes.**
-
-```bash
-timeout 600 pytest -svv \
-  "tests/runner/test_models.py::test_all_models_torch[<entry1>-single_device-training]" \
-  "tests/runner/test_models.py::test_all_models_torch[<entry2>-single_device-training]" \
-  &> /tmp/verify_dtype_<model_dir>_bf16_training.log
-```
-
-Read the log. Expected outcome: each entry runs, hits the CPU bfloat16 error before TT compilation, and is reported as `XFAIL` (expected failure). Confirm the failure trace contains the same `RuntimeError: …BFloat16…` captured in Step 4 — that's the real check; the XFAIL outcome alone is not enough since any failure would xfail-pass.
-
-If pytest reports `SKIPPED` for any entry, double-check that you wrote `KNOWN_FAILURE_XFAIL` (not `NOT_SUPPORTED_SKIP`) — the runner only skips on the latter.
-
-If pytest reports `XPASS` (test unexpectedly passed), the CPU bfloat16 reproduction in Step 3 must have been wrong, or a parallel torch/TT-XLA fix landed — recheck Step 3 evidence; do not silently leave an `XPASS` entry.
-
-If a dataset-gated error (`Dataset 'imagenet-1k' is a gated dataset on the Hub.` and similar) masks the bfloat16 error in pytest verification, the CPU script in Step 3 already provided the conclusive evidence — note the gating in the report and skip pytest verification for that entry.
+Do not edit the inference YAML by default. **One exception:** if a loader fix landed (Branch B/C) AND the inference YAML has a stale entry (`KNOWN_FAILURE_XFAIL` with a bfloat16 dtype-mismatch reason for the same loader), call this out in the final report so the user can re-triage inference manually. Don't auto-edit inference — inference and training can fail at different points and the diagnostic for inference is out of scope here.
 
 ### Step 8 — Final report
 
 Print a single concise summary to the user:
 
 1. Resolved test → loader path + YAML key.
-2. CPU outcomes — `BFLOAT16: FAILED — <error>`, `FLOAT32: OK` (or whichever decision-tree row applied).
-3. Loader-wide scope — list of all training entries updated.
-4. Canonical reason string used and chosen `bringup_status`.
-5. Pytest verification outcome per entry (or note that dataset gating prevented verification).
-6. Sanity-grep confirming the inference YAML was not touched: `git diff tests/runner/test_config/torch/test_config_inference_single_device.yaml` should be empty.
-7. Anything that needs human review (e.g. float32 also failed, model also has an `unpack_forward_output` issue, an unexpected variant of the same loader needed to be excluded).
+2. Failure flavor (`op_not_implemented` or `cross_dtype`).
+3. CPU outcomes pre-fix — `BFLOAT16: FAILED — <error>`, `FLOAT32: OK` (or whichever decision-tree row applied).
+4. Loader fix attempted? If yes, the one-line edit (file + line) and the post-fix CPU outcome.
+5. Loader-wide scope — list of all training entries updated.
+6. Per-entry post-fix outcome and YAML state set: `EXPECTED_PASSING`, `KNOWN_FAILURE_XFAIL` (with which reason), or unchanged.
+7. Pytest verification outcome per entry (or note that dataset gating prevented verification).
+8. Sanity-grep confirming the inference YAML was not touched: `git diff tests/runner/test_config/torch/test_config_inference_single_device.yaml` should be empty (or note any flagged stale inference entries).
+9. Anything that needs human review (e.g. float32 also failed, model also has an `unpack_forward_output` issue, an unexpected variant of the same loader needed to be excluded, inference entry is stale).
+10. Submodule reminder if a loader edit was applied: `third_party/tt_forge_models` is a submodule — the loader change is uncommitted in its working tree; the user may want to commit it on a submodule branch and bump the parent pointer.
 
 ## Hard rules (do not violate)
 
 - One test at a time. If `<test-name>` is missing or matches multiple loader candidates, abort and ask.
 - Only act when `reason:` contains `BFloat16` plus one of `must have the same dtype`, `not implemented for 'BFloat16'`, `dtypes match`, or `expected scalar type … BFloat16`. Anything else: abort, do not edit.
-- Both CPU phases (bfloat16 and float32) must run. If bfloat16 fails on CPU but float32 also fails, abort and escalate to the user — that is a different problem class. Do not edit YAML.
-- Do not modify `python_package/tt_torch/torch_overrides.py`, any `third_party/tt_forge_models/<model>/pytorch/loader.py`, or `tests/runner/utils/dynamic_loader.py`. Per-test triage; global fixes are out of scope.
-- Do not modify `tests/runner/test_config/torch/test_config_inference_single_device.yaml`. Dtype mismatch is training-specific by construction.
+- Both CPU phases (bfloat16 and float32) must run. If bfloat16 fails on CPU but float32 also fails, abort and escalate to the user — that is a different problem class. Do not edit YAML or loader.
+- For `op_not_implemented` flavor: never edit the loader. The PyTorch op simply lacks a bfloat16 kernel.
+- For `cross_dtype` flavor: loader edits are limited to **adding `dtype=dtype_override` to a single tensor constructor** in `load_inputs` / `load_model`, or **adding one `.to(dtype_override)` cast** on a non-dtype-aware tensor returned by a helper. No other refactoring, renaming, or behavior change. One offender per invocation. If multiple unfixable offenders exist or the offender isn't in the loader, fall back to xfail.
+- Do not modify `python_package/tt_torch/torch_overrides.py` or `tests/runner/utils/dynamic_loader.py`. Per-test triage; global fixes are out of scope.
+- Do not edit `tests/runner/test_config/torch/test_config_inference_single_device.yaml`. If a loader fix may have impacted inference, flag the relevant inference entries in the final report for human review.
 - Loader-wide YAML update: every training entry pointing to the same loader file must be updated, not only the one passed in — but only after confirming per-variant CPU reproduction.
-- Reason string is verbatim. Match the canonical forms in the Step 6 table exactly. Do not re-paraphrase.
-- Use `status: KNOWN_FAILURE_XFAIL` (not `NOT_SUPPORTED_SKIP`). Tests stay live as xfails so we notice when bfloat16 support arrives upstream. When migrating a stale `NOT_SUPPORTED_SKIP` entry, edit it in place to `KNOWN_FAILURE_XFAIL`.
+- Reason string is verbatim. Match the canonical forms in the Step 7 table exactly for `op_not_implemented`. For new errors after a loader fix, copy the most signal-bearing error line verbatim; do not paraphrase.
+- Use `status: KNOWN_FAILURE_XFAIL` (not `NOT_SUPPORTED_SKIP`). Tests stay live as xfails so we notice when bfloat16 support arrives upstream. Only set `EXPECTED_PASSING` after a clean pytest pass on TT-XLA, not based on CPU evidence alone.
+- When migrating a stale `NOT_SUPPORTED_SKIP` entry, edit it in place to the post-fix target status (`EXPECTED_PASSING` if pytest passes, `KNOWN_FAILURE_XFAIL` otherwise).
 - Never use `tail` or `less` on pytest output. Dump to a file with `&>`, then Read.
 - "Error code 13" is generic — always look further for the real `RuntimeError` line.
-- Do not commit or push. Leave changes staged-but-uncommitted unless the user asks otherwise.
+- Do not commit or push. Leave changes staged-but-uncommitted unless the user asks otherwise. `third_party/tt_forge_models` is a submodule with its own git tree — also do not commit there; let the user handle the submodule pointer bump.

@@ -177,9 +177,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
   speecht5/pytorch-Tts-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: mat1 and mat2 must have the same dtype, but got Float and BFloat16"
+    reason: "error: 'ttir.sum' op Reduce dimensions are not unique"
   rmbg/pytorch-2.0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
