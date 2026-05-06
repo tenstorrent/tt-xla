@@ -53,6 +53,7 @@ def test_llm(
     arch=None,
     required_pcc=DEFAULT_REQUIRED_PCC,
     fp32_dest_acc_en=None,
+    experimental_kv_cache_dtype=None,
     num_layers=None,
     request=None,
     accuracy_testing: bool = False,
@@ -110,6 +111,7 @@ def test_llm(
     task={task}
     experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
+    experimental_kv_cache_dtype={experimental_kv_cache_dtype}
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
@@ -147,6 +149,7 @@ def test_llm(
         arch=arch,
         required_pcc=required_pcc,
         fp32_dest_acc_en=fp32_dest_acc_en,
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
         accuracy_testing=accuracy_testing,
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,

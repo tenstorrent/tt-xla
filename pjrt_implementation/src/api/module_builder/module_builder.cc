@@ -60,6 +60,7 @@
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
+#include "ttmlir/Dialect/TTNN/Utils/BFPDtypeParser.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
@@ -1063,6 +1064,21 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =
       compile_options.experimental_enable_permute_matmul_fusion;
+
+  if (compile_options.experimental_kv_cache_dtype.has_value()) {
+    const std::string &dtype_str =
+        compile_options.experimental_kv_cache_dtype.value();
+    std::optional<mlir::tt::ttnn::BFPDtype> dtype =
+        mlir::tt::ttnn::symbolizeBFPDtype(dtype_str);
+    if (!dtype.has_value()) {
+      LOG_F(ERROR,
+            "Invalid experimental_kv_cache_dtype value: '%s'. "
+            "Valid values are: none, bfp_bf8, bfp_bf4",
+            dtype_str.c_str());
+      return tt_pjrt_status::kInvalidArgument;
+    }
+    options.experimentalKVCacheDtype = dtype.value();
+  }
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
