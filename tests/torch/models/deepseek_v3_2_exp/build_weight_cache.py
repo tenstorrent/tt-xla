@@ -28,6 +28,17 @@ DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
 FP8_BLOCK_SIZE = 128
 
 
+def _safe_open_hf(path):
+    """Open a path only if it resolves within the HF cache directory."""
+    real = os.path.realpath(path)
+    base = os.path.realpath(
+        os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    )
+    if not real.startswith(base + os.sep):
+        raise ValueError(f"Path outside HF cache: {path}")
+    return open(real)
+
+
 def _dequant_cache_dir(repo_id, n_layers):
     """Per-model BF16 safetensors cache directory."""
     repo_slug = repo_id.replace("/", "--")
@@ -146,7 +157,7 @@ def build_cache(repo_id, n_layers, n_dense_layers=1):
 
     # Load index
     index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
-    with open(index_path) as f:
+    with _safe_open_hf(index_path) as f:
         index = json.load(f)
     weight_map = index["weight_map"]
 
@@ -384,7 +395,7 @@ if __name__ == "__main__":
     n_dense_layers = args.n_dense_layers
     if n_dense_layers is None:
         config_path = hf_hub_download(args.repo, "config.json")
-        with open(config_path) as f:
+        with _safe_open_hf(config_path) as f:
             hf_cfg = json.load(f)
         n_dense_layers = hf_cfg["first_k_dense_replace"]
         print(f"Read n_dense_layers={n_dense_layers} from {args.repo} config")

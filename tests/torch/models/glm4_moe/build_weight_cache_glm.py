@@ -37,6 +37,17 @@ from safetensors.torch import save_file as safetensors_save_file
 GLM_REPO = "zai-org/GLM-4.7"
 
 
+def _safe_open_hf(path):
+    """Open a path only if it resolves within the HF cache directory."""
+    real = os.path.realpath(path)
+    base = os.path.realpath(
+        os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    )
+    if not real.startswith(base + os.sep):
+        raise ValueError(f"Path outside HF cache: {path}")
+    return open(real)
+
+
 def _post_sparse_cache_dir(repo_id, n_layers):
     repo_slug = repo_id.replace("/", "--")
     base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
@@ -176,7 +187,7 @@ def build_post_sparse_cache(repo_id, n_layers, n_dense_layers, n_experts):
     t_total = time.perf_counter()
 
     index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
-    with open(index_path) as f:
+    with _safe_open_hf(index_path) as f:
         index = json.load(f)
     weight_map = index["weight_map"]
 
@@ -237,7 +248,7 @@ if __name__ == "__main__":
         parser.error(f"Invalid repo ID {args.repo!r}: expected 'org/model' format")
 
     config_path = hf_hub_download(args.repo, "config.json")
-    with open(config_path) as f:
+    with _safe_open_hf(config_path) as f:
         cfg = json.load(f)
     n_dense_layers = cfg["first_k_dense_replace"]
     n_experts = cfg["n_routed_experts"]
