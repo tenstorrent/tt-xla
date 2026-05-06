@@ -62,6 +62,11 @@ on:
         required: false
         type: boolean
         default: false
+      check_fusions:
+        description: "Verify expected fusion ops are present in compiled IR"
+        required: false
+        type: boolean
+        default: false
 
 
 permissions:
@@ -137,6 +142,7 @@ jobs:
       regression_check: ${{ inputs.regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+      check_fusions: ${{ inputs.check_fusions }}
 
   fail-notify:
     if: always()
