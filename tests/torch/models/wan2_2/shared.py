@@ -15,11 +15,15 @@ Exposes:
 """
 
 import html
+from pathlib import Path
 from typing import Callable, Optional
 
+import numpy as np
 import regex as re
 import torch
 import torch.nn as nn
+from PIL import Image
+
 from infra.utilities import Mesh
 from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -53,6 +57,39 @@ RESOLUTIONS = {
         "latent_w": 80,
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# First-frame image loader (i2v conditioning input)
+# ---------------------------------------------------------------------------
+
+
+def load_first_frame_image(
+    image_path: Path, height: int, width: int
+) -> torch.Tensor:
+    """Load image at ``image_path``, scale-to-cover the target then center
+    crop, and return a (1, 3, 1, H, W) bf16 tensor in [-1, 1] — the format
+    the Wan VAE encoder expects for a single-frame image.
+
+    Cover-style fit (vs. shorter-side fit) guarantees both target dims are
+    reachable for any source aspect ratio.
+    """
+    img = Image.open(image_path).convert("RGB")
+    src_w, src_h = img.size
+
+    scale = max(width / src_w, height / src_h)
+    new_w = max(width, round(src_w * scale))
+    new_h = max(height, round(src_h * scale))
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+    left = (new_w - width) // 2
+    top = (new_h - height) // 2
+    img = img.crop((left, top, left + width, top + height))
+
+    arr = np.asarray(img, dtype=np.float32) / 255.0  # (H, W, 3) in [0, 1]
+    tensor = torch.from_numpy(arr).permute(2, 0, 1)  # (3, H, W)
+    tensor = tensor * 2.0 - 1.0  # [-1, 1]
+    return tensor.unsqueeze(0).unsqueeze(2).to(torch.bfloat16)  # (1, 3, 1, H, W)
 
 
 # ---------------------------------------------------------------------------

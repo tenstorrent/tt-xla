@@ -30,6 +30,7 @@ from .shared import (
     VAEEncoderWrapper,
     WanDiTWrapper,
     load_dit,
+    load_first_frame_image,
     load_tokenizer,
     load_umt5,
     load_vae,
@@ -43,76 +44,69 @@ from .shared import (
 )
 
 
-def _log(msg: str) -> None:
-    """Single-line progress print; flush so it shows up under pytest capture."""
-    print(f"[wan22] {msg}", flush=True)
-
-
 # ---------------------------------------------------------------------------
 # Configuration — edit these and re-run.
 # ---------------------------------------------------------------------------
 
-MODE = "t2v"  # "t2v" or "i2v"
+
+SEED = 42
 RESOLUTION = "480p"  # "480p" or "720p"
 NUM_STEPS = 40  # denoising steps
 GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
+FPS = 16
 
 TT_TEXT_ENCODER = True
-TT_VAE_ENCODER = False  # only used when MODE == "i2v"
+TT_VAE_ENCODER = True  # only used when mode == "i2v"
 TT_DIT = True
 TT_VAE_DECODER = True
 
-# Mesh shared by every component that runs on TT in this pipeline. Built once
-# so callers pass the same mesh object each time. None means CPU-only run.
-_mesh = (
-    wan22_mesh()
-    if (TT_TEXT_ENCODER or TT_VAE_ENCODER or TT_DIT or TT_VAE_DECODER)
-    else None
-)
-# _mesh = None
+# True uses the runtime-detected mesh from wan22_mesh(). Only affects _mesh.
+MULTI_CHIP = True
 
-# Simple single-subject prompt for smoke-test readability. Failure is
-# immediately obvious by eye; success is unambiguous. Fallback options
-# (if quality seems poor) documented in the design spec:
-#   "A cat sitting on grass"
-#   "A dog running on a beach"
-#   Wan 2.2 README canonical (complex):
-#   "Two anthropomorphic cats in comfy boxing gear and bright gloves fight
-#    intensely on a spotlighted stage."
-PROMPT = "A red apple on a white table"
-NEGATIVE_PROMPT = "low quality, blurry, distorted, watermark, text"
-SEED = 42
-FPS = 16
+def _build_mesh():
+    if not (TT_TEXT_ENCODER or TT_VAE_ENCODER or TT_DIT or TT_VAE_DECODER):
+        return None
+    if MULTI_CHIP:
+        return wan22_mesh()
+    return None
+
 
 # ---------------------------------------------------------------------------
-# Output path
+# Paths
 # ---------------------------------------------------------------------------
 
+
+# First-frame conditioning image for i2v. Resized via cover-fit + center
+# crop to the active resolution. Ignored when mode == "t2v".
+IMAGE_PATH = Path(__file__).parent / "reze.jpg"
 _OUT_DIR = Path(__file__).parent / "generated"
 
 
-def _devtag() -> str:
+def _devtag(mode: str) -> str:
     flags = {
         "textenc": TT_TEXT_ENCODER,
-        "vaeenc": TT_VAE_ENCODER and MODE == "i2v",
+        "vaeenc": TT_VAE_ENCODER and mode == "i2v",
         "dit": TT_DIT,
         "vaedec": TT_VAE_DECODER,
     }
     on = [name for name, v in flags.items() if v]
     if not on:
         return "cpu"
-    if len(on) == 4 or (MODE == "t2v" and len(on) == 3 and "vaeenc" not in on):
+    if len(on) == 4 or (mode == "t2v" and len(on) == 3 and "vaeenc" not in on):
         return "tt-all"
     return "tt-" + "-".join(on)
 
 
-def _stem() -> str:
-    return f"wan22_{MODE}_{RESOLUTION}_steps{NUM_STEPS}_{_devtag()}"
+def _stem(mode: str) -> str:
+    base = f"wan22_{mode}_{RESOLUTION}_steps{NUM_STEPS}_{_devtag(mode)}"
+    if mode == "i2v":
+        base += f"_{IMAGE_PATH.stem}"
+    return base
 
 
-def _output_path() -> Path:
+def _output_path(mode: str) -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return _OUT_DIR / f"{_stem()}_{ts}.mp4"
+    return _OUT_DIR / f"{_stem(mode)}_{ts}.mp4"
 
 
 # ---------------------------------------------------------------------------
@@ -128,6 +122,42 @@ _disable_tt_torch_function_override()
 # Test
 # ---------------------------------------------------------------------------
 
+
+def test_wan22_t2v_e2e():
+    prompt = "A red apple on a white table"
+    negative_prompt = "low quality, blurry, distorted, watermark, text"
+
+    mode = "t2v"
+    out_path = _output_path(mode)
+    _OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    _run(out_path, mode, prompt, negative_prompt)
+
+    assert out_path.exists(), f"Output video not produced at {out_path}"
+
+
+def test_wan22_i2v_e2e():
+    prompt = "smiling and jumping into camera for a hug"
+    negative_prompt = "distorted face, bad hands, extra limbs, blurry, low quality"
+
+    mode = "i2v"
+    out_path = _output_path(mode)
+    _OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    _run(out_path, mode, prompt, negative_prompt)
+
+    assert out_path.exists(), f"Output video not produced at {out_path}"
+    
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+
+def _log(msg: str) -> None:
+    """Single-line progress print; flush so it shows up under pytest capture."""
+    print(f"[wan22] {msg}", flush=True)
+    
 
 def _encode_prompt(tokenizer, encoder_wrapper, text: str, mesh) -> torch.Tensor:
     ids = tokenizer(
@@ -174,14 +204,6 @@ def _init_latents(shapes: dict, generator: torch.Generator) -> torch.Tensor:
         dtype=torch.float32,
         generator=generator,
     )
-
-
-def _make_first_frame(shapes: dict, generator: torch.Generator) -> torch.Tensor:
-    """Return a deterministic RGB first-frame image as (1, 3, 1, H, W) in [-1, 1]."""
-    h, w = shapes["video_h"], shapes["video_w"]
-    x = torch.randn(1, 3, 1, h, w, dtype=torch.bfloat16, generator=generator)
-    # Clamp to a sane image-like range; values outside [-1, 1] confuse the VAE.
-    return x.clamp(-1.0, 1.0)
 
 
 def _encode_first_frame(vae, image: torch.Tensor, mesh) -> torch.Tensor:
@@ -323,24 +345,23 @@ def _postprocess_and_save(pixels: torch.Tensor, out_path: Path) -> None:
     export_to_video(video[0], str(out_path), fps=FPS)
 
 
-def test_wan22_e2e():
-    out_path = _output_path()
-    _OUT_DIR.mkdir(parents=True, exist_ok=True)
+def _run(out_path: Path, mode: str, prompt: str, negative_prompt: str) -> None:
+    try:
+        import imageio_ffmpeg  # noqa: F401  # required by export_to_video at end of pipeline
+    except ImportError as e:
+        raise RuntimeError(
+            "imageio-ffmpeg is required to export the final mp4. "
+            "Install with: pip install imageio-ffmpeg"
+        ) from e
 
-    _run(out_path)
-
-    assert out_path.exists(), f"Output video not produced at {out_path}"
-
-
-def _run(out_path: Path) -> None:
     from diffusers import UniPCMultistepScheduler
 
     from .shared import MODEL_ID
 
     t_total = time.perf_counter()
     _log(
-        f"mode={MODE} res={RESOLUTION} steps={NUM_STEPS} "
-        f"guidance={GUIDANCE_SCALE} device={_devtag()} seed={SEED}"
+        f"mode={mode} res={RESOLUTION} steps={NUM_STEPS} "
+        f"guidance={GUIDANCE_SCALE} device={_devtag(mode)} seed={SEED}"
     )
     shapes = RESOLUTIONS[RESOLUTION]
     _log(
@@ -349,9 +370,12 @@ def _run(out_path: Path) -> None:
         f"latent={shapes['latent_frames']}x{shapes['latent_h']}x{shapes['latent_w']}"
     )
 
-    _log(f"prompt: {PROMPT!r}")
+    _log(f"prompt: {prompt!r}")
     if GUIDANCE_SCALE > 1.0:
-        _log(f"negative: {NEGATIVE_PROMPT!r}")
+        _log(f"negative: {negative_prompt!r}")
+        
+    _mesh = _build_mesh()
+    _log(f"mesh={_mesh}")
 
     torch.manual_seed(SEED)
     generator = torch.Generator().manual_seed(SEED)
@@ -362,7 +386,7 @@ def _run(out_path: Path) -> None:
     _log(f"text encoder loaded ({time.perf_counter() - t:.1f}s)")
 
     t = time.perf_counter()
-    prompt_embeds = _encode_prompt(tokenizer, text_encoder, PROMPT, _mesh)
+    prompt_embeds = _encode_prompt(tokenizer, text_encoder, prompt, _mesh)
     assert prompt_embeds.shape == (1, 512, 4096)
     _log(
         f"prompt encoded ({time.perf_counter() - t:.1f}s) "
@@ -372,7 +396,7 @@ def _run(out_path: Path) -> None:
     if GUIDANCE_SCALE > 1.0:
         t = time.perf_counter()
         negative_embeds = _encode_prompt(
-            tokenizer, text_encoder, NEGATIVE_PROMPT, _mesh
+            tokenizer, text_encoder, negative_prompt, _mesh
         )
         _log(f"negative encoded ({time.perf_counter() - t:.1f}s)")
     else:
@@ -384,10 +408,13 @@ def _run(out_path: Path) -> None:
     _log(f"latents init shape={tuple(latents.shape)} dtype={latents.dtype}")
 
     image_latent = None
-    if MODE == "i2v":
+    if mode == "i2v":
         t = time.perf_counter()
         vae_for_encode = load_vae()
-        image = _make_first_frame(shapes, generator)
+        image = load_first_frame_image(
+            IMAGE_PATH, shapes["video_h"], shapes["video_w"]
+        )
+        _log(f"i2v first-frame loaded image={IMAGE_PATH.name} shape={tuple(image.shape)}")
         image_latent = _encode_first_frame(vae_for_encode, image, _mesh)
         _log(
             f"i2v first-frame encoded ({time.perf_counter() - t:.1f}s) "

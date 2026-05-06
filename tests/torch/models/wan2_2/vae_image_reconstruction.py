@@ -43,7 +43,6 @@ from typing import Callable, Optional
 # os.environ["TTMLIR_RUNTIME_LOGGER_LEVEL"] = "DEBUG"
 # os.environ["TT_RUNTIME_MEMORY_LOG_LEVEL"] = "operation"
 
-import numpy as np
 import torch
 from PIL import Image
 
@@ -61,6 +60,7 @@ from .shared import (
     VAEDecoderWrapper,
     VAEEncoderWrapper,
     compute_pcc,
+    load_first_frame_image,
     load_vae,
     shard_vae_decoder_specs,
     shard_vae_encoder_specs,
@@ -98,32 +98,6 @@ def _log(msg: str) -> None:
 # ---------------------------------------------------------------------------
 # Image <-> tensor
 # ---------------------------------------------------------------------------
-
-
-def _load_and_resize(image_path: Path, height: int, width: int) -> torch.Tensor:
-    """Load image at ``image_path``, scale-to-cover the target then center
-    crop, and return a (1, 3, 1, H, W) bf16 tensor in [-1, 1] — the
-    format the Wan VAE encoder expects for a single-frame image.
-
-    Cover-style fit (vs. shorter-side fit) guarantees both target dims
-    are reachable for any source aspect ratio.
-    """
-    img = Image.open(image_path).convert("RGB")
-    src_w, src_h = img.size
-
-    scale = max(width / src_w, height / src_h)
-    new_w = max(width, round(src_w * scale))
-    new_h = max(height, round(src_h * scale))
-    img = img.resize((new_w, new_h), Image.LANCZOS)
-
-    left = (new_w - width) // 2
-    top = (new_h - height) // 2
-    img = img.crop((left, top, left + width, top + height))
-
-    arr = np.asarray(img, dtype=np.float32) / 255.0  # (H, W, 3) in [0, 1]
-    tensor = torch.from_numpy(arr).permute(2, 0, 1)  # (3, H, W)
-    tensor = tensor * 2.0 - 1.0  # [-1, 1]
-    return tensor.unsqueeze(0).unsqueeze(2).to(torch.bfloat16)  # (1, 3, 1, H, W)
 
 
 def _save_first_frame(pixels: torch.Tensor, out_path: Path) -> None:
@@ -244,7 +218,7 @@ def reconstruct(
         f"sharded={sharded}"
     )
 
-    image = _load_and_resize(image_path, h, w)
+    image = load_first_frame_image(image_path, h, w)
     _log(f"input shape={tuple(image.shape)} dtype={image.dtype}")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
