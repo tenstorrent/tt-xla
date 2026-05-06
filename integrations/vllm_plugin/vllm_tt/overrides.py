@@ -6,6 +6,7 @@ from typing import OrderedDict
 
 import torch
 import torch.nn as nn
+from tt_torch.composite_ops import composite_rms_norm
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.rotary_embedding.base import RotaryEmbedding
 from vllm.model_executor.layers.rotary_embedding.common import ApplyRotaryEmb
@@ -73,12 +74,15 @@ class TTRMSNorm(nn.Module):
 
             x_var = x[:, :, : self.variance_size_override]
 
-        variance = x_var.pow(2).mean(dim=-1, keepdim=True)
+        weight = self.weight if self.has_weight else None
+        normalized_shape = (self.hidden_size,)
+        x = composite_rms_norm(x_var, normalized_shape, weight, self.variance_epsilon)
+        # variance = x_var.pow(2).mean(dim=-1, keepdim=True)
 
-        x = x * torch.rsqrt(variance + self.variance_epsilon)
+        # x = x * torch.rsqrt(variance + self.variance_epsilon)
         x = x.to(orig_dtype)
-        if self.has_weight and self.weight is not None:
-            x = x * self.weight
+        # if self.has_weight and self.weight is not None:
+        #   x = x * self.weight
         if residual is None:
             return x
         else:
