@@ -78,7 +78,7 @@ def test_prd003_doc_validator_emits_contract_records():
     if require_pass:
         assert result.summary["counts_by_status"] == {"pass": len(PHASE1_FLOWS)}
     else:
-        assert result.summary["counts_by_status"] == {"error": 5, "fail": 6}
+        assert result.summary["counts_by_status"] == {"error": 5, "fail": 7}
         doc_records = [
             record
             for record in records
@@ -87,7 +87,7 @@ def test_prd003_doc_validator_emits_contract_records():
         demo_records = [
             record for record in records if record["reason_code"] == "infra-unavailable"
         ]
-        assert len(doc_records) == 6
+        assert len(doc_records) == 7
         assert len(demo_records) == 5
         assert all(record["doc_clarity"]["is_ambiguous"] for record in doc_records)
         assert all(

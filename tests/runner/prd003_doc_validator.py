@@ -85,6 +85,32 @@ PHASE1_DOC_FLOWS: list[dict[str, Any]] = [
         },
     },
     {
+        "flow_id": "CORPUS-WHEEL-002",
+        "surface_id": "wheel-system-deps",
+        "surface_type": "doc",
+        "priority": "P0",
+        "source_mode": "documented",
+        "source_path": "docs/src/getting_started.md",
+        "source_section": "Installing a Wheel and Running an Example",
+        "command": "tt-forge-install",
+        "expected_target": {
+            "execution_target": "vm",
+            "target_id": "local",
+            "os_image": "ubuntu-24.04",
+            "runtime": "bash",
+        },
+        "success_signal": {"type": "exit_zero", "value": ""},
+        "doc_clarity": {
+            "fail_closed": True,
+            "blocker_ids": ["DOC-GAP-007"],
+            "notes": (
+                "The system dependency installer requires sudo/root privileges; "
+                "pre-provisioned CI or IRD images may skip it only after the "
+                "documented device readiness checks pass."
+            ),
+        },
+    },
+    {
         "flow_id": "CORPUS-SOURCE-001",
         "surface_id": "source-system-deps",
         "surface_type": "doc",

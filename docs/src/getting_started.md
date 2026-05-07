@@ -47,6 +47,12 @@ Run the tt-forge-install script to install missing system dependencies.
 tt-forge-install
 ```
 
+`tt-forge-install` may install OS packages with `sudo apt-get`. Run it from a
+shell that has sudo/root privileges. On pre-provisioned CI or IRD images where
+system dependencies are already installed and sudo is intentionally unavailable,
+continue only if the readiness checks below pass; otherwise ask the environment
+owner to install the missing system packages.
+
 Confirm the installed wheel version and TT device visibility before running demos.
 These commands should complete without error and print the installed
 `pjrt-plugin-tt` version followed by the visible TT devices.
