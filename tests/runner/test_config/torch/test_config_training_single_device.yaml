@@ -250,8 +250,8 @@ test_config:
     reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
   mobilenetv2/pytorch-Deeplabv3_Mobilenet_v2_1.0_513-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "ValueError: Expected more than 1 value per channel when training, got input size torch.Size([1, 256, 1, 1])"
+    bringup_status: FAILED_RUNTIME
+    reason: "Timeout"
   bge_m3/encode/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
