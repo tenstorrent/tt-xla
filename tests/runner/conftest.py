@@ -109,6 +109,12 @@ def pytest_addoption(parser):
         default=False,
         help="Run EmitPy verification: re-run models via codegen_py backend and compare against flatbuffer result",
     )
+    parser.addoption(
+        "--force-run",
+        action="store_true",
+        default=False,
+        help="Run tests marked NOT_SUPPORTED_SKIP instead of skipping them (for local debugging)",
+    )
 
 
 @pytest.fixture(autouse=True)
