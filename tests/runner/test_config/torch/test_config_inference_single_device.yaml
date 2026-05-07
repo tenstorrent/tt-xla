@@ -606,8 +606,8 @@ test_config:
     status: EXPECTED_PASSING
 
   yoloworld/pytorch-Small_640-single_device-inference:
-    status: EXPECTED_PASSING
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   yoloworld/pytorch-Small_1280-single_device-inference:
     status: EXPECTED_PASSING
@@ -757,13 +757,14 @@ test_config:
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     assert_pcc: false
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8219157204385233. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
+    reason: "Need to update requirements. (https://github.com/tenstorrent/tt-xla/issues/3767)"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Need to update requirements. (https://github.com/tenstorrent/tt-xla/issues/3767)"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
@@ -2342,7 +2343,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   efficientdet/pytorch-D0-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   efficientdet/pytorch-D1-single_device-inference:
     status: EXPECTED_PASSING

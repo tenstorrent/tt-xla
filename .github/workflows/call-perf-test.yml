@@ -129,6 +129,9 @@ jobs:
       shell: bash
       run: |
         if ! command -v gh &> /dev/null; then
+          if [ -f /etc/apt/sources.list.d/archive_uri-https_apt_llvm_org_noble_-noble.list ]; then
+            rm -f /etc/apt/sources.list.d/archive_uri-https_apt_llvm_org_noble_-noble.list
+          fi
           apt-get update -y -qq
           apt-get install -y -qq --no-install-recommends curl
           curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
@@ -162,6 +165,9 @@ jobs:
     - name: Install system dependencies
       shell: bash
       run: |
+        if [ -f /etc/apt/sources.list.d/archive_uri-https_apt_llvm_org_noble_-noble.list ]; then
+          rm -f /etc/apt/sources.list.d/archive_uri-https_apt_llvm_org_noble_-noble.list
+        fi
         apt-get update -y -qq
         apt-get install -y -qq --no-install-recommends ${{ matrix.build.libreq }}
 
@@ -170,7 +176,9 @@ jobs:
       run: |
         source venv/activate
         pip install ${{ matrix.build.pyreq }}
-        pip install torchvision==0.24.0+cpu --index-url https://download.pytorch.org/whl/cpu
+        # Install correct torch-xla version from requirements.txt
+        pip install $(grep "torch-xla@" python_package/requirements.txt)
+        pip install torchvision==0.25.0+cpu --index-url https://download.pytorch.org/whl/cpu
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}

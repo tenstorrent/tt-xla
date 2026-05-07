@@ -18,6 +18,7 @@ from vllm.multimodal import MULTIMODAL_REGISTRY, MultiModalRegistry
 from vllm.utils.math_utils import cdiv
 from vllm.v1.core.kv_cache_manager import KVCacheBlocks
 from vllm.v1.core.sched.output import NewRequestData, SchedulerOutput
+from vllm.v1.core.sched.request_queue import create_request_queue
 from vllm.v1.core.sched.scheduler import Scheduler
 from vllm.v1.engine import EngineCoreEventType, EngineCoreOutputs
 from vllm.v1.kv_cache_interface import KVCacheConfig
@@ -51,13 +52,6 @@ class AscendScheduler(Scheduler):
         )
         self.scheduled_req_ids: set[str] = set()
         self.running: list[Request] = []
-        # Optional execution mode gate (None=auto, 1=prefill, 0=decode)
-        self._forced_mode: Optional[int] = None
-
-    def set_forced_mode(self, mode: Optional[int]) -> None:
-        # mode must be None, 0 (decode) or 1 (prefill)
-        assert mode in (None, 0, 1)
-        self._forced_mode = mode
 
     def schedule(self) -> SchedulerOutput:
         # Super's schedule handles chunked prefill which is schedule both prefill and decode in one request.
@@ -67,15 +61,6 @@ class AscendScheduler(Scheduler):
         scheduled_resumed_reqs: list[Request] = []
         scheduled_running_reqs: list[Request] = []
         preempted_reqs: list[Request] = []
-
-        # Copied from scheduler.py
-        # NOTE: structured_output_request_ids maps
-        # a request's (request that uses structured output)
-        # request_id to the running request index.
-        # This will helps us determine to slice the grammar bitmask
-        # and only applies valid mask for requests that
-        # uses structured decoding.
-        structured_output_request_ids: dict[str, int] = {}
 
         req_to_new_block_ids: dict[str, KVCacheBlocks] = {}
         num_scheduled_tokens: dict[str, int] = {}
@@ -89,21 +74,25 @@ class AscendScheduler(Scheduler):
         # Record scheduled LoRA requests.
         scheduled_loras: set[int] = set()
 
-        # Use a temporary deque to collect requests that need to be skipped
+        # Use a temporary queue to collect requests that need to be skipped
         # and put back at the head of the waiting queue later
-        skipped_waiting_requests: deque[Request] = deque()
+        step_skipped_waiting = create_request_queue(self.policy)
 
         # Schedule prefill requests first (unless decode is forced).
         req_index = 0
-        while self.waiting and token_budget > 0 and self._forced_mode != 0:
+        while (self.waiting or self.skipped_waiting) and token_budget > 0:
             if len(self.running) == self.max_num_running_reqs:
                 break
 
-            request = self.waiting.peek_request()
+            request_queue = self._select_waiting_queue_for_scheduling()
+            if request_queue is None:
+                break
+
+            request = request_queue.peek_request()
 
             def skip_cur_request(req=request):
-                self.waiting.pop_request()
-                skipped_waiting_requests.appendleft(req)
+                request_queue.pop_request()
+                step_skipped_waiting.prepend_request(req)
 
             # P/D: skip request if still waiting for remote kvs.
             if request.status == RequestStatus.WAITING_FOR_REMOTE_KVS:
@@ -115,14 +104,14 @@ class AscendScheduler(Scheduler):
                     continue
 
             # Skip request if the structured output request is still waiting
-            # for FSM compilation.
-            if request.status == RequestStatus.WAITING_FOR_FSM:
+            # for structured output grammar compilation.
+            if request.status == RequestStatus.WAITING_FOR_STRUCTURED_OUTPUT_GRAMMAR:
                 structured_output_req = request.structured_output_request
                 if structured_output_req and structured_output_req.grammar:
-                    # unblock request if FSM is now ready
+                    # unblock request if ready
                     request.status = RequestStatus.WAITING
                 else:
-                    # skip request if FSM is still not ready
+                    # skip request if not ready
                     skip_cur_request()
                     continue
 
@@ -196,7 +185,7 @@ class AscendScheduler(Scheduler):
                     self.finished_req_ids.add(  # type: ignore
                         request.request_id
                     )  # type: ignore
-                    self.waiting.pop_request()
+                    request_queue.pop_request()
                     continue
 
                 if num_new_tokens > token_budget:
@@ -236,11 +225,11 @@ class AscendScheduler(Scheduler):
                     num_external_computed_tokens,
                 )
 
-            self.waiting.pop_request()
+            request = request_queue.pop_request()
             if load_kv_async:
                 # If loading async, allocate memory and put request
                 # into the WAITING_FOR_REMOTE_KV state.
-                skipped_waiting_requests.appendleft(request)
+                step_skipped_waiting.prepend_request(request)
                 request.status = RequestStatus.WAITING_FOR_REMOTE_KVS
                 continue
 
@@ -256,8 +245,6 @@ class AscendScheduler(Scheduler):
             else:
                 raise RuntimeError(f"Invalid request status: {request.status}")
 
-            if request.use_structured_output:
-                structured_output_request_ids[request.request_id] = req_index
             req_index += 1
 
             if self.lora_config and request.lora_request:
@@ -273,12 +260,12 @@ class AscendScheduler(Scheduler):
                 request.num_cached_tokens = num_computed_tokens
 
         # Put back any skipped requests at the head of the waiting queue
-        if skipped_waiting_requests:
-            self.waiting.extendleft(skipped_waiting_requests)  # type: ignore
+        if step_skipped_waiting:
+            self.skipped_waiting.prepend_requests(step_skipped_waiting)
 
         # If no prefill requests are scheduled (or prefill skipped),
         # schedule decode requests next (unless prefill is forced).
-        if len(self.scheduled_req_ids) == 0 and self._forced_mode != 1:
+        if len(self.scheduled_req_ids) == 0:
             req_index = 0
             while req_index < len(self.running) and token_budget > 0:
                 request = self.running[req_index]
@@ -358,8 +345,6 @@ class AscendScheduler(Scheduler):
 
                 # Schedule the request.
                 scheduled_running_reqs.append(request)
-                if request.use_structured_output:
-                    structured_output_request_ids[request.request_id] = req_index
                 self.scheduled_req_ids.add(request.request_id)
                 req_to_new_block_ids[request.request_id] = new_blocks
                 num_scheduled_tokens[request.request_id] = num_new_tokens
@@ -440,14 +425,6 @@ class AscendScheduler(Scheduler):
             free_encoder_mm_hashes=self.encoder_cache_manager.get_freed_mm_hashes(),
         )
 
-        # Generate grammar bitmask after creating scheduler output
-        grammar_output = self.get_grammar_bitmask(scheduler_output)
-        if grammar_output is not None:
-            scheduler_output.structured_output_request_ids = (
-                grammar_output.structured_output_request_ids
-            )
-            scheduler_output.grammar_bitmask = grammar_output.grammar_bitmask
-
         # NOTE(Kuntai): this function is designed for multiple purposes:
         # 1. Plan the KV cache store
         # 2. Wrap up all the KV cache load / save ops into an opaque object
@@ -471,7 +448,14 @@ class AscendScheduler(Scheduler):
         # 3. If some tokens (e.g. spec tokens) are rejected later, the number of
         #    computed tokens will be adjusted in update_from_output.
         for req_id, num_scheduled_token in num_scheduled_tokens.items():
-            self.requests[req_id].num_computed_tokens += num_scheduled_token
+            request = self.requests[req_id]
+            request.num_computed_tokens += num_scheduled_token
+            request.is_prefill_chunk = request.num_computed_tokens < (
+                request.num_tokens + request.num_output_placeholders
+            )
+            scheduler_output.has_structured_output_requests |= (
+                request.use_structured_output and not request.is_prefill_chunk
+            )
 
         self.finished_req_ids = set()  # type: ignore
         return scheduler_output
@@ -523,6 +507,9 @@ class AscendScheduler(Scheduler):
         For example, the API server can abort a request when the client
         disconnects.
         """
+        if request_ids is None:
+            return
+
         for req_id in request_ids:
             request = self.requests.get(req_id)
             if request is None:
