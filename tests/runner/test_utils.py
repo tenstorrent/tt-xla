@@ -743,7 +743,8 @@ def record_model_test_properties(
         record_property("group", str(model_info.group))
 
     # Control flow for skipped and xfailed tests is handled by pytest.
-    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
+    force_run = request.config.getoption("--force-run", default=False)
+    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP and not force_run:
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)

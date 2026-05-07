@@ -112,10 +112,11 @@ def _run_model_test_impl(
 
         comparison_config = test_metadata.to_comparison_config()
 
+        force_run = request.config.getoption("--force-run", default=False)
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
-            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP or force_run:
                 # Framework-specific tester creation
                 if framework == Framework.TORCH:
                     tester = DynamicTorchModelTester(
