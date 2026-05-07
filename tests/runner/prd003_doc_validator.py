@@ -145,7 +145,11 @@ PHASE1_DOC_FLOWS: list[dict[str, Any]] = [
         "source_mode": "documented",
         "source_path": "docs/src/getting_started.md",
         "source_section": "Building from Source",
-        "command": "source venv/activate && cmake -G Ninja -B build && cmake --build build",
+        "command": (
+            "source venv/activate && "
+            "cmake -G Ninja -B build -DTT_USE_SYSTEM_SFPI=OFF && "
+            "cmake --build build"
+        ),
         "expected_target": {
             "execution_target": "vm",
             "target_id": "local",
@@ -156,7 +160,11 @@ PHASE1_DOC_FLOWS: list[dict[str, Any]] = [
         "doc_clarity": {
             "fail_closed": True,
             "blocker_ids": ["DOC-GAP-004"],
-            "notes": "The creation and ownership of venv/activate are not documented.",
+            "notes": (
+                "The source-build flow now documents the IRD-safe user-local "
+                "SFPI path, but the creation and ownership of venv/activate are "
+                "not fully specified."
+            ),
         },
     },
     {

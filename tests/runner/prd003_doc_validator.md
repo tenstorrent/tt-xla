@@ -32,6 +32,11 @@ the Python standard library and pytest.
   executable end to end; default behavior expects fail-closed documentation
   gaps and explicit hardware-gate infrastructure errors.
 
+For IRD source-build validation, the harness tracks the documented command with
+`-DTT_USE_SYSTEM_SFPI=OFF` so the pinned `tt-metal` revision uses its matching
+user-local SFPI toolchain instead of a potentially stale system package under
+`/opt/tenstorrent/sfpi`.
+
 ## Outputs
 
 - `records/jsonl/results.jsonl`

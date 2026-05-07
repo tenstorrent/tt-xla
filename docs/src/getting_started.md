@@ -255,6 +255,17 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    `python_package/requirements.txt` and `venv/requirements-dev.txt`, and
    exports the TT-XLA/TT-MLIR environment variables needed by the build.
 
+   For IRD or other non-privileged validation lanes where `/opt/tenstorrent/sfpi`
+   is managed by the image, prefer the pinned user-local SFPI toolchain:
+
+   ```bash
+   cmake -G Ninja -B build -DTT_USE_SYSTEM_SFPI=OFF
+   cmake --build build
+   ```
+
+   This avoids relying on a preinstalled system SFPI package and lets the pinned
+   `tt-metal` revision fetch the matching SFPI release into the build tree.
+
 5. To verify that everything is working correctly, run the following command:
 
    ```bash
