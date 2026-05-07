@@ -158,6 +158,19 @@ public:
   const PjrtTensor *get() const noexcept { return m_tensor.get(); }
   PjrtTensor *get() noexcept { return m_tensor.get(); }
 
+  // Returns a weak_ptr to the runtime tensor for caching purposes.
+  // The returned weak_ptr shares ownership with the underlying PjrtTensor.
+  std::weak_ptr<const tt::runtime::Tensor> runtimeTensorWeak() const noexcept {
+    if (!m_tensor) {
+      return {};
+    }
+    // Create aliasing shared_ptr that shares ownership with m_tensor
+    // but points to the runtime_tensor inside
+    std::shared_ptr<const tt::runtime::Tensor> runtime_tensor_owner(
+        m_tensor, &m_tensor->runtime_tensor());
+    return runtime_tensor_owner;
+  }
+
   void reset(std::shared_ptr<PjrtTensor> tensor = nullptr,
              BufferInstance *shard = nullptr) noexcept {
 

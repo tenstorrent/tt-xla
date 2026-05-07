@@ -18,6 +18,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 // PJRT C API includes
@@ -122,7 +123,8 @@ public:
                     const std::int64_t *dims, size_t num_dims,
                     const std::int64_t *byte_strides, size_t num_byte_strides,
                     PJRT_HostBufferSemantics host_buffer_semantics,
-                    EventInstance **out_done_with_host_buffer_event);
+                    EventInstance **out_done_with_host_buffer_event,
+                    std::optional<std::int64_t> logical_id = std::nullopt);
 
   // Asynchronously copies this buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
@@ -250,6 +252,13 @@ private:
   // Metal+Program Cache is not thread safe when untilizing on device, so
   //  even different bufferInstances may not be concurrently copied to host.
   static std::mutex s_copy_to_host_internal_mutex;
+
+  // Cache from (host_buffer, logical_id) composite key to weak runtime tensor.
+  // Used for the own-then-alias pattern in distributed runtime mode.
+  static std::unordered_map<std::size_t,
+                            std::weak_ptr<const tt::runtime::Tensor>>
+      s_buffer_runtime_tensor_cache;
+  static std::mutex s_buffer_runtime_tensor_cache_mutex;
 
   // Pjrt tensor reference.
   PjrtTensorRef m_pjrt_tensor;
