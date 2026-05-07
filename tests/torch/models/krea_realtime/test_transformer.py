@@ -25,7 +25,7 @@ def test_transformer():
 
 
 @pytest.mark.xfail(
-    reason="Complex dtype (RoPE freqs from torch.polar) unsupported on TT — https://github.com/tenstorrent/tt-xla/issues/4464"
+    reason="error: failed to legalize unresolved materialization from ('tensor<0x2xf64>') to ('tensor<0xcomplex<f64>>') that remained live after conversion — https://github.com/tenstorrent/tt-mlir/issues/8291"
 )
 def test_transformer_sharded():
     _run(sharded=True)

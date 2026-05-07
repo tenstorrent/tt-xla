@@ -6,10 +6,12 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 
 // c++ standard library includes
+#include <complex>
 #include <cstdint>
 #include <optional>
 
 // llvm includes
+#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
@@ -343,12 +345,19 @@ void simplifyMainFuncOp(mlir::func::FuncOp funcOp) {
     if (auto tensorType = mlir::dyn_cast<mlir::RankedTensorType>(returnType)) {
       auto elementType = tensorType.getElementType();
 
-      // Create zero attribute - getZeroAttr should handle all types
-      auto zeroAttr = builder.getZeroAttr(elementType);
-      TT_FATAL(zeroAttr, "Failed to create zero attribute for element type");
-
-      // Create dense attribute for tensor using splat
-      auto denseAttr = mlir::DenseElementsAttr::get(tensorType, zeroAttr);
+      // mlir::Builder::getZeroAttr does not handle ComplexType, so build the
+      // zero splat manually as (0.0, 0.0) for complex element types.
+      mlir::DenseElementsAttr denseAttr;
+      if (auto complexTy = mlir::dyn_cast<mlir::ComplexType>(elementType)) {
+        auto floatTy = mlir::cast<mlir::FloatType>(complexTy.getElementType());
+        llvm::APFloat zero(floatTy.getFloatSemantics(), 0);
+        denseAttr = mlir::DenseElementsAttr::get(
+            tensorType, std::complex<llvm::APFloat>(zero, zero));
+      } else {
+        auto zeroAttr = builder.getZeroAttr(elementType);
+        TT_FATAL(zeroAttr, "Failed to create zero attribute for element type");
+        denseAttr = mlir::DenseElementsAttr::get(tensorType, zeroAttr);
+      }
 
       // Create constant op
       auto constantOp = builder.create<mlir::stablehlo::ConstantOp>(
