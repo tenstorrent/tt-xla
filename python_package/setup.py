@@ -321,7 +321,7 @@ class CMakeBuildPy(build_py):
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
             "-DTTXLA_ENABLE_EMITPY_EXECUTION=" + enable_emitpy_execution,
             "-DCMAKE_INSTALL_PREFIX=" + str(install_dir),
-            "-DTT_USE_SYSTEM_SFPI=ON",
+            "-DTT_USE_SYSTEM_SFPI=OFF",
         ]
         build_command = ["--build", "build"]
         install_command = ["--install", "build"]
