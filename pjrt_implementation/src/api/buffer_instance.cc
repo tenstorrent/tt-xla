@@ -223,7 +223,7 @@ void BufferInstance::copyFromHost(
   const long long logical_id_for_log =
       static_cast<long long>(logical_id.value_or(-1));
   if (logical_id.has_value()) {
-    LOG_F(LOG_DEBUG, "BufferInstance::copyFromHost logical id=%lld",
+    DLOG_F(LOG_DEBUG, "BufferInstance::copyFromHost logical id=%lld",
            logical_id_for_log);
   }
 
