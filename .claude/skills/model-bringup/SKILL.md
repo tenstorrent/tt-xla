@@ -38,10 +38,16 @@ VALIDATE  →  FIRST_RUN
                                        ↓ user provides log, tail = failed → DIAGNOSE
                                        ↓ user replies "skip" or log inconclusive → CONFIG_UPDATE(TIMEOUT) → STOP
                 ↓ fail → DIAGNOSE
-                            ↓ low confidence → ESCALATE
+                            ↓ low confidence (iter >= 2) → ESCALATE
+                            ↓ runtime_debug → REPAIR (delegate to runtime-failure-debugger)
+                                                ↓ debug_report.md → PAUSE for human review
+                                                ↓ user fix → VERIFY (sanity gate first)
                             ↓ → REPAIR
                                   ↓ blocked → ESCALATE
                                   ↓ → VERIFY
+                                        ↓ sanity gate (runtime_debug only)
+                                            ↓ sanity fails → DIAGNOSE (skip full model)
+                                            ↓ sanity passes → run full model
                                         ↓ pass → CONFIG_UPDATE → PASSED
                                         ↓ fail → DIAGNOSE (next iteration)
                                         ↓ no progress → ESCALATE
@@ -52,6 +58,28 @@ VALIDATE  →  FIRST_RUN
 **VALIDATE**: Invoke `model-bringup-scaffold` skill with the model_key. On failure → ESCALATED.
 
 **FIRST_RUN / VERIFY**: Invoke `model-bringup-run` skill with model_key and arch.
+
+For **VERIFY** specifically: if the previous repair stage was `runtime_debug`
+and recorded a `sanity_test_path` in state, **gate the full-model run on the
+sanity test passing first**. Sanity tests are single-op and complete in
+seconds, so this avoids spending several minutes on a full-model rerun when
+the candidate fix did not actually resolve the failing op.
+
+Sanity-gate procedure (runtime_debug only):
+1. Look up `sanity_test_path` from the most recent `repair` history entry.
+2. Run `pytest -svv <sanity_test_path> 2>&1 | tee
+   .claude/bringup/<safe_key>/logs/iter_<N>_sanity.log`.
+3. If the sanity exits **non-zero** (fails or errors) → do **not** invoke the
+   full model run. Save the sanity log path to state and transition to
+   DIAGNOSE for the next iteration. Append a note to `failure_reasons`
+   indicating the sanity gate did not pass (e.g. `sanity_failed:<exit_code>`).
+4. If the sanity exits **zero** (passes) → proceed to invoke
+   `model-bringup-run` for the full model as below.
+
+For all other repair strategies, skip the sanity gate and invoke
+`model-bringup-run` directly.
+
+Then, regardless of how VERIFY arrives at the full-model invocation:
 - On pass → transition to CONFIG_UPDATE.
 - On timeout → the run skill pauses internally and asks the user for a manual
   longer-budget run. The orchestrator should not transition until the run skill
@@ -66,9 +94,36 @@ VALIDATE  →  FIRST_RUN
 
 **DIAGNOSE**: Invoke `model-bringup-diagnose` skill with the log from the last run.
 - If confidence is `low` and iteration >= 2 → ESCALATED.
+- If diagnose sets `escalation_skill: "runtime-failure-debugger"` (i.e.
+  `suggested_repair_strategy: "runtime_debug"`) → REPAIR with that strategy.
+  This path is taken when standard pattern-matching is insufficient or when a
+  prior cheap strategy did not resolve the same root cause.
 - Otherwise → REPAIR.
 
 **REPAIR**: Invoke `model-bringup-repair` skill with diagnosis and model_key.
+- If strategy is `runtime_debug`, repair delegates to the
+  `runtime-failure-debugger` skill. Important characteristics of this path:
+  - **Long-running**: the debugger does an architecture-print pass, several
+    bisect runs (each a full pytest), a block-sanity run, a Phase 3B
+    minimal-sanity bisect (more pytest runs), a Phase 4 codegen + TTNN run,
+    and a Phase 5 tt-metal run. Budget tens of minutes to a few hours and do
+    not enforce the FIRST_RUN/VERIFY 5-minute timeout on it.
+  - **Human-input gate**: Phase 5 needs `tt_metal_machine`, `tt_metal_repo`,
+    and `tt_metal_branch`. The orchestrator does not have these from
+    bringup state. Before invoking, prompt the user for them (or accept
+    "skip Phase 5" — the debugger still produces a useful report up to
+    Phase 4). Pass the values through to the repair stage so it can
+    pre-fill the debugger's Phase 0.
+  - **No automated patch**: the deliverable is `debug_report.md` at
+    `<tt_xla_repo>/claude_logs_<model_name>/debug_report.md` plus the block
+    and minimal sanity files under `tests/torch/ops/<model_name>/`. Treat
+    the repair result as `requires_human_review: true`: pause, surface the
+    report and sanity paths, and wait for the user to either supply a fix
+    (continue to VERIFY) or escalate.
+  - **Cleanup check**: after the debugger returns, run `git status -s`. If
+    the debugger left transient edits in model files (its own rules say it
+    must revert), flag this in the orchestrator's pause message so the user
+    can clean up before re-running.
 - If blocked → ESCALATED.
 - If requires_human_review → pause and show the generated patch/instructions, wait for user confirmation before continuing.
 - On proceed → increment iteration, transition to VERIFY.

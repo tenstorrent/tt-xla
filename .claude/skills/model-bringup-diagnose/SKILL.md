@@ -1,6 +1,6 @@
 ---
 name: model-bringup-diagnose
-description: Root cause diagnosis stage of the model bringup pipeline. Reads a pytest log, matches failure patterns (graph_break, oom, pcc_low, missing_op, runtime_mismatch, import_error), and outputs a structured JSON diagnosis with confidence level. Invoked by the model-bringup orchestrator at the DIAGNOSE stage.
+description: Root cause diagnosis stage of the model bringup pipeline. Reads a pytest log, matches failure patterns (graph_break, oom, pcc_low, missing_op, runtime_mismatch, import_error), and outputs a structured JSON diagnosis with confidence level. Can recommend the runtime-failure-debugger skill as the repair strategy when standard pattern-matching is insufficient. Invoked by the model-bringup orchestrator at the DIAGNOSE stage.
 allowed-tools: Read Bash
 ---
 
@@ -32,15 +32,42 @@ Scan the log for these patterns in order (first match wins):
 - `medium`: pattern found but log contains multiple candidate causes
 - `low`: no known pattern matched, or multiple conflicting patterns
 
+## Escalating to runtime-failure-debugger
+The default strategy table above maps each pattern to a cheap, one-shot fix.
+When that is unlikely to help, override `suggested_repair_strategy` to
+`runtime_debug` so the repair stage delegates to the `runtime-failure-debugger`
+skill (systematic op-level bisect → minimal sanity → TTNN repro → tt-metal
+replication).
+
+Set `runtime_debug` when **any** of these hold:
+1. Confidence would otherwise be `low` AND the failure is a runtime fault
+   (`oom`, `pcc_low`, `runtime_mismatch`, or `unknown` with a Python/runtime
+   traceback) — i.e. there is real signal to debug, just not enough to pick
+   a one-shot fix.
+2. `state.json` history shows the previous iteration already applied the
+   default strategy for this same `root_cause_category` without resolving it
+   (e.g. `adjust_oom_config` was tried and the new log shows the same OOM
+   byte-count, or `lower_pcc_threshold` was tried and PCC is still failing).
+   Read prior `repair` entries before deciding.
+3. The matched pattern is `oom` or `pcc_low` and the log indicates the failure
+   is op-config-driven rather than input-driven (e.g. byte-identical L1 budget
+   regardless of input size, or PCC drop on a single intermediate tensor).
+
+Do **not** use `runtime_debug` for `missing_op` or `import_error` — those
+still escalate to a human (the debugger cannot synthesise a missing op).
+
 ## Required Output
 Print the diagnosis as JSON conforming exactly to this schema:
 ```json
 {
   "root_cause_category": "<value>",
   "suggested_repair_strategy": "<value>",
-  "confidence": "high | medium | low"
+  "confidence": "high | medium | low",
+  "escalation_skill": "runtime-failure-debugger" | null
 }
 ```
+Set `escalation_skill` to `"runtime-failure-debugger"` whenever
+`suggested_repair_strategy` is `runtime_debug`; otherwise `null`.
 
 Then print a human-readable summary:
 ```
@@ -57,7 +84,12 @@ Append to `state.json` history:
 {
   "stage": "diagnose",
   "result": "<category>",
-  "details": { "confidence": "<level>", "strategy": "<strategy>", "log": "<log_path>" }
+  "details": {
+    "confidence": "<level>",
+    "strategy": "<strategy>",
+    "escalation_skill": "<runtime-failure-debugger or null>",
+    "log": "<log_path>"
+  }
 }
 ```
 
@@ -72,6 +104,7 @@ STEP <N> — Diagnose (model-bringup-diagnose, iteration <N>)
 Log analysed  : <log_path>
 Root cause    : <category>
 Strategy      : <suggested_repair_strategy>
+Escalation    : <runtime-failure-debugger or 'none'>
 Confidence    : <level>
 Excerpt       :
   <first 3 lines of the matching log region>
