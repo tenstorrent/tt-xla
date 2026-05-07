@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from contextlib import contextmanager
+
 import torch
 from torch.overrides import TorchFunctionMode
 
@@ -24,6 +26,26 @@ class TorchFunctionOverride(TorchFunctionMode):
 
 torch_function_override = TorchFunctionOverride()
 torch_function_override.__enter__()
+
+
+@contextmanager
+def torch_function_override_disabled():
+    """Pop the 4D matmul/linear → einsum override for the scope, restore on exit.
+
+    Use around ``torch.compile``-d call sites whose dynamo trace must not see
+    the TorchFunctionMode (e.g. forwards that call ``Tensor.unflatten(..., -1)``).
+    Nested usage is a silent no-op for the inner block.
+    """
+    try:
+        torch_function_override.__exit__(None, None, None)
+        popped = True
+    except Exception:
+        popped = False
+    try:
+        yield
+    finally:
+        if popped:
+            torch_function_override.__enter__()
 
 
 def _router_forward(self, hidden_states):
