@@ -856,9 +856,17 @@ PJRT_Error *onClientDefaultDeviceAssignment(
 // Constructing buffer instance for the first time.
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
+  return onBufferFromHostBuffer(args, std::nullopt);
+}
+
+// Overload that accepts an optional logical_id for deferred sharding.
+PJRT_Error *
+onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args,
+                       std::optional<std::int64_t> logical_id) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_BufferFromHostBuffer");
   ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+  (void)client_instance; // Currently unused but may be needed later.
 
   if (args->device_layout &&
       args->device_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
@@ -915,7 +923,8 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   buffer->copyFromHost(
       args->data, args->type, args->dims, args->num_dims, args->byte_strides,
       args->num_byte_strides, args->host_buffer_semantics,
-      reinterpret_cast<EventInstance **>(&args->done_with_host_buffer));
+      reinterpret_cast<EventInstance **>(&args->done_with_host_buffer),
+      logical_id);
 
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Buffer_Destroy` on the buffer.

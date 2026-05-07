@@ -4,6 +4,7 @@
 
 #include "api/buffer_metadata_extension.h"
 
+#include <optional>
 #include <string_view>
 
 #include "api/client_instance.h"
@@ -40,6 +41,27 @@ void logMetadata(const PJRT_BufferMetadata* metadata) {
   }
 }
 
+// Extract logical_id from metadata entries if present.
+// Returns std::nullopt if not found.
+std::optional<std::int64_t>
+extractLogicalId(const PJRT_BufferMetadata* metadata) {
+  if (!metadata) {
+    return std::nullopt;
+  }
+
+  for (size_t i = 0; i < metadata->num_entries; ++i) {
+    const auto& entry = metadata->entries[i];
+    std::string_view key(entry.key, entry.key_size);
+
+    // If key is "logical_id" and value is null, use int_value
+    if (key == "logical_id" && entry.value == nullptr) {
+      return entry.int_value;
+    }
+  }
+
+  return std::nullopt;
+}
+
 PJRT_Error* onBufferFromHostBufferWithMetadata(
     PJRT_Client_BufferFromHostBufferWithMetadata_Args* args) {
 
@@ -47,6 +69,13 @@ PJRT_Error* onBufferFromHostBufferWithMetadata(
 
   // Log metadata if present
   logMetadata(args->metadata);
+
+  // Extract logical_id from metadata for deferred sharding
+  std::optional<std::int64_t> logical_id = extractLogicalId(args->metadata);
+  if (logical_id.has_value()) {
+    LOG_F(INFO, "Extracted logical_id=%lld from metadata",
+          static_cast<long long>(logical_id.value()));
+  }
 
   // Convert to standard BufferFromHostBuffer args and delegate to existing
   // implementation
@@ -65,8 +94,9 @@ PJRT_Error* onBufferFromHostBufferWithMetadata(
   standard_args.memory = args->memory;
   standard_args.device_layout = args->device_layout;
 
-  // Call existing implementation
-  PJRT_Error* error = internal::onBufferFromHostBuffer(&standard_args);
+  // Call implementation with logical_id for deferred sharding support
+  PJRT_Error* error =
+      internal::onBufferFromHostBuffer(&standard_args, logical_id);
 
   // Copy outputs back
   args->done_with_host_buffer = standard_args.done_with_host_buffer;

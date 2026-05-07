@@ -11,6 +11,8 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstddef>
+#include <functional>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -44,6 +46,23 @@
 namespace tt::pjrt {
 
 std::mutex BufferInstance::s_copy_to_host_internal_mutex;
+std::unordered_map<std::size_t, std::weak_ptr<const tt::runtime::Tensor>>
+    BufferInstance::s_buffer_runtime_tensor_cache;
+std::mutex BufferInstance::s_buffer_runtime_tensor_cache_mutex;
+
+namespace {
+
+// Computes a composite hash key from host buffer pointer and logical_id.
+std::size_t computeBufferRuntimeTensorCacheKey(
+    const void *host_buffer, std::optional<std::int64_t> logical_id) {
+  const auto host_buffer_hash = std::hash<const void *>{}(host_buffer);
+  const auto logical_id_hash =
+      std::hash<std::int64_t>{}(logical_id.value_or(-1));
+  return host_buffer_hash ^ (logical_id_hash + 0x9e3779b9 +
+                             (host_buffer_hash << 6) + (host_buffer_hash >> 2));
+}
+
+} // namespace
 
 std::unique_ptr<BufferInstance> BufferInstance::createInputBufferInstance(
     PJRT_Buffer_Type data_type, const std::int64_t *dims, size_t num_dims,
@@ -175,7 +194,8 @@ void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
     const std::int64_t *dims, size_t num_dims, const std::int64_t *byte_strides,
     size_t num_byte_strides, PJRT_HostBufferSemantics host_buffer_semantics,
-    EventInstance **out_done_with_host_buffer_event) {
+    EventInstance **out_done_with_host_buffer_event,
+    std::optional<std::int64_t> logical_id) {
 
   TT_FATAL(
       data_type == m_data_type,
@@ -199,9 +219,67 @@ void BufferInstance::copyFromHost(
 
   tt::runtime::Tensor runtime_tensor;
 
-  // In distributed runtime, we always create owned host tensor because we
-  // cannot alias the host buffer.
-  //
+  const long long logical_id_for_log =
+      static_cast<long long>(logical_id.value_or(-1));
+  if (logical_id.has_value()) {
+    LOG_F(LOG_DEBUG, "BufferInstance::copyFromHost logical id=%lld",
+           logical_id_for_log);
+  }
+
+  // Determine runtime conditions for cache eligibility.
+  const bool is_distributed_runtime =
+      ::tt::runtime::getCurrentHostRuntime() ==
+      tt::runtime::HostRuntime::Distributed;
+  const bool is_supported_data_type =
+      ::tt::runtime::utils::isSupportedDataType(runtime_data_type);
+  const bool must_copy_host_buffer =
+      host_buffer_semantics ==
+          PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
+      !is_supported_data_type;
+  const bool allow_distributed_runtime_tensor_cache =
+      is_distributed_runtime && is_supported_data_type;
+
+  bool is_cache_hit = false;
+  bool should_insert_runtime_tensor_cache = false;
+  std::size_t runtime_tensor_cache_key = 0;
+
+  // Try to reuse a cached tensor in distributed runtime mode.
+  if (allow_distributed_runtime_tensor_cache) {
+    runtime_tensor_cache_key =
+        computeBufferRuntimeTensorCacheKey(host_buffer, logical_id);
+    std::shared_ptr<const tt::runtime::Tensor> cached_owned_host_tensor;
+    {
+      std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
+      auto it = s_buffer_runtime_tensor_cache.find(runtime_tensor_cache_key);
+      if (it != s_buffer_runtime_tensor_cache.end()) {
+        cached_owned_host_tensor = it->second.lock();
+        if (!cached_owned_host_tensor) {
+          // Weak entry expired, treat as a cache miss.
+          s_buffer_runtime_tensor_cache.erase(it);
+        }
+      }
+    }
+
+    if (cached_owned_host_tensor) {
+      is_cache_hit = true;
+      LOG_F(INFO,
+            "Buffer runtime tensor cache hit for host_buffer=%p "
+            "logical_id=%lld, shape %s",
+            host_buffer, logical_id_for_log, toShapeStr().c_str());
+      runtime_tensor =
+          tt::runtime::createUnsafeBorrowedHostTensor(*cached_owned_host_tensor);
+      EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                            tt_pjrt_status::kSuccess);
+    } else {
+      LOG_F(INFO,
+            "Buffer runtime tensor cache miss for host_buffer=%p "
+            "logical_id=%lld, shape %s",
+            host_buffer, logical_id_for_log, toShapeStr().c_str());
+      should_insert_runtime_tensor_cache = true;
+    }
+  }
+
+  // In distributed runtime (cache miss), we create an owned host tensor.
   // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
   // we are not allowed to alias it directly, so we have to create owned host
   // tensor which copies buffer data. In JAX this semantic is used only for
@@ -211,18 +289,16 @@ void BufferInstance::copyFromHost(
   //
   // If the runtime data type which has been inferred from m_data_type is not
   // supported by runtime/ttnn, then we must create an owned tensor as runtime
-  // must case the data inside the host buffer into a supported data type. Thus,
+  // must cast the data inside the host buffer into a supported data type. Thus,
   // the buffer cannot be borrowed.
-  if (::tt::runtime::getCurrentHostRuntime() ==
-          tt::runtime::HostRuntime::Distributed ||
-      host_buffer_semantics ==
-          PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
-
+  const bool should_create_owned_host_tensor =
+      !is_cache_hit && (is_distributed_runtime || must_copy_host_buffer);
+  if (should_create_owned_host_tensor) {
     runtime_tensor = tt::runtime::createOwnedHostTensor(
         host_buffer, shape, strides, element_size, runtime_data_type);
 
-    // Memory is copied, we don't need host buffer anymore.
+    // Memory is copied; caller may release the original host buffer
+    // immediately.
     EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                           tt_pjrt_status::kSuccess);
   }
@@ -231,7 +307,7 @@ void BufferInstance::copyFromHost(
   // uses direct pointer to existing data. Since we are holding a pointer to the
   // original data we can't mark the event as ready yet, so we remember it and
   // mark it as ready once the buffer is destroyed.
-  else {
+  else if (!is_cache_hit) {
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
@@ -249,7 +325,18 @@ void BufferInstance::copyFromHost(
     m_done_with_host_buffer_event->setIndestructible();
   }
 
+  // PjrtTensor takes ownership of runtime_tensor and binds it to this shard.
   PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
+
+  // Insert the runtime tensor into the cache for future aliasing.
+  if (should_insert_runtime_tensor_cache) {
+    std::lock_guard<std::mutex> lock(s_buffer_runtime_tensor_cache_mutex);
+    if (s_buffer_runtime_tensor_cache.find(runtime_tensor_cache_key) ==
+        s_buffer_runtime_tensor_cache.end()) {
+      s_buffer_runtime_tensor_cache.emplace(runtime_tensor_cache_key,
+                                            m_pjrt_tensor.runtimeTensorWeak());
+    }
+  }
 
   markAsDataReady();
 

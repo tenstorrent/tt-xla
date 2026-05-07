@@ -286,6 +286,11 @@ onClientDefaultDeviceAssignment(PJRT_Client_DefaultDeviceAssignment_Args *args);
 // Implements PJRT_Client_BufferFromHostBuffer API function.
 PJRT_Error *onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args);
 
+// Overload that accepts an optional logical_id for deferred sharding.
+PJRT_Error *
+onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args,
+                       std::optional<std::int64_t> logical_id);
+
 } // namespace internal
 
 } // namespace tt::pjrt
