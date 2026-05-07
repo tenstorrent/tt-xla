@@ -34,12 +34,13 @@ def torch_function_override_disabled():
 
     Use around ``torch.compile``-d call sites whose dynamo trace must not see
     the TorchFunctionMode (e.g. forwards that call ``Tensor.unflatten(..., -1)``).
-    Nested usage is a silent no-op for the inner block.
+    Nested usage: only the inner block is a no-op — the outer block still
+    pops on enter and restores on exit normally.
     """
     try:
         torch_function_override.__exit__(None, None, None)
         popped = True
-    except Exception:
+    except RuntimeError:
         popped = False
     try:
         yield
