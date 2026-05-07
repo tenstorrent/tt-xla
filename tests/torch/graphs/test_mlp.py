@@ -558,6 +558,71 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     )
 
 
+"""GPT-OSS sparse MLP small-batch decode (tile-padding path)"""
+
+
+@pytest.mark.nightly
+@parametrize_arch(["llmbox"])
+@pytest.mark.parametrize(
+    "decode_batch,decode_seq_len",
+    [(8, 1), (1, 1), (2, 8), (5, 5)],
+    ids=["bsz8_sl1", "bsz1_sl1", "bsz2_sl8", "bsz5_sl5"],
+)
+def test_gpt_oss_sparse_mlp_small_batch(decode_batch, decode_seq_len, arch):
+    """
+    Exercises A2aSparseMLP's tile-padding path: when decode_batch * decode_seq_len
+    is not a multiple of TILE (32), forward must pad the batch dim and slice it
+    off the output. Mirrors small-batch decode (e.g. bsz=8 seq_len=1 -> 8 tokens,
+    pad to 32). bsz5_sl5 covers the gcd(seq_len, TILE)=1 path where padded_batch
+    must be a multiple of TILE itself.
+    """
+    xr.set_device_type("TT")
+
+    loader = GPTOSSModelLoader(variant=GPTOSSModelVariant.GPT_OSS_20B, num_layers=1)
+    config = loader.load_config()
+
+    model = AutoModelForCausalLM.from_config(
+        config, trust_remote_code=True, torch_dtype=torch.bfloat16
+    )
+    model.eval()
+    mlp = model.model.layers[0].mlp
+
+    hidden_states = torch.randn(
+        (decode_batch, decode_seq_len, config.hidden_size), dtype=torch.bfloat16
+    )
+
+    # llmbox: (2, 4) mesh, cluster_axis=0 -> 2-way dispatch.
+    num_devices = xr.global_runtime_device_count()
+    mesh_dim0 = 2
+    mesh_shape = (mesh_dim0, num_devices // mesh_dim0)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    mlp = enable_sparse_mlp(mlp, mesh=mesh_shape, cluster_axis=0)
+
+    def get_shard_spec(mlp, args, kwargs):
+        return {
+            mlp.router.weight: (None, "batch"),
+            mlp.router.bias: (None,),
+            mlp.experts.gate_up_proj: (("batch", "model"), None, None),
+            mlp.experts.gate_up_proj_bias: (("batch", "model"), None),
+            mlp.experts.down_proj: (("batch", "model"), None, None),
+            mlp.experts.down_proj_bias: (("batch", "model"), None),
+        }
+
+    # Small-batch sparse MoE in bf16 sees slightly worse PCC than the seq=128
+    # case — relax the threshold to match the existing 120B/single_device entry.
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.98))
+
+    run_graph_test(
+        mlp,
+        [hidden_states],
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
+
+
 @pytest.mark.nightly
 def test_a2a_sparse_mlp_cpu_parity():
     """Verify A2aSparseMLP produces the same results as the original MLP on CPU.
