@@ -119,7 +119,11 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
       continue;
     }
     const void *host_base = buf->borrowedHostBasePointer();
-    if (host_base != nullptr) {
+    // Skip buffers that already have a runtime tensor - they've already been
+    // transferred in a previous execution. The shell metadata is discarded
+    // after the first transfer since we no longer need to copy from the
+    // client's host buffer.
+    if (host_base != nullptr && !buf->getPjrtTensor()->has_runtime_tensor()) {
       borrowed_host_base_ptr_to_buffers[host_base].push_back(buf);
     }
   }
