@@ -1,6 +1,6 @@
 ---
 name: triage-dtype-bfloat16
-description: Triage one tt-forge-models training test stuck on a bfloat16 dtype-mismatch RuntimeError (e.g. "mat1 and mat2 must have the same dtype, but got Float and BFloat16", "Index put requires the source and destination dtypes match, got Float for the destination and BFloat16 for the source.", "expected scalar type Float but found BFloat16", "'deformable_im2col' not implemented for 'BFloat16'"). For the **cross-dtype operands** flavor, attempts a minimal loader fix that propagates `dtype_override` into the offending tensor constructor, then re-runs CPU + pytest and updates the YAML to reflect the post-fix outcome (passing → EXPECTED_PASSING; new failure → KNOWN_FAILURE_XFAIL with new reason). For the **op-not-implemented for BFloat16** flavor (no PyTorch kernel), goes straight to KNOWN_FAILURE_XFAIL with the verbatim error string. Updates every training entry that shares the affected loader. Never edits inference YAML or `dynamic_loader.py`.
+description: Triage one tt-forge-models training test failing with a bfloat16 dtype-mismatch RuntimeError (e.g. "mat1 and mat2 must have the same dtype, but got Float and BFloat16", "'<op>' not implemented for 'BFloat16'"). For cross-dtype operands, attempts a minimal loader fix propagating `dtype_override` into the offending tensor constructor, then re-runs CPU + pytest and updates the YAML (passing → EXPECTED_PASSING; new failure → KNOWN_FAILURE_XFAIL). For op-not-implemented (no PyTorch kernel), goes straight to KNOWN_FAILURE_XFAIL with the verbatim error. Updates every training entry sharing the affected loader. Never edits inference YAML or `dynamic_loader.py`.
 argument-hint: <test-name>
 ---
 
@@ -100,9 +100,22 @@ def run(label, dtype):
                else model(inputs))
         unpacked = loader.unpack_forward_output(out)
         # Mimic torch_model_tester._test_training: random-gradient backward over the unpacked tensor.
-        grad = torch.randn(unpacked.shape, dtype=unpacked.dtype)
-        unpacked.backward(gradient=grad)
-        print(f"{label}: OK -- forward+backward completed", flush=True)
+        if isinstance(unpacked, torch.Tensor):
+            grad = torch.randn(unpacked.shape, dtype=unpacked.dtype)
+            unpacked.backward(gradient=grad)
+            print(f"{label}: OK -- forward+backward completed", flush=True)
+        else:
+            print(
+                f"{label}: unpack_forward_output returned {type(unpacked).__name__}, "
+                f"not a single Tensor. Forward succeeded; skipping backward.",
+                flush=True,
+            )
+            print(
+                f"{label}: Multi-tensor outputs need a custom CPU repro that "
+                f"sums all leaf tensors before .backward(). The forward dtype dump "
+                f"above is still valid for cross-dtype diagnosis.",
+                flush=True,
+            )
     except Exception as e:
         print(f"{label}: FAILED -- {type(e).__name__}: {e}", flush=True)
         traceback.print_exc()
@@ -213,16 +226,18 @@ No loader change. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical bfloa
 
 #### Branch B — `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == True`
 
-Loader fix succeeded at the CPU level. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical bfloat16 reason as a starting placeholder, then run pytest. Then read the test result:
+Loader fix succeeded at the CPU level. Mirror the sibling `triage-unpack-forward-output` skill's "flip → run → write" pattern: set every entry in the update set to `EXPECTED_PASSING` (drop `bringup_status` and `reason`) so the runner doesn't skip them at collection (`tests/runner/test_models.py:118` gates on `NOT_SUPPORTED_SKIP`), run pytest once, then write the final YAML in a single pass based on the observed outcome — no placeholder writes.
 
-- **Pytest reports `1 passed`** (test passed on TT-XLA): change YAML to `EXPECTED_PASSING`. Note: `EXPECTED_PASSING` makes the test required to pass — only set this after a clean pytest pass, not based on CPU evidence alone.
+```yaml
+<model_dir>/pytorch-<variant>-single_device-training:
+  status: EXPECTED_PASSING
+```
 
-  ```yaml
-  <model_dir>/pytorch-<variant>-single_device-training:
-    status: EXPECTED_PASSING
-  ```
+Then run pytest (the same command shown above) and Read the log. Decide per entry:
 
-- **Pytest reports `1 xfailed`** with a *new, non-bfloat16* error in the trace (look for `RuntimeError`, `error:`, MLIR pass failures, etc.): the test now fails for an unrelated TT-XLA / TT-MLIR reason. Update YAML reason to the new error verbatim:
+- **Pytest reports `1 passed`** (test passed on TT-XLA): leave the entry as `EXPECTED_PASSING`. `EXPECTED_PASSING` makes the test required to pass — only keep it after a clean pytest pass, not based on CPU evidence alone.
+
+- **Pytest reports `1 xfailed`** with a *new, non-bfloat16* error in the trace (look for `RuntimeError`, `error:`, MLIR pass failures, etc.): the test now fails for an unrelated TT-XLA / TT-MLIR reason. Write the final YAML once with the new error verbatim:
 
   ```yaml
   <model_dir>/pytorch-<variant>-single_device-training:
@@ -233,7 +248,7 @@ Loader fix succeeded at the CPU level. Set the YAML to `KNOWN_FAILURE_XFAIL` wit
 
   Pick the most signal-bearing error line — usually an MLIR `error:` line or a runtime `RuntimeError`. Skip noise like deprecation warnings and "Found an argument on non-XLA device".
 
-- **Pytest reports `1 xfailed`** *but* the trace still contains the original bfloat16 dtype-mismatch error: the loader fix passed CPU but something else (the runner re-creates inputs, or a buffer is constructed inside the model when not on CPU) reintroduces the float32 tensor. Revert the loader fix, fall back to Branch A. Note this in the final report — it's worth human review.
+- **Pytest reports `1 xfailed`** *but* the trace still contains the original bfloat16 dtype-mismatch error: the loader fix passed CPU but something else (the runner re-creates inputs, or a buffer is constructed inside the model when not on CPU) reintroduces the float32 tensor. Revert the loader fix and the temporary `EXPECTED_PASSING` flip, fall back to Branch A. Note this in the final report — it's worth human review.
 
 #### Branch C — `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == False`
 
@@ -256,7 +271,7 @@ Run pytest just to confirm the test still xfails (no `XPASS`).
 | Test reaches runtime/execution and fails there (rare for this skill, but possible after a loader fix) | `FAILED_RUNTIME` |
 | Test now passes on TT-XLA | drop `bringup_status` (status: EXPECTED_PASSING is enough) |
 
-#### Canonical bfloat16 reason strings (Branch A and as placeholder)
+#### Canonical bfloat16 reason strings (Branch A)
 
 `reason` — verbatim, single-line, double-quoted. Match these canonical strings exactly when they apply:
 
