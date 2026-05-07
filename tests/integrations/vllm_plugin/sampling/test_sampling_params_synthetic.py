@@ -452,7 +452,13 @@ def _seeded_metadata(q_cpu, device):
 @pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
 @pytest.mark.xfail(
-    strict=True,
+    # strict=False because deepseek_r1_7b XPASSed on a p150 CI run while
+    # reproducing reliably elsewhere (25/25 local xfails). Hardware RNG state
+    # can occasionally align between sequential kernel calls; the bug is real
+    # but the test's symptomatic check (same-seed -> same-token) can pass by
+    # luck. The other two seed xfails (test_seed, test_seed_mixed_batch) stay
+    # strict and serve as the kernel-fix tripwire.
+    strict=False,
     reason=(
         "Device sampler does not honor per-row seeds: the tt::sampling "
         "kernel uses a single shared seed across all 32 cores and ignores "
