@@ -453,15 +453,19 @@ def benchmark_llm_torch_xla(
         options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
 
     # Codegen-emit hook (autoresearch Phase A.1): when CODEGEN_EXPORT_PATH is set,
-    # the compile pipeline diverts to codegen_py backend, emitting editable Python
-    # TTNN modules to the given path while still executing (dry_run=False) so the
-    # standard benchmark/accuracy/PCC sections still run and produce metrics.
+    # divert the compile pipeline to backend=codegen_py and emit editable Python
+    # TTNN modules to the given path. dry_run=True skips re-executing the emitted
+    # code from inside pytest's namespace — the emitted module's `import utils`
+    # would otherwise resolve to tests/benchmark/utils.py instead of the
+    # codegen-emitted utils.py, causing AttributeError on DeviceGetter. The
+    # autoresearch loop runs the emitted code via a separate harness that
+    # controls PYTHONPATH so the right utils.py wins.
     codegen_export_path = os.environ.get("CODEGEN_EXPORT_PATH")
     if codegen_export_path:
         options["backend"] = "codegen_py"
         options["export_path"] = codegen_export_path
         options["export_tensors"] = True
-        options["dry_run"] = False
+        options["dry_run"] = True
         logger.info(f"CODEGEN_EXPORT_PATH set; emitting Python TTNN to {codegen_export_path}")
 
     torch_xla.set_custom_compile_options(options)
