@@ -607,7 +607,7 @@ test_config:
 
   yoloworld/pytorch-Small_640-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "PyTroch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   yoloworld/pytorch-Small_1280-single_device-inference:
     status: EXPECTED_PASSING
@@ -724,8 +724,7 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
 
   t5/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
@@ -737,8 +736,7 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Fourier-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
 
   # yolov8/pytorch-yolov8x-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -753,19 +751,20 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9897869694927385. Required: pcc=0.99"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
     assert_pcc: false
-    reason: "Need to update requirments. (https://github.com/tenstorrent/tt-xla/issues/3767)"
+    reason: "Need to update requirements. (https://github.com/tenstorrent/tt-xla/issues/3767)"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
     status: KNOWN_FAILURE_XFAIL
-    reason: "Need to update requirments. (https://github.com/tenstorrent/tt-xla/issues/3767)"
+    reason: "Need to update requirements. (https://github.com/tenstorrent/tt-xla/issues/3767)"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
@@ -2037,7 +2036,7 @@ test_config:
 
   vilt/masked_lm/pytorch-Mlm-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
+    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99.- https://github.com/tenstorrent/tt-xla/issues/4578"
 
   mplug_owl2/pytorch-Llama2_7B-single_device-inference:
     supported_archs: ["p150"]
@@ -2195,8 +2194,7 @@ test_config:
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
   vilt/question_answering/pytorch-Vqa-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
+    status: EXPECTED_PASSING
 
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2345,7 +2343,7 @@ test_config:
 
   efficientdet/pytorch-D0-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "PyTroch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   efficientdet/pytorch-D1-single_device-inference:
     status: EXPECTED_PASSING
