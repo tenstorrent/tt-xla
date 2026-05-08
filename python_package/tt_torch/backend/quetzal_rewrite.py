@@ -17,6 +17,17 @@ DEFAULT_QUETZAL_REWRITE_PASSES = [
     "reconstruct_sdpa",
 ]
 
+# Late-rewrite passes run AFTER run_fusion_passes (i.e. after the default-
+# enabled providers like RMSNormFusionProvider have collapsed manual
+# decompositions into torch.nn.functional.* calls). Use this for providers
+# whose pattern matches the OUTPUT of an earlier provider.
+QUETZAL_LATE_REWRITE_PASSES_OPTION = "tt_quetzal_late_rewrite_passes"
+QUETZAL_LATE_REWRITE_PASSES_ENV = "TT_TORCH_QUETZAL_LATE_REWRITE_PASSES"
+
+DEFAULT_QUETZAL_LATE_REWRITE_PASSES = [
+    "fuse_residual_rms_norm",
+]
+
 
 def get_quetzal_rewrite_passes(options: dict[str, Any] | None) -> list[str]:
     requested = None
@@ -55,6 +66,53 @@ def run_quetzal_rewrite_passes(gm, options: dict[str, Any] | None) -> None:
     replacements = run_selected_fusion_passes(gm, provider_names)
     logger.info(
         "[QuetzalRewrite] "
+        f"passes={','.join(provider_names)} "
+        f"matches={sum(replacements.values())}"
+    )
+
+
+def get_quetzal_late_rewrite_passes(options: dict[str, Any] | None) -> list[str]:
+    """Return list of late-rewrite pass names from option or env. Same syntax
+    as the early rewrite hook ("none", "all", or comma-separated names)."""
+    requested = None
+    if options and options.get(QUETZAL_LATE_REWRITE_PASSES_OPTION) is not None:
+        requested = str(options[QUETZAL_LATE_REWRITE_PASSES_OPTION]).strip()
+    elif os.environ.get(QUETZAL_LATE_REWRITE_PASSES_ENV) is not None:
+        requested = os.environ[QUETZAL_LATE_REWRITE_PASSES_ENV].strip()
+
+    if not requested or requested.lower() == "none":
+        return []
+
+    if requested.lower() == "all":
+        return list(DEFAULT_QUETZAL_LATE_REWRITE_PASSES)
+
+    return [name.strip() for name in requested.split(",") if name.strip()]
+
+
+def run_quetzal_late_rewrite_passes(gm, options: dict[str, Any] | None) -> None:
+    """Run any quetzal-style FX rewrite providers that need to fire AFTER the
+    default-enabled fusion passes (e.g. add+rms_norm fusion that depends on
+    RMSNormFusionProvider's output)."""
+    provider_names = get_quetzal_late_rewrite_passes(options)
+    if not provider_names:
+        return
+
+    known_provider_names = set(
+        FusionProvider.get_registered_provider_names(include_default_disabled=True)
+    )
+    unknown = [name for name in provider_names if name not in known_provider_names]
+    if unknown:
+        logger.warning(
+            f"[QuetzalLateRewrite] Ignoring unknown pass(es): {', '.join(unknown)}"
+        )
+
+    provider_names = [name for name in provider_names if name in known_provider_names]
+    if not provider_names:
+        return
+
+    replacements = run_selected_fusion_passes(gm, provider_names)
+    logger.info(
+        "[QuetzalLateRewrite] "
         f"passes={','.join(provider_names)} "
         f"matches={sum(replacements.values())}"
     )

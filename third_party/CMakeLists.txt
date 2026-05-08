@@ -8,13 +8,21 @@ if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     set(TT_MLIR_VERSION "7a32a979c5fcf19203015f6baa93dbd1effab6ac")
 endif()
 
+# Local-development override: point ExternalProject_Add at a file:// URL of a
+# sibling tt-mlir checkout instead of cloning from GitHub. Set TT_MLIR_REPO and
+# TT_MLIR_VERSION (branch or SHA in that repo) when iterating against an
+# uncommitted tt-mlir branch. Default falls back to the public GitHub repo.
+if (NOT DEFINED TT_MLIR_REPO)
+    set(TT_MLIR_REPO "https://github.com/tenstorrent/tt-mlir.git")
+endif()
+
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
 
 if (TOOLCHAIN STREQUAL "ON")
     cmake_minimum_required(VERSION 3.20)
     project(ttmlir-toolchain LANGUAGES CXX C)
     execute_process(
-        COMMAND git clone --recursive https://github.com/tenstorrent/tt-mlir.git ${PROJECT_SOURCE_DIR}/tt-mlir/src/tt-mlir
+        COMMAND git clone --recursive ${TT_MLIR_REPO} ${PROJECT_SOURCE_DIR}/tt-mlir/src/tt-mlir
         RESULT_VARIABLE result1
         OUTPUT_VARIABLE output1
         ERROR_VARIABLE error_output1
@@ -79,7 +87,7 @@ else()
           -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
           -DTTMLIR_ENABLE_DOCS=OFF
           -DTT_USE_SYSTEM_SFPI=${TT_USE_SYSTEM_SFPI}
-        GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
+        GIT_REPOSITORY ${TT_MLIR_REPO}
         GIT_TAG ${TT_MLIR_VERSION}
         GIT_PROGRESS ON
     )

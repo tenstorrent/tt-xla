@@ -26,7 +26,7 @@ from .metadata_propagation import (
     extract_nodes_info,
 )
 from .quetzal_analysis import run_quetzal_analysis
-from .quetzal_rewrite import run_quetzal_rewrite_passes
+from .quetzal_rewrite import run_quetzal_late_rewrite_passes, run_quetzal_rewrite_passes
 from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
@@ -61,6 +61,10 @@ def torch_pass_pipeline(
     )
     if enable_fusion_passes:
         run_fusion_passes(gm)
+
+    # Late quetzal rewrites — run AFTER the default fusion pass so they can
+    # match against shapes produced by RMSNormFusionProvider et al.
+    run_quetzal_late_rewrite_passes(gm, options)
 
     # This is a temporary option to disable / enable composite ops
     # that will be removed once composite ops are more stable.

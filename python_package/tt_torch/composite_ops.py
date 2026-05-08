@@ -49,7 +49,7 @@ def composite_gelu(input: Tensor, approximate: str = "none") -> Tensor:
 
 
 def composite_rms_norm(
-    input: Tensor, normalized_shape, weight=None, eps=None
+    input: Tensor, normalized_shape, weight=None, eps=None, residual=None
 ) -> Tensor:
     """
     Creates composite RMS norm operation for torch xla using StableHLOCompositeBuilder.
@@ -60,21 +60,37 @@ def composite_rms_norm(
         normalized_shape: Shape over which to normalize (tuple of ints)
         weight: Optional learnable weight parameter
         eps: Epsilon for numerical stability (default: None)
+        residual: Optional residual to sum into input before normalization.
+            When provided, the composite carries a `has_residual=True`
+            attribute and the residual is the LAST marked input. tt-mlir's
+            StableHLOLegalizeCompositePass uses that attribute to route the
+            operand into ttir.rms_norm's residual slot, which the runtime
+            forwards to ttnn::rms_norm's residual_input_tensor parameter.
 
     Returns a tensor.
     """
     attr = {"normalized_shape": normalized_shape}
     if eps is not None:
         attr["epsilon"] = eps
+    if residual is not None:
+        attr["has_residual"] = True
 
     builder = StableHLOCompositeBuilder(name="tenstorrent.rms_norm", attr=attr)
 
-    if weight is not None:
+    # Operand order: (input, [weight], [residual]). Residual is always the
+    # trailing marked input when present so the legalize pass can pop it
+    # off based on `has_residual` regardless of whether weight is present.
+    if weight is not None and residual is not None:
+        input, weight, residual = builder.mark_inputs(input, weight, residual)
+    elif weight is not None:
         input, weight = builder.mark_inputs(input, weight)
+    elif residual is not None:
+        input, residual = builder.mark_inputs(input, residual)
     else:
         input = builder.mark_inputs(input)
 
-    output = torch.nn.functional.rms_norm(input, normalized_shape, weight, eps)
+    summed = input + residual if residual is not None else input
+    output = torch.nn.functional.rms_norm(summed, normalized_shape, weight, eps)
     output = builder.mark_outputs(output)
 
     return output
@@ -417,6 +433,43 @@ def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
     return True
 
 
+@torch.fx.wrap
+def _torch_residual_rms_norm(
+    input: Tensor,
+    residual: Tensor,
+    normalized_shape,
+    weight=None,
+    eps=None,
+) -> Tensor:
+    """Marker function emitted by ResidualRMSNormFusionProvider.
+
+    @torch.fx.wrap keeps this as an opaque call_function node in the FX
+    graph so handle_composite_ops can pivot it over to the composite-emitting
+    wrapper below. Without the wrap, FX would inline the body and we'd lose
+    the fusion site.
+    """
+    return torch.nn.functional.rms_norm(input + residual, normalized_shape, weight, eps)
+
+
+def _composite_residual_rms_norm(
+    input: Tensor,
+    residual: Tensor,
+    normalized_shape,
+    weight=None,
+    eps=None,
+) -> Tensor:
+    """Composite-emitting form of `_torch_residual_rms_norm`.
+
+    Delegates to composite_rms_norm with `residual=` so the resulting
+    StableHLO carries a `tenstorrent.rms_norm` composite with
+    `has_residual=True` — the form tt-mlir's StableHLOLegalizeCompositePass
+    knows how to route into the new ttir.rms_norm residual operand.
+    """
+    return composite_rms_norm(
+        input, normalized_shape, weight=weight, eps=eps, residual=residual
+    )
+
+
 def can_apply_composite(node: torch.fx.Node) -> bool:
     """
     Check whether a composite replacement should be applied for the given node.
@@ -450,6 +503,7 @@ replacements = {
     torch.nn.functional.gelu: composite_gelu,
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
+    _torch_residual_rms_norm: _composite_residual_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
     torch.nn.functional.scaled_dot_product_attention: composite_scaled_dot_product_attention,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed

@@ -208,6 +208,48 @@ class RMSNormFusionProvider(FusionProvider):
         ]
 
 
+class ResidualRMSNormFusionProvider(FusionProvider):
+    """Fold `add(x, y) → torch.nn.functional.rms_norm(...)` into a single
+    residual-aware rms_norm call.
+
+    Direct evidence in Llama-3.2-1B prefill MLIR shows 32 unfused
+    `ttnn.add → ttnn.rms_norm` pairs per 16-layer model. Each is one
+    additional kernel launch + DRAM round-trip per layer that this fusion
+    eliminates by routing the residual through ttnn::rms_norm's existing
+    `residual_input_tensor` parameter.
+
+    Must run AFTER RMSNormFusionProvider (which produces the
+    `torch.nn.functional.rms_norm` call site this pattern matches against).
+    Therefore registered as default-disabled and invoked through a `late`
+    rewrite hook in backend.py — see run_quetzal_late_rewrite_passes.
+
+    Replacement uses _torch_residual_rms_norm (a @torch.fx.wrap'd marker)
+    so the call site survives FX inlining; handle_composite_ops then
+    swaps it to _composite_residual_rms_norm which emits the
+    tenstorrent.rms_norm composite with `has_residual=True`.
+    """
+
+    default_enabled = False
+
+    @property
+    def name(self) -> str:
+        return "fuse_residual_rms_norm"
+
+    @staticmethod
+    def pattern(
+        x: Tensor, residual: Tensor, normalized_shape, weight: Tensor, eps: float
+    ) -> Tensor:
+        return torch.nn.functional.rms_norm(x + residual, normalized_shape, weight, eps)
+
+    @staticmethod
+    def replacement(
+        x: Tensor, residual: Tensor, normalized_shape, weight: Tensor, eps: float
+    ) -> Tensor:
+        from tt_torch.composite_ops import _torch_residual_rms_norm
+
+        return _torch_residual_rms_norm(x, residual, normalized_shape, weight, eps)
+
+
 class QuetzalFuseGELUProvider(FusionProvider):
     """Collapse tanh-GELU decompositions back to torch.nn.functional.gelu."""
 
