@@ -10,7 +10,7 @@ This skill handles **one** failure pattern only:
 
 > `tt-forge-models doesn't implement unpack_forward_output for this model.`
 
-It works on exactly one test (passed as `<test-name>`). If the failure reason is anything else, abort immediately.
+It works on exactly one test (passed as `<test-name>`). Step 3's CPU triage is the real gate: if the model's forward output is already handled by an existing registry entry or loader override, the YAML is just stale and the skill skips to the YAML-update step. The YAML `reason:` is informational, not authoritative.
 
 ## Argument: `<test-name>` accepted forms
 
@@ -31,7 +31,7 @@ Auto-detect both:
   - `third_party/tt_forge_models/centernet/pytorch/loader.py:190-209` — list-of-dicts
   - `third_party/tt_forge_models/clip/pytorch/loader.py:209-220` — tuple
 - **Implication of choosing the registry path:** the registry entry is global by class name, so it fixes every variant of the current model **and** every other model in the codebase that returns the same output class. You must therefore re-run *all* affected training tests, not just the one you were invoked with, and update each of their YAML entries.
-- Test-runner glue: `tests/runner/test_models.py` parametrizes `test_all_models_torch` with `(test_entry, parallelism, run_mode)`. Pytest test IDs combine in stack order: `<test_entry_id>-<parallelism_id>-<run_mode_id>`. The `<test_entry_id>` is `<model_path>-<variant>` (see `tests/runner/utils/dynamic_loader.py:319`).
+- Test-runner glue: `tests/runner/test_models.py` parametrizes `test_all_models_torch` with `(test_entry, parallelism, run_mode)`. Pytest test IDs combine in stack order: `<test_entry_id>-<parallelism_id>-<run_mode_id>`. The `<test_entry_id>` is `<model_path>-<variant>` (see `tests/runner/utils/dynamic_loader.py:318`).
 - Test-runner gates on YAML status: `NOT_SUPPORTED_SKIP` entries are skipped (`tests/runner/test_models.py:118`, `tests/runner/test_utils.py:746-748`) and `KNOWN_FAILURE_XFAIL` entries are imperatively xfailed. Verification uses `pytest --force-run --runxfail` to bypass both without editing the YAML: `--force-run` (`tests/runner/conftest.py:113`) makes `NOT_SUPPORTED_SKIP` entries run their body, `--runxfail` makes `KNOWN_FAILURE_XFAIL` entries report their real outcome instead of XFAIL. Apply the YAML edit once, after observing the real outcome.
 
 ## Workflow
@@ -43,59 +43,32 @@ Auto-detect both:
 3. **`model_info.name` path:** parse as `<framework>_<model>_<variant>_<task>_<source>`. The `framework` is always `pytorch` for this skill. Search loaders with: `grep -rln "model=.*\"<model>\"\|ModelName.*<model>" third_party/tt_forge_models/`, then for each candidate, read its `_get_model_info` to confirm the variant/task/source line up. Once the loader is identified, derive the YAML key as `<model_dir>/pytorch-<variant>-single_device-training` and confirm it exists in the YAML.
 4. If neither resolves, abort with: `Could not resolve <test-name> to a YAML entry or loader. Provide either the YAML key or the model_info.name.`
 
-### Step 2 — Gate on the failure pattern
+### Step 2 — Read context, do not gate on the YAML reason
 
-1. Read the YAML entry. Its `reason:` must contain the substring `unpack_forward_output`. If not, abort: `This skill only handles unpack_forward_output failures. The failing reason here is: <reason>.`
-2. `grep -n "def unpack_forward_output(" <loader_path>`. If the override **already exists**, skip to Step 6 — the YAML entry may simply be stale. Note this in the final report.
-3. `grep -n "<OutputClassName>" third_party/tt_forge_models/training_utils.py` once you know the output class name (after Step 3). If the class is **already registered**, also skip to Step 6 — same staleness case.
+The skill is always invoked with an explicit `<test-name>`, so the user's intent is the source of truth — YAML reasons can be stale (the runner may have masked the real failure behind the canonical `unpack_forward_output` message, or the entry may have been left in place after a prior fix). Read the YAML entry's `reason:` for context and include it verbatim in the final report, but do not abort here on a mismatch. The real check happens at Step 3 (CPU triage): if the model successfully runs end-to-end and its forward output is already handled, Step 3 short-circuits the workflow.
 
-### Step 3 — CPU triage script
+Cheap early exit before Step 3: `grep -n "def unpack_forward_output(" <loader_path>`. If the override **already exists**, skip to Step 6 with a note that the YAML is stale.
 
-Write `/tmp/triage_<model_dir>_<variant>.py`:
+### Step 3 — CPU triage
 
-```python
-import sys, inspect, torch
-sys.path.insert(0, "/localdev/<user>/tt-xla")
-from third_party.tt_forge_models.<model_dir>.pytorch.loader import ModelLoader, ModelVariant
+Run the bundled script. It loads the model, calls `forward`, and prints the output structure plus a final `OUTPUT_CLASS:` line for grep:
 
-loader = ModelLoader(variant=ModelVariant.<VARIANT>)  # omit variant arg if loader has no ModelVariant
-model = loader.load_model().eval()
-load_inputs_kwargs = {}
-if "batch_size" in inspect.signature(loader.load_inputs).parameters:
-    load_inputs_kwargs["batch_size"] = 2
-inputs = loader.load_inputs(**load_inputs_kwargs)
-
-with torch.no_grad():
-    out = model(**inputs) if isinstance(inputs, dict) else (
-        model(*inputs) if isinstance(inputs, (list, tuple)) else model(inputs)
-    )
-
-def describe(x, depth=0, name="out"):
-    pad = "  " * depth
-    if isinstance(x, torch.Tensor):
-        print(f"{pad}{name}: Tensor shape={tuple(x.shape)} dtype={x.dtype}")
-    elif isinstance(x, dict):
-        print(f"{pad}{name}: dict({len(x)} keys)")
-        for k, v in x.items():
-            describe(v, depth+1, str(k))
-    elif isinstance(x, (list, tuple)):
-        print(f"{pad}{name}: {type(x).__name__}({len(x)})")
-        for i, v in enumerate(x):
-            describe(v, depth+1, f"[{i}]")
-    else:
-        attrs = [a for a in dir(x) if not a.startswith('_') and isinstance(getattr(x, a, None), (torch.Tensor, list, tuple, dict))]
-        print(f"{pad}{name}: {type(x).__name__} attrs={attrs}")
-        for a in attrs:
-            describe(getattr(x, a), depth+1, a)
-
-describe(out)
+```bash
+python .claude/skills/triage-unpack-forward-output/scripts/triage_forward_output.py \
+    --model-dir <model_dir> [--variant <NAME>] [--batch-size 2] \
+    &> /tmp/triage_<model_dir>_<variant>.log
 ```
 
-Run it: `python /tmp/triage_<model_dir>_<variant>.py &> /tmp/triage_<model_dir>_<variant>.log` (cwd must be the tt-xla repo root, with `source venv/activate` already done).
+`<model_dir>` is the segment before the first `/` in the YAML key (or the multi-segment path for nested loaders like `bert/question_answering`). `--variant` is optional — pass the `ModelVariant` enum name if the loader has one, omit it otherwise. The script resolves the repo root from its own location, so cwd does not have to be the tt-xla root, but `source venv/activate` must have been run.
 
 **Read the log with the Read tool. Never use `tail` or `less` — they hide errors behind generic exit codes** (this is a hard rule from feedback memory).
 
-If the script errored out before producing structure, adjust the script (try `dtype_override=torch.bfloat16`, or `seq_len` if `load_inputs` accepts it — see `tests/runner/utils/dynamic_loader.py:380-419` for what the test runner passes) and re-run.
+If the script errored out before producing structure, the bundled script is simple enough to copy and edit locally (try `dtype_override=torch.bfloat16`, or `seq_len` if `load_inputs` accepts it — see `tests/runner/utils/dynamic_loader.py:380-419` for what the test runner passes). Save the local copy to `/tmp/triage_<...>.py` and run it; do not commit changes to the bundled script for one-off model-specific tweaks.
+
+After Step 3 produces an output class, do these checks before continuing:
+
+- `grep -n "<OutputClassName>" third_party/tt_forge_models/training_utils.py`. If the class is **already registered** and the registered attribute lookup yields a tensor, the YAML is stale — skip to Step 6 and note this.
+- If the class **is in the registry but the registered attribute is itself a tuple/list/dict** (the registry entry is wrong, e.g. the historical `MgpstrModelOutput.logits` 3-tuple), this is the wrong-registry case: in Step 5, plan to *delete* the bad registry entry and write a per-loader override instead.
 
 ### Step 4 — Gather model docs
 
@@ -128,6 +101,7 @@ Use the **per-loader override** when any of the following hold:
 - Loss-relevant tensors require a structural transform (concat, stack, slice, recursive walk).
 - Two models share an output class but legitimately need different loss targets — register one and override the other.
 - The output class is custom (defined in the model's own repo, not in `transformers`) and unlikely to be reused — case-by-case judgment.
+- A registry entry already exists for the class but is wrong: the registered attribute is itself a tuple/list/dict (e.g. the historical `_register_attr("MgpstrModelOutput", "logits")` where `.logits` is a 3-tuple, not a tensor). In that case, **delete the bad registry entry** in `training_utils.py` and write the per-loader override. The deletion is the audit trail — don't leave the wrong entry behind.
 
 #### Step 5a — Registry entry (preferred path)
 
@@ -137,7 +111,7 @@ Add one line in `third_party/tt_forge_models/training_utils.py`, alphabetically 
 _register_attr("<OutputClassName>", "<loss_relevant_attr>")
 ```
 
-That's it — no docstring needed; the registry table itself is the audit trail. The class name is what the CPU triage script reported in Step 3 (e.g. `DPRContextEncoderOutput`). Confirm `python -c "from third_party.tt_forge_models.training_utils import _DISPATCH; assert '<OutputClassName>' in _DISPATCH"` (or just re-import `training_utils` cleanly).
+That's it — no docstring needed; the registry table itself is the audit trail. The class name is what the CPU triage script reported in Step 3 (e.g. `DPRContextEncoderOutput`). Confirm `python -c "from third_party.tt_forge_models.training_utils import _HANDLER_REGISTRY; assert '<OutputClassName>' in _HANDLER_REGISTRY"` (or just re-import `training_utils` cleanly).
 
 **Expand the verification scope.** A registry entry is global — every model in the codebase that returns this output class is now affected. Find them:
 
@@ -177,7 +151,7 @@ The set of "affected entries" depends on the path you took in Step 5:
 - Step 5a (registry): every YAML entry whose loader emits the registered class and currently fails with the `unpack_forward_output` reason.
 - Step 5b (override): just the one entry tied to the loader you edited.
 
-Use `--junitxml=<path>` to capture structured per-testcase outcomes — the runner writes the detailed error (TT_FATAL / OOM / `error:` lines, already extracted by `tests/runner/test_utils.py:298-337`) into `<property name="error_message" value="…"/>`, and pytest writes any failure traceback into `<failure message="…">`. The XML is the source of truth in Step 7. Also dump stdout/stderr to a `.log` companion in case the XML is ambiguous.
+Use `--junitxml=<path>` to capture structured per-testcase outcomes — the runner records the detailed error (TT_FATAL / OOM / `error:` lines) at `tests/runner/test_utils.py:737` via `record_property("error_message", ...)`, which lands in the XML as `<property name="error_message" value="…"/>`. Pytest writes any failure traceback into `<failure message="…">` separately. The XML is the source of truth in Step 7. Also dump stdout/stderr to a `.log` companion in case the XML is ambiguous.
 
 Run the affected training tests in a single pytest invocation, plus the inference test for the originally-requested entry:
 
@@ -260,9 +234,9 @@ Print a single concise summary to the user:
 ## Hard rules (do not violate)
 
 - Invoked with one test at a time. If `<test-name>` is missing or matches multiple entries, abort and ask.
-- Only act when `reason:` contains `unpack_forward_output`. Anything else: abort, do not edit.
+- Only act when Step 3's CPU triage shows the model returns a class/structure that is **not** already correctly handled by `unpack_forward_output`. The YAML `reason:` is informational — do not gate on it (it may be stale). If Step 3 shows the output is already covered by an existing handler that yields a tensor, the YAML is the only thing wrong: skip to Step 6 and update the YAML.
 - Prefer the registry path (Step 5a) over per-loader override (Step 5b). Use the override only when the decision criteria in Step 5 require it.
-- Per-loader override must return only loss-relevant tensors and must carry the three-part docstring above (including the line stating why a registry entry was not sufficient).
+- Per-loader override must return only loss-relevant tensors and must carry the two-section docstring defined in Step 5b (forward output structure, what is selected and why).
 - Whichever path is taken, the fix must return only loss-relevant tensors — never aux outputs (attentions, hidden states, FPN side branches).
 - A registry entry has global scope. Re-verify and update YAML for **every** affected training entry, not just the originally requested one.
 - Verification uses `pytest --force-run --runxfail --junitxml=<path>`. Do not pre-edit the YAML before pytest. Read the XML for outcomes; classify failures from the `<failure>` element and the `error_message` property.
