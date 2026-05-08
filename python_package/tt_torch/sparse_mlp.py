@@ -698,10 +698,15 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
     class RouterAdapter(nn.Module):
         """Wraps MoEGate to return (scores, indices) for A2aSparseMLP.
 
-        Supports three gate patterns:
+        Supports four gate patterns:
         1. Deepseek-style: gate returns (topk_idx, topk_weight)
-        2. Other gates: gate returns (topk_weight, topk_idx)
-        3. Raw-logits gates (e.g. Glm4MoeTopkRouter): gate returns a single
+           Detected via ``hasattr(gate, "n_routed_experts")``.
+        2. LLaDA2-style: gate returns (topk_idx, topk_weight, router_logits)
+           Detected via ``hasattr(gate, "num_experts")`` and ``hasattr(gate,
+           "top_k")`` (HF MoE-gate convention). The trailing logits are
+           ignored.
+        3. Other gates: gate returns (topk_weight, topk_idx).
+        4. Raw-logits gates (e.g. Glm4MoeTopkRouter): gate returns a single
            router_logits tensor. Requires route_tokens_to_experts_fn to convert
            logits -> (topk_idx, topk_weight).
         """
@@ -716,8 +721,12 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             # Deepseek-style MoEGate returns (topk_idx, topk_weight) and expects
             # 3D [batch, seq, hidden] input, flattening internally. Other gates
             # (e.g. deepseek_v3_2_exp Gate) return (weights, indices) and operate
-            # on a flattened 2D [batch * seq, hidden] input.
-            self._gate_returns_idx_first = hasattr(gate, "n_routed_experts")
+            # on a flattened 2D [batch * seq, hidden] input. LLaDA2-style gates
+            # return (topk_idx, topk_weight, router_logits) and also expect 3D
+            # input; we treat them as idx-first.
+            self._gate_returns_idx_first = hasattr(gate, "n_routed_experts") or (
+                hasattr(gate, "num_experts") and hasattr(gate, "top_k")
+            )
 
         def forward(self, hidden_states):
             gate_input = hidden_states
@@ -730,11 +739,21 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 # Raw-logits gate: use external routing function
                 topk_idx, topk_weight = self._route_fn(gate_output)
             elif isinstance(gate_output, (tuple, list)):
-                out1, out2 = gate_output
-                if self._gate_returns_idx_first:
-                    topk_idx, topk_weight = out1, out2
+                if len(gate_output) == 3:
+                    # LLaDA2-style: (topk_idx, topk_weight, router_logits).
+                    # We do not use router_logits.
+                    topk_idx, topk_weight, _ = gate_output
+                elif len(gate_output) == 2:
+                    out1, out2 = gate_output
+                    if self._gate_returns_idx_first:
+                        topk_idx, topk_weight = out1, out2
+                    else:
+                        topk_weight, topk_idx = out1, out2
                 else:
-                    topk_weight, topk_idx = out1, out2
+                    raise ValueError(
+                        f"Gate returned a {len(gate_output)}-tuple; "
+                        f"expected 2 or 3. Gate type: {type(self.gate).__name__}"
+                    )
             else:
                 raise ValueError(
                     f"Gate returned a single tensor but no route_tokens_to_experts_fn "
