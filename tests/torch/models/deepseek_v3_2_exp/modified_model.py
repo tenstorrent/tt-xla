@@ -1200,9 +1200,10 @@ class Gate(nn.Module):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Routing weights and selected expert indices.
         """
-        # TODO(tt-xla#XXXX): fp32 linear hits an accuracy issue in the XLA
+        # TODO(deeseek-v3-2-exp): fp32 linear hits an accuracy issue in the XLA
         # lowering path on TT; keep bf16 for Gate routing until fixed.
-        scores = linear(x, self.weight)
+        # scores = linear(x, self.weight)
+        scores = linear(x.float(), self.weight.float())
         if self.score_func == "softmax":
             scores = scores.softmax(dim=-1)
         else:
