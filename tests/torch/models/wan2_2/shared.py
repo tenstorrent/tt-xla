@@ -396,6 +396,21 @@ def shard_dit_specs(dit) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# Process-level cache: keep one ``torch.compile``-wrapped OptimizedModule per
+# (model instance id, input-shape signature). Without this, every call to
+# ``run_component`` builds a fresh OptimizedModule whose private dynamo cache
+# is empty — so calling ``run_component(wrapper, ...)`` twice on the same
+# wrapper triggers two full traces + two backend compiles. Strong refs on the
+# wrappers keep ``id()`` stable for the cache's lifetime.
+#
+# Caller invariant: keep the wrapper alive across calls. If you ``del`` the
+# wrapper and create a new one, ``id()`` may be reused for a *different*
+# object — a silent cache hit returning the wrong compiled graph. For this
+# test suite the ``_Components`` container in ``test_wan22_e2e.py`` keeps
+# wrappers alive for the duration of each test.
+_RUN_COMPONENT_COMPILE_CACHE: dict = {}
+
+
 def run_component(
     wrapper: nn.Module,
     inputs: list,
@@ -454,12 +469,22 @@ def run_component(
     if use_sharding:
         assert shard_module is not None, "shard_fn requires shard_module"
         specs = shard_fn(shard_module)
+        # Re-applying mark_sharding with identical specs on already-sharded
+        # tensors is a no-op in torch_xla — safe to run on every call,
+        # including the cached path below.
         for tensor, spec in specs.items():
             xs.mark_sharding(tensor, mesh, spec)
 
     # Compile after the move + annotations so torch.compile traces the
-    # on-device, already-sharded module on its first call.
-    compiled = torch.compile(wrapper_on_device, backend="tt")
+    # on-device, already-sharded module on its first call. Cache the
+    # OptimizedModule on (id(wrapper_on_device), input shape+dtype) so repeat
+    # calls don't re-trace and re-compile.
+    shape_key = tuple((tuple(t.shape), t.dtype) for t in inputs_on_device)
+    cache_key = (id(wrapper_on_device), shape_key)
+    compiled = _RUN_COMPONENT_COMPILE_CACHE.get(cache_key)
+    if compiled is None:
+        compiled = torch.compile(wrapper_on_device, backend="tt")
+        _RUN_COMPONENT_COMPILE_CACHE[cache_key] = compiled
 
     with torch.no_grad():
         out = compiled(*inputs_on_device)

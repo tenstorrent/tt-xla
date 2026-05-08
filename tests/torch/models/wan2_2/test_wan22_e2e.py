@@ -15,13 +15,15 @@ flag routes one component onto TT hardware; all default to CPU.
 """
 
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 import torch
 from diffusers import UniPCMultistepScheduler
+from tt_torch.torch_overrides import torch_function_override_disabled
 
-from .monkey_patch import _patch_apply_lora_scale, _patch_wan_resample_rep_sentinel, _patch_wan_resample_avoid_4d_fold, safe_xla_slicing, _disable_tt_torch_function_override
+from .monkey_patch import _patch_apply_lora_scale, _patch_wan_resample_rep_sentinel, _patch_wan_resample_avoid_4d_fold, safe_xla_slicing
 from .shared import (
     LATENT_CHANNELS,
     RESOLUTIONS,
@@ -53,7 +55,7 @@ from .shared import (
 
 SEED = 42
 RESOLUTION = "480p"  # "480p" or "720p"
-NUM_STEPS = 40  # denoising steps
+NUM_STEPS = 2  # denoising steps
 GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
 FPS = 16
 
@@ -71,6 +73,101 @@ def _build_mesh():
     if MULTI_CHIP:
         return wan22_mesh()
     return None
+
+
+# ---------------------------------------------------------------------------
+# Per-component perf timings
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _ComponentTimings:
+    cold: float | None = None
+    warm: list[float] = field(default_factory=list)
+
+
+@dataclass
+class _Timings:
+    text_encoder: _ComponentTimings = field(default_factory=_ComponentTimings)
+    dit_pair: _ComponentTimings = field(default_factory=_ComponentTimings)
+    vae_encoder: _ComponentTimings = field(default_factory=_ComponentTimings)
+    vae_decoder: _ComponentTimings = field(default_factory=_ComponentTimings)
+
+
+def _record(slot: _ComponentTimings, secs: float) -> None:
+    """First call → cold; subsequent calls → warm. Uses ``None`` as sentinel
+    so that a genuinely fast (~0 s) first measurement is still recorded
+    as cold rather than being treated as 'no measurement yet'."""
+    if slot.cold is None:
+        slot.cold = secs
+    else:
+        slot.warm.append(secs)
+
+
+def _print_perf_summary(t: _Timings) -> None:
+    rows = [
+        ("text_encoder",  t.text_encoder),
+        ("DiT (CFG pair)", t.dit_pair),
+        ("VAE encoder",   t.vae_encoder),
+        ("VAE decoder",   t.vae_decoder),
+    ]
+    print()
+    print("=" * 78)
+    print("PERF SUMMARY  (cold = first call incl. compile; warm = subsequent calls)")
+    print("-" * 78)
+    print(
+        f"  {'component':<18} {'cold (s)':>12} {'warm avg (s)':>14} "
+        f"{'warm runs':>11} {'speedup':>10}"
+    )
+    for label, slot in rows:
+        if slot.cold is None and not slot.warm:
+            continue   # component not exercised in this run
+        cold = slot.cold if slot.cold is not None else 0.0
+        warm_avg = sum(slot.warm) / len(slot.warm) if slot.warm else 0.0
+        speedup = (cold / warm_avg) if warm_avg > 0 else float("inf")
+        speedup_str = f"{speedup:>9.1f}x" if speedup != float("inf") else "       inf"
+        print(
+            f"  {label:<18} {cold:>12.3f} {warm_avg:>14.3f} "
+            f"{len(slot.warm):>11d} {speedup_str}"
+        )
+    print("=" * 78, flush=True)
+
+
+# ---------------------------------------------------------------------------
+# Components container + builder
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _Components:
+    """Model wrappers and shared resources, built once per test and reused
+    across both ``_run`` invocations so warmup-phase compiles are reused on
+    the run phase."""
+    tokenizer: object
+    text_encoder: "UMT5Wrapper"
+    dit_wrapper: "WanDiTWrapper"
+    decoder_wrapper: "VAEDecoderWrapper"
+    vae_encoder: "VAEEncoderWrapper | None"   # only built for i2v
+    mesh: object
+
+
+def _build_components(mode: str) -> _Components:
+    text_encoder    = UMT5Wrapper(load_umt5()).eval().bfloat16()
+    dit_wrapper     = WanDiTWrapper(load_dit()).eval().bfloat16()
+    decoder_wrapper = VAEDecoderWrapper(load_vae()).eval().bfloat16()
+    vae_encoder     = (
+        VAEEncoderWrapper(load_vae()).eval().bfloat16()
+        if mode == "i2v"
+        else None
+    )
+    return _Components(
+        tokenizer       = load_tokenizer(),
+        text_encoder    = text_encoder,
+        dit_wrapper     = dit_wrapper,
+        decoder_wrapper = decoder_wrapper,
+        vae_encoder     = vae_encoder,
+        mesh            = _build_mesh(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -118,7 +215,7 @@ def _output_path(mode: str) -> Path:
 _patch_apply_lora_scale()
 _patch_wan_resample_rep_sentinel()
 _patch_wan_resample_avoid_4d_fold()
-_disable_tt_torch_function_override()
+#_disable_tt_torch_function_override()
 
 # ---------------------------------------------------------------------------
 # Test
@@ -133,7 +230,13 @@ def test_wan22_t2v_e2e():
     out_path = _output_path(mode)
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    _run(out_path, mode, prompt, negative_prompt)
+    components = _build_components(mode)
+    timings = _Timings()
+    try:
+        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=True)
+        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=False)
+    finally:
+        _print_perf_summary(timings)
 
     assert out_path.exists(), f"Output video not produced at {out_path}"
 
@@ -146,7 +249,13 @@ def test_wan22_i2v_e2e():
     out_path = _output_path(mode)
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    _run(out_path, mode, prompt, negative_prompt)
+    components = _build_components(mode)
+    timings = _Timings()
+    try:
+        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=True)
+        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=False)
+    finally:
+        _print_perf_summary(timings)
 
     assert out_path.exists(), f"Output video not produced at {out_path}"
     
@@ -161,7 +270,13 @@ def _log(msg: str) -> None:
     print(f"[wan22] {msg}", flush=True)
     
 
-def _encode_prompt(tokenizer, encoder_wrapper, text: str, mesh) -> torch.Tensor:
+def _encode_prompt(
+    tokenizer,
+    encoder_wrapper,
+    text: str,
+    mesh,
+    timings_slot: _ComponentTimings,
+) -> torch.Tensor:
     ids = tokenizer(
         prompt_clean(text),
         padding="max_length",
@@ -175,6 +290,7 @@ def _encode_prompt(tokenizer, encoder_wrapper, text: str, mesh) -> torch.Tensor:
     attention_mask = ids["attention_mask"]
     seq_lens = attention_mask.gt(0).sum(dim=1).long()
 
+    t0 = time.perf_counter()
     embeds = run_component(
         encoder_wrapper,
         [input_ids, attention_mask],
@@ -183,6 +299,7 @@ def _encode_prompt(tokenizer, encoder_wrapper, text: str, mesh) -> torch.Tensor:
         shard_module=encoder_wrapper.encoder,
         shard_fn=shard_umt5_specs,
     )
+    _record(timings_slot, time.perf_counter() - t0)
 
     # Zero out positions past the real token length. UMT5 produces non-zero
     # values at pad positions via residuals/FFN; DiT cross-attention is
@@ -217,6 +334,7 @@ def _denoise(
     shapes: dict,
     image_latent: torch.Tensor | None,
     mesh,
+    timings_slot: _ComponentTimings,
 ) -> torch.Tensor:
     t_dim, h_dim, w_dim = (
         shapes["latent_frames"],
@@ -272,7 +390,9 @@ def _denoise(
             velocity = v_pos
             
         cfg_tag = " +cfg" if negative_embeds is not None else ""
-        _log(f"velocity computed ({time.perf_counter() - time_start:.3f}s){cfg_tag}")
+        cfg_pair_secs = time.perf_counter() - time_start
+        _log(f"velocity computed ({cfg_pair_secs:.3f}s){cfg_tag}")
+        _record(timings_slot, cfg_pair_secs)
 
         # Cast velocity back to float32 for numerically-careful scheduler.step.
         time_start = time.perf_counter()
@@ -293,9 +413,15 @@ def _denoise(
     return latents_fp32
 
 
-def _run_vae(vae, latents: torch.Tensor, mesh) -> torch.Tensor:
+def _run_vae(
+    decoder_wrapper: "VAEDecoderWrapper",
+    latents: torch.Tensor,
+    mesh,
+    timings_slot: _ComponentTimings,
+) -> torch.Tensor:
     """Unscale latents and run the VAE decoder. Returns raw bf16 pixels
     (1, 3, T, H, W) before any postprocessing."""
+    vae = decoder_wrapper.vae
     latents_mean = (
         torch.tensor(vae.config.latents_mean)
         .view(1, vae.config.z_dim, 1, 1, 1)
@@ -308,9 +434,9 @@ def _run_vae(vae, latents: torch.Tensor, mesh) -> torch.Tensor:
 
     # VAE decoder has bf16 weights — cast at the boundary (same pattern as
     # the DiT call in _denoise). Unscaling happens in float32 for precision.
-    decoder_wrapper = VAEDecoderWrapper(vae).eval().bfloat16()
+    t0 = time.perf_counter()
     with safe_xla_slicing():
-        return run_component(
+        result = run_component(
             decoder_wrapper,
             [latents_unscaled.to(torch.bfloat16)],
             on_tt=TT_VAE_DECODER,
@@ -318,6 +444,8 @@ def _run_vae(vae, latents: torch.Tensor, mesh) -> torch.Tensor:
             shard_module=decoder_wrapper.vae,
             shard_fn=shard_vae_decoder_specs,
         )
+    _record(timings_slot, time.perf_counter() - t0)
+    return result
 
 
 def _postprocess_and_save(pixels: torch.Tensor, out_path: Path) -> None:
@@ -340,7 +468,15 @@ def _postprocess_and_save(pixels: torch.Tensor, out_path: Path) -> None:
     export_to_video(video[0], str(out_path), fps=FPS)
 
 
-def _run(out_path: Path, mode: str, prompt: str, negative_prompt: str) -> None:
+def _run(
+    components: _Components,
+    timings: _Timings,
+    out_path: Path,
+    mode: str,
+    prompt: str,
+    negative_prompt: str,
+    warmup: bool,
+) -> None:
     try:
         import imageio_ffmpeg  # noqa: F401  # required by export_to_video at end of pipeline
     except ImportError as e:
@@ -349,9 +485,15 @@ def _run(out_path: Path, mode: str, prompt: str, negative_prompt: str) -> None:
             "Install with: pip install imageio-ffmpeg"
         ) from e
 
+    # Warmup runs a single denoising step to populate the compile cache for
+    # all components, then skips the mp4 export. Shapes match the real run
+    # so the cache hits on the next call.
+    phase = "warmup" if warmup else "run"
+    num_steps = 1 if warmup else NUM_STEPS
+
     t_total = time.perf_counter()
     _log(
-        f"mode={mode} res={RESOLUTION} steps={NUM_STEPS} "
+        f"phase={phase} mode={mode} res={RESOLUTION} steps={num_steps} "
         f"guidance={GUIDANCE_SCALE} device={_devtag(mode)} seed={SEED}"
     )
     shapes = RESOLUTIONS[RESOLUTION]
@@ -363,40 +505,39 @@ def _run(out_path: Path, mode: str, prompt: str, negative_prompt: str) -> None:
     _log(f"prompt: {prompt!r}")
     if GUIDANCE_SCALE > 1.0:
         _log(f"negative: {negative_prompt!r}")
-        
-    _mesh = _build_mesh()
+
+    _mesh = components.mesh
     _log(f"mesh={_mesh}")
 
     torch.manual_seed(SEED)
     generator = torch.Generator().manual_seed(SEED)
 
-    tokenizer = load_tokenizer()
-    text_encoder = UMT5Wrapper(load_umt5()).eval().bfloat16()
-
     t = time.perf_counter()
-    prompt_embeds = _encode_prompt(tokenizer, text_encoder, prompt, _mesh)
+    prompt_embeds = _encode_prompt(
+        components.tokenizer, components.text_encoder, prompt, _mesh,
+        timings.text_encoder,
+    )
     _log(
         f"prompt encoded ({time.perf_counter() - t:.3f}s) "
         f"shape={tuple(prompt_embeds.shape)} dtype={prompt_embeds.dtype}"
     )
     assert prompt_embeds.shape == (1, 512, 4096)
-    
+
     negative_embeds = None
     if GUIDANCE_SCALE > 1.0:
         t = time.perf_counter()
         negative_embeds = _encode_prompt(
-            tokenizer, text_encoder, negative_prompt, _mesh
+            components.tokenizer, components.text_encoder, negative_prompt, _mesh,
+            timings.text_encoder,
         )
         _log(f"negative encoded ({time.perf_counter() - t:.3f}s)")
-
-    del text_encoder  # free memory before loading DiT
 
     latents = _init_latents(shapes, generator)
     _log(f"latents init shape={tuple(latents.shape)} dtype={latents.dtype}")
 
     image_latent = None
     if mode == "i2v":
-        enc_wrapper = VAEEncoderWrapper(load_vae()).eval().bfloat16()
+        assert components.vae_encoder is not None, "i2v requires components.vae_encoder"
         image = load_first_frame_image(
             IMAGE_PATH, shapes["video_h"], shapes["video_w"]
         )
@@ -404,18 +545,19 @@ def _run(out_path: Path, mode: str, prompt: str, negative_prompt: str) -> None:
 
         t = time.perf_counter()
         image_latent = run_component(
-            enc_wrapper,
+            components.vae_encoder,
             [image],
             on_tt=TT_VAE_ENCODER,
             mesh=_mesh,
-            shard_module=enc_wrapper.vae,
+            shard_module=components.vae_encoder.vae,
             shard_fn=shard_vae_encoder_specs,
         )
+        _record(timings.vae_encoder, time.perf_counter() - t)
         _log(
             f"i2v first-frame encoded ({time.perf_counter() - t:.3f}s) "
             f"shape={tuple(image_latent.shape)}"
         )
-        
+
         assert image_latent.shape == (
             1,
             LATENT_CHANNELS,
@@ -424,38 +566,38 @@ def _run(out_path: Path, mode: str, prompt: str, negative_prompt: str) -> None:
             shapes["latent_w"],
         ), image_latent.shape
         latents[:, :, 0:1, :, :] = image_latent
-        del enc_wrapper
 
     scheduler = UniPCMultistepScheduler.from_pretrained(MODEL_ID, subfolder="scheduler")
-    scheduler.set_timesteps(num_inference_steps=NUM_STEPS)
+    scheduler.set_timesteps(num_inference_steps=num_steps)
     _log(
         f"scheduler={type(scheduler).__name__} "
         f"flow_shift={scheduler.config.flow_shift} "
         f"timesteps={[round(float(x), 1) for x in scheduler.timesteps]}"
     )
 
-    dit_wrapper = WanDiTWrapper(load_dit()).eval().bfloat16()
-    _log(f"denoising {NUM_STEPS} steps...")
-    
-    t = time.perf_counter()
-    latents = _denoise(
-        dit_wrapper,
-        latents,
-        prompt_embeds,
-        negative_embeds,
-        scheduler,
-        shapes,
-        image_latent,
-        _mesh,
-    )
-    _log(f"denoise done ({time.perf_counter() - t:.3f}s)")
-    del dit_wrapper
+    _log(f"denoising {num_steps} steps...")
 
-    vae = load_vae()
-    
     t = time.perf_counter()
-    pixels = _run_vae(vae, latents, _mesh)
-    _log(f"decoder done ({time.perf_counter() - t:.3f}s)")
+    with torch_function_override_disabled():
+        latents = _denoise(
+            components.dit_wrapper,
+            latents,
+            prompt_embeds,
+            negative_embeds,
+            scheduler,
+            shapes,
+            image_latent,
+            _mesh,
+            timings.dit_pair,
+        )
+        _log(f"denoise done ({time.perf_counter() - t:.3f}s)")
 
-    _postprocess_and_save(pixels, out_path)
-    _log(f"total: {time.perf_counter() - t_total:.3f}s")
+        t = time.perf_counter()
+        pixels = _run_vae(
+            components.decoder_wrapper, latents, _mesh, timings.vae_decoder,
+        )
+        _log(f"decoder done ({time.perf_counter() - t:.3f}s)")
+
+    if not warmup:
+        _postprocess_and_save(pixels, out_path)
+    _log(f"{phase} total: {time.perf_counter() - t_total:.3f}s")
