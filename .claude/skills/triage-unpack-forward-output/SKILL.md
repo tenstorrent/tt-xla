@@ -153,10 +153,9 @@ For every YAML entry whose `reason:` is the canonical `unpack_forward_output` me
 Add `def unpack_forward_output(self, forward_output)` to that model's `ModelLoader` class. Two non-negotiable rules:
 
 1. **Return only what the loss depends on** (universal rule above).
-2. **Docstring with these three sections.** The override must carry them — they are the audit trail for why this override exists when a registry entry would otherwise have sufficed:
+2. **Docstring with these two sections.** The override must carry them — they are the audit trail for why this override exists:
    - **Forward output structure** — full type/shape signature of what the model returns. Example: `list[Tensor] of length 3, shapes [(B, 256, 80, 80), (B, 256, 40, 40), (B, 256, 20, 20)]`.
    - **What is selected and why** — which subset is returned and which loss it is the gradient source of. Example: `returning the three detection-head tensors concatenated; these are the only outputs consumed by YOLOLoss; auxiliary feature maps are dropped`.
-   - **Why a registry entry was not sufficient** — one line. Example: `default registry cannot key on bare list[Tensor]`, or `output class is shared with model X which uses a different loss target`.
 
 Implementation guidance:
 
@@ -164,7 +163,7 @@ Implementation guidance:
 - For a plain tuple where only one element is the loss target: index it.
 - Keep the implementation minimal. No extra abstractions, no inline comments beyond the required docstring.
 
-After writing (either path), run `pre-commit run --files <changed_files>` if pre-commit is installed; otherwise just confirm `python -c "from third_party.tt_forge_models.<model_dir>.pytorch.loader import ModelLoader"` succeeds.
+After writing (either path), run `pre-commit run --files <changed_files>`. If `pre-commit` is not on PATH, the venv isn't active — run `source venv/activate` first.
 
 ### Step 6 — Verify with pytest
 
@@ -214,7 +213,7 @@ Pick the matching `bringup_status` from the failure text:
 | -------------------------------------------------------------------- | ---------------------------- |
 | Crash in TTNN runtime / device assert / `TT_FATAL` / `TT_THROW`      | `FAILED_RUNTIME`             |
 | Compiler error after the frontend (TTIR / StableHLO / TTNN compile)  | `FAILED_TTMLIR_COMPILATION`  |
-| Numerics divergence (PCC / atol failure, comparison output)          | `INCORRECT_RESULT`           |
+| Numerics divergence (PCC / atol failure, comparison output)          | `INCORRECT_RESULT` *(in Step 8 this maps to `EXPECTED_PASSING` + `assert_pcc: false`, not a `bringup_status` field)* |
 | Frontend / import / dispatch errors (`_has_torch_function`, `is_torch_fx_available`, `Boolean value of Tensor … ambiguous`, `ModuleNotFoundError`) | `FAILED_FE_COMPILATION` |
 
 If the XML's `error_message` is missing or only contains a generic exit-code message, fall back to the `.log` companion file: `grep -nE "TT_FATAL|TT_THROW|error:" /tmp/verify_<scope>_training.log` and use the first matching line for context.
