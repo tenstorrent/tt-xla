@@ -202,8 +202,8 @@ test_config:
     reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
   ssd300_resnet50/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   oft_stable_diffusion/pytorch-Stable_Diffusion_v1_5-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
