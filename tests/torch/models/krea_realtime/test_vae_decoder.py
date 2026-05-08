@@ -16,9 +16,9 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch import (
 )
 
 
-@pytest.mark.xfail(
-    reason="VAE temporal slice fails on TT (out-of-range slice on size-1 dim) — https://github.com/tenstorrent/tt-xla/issues/4465"
-)
+# @pytest.mark.xfail(
+#     reason="Out of Memory: Not enough space to allocate 4907335680 B DRAM buffer across 12 banks, where each bank needs to store 408944640 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4551"
+# )
 def test_vae_decoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)

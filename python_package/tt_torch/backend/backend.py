@@ -29,6 +29,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    clamp_neg_slice_starts,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
@@ -190,6 +191,8 @@ class XLAExecutor:
             # Calling legalize_graph rebuilds the graph in topological order(from usage information), and fixes up the prev/next pointers in the process - which fixes our issue.
             # All this is a problem because DynamoBridge Partitioner can get confused by wrong next nodes and partition the graph in a way which fails to execute.
             legalize_graph(program.graph_module)
+
+            clamp_neg_slice_starts(program.graph_module)
 
             # Collect the params and constants from the exported program.
             self.params_and_consts = self._build_params_and_consts(program)

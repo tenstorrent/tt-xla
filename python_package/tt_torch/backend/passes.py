@@ -308,6 +308,39 @@ def bypass_redundant_getitem(gm):
     return gm
 
 
+def clamp_neg_slice_starts(gm):
+    """
+    Clamp out-of-range negative `start` values on aten.slice.Tensor nodes.
+
+    Eager `x[..., -N:, ...]` clamps when N > dim size, but the strict
+    aten.slice.Tensor overload rejects start < -size. Normalize the literal in
+    the FX graph so downstream lowering sees a legal index.
+    """
+    changed = False
+    for node in gm.graph.nodes:
+        if (
+            node.op != "call_function"
+            or node.target is not torch.ops.aten.slice.Tensor
+            or len(node.args) <= 2
+        ):
+            continue
+        self_node, dim, start = node.args[0], node.args[1], node.args[2]
+        if not isinstance(start, int) or not isinstance(dim, int):
+            continue
+        val = self_node.meta.get("val")
+        if val is None:
+            continue
+        size = val.shape[dim]
+        if not isinstance(size, int):
+            continue
+        if start < -size:
+            node.args = (self_node, dim, -size, *node.args[3:])
+            changed = True
+    if changed:
+        gm.recompile()
+    return gm
+
+
 def run_shape_prop(gm, example_inputs):
     """
     Propagates shape and dtype information through the graph.
