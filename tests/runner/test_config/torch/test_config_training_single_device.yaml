@@ -185,17 +185,17 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "ImportError: kornia"
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: targets should not be none when in training mode"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 1145044992 B DRAM buffer across 12 banks"
   resnext/pytorch-101_64x4d-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Cannot find callable resnext101_64x4d in hubconf"
   ssd300_vgg16/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AssertionError: targets should not be none when in training mode"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   bi_lstm_crf/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -265,29 +265,29 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
   yolox/pytorch-Nano-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: Unhandled FakeTensor Device Propagation for aten.add.Tensor, found two different devices xla:0, cpu"
   yolox/pytorch-Tiny-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: Unhandled FakeTensor Device Propagation for aten.add.Tensor, found two different devices xla:0, cpu"
   yolox/pytorch-S-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: Unhandled FakeTensor Device Propagation for aten.add.Tensor, found two different devices xla:0, cpu"
   yolox/pytorch-M-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: Unhandled FakeTensor Device Propagation for aten.add.Tensor, found two different devices xla:0, cpu"
   yolox/pytorch-L-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: Unhandled FakeTensor Device Propagation for aten.add.Tensor, found two different devices xla:0, cpu"
   yolox/pytorch-Darknet-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "Model expects targets to be passed while in training mode"
+    reason: "RuntimeError: Unhandled FakeTensor Device Propagation for aten.add.Tensor, found two different devices xla:0, cpu"
   hippynn/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
