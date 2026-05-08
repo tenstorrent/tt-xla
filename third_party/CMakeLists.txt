@@ -73,6 +73,15 @@ else()
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          # On dev hosts where the toolchain isn't at /opt/ttmlir-toolchain, the
+          # tt-mlir cmake's FindMLIR can't auto-locate MLIRConfig.cmake. Make the
+          # ExternalProject pass these explicitly from the parent's TTMLIR_TOOLCHAIN_DIR.
+          -DMLIR_DIR=${TTMLIR_TOOLCHAIN_DIR}/lib/cmake/mlir
+          -DCMAKE_PREFIX_PATH=${TTMLIR_TOOLCHAIN_DIR}
+          # Force the toolchain's python (3.12 with pybind11 2.10+) instead
+          # of CMake auto-discovering the system /bin/python3 (3.10 with
+          # pybind11 2.9.1, which MLIRDetectPythonEnv rejects).
+          -DPython3_EXECUTABLE=${TTMLIR_TOOLCHAIN_DIR}/venv/bin/python3
           -DTT_RUNTIME_ENABLE_TTNN=ON
           -DTTMLIR_ENABLE_STABLEHLO=ON
           -DTTMLIR_ENABLE_RUNTIME=ON
