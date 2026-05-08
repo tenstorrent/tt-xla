@@ -145,19 +145,50 @@ def _gather_via_composer(tensor, mesh):
         return None
 
 
-def _per_shard_fingerprint(tensor) -> str:
-    """Compute a stable SHA-16 fingerprint by hashing each per-device shard.
+def _per_shard_fingerprint(tensor, mesh=None) -> str:
+    """Compute a SHA-16 fingerprint of a ttnn tensor's content.
 
-    Doesn't require knowing the sharding — just iterates shards via
-    ttnn.get_device_tensors. Same sharding + same data → same hash, regardless
-    of whether the tensor is replicated or sharded.
+    Strategy (in order):
+      1. Try gather-via-composer (works for replicated or simply-sharded
+         tensors that the host can reconstruct).
+      2. Fall back to per-shard hashing via ttnn.get_device_tensors. Each
+         shard's bytes are seeded with shape+dtype so different-shape tensors
+         can never collide even if their per-shard to_torch fails the same
+         way (the bug we hit before).
+
+    Same data with same sharding → same hash. Different data or different
+    shape → different hash.
     """
     import ttnn as _ttnn
     hasher = hashlib.sha256()
+
+    # Seed with logical shape + dtype — guarantees graph_2 (64,64,vocab) and
+    # graph_3 (64,1,vocab) bf16 logits can never collide even on extraction failure.
+    try:
+        shape = tuple(tensor.shape)
+        dtype = str(getattr(tensor, "dtype", "?"))
+        hasher.update(f"shape={shape};dtype={dtype}|".encode())
+    except Exception:
+        hasher.update(b"shape=?;dtype=?|")
+
+    # Strategy 1: gather via composer
+    if mesh is not None:
+        try:
+            gathered = _gather_via_composer(tensor, mesh)
+            if gathered is not None:
+                hasher.update(b"gathered|")
+                hasher.update(gathered.contiguous().to(_torch_dtype_for_hashing(gathered)).numpy().tobytes())
+                return hasher.hexdigest()[:16]
+        except Exception:
+            pass  # fall through to per-shard
+
+    # Strategy 2: per-shard hash
+    hasher.update(b"per-shard|")
     try:
         shards = _ttnn.get_device_tensors(tensor)
     except Exception as exc:
-        return f"<get_device_tensors_failed:{exc}>"
+        hasher.update(f"<get_device_tensors_failed:{exc}>".encode())
+        return hasher.hexdigest()[:16]
     for i, shard in enumerate(shards):
         try:
             host_shard = _ttnn.from_device(shard)
@@ -166,10 +197,21 @@ def _per_shard_fingerprint(tensor) -> str:
             except Exception:
                 pass
             torch_shard = _ttnn.to_torch(host_shard)
-            hasher.update(torch_shard.contiguous().numpy().tobytes())
+            hasher.update(f"shard{i}_shape={tuple(torch_shard.shape)};dtype={torch_shard.dtype}|".encode())
+            hasher.update(torch_shard.contiguous().to(_torch_dtype_for_hashing(torch_shard)).numpy().tobytes())
         except Exception as exc:
-            hasher.update(f"<shard{i}_failed:{exc}>".encode())
+            hasher.update(f"<shard{i}_failed:{type(exc).__name__}:{exc}>".encode())
     return hasher.hexdigest()[:16]
+
+
+def _torch_dtype_for_hashing(t):
+    """Pick a torch dtype that numpy can serialize. bf16 isn't natively
+    supported by numpy (used to be), so cast to float32 for stable bytes.
+    """
+    import torch as _torch
+    if t.dtype in (_torch.bfloat16, _torch.float16):
+        return _torch.float32
+    return t.dtype
 
 
 def run_one_graph(graph: str, codegen_dir: str, mesh_device, mesh_shape) -> float:
@@ -217,8 +259,8 @@ def run_one_graph(graph: str, codegen_dir: str, mesh_device, mesh_shape) -> floa
         # to read the actual predicted tokens when the gather works.
         try:
             if hasattr(outputs, "__len__") and len(outputs) >= 5:
-                logits_sha = _per_shard_fingerprint(outputs[3])
-                tokens_sha = _per_shard_fingerprint(outputs[4])
+                logits_sha = _per_shard_fingerprint(outputs[3], mesh=mesh_device)
+                tokens_sha = _per_shard_fingerprint(outputs[4], mesh=mesh_device)
                 print(f"AUTORESEARCH_{graph.upper()}_LOGITS_SHA16={logits_sha}")
                 print(f"AUTORESEARCH_{graph.upper()}_TOKENS_SHA16={tokens_sha}")
                 gathered = _gather_via_composer(outputs[4], mesh_device)
