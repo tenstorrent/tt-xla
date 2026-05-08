@@ -258,10 +258,13 @@ def partition_vocab_parallel_embedding(
     assert isinstance(layer, VocabParallelEmbedding)
     logger.debug("Applied parallel sharding to %s", layer)
     xs.mark_sharding(layer.weight, mesh, (None, None))
-    # xs.mark_sharding(layer.weight, mesh, (None, "batch"))
-    # Apply sharding constraint to the output of the layer.
-    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
-    layer.register_forward_hook(hook_forward)
+    # NOTE: Do not register a `sharding_constraint_hook((None, None, None))`
+    # forward hook. Even though the constraint is semantically a no-op
+    # (everything replicated), Shardy emits a `sdy.sharding_constraint` op
+    # that references `@mesh`. When this op lands in a small downstream
+    # graph that doesn't otherwise touch the mesh (e.g. the embed-only
+    # trace produced by torch_xla.sync), the StableHLO compiler errors
+    # out with `unknown mesh: @mesh`.
     return layer
 
 
