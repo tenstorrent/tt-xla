@@ -60,6 +60,7 @@
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
+#include "ttmlir/Dialect/TTNN/Utils/BFPDtypeParser.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
@@ -80,6 +81,22 @@
 namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
+
+// Returns true if the public entry point of the module has at least one
+// argument.
+static bool
+moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
+  std::vector<mlir::func::FuncOp> public_func_ops;
+  m.get().walk([&](mlir::func::FuncOp funcOp) {
+    if (funcOp.isPublic()) {
+      public_func_ops.push_back(funcOp);
+    }
+  });
+  TT_FATAL(public_func_ops.size() == 1,
+           "Expected exactly one public function in module, got {}",
+           public_func_ops.size());
+  return public_func_ops[0].getNumArguments() > 0;
+}
 
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
@@ -845,6 +862,13 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
+
+  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
+      !moduleHasAnyFuncArguments(mlir_module)) {
+    stablehlo_pipeline_options.meshShape = {
+        static_cast<int64_t>((*current_mesh_shape)[0]),
+        static_cast<int64_t>((*current_mesh_shape)[1])};
+  }
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 
@@ -1040,6 +1064,21 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
       compile_options.experimental_enable_fusing_conv2d_with_multiply_pattern;
   options.enablePermuteMatmulFusion =
       compile_options.experimental_enable_permute_matmul_fusion;
+
+  if (compile_options.experimental_kv_cache_dtype.has_value()) {
+    const std::string &dtype_str =
+        compile_options.experimental_kv_cache_dtype.value();
+    std::optional<mlir::tt::ttnn::BFPDtype> dtype =
+        mlir::tt::ttnn::symbolizeBFPDtype(dtype_str);
+    if (!dtype.has_value()) {
+      LOG_F(ERROR,
+            "Invalid experimental_kv_cache_dtype value: '%s'. "
+            "Valid values are: none, bfp_bf8, bfp_bf4",
+            dtype_str.c_str());
+      return tt_pjrt_status::kInvalidArgument;
+    }
+    options.experimentalKVCacheDtype = dtype.value();
+  }
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;

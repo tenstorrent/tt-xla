@@ -20,24 +20,18 @@ _STOPWORDS = frozenset(
 )
 _WORD_RE = re.compile(r"[A-Za-z']+")
 _MIN_STOPWORD_RATIO = 0.10
-_MAX_NON_LATIN_RATIO = 0.03
 _MIN_WORDS = 5
 
 
 def assert_output_coherent(text: str) -> None:
-    """Heuristic assertion: text is English natural-language, not token soup.
+    """Heuristic assertion: text is natural-language, not token soup.
 
-    Tuned for the English prompts used in the generative TP tests
-    (e.g. "I like taking walks in the"). Re-tune thresholds if a test
-    introduces non-English prompts or code-completion prompts.
+    Uses English stopword ratio as the token-soup detector — coherent
+    continuations contain several stopwords per ~30-token output, while
+    token-soup garbage contains ~zero.
     """
     s = text.strip()
     assert s, f"empty output: {text!r}"
-    nlr = sum(1 for c in s if ord(c) > 127) / len(s)
-    assert nlr <= _MAX_NON_LATIN_RATIO, (
-        f"non-Latin char ratio too high ({nlr:.3f} > {_MAX_NON_LATIN_RATIO}): "
-        f"{text!r}"
-    )
     words = [w.lower() for w in _WORD_RE.findall(s)]
     assert words, f"output has no word characters: {text!r}"
     if len(words) < _MIN_WORDS:

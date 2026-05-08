@@ -16,6 +16,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
 import transformers
+from fusion_check import check_fusions
 from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
@@ -253,6 +254,7 @@ def benchmark_llm_torch_xla(
     arch,
     required_pcc,
     fp32_dest_acc_en=None,
+    experimental_kv_cache_dtype=None,
     accuracy_testing: bool = False,
     model_name_for_accuracy: str = None,
     hf_model_name_for_accuracy: str = None,
@@ -262,6 +264,8 @@ def benchmark_llm_torch_xla(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    expected_ops: list = None,
+    check_fusions_enabled: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -448,6 +452,8 @@ def benchmark_llm_torch_xla(
     }
     if fp32_dest_acc_en is not None:
         options["fp32_dest_acc_en"] = fp32_dest_acc_en
+    if experimental_kv_cache_dtype is not None:
+        options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
 
     torch_xla.set_custom_compile_options(options)
 
@@ -757,5 +763,12 @@ def benchmark_llm_torch_xla(
         device_count=device_count,
         mesh_shape=mesh_shape,
     )
+
+    if check_fusions_enabled and expected_ops:
+        check_fusions(
+            expected_ops=expected_ops,
+            export_model_name=export_model_name,
+            modules_dir=MODULE_EXPORT_PATH,
+        )
 
     return result
