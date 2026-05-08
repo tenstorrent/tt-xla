@@ -32,7 +32,7 @@ Auto-detect both:
   - `third_party/tt_forge_models/clip/pytorch/loader.py:209-220` — tuple
 - **Implication of choosing the registry path:** the registry entry is global by class name, so it fixes every variant of the current model **and** every other model in the codebase that returns the same output class. You must therefore re-run *all* affected training tests, not just the one you were invoked with, and update each of their YAML entries.
 - Test-runner glue: `tests/runner/test_models.py` parametrizes `test_all_models_torch` with `(test_entry, parallelism, run_mode)`. Pytest test IDs combine in stack order: `<test_entry_id>-<parallelism_id>-<run_mode_id>`. The `<test_entry_id>` is `<model_path>-<variant>` (see `tests/runner/utils/dynamic_loader.py:319`).
-- Test-runner gates on YAML status: when an entry is `NOT_SUPPORTED_SKIP`, pytest reports `SKIPPED` and your fix never runs. Before invoking pytest for verification, temporarily flip the affected entries to `status: EXPECTED_PASSING` (drop `bringup_status` and `reason`), run the tests, then write the final YAML based on the observed outcome.
+- Test-runner gates on YAML status: `NOT_SUPPORTED_SKIP` entries are skipped (`tests/runner/test_models.py:118`, `tests/runner/test_utils.py:746-748`) and `KNOWN_FAILURE_XFAIL` entries are imperatively xfailed. Verification uses `pytest --force-run --runxfail` to bypass both without editing the YAML: `--force-run` (`tests/runner/conftest.py:113`) makes `NOT_SUPPORTED_SKIP` entries run their body, `--runxfail` makes `KNOWN_FAILURE_XFAIL` entries report their real outcome instead of XFAIL. Apply the YAML edit once, after observing the real outcome.
 
 ## Workflow
 
@@ -168,42 +168,60 @@ After writing (either path), run `pre-commit run --files <changed_files>` if pre
 
 ### Step 6 — Verify with pytest
 
-**Before running pytest, temporarily flip every affected training entry to `status: EXPECTED_PASSING`** (drop `bringup_status` and `reason`). Otherwise the test runner skips them at collection (`tests/runner/test_models.py:118` gates on `NOT_SUPPORTED_SKIP`) and you observe `SKIPPED` instead of the real outcome. The set of "affected entries" depends on the path you took in Step 5:
+Do **not** pre-edit the YAML. Verification runs the tests with `--force-run --runxfail` so that the current YAML status is bypassed without an intermediate flip:
+
+- `--force-run` makes `NOT_SUPPORTED_SKIP` entries execute (`tests/runner/conftest.py:113`, `tests/runner/test_models.py:115-119`, `tests/runner/test_utils.py:746-748`).
+- `--runxfail` makes the runner's imperative `pytest.xfail(reason)` (`tests/runner/test_utils.py:749-750`) report the real outcome instead of XFAIL — covers stale `KNOWN_FAILURE_XFAIL` entries.
+
+The set of "affected entries" depends on the path you took in Step 5:
 
 - Step 5a (registry): every YAML entry whose loader emits the registered class and currently fails with the `unpack_forward_output` reason.
 - Step 5b (override): just the one entry tied to the loader you edited.
 
-Then run pytest. **No `less`. No `tail`. No piping into anything that hides exit codes.** Dump straight to a file and Read it back. Run the affected training tests in a single pytest invocation, plus the inference test for the originally-requested entry:
+Use `--junitxml=<path>` to capture structured per-testcase outcomes — the runner writes the detailed error (TT_FATAL / OOM / `error:` lines, already extracted by `tests/runner/test_utils.py:298-337`) into `<property name="error_message" value="…"/>`, and pytest writes any failure traceback into `<failure message="…">`. The XML is the source of truth in Step 7. Also dump stdout/stderr to a `.log` companion in case the XML is ambiguous.
+
+Run the affected training tests in a single pytest invocation, plus the inference test for the originally-requested entry:
 
 ```bash
-timeout 600 pytest -svv \
+timeout 600 pytest --force-run --runxfail \
+  --junitxml=/tmp/verify_<scope>_training.xml \
   "tests/runner/test_models.py::test_all_models_torch[<entry1>-single_device-training]" \
   "tests/runner/test_models.py::test_all_models_torch[<entry2>-single_device-training]" \
   &> /tmp/verify_<scope>_training.log
 
-timeout 300 pytest -svv \
+timeout 300 pytest --force-run --runxfail \
+  --junitxml=/tmp/verify_<scope>_inference.xml \
   "tests/runner/test_models.py::test_all_models_torch[<original_entry>-single_device-inference]" \
   &> /tmp/verify_<scope>_inference.log
 ```
 
-Read both logs.
+Read both XML files with the Read tool. Use the `.log` companion only if the XML is missing detail (e.g. only a generic "Error code 13" with no `error_message`).
 
-### Step 7 — Classify the training outcome
+### Step 7 — Classify the training outcome from junit XML
 
-- **Pass:** outcome = `EXPECTED_PASSING`.
-- **Fail:** classify the new error and pick the matching `bringup_status`:
+For each `<testcase>` in the training XML:
 
-  | Symptom                                                              | `bringup_status`             |
-  | -------------------------------------------------------------------- | ---------------------------- |
-  | Crash in TTNN runtime / device assert / runtime stack trace          | `FAILED_RUNTIME`             |
-  | Compiler error after the frontend (TTIR / StableHLO / TTNN compile)  | `FAILED_TTMLIR_COMPILATION`  |
-  | Numerics divergence (PCC / atol failure, comparison output)          | `INCORRECT_RESULT`           |
+- No `<failure>` / `<error>` / `<skipped>` child → **pass**, outcome = `EXPECTED_PASSING`.
+- `<failure message="…">…</failure>` present → **fail**. Read both:
+  - `<failure>`'s `message` attribute and inner text (raw exception + traceback).
+  - `<property name="error_message" value="…"/>` inside `<properties>` — the runner's pre-extracted detailed error (TT_FATAL / OOM / `error:` line). This is the canonical one-liner to use as the YAML `reason:`.
+- `<skipped type="pytest.xfail" message="…"/>` → unexpected with `--runxfail`; means the entry is xfailed via a different mechanism. Flag for human review.
+- `<skipped type="pytest.skip" message="…"/>` → unexpected with `--force-run`; means a different skip path triggered. Flag for human review.
 
-- **If the log shows `Error code 13` or any generic exit-code line, that is NOT the real error.** `grep -nE "TT_FATAL|TT_THROW" /tmp/verify_<model_dir>_<variant>_training.log` and use the first matching line (and a few lines around it for context) as the real error. Pick the `bringup_status` from that real error, not from "Error code 13".
+Pick the matching `bringup_status` from the failure text:
+
+| Symptom (in `error_message` / `<failure>`)                           | `bringup_status`             |
+| -------------------------------------------------------------------- | ---------------------------- |
+| Crash in TTNN runtime / device assert / `TT_FATAL` / `TT_THROW`      | `FAILED_RUNTIME`             |
+| Compiler error after the frontend (TTIR / StableHLO / TTNN compile)  | `FAILED_TTMLIR_COMPILATION`  |
+| Numerics divergence (PCC / atol failure, comparison output)          | `INCORRECT_RESULT`           |
+| Frontend / import / dispatch errors (`_has_torch_function`, `is_torch_fx_available`, `Boolean value of Tensor … ambiguous`, `ModuleNotFoundError`) | `FAILED_FE_COMPILATION` |
+
+If the XML's `error_message` is missing or only contains a generic exit-code message, fall back to the `.log` companion file: `grep -nE "TT_FATAL|TT_THROW|error:" /tmp/verify_<scope>_training.log` and use the first matching line for context.
 
 ### Step 8 — Update the YAML
 
-Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. Update **every** training entry that you flipped to `EXPECTED_PASSING` in Step 6 — not just the original one. The goal: get tests out of `NOT_SUPPORTED_SKIP` so they actually run in nightly/weekly. Pick by outcome:
+Edit `tests/runner/test_config/torch/test_config_training_single_device.yaml`. The YAML was not pre-edited in Step 6, so this is a single write per affected entry. Update **every** training entry covered by Step 6 — not just the original one. The goal: get tests out of `NOT_SUPPORTED_SKIP` so they actually run in nightly/weekly. Pick by outcome:
 
 - **Pass:**
   ```yaml
@@ -236,7 +254,7 @@ Print a single concise summary to the user:
 1. Resolved test → loader path + YAML key
 2. Forward output structure observed on CPU (one or two lines)
 3. Fix path taken: registry entry (which class → which attr, which other YAML entries it covered) **or** per-loader override (file, method signature, what it returns). State explicitly which path you chose and why the other was not used.
-4. Pytest outcome for every affected training entry (pass/fail with real error if fail), plus the original inference entry.
+4. Pytest outcome for every affected training entry (pass/fail with the real error from the junit XML's `error_message` if fail), plus the original inference entry.
 5. YAML diff (the lines that changed across all affected entries).
 6. Anything that needs human review (e.g. inference regression, ambiguous loss target, registry entry that affected an unexpected number of tests, `extract_tensors_recursive` returned an unexpected number of tensors).
 
@@ -248,8 +266,6 @@ Print a single concise summary to the user:
 - Per-loader override must return only loss-relevant tensors and must carry the three-part docstring above (including the line stating why a registry entry was not sufficient).
 - Whichever path is taken, the fix must return only loss-relevant tensors — never aux outputs (attentions, hidden states, FPN side branches).
 - A registry entry has global scope. Re-verify and update YAML for **every** affected training entry, not just the originally requested one.
-- Before running pytest verification, flip affected entries to `EXPECTED_PASSING` so they actually run — `NOT_SUPPORTED_SKIP` causes the runner to skip them.
-- Never use `tail` or `less` on pytest output. Dump to a file with `&>`, then Read.
-- "Error code 13" is generic — always look further for `TT_FATAL` / `TT_THROW`.
+- Verification uses `pytest --force-run --runxfail --junitxml=<path>`. Do not pre-edit the YAML before pytest. Read the XML for outcomes; classify failures from the `<failure>` element and the `error_message` property.
 - Touch only the training YAML entries. Inference is informational.
 - Do not commit or push. Leave changes staged-but-uncommitted unless the user asks otherwise.
