@@ -1938,6 +1938,42 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     )
 
 
+def test_gpt_oss_120b_tp_galaxy_batch_size_64(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=batch_size if batch_size is not None else 64,
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        mesh_config_fn=_galaxy_mesh_config_fn,
+        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", "model", None, None),
+        trace_enabled=True,
+    )
+
+
 def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
     return (1, 4), ("batch", "model")
 
