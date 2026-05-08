@@ -236,18 +236,44 @@ class ResidualRMSNormFusionProvider(FusionProvider):
         return "fuse_residual_rms_norm"
 
     @staticmethod
-    def pattern(
-        x: Tensor, residual: Tensor, normalized_shape, weight: Tensor, eps: float
-    ) -> Tensor:
-        return torch.nn.functional.rms_norm(x + residual, normalized_shape, weight, eps)
+    def pattern(x: Tensor, residual: Tensor, weight: Tensor, eps: float) -> Tensor:
+        # Mirror the kwargs form RMSNormFusionProvider emits — FX pattern
+        # matcher treats positional vs kwargs as structurally distinct, so
+        # the pattern has to match the exact call shape.
+        return torch.nn.functional.rms_norm(
+            x + residual, normalized_shape=weight.shape, weight=weight, eps=eps
+        )
 
     @staticmethod
-    def replacement(
-        x: Tensor, residual: Tensor, normalized_shape, weight: Tensor, eps: float
+    def pattern_residual_first(
+        residual: Tensor, x: Tensor, weight: Tensor, eps: float
+    ) -> Tensor:
+        # HF Llama writes the residual add as `residual + hidden_states`, which
+        # FX traces as `add(residual, hidden_states)` — operand order is the
+        # other way round vs. the canonical pattern. Match both forms.
+        return torch.nn.functional.rms_norm(
+            residual + x, normalized_shape=weight.shape, weight=weight, eps=eps
+        )
+
+    @staticmethod
+    def replacement(x: Tensor, residual: Tensor, weight: Tensor, eps: float) -> Tensor:
+        from tt_torch.composite_ops import _torch_residual_rms_norm
+
+        return _torch_residual_rms_norm(x, residual, weight.shape, weight, eps)
+
+    @staticmethod
+    def replacement_residual_first(
+        residual: Tensor, x: Tensor, weight: Tensor, eps: float
     ) -> Tensor:
         from tt_torch.composite_ops import _torch_residual_rms_norm
 
-        return _torch_residual_rms_norm(x, residual, normalized_shape, weight, eps)
+        return _torch_residual_rms_norm(x, residual, weight.shape, weight, eps)
+
+    def get_patterns(self) -> List[tuple]:
+        return [
+            (self.pattern, self.replacement),
+            (self.pattern_residual_first, self.replacement_residual_first),
+        ]
 
 
 class QuetzalFuseGELUProvider(FusionProvider):
