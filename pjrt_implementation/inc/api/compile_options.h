@@ -92,6 +92,21 @@ struct CompileOptions {
   // precision for all operations, which can improve accuracy for some models.
   bool enable_const_eval_on_cpu = true;
 
+  // Forces const-eval function inputs to be annotated as system memory in
+  // the executable's expected layout.
+  //
+  // When ON (default, mirroring the tt-mlir compiler default), the
+  // TTNNConstEvalInputsToSystemMemory pass marks inputs consumed by const-
+  // eval functions as host-resident. The runtime then sees them as already
+  // in the right place and never migrates them to device, so the host-side
+  // copy stays alive for the entire model run.
+  //
+  // Setting this to false leaves those inputs with their natural device-
+  // memory annotation, so the runtime migrates them on first use and the
+  // host-side copy is released via RAII. Useful when host RAM headroom is
+  // tight and the host copy is not needed after the first execute.
+  bool enable_const_eval_inputs_to_system_memory = true;
+
   // Enables transpose + matmul and transpose + linear ops fusion.
   // This controls fusing of transpose + matmul and transpose + linear ops.
   // When disabled, transpose is kept as a separate op which can be constevaled,
