@@ -209,24 +209,31 @@ class RMSNormFusionProvider(FusionProvider):
 
 
 class ResidualRMSNormFusionProvider(FusionProvider):
-    """Fold `add(x, y) → torch.nn.functional.rms_norm(...)` into a single
-    residual-aware rms_norm call.
+    """Fold `add(x, y) → rms_norm(...)` into a single residual-aware rms_norm.
 
     Direct evidence in Llama-3.2-1B prefill MLIR shows 32 unfused
     `ttnn.add → ttnn.rms_norm` pairs per 16-layer model. Each is one
-    additional kernel launch + DRAM round-trip per layer that this fusion
+    extra kernel launch + DRAM round-trip per layer that this fusion
     eliminates by routing the residual through ttnn::rms_norm's existing
     `residual_input_tensor` parameter.
 
-    Must run AFTER RMSNormFusionProvider (which produces the
-    `torch.nn.functional.rms_norm` call site this pattern matches against).
-    Therefore registered as default-disabled and invoked through a `late`
-    rewrite hook in backend.py — see run_quetzal_late_rewrite_passes.
+    **Why we override `replace_pattern` instead of using subgraph_rewriter.**
+    In Llama the residual add `hidden_states = residual + attn_output` has
+    TWO downstream users: the rms_norm we want to fuse into AND the *next*
+    residual add at end-of-MLP. FX's `replace_pattern_with_filters` uses
+    `SubgraphMatcher`, which rejects matches where any internal node has
+    users outside the matched subgraph. Result: zero matches in real
+    transformer code. So we walk the graph manually — find rms_norm nodes
+    whose first arg is an add, rewrite the rms_norm in place, and leave
+    the add alone (its other users keep working).
 
-    Replacement uses _torch_residual_rms_norm (a @torch.fx.wrap'd marker)
-    so the call site survives FX inlining; handle_composite_ops then
-    swaps it to _composite_residual_rms_norm which emits the
-    tenstorrent.rms_norm composite with `has_residual=True`.
+    Must run AFTER RMSNormFusionProvider (which collapses HF's manual
+    rms_norm decomposition into a `torch.nn.functional.rms_norm` call).
+    Default-disabled; invoked via the `late` rewrite hook in backend.py.
+
+    The rewritten call site uses _torch_residual_rms_norm (a `@torch.fx.wrap`'d
+    marker) so handle_composite_ops can swap it to _composite_residual_rms_norm
+    which emits the `tenstorrent.rms_norm` composite with `has_residual=True`.
     """
 
     default_enabled = False
@@ -236,44 +243,63 @@ class ResidualRMSNormFusionProvider(FusionProvider):
         return "fuse_residual_rms_norm"
 
     @staticmethod
-    def pattern(x: Tensor, residual: Tensor, weight: Tensor, eps: float) -> Tensor:
-        # Mirror the kwargs form RMSNormFusionProvider emits — FX pattern
-        # matcher treats positional vs kwargs as structurally distinct, so
-        # the pattern has to match the exact call shape.
-        return torch.nn.functional.rms_norm(
-            x + residual, normalized_shape=weight.shape, weight=weight, eps=eps
-        )
+    def pattern(*args, **kwargs):
+        # Unused — base class abstract method shim. We override replace_pattern.
+        raise NotImplementedError
 
     @staticmethod
-    def pattern_residual_first(
-        residual: Tensor, x: Tensor, weight: Tensor, eps: float
-    ) -> Tensor:
-        # HF Llama writes the residual add as `residual + hidden_states`, which
-        # FX traces as `add(residual, hidden_states)` — operand order is the
-        # other way round vs. the canonical pattern. Match both forms.
-        return torch.nn.functional.rms_norm(
-            residual + x, normalized_shape=weight.shape, weight=weight, eps=eps
-        )
+    def replacement(*args, **kwargs):
+        raise NotImplementedError
 
-    @staticmethod
-    def replacement(x: Tensor, residual: Tensor, weight: Tensor, eps: float) -> Tensor:
+    def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
+        """Walk the FX graph; for each `torch.nn.functional.rms_norm` whose
+        first arg is an `add` (call_method 'add' OR call_function operator.add),
+        rewrite the rms_norm node to call `_torch_residual_rms_norm(x, r, ...)`
+        in place. Leave the `add` node alone — it may have other users."""
         from tt_torch.composite_ops import _torch_residual_rms_norm
 
-        return _torch_residual_rms_norm(x, residual, weight.shape, weight, eps)
+        replaced = 0
+        for node in list(gm.graph.nodes):
+            if node.op != "call_function":
+                continue
+            if node.target is not torch.nn.functional.rms_norm:
+                continue
+            # First positional arg is the activation tensor.
+            if not node.args:
+                continue
+            input_node = node.args[0]
+            if not isinstance(input_node, torch.fx.Node):
+                continue
+            # Detect both call_method (dynamo) and call_function (symbolic_trace) add forms.
+            is_method_add = input_node.op == "call_method" and input_node.target == "add"
+            import operator
 
-    @staticmethod
-    def replacement_residual_first(
-        residual: Tensor, x: Tensor, weight: Tensor, eps: float
-    ) -> Tensor:
-        from tt_torch.composite_ops import _torch_residual_rms_norm
+            is_func_add = (
+                input_node.op == "call_function" and input_node.target is operator.add
+            )
+            if not (is_method_add or is_func_add):
+                continue
+            if len(input_node.args) != 2:
+                continue
+            x, residual = input_node.args
+            # Build call args for the marker:
+            # _torch_residual_rms_norm(input, residual, normalized_shape, weight=, eps=)
+            normalized_shape = node.args[1] if len(node.args) > 1 else None
+            weight = node.kwargs.get("weight")
+            eps = node.kwargs.get("eps")
+            with gm.graph.inserting_before(node):
+                new_node = gm.graph.call_function(
+                    _torch_residual_rms_norm,
+                    args=(x, residual, normalized_shape, weight, eps),
+                )
+            node.replace_all_uses_with(new_node)
+            gm.graph.erase_node(node)
+            replaced += 1
 
-        return _torch_residual_rms_norm(x, residual, weight.shape, weight, eps)
-
-    def get_patterns(self) -> List[tuple]:
-        return [
-            (self.pattern, self.replacement),
-            (self.pattern_residual_first, self.replacement_residual_first),
-        ]
+        if replaced:
+            gm.graph.lint()
+            gm.recompile()
+        return replaced
 
 
 class QuetzalFuseGELUProvider(FusionProvider):
