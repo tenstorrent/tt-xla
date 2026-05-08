@@ -45,7 +45,7 @@ Auto-detect both:
   - `ssdlite320_mobilenetv3/pytorch/loader.py` and `ssd300_*` patches let the upstream `AssertionError`/`AttributeError` bubble up. `'NoneType' object has no attribute 'max'` originates from `torchvision/models/detection/_utils.py` trying to read `max()` of a `None` `targets`.
   - Treat all of these as the same `missing_targets` flavor.
 - `BatchNorm` in `model.train()` enforces "more than 1 value per channel" inside `torch.nn.functional._verify_batch_size`. Any time a `BatchNorm{1,2,3}d` gets an input whose product of non-channel dims is 1, training fails. `[1, 256, 1, 1]` (batch 1, single-pixel spatial) is the canonical case for deeplabv3 ASPP pooling. Repeating inputs to `batch_size=2` is **only** a fix when the offending feature map is `[B, C, 1, 1]` — once `B=2` the BN computes a real variance. If the offending tensor is `[B, C, 1]` from a 1-token sequence, `B=2` doesn't help (still 2 values per channel, OK actually) — but if it is `[1, C, 1, 1]` after a global pool on a single-image batch, batching helps.
-- Test-runner gating on YAML status: only `NOT_SUPPORTED_SKIP` causes the runner to skip at collection time (`tests/runner/test_models.py:118`). `KNOWN_FAILURE_XFAIL` lets the test run and is treated as an xfail. `EXPECTED_PASSING` lets the test run and is required to pass. The runner unconditionally calls `pytest.xfail(reason)` at the end of any `KNOWN_FAILURE_XFAIL` test (`tests/runner/test_utils.py:748-749`), so pytest output alone cannot distinguish "still failing" from "now passing"; rely on Step 6 / Step 7 evidence (CPU outcome + recorded `bringup_status` in the JUnit properties or actual exception trace) to decide.
+- Test-runner gating on YAML status: only `NOT_SUPPORTED_SKIP` causes the runner to skip at collection time (`tests/runner/test_models.py:118`). `KNOWN_FAILURE_XFAIL` lets the test run and is treated as an xfail. `EXPECTED_PASSING` lets the test run and is required to pass. The runner unconditionally calls `pytest.xfail(reason)` at the end of any `KNOWN_FAILURE_XFAIL` test (`tests/runner/test_utils.py:748-749`), so pytest output alone cannot distinguish "still failing" from "now passing"; rely on Step 6 / Step 7 evidence (CPU outcome + recorded `bringup_status` in the JUnit properties or actual exception trace) to decide. Step 7 verification sidesteps both gates with `pytest --force-run --runxfail` (`--force-run` from `tests/runner/conftest.py:113` bypasses the `NOT_SUPPORTED_SKIP` collection skip; `--runxfail` neutralizes the runner's imperative `pytest.xfail` so the test reports its real outcome), so the YAML status is irrelevant during verification — no temp-flip is needed.
 - `third_party/tt_forge_models` is a git submodule with its own working tree. Loader edits land there. **Do not commit in the submodule.** Leave changes uncommitted so the user can review.
 
 ## Workflow
@@ -263,38 +263,39 @@ For loaders with multiple variants where some pass on TT (`status: EXPECTED_PASS
 
 Open `tests/runner/test_config/torch/test_config_training_single_device.yaml`. The action depends on whether a loader fix was applied and what TT-XLA does with it.
 
-For each entry in the update set, run pytest **once** with the candidate YAML state and `--junitxml=<path>`, then Read the XML. The runner already records the actual error (`<property name="error_message" value="…"/>`) and the test outcome (`<failure>` / `<skipped type="pytest.xfail"/>` / neither) into the JUnit XML — no need to grep `-svv` console output. **Drop `-svv` entirely.**
+For each entry in the update set, run pytest **once** with `--force-run --runxfail --junitxml=<path>` and dump stdout/stderr to a companion `.log` file with `&>`, then Read the XML. With those flags the runner ignores the YAML status (no `NOT_SUPPORTED_SKIP` collection skip, no imperative `pytest.xfail`), so the test reports its real outcome regardless of what the YAML currently says — write the final YAML once based on the XML in a single pass. The runner records the actual error (`<property name="error_message" value="…"/>`) and the test outcome (`<failure>` / neither) into the JUnit XML — no need to grep `-svv` console output. **Drop `-svv` entirely.** The `.log` file is the **fallback**: read it only when the XML is missing/empty (pytest crashed before writing it) or when the `error_message` property is empty/unhelpful — `grep -nE "TT_FATAL|TT_THROW|error:|RuntimeError|AssertionError|ValueError" /tmp/verify_inputs_<model_dir>_training.log` and use the first signal-bearing line.
 
 ```bash
-timeout 1200 pytest \
+timeout 1200 pytest --force-run --runxfail \
   "tests/runner/test_models.py::test_all_models_torch[<entry1>-single_device-training]" \
   "tests/runner/test_models.py::test_all_models_torch[<entry2>-single_device-training]" \
-  --junitxml=/tmp/verify_inputs_<model_dir>_training.xml
+  --junitxml=/tmp/verify_inputs_<model_dir>_training.xml \
+  &> /tmp/verify_inputs_<model_dir>_training.log
 ```
 
 For `bn_single_value` (and any other flavor where the loader edit may have shifted inference behavior), also run the inference test for every variant in the update set:
 
 ```bash
-timeout 600 pytest \
+timeout 600 pytest --force-run --runxfail \
   "tests/runner/test_models.py::test_all_models_torch[<entry1>-single_device-inference]" \
-  --junitxml=/tmp/verify_inputs_<model_dir>_inference.xml
+  --junitxml=/tmp/verify_inputs_<model_dir>_inference.xml \
+  &> /tmp/verify_inputs_<model_dir>_inference.log
 ```
 
 #### Reading the XML
 
-Each `<testcase>` falls into exactly one of three shapes. Identify which by looking at its children:
+Each `<testcase>` falls into one of two shapes (under `--runxfail` the runner's `<skipped type="pytest.xfail">` outcome cannot occur). Identify which by looking at its children:
 
 | `<testcase>` children | Meaning |
 | --- | --- |
 | no `<failure>` and no `<skipped>` | Test **passed** on TT-XLA. The `tags` property has `bringup_status: BringupStatus.PASSED`. |
-| `<failure message="…">…trace…</failure>` | Test **failed**. Read the canonical one-line error from the `<property name="error_message" value="…"/>` element — that's the runner-extracted reason. The `<failure>` body has the full trace if context is needed; the `error_message` property is what goes into the YAML verbatim. The `tags` property's `bringup_status` distinguishes `FAILED_FE_COMPILATION` vs `FAILED_RUNTIME`. |
-| `<skipped type="pytest.xfail" message="…"/>` | Runner called `pytest.xfail(reason)` because the YAML still has `status: KNOWN_FAILURE_XFAIL`. Cross-check `error_message` and `tags.model_test_status` to confirm. |
+| `<failure message="…">…trace…</failure>` | Test **failed** (or numerics drifted — see `tags.bringup_status`). Read the canonical one-line error from the `<property name="error_message" value="…"/>` element — that's the runner-extracted reason. The `<failure>` body has the full trace if context is needed; the `error_message` property is what goes into the YAML verbatim. The `tags` property's `bringup_status` indicates which TT-XLA stage produced the failure (`FAILED_FE_COMPILATION`, `FAILED_TTMLIR_COMPILATION`, `FAILED_RUNTIME`, or `INCORRECT_RESULT`). |
 
 Use `Read` on the XML file. `grep -E '<failure|<skipped|error_message' /tmp/verify_inputs_<model_dir>_training.xml` is fine for a quick scan.
 
 #### Branch A — `loader_fix_attempted == False`
 
-No loader change. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical reason from the table below. Verification: each entry runs, hits the same CPU error before TT compilation, and is reported as `XFAIL`. Confirm the testcase in the XML contains `<skipped type="pytest.xfail">` and the `error_message` property matches the canonical error captured in Step 4.
+No loader change. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical reason from the table below. Verification (with `--force-run --runxfail`): each entry runs, hits the same CPU error before TT compilation, and is reported as `<failure>` (because `--runxfail` neutralizes the runner's `pytest.xfail`). Confirm the testcase in the XML contains `<failure>` and the `error_message` property matches the canonical error captured in Step 4.
 
 ```yaml
 <model_dir>/pytorch-<variant>-single_device-training:
@@ -305,33 +306,34 @@ No loader change. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical reaso
 
 #### Branch B — `loader_fix_attempted == True` AND `loader_fix_works_cpu == True`
 
-Loader fix succeeded at the CPU level. Mirror the sibling `triage-unpack-forward-output` skill's "flip → run → write" pattern: set every entry in the update set to `EXPECTED_PASSING` (drop `bringup_status` and `reason`) so the runner doesn't skip them at collection (`tests/runner/test_models.py:118` gates on `NOT_SUPPORTED_SKIP`), run pytest once, then write the final YAML in a single pass based on the observed outcome — no placeholder writes.
+Loader fix succeeded at the CPU level. Run pytest with `--force-run --runxfail` (the same command shown above) so the current YAML status (likely `NOT_SUPPORTED_SKIP` or `KNOWN_FAILURE_XFAIL`) is bypassed without any pre-edit, then Read the XML and write the final YAML in one pass based on the observed outcome.
 
-```yaml
-<model_dir>/pytorch-<variant>-single_device-training:
-  status: EXPECTED_PASSING
-```
+Decide per entry by inspecting the `<testcase>`:
 
-Then run pytest (the same command shown above) and Read the XML. Decide per entry by inspecting the `<testcase>`:
+- **No `<failure>` and no `<skipped>` child** (test passed on TT-XLA): set the entry to `status: EXPECTED_PASSING`. Drop `bringup_status` and `reason`.
 
-- **No `<failure>` and no `<skipped>` child** (test passed on TT-XLA): leave the entry as `EXPECTED_PASSING`.
+- **`<failure>` element with `tags.bringup_status: BringupStatus.INCORRECT_RESULT`** (PCC / atol comparison failed): the test compiled and ran end-to-end on TT-XLA but numerics drifted below threshold. Treat this as a pass for triage purposes — set the entry to `status: EXPECTED_PASSING` with `assert_pcc: false`. Drop `bringup_status` and `reason`:
 
-- **`<failure>` element present** with `error_message` set to a *new, non-canonical* error: the test now fails for an unrelated TT-XLA / TT-MLIR reason. Use the `error_message` property value verbatim — it's the runner-extracted one-liner. Pick `bringup_status` from the `tags` property (`BringupStatus.FAILED_FE_COMPILATION` vs `BringupStatus.FAILED_RUNTIME`). Write the final YAML once:
+  ```yaml
+  <model_dir>/pytorch-<variant>-single_device-training:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+  ```
+
+- **`<failure>` element present** with `error_message` set to a *new, non-canonical* error and `tags.bringup_status` not `INCORRECT_RESULT`: the test now fails for an unrelated TT-XLA / TT-MLIR reason. Use the `error_message` property value verbatim — it's the runner-extracted one-liner. Pick `bringup_status` from the `tags` property (`BringupStatus.FAILED_FE_COMPILATION`, `BringupStatus.FAILED_TTMLIR_COMPILATION`, or `BringupStatus.FAILED_RUNTIME`). Write the final YAML once:
 
   ```yaml
   <model_dir>/pytorch-<variant>-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION  # or FAILED_RUNTIME if past compilation
+    bringup_status: FAILED_FE_COMPILATION  # or FAILED_TTMLIR_COMPILATION / FAILED_RUNTIME
     reason: "<exact error_message value>"
   ```
 
   If `error_message` is empty or unhelpful, fall back to scanning the `<failure>` body for the most signal-bearing line — an MLIR `error:` line, a runtime `RuntimeError`, or a `TT_FATAL`/`TT_THROW`. Skip noise like deprecation warnings and "Found an argument on non-XLA device".
 
-- **`<failure>` element present but `error_message` still matches the original canonical error**: the loader fix passed CPU but something else (the runner re-creates inputs, or a buffer is constructed inside the model when not on CPU) reintroduces the missing input. Revert the loader fix and the temporary `EXPECTED_PASSING` flip, fall back to Branch A. Note this in the final report — it's worth human review.
+- **`<failure>` element present but `error_message` still matches the original canonical error**: the loader fix passed CPU but something else (the runner re-creates inputs, or a buffer is constructed inside the model when not on CPU) reintroduces the missing input. Revert the loader fix and fall back to Branch A. Note this in the final report — it's worth human review.
 
-- **`<skipped type="pytest.xfail">` while we expected `EXPECTED_PASSING`**: the YAML flip didn't actually take effect (pytest still saw `KNOWN_FAILURE_XFAIL`). Re-check that the YAML edit landed on the right entries and rerun.
-
-- **(`bn_single_value` only)** Read the inference XML too. If the inference test for any variant in the update set regresses (was passing — bare `<testcase>` — now has `<failure>`), revert the loader fix and the temporary flip, fall back to Branch A. The training fix is not worth a passing inference regression.
+- **(`bn_single_value` only)** Read the inference XML too. If the inference test for any variant in the update set regresses (was passing — bare `<testcase>` — now has `<failure>` with `bringup_status` other than `INCORRECT_RESULT`), revert the loader fix and fall back to Branch A. The training fix is not worth a passing inference regression.
 
 #### Branch C — `loader_fix_attempted == True` AND `loader_fix_works_cpu == False`
 
@@ -344,14 +346,16 @@ Loader fix is correct (it eliminated the canonical error) but a different CPU er
   reason: "<exact new CPU error string from Step 5>"
 ```
 
-Run pytest with `--junitxml` and confirm the testcase has `<skipped type="pytest.xfail">` (no `XPASSED` outcome). For `bn_single_value`, also confirm inference did not regress.
+Run pytest with `--force-run --runxfail --junitxml` and confirm the testcase has `<failure>` whose `error_message` matches the new CPU error (since `--runxfail` neutralizes the runner's `pytest.xfail`, the test reports the real outcome). For `bn_single_value`, also confirm inference did not regress.
 
 #### `bringup_status` selection
 
 | Situation | Use |
 | --- | --- |
-| Default — frontend never compiles because the CPU forward errors out first, OR TT-MLIR fails before/at compilation | `FAILED_FE_COMPILATION` |
+| Default — frontend never compiles because the CPU forward errors out first | `FAILED_FE_COMPILATION` |
+| TT-MLIR fails after frontend (TTIR / StableHLO / TTNN compile) | `FAILED_TTMLIR_COMPILATION` |
 | Test reaches runtime/execution and fails there (rare for this skill, but possible after a loader fix) | `FAILED_RUNTIME` |
+| Test compiles and runs end-to-end but PCC / atol comparison fails | drop `bringup_status` (status: EXPECTED_PASSING + `assert_pcc: false`) |
 | Test now passes on TT-XLA | drop `bringup_status` (status: EXPECTED_PASSING is enough) |
 
 #### Canonical reason strings (Branch A)
@@ -384,7 +388,7 @@ Print a single concise summary to the user:
 3. CPU outcomes pre-fix — `BFLOAT16-TRAIN: FAILED — <error>`, `FLOAT32-TRAIN: …` (or whichever decision-tree row applied). Include the `load_inputs` dump (one or two lines) so the report shows what was missing.
 4. Loader fix attempted? If yes, the one-line edit (file + line) and the post-fix CPU outcome.
 5. Loader-wide scope — list of all training entries updated.
-6. Per-entry post-fix outcome and YAML state set: `EXPECTED_PASSING`, `KNOWN_FAILURE_XFAIL` (with which reason), or unchanged.
+6. Per-entry post-fix outcome and YAML state set: `EXPECTED_PASSING`, `EXPECTED_PASSING` + `assert_pcc: false` (PCC drop on TT-XLA), `KNOWN_FAILURE_XFAIL` (with which reason), or unchanged.
 7. Pytest verification outcome per entry (training, plus inference for `bn_single_value`).
 8. Sanity-grep confirming the inference YAML was not touched: `git diff tests/runner/test_config/torch/test_config_inference_single_device.yaml` should be empty (or note any flagged stale inference entries).
 9. Anything that needs human review (e.g. CPU repro didn't trigger, loader uses a frozen processor that blocks the fix, an unexpected variant of the same loader needed to be excluded, inference regression caused a revert, inference entry is stale).
@@ -406,6 +410,6 @@ Print a single concise summary to the user:
 - Reason string is verbatim. Match the canonical forms in the Step 7 table exactly. For new errors after a loader fix, copy the most signal-bearing error line verbatim; do not paraphrase.
 - Use `status: KNOWN_FAILURE_XFAIL` (not `NOT_SUPPORTED_SKIP`). Tests stay live as xfails so we notice when upstream behavior changes. Only set `EXPECTED_PASSING` after a clean pytest pass on TT-XLA, not based on CPU evidence alone.
 - When migrating a stale `NOT_SUPPORTED_SKIP` entry, edit it in place to the post-fix target status (`EXPECTED_PASSING` if pytest passes, `KNOWN_FAILURE_XFAIL` otherwise).
-- For pytest verification, use `--junitxml=<path>` and Read the XML — never `tail`/`less` console output. For the CPU triage script in Step 3, still dump to a file with `&>` and Read it. The "never tail/less" prohibition stands; the dump format differs by tool.
+- For pytest verification, use `--junitxml=<path>` and Read the XML — never `tail`/`less` console output. Also dump stdout/stderr with `&>` to a `.log` companion in the same `/tmp/verify_inputs_<model_dir>_<phase>.log` slot; Read it as a fallback only if the XML is missing/empty or its `error_message` is unhelpful. For the CPU triage script in Step 3, still dump to a file with `&>` and Read it. The "never tail/less" prohibition stands; the dump format differs by tool.
 - "Error code 13" is generic — always look further for the real `ValueError` / `AssertionError` / `AttributeError` / `RuntimeError` line.
 - Do not commit or push. Leave changes staged-but-uncommitted unless the user asks otherwise. `third_party/tt_forge_models` is a submodule with its own git tree — also do not commit there; let the user handle the submodule pointer bump.
