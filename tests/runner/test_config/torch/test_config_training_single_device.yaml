@@ -1568,22 +1568,22 @@ test_config:
     markers: [notimeout]
   allam/causal_lm/pytorch-7B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 33554432 B DRAM buffer across 8 banks, where each bank needs to store 4194304 B"
   arcee/text_generation/pytorch-arcee_Spark-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 8 banks, where each bank needs to store 16973824 B"
   attention_denseunet/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
   bevformer/pytorch-v2_R50_T1-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "AssertionError: Torch not compiled with CUDA enabled"
   bevformer/pytorch-v2_R50_T1_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   boltz2/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1595,19 +1595,19 @@ test_config:
   deepseek/deepseek_math/pytorch-7B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "AttributeError raised from transformers/tokenization_utils_base.py:__getattr__"
   deepseek/qwen/pytorch-R1_Distill_32B-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "Out of Memory: Not enough space to allocate 8589934592 B DRAM buffer across 8 banks, where each bank needs to store 1073741824 B, but bank size is 4273390016 B"
   dinov2/image_classification/pytorch-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   dinov2/image_classification/pytorch-Small-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   efficientdet/pytorch-D0-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1618,19 +1618,19 @@ test_config:
     reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   falcon/pytorch-3_10B_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 141557760 B DRAM buffer across 8 banks, where each bank needs to store 17694720 B"
   falcon/pytorch-3_7B_Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
   gemma/pytorch-2_27B_IT-single_device-training:
     status: NOT_SUPPORTED_SKIP
   gemma/pytorch-2_9B_IT-single_device-training:
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 102760448 B DRAM buffer across 8 banks, where each bank needs to store 12845056 B"
   gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   glm/causal_lm/pytorch-4.5_Air-single_device-training:
     status: NOT_SUPPORTED_SKIP
   gpt_neo/sequence_classification/pytorch-2_7B-single_device-training:
@@ -1644,7 +1644,7 @@ test_config:
   issac_groot/pytorch-Gr00t_N1.5_3B-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "RuntimeError: element 0 of tensors does not require grad and does not have a grad_fn"
   llama/causal_lm/pytorch-3.2_3B-single_device-training:
     status: NOT_SUPPORTED_SKIP
   llama/llama_3_2_vision/pytorch-3.2_11B_Vision_Instruct-single_device-training:
@@ -1656,8 +1656,8 @@ test_config:
     markers: [large, notimeout]
   llama/sequence_classification/pytorch-3.1_8B-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 33554432 B DRAM buffer across 8 banks, where each bank needs to store 4194304 B"
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1665,11 +1665,11 @@ test_config:
   minicpm_o_2_6/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "OSError: Could not load this library: venv/lib/python3.12/site-packages/torchaudio/lib/libtorchaudio.so"
   mistral/pixtral/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 146800640 B DRAM buffer across 8 banks, where each bank needs to store 18350080 B"
   mistral/pytorch-Ministral_8B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -1681,7 +1681,7 @@ test_config:
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   olmo3/causal_lm/pytorch-3_1025_7b-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
@@ -1693,11 +1693,11 @@ test_config:
   openvla_oft/pytorch-Finetuned_Libero_Goal-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   openvla_oft/pytorch-Finetuned_Libero_Object-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   panoptic_segmentation/pytorch-ResNet101_Backbone_3x_COCO-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1705,11 +1705,11 @@ test_config:
   petr/pytorch-Vovnet_Gridmask_P4_800x320-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "NameError: name 'Image' is not defined"
   phi2/token_classification/pytorch-Phi_2-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: INCORRECT_RESULT
+    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
   phi3/phi_3_5/pytorch-Mini_Instruct-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1720,8 +1720,8 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 52428800 B DRAM buffer"
   phi4/token_cls/pytorch-Phi_4-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 78643200 B DRAM buffer across 8 banks, where each bank needs to store 9830400 B"
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1730,12 +1730,12 @@ test_config:
     status: NOT_SUPPORTED_SKIP
   qwen_2_5/causal_lm/pytorch-7B_Instruct-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 8 banks, where each bank needs to store 16973824 B"
   qwen_2_5/causal_lm/pytorch-7B_Instruct_1M-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 135790592 B DRAM buffer across 8 banks, where each bank needs to store 16973824 B"
   qwen_2_5_coder/pytorch-7B-single_device-training:
     arch_overrides:
       n150:
@@ -1749,11 +1749,11 @@ test_config:
     status: NOT_SUPPORTED_SKIP
   qwen_3/causal_lm/pytorch-8B-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 100663296 B DRAM buffer across 8 banks, where each bank needs to store 12582912 B"
   qwen_3/causal_lm/pytorch-14B-single_device-training:
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 178257920 B DRAM buffer across 8 banks, where each bank needs to store 22282240 B"
   rt_detr/pytorch-R34vd-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1761,7 +1761,7 @@ test_config:
   rt_detr/pytorch-R50vd-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   seamless_m4t/pytorch-Large-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1797,7 +1797,7 @@ test_config:
   yolov7/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: function '_has_torch_function' already has a docstring"
+    reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   yolov7/pytorch-E6-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
