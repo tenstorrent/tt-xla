@@ -414,9 +414,12 @@ class TorchDynamicLoader(DynamicLoader):
             return self.loader.load_inputs_prefill(**kwargs)
 
         # Default path
+        kwargs = {}
         if "dtype_override" in sig.parameters:
-            return self.loader.load_inputs(dtype_override=torch.bfloat16)
-        return self.loader.load_inputs()
+            kwargs["dtype_override"] = torch.bfloat16
+        if "batch_size" in sig.parameters and batch_size is not None:
+            kwargs["batch_size"] = batch_size
+        return self.loader.load_inputs(**kwargs)
 
     def unpack_forward_output(self, output: Any) -> torch.Tensor:
         """Unpack model output to a single tensor.

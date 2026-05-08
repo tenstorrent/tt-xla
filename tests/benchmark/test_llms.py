@@ -53,6 +53,7 @@ def test_llm(
     arch=None,
     required_pcc=DEFAULT_REQUIRED_PCC,
     fp32_dest_acc_en=None,
+    experimental_kv_cache_dtype=None,
     num_layers=None,
     request=None,
     accuracy_testing: bool = False,
@@ -62,6 +63,8 @@ def test_llm(
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
     use_mla_cache: bool = False,
+    expected_ops: list = None,
+    check_fusions: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -110,6 +113,7 @@ def test_llm(
     task={task}
     experimental_weight_dtype={experimental_weight_dtype}
     experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
+    experimental_kv_cache_dtype={experimental_kv_cache_dtype}
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
@@ -147,6 +151,7 @@ def test_llm(
         arch=arch,
         required_pcc=required_pcc,
         fp32_dest_acc_en=fp32_dest_acc_en,
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
         accuracy_testing=accuracy_testing,
         model_name_for_accuracy=model_name_for_accuracy,
         hf_model_name_for_accuracy=hf_model_name,
@@ -156,6 +161,8 @@ def test_llm(
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
         use_mla_cache=use_mla_cache,
+        expected_ops=expected_ops,
+        check_fusions_enabled=check_fusions,
     )
 
     if output_file:
@@ -258,6 +265,7 @@ def test_llama_3_2_1b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -280,6 +288,11 @@ def test_llama_3_2_1b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            "ttnn.scaled_dot_product_attention",
+            "ttnn.rms_norm",
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1915,6 +1928,42 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         batch_size=128,
+        arch="wormhole_galaxy",
+        optimization_level=1,
+        mesh_config_fn=_galaxy_mesh_config_fn,
+        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", "model", None, None),
+        trace_enabled=True,
+    )
+
+
+def test_gpt_oss_120b_tp_galaxy_batch_size_64(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_120B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        batch_size=batch_size if batch_size is not None else 64,
         arch="wormhole_galaxy",
         optimization_level=1,
         mesh_config_fn=_galaxy_mesh_config_fn,

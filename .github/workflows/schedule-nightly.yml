@@ -88,7 +88,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       sh-runner: false
       skip-device-perf: true
-      perf_regression_check: true
+      regression_check: true
       adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
