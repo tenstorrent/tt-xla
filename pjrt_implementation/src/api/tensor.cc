@@ -140,8 +140,14 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
 // remove_shard().
 void PjrtTensor::move_to_host() noexcept {
   ZoneScoped;
-  TT_FATAL(m_runtime_tensor.has_value(),
-           "Cannot move shell-only PjrtTensor to host");
+  // TT_FATAL(m_runtime_tensor.has_value(),
+  //          "Cannot move shell-only PjrtTensor to host");
+
+  if (!m_runtime_tensor.has_value() && m_host_tensor_shell.has_value()) {
+    // A shell-only PJRT tensor is already on host.
+    return;
+  }
+
   std::vector<tt::runtime::Tensor> tensors =
       tt::runtime::toHost(*m_runtime_tensor, /*untilize=*/true);
 
