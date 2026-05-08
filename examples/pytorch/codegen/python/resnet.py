@@ -21,8 +21,8 @@ def main():
     model = ResNetForImageClassification.from_pretrained("microsoft/resnet-50")
     model.eval()
     x = torch.randn(1, 3, 224, 224)
-
-    codegen_py(model, x, export_path="resnet50_codegen")
+    with torch.inference_mode():
+        codegen_py(model, x, export_path="resnet50_codegen")
 
 
 def test_resnet_codegen():
