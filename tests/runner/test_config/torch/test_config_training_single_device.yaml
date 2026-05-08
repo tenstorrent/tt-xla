@@ -187,7 +187,7 @@ test_config:
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
-    reason: "TT_FATAL: Out of Memory: Not enough space to allocate 1145044992 B DRAM buffer across 12 banks"
+    reason: "Out of Memory: Not enough space to allocate 1145044992 B DRAM buffer across 12 banks, where each bank needs to store 95420416 B, but bank size is 1071821792 B (allocated: 1002613504 B, free: 69208288 B, largest free block: 68508128 B) (assert.hpp:104)"
   resnext/pytorch-101_64x4d-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
