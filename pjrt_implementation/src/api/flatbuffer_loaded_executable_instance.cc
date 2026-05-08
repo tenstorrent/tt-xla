@@ -74,8 +74,9 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
       const BufferInstance* buf = arg_buffers[i];
       log_stream << "[i=" << i;
       if (buf) {
+        const auto &shell = buf->getPjrtTensor()->host_tensor_shell();
         log_stream << " ptr=" << buf
-                   << " borrowed_host_base=" << buf->borrowedHostBasePointer()
+                   << " shell_host_buffer=" << (shell ? shell->host_buffer : nullptr)
                    << " shape=(";
         const std::string shape = buf->toShapeStr();
         log_stream << shape;
@@ -118,13 +119,13 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     if (buf == nullptr) {
       continue;
     }
-    const void *host_base = buf->borrowedHostBasePointer();
+    const auto &shell = buf->getPjrtTensor()->host_tensor_shell();
     // Skip buffers that already have a runtime tensor - they've already been
     // transferred in a previous execution. The shell metadata is discarded
     // after the first transfer since we no longer need to copy from the
     // client's host buffer.
-    if (host_base != nullptr && !buf->getPjrtTensor()->has_runtime_tensor()) {
-      borrowed_host_base_ptr_to_buffers[host_base].push_back(buf);
+    if (shell.has_value() && !buf->getPjrtTensor()->has_runtime_tensor()) {
+      borrowed_host_base_ptr_to_buffers[shell->host_buffer].push_back(buf);
     }
   }
 
