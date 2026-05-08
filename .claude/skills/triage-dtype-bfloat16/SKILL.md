@@ -37,7 +37,7 @@ Auto-detect both:
   - **Cross-dtype operands** → try a loader fix in Step 5, then act on the post-fix outcome.
   - **Op-not-implemented for BFloat16** → skip the loader-fix step entirely, go to Step 6.
 - **Loader-wide scope.** When one variant of a model fails on a fixed dtype-mismatch or op-not-implemented in shared loader code, every variant of that loader that exercises the same path fails identically. Loader fixes and YAML updates apply to every training entry sharing the affected loader, not only the one passed in. Variants whose loader path is the same but whose CPU bfloat16 phase actually passes are left untouched. Confirm per-variant before adding to the update set.
-- Test-runner gates on YAML status: only `NOT_SUPPORTED_SKIP` causes the runner to skip at collection time (`tests/runner/test_models.py:118`). `KNOWN_FAILURE_XFAIL` lets the test run and is treated as an xfail. `EXPECTED_PASSING` lets the test run and is required to pass. The runner unconditionally calls `pytest.xfail(reason)` at the end of any `KNOWN_FAILURE_XFAIL` test (`tests/runner/test_utils.py:748-749`), so pytest output alone cannot distinguish "still failing" from "now passing"; rely on Step 6 / Step 7 evidence (CPU outcome + recorded `bringup_status` in the JUnit properties or actual exception trace) to decide.
+- Test-runner gates on YAML status: `NOT_SUPPORTED_SKIP` entries are skipped at collection (`tests/runner/test_models.py:115-119`) and `KNOWN_FAILURE_XFAIL` entries are imperatively xfailed via `pytest.xfail(reason)` (`tests/runner/test_utils.py:750`). Verification uses `pytest --force-run --runxfail` to bypass both without editing the YAML: `--force-run` (`tests/runner/conftest.py:112-117`) makes `NOT_SUPPORTED_SKIP` entries run their body, `--runxfail` neutralizes the imperative xfail so the test reports its real outcome instead of XFAIL. Apply the YAML edit once, after observing the real outcome.
 - `third_party/tt_forge_models` is a git submodule with its own working tree. Loader edits land there. **Do not commit in the submodule.** Leave changes uncommitted so the user can review.
 
 ## Workflow
@@ -200,22 +200,30 @@ grep -nE "^  <model_dir>/pytorch.*-single_device-training:" tests/runner/test_co
 
 For loaders with multiple variants where some pass on TT (`status: EXPECTED_PASSING`) before the fix, do **not** assume those also failed on bfloat16. Re-run the CPU triage script for each candidate variant before adding it to the update set. After a successful loader fix, every previously-failing variant should now have CPU bfloat16 OK; if any still fails, do not include it in the update set and flag it for human review.
 
-### Step 7 — Update the YAML and verify
+### Step 7 — Verify with pytest, then update the YAML
 
-Open `tests/runner/test_config/torch/test_config_training_single_device.yaml`. The action depends on whether a loader fix was applied and what TT-XLA does with it.
+Do **not** pre-edit the YAML. Verification runs the tests with `--force-run --runxfail` so the current YAML status is bypassed without an intermediate flip:
 
-For each entry in the update set, run pytest **once** with the candidate YAML state, dump to a file, and Read it back. **No `less`. No `tail`.**
+- `--force-run` makes `NOT_SUPPORTED_SKIP` entries execute (`tests/runner/conftest.py:112-117`, `tests/runner/test_models.py:115-119`).
+- `--runxfail` makes the runner's imperative `pytest.xfail(reason)` (`tests/runner/test_utils.py:750`) report the real outcome instead of XFAIL — covers stale `KNOWN_FAILURE_XFAIL` entries.
+
+Use `--junitxml=<path>` to capture structured per-testcase outcomes — the runner records the detailed error (TT_FATAL / OOM / `error:` / `RuntimeError` lines) into `<property name="error_message" value="…"/>` via `record_property("error_message", …)` (`tests/runner/test_utils.py:737`), and pytest writes any failure traceback into `<failure message="…">`. The XML is the source of truth; also dump stdout/stderr to a `.log` companion in case the XML is ambiguous (e.g. only "Error code 13" with no `error_message`).
+
+Run the affected training tests in a single pytest invocation:
 
 ```bash
-timeout 1200 pytest -svv \
+timeout 1200 pytest --force-run --runxfail \
+  --junitxml=/tmp/verify_dtype_<model_dir>_bf16_training.xml \
   "tests/runner/test_models.py::test_all_models_torch[<entry1>-single_device-training]" \
   "tests/runner/test_models.py::test_all_models_torch[<entry2>-single_device-training]" \
   &> /tmp/verify_dtype_<model_dir>_bf16_training.log
 ```
 
+Read the XML with the Read tool. Use the `.log` companion only if the XML is missing detail. Then write the final YAML once per affected entry based on the JUnit outcome.
+
 #### Branch A — `flavor == "op_not_implemented"` OR (`flavor == "cross_dtype"` AND `loader_fix_attempted == False`)
 
-No loader change. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical bfloat16 reason from the table below. Verification: each entry runs, hits the CPU bfloat16 error before TT compilation, and is reported as `XFAIL`. Confirm the failure trace in the log contains the same `RuntimeError: …BFloat16…` captured in Step 4.
+No loader change. The pytest verification above confirms the entry still hits the same CPU bfloat16 error before TT compilation: with `--runxfail` the imperative xfail is neutralized, so the JUnit XML shows `<failure>` whose `error_message` matches the `RuntimeError: …BFloat16…` captured in Step 4. Then write the YAML once with the canonical bfloat16 reason from the table below:
 
 ```yaml
 <model_dir>/pytorch-<variant>-single_device-training:
@@ -226,18 +234,28 @@ No loader change. Set the YAML to `KNOWN_FAILURE_XFAIL` with the canonical bfloa
 
 #### Branch B — `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == True`
 
-Loader fix succeeded at the CPU level. Mirror the sibling `triage-unpack-forward-output` skill's "flip → run → write" pattern: set every entry in the update set to `EXPECTED_PASSING` (drop `bringup_status` and `reason`) so the runner doesn't skip them at collection (`tests/runner/test_models.py:118` gates on `NOT_SUPPORTED_SKIP`), run pytest once, then write the final YAML in a single pass based on the observed outcome — no placeholder writes.
+Loader fix succeeded at the CPU level. The pytest verification above runs against the existing YAML state (no flip needed, thanks to `--force-run --runxfail`); read the JUnit XML to decide the final YAML state per entry. For each `<testcase>`:
 
-```yaml
-<model_dir>/pytorch-<variant>-single_device-training:
-  status: EXPECTED_PASSING
-```
+- **No `<failure>` / `<error>` / `<skipped>` child** → test now passes on TT-XLA. Write:
 
-Then run pytest (the same command shown above) and Read the log. Decide per entry:
+  ```yaml
+  <model_dir>/pytorch-<variant>-single_device-training:
+    status: EXPECTED_PASSING
+  ```
 
-- **Pytest reports `1 passed`** (test passed on TT-XLA): leave the entry as `EXPECTED_PASSING`. `EXPECTED_PASSING` makes the test required to pass — only keep it after a clean pytest pass, not based on CPU evidence alone.
+  Drop `bringup_status` and `reason`. `EXPECTED_PASSING` is only set after a clean pytest pass, not based on CPU evidence alone.
 
-- **Pytest reports `1 xfailed`** with a *new, non-bfloat16* error in the trace (look for `RuntimeError`, `error:`, MLIR pass failures, etc.): the test now fails for an unrelated TT-XLA / TT-MLIR reason. Write the final YAML once with the new error verbatim:
+- **`<failure>` whose `error_message` is a PCC / atol / numerics divergence** (e.g. `PCC = …`, `atol`, `Tensor mismatch`): the test is functionally running, just inaccurate. Write:
+
+  ```yaml
+  <model_dir>/pytorch-<variant>-single_device-training:
+    status: EXPECTED_PASSING
+    assert_pcc: false
+  ```
+
+  Drop `bringup_status` and `reason`. The runner consumes `assert_pcc: false` (`tests/runner/test_utils.py:154,220-223`) to disable the PCC check; precedent: `qwen_1_5/causal_lm/pytorch-0.5B-single_device-training`.
+
+- **`<failure>` whose `error_message` is a *new, non-bfloat16* error** (`error:` / `RuntimeError` / `TT_FATAL` / MLIR pass failure, but **not** a PCC/numerics divergence): the test now fails for an unrelated TT-XLA / TT-MLIR reason. Write the final YAML with the new error verbatim:
 
   ```yaml
   <model_dir>/pytorch-<variant>-single_device-training:
@@ -246,9 +264,11 @@ Then run pytest (the same command shown above) and Read the log. Decide per entr
     reason: "<exact new error string>"
   ```
 
-  Pick the most signal-bearing error line — usually an MLIR `error:` line or a runtime `RuntimeError`. Skip noise like deprecation warnings and "Found an argument on non-XLA device".
+  Use the `error_message` property as the canonical one-liner. If it's missing or generic ("Error code 13"), fall back to the `.log`: `grep -nE "TT_FATAL|TT_THROW|error:|RuntimeError" /tmp/verify_dtype_<model_dir>_bf16_training.log` and use the first matching line. Skip noise like deprecation warnings and "Found an argument on non-XLA device".
 
-- **Pytest reports `1 xfailed`** *but* the trace still contains the original bfloat16 dtype-mismatch error: the loader fix passed CPU but something else (the runner re-creates inputs, or a buffer is constructed inside the model when not on CPU) reintroduces the float32 tensor. Revert the loader fix and the temporary `EXPECTED_PASSING` flip, fall back to Branch A. Note this in the final report — it's worth human review.
+- **`<failure>` whose `error_message` is still the original bfloat16 dtype-mismatch**: the loader fix passed CPU but something else (the runner re-creates inputs, or a buffer is constructed inside the model when not on CPU) reintroduces the float32 tensor. Revert the loader fix and fall back to Branch A. Flag for human review.
+
+- **`<skipped type="pytest.xfail" …/>` or `<skipped type="pytest.skip" …/>`** → unexpected with `--force-run --runxfail`; means a different skip path triggered. Flag for human review.
 
 #### Branch C — `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == False`
 
@@ -261,7 +281,7 @@ Loader fix is correct (it eliminated the dtype-mismatch) but a different CPU err
   reason: "<exact new CPU error string from Step 5>"
 ```
 
-Run pytest just to confirm the test still xfails (no `XPASS`).
+The pytest verification above (with `--force-run --runxfail`) confirms the entry actually fails — the JUnit XML must show `<failure>` whose `error_message` matches the new CPU error, not unexpected `<testcase>` with no children (which would mean an `XPASS` and require human review).
 
 #### `bringup_status` selection
 
@@ -269,6 +289,7 @@ Run pytest just to confirm the test still xfails (no `XPASS`).
 | --- | --- |
 | Default — frontend never compiles because the CPU forward/backward errors out first, OR TT-MLIR fails before/at compilation | `FAILED_FE_COMPILATION` |
 | Test reaches runtime/execution and fails there (rare for this skill, but possible after a loader fix) | `FAILED_RUNTIME` |
+| Numerics divergence (PCC / atol failure) after a loader fix | not a `bringup_status` — set `status: EXPECTED_PASSING` with `assert_pcc: false` instead |
 | Test now passes on TT-XLA | drop `bringup_status` (status: EXPECTED_PASSING is enough) |
 
 #### Canonical bfloat16 reason strings (Branch A)
@@ -314,7 +335,8 @@ Print a single concise summary to the user:
 - Do not edit `tests/runner/test_config/torch/test_config_inference_single_device.yaml`. If a loader fix may have impacted inference, flag the relevant inference entries in the final report for human review.
 - Loader-wide YAML update: every training entry pointing to the same loader file must be updated, not only the one passed in — but only after confirming per-variant CPU reproduction.
 - Reason string is verbatim. Match the canonical forms in the Step 7 table exactly for `op_not_implemented`. For new errors after a loader fix, copy the most signal-bearing error line verbatim; do not paraphrase.
-- Use `status: KNOWN_FAILURE_XFAIL` (not `NOT_SUPPORTED_SKIP`). Tests stay live as xfails so we notice when bfloat16 support arrives upstream. Only set `EXPECTED_PASSING` after a clean pytest pass on TT-XLA, not based on CPU evidence alone.
+- Use `status: KNOWN_FAILURE_XFAIL` (not `NOT_SUPPORTED_SKIP`). Tests stay live as xfails so we notice when bfloat16 support arrives upstream. Only set `EXPECTED_PASSING` after a clean pytest pass on TT-XLA, or after pytest reports a PCC-only divergence (in which case `status: EXPECTED_PASSING` with `assert_pcc: false`) — never based on CPU evidence alone.
+- Verification uses `pytest --force-run --runxfail --junitxml=<path>`. Do not pre-edit the YAML before pytest. Read the XML for outcomes; classify failures from the `<failure>` element and the `error_message` property.
 - When migrating a stale `NOT_SUPPORTED_SKIP` entry, edit it in place to the post-fix target status (`EXPECTED_PASSING` if pytest passes, `KNOWN_FAILURE_XFAIL` otherwise).
 - Never use `tail` or `less` on pytest output. Dump to a file with `&>`, then Read.
 - "Error code 13" is generic — always look further for the real `RuntimeError` line.
