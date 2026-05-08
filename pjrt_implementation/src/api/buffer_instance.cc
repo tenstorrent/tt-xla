@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstring>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -183,7 +184,7 @@ void BufferInstance::fireDoneWithHostBufferEvent() {
            "Expected done_with_host_buffer_event to be indestructible");
 
   // Same cleanup-on-callback hack used by deleteData(): the callback
-  // delete's the EventInstance after the framework callback chain runs
+  // deletes the EventInstance after the framework callback chain runs
   // on a separate thread (see comment in deleteData).
   m_done_with_host_buffer_event->onReady(
       [](PJRT_Error *error, void *user_arg) {
@@ -194,8 +195,8 @@ void BufferInstance::fireDoneWithHostBufferEvent() {
   EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
                                         tt_pjrt_status::kSuccess);
 
-  // Null out so that a later deleteData() call doesn't try to fire again
-  // (which would TT_FATAL on isReady()).
+  // Null out so a later deleteData() does not try to fire it again
+  // (which would assert on isReady()).
   m_done_with_host_buffer_event = nullptr;
 }
 
@@ -254,50 +255,6 @@ void BufferInstance::copyFromHost(
     // Memory is copied, we don't need host buffer anymore.
     EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                           tt_pjrt_status::kSuccess);
-
-    // DEBUG_HYBRID_LEAK ship-time migration:
-    // If env var TTPJRT_SHIP_TIME_MIGRATION=1 and the parent mesh is
-    // already open, migrate this newly-created host tensor to device
-    // DRAM right now. The original host runtime_tensor goes out of
-    // scope at the assignment, releasing per-shard host data via the
-    // RAII chain (TTNNTensorWrapper -> ttnn::Tensor ->
-    // OwnedStorage/HostBuffer -> MemoryPin -> shared_ptr<vector>).
-    //
-    // Mesh must already be open. The Python script can ensure this by
-    // running a tiny dummy execute right after make_mesh() and before
-    // any layer ship.
-    static const bool ship_time_migrate = []() {
-      const char *v = std::getenv("TTPJRT_SHIP_TIME_MIGRATION");
-      return v != nullptr && v[0] == '1';
-    }();
-    if (ship_time_migrate) {
-      ClientInstance *client =
-          GlobalClientInstanceSingleton::getClientInstance();
-      if (client != nullptr && client->parentMesh().has_value()) {
-        // Only safe for single-device meshes. For multi-device meshes,
-        // SPMD consolidation runs at execute time inside
-        // PjrtTensor::from_pjrt_buffers — consolidating N per-shard
-        // PjrtTensors into one multi-device tensor. Migrating an
-        // individual shard via to_device(&meshDevice) here pushes it
-        // onto the full mesh prematurely, which then breaks
-        // PjrtTensor::move_to_host's invariant
-        // (tensors.size() == m_shards.size() with m_shards.size()=1).
-        // For multi-device meshes the dummy-execute path (from
-        // run_hybrid.py) plus the compiler fix
-        // (enable_const_eval_inputs_to_system_memory=false) achieves
-        // the same per-layer host release.
-        std::vector<uint32_t> mesh_shape =
-            tt::runtime::getMeshShape(*client->parentMesh());
-        uint32_t mesh_devices = 1;
-        for (uint32_t d : mesh_shape) {
-          mesh_devices *= d;
-        }
-        if (mesh_devices == 1) {
-          runtime_tensor = tt::runtime::migrateHostTensorToDevice(
-              runtime_tensor, *client->parentMesh());
-        }
-      }
-    }
   }
   // Otherwise when input host buffer has other semantic we are allowed to alias
   // it, so we can create borrowed host which doesn't copy any data and instead
@@ -407,7 +364,19 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
-  TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
+
+  // In compile-only mode, output buffers have no associated tensor (no
+  // hardware to compute on). Zero-fill the host buffer and signal success.
+  if (!m_pjrt_tensor) {
+    TT_FATAL(m_device->getClient()->isCompileOnly(),
+             "Copy from buffer without an associated tensor.");
+    std::memset(host_buffer, 0, host_buffer_size);
+    std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    *out_copy_done_event = event.release();
+    return tt_pjrt_status::kSuccess;
+  }
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);

@@ -113,6 +113,21 @@ public:
   // Deletes the buffer data.
   void deleteData();
 
+  // Marks the host-buffer-done event ready, releasing the framework-side
+  // reference to the source host buffer.
+  //
+  // For host buffer semantics that require the plugin to keep the source
+  // alive until transfer completes (e.g. kImmutableUntilTransferCompletes),
+  // the on-done callback is registered at copyFromHost time but only fires
+  // when the BufferInstance is destroyed. Calling this method earlier --
+  // e.g. once the runtime has migrated the data to device and no longer
+  // needs the host source -- lets the framework release that source
+  // promptly instead of holding it for the BufferInstance's lifetime.
+  //
+  // Safe to call multiple times: no-op when the event is null
+  // (semantics that fire eagerly inside copyFromHost) or already ready.
+  void fireDoneWithHostBufferEvent();
+
   // This method should asynchronously copy data into device buffer from the
   // given host buffer. Currently our runtime expects all input buffers to be on
   // host and to be copied to device during execution, because it needs to read

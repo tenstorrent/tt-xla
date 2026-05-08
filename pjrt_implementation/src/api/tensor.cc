@@ -11,10 +11,6 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
-// DEBUG_HYBRID_LEAK headers (atomic/cstdio/cstdlib) — see streaming/DEBUG_HYBRID_NOTES.md
-#include <atomic>
-#include <cstdio>
-#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -53,21 +49,6 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
       shards, rt_tensor_from_strategy(shards, strategy, mesh_shape));
 }
 
-void PjrtTensor::force_migrate_to_device(const tt::runtime::Device &device) {
-  // STUB: requires `tt::runtime::isTensorOnHost` and
-  // `tt::runtime::migrateHostTensorToDevice` to be added to tt-mlir
-  // runtime's public API (and a corresponding ttnn-side impl using
-  // `ttnn::Tensor::to_device(meshDevice)`). Without those, plugin
-  // can't access ttnn::Tensor without bringing in detail headers
-  // and tt-metal's full include surface.
-  //
-  // Until tt-mlir is patched, this is a no-op so the plugin still
-  // builds and the rest of the experiment harness works.
-  // See streaming/DEBUG_HYBRID_NOTES.md for the analysis showing
-  // this would be the correct fix path.
-  (void)device;
-}
-
 // Creates new pjrt tensor for provided shards from an existing runtime tensor.
 PjrtTensor &
 PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
@@ -98,114 +79,23 @@ PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
 void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
                                const tt::runtime::Layout &layout) {
 
-  // DEBUG_HYBRID_LEAK: track ensure_layout calls.
-  //   TTPJRT_DEBUG_ENSURE_LAYOUT=1 → summary every 50 calls
-  //   TTPJRT_DEBUG_ENSURE_LAYOUT=2 → per-call detail (uid, volume,
-  //                                   shape, allocated, has_target_layout)
-  // See streaming/DEBUG_HYBRID_NOTES.md.
-  static const int debug_level = []() {
-    const char *v = std::getenv("TTPJRT_DEBUG_ENSURE_LAYOUT");
-    if (v == nullptr) return 0;
-    if (v[0] == '2') return 2;
-    if (v[0] == '1') return 1;
-    return 0;
-  }();
-  if (debug_level > 0) {
-    static std::atomic<uint64_t> call_count{0};
-    static std::atomic<uint64_t> early_return_count{0};
-    static std::atomic<uint64_t> migrated_volume{0};
-    uint64_t idx = call_count.fetch_add(1, std::memory_order_relaxed);
-    bool early = tt::runtime::hasLayout(m_runtime_tensor, layout);
-    uint32_t vol = tt::runtime::getTensorVolume(m_runtime_tensor);
-    if (early) {
-      early_return_count.fetch_add(1, std::memory_order_relaxed);
-    } else {
-      migrated_volume.fetch_add(vol, std::memory_order_relaxed);
-    }
-    if (debug_level >= 2) {
-      // Per-call detail line. Log: call_idx, pjrt_tensor_uid,
-      // n_shards, volume, hasLayout (early), isAllocated.
-      std::vector<std::uint32_t> shape =
-          tt::runtime::getTensorShape(m_runtime_tensor);
-      std::string shape_str = "[";
-      for (size_t i = 0; i < shape.size(); ++i) {
-        shape_str += std::to_string(shape[i]);
-        if (i + 1 < shape.size()) shape_str += ",";
-      }
-      shape_str += "]";
-      bool allocated = tt::runtime::isTensorAllocated(m_runtime_tensor);
-      std::fprintf(stderr,
-                   "[ensure_layout #%lu uid=%lu shards=%zu vol=%u "
-                   "shape=%s allocated=%d early=%d]\n",
-                   idx, m_uid, m_shards.size(), vol, shape_str.c_str(),
-                   allocated ? 1 : 0, early ? 1 : 0);
-    } else if ((idx % 50) == 49) {
-      std::fprintf(stderr,
-                   "[ensure_layout DEBUG] total_calls=%lu early=%lu "
-                   "migrated_volume=%lu\n",
-                   call_count.load(std::memory_order_relaxed),
-                   early_return_count.load(std::memory_order_relaxed),
-                   migrated_volume.load(std::memory_order_relaxed));
-    }
-  }
-
-  // DEBUG_HYBRID_LEAK Exp F: optionally bypass the hasLayout early
-  // return when env var TTPJRT_FORCE_RELAYOUT=1. Reason: when shards
-  // are first consolidated by from_pjrt_buffers, the multi-device
-  // PjrtTensor's m_runtime_tensor wraps a DistributedHostBuffer that
-  // co-owns shared_ptr<vector> with the (now-dead) per-shard tensors.
-  // If hasLayout returns true, we never reassign m_runtime_tensor and
-  // the host data is held forever via distributed_host_buffer. By
-  // always calling toLayout we force the OLD wrapper to be destructed
-  // at the assignment, releasing distributed_host_buffer.
-  // Risk: toLayout for already-correct-layout may create a copy of
-  // the data, defeating the purpose. To be tested empirically.
-  static const bool force_relayout = []() {
-    const char *v = std::getenv("TTPJRT_FORCE_RELAYOUT");
-    return v != nullptr && v[0] == '1';
-  }();
-  // DEBUG_HYBRID_LEAK: when set, skip migration if current tensor is
-  // already device-resident. Used to prevent the back-migration
-  // (device→host) that would otherwise undo a force_migrate_to_device
-  // call for inputs whose executable-expected layout is HOST.
-  static const bool block_device_to_host = []() {
-    const char *v = std::getenv("TTPJRT_NO_DEVICE_TO_HOST_MIGRATION");
-    return v != nullptr && v[0] == '1';
-  }();
-  // NOTE: TTPJRT_NO_DEVICE_TO_HOST_MIGRATION currently has no effect
-  // because `tt::runtime::isTensorOnHost` doesn't exist as a public
-  // API yet. Disabling this branch until the API is added.
-  (void)block_device_to_host;
-  if (!force_relayout && tt::runtime::hasLayout(m_runtime_tensor, layout))
+  if (tt::runtime::hasLayout(m_runtime_tensor, layout))
     return;
 
-  // DEBUG_HYBRID_LEAK: experimental host-release patch.
-  // Force toLayout to deallocate the host source after the host->device
-  // migration: pass retain=false so the input tensor's deallocateTensor
-  // path runs (see tt-mlir runtime/lib/ttnn/runtime.cpp toLayout).
-  // Without this the plugin-owned host copy created by
-  // createOwnedHostTensor (BufferInstance::copyFromHostBuffer) leaks for
-  // the lifetime of the BufferInstance — host RAM scales with the number
-  // of shipped parameters in streaming-style loads where BufferInstances
-  // are kept alive across executes (e.g. streaming/run_hybrid.py).
-  // Re-retain the resulting device tensor so downstream plugin code
-  // paths see the same retain=true semantics established by
-  // PjrtTensor::from_runtime_tensor.
-  m_runtime_tensor = tt::runtime::toLayout(m_runtime_tensor, device, layout,
-                                           /*retain=*/false);
-  tt::runtime::setTensorRetain(m_runtime_tensor, true);
+  const bool retain = tt::runtime::getTensorRetain(m_runtime_tensor);
+  m_runtime_tensor =
+      tt::runtime::toLayout(m_runtime_tensor, device, layout, retain);
 
-  // STREAM_HYBRID_LEAK_FIX (vanilla torch-xla support): toLayout above
-  // migrated host→device with retain=false on the source, so the
-  // OLD wrapper (and plugin's borrowed reference) destructed. But on
-  // the vanilla path the FRAMEWORK still holds the source at::Tensor
-  // alive via the on_done callback registered during copyFromHost
-  // (kImmutableUntilTransferCompletes semantics). Fire the event now
-  // so the framework drops its at::Tensor reference and the per-shard
-  // host RAM is freed at this point rather than at BufferInstance
-  // teardown (= model end).
-  // No-op for kImmutableOnlyDuringCall path (event already fired in
-  // copyFromHost) and for output-buffer instances (no event set).
+  // Only signal release when toLayout actually produced the requested
+  // layout; otherwise keep the source alive until BufferInstance teardown.
+  if (!tt::runtime::hasLayout(m_runtime_tensor, layout)) {
+    return;
+  }
+
+  // Notify each shard so the host-buffer-done event fires now and the
+  // framework releases its source reference, instead of holding it for
+  // the BufferInstance's full lifetime. No-op when the event was already
+  // fired or never set.
   for (BufferInstance *shard : m_shards) {
     if (shard != nullptr) {
       shard->fireDoneWithHostBufferEvent();
