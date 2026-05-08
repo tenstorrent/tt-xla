@@ -91,8 +91,6 @@ def construct_inputs(
     input_prompt: str = None,
     input_prompt_tokens: Optional[torch.Tensor] = None,
     use_mla_cache: bool = False,
-    model: torch.nn.Module = None,
-    use_indexer_cache: bool = False,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -105,8 +103,6 @@ def construct_inputs(
         input_prompt: Input text prompt (optional, defaults to DEFAULT_INPUT_PROMPT)
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
         use_mla_cache: Whether to use MLA cache
-        model: Model instance (used for indexer cache initialization)
-        use_indexer_cache: Whether to use indexer cache (needs to be initialized before model.to(device))
 
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
@@ -162,18 +158,6 @@ def construct_inputs(
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
     cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
-
-    # Initialize indexer cache before model.to(device) so it's not compiled as a separate XLA
-    # graph. Models using this cache are expected to handle stale values since we cannot reset
-    # the indexer key cache once the model is transferred to device.
-    if use_indexer_cache:
-        init_indexer_cache(
-            model,
-            batch_size=batch_size,
-            max_cache_len=max_cache_len,
-            device="cpu",
-            dtype=torch.bfloat16,
-        )
 
     input_args = {
         "input_ids": input_ids,
@@ -394,9 +378,19 @@ def benchmark_llm_torch_xla(
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
-        model=model,  # used for indexer cache initialization
-        use_indexer_cache=use_indexer_cache,
     )
+
+    # Initialize indexer cache if enabled (needs to be done before model.to(device))
+    # Models using this cache are expected to handle stale values since it cannot be
+    # reset once the model is transferred to device.
+    if use_indexer_cache:
+        init_indexer_cache(
+            model,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
 
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:

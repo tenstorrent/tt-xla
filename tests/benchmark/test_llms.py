@@ -2075,6 +2075,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
     )
 
 
+# This test only runs 2 layers so we expect to see incoherent output
 def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     output_file,
     num_layers,
