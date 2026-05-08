@@ -126,27 +126,6 @@ size_t BufferInstance::logicalTensorSize() const {
                          });
 }
 
-bool BufferInstance::aliasesSameBorrowedHostBase(
-    const BufferInstance &other) const {
-  const void *a = m_borrowed_host_base_ptr;
-  const void *b = other.m_borrowed_host_base_ptr;
-  return a != nullptr && a == b;
-}
-
-bool BufferInstance::borrowedHostByteRangesOverlap(const BufferInstance &a,
-                                                   const BufferInstance &b) {
-  const void *pa = a.m_borrowed_host_base_ptr;
-  const void *pb = b.m_borrowed_host_base_ptr;
-  if (pa == nullptr || pb == nullptr) {
-    return false;
-  }
-  const auto *ba = static_cast<const std::byte *>(pa);
-  const auto *bb = static_cast<const std::byte *>(pb);
-  const size_t sa = a.logicalTensorSize();
-  const size_t sb = b.logicalTensorSize();
-  return ba < bb + sb && bb < ba + sa;
-}
-
 std::string BufferInstance::toShapeStr() const {
   return tt::pjrt::utils::to_string(m_dimensions);
 }
