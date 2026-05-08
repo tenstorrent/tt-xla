@@ -186,7 +186,6 @@ void BufferInstance::copyFromHost(
       data_type_utils::getPJRTBufferTypeString(data_type));
 
   m_pjrt_tensor.reset();
-  m_borrowed_host_base_ptr = nullptr;
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -222,8 +221,6 @@ void BufferInstance::copyFromHost(
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
-    m_borrowed_host_base_ptr = host_buffer;
-
     host_tensor_shell = PjrtTensor::HostTensorShell{
         host_buffer, shape, strides, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
@@ -244,8 +241,6 @@ void BufferInstance::copyFromHost(
         runtime_data_type);
     host_tensor_shell = PjrtTensor::HostTensorShell{
         host_buffer, shape, strides, element_size, runtime_data_type};
-
-    m_borrowed_host_base_ptr = host_buffer;
 
     // Memory is aliased, we need to hold on to host buffer until this buffer is
     // deleted.
@@ -270,8 +265,6 @@ void BufferInstance::copyFromHost(
 void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   DLOG_F(LOG_DEBUG, "BufferInstance::copyFromBuffer");
   TT_FATAL(src_buffer->getPjrtTensor(), "Source buffer has no data.");
-
-  m_borrowed_host_base_ptr = nullptr;
 
   ::tt::target::DataType runtime_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(
