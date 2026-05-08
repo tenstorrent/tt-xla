@@ -548,7 +548,7 @@
       },
       {
         "name": "vllm_llama_3_2_3b",
-        "pyreq": "loguru pytest torch==2.10.0 transformers==4.57.6 vllm==0.19.0",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
         "vllm": true,
         "skip-stablehlo-dump": true,
@@ -559,7 +559,7 @@
       },
       {
         "name": "vllm_llama_3_2_3b_batch32",
-        "pyreq": "loguru pytest torch==2.10.0 transformers==4.57.6 vllm==0.19.0",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b-batch32]",
         "vllm": true,
         "skip-stablehlo-dump": true,

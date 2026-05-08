@@ -31,7 +31,6 @@ def test_tensor_parallel_n300(
     """
     Test tensor parallel inference with vLLM for embedding models on N300.
     """
-
     pytest.xfail(
         "This test is failing with bad PCC. Issue: https://github.com/tenstorrent/tt-xla/issues/4589"
     )
