@@ -119,11 +119,72 @@ Available `ttnn.FabricConfig` values: `CUSTOM, DISABLED, FABRIC_1D, FABRIC_1D_NE
 
 ---
 
+## Bug 3 — `weight_dtype_overrides` (`apply_weight_dtype_overrides`) silently dropped during codegen — emitted artifact OOMs at runtime
+
+**Symptom:**
+
+Codegen of a full-size GPT-OSS 120B (`pytest test_gpt_oss_120b_tp_galaxy_batch_size_64 --accuracy-testing` with `CODEGEN_EXPORT_PATH=…` and `weight_dtype_overrides={…experts.{gate_up,down}_proj: bfp_bf4, router: bfp_bf4}`) succeeds and writes ~872 GB across 4 graphs (218 GB / graph, 11h 48m wall). When the emitted code is executed (via the standalone `bash run` script or the in-process harness), `_main` fails with:
+
+```
+TT_FATAL: Out of Memory: Not enough space to allocate 377487360 B DRAM buffer
+across 12 banks, where each bank needs to store 31457280 B, but bank size is
+1071821792 B (allocated: 1017920704 B, free: 53901088 B,
+largest free block: 31453440 B)
+```
+
+**Root cause:**
+
+The same test on the same hardware **runs successfully without codegen mode** at `TOP1=81.25% / TOP5=95.31%` (37 min wall, decode 568 ms — confirmed iter-0 baseline). So the model does fit on Galaxy 4×8 with the user's specified weight dtype overrides applied. The OOM is specific to executing the codegen-emitted artifact.
+
+Inspection of the emitted artifact:
+
+```bash
+$ ls -l <export_path>/graph_2/tensors/*.tensorbin | awk '{print $5}' | sort -n | uniq -c | sort -rn | head -10
+    109 8688
+     72 8391552
+     72 740216
+     72 3952
+     72 2952056
+     72 23595896
+     37 11120
+     36 4246735736   # <-- 4.0 GB each, exactly 36 of them = one per layer
+     36 3184
+     36 3056
+```
+
+36 weight tensors at full 4.0 GB each (one per transformer layer × 36 layers). Per the test's `weight_dtype_overrides`, these should be `bfp_bf4` (~1.0 GB each = 36 GB total). At full bf16 they're 144 GB total — ~4× the intended footprint. The aggregate memory pressure pushes per-device DRAM banks past their 1.07 GB budget, hence OOM.
+
+```bash
+$ grep -nE "bfp_bf4|bfp_bf8|weight_dtype_override|to_dtype" <export_path>/graph_2/main.py | wc -l
+0
+```
+
+The emitted `main.py` contains zero references to `to_dtype`, `weight_dtype_override`, or any of the bfp string aliases. The dtype conversion that `apply_weight_dtype_overrides` (`python_package/tt_torch/weight_dtype.py`) is supposed to inject via `torch.nn.utils.parametrize.register_parametrization(module, "weight", WeightDtypeParametrization(dtype_str))` is **not being traced into the codegen-emitted graph**. The parametrization calls `torch.ops.tt.weight_dtype_override(weight, dtype_str)` on every `module.weight` access; that custom op should appear in the StableHLO graph and be lowered through TTIR / TTNN to the equivalent of a `from_device + to_dtype + to_device` chain (per `HOST_BFP_PACKING_VALIDATION_NOTES.md`'s account of the `dgolubovic/host-bfp-packing` work).
+
+For codegen, either:
+- The parametrization is being silently dropped before the StableHLO frontend pass, OR
+- The `to_dtype` chain IS in TTIR/TTNN MLIR but the codegen emitter isn't writing it to the Python output, OR
+- The emitter is bypassing the parametrized weight access and reading the underlying bf16 parameter directly when constructing the `.tensorbin` snapshots.
+
+The third hypothesis matches the symptom most cleanly: tensorbins contain the underlying-storage bf16 bytes, and the emitted Python TTNN doesn't have the `to_dtype` ops that production runtime applies.
+
+**Suggested fix (pick one):**
+
+1. **Trace through the parametrization at codegen time.** Audit the StableHLO/TTIR lowering for `torch.ops.tt.weight_dtype_override`. If the op disappears, fix the lowering to preserve it. If it's preserved, fix the codegen Python emitter to render the corresponding `ttnn.to_dtype(...)` call at the appropriate point in `main.py`.
+2. **Pre-quantize tensorbins.** Run `apply_weight_dtype_overrides` and *materialize* the result before writing tensorbins. The emitted code stays simple (no `to_dtype` ops needed); the on-disk weights are correct. Loses runtime-flexibility of swapping dtypes per-inference, but matches the autoresearch loop's intent (we only ever want one dtype per emit).
+3. **Document the limitation and fail loudly.** If `weight_dtype_overrides` is used, refuse to write tensorbins until the parametrization is correctly traced, with an actionable error message instead of producing a silently-broken artifact.
+
+**Workaround used in this loop:** none — the full-120B codegen artifact is **unusable for the autoresearch loop** until this is fixed. Falling back to the 1-layer artifact (33 GB) for loop mechanism validation. Real per-op MP knob research on full GPT-OSS 120B waits on a fix here.
+
+---
+
 ## Severity assessment for our autoresearch loop
 
-Neither bug blocks the loop. Bug 1 cost us one ~26-min round trip to discover (we then switched to `dry_run=True`). Bug 2 cost ~84 s for the failed standalone run plus ~1 min to identify and patch. Both workarounds are stable.
+- **Bug 1** cost ~26 min (one full codegen round trip) to discover; switching to `dry_run=True` is a stable workaround.
+- **Bug 2** cost ~84 s for the failed standalone run plus ~1 min to identify and patch (`sed` `FABRIC_1D` → `FABRIC_1D_RING`); stable workaround.
+- **Bug 3 is a showstopper** for the loop on full GPT-OSS 120B. Burned ~12 h of Galaxy hardware time on the codegen, then ~3 min on the failed harness execution, with no usable artifact at the end. Until the dtype-override path is fixed, real-model autoresearch on this branch can't proceed beyond the 1-layer mechanism validation.
 
-For a tt-xla user running `codegen_py` for the first time on any sharded multi-chip model, both are likely to surface — Bug 2 in particular hits the very first attempt to run the emitted artifact. Worth fixing both before the codegen path is recommended for production use.
+For a tt-xla user running `codegen_py` for the first time on any sharded multi-chip model, all three are likely to surface in this order — Bug 2 hits the first attempt to run; Bug 1 hits the first attempt to use `dry_run=False`; Bug 3 hits the first attempt to use `weight_dtype_overrides` at any non-trivial scale. Worth fixing all three before the codegen path is recommended for production use.
 
 ---
 
