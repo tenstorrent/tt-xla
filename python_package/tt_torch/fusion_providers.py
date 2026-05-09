@@ -302,6 +302,275 @@ class ResidualRMSNormFusionProvider(FusionProvider):
         return replaced
 
 
+class SwiGLUFusionProvider(FusionProvider):
+    """Fold the slice→silu→slice→mul SwiGLU pattern into a single
+    ``_torch_swiglu(x, dim)`` marker call.
+
+    Pattern (along ``dim`` = ``-1``):
+
+        half = x.shape[-1] // 2
+        gate = x[..., :half]
+        up   = x[..., half:]
+        return F.silu(gate) * up
+
+    handle_composite_ops then swaps ``_torch_swiglu`` for the
+    composite-emitting wrapper, producing a ``tenstorrent.swiglu`` StableHLO
+    composite carrying ``dim`` as an attribute. tt-mlir's
+    StableHLOLegalizeCompositePass collapses that into a single
+    ttir.gated_activation op (activation = ``swiglu``).
+
+    **Why we walk the graph manually instead of using
+    `subgraph_rewriter.replace_pattern_with_filters`.** Two reasons:
+
+    1. Dynamo and symbolic_trace disagree on the trace of the slice. Dynamo
+       lowers ``x[..., :half]`` to ``aten.slice``-style call_functions;
+       symbolic_trace produces ``operator.getitem`` with a tuple
+       ``(Ellipsis, slice(...))`` argument. ``narrow`` is yet a third form
+       (``call_method[narrow]``). A single template-based pattern can't
+       cover all three; per LANDING_A_FUSION.md we'd need at least one
+       pattern per surface form, and SubgraphMatcher is sensitive to
+       positional-vs-kwargs and node-kind structural differences.
+
+    2. The mul operand order isn't fixed. Both ``silu(gate) * up`` and
+       ``up * silu(gate)`` are valid SwiGLU spellings; we want to match
+       both. Walking manually lets us check both operand positions in one
+       place.
+
+    Default-disabled; gated through the early ``QuetzalRewrite`` hook (it
+    runs BEFORE ``run_fusion_passes``, but for SwiGLU there's no upstream
+    provider whose output we depend on, so either hook works in principle —
+    we use the early hook since it pairs naturally with ``fuse_gelu`` and
+    ``reconstruct_sdpa`` which are also slice/elementwise rewrites).
+
+    For now this provider scopes to SiLU (SwiGLU) only. The sibling
+    variants (GLU/GeGLU/ReGLU) reuse the same composite plumbing —
+    ``_torch_glu`` / ``_torch_geglu`` / ``_torch_reglu`` markers are
+    registered in composite_ops.replacements — but discovery providers are
+    a TODO unless model evidence motivates them.
+    """
+
+    default_enabled = False
+
+    @property
+    def name(self) -> str:
+        return "fuse_swiglu"
+
+    @staticmethod
+    def pattern(*args, **kwargs):
+        # Unused — base class abstract method shim. We override replace_pattern.
+        raise NotImplementedError
+
+    @staticmethod
+    def replacement(*args, **kwargs):
+        raise NotImplementedError
+
+    @staticmethod
+    def _is_mul(node: torch.fx.Node) -> bool:
+        """True if node is an elementwise mul (function or method form)."""
+        import operator as _op
+
+        if node.op == "call_function" and node.target is _op.mul:
+            return True
+        if node.op == "call_method" and node.target == "mul":
+            return True
+        return False
+
+    @staticmethod
+    def _is_silu(node: torch.fx.Node) -> bool:
+        """True if node is an F.silu call (function form). silu has no
+        common method spelling on Tensor, so we only check call_function."""
+        if node.op == "call_function" and node.target is torch.nn.functional.silu:
+            return True
+        return False
+
+    @staticmethod
+    def _slice_descriptor(node: torch.fx.Node):
+        """If ``node`` is a half-slice of a tensor along some dim, return
+        ``(source, start, length, dim, kind)``. Otherwise return ``None``.
+
+        ``start`` and ``length`` may be Python ints OR FX Nodes — symbolic
+        shapes (``half = x.shape[-1] // 2``) trace through as call_function
+        ``operator.floordiv`` nodes that get plumbed into ``narrow`` /
+        ``slice`` arguments. We deliberately preserve those node references
+        so the caller can compare the gate-half and up-half by identity
+        without trying to constant-fold.
+
+        ``kind`` is ``"first"`` (start is a literal 0; length is the
+        half-symbol) or ``"second"`` (start is the half-symbol; length is
+        the half-symbol or absent).
+
+        Recognized surface forms:
+
+        * ``x.narrow(dim, start, length)`` — call_method[narrow] (the form
+          ``torch.fx.symbolic_trace`` produces for ``Tensor.narrow``).
+          We tolerate length being either an int or an FX node.
+        * ``x[..., start:stop]`` — call_function[operator.getitem] with a
+          tuple key whose last entry is a ``slice``. The slice's
+          ``start``/``stop`` may be FX nodes (the symbolic half).
+        """
+        import operator as _op
+
+        # narrow form: x.narrow(dim, start, length).
+        is_method_narrow = node.op == "call_method" and node.target == "narrow"
+        is_func_narrow = (
+            node.op == "call_function"
+            and getattr(node.target, "__name__", None) == "narrow"
+        )
+        if is_method_narrow or is_func_narrow:
+            if len(node.args) != 4:
+                return None
+            source, dim_arg, start_arg, length_arg = node.args
+            if not isinstance(source, torch.fx.Node):
+                return None
+            if not isinstance(dim_arg, int):
+                return None
+            # gate: start == int 0, length is the half symbol (int OR Node).
+            # up: start is the half symbol, length is also the half symbol.
+            if isinstance(start_arg, int) and start_arg == 0:
+                # First-half candidate. length_arg is the half symbol.
+                return (source, 0, length_arg, dim_arg, "first")
+            if isinstance(start_arg, torch.fx.Node) or isinstance(start_arg, int):
+                # Second-half candidate. start_arg is the half symbol; we
+                # carry length_arg (also the half symbol) so the caller can
+                # confirm gate.length == up.length.
+                return (source, start_arg, length_arg, dim_arg, "second")
+            return None
+
+        # getitem form: x[..., :half] or x[..., half:].
+        if node.op == "call_function" and node.target is _op.getitem:
+            if len(node.args) != 2:
+                return None
+            source, key = node.args
+            if not isinstance(source, torch.fx.Node):
+                return None
+            if not isinstance(key, tuple) or len(key) == 0:
+                return None
+            last = key[-1]
+            if not isinstance(last, slice):
+                return None
+            if last.step not in (None, 1):
+                return None
+            # Confirm leading entries are Ellipsis or full slice(None) — we
+            # only support slicing the trailing dim.
+            for entry in key[:-1]:
+                if entry is Ellipsis:
+                    continue
+                if isinstance(entry, slice) and entry == slice(None):
+                    continue
+                return None
+            # First-half: start is None (interpreted as 0); stop is the half symbol.
+            # Second-half: start is the half symbol; stop is None.
+            if last.start is None and last.stop is not None:
+                return (source, 0, last.stop, -1, "first")
+            if last.start is not None and last.stop is None:
+                # length is implicit (until end of dim) — we don't have a
+                # symbol for it. Mark it absent (None) so the matcher can
+                # match against the gate's length symbol but not require it.
+                return (source, last.start, None, -1, "second")
+            return None
+
+        return None
+
+    def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
+        """Walk the FX graph; for each elementwise ``mul`` whose two inputs
+        are ``silu(slice_a(x))`` and ``slice_b(x)`` from the SAME source
+        tensor, with ``slice_a`` covering the first half and ``slice_b``
+        the second half along the same dim, rewrite to a single
+        ``_torch_swiglu(x, dim=...)`` marker call.
+
+        Both operand orders (``silu(gate) * up`` and ``up * silu(gate)``)
+        are accepted. The leftover slice/silu nodes are erased only if
+        they have no other users — be conservative, since SwiGLU's halves
+        are produced by the same upstream tensor and we don't want to
+        accidentally orphan a downstream use.
+        """
+        from tt_torch.composite_ops import _torch_swiglu
+
+        replaced = 0
+        for node in list(gm.graph.nodes):
+            if not self._is_mul(node):
+                continue
+            # Pull the two operands. call_method mul has args = (self, other);
+            # call_function operator.mul has args = (lhs, rhs). Either way
+            # the first two args are the operands.
+            if len(node.args) < 2:
+                continue
+            lhs, rhs = node.args[0], node.args[1]
+            if not (isinstance(lhs, torch.fx.Node) and isinstance(rhs, torch.fx.Node)):
+                continue
+
+            # Try both orderings: (silu_side, up_side) ∈ {(lhs,rhs), (rhs,lhs)}.
+            for silu_side, up_side in ((lhs, rhs), (rhs, lhs)):
+                if not self._is_silu(silu_side):
+                    continue
+                if not silu_side.args:
+                    continue
+                gate_slice_node = silu_side.args[0]
+                if not isinstance(gate_slice_node, torch.fx.Node):
+                    continue
+                gate_desc = self._slice_descriptor(gate_slice_node)
+                up_desc = self._slice_descriptor(up_side)
+                if gate_desc is None or up_desc is None:
+                    continue
+                gate_src, gate_start, gate_length, gate_dim, gate_kind = gate_desc
+                up_src, up_start, up_length, up_dim, up_kind = up_desc
+                if gate_src is not up_src:
+                    continue
+                if gate_dim != up_dim:
+                    continue
+                # gate must be the FIRST half (start == 0), up must be the
+                # SECOND half (start == half-symbol). Both halves must
+                # reference the SAME half-symbol — comparing by Python `is`
+                # / `==` on FX Nodes (identity) catches the case where
+                # `narrow(x, dim, 0, H)` and `narrow(x, dim, H, H)` use the
+                # same `floordiv` node for ``H``.
+                if gate_kind != "first" or up_kind != "second":
+                    continue
+                if gate_start != 0:
+                    continue
+                # gate_length is the half symbol (int or FX Node).
+                # up_start must equal it.
+                if gate_length is None:
+                    continue
+                if up_start is not gate_length and up_start != gate_length:
+                    continue
+                # up_length, if present, must also equal the half symbol
+                # (the narrow form provides it; the getitem ``x[..., H:]``
+                # form leaves it as None and that's fine — slicing to
+                # end-of-dim is consistent with SwiGLU).
+                if up_length is not None and up_length is not gate_length and (
+                    up_length != gate_length
+                ):
+                    continue
+
+                # Rewrite the mul node into a _torch_swiglu(source, dim) call.
+                with gm.graph.inserting_before(node):
+                    new_node = gm.graph.call_function(
+                        _torch_swiglu,
+                        args=(gate_src,),
+                        kwargs={"dim": gate_dim},
+                    )
+                node.replace_all_uses_with(new_node)
+                gm.graph.erase_node(node)
+                # Try to clean up the silu + slice nodes if they're now
+                # orphaned. Don't force-erase; another consumer may exist.
+                for orphan in (silu_side, gate_slice_node, up_side):
+                    if isinstance(orphan, torch.fx.Node) and len(orphan.users) == 0:
+                        try:
+                            gm.graph.erase_node(orphan)
+                        except RuntimeError:
+                            # Node still has users despite the count check —
+                            # fine, leave it for DCE.
+                            pass
+                replaced += 1
+                break  # done with this mul node
+
+        if replaced:
+            gm.graph.lint()
+            gm.recompile()
+        return replaced
+
+
 class QuetzalFuseGELUProvider(FusionProvider):
     """Collapse tanh-GELU decompositions back to torch.nn.functional.gelu."""
 

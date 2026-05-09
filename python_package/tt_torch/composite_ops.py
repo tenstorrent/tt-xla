@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union
 
 import torch
 from torch import Tensor
@@ -94,6 +94,65 @@ def composite_rms_norm(
     output = builder.mark_outputs(output)
 
     return output
+
+
+def _gated_activation_composite(
+    name: str,
+    activation_fn: Callable[[Tensor], Tensor],
+    input: Tensor,
+    dim: int,
+) -> Tensor:
+    """Shared body for the 4 gated-activation composites (SwiGLU/GLU/GeGLU/ReGLU).
+
+    All 4 variants share the structure ``activation(input[:H]) * input[H:]``
+    along ``dim``, differing only in the activation function. We emit one
+    composite per variant with a stable Tenstorrent name so tt-mlir's
+    StableHLOLegalizeCompositePass can collapse it back into a single
+    ttir.gated_activation op (with the activation kind stored as an attr).
+
+    The ``dim`` is carried as a composite attribute so the legalize pass can
+    materialize the slice axis without re-deriving from the StableHLO
+    ``slice`` operands.
+    """
+    builder = StableHLOCompositeBuilder(name=name, attr={"dim": dim})
+
+    input = builder.mark_inputs(input)
+    half = input.shape[dim] // 2
+    out = activation_fn(input.narrow(dim, 0, half)) * input.narrow(dim, half, half)
+    return builder.mark_outputs(out)
+
+
+def composite_swiglu(input: Tensor, dim: int = -1) -> Tensor:
+    """SwiGLU gated activation: ``SiLU(input[:H]) * input[H:]`` along ``dim``.
+
+    Wraps the decomposed PyTorch impl with StableHLOCompositeBuilder so
+    tt-mlir's StableHLOLegalizeCompositePass can collapse it back into
+    a single ttir.gated_activation op with activation kind ``swiglu``.
+    """
+    return _gated_activation_composite(
+        "tenstorrent.swiglu", torch.nn.functional.silu, input, dim
+    )
+
+
+def composite_glu(input: Tensor, dim: int = -1) -> Tensor:
+    """GLU gated activation: ``Sigmoid(input[:H]) * input[H:]`` along ``dim``."""
+    return _gated_activation_composite(
+        "tenstorrent.glu", torch.sigmoid, input, dim
+    )
+
+
+def composite_geglu(input: Tensor, dim: int = -1) -> Tensor:
+    """GeGLU gated activation: ``GELU(input[:H]) * input[H:]`` along ``dim``."""
+    return _gated_activation_composite(
+        "tenstorrent.geglu", torch.nn.functional.gelu, input, dim
+    )
+
+
+def composite_reglu(input: Tensor, dim: int = -1) -> Tensor:
+    """ReGLU gated activation: ``ReLU(input[:H]) * input[H:]`` along ``dim``."""
+    return _gated_activation_composite(
+        "tenstorrent.reglu", torch.nn.functional.relu, input, dim
+    )
 
 
 def composite_layer_norm(
@@ -470,6 +529,65 @@ def _composite_residual_rms_norm(
     )
 
 
+@torch.fx.wrap
+def _torch_swiglu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    """Marker function emitted by SwiGLUFusionProvider.
+
+    Like _torch_residual_rms_norm, this is `@torch.fx.wrap`-decorated so FX
+    keeps it as an opaque call_function node. handle_composite_ops then maps
+    it to the composite-emitting wrapper which produces the
+    `tenstorrent.swiglu` StableHLO composite.
+    """
+    half = input.shape[dim] // 2
+    return torch.nn.functional.silu(input.narrow(dim, 0, half)) * input.narrow(
+        dim, half, half
+    )
+
+
+@torch.fx.wrap
+def _torch_glu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    """Marker for GLU (sigmoid gated)."""
+    half = input.shape[dim] // 2
+    return torch.sigmoid(input.narrow(dim, 0, half)) * input.narrow(dim, half, half)
+
+
+@torch.fx.wrap
+def _torch_geglu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    """Marker for GeGLU (GELU gated)."""
+    half = input.shape[dim] // 2
+    return torch.nn.functional.gelu(input.narrow(dim, 0, half)) * input.narrow(
+        dim, half, half
+    )
+
+
+@torch.fx.wrap
+def _torch_reglu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    """Marker for ReGLU (ReLU gated)."""
+    half = input.shape[dim] // 2
+    return torch.nn.functional.relu(input.narrow(dim, 0, half)) * input.narrow(
+        dim, half, half
+    )
+
+
+def _composite_swiglu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    """Composite-emitting form of `_torch_swiglu`. Delegates to composite_swiglu
+    so the resulting StableHLO carries a `tenstorrent.swiglu` composite that
+    tt-mlir's StableHLOLegalizeCompositePass routes to ttir.gated_activation."""
+    return composite_swiglu(input, dim=dim)
+
+
+def _composite_glu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    return composite_glu(input, dim=dim)
+
+
+def _composite_geglu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    return composite_geglu(input, dim=dim)
+
+
+def _composite_reglu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    return composite_reglu(input, dim=dim)
+
+
 def can_apply_composite(node: torch.fx.Node) -> bool:
     """
     Check whether a composite replacement should be applied for the given node.
@@ -504,6 +622,10 @@ replacements = {
     torch.rms_norm: composite_rms_norm,
     torch.nn.functional.rms_norm: composite_rms_norm,
     _torch_residual_rms_norm: _composite_residual_rms_norm,
+    _torch_swiglu: _composite_swiglu,
+    _torch_glu: _composite_glu,
+    _torch_geglu: _composite_geglu,
+    _torch_reglu: _composite_reglu,
     torch.nn.functional.layer_norm: composite_layer_norm,
     torch.nn.functional.scaled_dot_product_attention: composite_scaled_dot_product_attention,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed

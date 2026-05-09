@@ -15,6 +15,11 @@ QUETZAL_REWRITE_PASSES_ENV = "TT_TORCH_QUETZAL_REWRITE_PASSES"
 DEFAULT_QUETZAL_REWRITE_PASSES = [
     "fuse_gelu",
     "reconstruct_sdpa",
+    "fuse_swiglu",
+    # TODO: add fuse_glu / fuse_geglu / fuse_reglu when sibling FX
+    # providers land. The composite plumbing (`_torch_glu` / `_torch_geglu`
+    # / `_torch_reglu` markers, `tenstorrent.glu` / `geglu` / `reglu`
+    # composite emitters) is already wired in composite_ops.py.
 ]
 
 # Late-rewrite passes run AFTER run_fusion_passes (i.e. after the default-
