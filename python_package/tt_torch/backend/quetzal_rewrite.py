@@ -16,6 +16,7 @@ DEFAULT_QUETZAL_REWRITE_PASSES = [
     "fuse_gelu",
     "reconstruct_sdpa",
     "fuse_swiglu",
+    "fuse_slice_reshape",
     # TODO: add fuse_glu / fuse_geglu / fuse_reglu when sibling FX
     # providers land. The composite plumbing (`_torch_glu` / `_torch_geglu`
     # / `_torch_reglu` markers, `tenstorrent.glu` / `geglu` / `reglu`

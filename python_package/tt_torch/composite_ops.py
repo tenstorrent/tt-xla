@@ -155,6 +155,97 @@ def composite_reglu(input: Tensor, dim: int = -1) -> Tensor:
     )
 
 
+def _normalize_slice_spec(rank: int, narrow_specs):
+    """Materialize ``begins``, ``ends``, ``step`` arrays of length ``rank``
+    from a list of (dim, begin, length) triplets covering only the
+    actually-sliced dims. Unsliced dims default to ``[0:input_size]`` —
+    callers must supply ``input_shape`` (a list of ints) to fill those.
+
+    Returns the populated (begins, ends, step) lists. Raises ValueError if
+    a dim repeats or is out of range.
+    """
+    begins = [0] * rank
+    ends_list = [None] * rank
+    step = [1] * rank
+    for dim, b, length in narrow_specs:
+        if dim < 0:
+            dim = dim + rank
+        if dim < 0 or dim >= rank:
+            raise ValueError(f"dim {dim} out of range for rank {rank}")
+        if ends_list[dim] is not None:
+            raise ValueError(f"duplicate narrow on dim {dim}")
+        begins[dim] = b
+        ends_list[dim] = b + length
+    return begins, ends_list, step
+
+
+def composite_slice_reshape(
+    input: Tensor,
+    narrow_specs: List,
+    shape: List[int],
+) -> Tensor:
+    """Fused slice + reshape composite emitter.
+
+    Mirrors quetzal's fuse_slice_reshape pass: a same-rank
+    ``slice_static(input, begins, ends, step)`` feeding a ``reshape(shape)``,
+    bundled as a single ``tenstorrent.slice_reshape`` StableHLO composite so
+    tt-mlir's StableHLOLegalizeCompositePass can collapse the two into a
+    single ttir.slice_reshape op (and one program-executor case at runtime,
+    saving one host-dispatch round-trip).
+
+    Parameters:
+    - ``input``: The tensor to slice and reshape.
+    - ``narrow_specs``: A list of ``(dim, begin, length)`` triplets — one
+      per sliced dim. Unsliced dims are inferred from ``input.shape``.
+      Carrying the per-dim spec instead of fully-materialized
+      ``begins``/``ends`` lets the FX-level matcher operate without
+      knowing the source shape (symbolic_trace doesn't propagate shapes
+      into ``meta``); the composite emitter sees the concrete tensor and
+      can fill in the rest.
+    - ``shape``: The final reshape target shape.
+
+    The slice / reshape parameters travel as composite_attributes so
+    tt-mlir's TenstorrentSliceReshapeConversionPattern can emit them as
+    I32ArrayAttrs on the TTIR op without re-deriving anything from the
+    StableHLO body.
+    """
+    rank = input.dim()
+    input_shape = list(input.shape)
+    begins, ends_list, step = _normalize_slice_spec(rank, narrow_specs)
+    for d in range(rank):
+        if ends_list[d] is None:
+            ends_list[d] = input_shape[d]
+    ends = list(ends_list)
+
+    # Composite attributes are carried as plain Python lists; the
+    # StableHLOCompositeBuilder serializes them as DenseI64ArrayAttr by
+    # default, and tt-mlir's TenstorrentSliceReshapeConversionPattern
+    # accepts both that and ArrayAttr variants.
+    attr = {
+        "begins": begins,
+        "ends": ends,
+        "step": step,
+        "shape": list(shape),
+    }
+    builder = StableHLOCompositeBuilder(name="tenstorrent.slice_reshape", attr=attr)
+
+    input = builder.mark_inputs(input)
+    # Body: slice (same-rank) followed by reshape, mirroring the runtime
+    # composition. Use torch.narrow per dim to keep the body decomposable
+    # by torch_xla into stablehlo.slice ops; reshape via .reshape().
+    sliced = input
+    for dim, (b, e, s) in enumerate(zip(begins, ends, step)):
+        if b == 0 and e == input_shape[dim] and s == 1:
+            continue  # full-slice — no-op narrow.
+        if s == 1:
+            sliced = sliced.narrow(dim, b, e - b)
+        else:
+            idx = torch.arange(b, e, s, device=sliced.device)
+            sliced = torch.index_select(sliced, dim, idx)
+    out = sliced.reshape(shape)
+    return builder.mark_outputs(out)
+
+
 def composite_layer_norm(
     input: Tensor,
     normalized_shape: Union[int, List[int], torch.Size],
@@ -588,6 +679,45 @@ def _composite_reglu(input: torch.Tensor, dim: int = -1) -> torch.Tensor:
     return composite_reglu(input, dim=dim)
 
 
+@torch.fx.wrap
+def _torch_slice_reshape(
+    input: torch.Tensor,
+    narrow_specs: List,
+    shape: List[int],
+) -> torch.Tensor:
+    """Marker function emitted by SliceReshapeFusionProvider.
+
+    @torch.fx.wrap keeps this as an opaque call_function node so
+    handle_composite_ops can pivot it to the composite-emitting wrapper
+    below. The body matches the unfused decomposition (per-dim narrows
+    followed by a reshape), so this marker is also a valid functional
+    fallback if the composite swap is disabled.
+
+    ``narrow_specs`` is a list of ``(dim, begin, length)`` triplets — one
+    per sliced dim. Unsliced dims pass through unchanged. Carrying the
+    per-dim spec (instead of fully-materialized ``begins``/``ends``)
+    lets the FX-level matcher operate without knowing the source shape.
+    """
+    sliced = input
+    for dim, b, length in narrow_specs:
+        sliced = sliced.narrow(dim, b, length)
+    return sliced.reshape(shape)
+
+
+def _composite_slice_reshape(
+    input: torch.Tensor,
+    narrow_specs: List,
+    shape: List[int],
+) -> torch.Tensor:
+    """Composite-emitting form of `_torch_slice_reshape`.
+
+    Delegates to composite_slice_reshape so the resulting StableHLO carries
+    a `tenstorrent.slice_reshape` composite that tt-mlir's
+    StableHLOLegalizeCompositePass routes to ttir.slice_reshape.
+    """
+    return composite_slice_reshape(input, narrow_specs, shape)
+
+
 def can_apply_composite(node: torch.fx.Node) -> bool:
     """
     Check whether a composite replacement should be applied for the given node.
@@ -626,6 +756,7 @@ replacements = {
     _torch_glu: _composite_glu,
     _torch_geglu: _composite_geglu,
     _torch_reglu: _composite_reglu,
+    _torch_slice_reshape: _composite_slice_reshape,
     torch.nn.functional.layer_norm: composite_layer_norm,
     torch.nn.functional.scaled_dot_product_attention: composite_scaled_dot_product_attention,
     # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed

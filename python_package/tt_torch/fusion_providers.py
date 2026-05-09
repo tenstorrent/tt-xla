@@ -571,6 +571,241 @@ class SwiGLUFusionProvider(FusionProvider):
         return replaced
 
 
+class SliceReshapeFusionProvider(FusionProvider):
+    """Fold a same-rank slice followed by a single-consumer reshape into a
+    single ``_torch_slice_reshape(input, begins, ends, step, shape)`` marker
+    call.
+
+    Mirrors quetzal's fuse_slice_reshape pass (tt_quetzalcoatlus/graph/
+    transforms.py): the win is host-dispatch reduction. Two separate
+    program-executor cases (slice + reshape, ~17-39us each) collapse into
+    one — same kernels, half the dispatch overhead.
+
+    Pattern (rank R, no axis dropped):
+
+        sliced = input.narrow(d0, b0, l0).narrow(d1, b1, l1)...   # same-rank
+        out    = sliced.reshape(shape)                             # 1 user
+
+    Constraints (matching the quetzal pass exactly):
+
+    * The slice is **same-rank** — for each dim the slice produces a
+      possibly-narrower size but never drops the dim. (FX's ``narrow``
+      always keeps rank; ``operator.getitem`` with a single int key drops
+      rank, so we reject those slice forms here.)
+    * The slice has **exactly one consumer** — the reshape.
+    * The reshape has **exactly one producer** — the slice.
+
+    **Why we walk the FX graph manually instead of using
+    ``replace_pattern_with_filters``.** Two reasons, same as
+    ``SwiGLUFusionProvider``:
+
+    1. The slice surface form varies: dynamo emits ``aten.slice``,
+       symbolic_trace emits ``call_method[narrow]`` or
+       ``operator.getitem`` with a tuple key. A single template can't
+       cover all three.
+    2. We need to reach across multi-call slice chains
+       (``x.narrow(0,...).narrow(1,...)``) to encode all begins/ends/step
+       in a single composite. SubgraphMatcher would only match one
+       narrow at a time and reject any that has internal users beyond
+       the matched window.
+
+    Default-disabled; gated through the late-rewrite ``QuetzalRewrite``
+    hook so it sees a settled FX graph (after the regular fusion passes
+    have moved any reshape simplifications around it).
+
+    Out of scope on purpose:
+
+    * ``operator.getitem`` slice with a single int key (drops rank). The
+      quetzal pass requires same-rank slicing.
+    * step != 1 (the quetzal matcher accepts only the simple narrow form).
+      We could relax this, but emitting an honest composite body for step
+      != 1 requires ``index_select`` which is uglier than necessary; if
+      models hit this, revisit.
+    """
+
+    default_enabled = False
+
+    @property
+    def name(self) -> str:
+        return "fuse_slice_reshape"
+
+    @staticmethod
+    def pattern(*args, **kwargs):
+        # Unused — base class abstract method shim. We override replace_pattern.
+        raise NotImplementedError
+
+    @staticmethod
+    def replacement(*args, **kwargs):
+        raise NotImplementedError
+
+    @staticmethod
+    def _is_reshape(node: torch.fx.Node) -> bool:
+        """True if node is a same-rank reshape we want to absorb. Accepts
+        ``call_method[reshape]``, ``call_method[view]``, ``call_function
+        torch.reshape``, and ``call_function torch.Tensor.view``."""
+        if node.op == "call_method" and node.target in ("reshape", "view"):
+            return True
+        if node.op == "call_function":
+            tgt = node.target
+            if tgt is torch.reshape:
+                return True
+            # torch.Tensor.view / torch.Tensor.reshape (rare in symbolic_trace
+            # but may appear in dynamo-traced code).
+            name = getattr(tgt, "__name__", None)
+            if name in ("reshape", "view"):
+                return True
+        return False
+
+    @staticmethod
+    def _reshape_target_shape(node: torch.fx.Node):
+        """Pull the target shape from a reshape node. The shape is either
+        passed as a single sequence arg (``x.reshape((1, 32, 64))``) or as
+        positional ints (``x.reshape(1, 32, 64)``). Returns a list of ints
+        or ``None`` if the shape isn't fully static.
+        """
+        # call_method form: args = (input, *shape_or_seq)
+        # call_function form for torch.reshape: args = (input, shape_seq)
+        if node.op == "call_method":
+            shape_args = list(node.args[1:])
+        else:
+            # call_function (torch.reshape style)
+            shape_args = list(node.args[1:])
+
+        # Single-sequence form: (1, 32, 64) packed into a tuple/list/Size.
+        if len(shape_args) == 1 and isinstance(shape_args[0], (tuple, list)):
+            shape_args = list(shape_args[0])
+
+        # Every element must be a static int — FX nodes (symbolic shapes)
+        # are out of scope; the quetzal matcher operates on settled
+        # ground-truth shapes.
+        if any(not isinstance(s, int) for s in shape_args):
+            return None
+        return shape_args
+
+    @staticmethod
+    def _peel_narrow_chain(reshape_input: torch.fx.Node):
+        """Walk back through a chain of single-consumer ``narrow`` calls
+        and gather (dim -> (begin, length)) entries.
+
+        Returns ``(source, per_dim)`` where ``source`` is the tensor at the
+        head of the chain and ``per_dim`` is a dict of dim -> (begin,
+        length). Returns ``(None, None)`` if the chain isn't a clean
+        same-rank slice chain (e.g. the head node has multiple users so
+        it's not exclusive to this reshape, or a non-narrow op shows up
+        before we reach a graph input / call_function).
+        """
+        per_dim = {}
+        cursor = reshape_input
+        while True:
+            is_method_narrow = (
+                cursor.op == "call_method" and cursor.target == "narrow"
+            )
+            if not is_method_narrow:
+                break
+            # ``cursor`` must have exactly one user (the next narrow we
+            # came from, or the reshape on the first iteration). If it
+            # has more users we'd be moving a slice that other consumers
+            # depend on — abort.
+            if len(cursor.users) != 1:
+                return (None, None)
+            if len(cursor.args) != 4:
+                return (None, None)
+            source, dim_arg, start_arg, length_arg = cursor.args
+            if not isinstance(source, torch.fx.Node):
+                return (None, None)
+            if not isinstance(dim_arg, int):
+                return (None, None)
+            if not isinstance(start_arg, int):
+                return (None, None)
+            if not isinstance(length_arg, int):
+                return (None, None)
+            if dim_arg in per_dim:
+                # Two narrows on the same dim — quetzal's matcher only
+                # encodes one (begin, end) per dim, so reject and let
+                # the user simplify upstream.
+                return (None, None)
+            per_dim[dim_arg] = (start_arg, length_arg)
+            cursor = source
+        if not per_dim:
+            return (None, None)
+        return (cursor, per_dim)
+
+    def replace_pattern(self, gm: torch.fx.GraphModule) -> int:
+        """Walk the FX graph; for each reshape whose sole producer is a
+        same-rank narrow chain (and each narrow in the chain has exactly
+        one user), rewrite the reshape into a single
+        ``_torch_slice_reshape(source, narrow_specs, shape)`` marker
+        call. The narrows are erased only if they're now orphaned.
+
+        We carry the per-dim narrow triplets (``(dim, begin, length)``)
+        rather than materialized ``begins``/``ends``/``step`` arrays
+        because symbolic_trace doesn't propagate input shapes into FX
+        ``meta`` — so the fusion pass doesn't always know the source
+        rank. ``_composite_slice_reshape`` (which sees the concrete
+        tensor) materializes the full per-dim arrays at composite-emit
+        time.
+        """
+        from tt_torch.composite_ops import _torch_slice_reshape
+
+        replaced = 0
+        for node in list(gm.graph.nodes):
+            if not self._is_reshape(node):
+                continue
+            if not node.args:
+                continue
+            slice_tail = node.args[0]
+            if not isinstance(slice_tail, torch.fx.Node):
+                continue
+            target_shape = self._reshape_target_shape(node)
+            if target_shape is None:
+                continue
+
+            source, per_dim = self._peel_narrow_chain(slice_tail)
+            if source is None or per_dim is None:
+                continue
+
+            # Build the narrow_specs payload as a list of (dim, begin,
+            # length) triplets in dim order (purely cosmetic — the
+            # composite emitter normalizes regardless).
+            narrow_specs = [
+                (dim, begin, length)
+                for dim, (begin, length) in sorted(per_dim.items())
+            ]
+
+            # Rewrite the reshape node into a _torch_slice_reshape call.
+            with gm.graph.inserting_before(node):
+                new_node = gm.graph.call_function(
+                    _torch_slice_reshape,
+                    args=(source, narrow_specs, target_shape),
+                )
+            node.replace_all_uses_with(new_node)
+            gm.graph.erase_node(node)
+
+            # Erase orphaned narrow chain nodes. Walk back from slice_tail
+            # toward source; each narrow now has 0 users (we just removed
+            # the reshape that depended on it) since the chain had a
+            # single-user invariant.
+            cursor = slice_tail
+            while isinstance(cursor, torch.fx.Node) and cursor is not source:
+                # Save next before erasing.
+                if len(cursor.args) >= 1 and isinstance(cursor.args[0], torch.fx.Node):
+                    next_node = cursor.args[0]
+                else:
+                    next_node = None
+                if len(cursor.users) == 0:
+                    try:
+                        gm.graph.erase_node(cursor)
+                    except RuntimeError:
+                        pass
+                cursor = next_node
+            replaced += 1
+
+        if replaced:
+            gm.graph.lint()
+            gm.recompile()
+        return replaced
+
+
 class QuetzalFuseGELUProvider(FusionProvider):
     """Collapse tanh-GELU decompositions back to torch.nn.functional.gelu."""
 
