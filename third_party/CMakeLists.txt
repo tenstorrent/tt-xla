@@ -5,7 +5,11 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "bb1deb417cef0e2c60147072cf7b6926a49ccca7")
+    # TODO: bump to the post-merge SHA once the tt-mlir PRs
+    # sshon/concat-heads-l1-workaround and sshon/paged-sdpa-decode-config
+    # land on main. Pinned to a gemma4 dev branch SHA in the meantime so CI
+    # can fetch a buildable revision that contains both fixes.
+    set(TT_MLIR_VERSION "78745418f5d2ec989e75e131ff4d9bbcc1fec5a2")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
