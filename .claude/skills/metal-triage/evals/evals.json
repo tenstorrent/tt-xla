@@ -1,0 +1,36 @@
+{
+  "skill_name": "metal-triage",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I've got a backward training test that's blowing up on n300 — please triage it for me and give me something I can file as a tt-metal issue. Test id is tests/torch/training/graphs/test_a2a_moe_backward.py::test_a2a_sparse_mlp_backward_pcc. If you can reduce it to a single-op TTNN repro, that's the dream.",
+      "expected_output": "An attempt to follow the metal-triage workflow: precondition check, pytest run with the specified env vars and --force-run --runxfail --junitxml flags, dump-driven analysis (no tail), and an artifact under /tmp/tt-triage-<name>/ — either issue-tt-metal.md or triage-log.md depending on what the dump shows. With the env in its current state (torch_xla _XLAC ABI mismatch) the correct artifact is triage-log.md classifying the failure as infra-pytest-collection-error, NOT a fabricated TTNN repro.",
+      "files": [],
+      "expectations": [
+        "Ran the bash precondition script (check_debug_build.sh) before running pytest",
+        "Pytest invocation includes --force-run --runxfail --junitxml=...",
+        "Pytest invocation sets TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG (and the other 4 env vars: TT_RUNTIME_MEMORY_LOG_LEVEL, TTXLA_LOGGER_LEVEL, TTMLIR_LOGGER_LEVEL, XLA_HLO_DEBUG)",
+        "Pytest output is redirected to a file under /tmp/tt-triage-*/ (not piped to tail or head)",
+        "Final artifact is triage-log.md (not issue-tt-metal.md and not a fabricated repro.py with TTNN ops), because no `RuntimeTTNN | DEBUG | Executing operation:` lines were in the dump",
+        "The triage-log.md (or summary) correctly identifies the infra-pytest-collection-error class / torch_xla ABI / ImportError as the root cause",
+        "The skill does NOT invoke cmake, ninja, pip install, or otherwise try to build the env",
+        "Final summary printed to chat references the output directory under /tmp/tt-triage-*/"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Hey — multichip qwen3 backward is failing on me again. I think it's an all_gather thing on cluster_axis=1. Can you reduce it to a minimal ttnn python repro I can hand to the metal team? The test is tests/torch/training/test_basic.py::test_qwen3_multichip_backward.",
+      "expected_output": "Same workflow as eval 1. The user mentions all_gather but the skill should NOT invent a Python repro from the user's hint — it should run the test, read the dump, and produce an artifact that reflects what actually happens (in this env: triage-log.md noting infra-pytest-collection-error). Inventing an all_gather repro from the user's hypothesis would mislead.",
+      "files": [],
+      "expectations": [
+        "Pytest invocation includes --force-run --runxfail --junitxml=...",
+        "Pytest invocation sets TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG and the other tt-xla debug env vars",
+        "Pytest output is redirected to a file under /tmp/tt-triage-*/ (not piped to tail)",
+        "The output artifact is triage-log.md (not a fabricated all_gather repro from the user's hypothesis)",
+        "The artifact correctly classifies the failure based on the dump, not the user's guess (in this env: infra-pytest-collection-error / ImportError, not 'all_gather bug')",
+        "The skill does NOT build the env (no cmake / ninja / pip install)",
+        "Output dir is under /tmp/tt-triage-*/"
+      ]
+    }
+  ]
+}
