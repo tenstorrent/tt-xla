@@ -36,7 +36,6 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1.5B-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   clip/pytorch-Base_Patch16-single_device-inference:
@@ -905,10 +904,6 @@ test_config:
 
   qwen_2_5_coder/pytorch-1.5B-single_device-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        required_pcc: 0.98
-        status: EXPECTED_PASSING
 
   retinanet/pytorch-ResNet34_Backbone_with_FPN-single_device-inference:
     assert_pcc: false
