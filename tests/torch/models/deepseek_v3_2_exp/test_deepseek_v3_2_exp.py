@@ -8,19 +8,36 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
-from modified_model import ModelArgs
-from modified_model import Transformer as ModifiedTransformer
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.src.modified_model import (
+    LayerNorm,
+    ModelArgs,
+)
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.src.modified_model import (
+    Transformer as ModifiedTransformer,
+)
 
-# This model is modified from the original deepseek_v3_2_exp model.py to:
+
+def _fix_layernorm_dtype(model):
+    # LayerNorm calls x.float() internally and errors on mixed dtype, so
+    # restore fp32 params that .to(bfloat16) silently converted.
+    for module in model.modules():
+        if isinstance(module, LayerNorm):
+            module.weight.data = module.weight.data.to(torch.float32)
+            module.bias.data = module.bias.data.to(torch.float32)
+
+
+# This model is modified from the original deepseek_v3_2_exp model.py. Comments about each modification made can be found in
+# third_party/tt_forge_models/deepseek/deepseek_v3_2_exp/pytorch/src/modified_model.py. Some of the notable modifications include:
 # 1. Use scipy.linalg.hadamard instead of fast_hadamard_transform
 #    - fast_hadamard_transform requires a CUDA enviroment and fails to install
 # 2. Disable FP8 quantization features (act_quant, fp8_gemm, fp8_index) with stubs
 #    - the original implementation (kernel.py) relies on custom tilelang kernels not supported on TT
 # 3. Avoid torch.view_as_complex/view_as_real operations
+# 4. Allowing an external MLACache, cache_position and k_cache to be passed in and used.
 
 
 @pytest.mark.xfail(
@@ -38,6 +55,7 @@ def test_deepseek_modified_transformer_single_layer():
     model = ModifiedTransformer(args)
 
     model = model.to(torch.bfloat16)
+    _fix_layernorm_dtype(model)
 
     model = model.eval()
     compiled_model = torch.compile(model, backend="tt")
@@ -101,6 +119,7 @@ def test_deepseek_attention_prefill(batch_size):
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
+    _fix_layernorm_dtype(model)
     attention = model.layers[0].attn
 
     hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
@@ -173,6 +192,7 @@ def test_deepseek_indexer(batch_size):
 
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
+    _fix_layernorm_dtype(model)
     indexer = model.layers[0].attn.indexer
 
     # Enable raw score return for testing (returns index_score instead of topk_indices)
@@ -263,6 +283,7 @@ def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
     # Create full model to get freqs_cis, then extract MoE block (layer 1)
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
+    _fix_layernorm_dtype(model)
     block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 -> MoE
     freqs_cis = model.freqs_cis[:seq_len]
 

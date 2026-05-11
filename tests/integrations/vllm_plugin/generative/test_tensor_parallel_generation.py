@@ -53,7 +53,7 @@ def test_tensor_parallel_generation_llmbox_small(
     use_2d_mesh: bool,
 ):
     prompts = [
-        "I like taking walks in the",
+        "Continue in English: I like taking walks in the",
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
