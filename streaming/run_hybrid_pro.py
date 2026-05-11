@@ -46,11 +46,11 @@ weight_loader.REPO_ID = "deepseek-ai/DeepSeek-V4-Pro"
 print(f"[hybrid-pro] REPO_ID repointed to {weight_loader.REPO_ID}",
       flush=True)
 
-from streaming.run_hybrid import main
-from streaming.streaming_loader import (
-    _block_shard_spec_pro,
-    _top_level_shard_spec_pro,
-)
+# NOTE: `streaming.run_hybrid` and `streaming.streaming_loader` import
+# torch_xla at module level. With multiprocessing spawn, child workers
+# re-import this script — keeping these imports under the __main__ guard
+# below prevents workers from initializing torch_xla / PJRT (which would
+# race with the parent for TT device handles and crash).
 
 
 # Routed-expert stacked tensors (compound-sharded across both mesh axes
@@ -86,6 +86,12 @@ WEIGHT_OVERRIDES = {
 
 
 if __name__ == "__main__":
+    from streaming.run_hybrid import main
+    from streaming.streaming_loader import (
+        _block_shard_spec_pro,
+        _top_level_shard_spec_pro,
+    )
+
     main(
         weight_overrides=WEIGHT_OVERRIDES,
         block_shard_spec_fn=_block_shard_spec_pro,

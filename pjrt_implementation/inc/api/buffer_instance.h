@@ -166,13 +166,6 @@ public:
   //
   // Called from PjrtTensor::ensure_layout right after toLayout has
   // migrated host->device, so the source at::Tensor is no longer
-  // needed: the callback runs in the framework, framework drops its
-  // at::Tensor reference, and the per-layer host RAM is released.
-  // No-op when m_done_with_host_buffer_event is nullptr (= patched
-  // torch-xla path which uses createOwnedHostTensor and fires the
-  // event inside copyFromHost).
-  void fireDoneWithHostBufferEvent();
-
   // Creates data ready event. Returns error status if data ready event was
   // already created for this buffer.
   tt_pjrt_status createDataReadyEvent(EventInstance **out_event);

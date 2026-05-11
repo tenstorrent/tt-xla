@@ -873,19 +873,67 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                     "nor w1/w3/w2 attributes."
                 )
 
-        def __init__(self, expert_list):
+        def __init__(self, expert_list, empty_init=False):
+            """
+            Args:
+                expert_list: ModuleList of per-expert modules with gate/up/down
+                    Linears. Used to (a) infer shape/dtype/has_bias when
+                    empty_init=False, building real stacked params via
+                    torch.stack; or (b) infer shape/dtype only when
+                    empty_init=True, allocating empty (E, H, inter) Parameters
+                    that the caller fills directly (skips ~9s/layer of
+                    transpose+stack memcpy on Pro).
+            """
             super().__init__()
             experts_list = [e for e in expert_list if e is not None]
             if not experts_list:
                 experts_list = list(expert_list)
 
-            # Keep original experts for CPU golden path
-            self.original_experts = nn.ModuleList(experts_list)
-
             first = experts_list[0]
-            gate_layer, _, _ = self._get_expert_layers(first)
+            gate_layer, up_layer, down_layer = self._get_expert_layers(first)
             inter = gate_layer.out_features
             has_bias = gate_layer.bias is not None
+            E = len(experts_list)
+
+            if empty_init:
+                # Don't keep original_experts in empty mode — caller is going
+                # to fill the stacked tensors directly, freeing the per-expert
+                # Linear modules right after.
+                self.original_experts = None
+                # Shape conventions match the post-stack layout:
+                #   gate_proj/up_proj: (E, in=H, out=inter)
+                #   down_proj:         (E, in=inter, out=H)
+                hidden = gate_layer.in_features
+                dtype = gate_layer.weight.dtype
+                device = gate_layer.weight.device
+                self.gate_proj = nn.Parameter(
+                    torch.empty(E, hidden, inter, dtype=dtype, device=device)
+                )
+                self.up_proj = nn.Parameter(
+                    torch.empty(E, hidden, inter, dtype=dtype, device=device)
+                )
+                self.down_proj = nn.Parameter(
+                    torch.empty(E, inter, hidden, dtype=dtype, device=device)
+                )
+                if has_bias:
+                    self.gate_proj_bias = nn.Parameter(
+                        torch.empty(E, inter, dtype=dtype, device=device)
+                    )
+                    self.up_proj_bias = nn.Parameter(
+                        torch.empty(E, inter, dtype=dtype, device=device)
+                    )
+                    self.down_proj_bias = nn.Parameter(
+                        torch.empty(E, hidden, dtype=dtype, device=device)
+                    )
+                else:
+                    self.gate_proj_bias = None
+                    self.up_proj_bias = None
+                    self.down_proj_bias = None
+                self.intermediate_size = inter
+                return
+
+            # Keep original experts for CPU golden path
+            self.original_experts = nn.ModuleList(experts_list)
 
             gate_list, up_list, down_list = [], [], []
             gate_bias_list, up_bias_list, down_bias_list = [], [], []
@@ -920,7 +968,7 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
         w3 = property(lambda self: self.up_proj)
         w3_bias = property(lambda self: self.up_proj_bias)
 
-    def __init__(self, moe_module):
+    def __init__(self, moe_module, empty_init=False):
         super().__init__()
         experts_module = moe_module.experts
 
@@ -951,6 +999,8 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
         self.router = self.RouterAdapter(moe_module.gate, n_experts, route_fn)
 
         if pre_stacked_fused:
+            # Pre-stacked path doesn't go through StackedExperts.__init__,
+            # so empty_init isn't applicable here.
             self.experts = self.PreStackedFusedExperts(experts_module)
         else:
             experts_list = [e for e in experts_module if e is not None]
@@ -961,7 +1011,7 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                     "DeepseekV3MoEToA2AAdapter requires ep_size=1 (all experts on one process). "
                     f"Got {len(experts_list)} experts, expected {n_experts}."
                 )
-            self.experts = self.StackedExperts(experts_list)
+            self.experts = self.StackedExperts(experts_list, empty_init=empty_init)
 
     @staticmethod
     def _build_route_fn(moe_module):
@@ -1037,6 +1087,7 @@ def create_a2a_from_deepseek_v3_moe(
     num_devices: int = 8,
     cluster_axis: int = 0,
     dispatch_devices: Optional[int] = None,
+    empty_init: bool = False,
 ) -> A2aSparseMLPWithSharedExperts:
     """
     Create A2aSparseMLP from DeepseekV3MoE.
@@ -1049,7 +1100,7 @@ def create_a2a_from_deepseek_v3_moe(
         dispatch_devices: Devices along cluster_axis (for BD = B * dispatch_devices).
             Defaults to num_devices when None (single-axis dispatch).
     """
-    adapter = DeepseekV3MoEToA2AAdapter(moe_module)
+    adapter = DeepseekV3MoEToA2AAdapter(moe_module, empty_init=empty_init)
     num_experts = getattr(config, "n_routed_experts", None) or getattr(
         config, "num_local_experts", len(list(moe_module.experts))
     )
@@ -1127,6 +1178,7 @@ def enable_sparse_mlp(
     target_classes: Optional[List[Type]] = None,
     verbose: bool = False,
     config: Optional[object] = None,
+    empty_init: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
@@ -1158,6 +1210,7 @@ def enable_sparse_mlp(
                 num_devices=num_devices,
                 cluster_axis=cluster_axis,
                 dispatch_devices=dispatch_devices,
+                empty_init=empty_init,
             )
             setattr(parent, name, sparse_mlp)
             replaced_count += 1

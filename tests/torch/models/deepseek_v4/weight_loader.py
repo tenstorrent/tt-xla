@@ -20,11 +20,31 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Dict, Iterable, List, Optional
 
 import torch
 from huggingface_hub import hf_hub_download
 from safetensors import safe_open
+
+# Per-layer timing breakdown. Accumulates across calls; load_block_state_dict
+# prints + resets at end. Diagnostic only — set DSV4_TIMING=0 to silence.
+_TIMERS: Dict[str, float] = {
+    "io": 0.0,           # safetensors disk I/O (get_tensor wall-clock)
+    "fp4_time": 0.0,     # _dequant_fp4 wall-clock
+    "fp4_count": 0,      # number of fp4 tensors dequantized
+    "fp8_time": 0.0,     # _dequant_fp8 wall-clock
+    "fp8_count": 0,      # number of fp8 tensors dequantized
+}
+_TIMING_ENABLED = os.environ.get("DSV4_TIMING", "1") == "1"
+# A/B switch: DSV4_FP4_BF16=0 falls back to the fp32 dequant path (multiply
+# in fp32, then cast to bf16). Default 1 = bf16 native path.
+_FP4_BF16 = os.environ.get("DSV4_FP4_BF16", "1") == "1"
+
+
+def _reset_timers():
+    for k in _TIMERS:
+        _TIMERS[k] = 0.0 if isinstance(_TIMERS[k], float) else 0
 
 REPO_ID = "deepseek-ai/DeepSeek-V4-Flash"
 
@@ -151,8 +171,13 @@ def load_config_args():
 
 
 def _dequant_fp4(weight: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
-    """[out, in/2] fp4/int8 packed + [out, in/32] ue8m0 -> [out, in] bf16."""
-    # View as uint8 bytes regardless of whether safetensors returned int8 or fp4.
+    """[out, in/2] fp4/int8 packed + [out, in/32] ue8m0 -> [out, in] bf16.
+
+    Multiplies in bf16 directly: the 16-entry FP4 LUT (max |val|=6) and ue8m0
+    scales (powers of 2) both round-trip exactly through bf16, so skipping the
+    fp32 intermediate halves memory traffic with no accuracy loss.
+    """
+    t0 = time.time() if _TIMING_ENABLED else 0.0
     byte_view = weight.contiguous().view(torch.uint8)
     out_dim, packed_in = byte_view.shape
     in_dim = packed_in * 2
@@ -161,17 +186,29 @@ def _dequant_fp4(weight: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
         in_dim // _FP4_BLOCK,
     ), f"fp4 scale shape mismatch: weight={byte_view.shape}, scale={scale.shape}"
 
-    table = _FP4_TABLE.to(byte_view.device)
+    if _FP4_BF16:
+        table = _FP4_TABLE.to(byte_view.device, dtype=torch.bfloat16)
+    else:
+        table = _FP4_TABLE.to(byte_view.device)
     low = (byte_view & 0x0F).long()
     high = ((byte_view >> 4) & 0x0F).long()
-    vals = torch.stack([table[low], table[high]], dim=-1).flatten(-2)  # [out, in]
+    vals = torch.stack([table[low], table[high]], dim=-1).flatten(-2)
 
-    scale_f = scale.to(torch.float32).repeat_interleave(_FP4_BLOCK, dim=1)  # [out, in]
-    return (vals * scale_f).to(torch.bfloat16)
+    if _FP4_BF16:
+        scale_x = scale.to(torch.bfloat16).repeat_interleave(_FP4_BLOCK, dim=1)
+        out = vals * scale_x
+    else:
+        scale_x = scale.to(torch.float32).repeat_interleave(_FP4_BLOCK, dim=1)
+        out = (vals * scale_x).to(torch.bfloat16)
+    if _TIMING_ENABLED:
+        _TIMERS["fp4_time"] += time.time() - t0
+        _TIMERS["fp4_count"] += 1
+    return out
 
 
 def _dequant_fp8(weight: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
     """[out, in] fp8_e4m3fn + [out/128, in/128] ue8m0 -> [out, in] bf16."""
+    t0 = time.time() if _TIMING_ENABLED else 0.0
     out_dim, in_dim = weight.shape
     assert (
         out_dim % _FP8_BLOCK == 0 and in_dim % _FP8_BLOCK == 0
@@ -186,7 +223,11 @@ def _dequant_fp8(weight: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
         .unflatten(-1, (-1, _FP8_BLOCK))
     )  # [bOut, 128, bIn, 128]
     s = scale.to(torch.float32)[:, None, :, None]  # [bOut, 1, bIn, 1]
-    return (w * s).flatten(2, 3).flatten(0, 1).to(torch.bfloat16)
+    out = (w * s).flatten(2, 3).flatten(0, 1).to(torch.bfloat16)
+    if _TIMING_ENABLED:
+        _TIMERS["fp8_time"] += time.time() - t0
+        _TIMERS["fp8_count"] += 1
+    return out
 
 
 def _find_shards_for_keys(
@@ -219,7 +260,10 @@ def _load_raw_subset(
         with safe_open(shard_path, framework="pt", device="cpu") as f:
             for key in f.keys():
                 if key.startswith(prefix_tuple):
+                    t0 = time.time() if _TIMING_ENABLED else 0.0
                     raw[key] = f.get_tensor(key)
+                    if _TIMING_ENABLED:
+                        _TIMERS["io"] += time.time() - t0
     return raw
 
 
@@ -295,6 +339,156 @@ def load_expert_state_dict(layer_id: int, expert_id: int) -> Dict[str, torch.Ten
     return _dequant_paired(raw, base)
 
 
+def prefetch_worker_init():
+    """Spawn-pool initializer: silence timing prints, re-point REPO_ID,
+    pin to a dedicated CPU partition. The main process pins itself to a
+    disjoint partition before spawning the pool, so the worker's BLAS pool
+    never contends with main's BLAS/compile work for cores.
+    """
+    os.environ["DSV4_TIMING"] = "0"
+    global REPO_ID
+    repo_id = os.environ.get("DSV4_REPO_ID")
+    if repo_id:
+        REPO_ID = repo_id
+    # CPU affinity: parent passes worker's core IDs via DSV4_WORKER_CORES
+    # (comma-separated). Apply via sched_setaffinity so both this Python
+    # process and any threads/OMP children stay inside the partition.
+    cores_str = os.environ.get("DSV4_WORKER_CORES", "")
+    if cores_str:
+        cores = {int(c) for c in cores_str.split(",") if c}
+        os.sched_setaffinity(0, cores)
+    # Match torch's BLAS pool size to the partition.
+    n_threads = int(os.environ.get("DSV4_WORKER_THREADS", "4"))
+    torch.set_num_threads(n_threads)
+    os.environ["OMP_NUM_THREADS"] = str(n_threads)
+    os.environ["MKL_NUM_THREADS"] = str(n_threads)
+
+
+def prefetch_worker_load(layer_id: int):
+    """Spawn-pool entry. Lives in this module (no torch_xla imports) so
+    re-importing __main__ in spawn workers stays CPU-only."""
+    return load_block_state_dict(layer_id)
+
+
+def fill_block_stacked(block, layer_id: int) -> Dict[str, torch.Tensor]:
+    """Direct-write loader for blocks already through `enable_sparse_mlp(empty_init=True)`.
+
+    Bypasses the redundant per-expert `block.experts.{e}.gate_proj.weight`
+    allocation + state_dict copy, AND the StackedExperts.__init__ stack work.
+    For each routed expert, dequants and writes (in transposed layout) directly
+    into the pre-allocated `block.ffn.mlp.experts.{gate,up,down}_proj.data[e]`
+    slot.
+
+    Returns a remapped state_dict containing all NON-routed-expert weights
+    (attention, norms, gate, shared experts, hc_*). Caller does
+    `block.load_state_dict(returned_dict, strict=False)` to populate them.
+
+    Required block topology (after enable_sparse_mlp(empty_init=True)):
+        block.ffn = A2aSparseMLPWithSharedExperts
+        block.ffn.mlp = A2aSparseMLP
+        block.ffn.mlp.experts.{gate_proj,up_proj,down_proj} : empty stacked
+        block.ffn.mlp.router.gate : original gate (Linear-like)
+        block.ffn.shared_experts.{w1,w2,w3} : shared expert Linears
+    """
+    if _TIMING_ENABLED:
+        _reset_timers()
+        t_total = time.time()
+
+    base = f"layers.{layer_id}."
+    raw = _load_raw_subset([base])
+
+    # Find StackedExperts on the block.
+    stacked = block.ffn.mlp.experts
+    n_experts = stacked.gate_proj.shape[0]
+
+    # Pro stores routed experts as ffn.experts.{E}.{w1,w2,w3}.{weight,scale};
+    # w1=gate, w3=up, w2=down (matching DeepSeek V4 model_decode_opt layout).
+    expert_prefix = f"{base}ffn.experts."
+    handled_keys: set = set()
+
+    # Batched: dequant ALL experts first into per-list, then one torch.stack
+    # + transposed-copy into stacked params. Per-expert copy_(deq.T) was
+    # ~5x slower than the equivalent torch.stack due to 1152 small non-contig
+    # copies vs one fused kernel.
+    gate_outs: List[torch.Tensor] = []
+    up_outs: List[torch.Tensor] = []
+    down_outs: List[torch.Tensor] = []
+    for e in range(n_experts):
+        for src_name, sink in (
+            ("w1", gate_outs),
+            ("w3", up_outs),
+            ("w2", down_outs),
+        ):
+            wkey = f"{expert_prefix}{e}.{src_name}.weight"
+            skey = f"{expert_prefix}{e}.{src_name}.scale"
+            handled_keys.add(wkey)
+            handled_keys.add(skey)
+            w = raw[wkey]
+            s = raw.get(skey)
+            if s is None:
+                deq = w.to(torch.bfloat16) if w.is_floating_point() else w
+            elif s.ndim == 2 and s.shape == (
+                w.shape[0],
+                w.shape[1] * 2 // _FP4_BLOCK,
+            ):
+                deq = _dequant_fp4(w, s)
+            elif s.ndim == 2 and s.shape == (
+                w.shape[0] // _FP8_BLOCK,
+                w.shape[1] // _FP8_BLOCK,
+            ):
+                deq = _dequant_fp8(w, s)
+            else:
+                raise RuntimeError(
+                    f"Unrecognized (weight, scale) shape pair for {wkey}: "
+                    f"w={tuple(w.shape)} s={tuple(s.shape)}"
+                )
+            sink.append(deq)
+
+    # One stack+transpose per dst — this is the same kernel pattern that
+    # StackedExperts.__init__ used to run; we just skip the intermediate
+    # block.experts.{e}.gate_proj.weight allocation+copy (state_dict.load).
+    stacked.gate_proj.data.copy_(
+        torch.stack(gate_outs, dim=0).transpose(1, 2)
+    )
+    stacked.up_proj.data.copy_(
+        torch.stack(up_outs, dim=0).transpose(1, 2)
+    )
+    stacked.down_proj.data.copy_(
+        torch.stack(down_outs, dim=0).transpose(1, 2)
+    )
+    del gate_outs, up_outs, down_outs
+
+    # Remaining keys: dequant via standard path. Then remap router gate path
+    # (sparse_mlp wraps moe.gate inside RouterAdapter at ffn.mlp.router.gate).
+    non_expert_raw = {k: v for k, v in raw.items() if k not in handled_keys}
+    non_expert = _dequant_paired(non_expert_raw, base)
+
+    # `_dequant_paired` returned keys with `base` stripped; e.g. "ffn.gate.weight".
+    # After sparse_mlp the gate lives at "ffn.mlp.router.gate.weight". Remap.
+    remapped: Dict[str, torch.Tensor] = {}
+    for k, v in non_expert.items():
+        if k.startswith("ffn.gate."):
+            remapped["ffn.mlp.router.gate." + k[len("ffn.gate."):]] = v
+        else:
+            remapped[k] = v
+
+    if _TIMING_ENABLED:
+        elapsed = time.time() - t_total
+        io = _TIMERS["io"]
+        fp4_t = _TIMERS["fp4_time"]
+        fp4_n = _TIMERS["fp4_count"]
+        fp8_t = _TIMERS["fp8_time"]
+        fp8_n = _TIMERS["fp8_count"]
+        other = elapsed - io - fp4_t - fp8_t
+        print(
+            f"[wl-fill l{layer_id}] total={elapsed:.2f}s "
+            f"io={io:.2f}s fp4={fp4_t:.2f}s/{fp4_n} "
+            f"fp8={fp8_t:.2f}s/{fp8_n} other={other:.2f}s",
+            flush=True,
+        )
+    return remapped
+
+
 def load_block_state_dict(layer_id: int) -> Dict[str, torch.Tensor]:
     """State dict matching `model.Block(layer_id, args).state_dict()` keys.
 
@@ -305,9 +499,29 @@ def load_block_state_dict(layer_id: int) -> Dict[str, torch.Tensor]:
     (fp4-packed in storage; ~3GB on disk per layer, ~12GB after bf16 dequant
     in memory).
     """
+    if _TIMING_ENABLED:
+        _reset_timers()
+        t_total = time.time()
     base = f"layers.{layer_id}."
     raw = _load_raw_subset([base])
-    return _dequant_paired(raw, base)
+    out = _dequant_paired(raw, base)
+    if _TIMING_ENABLED:
+        elapsed = time.time() - t_total
+        io = _TIMERS["io"]
+        fp4_t = _TIMERS["fp4_time"]
+        fp4_n = _TIMERS["fp4_count"]
+        fp8_t = _TIMERS["fp8_time"]
+        fp8_n = _TIMERS["fp8_count"]
+        other = elapsed - io - fp4_t - fp8_t
+        print(
+            f"[wl l{layer_id}] total={elapsed:.2f}s "
+            f"io={io:.2f}s "
+            f"fp4={fp4_t:.2f}s/{fp4_n} "
+            f"fp8={fp8_t:.2f}s/{fp8_n} "
+            f"other={other:.2f}s",
+            flush=True,
+        )
+    return out
 
 
 def load_embed_state_dict() -> Dict[str, torch.Tensor]:

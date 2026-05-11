@@ -76,6 +76,13 @@ PjrtTensor::PjrtTensor(Private, std::vector<BufferInstance *> shards,
 
 PjrtTensor::~PjrtTensor() { TensorPool::erase(this); }
 
+void PjrtTensor::force_migrate_to_device(const tt::runtime::Device &device) {
+  // No-op stub: caller in flatbuffer_loaded_executable_instance.cc still
+  // references this; relying on ensure_layout() above to do the actual
+  // host->device migration via toLayout (PR #4594).
+  (void)device;
+}
+
 void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
                                const tt::runtime::Layout &layout) {
 

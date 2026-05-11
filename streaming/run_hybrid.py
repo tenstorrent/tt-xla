@@ -34,7 +34,7 @@ from __future__ import annotations
 import gc
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
@@ -154,6 +154,45 @@ TRACE_OBJECTS = os.environ.get("STREAM_HYBRID_TRACE_OBJECTS", "0") == "1"
 # K-layer execute keeps host RAM bounded between ship and final
 # whole-model run. 0 = off (per-layer dummy only).
 RELEASE_EVERY_K = int(os.environ.get("STREAM_HYBRID_RELEASE_EVERY_K", "0"))
+# Sequential chunk-load: pre-dequant CHUNK_SIZE layers' state_dicts up-front,
+# then process them one by one. Same total CPU work as per-layer load+process,
+# but keeps glibc malloc arena hot across consecutive dequant calls (which
+# was the source of the NUM_LAYERS=2 vs =999 perf cliff observed earlier).
+# Default 0 = off (back to per-layer interleaved). Set STREAM_HYBRID_CHUNK=5
+# to pre-load 5 layers per chunk.
+CHUNK_SIZE = int(os.environ.get("STREAM_HYBRID_CHUNK", "0"))
+# Process-pool prefetch of layer L+1's weights with STRICT CPU affinity
+# partitioning. Main process is pinned to cores [0, DSV4_MAIN_CORES) and
+# worker process to the rest. No core contention → main thread runs
+# state_dict/sparse_mlp/flush at full speed while worker dequants in parallel.
+# Submit happens AFTER sparse_mlp so the worker overlaps with ship + flush
+# (mostly device-bound).
+PREFETCH_NEXT_LAYER = os.environ.get("STREAM_HYBRID_PREFETCH", "0") == "1"
+# Default split: 16 physical cores for main, 16 for worker. Tunable via
+# DSV4_MAIN_CORES (count); worker auto-gets [MAIN_CORES, 32) physical cores.
+MAIN_CORES = int(os.environ.get("DSV4_MAIN_CORES", "16"))
+# Empty-init sparse_mlp + direct-write to stacked params: skips the redundant
+# `block.experts.{e}.gate_proj.weight` allocation+copy AND the per-layer
+# torch.stack(weight.T) pass. Order swap: sparse_mlp first (creates empty
+# stacked params), then weight_loader.fill_block_stacked writes dequant
+# outputs directly into stacked slots.
+EMPTY_INIT = os.environ.get("STREAM_HYBRID_EMPTY_INIT", "0") == "1"
+# Chunk multiple consecutive layers into a single dummy-flush execute.
+# Default 1 = per-layer (status quo). 4 = ship 4 layers, then chain their
+# forwards in one compiled graph. Trade-offs:
+#   + Fewer ship→sync round-trips (saves ~1s/layer of fixed overhead)
+#   + Compile cache collapses cr-pattern repeats (e.g. (4,128,4,128) chunks
+#     all share one compiled artifact after the first)
+#   - Bigger first-compile per chunk (4 layers' IR fused)
+#   - Host RAM holds CHUNK shipped layers' staging until the chunk flush
+FLUSH_CHUNK = int(os.environ.get("STREAM_HYBRID_FLUSH_CHUNK", "1"))
+# Process layers grouped by compress_ratio rather than in 0..N order. Per-
+# layer dummy flush regenerates IR each call but ttnn caches by IR; alternating
+# cr=128/cr=4 forces the cache to thrash between two artifacts each call,
+# pushing cached flush from ~9s back up to ~22s. Grouping keeps one cr's
+# artifact hot for the entire group (back-to-back same-cr layers measured
+# 9.2s vs alternated 22.4s on the 12-layer DEBUG run).
+GROUP_BY_CR = os.environ.get("STREAM_HYBRID_GROUP_BY_CR", "0") == "1"
 # DEBUG_HYBRID_LEAK Exp A: skip persistent_bufs pre-ship at startup.
 # When 1, layer's _buffers are shipped per-layer via
 # _ship_module_handle_path along with parameters; mutable buffers are
@@ -378,6 +417,31 @@ def main(
     # ---- skeleton + top-level ship ----
     t_section = time.time()
     model = _build_skeleton(args)
+    # Each Block.__init__ runs `precompute_freqs_cis(...)` and registers a
+    # FRESH tensor as `attn.freqs_cis` (and same on attn.compressor). The
+    # values are deterministic and depend only on (compress_ratio, dims,
+    # rope_theta), so all same-cr layers compute IDENTICAL tensors but as
+    # distinct allocations. dynamo's compile cache guards on tensor
+    # storage identity → distinct freqs_cis per layer fragments the cache
+    # for chained / multi-layer flush graphs. Alias them post-construction
+    # so all layers with the same cr share one storage.
+    freqs_by_cr: Dict[int, torch.Tensor] = {}
+    aliased = 0
+    for blk in model.layers:
+        cr = getattr(blk.attn, "compress_ratio", 0)
+        if cr in freqs_by_cr:
+            blk.attn.freqs_cis = freqs_by_cr[cr]
+            comp = getattr(blk.attn, "compressor", None)
+            if comp is not None:
+                comp.freqs_cis = freqs_by_cr[cr]
+            aliased += 1
+        else:
+            freqs_by_cr[cr] = blk.attn.freqs_cis
+    print(
+        f"[hybrid] freqs_cis aliased: {aliased}/{len(model.layers)} layers "
+        f"({len(freqs_by_cr)} unique cr → 1 shared tensor each)",
+        flush=True,
+    )
     t_skel = time.time() - t_section
     t_ship = time.time()
     _ship_top_level(model, mesh, device,
@@ -530,6 +594,15 @@ def main(
         def run_block_flush(block, h, sp, ids):
             return block(h, sp, ids)
 
+    # Chunked dummy flush: chain CHUNK_SIZE blocks in a single compiled
+    # graph. dynamo specializes on the tuple length so a constant chunk
+    # size produces a stable cache key per (cr1, cr2, ..., crN) signature.
+    @torch.compile(backend="tt")
+    def run_chunk_flush(blocks, h, sp, ids):
+        for b in blocks:
+            h = b(h, sp, ids)
+        return h
+
     # K-layer release execute. Compiles a *partial whole-model* through
     # `embed → layers[0:end_id] → norm → head` for each (end_id,
     # seqlen) pair. Empirically the host-staging release fires only on
@@ -611,41 +684,179 @@ def main(
         )
 
     # ---- per-layer ship + dummy-execute flush loop ----
-    for layer_id in range(args.n_layers):
+    chunk_cache: Dict[int, Dict[str, Any]] = {}
+    if CHUNK_SIZE > 0:
+        print(
+            f"[hybrid] STREAM_HYBRID_CHUNK={CHUNK_SIZE} — pre-loading "
+            f"{CHUNK_SIZE} layers per chunk before processing",
+            flush=True,
+        )
+
+    # Chunked flush state: blocks accumulated across iterations until the
+    # chunk fills or the loop ends. Each entry is (layer_id, block, cr).
+    pending_chunk: List = []
+    if FLUSH_CHUNK > 1:
+        print(
+            f"[hybrid] STREAM_HYBRID_FLUSH_CHUNK={FLUSH_CHUNK} — chained "
+            f"dummy flush every {FLUSH_CHUNK} layers (single compiled graph)",
+            flush=True,
+        )
+
+    # Process-pool prefetch with strict CPU affinity partitioning. Main and
+    # worker are pinned to disjoint sets of PHYSICAL cores (skipping SMT
+    # siblings since dequant is memory-bandwidth-bound and 2 threads/core
+    # only contend for L1/L2). MAIN_CORES = count of physical cores for main;
+    # worker gets the remaining physical cores [MAIN_CORES, 32).
+    prefetch_pool = None
+    next_block_sd_future = None
+    original_affinity = os.sched_getaffinity(0)
+    if PREFETCH_NEXT_LAYER:
+        import torch.multiprocessing as torch_mp
+        # AMD EPYC 9354P: 32 physical cores, 2 SMT threads/core. Logical IDs
+        # 0..31 are physical thread 0; 32..63 are SMT siblings. Use only
+        # physical thread 0 IDs to avoid intra-core contention.
+        n_phys = 32
+        main_set = set(range(MAIN_CORES))
+        worker_set = set(range(MAIN_CORES, n_phys))
+        os.sched_setaffinity(0, main_set)
+        torch.set_num_threads(MAIN_CORES)
+        os.environ["DSV4_REPO_ID"] = weight_loader.REPO_ID
+        os.environ["DSV4_WORKER_CORES"] = ",".join(str(c) for c in sorted(worker_set))
+        os.environ["DSV4_WORKER_THREADS"] = str(len(worker_set))
+        ctx = torch_mp.get_context("spawn")
+        prefetch_pool = ctx.Pool(
+            1, initializer=weight_loader.prefetch_worker_init
+        )
+        print(
+            f"[hybrid] STREAM_HYBRID_PREFETCH=1 — "
+            f"main on cores {sorted(main_set)} ({MAIN_CORES} threads), "
+            f"worker on cores {sorted(worker_set)} ({len(worker_set)} threads). "
+            f"Submitted post-sparse_mlp.",
+            flush=True,
+        )
+
+    if GROUP_BY_CR:
+        # Group layers by compress_ratio so each cr's compiled flush graph
+        # stays ttnn-cache-hot through its whole group.
+        layer_order = sorted(
+            range(args.n_layers), key=lambda i: args.compress_ratios[i]
+        )
+        order_str = ", ".join(
+            f"cr={args.compress_ratios[i]}:l{i}" for i in layer_order[:8]
+        )
+        print(
+            f"[hybrid] STREAM_HYBRID_GROUP_BY_CR=1 — processing {len(layer_order)} "
+            f"layers grouped by cr (first 8: {order_str}{'...' if len(layer_order) > 8 else ''})",
+            flush=True,
+        )
+    else:
+        layer_order = list(range(args.n_layers))
+
+    for loop_idx, layer_id in enumerate(layer_order):
         t_layer = time.time()
         cr = args.compress_ratios[layer_id]
         print(
-            f"\n[hybrid] === layer {layer_id}/{args.n_layers - 1} cr={cr} ===",
+            f"\n[hybrid] === layer {layer_id} (loop {loop_idx}/{args.n_layers - 1}) cr={cr} ===",
             flush=True,
         )
         block = model.layers[layer_id]
 
-        # 1. Load HF weights for this block.
         t_load = time.time()
-        block_sd = weight_loader.load_block_state_dict(layer_id)
-        prefix = f"layers.{layer_id}."
-        stripped = {
-            (k[len(prefix):] if k.startswith(prefix) else k): v
-            for k, v in block_sd.items()
-        }
-        block.load_state_dict(stripped, strict=False)
-        del block_sd, stripped
-        gc.collect()
-        _log(f"l{layer_id} post-load")
-        if TRACE_OBJECTS:
-            _log_tensor_inventory(f"l{layer_id} post-load")
+        if EMPTY_INIT:
+            # Order swap: sparse_mlp first (allocates empty stacked params),
+            # then weight_loader writes dequant outputs DIRECTLY into the
+            # stacked param slots. Eliminates the redundant per-expert
+            # nn.Parameter copy AND the StackedExperts torch.stack pass.
+            t_sm = time.time()
+            enable_sparse_mlp(
+                block, mesh=mesh_shape, cluster_axis=0, config=args,
+                verbose=False, empty_init=True,
+            )
+            _strip_cpu_golden_refs(block)
+            gc.collect()
+            sm_time = time.time() - t_sm
 
-        # 2. Sparse-MLP rewrite + strip CPU goldens.
-        enable_sparse_mlp(
-            block, mesh=mesh_shape, cluster_axis=0, config=args, verbose=False,
-        )
-        if TRACE_OBJECTS:
-            _log_tensor_inventory(f"l{layer_id} post-sparse-pre-strip")
-        _strip_cpu_golden_refs(block)
-        gc.collect()
-        _log(f"l{layer_id} post-sparse")
+            t_sd = time.time()
+            non_expert_sd = weight_loader.fill_block_stacked(block, layer_id)
+            block.load_state_dict(non_expert_sd, strict=False)
+            del non_expert_sd
+            gc.collect()
+            sd_time = time.time() - t_sd
+            _log(f"l{layer_id} post-load")
+
+            print(
+                f"[breakdown l{layer_id}] sparse_mlp={sm_time:.2f}s "
+                f"fill+state_dict={sd_time:.2f}s",
+                flush=True,
+            )
+            _log(f"l{layer_id} post-sparse")
+        else:
+            # 1. Load HF weights for this block.
+            if next_block_sd_future is not None:
+                block_sd = next_block_sd_future.get()
+                next_block_sd_future = None
+            elif CHUNK_SIZE > 0:
+                # At chunk boundaries, dequant the next CHUNK_SIZE layers up-front
+                # so all subsequent state_dicts pop from the in-memory cache.
+                if layer_id % CHUNK_SIZE == 0 and layer_id not in chunk_cache:
+                    chunk_end = min(layer_id + CHUNK_SIZE, args.n_layers)
+                    t_chunk = time.time()
+                    for lid in range(layer_id, chunk_end):
+                        chunk_cache[lid] = weight_loader.load_block_state_dict(lid)
+                    print(
+                        f"[hybrid] chunk[{layer_id}:{chunk_end}] preload "
+                        f"{time.time() - t_chunk:.1f}s",
+                        flush=True,
+                    )
+                block_sd = chunk_cache.pop(layer_id)
+            else:
+                block_sd = weight_loader.load_block_state_dict(layer_id)
+            prefix = f"layers.{layer_id}."
+            stripped = {
+                (k[len(prefix):] if k.startswith(prefix) else k): v
+                for k, v in block_sd.items()
+            }
+            t_sd = time.time()
+            block.load_state_dict(stripped, strict=False)
+            del block_sd, stripped
+            gc.collect()
+            sd_time = time.time() - t_sd
+            _log(f"l{layer_id} post-load")
+            if TRACE_OBJECTS:
+                _log_tensor_inventory(f"l{layer_id} post-load")
+
+            # 2. Sparse-MLP rewrite + strip CPU goldens.
+            t_sm = time.time()
+            enable_sparse_mlp(
+                block, mesh=mesh_shape, cluster_axis=0, config=args, verbose=False,
+            )
+            if TRACE_OBJECTS:
+                _log_tensor_inventory(f"l{layer_id} post-sparse-pre-strip")
+            _strip_cpu_golden_refs(block)
+            gc.collect()
+            sm_time = time.time() - t_sm
+            print(
+                f"[breakdown l{layer_id}] state_dict={sd_time:.2f}s "
+                f"sparse_mlp={sm_time:.2f}s",
+                flush=True,
+            )
+            _log(f"l{layer_id} post-sparse")
         if TRACE_OBJECTS:
             _log_tensor_inventory(f"l{layer_id} post-sparse")
+        # Submit prefetch for layer_id+1 NOW (after sparse_mlp): the worker
+        # process will run during the upcoming ship + flush. With strict CPU
+        # affinity partitioning, main and worker do not contend for cores.
+        next_in_order = (
+            layer_order[loop_idx + 1] if loop_idx + 1 < len(layer_order) else None
+        )
+        if (
+            prefetch_pool is not None
+            and next_in_order is not None
+            and next_block_sd_future is None
+        ):
+            next_block_sd_future = prefetch_pool.apply_async(
+                weight_loader.prefetch_worker_load, (next_in_order,)
+            )
         t_load = time.time() - t_load
 
         # 3. Splice persistent KV (device tensors) into block._buffers.
@@ -701,43 +912,66 @@ def main(
 
         # 5. DUMMY EXECUTE: triggers PJRT
         # LoadedExecutableInstance::execute → ensure_layout → release
-        # of plugin-owned host staging buffers. Same shape as real
-        # prefill so PJRT compile cache keys align.
-        # Force replicated output so the all_gather is fused into the
-        # forward graph (Mode 2 pattern; required to avoid a separate
-        # reader-side compile that would defeat the in-process cache).
+        # of plugin-owned host staging buffers. With FLUSH_CHUNK > 1 the
+        # flush is deferred until `pending_chunk` fills (or the loop ends),
+        # then a single chained graph executes all CHUNK blocks at once.
+        pending_chunk.append((layer_id, block, cr))
+        is_chunk_end = (
+            len(pending_chunk) >= FLUSH_CHUNK
+            or loop_idx == len(layer_order) - 1
+        )
         t_flush = time.time()
         if SKIP_FLUSH:
-            # Debug mode: skip the dummy flush entirely. Used to compare
-            # ship-only vs ship+flush RSS patterns.
             torch_xla.sync(wait=True)
             xm.wait_device_ops()
+            pending_chunk.clear()
+        elif not is_chunk_end:
+            # Defer flush; main loop continues to next layer. The host
+            # staging buffers from `_ship_module_handle_path` accumulate
+            # until chunk-end execute migrates them all at once.
+            pass
         else:
-            hook = block.register_forward_hook(
-                sharding_constraint_hook(block, mesh, (None, None, None, None))
-            )
+            chunk_blocks_tuple = tuple(b for _, b, _ in pending_chunk)
+            hooks = [
+                b.register_forward_hook(
+                    sharding_constraint_hook(b, mesh, (None, None, None, None))
+                )
+                for b in chunk_blocks_tuple
+            ]
             try:
-                _ = run_block_flush(block, h_dummy, sp_dummy, ids_dummy)
+                if len(chunk_blocks_tuple) == 1:
+                    _ = run_block_flush(
+                        chunk_blocks_tuple[0], h_dummy, sp_dummy, ids_dummy
+                    )
+                else:
+                    _ = run_chunk_flush(
+                        chunk_blocks_tuple, h_dummy, sp_dummy, ids_dummy
+                    )
                 torch_xla.sync(wait=True)
                 xm.wait_device_ops()
             finally:
-                hook.remove()
-            # 6. Re-init mutable KV buffers (kv_cache, kv_state,
-            # score_state) that the dummy forward corrupted. freqs_cis
-            # etc. are read-only and untouched.
-            # Skip when PARAM_TOUCH_ONLY: that mode never runs the
-            # block forward, so KV buffers stay clean.
+                for h in hooks:
+                    h.remove()
+            # 6. Re-init mutable KV buffers for every block in the chunk
+            # (chained dummy corrupted them all).
             if not PARAM_TOUCH_ONLY:
-                # Exp A path: persistent_bufs[layer_id] is None on entry;
-                # _reinit_mutable_kv_buffers writes to a fresh dict that we
-                # then assign back to populate persistent_bufs[i].
-                if persistent_bufs[layer_id] is None:
-                    persistent_bufs[layer_id] = {}
-                _reinit_mutable_kv_buffers(
-                    block, persistent_bufs[layer_id], mesh, device,
-                )
+                for c_lid, c_block, _ in pending_chunk:
+                    if persistent_bufs[c_lid] is None:
+                        persistent_bufs[c_lid] = {}
+                    _reinit_mutable_kv_buffers(
+                        c_block, persistent_bufs[c_lid], mesh, device,
+                    )
                 torch_xla.sync(wait=True)
                 xm.wait_device_ops()
+            chunk_first = pending_chunk[0][0]
+            chunk_last = pending_chunk[-1][0]
+            chunk_crs = [c for _, _, c in pending_chunk]
+            print(
+                f"[chunk-flush layers {chunk_first}-{chunk_last} "
+                f"cr={chunk_crs}] {time.time() - t_flush:.1f}s",
+                flush=True,
+            )
+            pending_chunk.clear()
         t_flush = time.time() - t_flush
         gc.collect()
         _malloc_trim()
@@ -786,6 +1020,18 @@ def main(
                 _log_tensor_inventory(f"post-release-at-{end_id}")
 
     # ---- all layers device-resident; whole-model compile + run ----
+    # Shut down the worker pool and restore main's affinity to ALL cores,
+    # so whole-model compile + prefill + decode run with full CPU.
+    if prefetch_pool is not None:
+        prefetch_pool.close()
+        prefetch_pool.join()
+        os.sched_setaffinity(0, original_affinity)
+        torch.set_num_threads(len(original_affinity))
+        print(
+            f"[hybrid] prefetch pool shut down — main affinity restored "
+            f"to {len(original_affinity)} cores for whole-model compile",
+            flush=True,
+        )
     print("\n[hybrid] all layers device-resident. Whole-model compile ...",
           flush=True)
     _log("post-all-layers")
