@@ -247,54 +247,54 @@ void BufferInstance::copyFromHost(
   // the buffer cannot be borrowed.
 
   bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
-        tt::runtime::HostRuntime::Distributed;
-  
-  bool cannot_borrow_host_buffer = host_buffer_semantics ==
+                        tt::runtime::HostRuntime::Distributed;
+
+  bool cannot_borrow_host_buffer =
+      host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type);
 
-  if (is_distributed){
+  if (is_distributed) {
     PjrtTensor::HostTensorShell host_tensor_shell = PjrtTensor::HostTensorShell{
-      host_buffer, shape, strides, element_size, runtime_data_type};
+        host_buffer, shape, strides, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
     m_done_with_host_buffer_event->setIndestructible();
-    PjrtTensor::from_host_tensor_shell({this}, std::move(host_tensor_shell));
-  }
-  else{
-    if(cannot_borrow_host_buffer){
+    PjrtTensor::from_host_tensor_shell({this}, std::move(*host_tensor_shell));
+  } else {
+    if (cannot_borrow_host_buffer) {
       runtime_tensor = tt::runtime::createOwnedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
+          host_buffer, shape, strides, element_size, runtime_data_type);
       // Memory is copied, we don't need host buffer anymore.
       EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                             tt_pjrt_status::kSuccess);
       PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
     }
 
-    // Otherwise when input host buffer has other semantic we are allowed to alias
-    // it, so we can create borrowed host which doesn't copy any data and instead
-    // uses direct pointer to existing data. Since we are holding a pointer to the
-    // original data we can't mark the event as ready yet, so we remember it and
-    // mark it as ready once the buffer is destroyed.
-    else{
-    // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
-    // so we have to const cast here.
-    // https://github.com/tenstorrent/tt-metal/issues/20622
-    runtime_tensor = tt::runtime::createBorrowedHostTensor(
-      const_cast<void *>(host_buffer), shape, strides, element_size,
-      runtime_data_type);
+    // Otherwise when input host buffer has other semantic we are allowed to
+    // alias it, so we can create borrowed host which doesn't copy any data and
+    // instead uses direct pointer to existing data. Since we are holding a
+    // pointer to the original data we can't mark the event as ready yet, so we
+    // remember it and mark it as ready once the buffer is destroyed.
+    else {
+      // TODO(mrakita): Metal doesn't have a read-only version of borrowed
+      // buffer so we have to const cast here.
+      // https://github.com/tenstorrent/tt-metal/issues/20622
+      runtime_tensor = tt::runtime::createBorrowedHostTensor(
+          const_cast<void *>(host_buffer), shape, strides, element_size,
+          runtime_data_type);
 
-    // Memory is aliased, we need to hold on to host buffer until this buffer is
-    // deleted.
-    m_done_with_host_buffer_event = done_with_host_buffer_event.get();
+      // Memory is aliased, we need to hold on to host buffer until this buffer
+      // is deleted.
+      m_done_with_host_buffer_event = done_with_host_buffer_event.get();
 
-    // TODO(mrakita): This is a major hack that we currently have to do because
-    // XLA PJRT client destroys event immediately after it sets callback on it.
-    // https://github.com/openxla/xla/issues/25172
-    m_done_with_host_buffer_event->setIndestructible();
+      // TODO(mrakita): This is a major hack that we currently have to do
+      // because XLA PJRT client destroys event immediately after it sets
+      // callback on it. https://github.com/openxla/xla/issues/25172
+      m_done_with_host_buffer_event->setIndestructible();
 
-    PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+      PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
     }
-  }    
+  }
 
   markAsDataReady();
 

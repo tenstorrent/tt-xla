@@ -139,11 +139,12 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
 // remove_shard().
 void PjrtTensor::move_to_host() noexcept {
   ZoneScoped;
-  // TT_FATAL(m_runtime_tensor.has_value(),
-  //          "Cannot move shell-only PjrtTensor to host");
 
+  // Shell-only tensors (deferred in distributed runtime) have no device-side
+  // data to move. This can happen legitimately if the runtime mesh is different
+  // from The ClientInstance default (1xN_DEVICES) which induces a mesh reshape
+  // prior to first execution. Early return since there's nothing to move.
   if (!m_runtime_tensor.has_value() && m_host_tensor_shell.has_value()) {
-    // A shell-only PJRT tensor is already on host.
     return;
   }
 
