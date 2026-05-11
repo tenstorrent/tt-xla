@@ -93,6 +93,16 @@ def pytest_addoption(parser):
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
     )
 
+    parser.addoption(
+        "--check-fusions",
+        action="store_true",
+        default=False,
+        help=(
+            "Verify that expected fusion ops are present in the compiled IR. "
+            "Tests must declare expected_ops to use this feature."
+        ),
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -127,3 +137,8 @@ def max_output_tokens(request):
 @pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def check_fusions(request):
+    return request.config.getoption("--check-fusions")

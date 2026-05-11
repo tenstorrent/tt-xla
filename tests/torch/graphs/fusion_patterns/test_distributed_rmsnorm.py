@@ -7,6 +7,7 @@ import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from infra.evaluators import ComparisonConfig, PccConfig
 from torch_xla.distributed.spmd import Mesh
 from utils import Category
 
@@ -46,6 +47,7 @@ def test_distributed_rmsnorm(request):
     run_graph_test(
         model,
         [x],
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,

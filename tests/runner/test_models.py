@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import inspect
 import os
 import shutil
 import socket
@@ -58,7 +57,23 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
     PROJECT_ROOT
 )
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
-all_test_entries = test_entries_torch + test_entries_jax
+
+# setup_test_discovery adds the models root to sys.path, so ForgePrefillModel
+# can now be imported from the same namespace as the dynamically loaded loaders.
+from tt_forge_models.base import ForgePrefillModel  # noqa: E402
+
+
+def _is_prefill_loader(entry) -> bool:
+    """Return True if the entry's loader class is a ForgePrefillModel subclass."""
+    return issubclass(entry.variant_info[1], ForgePrefillModel)
+
+
+# Regular (non-prefill) torch entries drive test_all_models_torch. Prefill loaders
+# only participate in LLM-phase tests (see _llm_test_params below).
+test_entries_torch_regular = [
+    entry for entry in test_entries_torch if not _is_prefill_loader(entry)
+]
+all_test_entries = test_entries_torch_regular + test_entries_jax
 
 
 def _run_model_test_impl(
@@ -112,10 +127,11 @@ def _run_model_test_impl(
 
         comparison_config = test_metadata.to_comparison_config()
 
+        force_run = request.config.getoption("--force-run", default=False)
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
-            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP:
+            if test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP or force_run:
                 # Framework-specific tester creation
                 if framework == Framework.TORCH:
                     tester = DynamicTorchModelTester(
@@ -296,7 +312,7 @@ def _run_model_test_impl(
 )
 @pytest.mark.parametrize(
     "test_entry",
-    test_entries_torch,
+    test_entries_torch_regular,
     ids=DynamicLoader.create_test_id_generator(MODELS_ROOT_TORCH),
 )
 def test_all_models_torch(
@@ -382,14 +398,16 @@ def test_all_models_jax(
 # LLM Specific tests for decode and prefill phases. Separate test to avoid impacting
 # original test names in test_all_models_torch and no need for collection-time deselection logic.
 
-# Build list of (test_entry, run_phase) pairs based on loader capabilities
+# Build list of (test_entry, run_phase) pairs based on loader capabilities.
+# Prefill loaders own the prefill phase; regular ModelLoaders provide decode.
 _llm_test_params = []
 for entry in test_entries_torch:
     ModelLoader = entry.variant_info[1]
+    if _is_prefill_loader(entry):
+        _llm_test_params.append((entry, RunPhase.LLM_PREFILL))
+        continue
     if hasattr(ModelLoader, "load_inputs_decode"):
         _llm_test_params.append((entry, RunPhase.LLM_DECODE))
-    if hasattr(ModelLoader, "load_inputs_prefill"):
-        _llm_test_params.append((entry, RunPhase.LLM_PREFILL))
 
 
 def _generate_llm_test_id(param_tuple):
@@ -416,15 +434,13 @@ def _generate_mesh_shape_id(mesh_shape):
 
 
 def _supports_strategy_shard_spec(model_loader_cls) -> bool:
-    """Return True if loader.load_shard_spec supports strategy/batch_axis kwargs."""
-    if not hasattr(model_loader_cls, "load_shard_spec"):
-        return False
-    try:
-        signature = inspect.signature(model_loader_cls.load_shard_spec)
-    except (TypeError, ValueError):
-        return False
-    params = signature.parameters
-    return "strategy" in params and "batch_axis" in params
+    """Return True if loader.load_shard_spec supports strategy/batch_axis kwargs.
+
+    ForgePrefillModel subclasses are required to implement
+    ``load_shard_spec(model, strategy, batch_axis)`` per base.py, so this
+    simply checks for prefill-loader identity.
+    """
+    return issubclass(model_loader_cls, ForgePrefillModel)
 
 
 # Mesh shapes that support explicit FSDP/Megatron sharding strategies.

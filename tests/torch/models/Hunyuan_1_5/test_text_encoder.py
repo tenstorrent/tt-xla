@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Krea Realtime — CausalWanModel (14B DiT) component test."""
+"""HunyuanVideo 1.5 — Qwen2.5-VL text encoder component test."""
 
 import pytest
 import torch
@@ -11,23 +11,19 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.utilities.torch_multichip_utils import get_mesh
 
-from third_party.tt_forge_models.krea_realtime_video.pytorch import (
-    ModelLoader,
-    ModelVariant,
-)
+from third_party.tt_forge_models.hunyuan_1_5.pytorch import ModelLoader, ModelVariant
 
 
 @pytest.mark.skip(
-    reason="OOM on single device — CausalWanModel exceeds single-chip memory; sharded variant runs"
+    reason="model size > 7B — won't fit on a single chip; sharded variant runs"
 )
-def test_transformer():
+def test_text_encoder():
     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="error: failed to legalize unresolved materialization from ('tensor<0x2xf64>') to ('tensor<0xcomplex<f64>>') that remained live after conversion — https://github.com/tenstorrent/tt-mlir/issues/8291"
-)
-def test_transformer_sharded():
+@pytest.mark.nightly
+@pytest.mark.model_test
+def test_text_encoder_sharded():
     _run(sharded=True)
 
 
@@ -35,8 +31,8 @@ def _run(sharded: bool):
     xr.set_device_type("TT")
     torch.manual_seed(42)
 
-    loader = ModelLoader(ModelVariant.TRANSFORMER)
-    model = loader.load_model(dtype_override=torch.bfloat16)
+    loader = ModelLoader(ModelVariant.TEXT_ENCODER)
+    encoder = loader.load_model(dtype_override=torch.bfloat16)
     inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     mesh = None
@@ -49,7 +45,7 @@ def _run(sharded: bool):
         shard_spec_fn = loader.load_shard_spec
 
     run_graph_test(
-        model,
+        encoder,
         inputs,
         framework=Framework.TORCH,
         mesh=mesh,

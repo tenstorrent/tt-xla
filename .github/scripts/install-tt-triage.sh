@@ -20,12 +20,8 @@ echo "TT_METAL_VERSION=${TT_METAL_VERSION}"
 
 cd $(mktemp -d)
 
-wget -O install_debugger.sh "https://raw.githubusercontent.com/tenstorrent/tt-metal/${TT_METAL_VERSION}/scripts/install_debugger.sh"
-wget -O ttexalens_ref.txt "https://raw.githubusercontent.com/tenstorrent/tt-metal/${TT_METAL_VERSION}/scripts/ttexalens_ref.txt"
 wget -O requirements.txt "https://raw.githubusercontent.com/tenstorrent/tt-metal/${TT_METAL_VERSION}/tools/triage/requirements.txt"
 
-chmod u+x install_debugger.sh
-./install_debugger.sh
 pip install --no-cache-dir -r requirements.txt
 
 cd -
@@ -34,7 +30,6 @@ tt_triage_dir=/opt/tt-triage
 mkdir -p $tt_triage_dir
 curl -L "https://github.com/tenstorrent/tt-metal/archive/${TT_METAL_VERSION}.tar.gz" \
   | tar -xz -C $tt_triage_dir --strip-components=1 \
-      tt-metal-${TT_METAL_VERSION}/scripts/ttexalens_ref.txt \
       tt-metal-${TT_METAL_VERSION}/tools/tt-triage.py \
       tt-metal-${TT_METAL_VERSION}/tools/triage \
       tt-metal-${TT_METAL_VERSION}/tt_metal
