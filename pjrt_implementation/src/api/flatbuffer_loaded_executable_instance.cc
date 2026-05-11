@@ -71,6 +71,22 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     return std::nullopt;
   }
 
+  bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
+                        tt::runtime::HostRuntime::Distributed;
+  if (is_distributed) {
+    materializeShellTensors(arg_buffers);
+  }
+
+  PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
+      arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
+
+  tensor.ensure_layout(runtime_device, expected_layout);
+
+  return tensor.runtime_tensor();
+}
+
+void FlatbufferLoadedExecutableInstance::materializeShellTensors(
+    const std::vector<BufferInstance *> &arg_buffers) {
   // Group arg buffers by their borrowed host base pointer. Buffers that do
   // not borrow host memory (i.e. own their host tensor) are skipped.
   std::unordered_map<const void *, std::vector<BufferInstance *>>
@@ -97,13 +113,11 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     }
 
     const auto &shell = buffers.front()->getPjrtTensor()->host_tensor_shell();
-    if (!shell.has_value()) {
-      LOG_F(ERROR,
-            "Missing host tensor shell metadata for buffer uid=%lu ptr=%p",
-            buffers.front()->getUID(),
-            static_cast<const void *>(buffers.front()));
-      return std::nullopt;
-    }
+
+    TT_FATAL(shell.has_value(),
+             "Missing host tensor shell metadata for buffer uid=%lu ptr=%p",
+             buffers.front()->getUID(),
+             static_cast<const void *>(buffers.front()));
 
     // First buffer gets a newly-allocated owned host tensor that actually
     // copies the bytes from the client's host_base pointer. Subsequent
@@ -128,16 +142,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
                                       std::move(worker_runtime_tensor));
     }
   }
-
-  // from runtime tensor will create a multidevice host tensor from shards here,
-  // if necessary (strategy != identity) at this point, we should swap out the
-  // shards with the new worker local tensors
-  PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
-      arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
-
-  tensor.ensure_layout(runtime_device, expected_layout);
-
-  return tensor.runtime_tensor();
 }
 
 std::shared_ptr<FlatbufferExecutableImage>
