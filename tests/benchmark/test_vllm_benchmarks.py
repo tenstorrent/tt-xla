@@ -14,8 +14,10 @@ from utils import resolve_display_name
 # configs by setting these env vars (one knob per re-run):
 #   TT_BENCHMARK_TEMPERATURE=<float>  default 0.0 (greedy)
 #   TT_BENCHMARK_CPU_SAMPLING=1       default 0 (device sampling)
+#   TT_BENCHMARK_MAX_MODEL_LEN=<int>  default 128
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
+_BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
 
 
 def _config(model: str, batch_size: int, *, gpu_memory_utilization: float = 0.05):
@@ -25,7 +27,7 @@ def _config(model: str, batch_size: int, *, gpu_memory_utilization: float = 0.05
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
-        max_model_len=128,
+        max_model_len=_BENCH_MAX_MODEL_LEN,
         gpu_memory_utilization=gpu_memory_utilization,
         temperature=_BENCH_TEMPERATURE,
         additional_config=additional,
