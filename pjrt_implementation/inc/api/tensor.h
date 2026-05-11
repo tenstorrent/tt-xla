@@ -73,8 +73,7 @@ public:
   // tensor.
   static PjrtTensor &
   from_runtime_tensor(std::vector<BufferInstance *> shards,
-                      tt::runtime::Tensor device_tensor,
-                      std::optional<HostTensorShell> shell = std::nullopt);
+                      tt::runtime::Tensor device_tensor);
   static PjrtTensor &
   from_host_tensor_shell(std::vector<BufferInstance *> shards,
                          HostTensorShell shell);
