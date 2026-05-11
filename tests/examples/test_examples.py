@@ -25,6 +25,8 @@ XFAIL_FILES: dict[str, str] = {
     "pytorch/olmo3_1125_32b.py": "Olmo3 32B example requires n300-llmbox",
     "jax/codegen/cpp/resnet.py": "FlaxResNetModel removed in transformers 5.x",
     "jax/codegen/python/resnet.py": "FlaxResNetModel removed in transformers 5.x",
+    "pytorch/olmo3_1025_7b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
+    "pytorch/mistral_8b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
 }
 
 
