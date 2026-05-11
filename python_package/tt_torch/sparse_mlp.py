@@ -523,24 +523,24 @@ class A2aSparseMLP(nn.Module):
         self.register_buffer("expert_mapping", mapping)
 
     @torch.compiler.disable
-    def _cpu_forward(self, hidden_states):
+    def _cpu_forward(self, hidden_states, *extra_args, **extra_kwargs):
         """CPU golden path: call original MLP forward directly.
 
         Decorated with @torch.compiler.disable so Dynamo won't trace into it —
         original forward may contain numpy ops or other incompatible constructs.
         """
-        result = self._original_mlp(hidden_states)
+        result = self._original_mlp(hidden_states, *extra_args, **extra_kwargs)
         if isinstance(result, tuple):
             return result
         return result, None
 
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, *extra_args, **extra_kwargs):
         batch_size, seq_len, hidden_size = hidden_states.shape
         K = self.num_experts_per_tok
 
         # CPU golden path
         if hidden_states.device.type == "cpu":
-            return self._cpu_forward(hidden_states)
+            return self._cpu_forward(hidden_states, *extra_args, **extra_kwargs)
 
         # 1. Router — pass 3D for RouterAdapter (handles 3D→2D internally),
         # flatten to 2D for raw routers (e.g. GptOssTopKRouter).
@@ -548,7 +548,7 @@ class A2aSparseMLP(nn.Module):
         if not hasattr(self.router, "gate"):
             router_input = hidden_states.view(-1, hidden_size)
         router_scores, router_indices = _unpack_router_output(
-            self.router(router_input), self.num_experts
+            self.router(router_input, *extra_args, **extra_kwargs), self.num_experts
         )
 
         # Pad batch so (batch * seq_len) is a multiple of TILE (32). The
@@ -772,12 +772,19 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             # on a flattened 2D [batch * seq, hidden] input.
             self._gate_returns_idx_first = hasattr(gate, "n_routed_experts")
 
-        def forward(self, hidden_states):
+        def forward(self, hidden_states, *extra_args, **extra_kwargs):
             gate_input = hidden_states
             if hidden_states.dim() == 3 and not self._gate_returns_idx_first:
                 gate_input = hidden_states.view(-1, hidden_states.shape[-1])
+                # Flatten matching positional tensor extras (e.g., input_ids
+                # [bsz, seq] -> [bsz*seq]) so they line up with the flattened
+                # hidden_states. Mirrors DeepSeek V4 MoE.forward behavior.
+                extra_args = tuple(
+                    a.flatten() if torch.is_tensor(a) and a.dim() >= 2 else a
+                    for a in extra_args
+                )
 
-            gate_output = self.gate(gate_input)
+            gate_output = self.gate(gate_input, *extra_args, **extra_kwargs)
 
             if self._route_fn is not None:
                 # Raw-logits gate: use external routing function
@@ -1005,8 +1012,8 @@ class A2aSparseMLPWithSharedExperts(nn.Module):
         self.mlp = a2a_mlp
         self.shared_experts = shared_experts
 
-    def forward(self, hidden_states):
-        out, _ = self.mlp(hidden_states)
+    def forward(self, hidden_states, *extra_args, **extra_kwargs):
+        out, _ = self.mlp(hidden_states, *extra_args, **extra_kwargs)
         # On CPU, _cpu_forward delegates to the original MoE which already adds
         # shared_experts internally (DS V4 MoE.forward: y += self.shared_experts(x)).
         # On TT, dispatch/combine produces routed-only output, so shared must be
