@@ -26,6 +26,7 @@ DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
 DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
+DEFAULT_EXPERIMENTAL_KV_CACHE_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.94
 
@@ -52,7 +53,7 @@ def test_llm(
     shard_spec_fn=None,
     required_pcc=DEFAULT_REQUIRED_PCC,
     fp32_dest_acc_en=None,
-    experimental_kv_cache_dtype=None,
+    experimental_kv_cache_dtype=DEFAULT_EXPERIMENTAL_KV_CACHE_DTYPE,
     num_layers=None,
     request=None,
     accuracy_testing: bool = False,
