@@ -80,7 +80,7 @@ def main():
     else:
         loader = ModelLoader()
 
-    model = loader.load_model().eval()
+    model = loader.load_model().train()
 
     load_inputs_kwargs = {}
     if "batch_size" in inspect.signature(loader.load_inputs).parameters:
