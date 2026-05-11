@@ -71,12 +71,13 @@ public:
 
   // Creates new pjrt tensor for provided shards from an existing runtime
   // tensor.
-  static PjrtTensor &from_runtime_tensor(std::vector<BufferInstance *> shards,
-                                         tt::runtime::Tensor device_tensor,
-                                         std::optional<HostTensorShell> shell =
-                                             std::nullopt);
-  static PjrtTensor &from_host_tensor_shell(
-      std::vector<BufferInstance *> shards, HostTensorShell shell);
+  static PjrtTensor &
+  from_runtime_tensor(std::vector<BufferInstance *> shards,
+                      tt::runtime::Tensor device_tensor,
+                      std::optional<HostTensorShell> shell = std::nullopt);
+  static PjrtTensor &
+  from_host_tensor_shell(std::vector<BufferInstance *> shards,
+                         HostTensorShell shell);
 
 public: // Constructors needs to be public for std::shared_ptr.
   PjrtTensor(Private, std::vector<BufferInstance *> shards,
@@ -103,7 +104,9 @@ public: // Constructors needs to be public for std::shared_ptr.
              "Accessing runtime tensor on shell-only PjrtTensor");
     return *m_runtime_tensor;
   }
-  bool has_runtime_tensor() const noexcept { return m_runtime_tensor.has_value(); }
+  bool has_runtime_tensor() const noexcept {
+    return m_runtime_tensor.has_value();
+  }
   const std::optional<HostTensorShell> &host_tensor_shell() const {
     return m_host_tensor_shell;
   }
