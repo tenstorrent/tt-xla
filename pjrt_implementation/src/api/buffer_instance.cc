@@ -259,7 +259,7 @@ void BufferInstance::copyFromHost(
         host_buffer, shape, strides, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
     m_done_with_host_buffer_event->setIndestructible();
-    PjrtTensor::from_host_tensor_shell({this}, std::move(*host_tensor_shell));
+    PjrtTensor::from_host_tensor_shell({this}, std::move(host_tensor_shell));
   } else {
     if (cannot_borrow_host_buffer) {
       runtime_tensor = tt::runtime::createOwnedHostTensor(
