@@ -290,7 +290,7 @@ def composite_gather(
         out: preallocated output tensor, will be ignored when generating composite op
     """
     attrs = {"dim": dim, "sparse_grad": sparse_grad}
-    builder = StableHLOCompositeBuilder(name="tenstorrent.gather", attr=attrs)
+    builder = StableHLOCompositeBuilder(name="tenstorrent.gather_dim", attr=attrs)
     input, index = builder.mark_inputs(input, index)
     output = torch.gather(input, dim, index, sparse_grad=sparse_grad)
     output = builder.mark_outputs(output)
