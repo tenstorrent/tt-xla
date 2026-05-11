@@ -195,20 +195,20 @@ class DynamicTorchModelTester(TorchModelTester):
 
         # Lazy import to match the namespace of dynamically loaded model
         # modules, so isinstance checks see the same class object.
-        from tt_forge_models.base import ForgeFocusModel
+        from tt_forge_models.base import ForgePrefillModel
 
         # Build the weight shard spec function.
         # When shard_inputs is on, the mesh uses ("data", "model") axes, so FSDP
         # specs must use "data" instead of "batch" — handled by batch_axis arg.
         # (Megatron ignores batch_axis — its non-model axis is always None.)
         batch_axis = "data" if shard_inputs else "batch"
-        if isinstance(self.dynamic_loader.loader, ForgeFocusModel):
+        if isinstance(self.dynamic_loader.loader, ForgePrefillModel):
             weight_fn = lambda model: self.dynamic_loader.loader.load_shard_spec(
                 model, strategy=str(strategy), batch_axis=batch_axis
             )
         else:
             # Backward-compat fallback: ignore explicit strategy if loader is
-            # not a ForgeFocusModel (its load_shard_spec has no strategy kwargs).
+            # not a ForgePrefillModel (its load_shard_spec has no strategy kwargs).
             weight_fn = loader_shard_spec_fn
 
         if shard_inputs:

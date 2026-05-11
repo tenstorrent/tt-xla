@@ -185,8 +185,8 @@ def _has_method(tree: ast.Module, class_name: str, method_name: str) -> bool:
     """Check if a given class defines a specific method (e.g. load_inputs_decode).
 
     Only methods declared directly in the class body are considered; inherited
-    methods are intentionally invisible so a focus subclass doesn't falsely claim
-    ownership of phases its parent owns (which would duplicate test IDs).
+    methods are intentionally invisible so a prefill subclass doesn't falsely
+    claim ownership of phases its parent owns (which would duplicate test IDs).
     """
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
@@ -200,12 +200,12 @@ def _has_method(tree: ast.Module, class_name: str, method_name: str) -> bool:
     return False
 
 
-def _find_focus_class_name(tree: ast.Module) -> str:
-    """Return the name of the class that inherits from ForgeFocusModel, if any.
+def _find_prefill_class_name(tree: ast.Module) -> str:
+    """Return the name of the class that inherits from ForgePrefillModel, if any.
 
     Detection is by AST base reference (Name or Attribute), so any class whose
-    declared bases include ``ForgeFocusModel`` is recognised regardless of how
-    it's named.
+    declared bases include ``ForgePrefillModel`` is recognised regardless of
+    how it's named.
     """
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
@@ -216,7 +216,7 @@ def _find_focus_class_name(tree: ast.Module) -> str:
                 base_name = base.id
             elif isinstance(base, ast.Attribute):
                 base_name = base.attr
-            if base_name == "ForgeFocusModel":
+            if base_name == "ForgePrefillModel":
                 return node.name
     return ""
 
@@ -426,25 +426,26 @@ class TestConfigValidator:
                 else:
                     torch_models.append((rel_path, None))
 
-                # ForgeFocusModel subclasses (e.g. ModelLoaderFocus) live alongside
-                # ModelLoader and own the prefill phase with their own _VARIANTS
-                # subset; fall back to ModelLoader's variants if not overridden.
-                focus_class_name = _find_focus_class_name(tree)
-                focus_variants = []
-                if focus_class_name:
-                    focus_variants = (
+                # ForgePrefillModel subclasses (e.g. ModelLoaderPrefill) live
+                # alongside ModelLoader and own the prefill phase with their own
+                # _VARIANTS subset; fall back to ModelLoader's variants if not
+                # overridden.
+                prefill_class_name = _find_prefill_class_name(tree)
+                prefill_variants = []
+                if prefill_class_name:
+                    prefill_variants = (
                         _extract_variants_for_class(
-                            tree, enum_members, focus_class_name
+                            tree, enum_members, prefill_class_name
                         )
                         or variants
                     )
 
                 for method_name, phase_str in LLM_PHASES.items():
                     if phase_str == "llm_prefill":
-                        if focus_class_name and _has_method(
-                            tree, focus_class_name, method_name
+                        if prefill_class_name and _has_method(
+                            tree, prefill_class_name, method_name
                         ):
-                            target_variants = focus_variants
+                            target_variants = prefill_variants
                         else:
                             continue
                     else:

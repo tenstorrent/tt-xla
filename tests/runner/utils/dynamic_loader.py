@@ -199,9 +199,9 @@ class DynamicLoader:
         """Dynamically import a loader.py and return its module.
 
         Returning the module (rather than just ``ModelLoader``) lets callers
-        inspect sibling classes — e.g. ``ForgeFocusModel`` subclasses living in
-        the same file — without having to recompute the dashed ``sys.modules``
-        key used below.
+        inspect sibling classes — e.g. ``ForgePrefillModel`` subclasses living
+        in the same file — without having to recompute the dashed
+        ``sys.modules`` key used below.
 
         Args:
             loader_path: Path to the loader.py file
@@ -248,9 +248,9 @@ class DynamicLoader:
     def get_model_variants(cls, loader_path: str, loader_paths: Dict, models_root: str):
         """Fill loader_paths[loader_path] with (variant_name, LoaderCls) tuples.
 
-        Registers the primary ``ModelLoader`` plus any ``ForgeFocusModel``
+        Registers the primary ``ModelLoader`` plus any ``ForgePrefillModel``
         subclass defined in the same module, so one loader.py can host both
-        non-focus and focus loaders.
+        regular and prefill-specialized loaders.
 
         Args:
             loader_path: Path to the loader.py file
@@ -263,16 +263,16 @@ class DynamicLoader:
 
             # Lazy import: must come from the same namespace the dynamically
             # loaded module uses, so issubclass sees the same class object.
-            from tt_forge_models.base import ForgeFocusModel
+            from tt_forge_models.base import ForgePrefillModel
 
             loader_classes = [ModelLoader]
             for attr_name in dir(mod):
                 attr = getattr(mod, attr_name)
                 if not isinstance(attr, type):
                     continue
-                if attr is ForgeFocusModel or attr is ModelLoader:
+                if attr is ForgePrefillModel or attr is ModelLoader:
                     continue
-                if not issubclass(attr, ForgeFocusModel):
+                if not issubclass(attr, ForgePrefillModel):
                     continue
                 if getattr(attr, "__module__", None) != mod.__name__:
                     continue
@@ -428,10 +428,10 @@ class TorchDynamicLoader(DynamicLoader):
         if run_phase == RunPhase.LLM_PREFILL:
             # Lazy import to ensure we get the same class object as the
             # dynamically imported loader modules.
-            from tt_forge_models.base import ForgeFocusModel
+            from tt_forge_models.base import ForgePrefillModel
 
-            assert isinstance(self.loader, ForgeFocusModel), (
-                f"{type(self.loader).__name__} must be a ForgeFocusModel "
+            assert isinstance(self.loader, ForgePrefillModel), (
+                f"{type(self.loader).__name__} must be a ForgePrefillModel "
                 f"subclass for run_phase={run_phase}"
             )
 

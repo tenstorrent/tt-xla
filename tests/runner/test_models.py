@@ -58,20 +58,20 @@ MODELS_ROOT_TORCH, test_entries_torch = TorchDynamicLoader.setup_test_discovery(
 )
 MODELS_ROOT_JAX, test_entries_jax = JaxDynamicLoader.setup_test_discovery(PROJECT_ROOT)
 
-# setup_test_discovery adds the models root to sys.path, so ForgeFocusModel
+# setup_test_discovery adds the models root to sys.path, so ForgePrefillModel
 # can now be imported from the same namespace as the dynamically loaded loaders.
-from tt_forge_models.base import ForgeFocusModel  # noqa: E402
+from tt_forge_models.base import ForgePrefillModel  # noqa: E402
 
 
-def _is_focus_loader(entry) -> bool:
-    """Return True if the entry's loader class is a ForgeFocusModel subclass."""
-    return issubclass(entry.variant_info[1], ForgeFocusModel)
+def _is_prefill_loader(entry) -> bool:
+    """Return True if the entry's loader class is a ForgePrefillModel subclass."""
+    return issubclass(entry.variant_info[1], ForgePrefillModel)
 
 
-# Regular (non-focus) torch entries drive test_all_models_torch. Focus loaders
+# Regular (non-prefill) torch entries drive test_all_models_torch. Prefill loaders
 # only participate in LLM-phase tests (see _llm_test_params below).
 test_entries_torch_regular = [
-    entry for entry in test_entries_torch if not _is_focus_loader(entry)
+    entry for entry in test_entries_torch if not _is_prefill_loader(entry)
 ]
 all_test_entries = test_entries_torch_regular + test_entries_jax
 
@@ -399,11 +399,11 @@ def test_all_models_jax(
 # original test names in test_all_models_torch and no need for collection-time deselection logic.
 
 # Build list of (test_entry, run_phase) pairs based on loader capabilities.
-# Focus loaders own the prefill phase; regular ModelLoaders provide decode.
+# Prefill loaders own the prefill phase; regular ModelLoaders provide decode.
 _llm_test_params = []
 for entry in test_entries_torch:
     ModelLoader = entry.variant_info[1]
-    if _is_focus_loader(entry):
+    if _is_prefill_loader(entry):
         _llm_test_params.append((entry, RunPhase.LLM_PREFILL))
         continue
     if hasattr(ModelLoader, "load_inputs_decode"):
@@ -436,11 +436,11 @@ def _generate_mesh_shape_id(mesh_shape):
 def _supports_strategy_shard_spec(model_loader_cls) -> bool:
     """Return True if loader.load_shard_spec supports strategy/batch_axis kwargs.
 
-    ForgeFocusModel subclasses are required to implement
+    ForgePrefillModel subclasses are required to implement
     ``load_shard_spec(model, strategy, batch_axis)`` per base.py, so this
-    simply checks for focus-loader identity.
+    simply checks for prefill-loader identity.
     """
-    return issubclass(model_loader_cls, ForgeFocusModel)
+    return issubclass(model_loader_cls, ForgePrefillModel)
 
 
 # Mesh shapes that support explicit FSDP/Megatron sharding strategies.
