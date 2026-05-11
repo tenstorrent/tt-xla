@@ -483,100 +483,117 @@ def benchmark_llm_torch_xla(
                 f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
             )
 
+    # Used by BOTH perf and PCC/TOPK sections — hoisted here so it's defined
+    # in either branch of the codegen-skip below.
+    ground_truth_for_benchmark = (
+        token_accuracy.reference_tokens if accuracy_testing else None
+    )
+
     # ========================================================
     # PERFORMANCE BENCHMARK
     # ========================================================
 
-    # No logits returned to maximize performance and avoid device DRAM OOM.
-    perf_wrapper = LLMSamplingWrapper(
-        model,
-        read_logits_fn,
-        return_logits=False,
-        mesh=mesh,
-        output_sharding_spec=input_output_sharding_spec,
-    )
-    perf_wrapper.eval()
-    compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
+    if codegen_export_path:
+        # Codegen mode: skip the perf_wrapper compile to avoid emitting two
+        # extra graphs (perf prefill/decode, return_logits=False) the
+        # autoresearch loop doesn't use. The loop only needs the logits_wrapper
+        # graphs (PCC/TOPK section below) to measure accuracy + latency.
+        # Saves ~half the codegen wall (~6h on full 120B) and ~half the disk
+        # (~436 GB). Placeholder iteration_times keeps post-processing math
+        # consistent; perf numbers are meaningless under dry_run=True anyway.
+        print("[codegen] skipping PERFORMANCE BENCHMARK (CODEGEN_EXPORT_PATH set)")
+        iteration_times = [0]
+    else:
+        # No logits returned to maximize performance and avoid device DRAM OOM.
+        perf_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=False,
+            mesh=mesh,
+            output_sharding_spec=input_output_sharding_spec,
+        )
+        perf_wrapper.eval()
+        compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
-    warmup_kv_cache = None
+        warmup_kv_cache = None
 
-    # Warmup run (skip in decode-only mode)
-    if not decode_only:
-        # Construct inputs for warmup run
+        # Warmup run (skip in decode-only mode)
+        if not decode_only:
+            # Construct inputs for warmup run
+            input_args = construct_inputs(
+                tokenizer,
+                model.config,
+                batch_size,
+                max_cache_len,
+                input_prompt=custom_input_prompt,
+                input_prompt_tokens=(
+                    token_accuracy.input_prompt if accuracy_testing else None
+                ),
+                use_mla_cache=use_mla_cache,
+            )
+            input_args = transfer_to_device(input_args, device)
+            if is_multichip:
+                _shard_kv_cache(
+                    input_args["past_key_values"], mesh, kv_cache_sharding_spec
+                )
+                if input_output_sharding_spec:
+                    xs.mark_sharding(
+                        input_args["input_ids"], mesh, input_output_sharding_spec
+                    )
+            print("Warming up...")
+            warmup_tokens = min(MIN_STEPS, max_output_tokens)
+            _, _ = generate_and_benchmark(
+                compiled_perf_model,
+                input_args,
+                device,
+                warmup_tokens,
+                verbose=False,
+                collect_logits=False,
+            )
+            print("Warmup complete")
+
+            warmup_kv_cache = input_args["past_key_values"]
+
+            tracy.signpost("warmup_complete")
+
+        # Reconstruct inputs for the perf benchmark run
         input_args = construct_inputs(
             tokenizer,
             model.config,
             batch_size,
             max_cache_len,
+            past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
             input_prompt=custom_input_prompt,
             input_prompt_tokens=(
                 token_accuracy.input_prompt if accuracy_testing else None
             ),
             use_mla_cache=use_mla_cache,
         )
+
+        if decode_only:
+            # Reset to post-prefill decode state (single token input)
+            input_args["input_ids"] = decode_only_input_ids.clone()
+            input_args["cache_position"] = decode_only_cache_position.clone()
+
         input_args = transfer_to_device(input_args, device)
-        if is_multichip:
+        if is_multichip and decode_only:
             _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-            if input_output_sharding_spec:
-                xs.mark_sharding(
-                    input_args["input_ids"], mesh, input_output_sharding_spec
-                )
-        print("Warming up...")
-        warmup_tokens = min(MIN_STEPS, max_output_tokens)
-        _, _ = generate_and_benchmark(
+        if input_output_sharding_spec:
+            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+
+        # Run perf benchmark
+        print(f"\nStarting performance benchmark...")
+        _, iteration_times = generate_and_benchmark(
             compiled_perf_model,
             input_args,
             device,
-            warmup_tokens,
-            verbose=False,
+            max_output_tokens,
+            verbose=True,
+            tokenizer=tokenizer,
+            ground_truth_tokens=ground_truth_for_benchmark,
             collect_logits=False,
         )
-        print("Warmup complete")
-
-        warmup_kv_cache = input_args["past_key_values"]
-
-        tracy.signpost("warmup_complete")
-
-    # Reconstruct inputs for the perf benchmark run
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        use_mla_cache=use_mla_cache,
-    )
-
-    if decode_only:
-        # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
-
-    input_args = transfer_to_device(input_args, device)
-    if is_multichip and decode_only:
-        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-    if input_output_sharding_spec:
-        xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
-
-    ground_truth_for_benchmark = (
-        token_accuracy.reference_tokens if accuracy_testing else None
-    )
-
-    # Run perf benchmark
-    print(f"\nStarting performance benchmark...")
-    _, iteration_times = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        max_output_tokens,
-        verbose=True,
-        tokenizer=tokenizer,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=False,
-    )
-    print("\nPerformance benchmark complete")
+        print("\nPerformance benchmark complete")
 
     # ========================================================
     # PCC/TOPK BENCHMARK
