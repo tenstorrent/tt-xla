@@ -949,8 +949,8 @@ class MLA(nn.Module):
                 .to(kv.dtype)
                 .view_as(kv)
             )
-        kv_cache[:bsz, 0, start_pos:end_pos] = kv
-        pe_cache[:bsz, 0, start_pos:end_pos] = k_pe.squeeze(2)
+        self.kv_cache[:bsz, start_pos:end_pos] = kv
+        self.pe_cache[:bsz, start_pos:end_pos] = k_pe.squeeze(2)
         if mask is not None:  # MHA prefill
             q = torch.cat([q_nope, q_pe], dim=-1)
             kv = self.wkv_b(kv)

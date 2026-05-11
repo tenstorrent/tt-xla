@@ -189,21 +189,21 @@ def test_deepseek_attention_prefill(batch_size, seq_len):
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
 @pytest.mark.parametrize("prefill_seq_len", [32, 128, 512, 2048])
 def test_deepseek_attention_decode(batch_size, prefill_seq_len, request):
-    _XFAIL_CONFIGS = {
-        (128, 32),
-        (128, 64),
-        (512, 32),
-        (512, 64),
-        (2048, 4),
-        (2048, 32),
-        (2048, 64),
-    }
-    if (prefill_seq_len, batch_size) in _XFAIL_CONFIGS:
-        request.applymarker(
-            pytest.mark.xfail(
-                reason="Low PCC due to ttir.gather lowering bug - https://github.com/tenstorrent/tt-xla/issues/3726"
-            )
-        )
+    # _XFAIL_CONFIGS = {
+    #     (128, 32),
+    #     (128, 64),
+    #     (512, 32),
+    #     (512, 64),
+    #     (2048, 4),
+    #     (2048, 32),
+    #     (2048, 64),
+    # }
+    # if (prefill_seq_len, batch_size) in _XFAIL_CONFIGS:
+    #     request.applymarker(
+    #         pytest.mark.xfail(
+    #             reason="Low PCC due to ttir.gather lowering bug - https://github.com/tenstorrent/tt-xla/issues/3726"
+    #         )
+    #     )
 
     xr.set_device_type("TT")
 
