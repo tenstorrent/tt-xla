@@ -9,12 +9,18 @@ import torch
 import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
+import torch._functorch.config as _functorch_config
 import torch_xla.runtime as xr
-from functorch.compile import make_boxed_func
+from functorch.compile import make_boxed_func, min_cut_rematerialization_partition
 from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
 from torch._dynamo.backends.common import aot_autograd
 from torch._dynamo.utils import detect_fake_mode
+
+# Force the min-cut partitioner to never save aten.view/permute/transpose/etc.
+# A saved view of a parameter is a parameter-sized device copy for nothing -
+# the parameter is already a backward input and the view is free to recompute.
+_functorch_config.recompute_views = True
 from torch.export import ExportedProgram
 from torch.export.graph_signature import (
     ExportGraphSignature,
@@ -528,7 +534,9 @@ def aot_backend(
         _active_fake_mode.allow_non_fake_inputs = True
     try:
         return aot_autograd(
-            fw_compiler=fw_compiler_boxed, decompositions=aot_decompositions
+            fw_compiler=fw_compiler_boxed,
+            decompositions=aot_decompositions,
+            partition_fn=min_cut_rematerialization_partition,
         )(gm, example_inputs)
     finally:
         if _saved_allow is not None:
