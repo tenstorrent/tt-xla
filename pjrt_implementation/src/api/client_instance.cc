@@ -38,6 +38,28 @@
 
 namespace tt::pjrt {
 
+namespace {
+
+// Heuristic for tt::Cluster::is_ubb_galaxy without linking against
+// libtt_metal.so. UBB galaxy is the WH GALAXY (ClusterType=4) or
+// BLACKHOLE_GALAXY (=16) — both 32-chip single-host configurations. The other
+// single-host clusters tt-xla cares about have far fewer chips (n150=1,
+// n300=2, T3K=8, n300_2x2=4, p150_*=1..8). Multi-host configs (quad galaxy
+// etc.) expose only the local host's chips to a single process, so 32-chip
+// visibility on a single host is a reliable UBB galaxy signal.
+//
+// Why we need this: tt-metal's fabric layer reinterprets FABRIC_1D_RING as
+// TORUS_XY on UBB galaxies (see fabric_host_utils.cpp::get_fabric_type),
+// requiring both-axis wrap connectivity that most UBB galaxy boards lack.
+// Callers downgrade FABRIC_1D_RING to FABRIC_1D in that case so the
+// TopologyMapper can still place the mesh.
+bool isUbbGalaxyCluster(
+    const tt::runtime::SystemDesc &system_descriptor) {
+  return system_descriptor->chip_desc_indices()->size() == 32;
+}
+
+} // namespace
+
 static std::string getRankBindingPath(const std::string &metal_home) {
   static std::unordered_map<std::string, std::string> rank_binding_paths = {
       {"2x4_multiprocess",
@@ -397,8 +419,24 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // Open the parent mesh in its native 2D shape directly instead of as a
+    // 1D `{1, N}` line. The 1D-then-reshape sequence triggers a close+reopen
+    // on the metal mesh device, which on UBB galaxy clusters with asymmetric
+    // ETH connectivity appears to leave per-chip dispatch state misaligned
+    // (boundary chips never finish workers expected by the host's
+    // `expected_num_workers_completed_` counter), causing subsequent
+    // `from_device` reads to hang.
+    //
+    // For 32-chip clusters we open as 8x4 (BH galaxy's physical layout per
+    // `physical_chip_mesh_coordinate_mapping_*.yaml`). Other cluster sizes
+    // fall back to the original 1D shape.
+    std::vector<uint32_t> initial_mesh_shape;
+    if (m_devices.size() == 32) {
+      initial_mesh_shape = {8, 4};
+    } else {
+      initial_mesh_shape = {1, static_cast<uint32_t>(m_devices.size())};
+    }
+    m_parent_mesh = getOrCreateMeshDevice(initial_mesh_shape);
   }
 
   return tt_pjrt_status::kSuccess;
@@ -500,7 +538,28 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
-  return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
+  tt::runtime::MeshFabricConfig config =
+      tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
+
+  // [Workaround] computeMeshFabricConfig classifies an axis as FABRIC_1D_RING
+  // whenever its first/last devices happen to be connected, but on UBB galaxy
+  // clusters tt-metal interprets FABRIC_1D_RING as the stricter TORUS_XY
+  // (both-axis wrap) topology. Most UBB galaxy boards do not have wraps on
+  // both axes, so the TopologyMapper rejects the resulting MGD with a
+  // STRICT-mode mapping failure. Downgrade to FABRIC_1D (and matching axes)
+  // here so auto-discovery generates a plain MESH MGD that always maps.
+  if (isUbbGalaxyCluster(m_system_descriptor)) {
+    if (config.globalConfig == tt::runtime::FabricConfig::FABRIC_1D_RING) {
+      config.globalConfig = tt::runtime::FabricConfig::FABRIC_1D;
+    }
+    for (auto &axis_config : config.perAxisConfig) {
+      if (axis_config == tt::runtime::FabricConfig::FABRIC_1D_RING) {
+        axis_config = tt::runtime::FabricConfig::FABRIC_1D;
+      }
+    }
+  }
+
+  return config;
 }
 
 tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
