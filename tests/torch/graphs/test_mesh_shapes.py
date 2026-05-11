@@ -32,7 +32,6 @@ class _NoInput(torch.nn.Module):
 
 # Case 1: single-device target, module has args.
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_with_input_single_device():
@@ -43,7 +42,6 @@ def test_with_input_single_device():
 
 # Case 2: single-device target, module has no args.
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_no_input_single_device():
@@ -58,7 +56,6 @@ def test_no_input_single_device():
 
 # Case 3: multichip target, sharded inputs.
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.multi_chip
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_with_input_multichip_sharded():
@@ -79,7 +76,6 @@ def test_with_input_multichip_sharded():
 
 # Case 4: multichip target, module has no args.
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.multi_chip
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_no_input_multichip_sharded_output():
@@ -98,7 +94,6 @@ def test_no_input_multichip_sharded_output():
 
 # Case 5: sequential single-device compiles, no-input first.
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_single_device_sequential_no_input_then_with_input():
@@ -119,7 +114,6 @@ def test_single_device_sequential_no_input_then_with_input():
 
 # Case 6: sequential single-device compiles, with-input first.
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_single_device_sequential_with_input_then_no_input():
@@ -140,7 +134,6 @@ def test_single_device_sequential_with_input_then_no_input():
 
 # Case 7: SPMD enabled but input fully replicated.
 @pytest.mark.push
-@pytest.mark.nightly
 @pytest.mark.multi_chip
 @pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
 def test_with_input_multichip_replicated():
