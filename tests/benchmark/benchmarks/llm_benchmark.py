@@ -466,7 +466,16 @@ def benchmark_llm_torch_xla(
         options["export_path"] = codegen_export_path
         options["export_tensors"] = True
         options["dry_run"] = True
-        logger.info(f"CODEGEN_EXPORT_PATH set; emitting Python TTNN to {codegen_export_path}")
+        # codegen_py owner reports trace isn't well-supported on this path
+        # and has been implicated in OOMs under the emitted lowering. Trace is
+        # a perf-only runtime optimization and has no effect on accuracy, so
+        # we force it off here. Per-iter samples/sec is meaningless without
+        # trace anyway — this path is for mixed-precision accuracy tuning.
+        options["enable_trace"] = False
+        logger.info(
+            f"CODEGEN_EXPORT_PATH set; emitting Python TTNN to {codegen_export_path} "
+            f"(enable_trace forced to False)"
+        )
 
     torch_xla.set_custom_compile_options(options)
 
