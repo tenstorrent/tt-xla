@@ -119,11 +119,11 @@ Available `ttnn.FabricConfig` values: `CUSTOM, DISABLED, FABRIC_1D, FABRIC_1D_NE
 
 ---
 
-## Bug 3 — `weight_dtype_overrides` (`apply_weight_dtype_overrides`) silently dropped during codegen — emitted artifact OOMs at runtime
+## Bug 3 — Codegen-emitted full GPT-OSS 120B OOMs at runtime; root cause not the dtype-override path (open)
 
 **Symptom:**
 
-Codegen of a full-size GPT-OSS 120B (`pytest test_gpt_oss_120b_tp_galaxy_batch_size_64 --accuracy-testing` with `CODEGEN_EXPORT_PATH=…` and `weight_dtype_overrides={…experts.{gate_up,down}_proj: bfp_bf4, router: bfp_bf4}`) succeeds and writes ~872 GB across 4 graphs (218 GB / graph, 11h 48m wall). When the emitted code is executed (via the standalone `bash run` script or the in-process harness), `_main` fails with:
+Codegen of a full-size GPT-OSS 120B (`pytest test_gpt_oss_120b_tp_galaxy_batch_size_64 --accuracy-testing` with `CODEGEN_EXPORT_PATH=…` and `weight_dtype_overrides={…experts.{gate_up,down}_proj: bfp_bf4, router: bfp_bf4}`) succeeds and writes ~872 GB across 4 graphs (218 GB / graph, 11h 48m wall on tt-mlir `f8d3bf0e`). When the emitted code is executed (via the standalone `bash run` script or the in-process harness), `_main` fails with:
 
 ```
 TT_FATAL: Out of Memory: Not enough space to allocate 377487360 B DRAM buffer
@@ -132,49 +132,69 @@ across 12 banks, where each bank needs to store 31457280 B, but bank size is
 largest free block: 31453440 B)
 ```
 
-**Root cause:**
+The same test in non-codegen mode on the same Galaxy reservation runs successfully at TOP1=81.25% / TOP5=95.31% (37 min wall, decode 568 ms). So the model fits on this hardware with the configured dtype overrides applied; only the emitted-code execution path doesn't fit.
 
-The same test on the same hardware **runs successfully without codegen mode** at `TOP1=81.25% / TOP5=95.31%` (37 min wall, decode 568 ms — confirmed iter-0 baseline). So the model does fit on Galaxy 4×8 with the user's specified weight dtype overrides applied. The OOM is specific to executing the codegen-emitted artifact.
+**What is NOT the bug (despite my initial guess):**
 
-Inspection of the emitted artifact:
+I first suggested the `weight_dtype_overrides` (`apply_weight_dtype_overrides` torch parametrization) was being dropped from the emit, citing a `grep` for `to_dtype` returning zero in the emitted `main.py`. That was the **wrong needle** — the conversion lowers to `ttnn.typecast`, not `to_dtype`, in this pipeline.
 
-```bash
-$ ls -l <export_path>/graph_2/tensors/*.tensorbin | awk '{print $5}' | sort -n | uniq -c | sort -rn | head -10
-    109 8688
-     72 8391552
-     72 740216
-     72 3952
-     72 2952056
-     72 23595896
-     37 11120
-     36 4246735736   # <-- 4.0 GB each, exactly 36 of them = one per layer
-     36 3184
-     36 3056
-```
-
-36 weight tensors at full 4.0 GB each (one per transformer layer × 36 layers). Per the test's `weight_dtype_overrides`, these should be `bfp_bf4` (~1.0 GB each = 36 GB total). At full bf16 they're 144 GB total — ~4× the intended footprint. The aggregate memory pressure pushes per-device DRAM banks past their 1.07 GB budget, hence OOM.
+The right checks come back clean:
 
 ```bash
-$ grep -nE "bfp_bf4|bfp_bf8|weight_dtype_override|to_dtype" <export_path>/graph_2/main.py | wc -l
-0
+# (1) ttnn.typecast IS emitted into main.py — 403 calls, with the expected target dtypes
+$ grep -c 'ttnn\.typecast(' <export_path>/graph_2/main.py
+403
+$ grep -A1 'ttnn\.typecast(' <export_path>/graph_2/main.py | grep -oE 'DataType\.\w+' | sort | uniq -c
+    146 DataType.FLOAT32     # intermediates / accumulators
+    108 DataType.BFLOAT4_B    # = bfp_bf4 — matches the experts.{gate_up,down}_proj + router count
+     73 DataType.BFLOAT8_B    # = bfp_bf8 — matches conftest's default experimental_weight_dtype
+     38 DataType.BFLOAT16     # activations into matmul inputs
+     37 DataType.INT32
+      1 DataType.UINT32
+
+# Pattern is from_device → typecast(target) → deallocate(host bf16) → to_device(DRAM)
+# — exactly the chain HOST_BFP_PACKING_VALIDATION_NOTES.md describes.
+
+# (2) ttcore.weight_dtype arg attributes survive end-to-end through the MLIR pipeline:
+#   shlo (raw):                  108 weight_dtype, 0 typecast
+#   shlo_frontend/compiler:        1 (global)
+#   ttir:                          1 weight_dtype, 222 typecast
+#   ttnn:                        109 weight_dtype, 403 typecast
+#   emitted main.py:               —, 403 typecast
 ```
 
-The emitted `main.py` contains zero references to `to_dtype`, `weight_dtype_override`, or any of the bfp string aliases. The dtype conversion that `apply_weight_dtype_overrides` (`python_package/tt_torch/weight_dtype.py`) is supposed to inject via `torch.nn.utils.parametrize.register_parametrization(module, "weight", WeightDtypeParametrization(dtype_str))` is **not being traced into the codegen-emitted graph**. The parametrization calls `torch.ops.tt.weight_dtype_override(weight, dtype_str)` on every `module.weight` access; that custom op should appear in the StableHLO graph and be lowered through TTIR / TTNN to the equivalent of a `from_device + to_dtype + to_device` chain (per `HOST_BFP_PACKING_VALIDATION_NOTES.md`'s account of the `dgolubovic/host-bfp-packing` work).
+The 108 SHLO-level arg annotations match the 108 weights targeted for bfp_bf4 by the test's `weight_dtype_overrides` glob. They get folded into the global option through the frontend, then expanded back into per-weight typecast ops at TTIR (222 — two per overridden tensor) and TTNN (403 — including additional intermediate conversions). **The dtype-override path is healthy.**
 
-For codegen, either:
-- The parametrization is being silently dropped before the StableHLO frontend pass, OR
-- The `to_dtype` chain IS in TTIR/TTNN MLIR but the codegen emitter isn't writing it to the Python output, OR
-- The emitter is bypassing the parametrized weight access and reading the underlying bf16 parameter directly when constructing the `.tensorbin` snapshots.
+That `.tensorbin` files are full bf16 on disk is *expected* with this design — the chain executes at runtime (or via a const-eval cache; see notes below) to materialize the bfp representation, the tensorbins just hold the source data.
 
-The third hypothesis matches the symptom most cleanly: tensorbins contain the underlying-storage bf16 bytes, and the emitted Python TTNN doesn't have the `to_dtype` ops that production runtime applies.
+**What IS likely the bug (still undiagnosed):**
 
-**Suggested fix (pick one):**
+The allocator log shows the failure isn't simple total-memory exhaustion — it's *fragmentation*:
 
-1. **Trace through the parametrization at codegen time.** Audit the StableHLO/TTIR lowering for `torch.ops.tt.weight_dtype_override`. If the op disappears, fix the lowering to preserve it. If it's preserved, fix the codegen Python emitter to render the corresponding `ttnn.to_dtype(...)` call at the appropriate point in `main.py`.
-2. **Pre-quantize tensorbins.** Run `apply_weight_dtype_overrides` and *materialize* the result before writing tensorbins. The emitted code stays simple (no `to_dtype` ops needed); the on-disk weights are correct. Loses runtime-flexibility of swapping dtypes per-inference, but matches the autoresearch loop's intent (we only ever want one dtype per emit).
-3. **Document the limitation and fail loudly.** If `weight_dtype_overrides` is used, refuse to write tensorbins until the parametrization is correctly traced, with an actionable error message instead of producing a silently-broken artifact.
+```
+per-bank size:        1,071,821,792 B  (~1.07 GB)
+per-bank allocated:   1,017,920,704 B  (~95 % full)
+per-bank free:           53,901,088 B  (~54 MB)
+largest free block:      31,453,440 B  (~31 MB)
+required per bank:       31,457,280 B  (~31 MB)
+```
 
-**Workaround used in this loop:** none — the full-120B codegen artifact is **unusable for the autoresearch loop** until this is fixed. Falling back to the 1-layer artifact (33 GB) for loop mechanism validation. Real per-op MP knob research on full GPT-OSS 120B waits on a fix here.
+Each bank has enough free space in aggregate, but the largest contiguous chunk is ~3 KB shy of the request. That points at allocation *order* / *lifetime* differing between the production path and the codegen-emit path, not at the dtype path.
+
+Plausible avenues (would each need a focused look — I haven't bisected):
+- **Intermediate tensors not freed when production would free them.** Emit captures one specific allocation order from the graph trace; if a `ttnn.deallocate(...)` call missed an intermediate, that buffer stays resident through subsequent matmuls.
+- **Const-eval cache materialization differs.** The user's note: "even with the typecast chain emitted, whether the const-eval result is materialized to disk as bfp depends on how codegen serializes const-eval outputs." If the const-eval ran at codegen time (or first-run with caching), the runtime allocator sees a different working-set than production.
+- **Sharding / mesh-axis differences** that change per-device tensor sizes by enough to push past the per-bank threshold. The user's edited test uses the loader's default `get_mesh_config` / `load_shard_spec` rather than explicit `mesh_config_fn`; codegen-time vs runtime resolution of those defaults could differ.
+
+**Suggested next diagnostic (per user):**
+
+> Fastest reproducer would be running `ttmlir-opt --ttir-to-emitpy-pipeline` on the captured MLIR and dumping IR between passes (`--mlir-print-ir-after-all`) to see where the allocation chain disappears / diverges from the production lowering.
+
+Specifically: compare the TTNN-level MLIR (with explicit memory_config attributes on each op) for the codegen run vs. an equivalent production run, and see which ops have different per-tensor `BufferType` / `TensorMemoryLayout` choices.
+
+**Severity:** showstopper for full-120B autoresearch on this branch until diagnosed. Workaround used in this loop: fall back to the 1-layer artifact (33 GB) for loop *mechanism* validation only. Real per-op MP knob research on full GPT-OSS 120B waits on a fix.
+
+**Cost so far:** ~12 h Galaxy time on the codegen + ~3 min on the failed harness execution. 872 GB artifact retained for debugging; can be deleted to reclaim disk once the diagnosis lands upstream.
 
 ---
 
