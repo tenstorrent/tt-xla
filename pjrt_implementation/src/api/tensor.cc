@@ -68,10 +68,11 @@ PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
   return *tensor;
 }
 
-PjrtTensor &PjrtTensor::from_host_tensor_shell(
-    std::vector<BufferInstance *> shards, HostTensorShell shell) {
-  auto tensor = std::make_shared<PjrtTensor>(Private{}, std::move(shards),
-                                             std::nullopt);
+PjrtTensor &
+PjrtTensor::from_host_tensor_shell(std::vector<BufferInstance *> shards,
+                                   HostTensorShell shell) {
+  auto tensor =
+      std::make_shared<PjrtTensor>(Private{}, std::move(shards), std::nullopt);
   tensor->m_host_tensor_shell = std::move(shell);
 
   for (BufferInstance *shard : tensor->shards()) {

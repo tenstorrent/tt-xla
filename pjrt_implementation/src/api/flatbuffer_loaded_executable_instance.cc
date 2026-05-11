@@ -71,13 +71,12 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     std::ostringstream log_stream;
     log_stream << "Arg buffers introduced for arg_index=" << arg_index << ": ";
     for (size_t i = 0; i < arg_buffers.size(); ++i) {
-      const BufferInstance* buf = arg_buffers[i];
+      const BufferInstance *buf = arg_buffers[i];
       log_stream << "[i=" << i;
       if (buf) {
         const auto &shell = buf->getPjrtTensor()->host_tensor_shell();
-        log_stream << " ptr=" << buf
-                   << " shell_host_buffer=" << (shell ? shell->host_buffer : nullptr)
-                   << " shape=(";
+        log_stream << " ptr=" << buf << " shell_host_buffer="
+                   << (shell ? shell->host_buffer : nullptr) << " shape=(";
         const std::string shape = buf->toShapeStr();
         log_stream << shape;
         log_stream << ")";
@@ -89,11 +88,12 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
 
     log_stream << " | Strategy {";
     if (mlir::succeeded(strategy)) {
-      const auto& strat_map = *strategy;
+      const auto &strat_map = *strategy;
       size_t n = 0;
-      for (const auto& [k, v] : strat_map) {
+      for (const auto &[k, v] : strat_map) {
         log_stream << k << "=" << v;
-        if (++n < strat_map.size()) log_stream << ", ";
+        if (++n < strat_map.size())
+          log_stream << ", ";
       }
     } else {
       log_stream << "FAILED strategy";
@@ -103,7 +103,6 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     LOG_F(INFO, "%s", log_stream.str().c_str());
   }
 
-         
   if (mlir::failed(strategy)) {
     LOG_F(ERROR, "Failed to fill strategy map from sharding");
     return std::nullopt;
@@ -133,16 +132,17 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   {
     std::ostringstream log_stream;
     log_stream << "borrowed_host_base_ptr_to_buffers for arg_index="
-               << arg_index << " (entries=" << borrowed_host_base_ptr_to_buffers.size()
+               << arg_index
+               << " (entries=" << borrowed_host_base_ptr_to_buffers.size()
                << "): ";
     size_t entry_idx = 0;
     for (const auto &[host_base, buffers] : borrowed_host_base_ptr_to_buffers) {
-      log_stream << "{host_base=" << host_base
-                 << " count=" << buffers.size() << " buffers=[";
+      log_stream << "{host_base=" << host_base << " count=" << buffers.size()
+                 << " buffers=[";
       for (size_t i = 0; i < buffers.size(); ++i) {
         const BufferInstance *b = buffers[i];
-        log_stream << "(uid=" << b->getUID() << " ptr=" << b
-                   << " shape=(" << b->toShapeStr() << "))";
+        log_stream << "(uid=" << b->getUID() << " ptr=" << b << " shape=("
+                   << b->toShapeStr() << "))";
         if (i + 1 < buffers.size()) {
           log_stream << ", ";
         }
@@ -154,7 +154,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     }
     LOG_F(INFO, "%s", log_stream.str().c_str());
   }
-  
+
   size_t group_idx = 0;
   for (const auto &[host_base, buffers] : borrowed_host_base_ptr_to_buffers) {
     if (buffers.empty()) {
@@ -174,10 +174,9 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     // copies the bytes from the client's host_base pointer. Subsequent
     // buffers in the group get unsafe-borrowed tensors aliasing that owned
     // tensor, so we only hold one copy of the data on the worker side.
-    tt::runtime::Tensor owned_tensor =
-        tt::runtime::createOwnedHostTensor(
-            const_cast<void *>(shell->host_buffer), shell->shape, shell->strides,
-            shell->element_size, shell->runtime_data_type);
+    tt::runtime::Tensor owned_tensor = tt::runtime::createOwnedHostTensor(
+        const_cast<void *>(shell->host_buffer), shell->shape, shell->strides,
+        shell->element_size, shell->runtime_data_type);
     LOG_F(INFO,
           "Group %zu: created owned host tensor (copied from host_base=%p)",
           group_idx, host_base);
@@ -193,8 +192,7 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
       LOG_F(INFO,
             "Group %zu: replacing runtime tensor for buffer uid=%lu ptr=%p "
             "shape=(%s) with %s tensor (i=%zu/%zu)",
-            group_idx, buffer->getUID(),
-            static_cast<const void *>(buffer),
+            group_idx, buffer->getUID(), static_cast<const void *>(buffer),
             buffer->toShapeStr().c_str(),
             is_first ? "owned" : "unsafe-borrowed", i, buffers.size());
 
@@ -208,14 +206,11 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     ++group_idx;
   }
 
-
-  
-  // from runtime tensor will create a multidevice host tensor from shards here, if necessary (strategy != identity)
-  // at this point, we should swap out the shards with the new worker local tensors
+  // from runtime tensor will create a multidevice host tensor from shards here,
+  // if necessary (strategy != identity) at this point, we should swap out the
+  // shards with the new worker local tensors
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
-
-  
 
   tensor.ensure_layout(runtime_device, expected_layout);
 

@@ -11,8 +11,8 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
-#include <cstring>
 #include <cstddef>
+#include <cstring>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -228,6 +228,8 @@ void BufferInstance::copyFromHost(
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
 
+  tt::runtime::Tensor runtime_tensor;
+
   std::optional<PjrtTensor::HostTensorShell> host_tensor_shell;
 
   // In distributed runtime, for ImmutableOnlyDuringCall semantics, or for
@@ -245,16 +247,26 @@ void BufferInstance::copyFromHost(
   // supported by runtime/ttnn, then we must create an owned tensor as runtime
   // must case the data inside the host buffer into a supported data type. Thus,
   // the buffer cannot be borrowed.
-  if (::tt::runtime::getCurrentHostRuntime() ==
-          tt::runtime::HostRuntime::Distributed ||
-      host_buffer_semantics ==
+  if (host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
-    host_tensor_shell = PjrtTensor::HostTensorShell{
-        host_buffer, shape, strides, element_size, runtime_data_type};
-    m_done_with_host_buffer_event = done_with_host_buffer_event.get();
-    m_done_with_host_buffer_event->setIndestructible();
-    PjrtTensor::from_host_tensor_shell({this}, std::move(*host_tensor_shell));
+
+    if (::tt::runtime::getCurrentHostRuntime() ==
+        tt::runtime::HostRuntime::Distributed) {
+      host_tensor_shell = PjrtTensor::HostTensorShell{
+          host_buffer, shape, strides, element_size, runtime_data_type};
+      m_done_with_host_buffer_event = done_with_host_buffer_event.get();
+      m_done_with_host_buffer_event->setIndestructible();
+      PjrtTensor::from_host_tensor_shell({this}, std::move(*host_tensor_shell));
+    } else {
+      runtime_tensor = tt::runtime::createOwnedHostTensor(
+          host_buffer, shape, strides, element_size, runtime_data_type);
+      // Memory is copied, we don't need host buffer anymore.
+      EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                            tt_pjrt_status::kSuccess);
+      PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+    }
+
   }
   // Otherwise when input host buffer has other semantic we are allowed to alias
   // it, so we can create borrowed host which doesn't copy any data and instead
@@ -265,7 +277,7 @@ void BufferInstance::copyFromHost(
     // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
     // so we have to const cast here.
     // https://github.com/tenstorrent/tt-metal/issues/20622
-    tt::runtime::Tensor runtime_tensor = tt::runtime::createBorrowedHostTensor(
+    runtime_tensor = tt::runtime::createBorrowedHostTensor(
         const_cast<void *>(host_buffer), shape, strides, element_size,
         runtime_data_type);
     host_tensor_shell = PjrtTensor::HostTensorShell{
