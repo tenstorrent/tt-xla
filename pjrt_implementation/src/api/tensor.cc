@@ -52,14 +52,12 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
 // Creates new pjrt tensor for provided shards from an existing runtime tensor.
 PjrtTensor &
 PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
-                                tt::runtime::Tensor rt_tensor,
-                                std::optional<HostTensorShell> shell) {
+                                tt::runtime::Tensor rt_tensor) {
 
   tt::runtime::setTensorRetain(rt_tensor, true);
 
   auto tensor = std::make_shared<PjrtTensor>(Private{}, std::move(shards),
                                              std::move(rt_tensor));
-  tensor->m_host_tensor_shell = std::move(shell);
 
   for (BufferInstance *shard : tensor->shards()) {
     shard->setPjrtTensor(tensor);
