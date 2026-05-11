@@ -93,6 +93,13 @@ def pytest_addoption(parser):
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
     )
 
+    parser.addoption(
+        "--enable-d2m-subgraphs",
+        action="store_true",
+        default=False,
+        help="Enable D2M subgraph creation pass for d2m elementwise fusion. Only effective when optimization_level >= 1.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -127,3 +134,8 @@ def max_output_tokens(request):
 @pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def enable_d2m_subgraphs(request):
+    return request.config.getoption("--enable-d2m-subgraphs")

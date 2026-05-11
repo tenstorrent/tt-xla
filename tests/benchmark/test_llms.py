@@ -114,6 +114,7 @@ def test_llm(
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
+    enable_create_d2m_subgraphs={enable_create_d2m_subgraphs}
     """
     )
 
@@ -1087,6 +1088,7 @@ def test_falcon3_7b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -1109,6 +1111,7 @@ def test_falcon3_7b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1121,6 +1124,7 @@ def test_falcon3_10b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -1143,6 +1147,7 @@ def test_falcon3_10b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1155,6 +1160,7 @@ def test_llama_3_1_8b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1177,6 +1183,7 @@ def test_llama_3_1_8b_instruct_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1224,6 +1231,7 @@ def test_ministral_8b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1243,6 +1251,7 @@ def test_ministral_8b_tp(
         decode_only=decode_only,
         trace_enabled=False,
         optimization_level=1,
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1255,6 +1264,7 @@ def test_mistral_nemo_instruct_2407_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1273,6 +1283,7 @@ def test_mistral_nemo_instruct_2407_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1285,6 +1296,7 @@ def test_mistral_small_24b_instruct_2501_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1303,6 +1315,7 @@ def test_mistral_small_24b_instruct_2501_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1315,6 +1328,7 @@ def test_qwen_2_5_14b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1333,6 +1347,7 @@ def test_qwen_2_5_14b_instruct_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1379,6 +1394,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.qwen_2_5_coder.pytorch.loader import (
         ModelLoader,
@@ -1397,6 +1413,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1477,6 +1494,7 @@ def test_qwen_3_8b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1495,6 +1513,7 @@ def test_qwen_3_8b_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1507,6 +1526,7 @@ def test_qwen_3_14b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1525,6 +1545,7 @@ def test_qwen_3_14b_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1537,6 +1558,7 @@ def test_qwen_3_32b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1559,6 +1581,7 @@ def test_qwen_3_32b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1673,6 +1696,7 @@ def test_llama_3_1_70b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1695,6 +1719,7 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1729,6 +1754,7 @@ def test_gpt_oss_20b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1750,6 +1776,7 @@ def test_gpt_oss_20b_tp(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
         optimization_level=1,
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
@@ -1763,6 +1790,7 @@ def test_gpt_oss_20b_tp_d2m(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1797,6 +1825,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
     max_output_tokens,
     decode_only,
     optimization_level,
+    enable_d2m_subgraphs,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1817,6 +1846,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
         optimization_level=1,
+        enable_create_d2m_subgraphs=enable_d2m_subgraphs,
     )
 
 
