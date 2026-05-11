@@ -193,7 +193,7 @@ def test_topk_both(input_shape: tuple, k: int):
 
 
 # ---------------------------------------------------------------------------
-# vLLM sampling shapes: power-of-2 chunks used in apply_top_k_top_p_fast
+# vLLM sampling shapes: power-of-2 chunks used in chunked_topk_candidates
 # ---------------------------------------------------------------------------
 
 
@@ -243,7 +243,7 @@ def _topk_vllm_comparator(device_output, golden_output, args, kwargs):
     ],
 )
 def test_topk_vllm_sampling_shapes(input_shape: tuple, k: int):
-    """topk on power-of-2 shapes used in vLLM chunked sampling (apply_top_k_top_p_fast).
+    """topk on power-of-2 shapes used in vLLM chunked sampling (chunked_topk_candidates).
 
     Splits the vocab into 32768-element power-of-2 chunks and runs topk(k=32)
     per chunk to get candidates for Gumbel-max sampling. Ordering is

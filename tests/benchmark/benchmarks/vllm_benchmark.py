@@ -34,14 +34,19 @@ class VLLMBenchmarkConfig:
     batch_size: int = 1
     max_tokens: int = 128
     warmup_iterations: int = 1
+    prompt: str = DEFAULT_PROMPT
+
+    # Sampling params (temperature=0.0 -> greedy)
+    temperature: float = 0.0
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
     """Build engine args from config and create a vLLM LLM instance."""
     additional_config = dict(config.additional_config)
-    # Using CPU sampling so that we have batch_size = 32
-    # See issue: https://github.com/tenstorrent/tt-xla/issues/3610
-    additional_config.setdefault("cpu_sampling", True)
+    # Default to device sampling; opt-in to CPU sampling per-config when
+    # needed (e.g. via the TT_BENCHMARK_CPU_SAMPLING env var in
+    # tests/benchmark/test_vllm_benchmarks.py).
+    additional_config.setdefault("cpu_sampling", False)
 
     llm_args: Dict[str, Any] = {
         "model": config.model,
@@ -166,9 +171,11 @@ def benchmark_vllm(
     display_name: str,
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
-    prompts = [DEFAULT_PROMPT] * config.batch_size
+    prompts = [config.prompt] * config.batch_size
     sampling_params = vllm.SamplingParams(
-        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.0
+        max_tokens=config.max_tokens,
+        ignore_eos=True,
+        temperature=config.temperature,
     )
 
     llm = _create_llm(config)
@@ -181,6 +188,10 @@ def benchmark_vllm(
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
     outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+
+    # Print generated text for output-quality inspection.
+    for i, output in enumerate(outputs):
+        print(f"  [{i}] {output.prompt!r} -> {output.outputs[0].text!r}")
 
     # Assert decode is consistent
     _assert_token_counts(outputs, config.max_tokens, config.max_model_len)

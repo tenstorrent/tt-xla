@@ -440,6 +440,17 @@ def test_output_length_controls(llm, prompt):
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Device sampler does not honor per-row seeds: the tt::sampling "
+        "kernel uses a single shared seed across all 32 cores and ignores "
+        "per-row q_samples, so seeded sampling is no longer deterministic. "
+        "Tracked in tt-xla #4539. Workaround: set "
+        "additional_config={'cpu_sampling': True}. Remove this xfail once "
+        "the kernel grows per-row seed support."
+    ),
+)
 def test_seed(llm, prompt):
     """Test that same seed produces same output, different seeds diverge."""
     base = {"temperature": 1.5, "top_p": 0.9, "max_tokens": 32}
