@@ -271,10 +271,16 @@ ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
     const std::string &system_descriptor_path,
     const std::unordered_map<std::string, std::string> &compile_options_map,
-    ClientInstance *client_instance) {
+    ClientInstance *client_instance,
+    const ExecutableDeviceShape &device_shape) {
   DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule");
 
   auto compile_options = CompileOptions::parse(compile_options_map);
+
+  const size_t target_num_devices =
+      static_cast<size_t>(device_shape.targetNumDevices());
+  DLOG_F(LOG_DEBUG, "ModuleBuilder::buildModule - target_num_devices=%zu",
+         target_num_devices);
 
   // Construct full name: {model_name}_g{N}
   // e.g., 1lyr_phi1_bs32_g0
@@ -343,9 +349,10 @@ ModuleBuilder::buildModule(
       parent_mesh ? std::make_optional(tt::runtime::getMeshShape(*parent_mesh))
                   : std::nullopt;
 
-  status = runCompilerStableHLOPipeline(
-      mlir_module, result_presharded, compile_options.export_path,
-      compile_options.export_model_name, current_mesh_shape);
+  status = runCompilerStableHLOPipeline(mlir_module, result_presharded,
+                                        compile_options.export_path,
+                                        compile_options.export_model_name,
+                                        current_mesh_shape, target_num_devices);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -857,17 +864,34 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     const std::vector<int64_t> &result_presharded,
     const std::optional<std::string> &export_path,
     const std::string &model_name,
-    const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape,
+    size_t target_num_devices) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
-      !moduleHasAnyFuncArguments(mlir_module)) {
-    stablehlo_pipeline_options.meshShape = {
-        static_cast<int64_t>((*current_mesh_shape)[0]),
-        static_cast<int64_t>((*current_mesh_shape)[1])};
+  // No-input graphs:
+  //  - single-chip target -> leave meshShape unset; AnalyzeMesh defaults to
+  //    {1,1} and the parent mesh is reshaped to {1,1} downstream.
+  //  - multichip target -> pass parent mesh shape when it matches the target
+  //    device count; otherwise synthesize {1, target_num_devices}.
+  if (!moduleHasAnyFuncArguments(mlir_module) && target_num_devices > 1) {
+    const size_t parent_mesh_num_devices =
+        current_mesh_shape.has_value()
+            ? std::accumulate(current_mesh_shape->begin(),
+                              current_mesh_shape->end(), size_t{1},
+                              std::multiplies<>())
+            : size_t{0};
+    if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
+        parent_mesh_num_devices == target_num_devices) {
+      stablehlo_pipeline_options.meshShape = {
+          static_cast<int64_t>((*current_mesh_shape)[0]),
+          static_cast<int64_t>((*current_mesh_shape)[1])};
+    } else {
+      stablehlo_pipeline_options.meshShape = {
+          1, static_cast<int64_t>(target_num_devices)};
+    }
   }
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);

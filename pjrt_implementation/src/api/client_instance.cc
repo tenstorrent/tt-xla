@@ -432,13 +432,14 @@ tt_pjrt_status ClientInstance::populateMemories() {
 tt_pjrt_status ClientInstance::compileMlirProgram(
     const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
     const std::unordered_map<std::string, std::string> &compile_options,
-    const std::optional<std::vector<int64_t>> &replica_device_ids) {
+    const std::optional<std::vector<int64_t>> &replica_device_ids,
+    const ExecutableDeviceShape &device_shape) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path,
-                                    compile_options, this);
+                                    compile_options, this, device_shape);
   tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
@@ -810,14 +811,15 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_Compile");
 
-  // Parse compile options and extract both custom options and replica device
-  // IDs
+  // Parse compile options: custom options, replica device IDs, and the
+  // executable device shape (num_partitions x num_replicas).
   std::unordered_map<std::string, std::string> compile_options_map;
   std::optional<std::vector<int64_t>> replica_device_ids;
+  ExecutableDeviceShape device_shape;
   tt_pjrt_status compile_options_status =
       CompileOptionsParser::parseCompileOptions(
           args->compile_options, args->compile_options_size,
-          compile_options_map, replica_device_ids);
+          compile_options_map, replica_device_ids, device_shape);
   if (!tt_pjrt_status_is_ok(compile_options_status)) {
     return *ErrorInstance::makeError(compile_options_status).release();
   }
@@ -837,7 +839,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
-      compile_options_map, replica_device_ids);
+      compile_options_map, replica_device_ids, device_shape);
 
   return *ErrorInstance::makeError(compile_status).release();
 }
