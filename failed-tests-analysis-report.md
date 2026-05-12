@@ -68,7 +68,7 @@ The comparison phase memory dominates regardless of transformers version. The mo
 ## Phase 2-4: Fixes Tested
 
 ### Fix candidates (ranked by effort × leverage)
-1. **`use_cache=False` during training** — addresses tx5.5 cache-default regression. Branch: `ssalice/qwen-training-use-cache-fix`. Status: TBD.
+1. **`use_cache=False` during training** — addresses tx5.5 cache-default regression. Branch: `ssalice/qwen-training-use-cache-fix`. Status: tested, ineffective (see below).
 2. **Stream gradient compare (pop-and-compare loop)** — collapses comparison-phase working set from ~6-8N to ~2N. Highest leverage.
 3. **`zero_grad(set_to_none=True)`** — frees `.grad` storage after `_extract_grads` clones them. Small drop (~1-2GB), trivial change.
 4. **`num_layers` truncation** in test config — reduces model depth ~6x. Sledgehammer; reduces test coverage at depth.
@@ -126,9 +126,3 @@ CI runner has 31.39 GB host memory; baseline tests peaked at 20-25 GB during the
 - Each tested fix lives on its own branch (`ssalice/qwen-training-use-cache-fix`, `ssalice/qwen-training-stream-compare-v2`).
 - Advisor was consulted at each decision point: before substantive work, during reconciliation when initial OOM/watchdog hypothesis split, after fix1's null result, and before declaring done.
 - One test at a time: qwen_2_5 was verified passing before applying the same framework fix to qwen_3.
-
----
-
-## Verification
-
-(Logs and final pass evidence to be added once a fix lands the peak below CI's effective headroom)
