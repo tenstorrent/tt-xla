@@ -426,31 +426,9 @@ class CMakeBuildPy(build_py):
                 )
 
     def _install_ttmlir_python(self, install_dir: Path) -> None:
-
-        def show_directories(root_path: Path, prefix: str = ""):
-            """Recursively show all directories."""
-            if not root_path.exists():
-                print(f"Directory does not exist: {root_path}")
-                return
-
-            try:
-                # Get all subdirectories
-                subdirs = sorted([d for d in root_path.iterdir() if d.is_dir()])
-
-                for i, subdir in enumerate(subdirs):
-                    is_last = i == len(subdirs) - 1
-                    current_prefix = "└── " if is_last else "├── "
-                    print(f"{prefix}{current_prefix}{subdir.name}/")
-
-                    # Recursively show subdirectories
-                    next_prefix = prefix + ("    " if is_last else "│   ")
-                    show_directories(subdir, next_prefix)
-            except PermissionError:
-                print(f"{prefix}    [Permission Denied]")
-
         """
-        Copy the ttmlir Python module from tt-mlir build directory to the install directory.
-        This is only called when config.enable_explorer is True.
+        Copy the ttmlir Python module and _ttmlir_runtime from tt-mlir build directory
+        to the install directory. This is only called when config.enable_explorer is True.
         """
         # Path to the built ttmlir Python package in tt-mlir build directory
         ttmlir_build_dir = (
@@ -459,43 +437,53 @@ class CMakeBuildPy(build_py):
         ttmlir_source_dir = ttmlir_build_dir / "python_packages" / "ttmlir"
         ttmlir_runtime_lib_dir = ttmlir_build_dir / "runtime" / "python"
 
-        arch = os.environ.get("CMAKE_SYSTEM_PROCESSOR", "x86_64")
-        py_maj_ver, py_min_ver, py_patch_ver = platform.python_version_tuple()
-        runtime_module = (
-            f"_ttmlir_runtime.cpython-{py_maj_ver}{py_min_ver}-{arch}-linux-gnu.so"
+        # Detect the platform-specific extension name for the _ttmlir_runtime module
+        import glob
+
+        runtime_module_pattern = str(
+            ttmlir_runtime_lib_dir / "_ttmlir_runtime.cpython-*.so"
         )
-        runtime_module_path = ttmlir_runtime_lib_dir / runtime_module
+        runtime_modules = glob.glob(runtime_module_pattern)
+
+        if not runtime_modules:
+            raise RuntimeError(
+                f"ttmlir runtime library not found matching pattern: {runtime_module_pattern}"
+            )
+
+        runtime_module_path = Path(runtime_modules[0])
+        runtime_module_name = runtime_module_path.name
 
         if not ttmlir_source_dir.exists():
-            print("TTMLIR path doesn't exist. Available directories in tt-mlir build:")
-            show_directories(REPO_DIR / "third_party" / "tt-mlir")
             raise RuntimeError(
                 f"ttmlir Python module not found at {ttmlir_source_dir}. "
                 "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
             )
 
-        if not runtime_module_path.exists():
-            raise RuntimeError(
-                f"ttmlir runtime library not found at {runtime_module_path}. "
-                "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
-            )
-
-        # Determine the correct lib directory
-        lib_dir = (
-            install_dir / "lib"
-            if (install_dir / "lib").exists()
-            else install_dir / "lib64"
-        )
-
-        # Destination: install the ttmlir package at the root level alongside other packages
+        # Destination: install both packages at the root level alongside other packages
         # The parent of install_dir is the build_lib directory where packages are discovered
         ttmlir_dest = install_dir.parent / "ttmlir"
+        ttmlir_runtime_dest = install_dir.parent / "_ttmlir_runtime"
 
+        # Copy ttmlir package
         print(f"Copying ttmlir Python module from {ttmlir_source_dir} to {ttmlir_dest}")
         if ttmlir_dest.exists():
             shutil.rmtree(ttmlir_dest)
         shutil.copytree(ttmlir_source_dir, ttmlir_dest, symlinks=True)
-        shutil.copy2(runtime_module_path, lib_dir / runtime_module)
+
+        # Create _ttmlir_runtime package directory and copy the .so module
+        print(
+            f"Creating _ttmlir_runtime package at {ttmlir_runtime_dest} with {runtime_module_name}"
+        )
+        if ttmlir_runtime_dest.exists():
+            shutil.rmtree(ttmlir_runtime_dest)
+        ttmlir_runtime_dest.mkdir(parents=True, exist_ok=True)
+
+        # Copy the nanobind .so module
+        shutil.copy2(runtime_module_path, ttmlir_runtime_dest / runtime_module_name)
+
+        # Create a minimal __init__.py to make it a package
+        init_content = '"""TT-MLIR Runtime Python bindings."""\n'
+        (ttmlir_runtime_dest / "__init__.py").write_text(init_content)
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
