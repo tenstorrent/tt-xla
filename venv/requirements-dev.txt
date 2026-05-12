@@ -34,7 +34,7 @@ sentencepiece
 setuptools
 tabulate
 timm
-torchvision==0.25+cpu
+torchvision==0.26+cpu
 torchxrayvision
 transformers==5.2.0
 

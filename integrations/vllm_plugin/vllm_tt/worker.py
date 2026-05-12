@@ -36,6 +36,7 @@ from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
 from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
+from vllm.v1.worker.worker_base import CompilationTimes
 
 from .attention import TT_HEAD_SIZE_ALIGNMENT
 from .logger import tt_init_logger
@@ -306,13 +307,19 @@ class TTWorker:
     def reload_weights(self) -> None:
         self.model_runner.reload_weights()
 
-    def compile_or_warm_up_model(self) -> None:
+    def compile_or_warm_up_model(self) -> CompilationTimes:
+        import time
+
+        start = time.perf_counter()
         if not self.model_config.enforce_eager:
             self.model_runner.capture_model()
+        language_model_time = time.perf_counter() - start
 
         # Reset the seed to ensure that the random state is not affected by
         # the model initialization and profiling.
         set_random_seed(self.model_config.seed)
+
+        return CompilationTimes(language_model=language_model_time, encoder=0.0)
 
     def reset_mm_cache(self) -> None:
         self.model_runner.reset_mm_cache()
