@@ -695,7 +695,16 @@ def benchmark_llm_torch_xla(
             "value": ttft_ms,
             "target": -1,
         },
+        {
+            "measurement_name": "samples_per_sec",
+            "value": tokens_per_second,
+            "target": -1,
+        },
     ]
+
+    prefill_pcc_value = None
+    decode_pcc_value = None
+    pcc_failures = []
 
     if accuracy_testing:
         # Compute per-user token accuracy across the batch
@@ -751,38 +760,65 @@ def benchmark_llm_torch_xla(
         )
     elif decode_only:
         decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
-        assert (
-            decode_pcc_value >= required_pcc
-        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            "First decode PCC measured at PCC={:.6f} (required {:.4f})".format(
+                decode_pcc_value, required_pcc
             )
         )
-    else:
-        # Check PCC for prefill
-        pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
-        assert (
-            pcc_value >= required_pcc
-        ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
-        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
-        # Check PCC for first decode token
-        assert (
-            len(output_logits) > 1 and len(cpu_output_logits) > 1
-        ), "Not enough logits to check PCC"
-        decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
-        assert (
-            decode_pcc_value >= required_pcc
-        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
-        print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+        if decode_pcc_value < required_pcc:
+            pcc_failures.append(
+                f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
             )
+    else:
+        prefill_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+        print(
+            "Prefill PCC measured at PCC={:.6f} (required {:.4f})".format(
+                prefill_pcc_value, required_pcc
+            )
+        )
+        if prefill_pcc_value < required_pcc:
+            pcc_failures.append(
+                f"Prefill PCC failed. PCC={prefill_pcc_value:.6f}, Required={required_pcc}"
+            )
+        if len(output_logits) > 1 and len(cpu_output_logits) > 1:
+            decode_pcc_value = compute_pcc(
+                output_logits[1][0], cpu_output_logits[1][0]
+            )
+            print(
+                "First decode PCC measured at PCC={:.6f} (required {:.4f})".format(
+                    decode_pcc_value, required_pcc
+                )
+            )
+            if decode_pcc_value < required_pcc:
+                pcc_failures.append(
+                    f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
+                )
+        else:
+            pcc_failures.append("Not enough logits to check decode PCC")
+
+    if prefill_pcc_value is not None:
+        custom_measurements.append(
+            {
+                "measurement_name": "prefill_pcc",
+                "value": float(prefill_pcc_value),
+                "target": float(required_pcc),
+            }
+        )
+    if decode_pcc_value is not None:
+        custom_measurements.append(
+            {
+                "measurement_name": "decode_pcc",
+                "value": float(decode_pcc_value),
+                "target": float(required_pcc),
+            }
         )
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()
     mesh_shape = tuple(mesh.shape()) if mesh is not None else None
+
+    for failure in pcc_failures:
+        logger.warning(failure)
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
@@ -820,4 +856,5 @@ def benchmark_llm_torch_xla(
             modules_dir=MODULE_EXPORT_PATH,
         )
 
+    result["_pcc_failures"] = pcc_failures  # caller pops + asserts after JSON write
     return result
