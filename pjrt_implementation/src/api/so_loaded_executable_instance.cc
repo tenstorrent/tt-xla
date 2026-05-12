@@ -197,6 +197,10 @@ SOLoadedExecutableInstance::prepareInputTensor(
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
 
+  // SO (Python codegen) execution expects host row-major inputs; the generated
+  // Python takes care of any device transfer and layout conversion itself.
+  tensor.move_to_host();
+
   return tensor.runtime_tensor();
 }
 
