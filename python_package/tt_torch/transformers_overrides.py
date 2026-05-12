@@ -8,43 +8,20 @@ from transformers.cache_utils import StaticCache, StaticLayer, StaticSlidingWind
 from transformers.masking_utils import create_sliding_window_causal_mask
 
 
-def override_gpt_oss_sliding_window_causal_mask():
+def override_sliding_window_causal_mask(model):
+    """Monkey-patch the create_sliding_window_causal_mask function of the
+    transformers modeling module that backs ``model`` with the TT-friendly
+    compile-safe version.
+
+    Call this AFTER ``from_pretrained`` and BEFORE ``torch.compile`` so that
+    dynamo traces through the patched function.
     """
-    Override gpt_oss's modeling so that its
-    create_sliding_window_causal_mask points to the TT-friendly version.
+    import importlib
 
-    Call this before torch.compile so that dynamo traces through the
-    patched function.
-    """
-    import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_mod
-
-    gpt_oss_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
-
-
-def override_olmo3_sliding_window_causal_mask():
-    """
-    Override olmo3's modeling so that its
-    create_sliding_window_causal_mask points to the TT-friendly version.
-    """
-    import transformers.models.olmo3.modeling_olmo3 as olmo3_mod
-
-    olmo3_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
-
-
-def override_ministral_sliding_window_causal_mask():
-    """
-    Override ministral's modeling so that its
-    create_sliding_window_causal_mask points to the TT-friendly version.
-
-    Note: ministral (mistralai/Ministral-*) uses a separate module
-    transformers.models.ministral.modeling_ministral, distinct from
-    transformers.models.mistral.modeling_mistral.
-    """
-    import transformers.models.ministral.modeling_ministral as ministral_mod
-
-    ministral_mod.create_sliding_window_causal_mask = (
-        tt_create_sliding_window_causal_mask
-    )
+    model_type = model.config.model_type
+    module_name = f"transformers.models.{model_type}.modeling_{model_type}"
+    mod = importlib.import_module(module_name)
+    mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
 
 
 def override_cache_sliding_window_layers(

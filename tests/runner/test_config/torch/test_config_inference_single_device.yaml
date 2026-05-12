@@ -1684,6 +1684,7 @@ test_config:
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
+        overrides_sliding_attention: true
 
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -2557,6 +2558,7 @@ test_config:
         reason: "Out of Memory: Not enough space to allocate 52428800 B L1 buffer across 64 banks, where each bank needs to store 819200 B, but bank size is only 1331936 B"
       p150:
         status: EXPECTED_PASSING
+        overrides_sliding_attention: true
 
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-inference:
     supported_archs: ["p150"]

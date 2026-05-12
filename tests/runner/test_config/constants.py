@@ -44,6 +44,10 @@ ALLOWED_FIELDS = {
     "inject_custom_moe",
     # EmitPy verification: assert exact match between emitpy and flatbuffer results
     "emitpy_assert_exact",
+    # Whether to apply the TT-friendly sliding-window causal-mask override to the
+    # transformers module before compile/forward. Used by sliding-window LLMs
+    # (olmo3, gpt_oss, ministral, ...) that need a compile-safe mask function.
+    "overrides_sliding_attention",
 }
 
 # Single source of truth for the placeholders YAML filename

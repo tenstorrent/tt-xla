@@ -207,6 +207,14 @@ class ModelTestConfig:
         # Set to false in YAML config for models with known minor differences.
         self.emitpy_assert_exact = self._resolve("emitpy_assert_exact", default=True)
 
+        # Whether to apply the TT-friendly sliding-window causal-mask override
+        # to the loaded transformers module before compile/forward. Generic
+        # replacement for the per-model override_<model>_sliding_window_causal_mask
+        # helpers in tt_torch.transformers_overrides; opt-in via YAML per model.
+        self.overrides_sliding_attention = self._resolve(
+            "overrides_sliding_attention", default=False
+        )
+
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
         if self.arch in overrides and key in overrides[self.arch]:

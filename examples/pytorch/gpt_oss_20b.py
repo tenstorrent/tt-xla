@@ -27,7 +27,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.transformers_overrides import (
     override_cache_sliding_window_layers,
-    override_gpt_oss_sliding_window_causal_mask,
+    override_sliding_window_causal_mask,
 )
 
 DEFAULT_PROMPTS = ["Explain quantum mechanics."]
@@ -152,7 +152,7 @@ def setup_model_and_tokenizer(
         attn_implementation="eager",
     )
     # Override the gpt_oss model to use the TT-friendly sliding window causal mask
-    override_gpt_oss_sliding_window_causal_mask()
+    override_sliding_window_causal_mask(model)
     model = model.eval()
 
     tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)

@@ -70,6 +70,17 @@ class DynamicTorchModelTester(TorchModelTester):
         if test_metadata and getattr(test_metadata, "inject_custom_moe", False):
             self._inject_custom_moe(self._model)
 
+        # Monkey-patch transformers' create_sliding_window_causal_mask with the
+        # TT-friendly compile-safe version when the YAML config asks for it.
+        # Generic replacement for the per-model override_<model>_sliding_window_
+        # causal_mask helpers previously called inside tt-forge-models loaders.
+        # Patching happens after model construction but before torch.compile so
+        # dynamo traces through the patched function.
+        if test_metadata and getattr(
+            test_metadata, "overrides_sliding_attention", False
+        ):
+            self._apply_sliding_window_mask_override(self._model)
+
     def _compile_for_tt_device(self, workload, options=None):
         """Apply per-variant weight dtype overrides before compiling for TT device."""
         self._apply_weight_dtype_overrides()
@@ -146,6 +157,15 @@ class DynamicTorchModelTester(TorchModelTester):
             seq_len=seq_len,
             batch_size=batch_size,
         )
+
+        # Build TT-friendly sliding-window input_args (StaticCache with
+        # TTStaticSlidingWindowLayer, full attention mask, cache_position) when
+        # the YAML config asks for it. Generic replacement for the sliding-window
+        # input-construction block previously embedded in tt-forge-models loaders.
+        if self._test_metadata and getattr(
+            self._test_metadata, "overrides_sliding_attention", False
+        ):
+            inputs = self._build_sliding_window_input_args(inputs)
 
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()
@@ -298,3 +318,112 @@ class DynamicTorchModelTester(TorchModelTester):
                 return get_moe_shard_specs(model, _fn, _names)
 
             self._workload.shard_spec_fn = combined_shard_spec_fn
+
+    def _build_sliding_window_input_args(self, inputs):
+        """Build a full sliding-window input_args dict (with a TT-friendly
+        StaticCache) from the raw tokenizer output returned by the loader.
+
+        Generic replacement for the sliding-window input-construction block
+        previously embedded in tt-forge-models loaders. Constructs a
+        StaticCache sized to the loader's variant max_length, runs
+        ``early_initialization``, swaps every StaticSlidingWindowLayer for
+        the TT-friendly TTStaticSlidingWindowLayer, and pads the attention
+        mask to ``max_cache_len`` so torch.compile sees static shapes.
+        """
+        from transformers.cache_utils import StaticCache
+        from tt_torch.transformers_overrides import override_cache_sliding_window_layers
+
+        # Inputs from the loader may be a HF BatchEncoding or a plain dict.
+        if isinstance(inputs, collections.abc.Mapping):
+            input_ids = inputs["input_ids"]
+            attention_mask = inputs["attention_mask"]
+        else:
+            input_ids = inputs.input_ids
+            attention_mask = inputs.attention_mask
+
+        batch_size, seq_len = input_ids.shape[0], input_ids.shape[1]
+
+        # max_cache_len comes from the loader's variant config (e.g. olmo3
+        # uses max_length=256). Fall back to seq_len if the loader does not
+        # expose a variant config.
+        variant_config = getattr(self.dynamic_loader.loader, "_variant_config", None)
+        max_cache_len = getattr(variant_config, "max_length", seq_len)
+
+        text_config = self._model.config.get_text_config(decoder=True)
+        head_dim = getattr(text_config, "head_dim", None) or (
+            text_config.hidden_size // text_config.num_attention_heads
+        )
+        cache_dtype = next(self._model.parameters()).dtype
+
+        static_cache = StaticCache(
+            config=self._model.config,
+            max_cache_len=max_cache_len,
+        )
+        static_cache.early_initialization(
+            batch_size=batch_size,
+            num_heads=text_config.num_key_value_heads,
+            head_dim=head_dim,
+            dtype=cache_dtype,
+            device="cpu",
+        )
+
+        sliding_window = getattr(text_config, "sliding_window", max_cache_len)
+        override_cache_sliding_window_layers(
+            static_cache, max_cache_len, sliding_window
+        )
+
+        # Attention mask must match max_cache_len to prevent recompilation or
+        # implicit padding by transformers, which can cause degenerate output.
+        full_attention_mask = torch.ones(
+            (batch_size, max_cache_len), dtype=attention_mask.dtype
+        )
+        full_attention_mask[:, :seq_len] = attention_mask
+
+        cache_position = torch.arange(0, seq_len)
+
+        logger.info(
+            f"Built sliding-window input_args "
+            f"(batch_size={batch_size}, seq_len={seq_len}, "
+            f"max_cache_len={max_cache_len}, sliding_window={sliding_window})"
+        )
+
+        return {
+            "input_ids": input_ids,
+            "past_key_values": static_cache,
+            "cache_position": cache_position,
+            "use_cache": True,
+            "attention_mask": full_attention_mask,
+        }
+
+    @staticmethod
+    def _apply_sliding_window_mask_override(model):
+        """Apply the generic TT sliding-window causal-mask override to ``model``.
+
+        Thin wrapper around ``tt_torch.transformers_overrides
+        .override_sliding_window_causal_mask`` that adds defensive logging so
+        a misconfigured ``overrides_sliding_attention: true`` YAML entry on a
+        model that doesn't actually use sliding-window attention emits a
+        warning instead of crashing the test.
+        """
+        from tt_torch.transformers_overrides import override_sliding_window_causal_mask
+
+        model_type = getattr(getattr(model, "config", None), "model_type", None)
+        if not model_type:
+            logger.warning(
+                "Skipping sliding-window mask override: model has no "
+                "config.model_type"
+            )
+            return
+
+        try:
+            override_sliding_window_causal_mask(model)
+        except (ImportError, AttributeError) as e:
+            logger.warning(
+                f"Skipping sliding-window mask override for model_type="
+                f"{model_type!r}: {e}"
+            )
+            return
+
+        logger.info(
+            f"Applied TT sliding-window mask override " f"(model_type={model_type})"
+        )

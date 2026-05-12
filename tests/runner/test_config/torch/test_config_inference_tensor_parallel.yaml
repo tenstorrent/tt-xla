@@ -99,6 +99,7 @@ test_config:
   mistral/pytorch-Ministral_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
+    overrides_sliding_attention: true
 
   mistral/pytorch-Small_24B_INSTRUCT_2501-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -205,6 +206,7 @@ test_config:
     supported_archs: [n300-llmbox, lb-blackhole]
     assert_pcc: True
     status: EXPECTED_PASSING
+    overrides_sliding_attention: true
 
   mistral/pytorch-mistral_small_3.1_24b_instruct_2503-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
