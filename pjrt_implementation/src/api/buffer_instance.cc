@@ -230,21 +230,17 @@ void BufferInstance::copyFromHost(
 
   tt::runtime::Tensor runtime_tensor;
 
-  // In distributed runtime, for ImmutableOnlyDuringCall semantics, or for
-  // unsupported runtime dtypes, we defer host tensor materialization until
+  // In distributed runtime, we defer host tensor materialization until
   // prepareInputTensor and keep only shell metadata in PjrtTensor.
   //
-  // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
-  // we are not allowed to alias it directly, so we have to create owned host
-  // tensor which copies buffer data. In JAX this semantic is used only for
-  // copying scalars and numpy arrays, so the copy shouldn't take long. We can
-  // mark the event as ready since we don't need the original host buffer
-  // anymore.
-  //
-  // If the runtime data type which has been inferred from m_data_type is not
-  // supported by runtime/ttnn, then we must create an owned tensor as runtime
-  // must case the data inside the host buffer into a supported data type. Thus,
-  // the buffer cannot be borrowed.
+  // In non-distributed runtime:
+  // - For `ImmutableOnlyDuringCall` semantics we are not allowed to alias the
+  //   host buffer directly, so we create an owned host tensor which copies
+  //   buffer data. In JAX this semantic is used only for copying scalars and
+  //   numpy arrays, so the copy shouldn't take long.
+  // - For unsupported runtime dtypes, we must create an owned tensor as runtime
+  //   must cast the data into a supported data type; the buffer cannot be
+  //   borrowed.
 
   bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
                         tt::runtime::HostRuntime::Distributed;

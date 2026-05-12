@@ -87,31 +87,19 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
 
 void FlatbufferLoadedExecutableInstance::materializeShellTensors(
     const std::vector<BufferInstance *> &arg_buffers) {
-  // Group arg buffers by their borrowed host base pointer. Buffers that do
-  // not borrow host memory (i.e. own their host tensor) are skipped.
+  // Group arg buffers by their borrowed host base pointer for grouped transfer
   std::unordered_map<const void *, std::vector<BufferInstance *>>
       borrowed_host_base_ptr_to_buffers;
-  borrowed_host_base_ptr_to_buffers.reserve(arg_buffers.size());
 
   for (BufferInstance *buf : arg_buffers) {
-    if (buf == nullptr) {
-      continue;
-    }
+    // Buffers without a shell have already been materialized
     const auto &shell = buf->getPjrtTensor()->host_tensor_shell();
-    // Skip buffers that already have a runtime tensor - they've already been
-    // transferred in a previous execution. The shell metadata is discarded
-    // after the first transfer since we no longer need to copy from the
-    // client's host buffer.
-    if (shell.has_value() && !buf->getPjrtTensor()->has_runtime_tensor()) {
+    if (shell.has_value()) {
       borrowed_host_base_ptr_to_buffers[shell->host_buffer].push_back(buf);
     }
   }
 
   for (const auto &[host_base, buffers] : borrowed_host_base_ptr_to_buffers) {
-    if (buffers.empty()) {
-      continue;
-    }
-
     const auto &shell = buffers.front()->getPjrtTensor()->host_tensor_shell();
 
     TT_FATAL(shell.has_value(),
