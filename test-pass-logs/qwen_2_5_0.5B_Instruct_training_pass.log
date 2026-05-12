@@ -1,0 +1,30 @@
+#loc1854 = loc("pad.5467_workaround"(#loc1737))
+#loc1855 = loc("pad.5540_workaround"(#loc1760))
+------------------ END OF MLIR MODULE ------------------
+2026-05-12 18:22:56.993 | WARNING  | infra.testers.single_chip.model.torch_model_tester:_test_training:307 - Grads: set() are None
+Warning: Experimental compile is now the default. As such, the "tt_experimental_compile" flag is deprecated.Honoring the flag, but please use "tt_legacy_compile" flag or no flag in the future.
+PASSED
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-training]
+  /localdev/ssalice/tt-xla/venv/lib/python3.12/site-packages/torch/autograd/graph.py:841: UserWarning: xla::mark_tensor: an autograd kernel was not registered to the Autograd key(s) but we are trying to backprop through it. This may lead to silently incorrect behavior. This behavior is deprecated and will be removed in a future version of PyTorch. If your operator is differentiable, please ensure you have registered an autograd kernel to the correct Autograd key (e.g. DispatchKey::Autograd, DispatchKey::CompositeImplicitAutograd). If your operator is not differentiable, or to squash this warning and use the previous behavior, please register torch::CppFunction::makeFallthrough() to DispatchKey::Autograd. (Triggered internally at /pytorch/torch/csrc/autograd/autograd_not_implemented_fallback.cpp:62.)
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+
+tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-training]
+  /localdev/ssalice/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-training]
+  /localdev/ssalice/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 1 passed, 5 warnings in 210.12s (0:03:30) ===================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+EXIT_CODE=0
