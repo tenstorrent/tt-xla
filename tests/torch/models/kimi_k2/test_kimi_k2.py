@@ -556,7 +556,8 @@ USE_FIXED_WEIGHTS = True
 def test_kimi_k2_full_model_4x16():
     """Full Kimi K2 model test on 4x16 mesh (64 devices).
 
-    Tests DeepseekV3ForCausalLM with vocab-sharded embeddings.
+    Tests DeepseekV3ForCausalLM with hidden-sharded embeddings.
+    Sharding pattern matches test_kimi_k2_layer_sparse_moe.
     Start with 2 layers to validate sharding, increase to 61 for full model.
     """
     xr.set_device_type("TT")
@@ -581,20 +582,20 @@ def test_kimi_k2_full_model_4x16():
         model = DeepseekV3ForCausalLM(config)
         model = model.to(torch.bfloat16).eval()
 
-    batch_size = 64
+    batch_size = 32  # Match working test
     seq_len = 32
     max_cache_len = 1024
 
     num_devices = xr.global_runtime_device_count()
     mesh_shape = (4, 16)
     device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
 
     # Enable sparse MLP for MoE layers (layer 1+)
-    # cluster_axis=1 aligns dispatch with batch sharding on axis_1 (model dimension)
+    # cluster_axis=0 aligns dispatch with hidden sharding on axis_0
     for layer_idx, layer in enumerate(model.model.layers):
         if layer_idx >= config.first_k_dense_replace:
-            enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=1, config=config)
+            enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
 
     # Input tokens
     tokens = torch.randint(0, config.vocab_size, (batch_size, seq_len))
@@ -612,56 +613,64 @@ def test_kimi_k2_full_model_4x16():
     def get_shard_spec(model, args, kwargs):
         shard_specs = {}
 
-        # Input tokens: shard on batch dimension
-        shard_specs[args[0]] = ("model", None)
+        # Input tokens: batch on axis_1 (matches working test pattern)
+        shard_specs[args[0]] = ("_axis_1", None)
 
-        # Embedding & lm_head: shard on vocab dimension (first dim)
-        shard_specs[model.model.embed_tokens.weight] = ("model", None)
-        shard_specs[model.lm_head.weight] = ("model", None)
+        # Embedding & lm_head: hidden-sharded on axis_0
+        shard_specs[model.model.embed_tokens.weight] = (None, "_axis_0")
+        shard_specs[model.lm_head.weight] = (None, "_axis_0")
 
         # Final layernorm
-        shard_specs[model.model.norm.weight] = ("batch",)
+        shard_specs[model.model.norm.weight] = ("_axis_0",)
 
-        # Per-layer sharding
+        # Per-layer sharding (matches test_kimi_k2_layer_sparse_moe)
         for layer_idx, layer in enumerate(model.model.layers):
             # MLA Attention weights
-            shard_specs[layer.self_attn.q_b_proj.weight] = ("batch", None)
-            shard_specs[layer.self_attn.kv_b_proj.weight] = ("batch", None)
-            shard_specs[layer.self_attn.o_proj.weight] = (None, "batch")
-            shard_specs[layer.self_attn.q_a_proj.weight] = (None, "batch")
-            shard_specs[layer.self_attn.kv_a_proj_with_mqa.weight] = (None, "batch")
+            shard_specs[layer.self_attn.q_b_proj.weight] = ("_axis_0", None)
+            shard_specs[layer.self_attn.kv_b_proj.weight] = ("_axis_0", None)
+            shard_specs[layer.self_attn.o_proj.weight] = (None, "_axis_0")
+            shard_specs[layer.self_attn.q_a_proj.weight] = (None, "_axis_0")
+            shard_specs[layer.self_attn.kv_a_proj_with_mqa.weight] = (None, "_axis_0")
 
             # Layernorms
-            shard_specs[layer.input_layernorm.weight] = ("batch",)
-            shard_specs[layer.post_attention_layernorm.weight] = ("batch",)
+            shard_specs[layer.input_layernorm.weight] = ("_axis_0",)
+            shard_specs[layer.post_attention_layernorm.weight] = ("_axis_0",)
 
             # MLP: dense for layer 0, MoE for layer 1+
             if layer_idx < config.first_k_dense_replace:
                 # Dense MLP
-                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
-                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
-                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+                shard_specs[layer.mlp.gate_proj.weight] = ("_axis_1", "_axis_0")
+                shard_specs[layer.mlp.up_proj.weight] = ("_axis_1", "_axis_0")
+                shard_specs[layer.mlp.down_proj.weight] = ("_axis_0", "_axis_1")
             else:
                 # Sparse MoE (A2aSparseMLP)
-                # Expert compound shard: first axis matches cluster_axis=1 (model)
+                # Expert compound shard: first axis matches cluster_axis=0
                 mlp_wrapper = layer.mlp
                 mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
-                shard_specs[mlp.router.gate.weight] = (None, "batch")
-                shard_specs[mlp.experts.gate_proj] = (("model", "batch"), None, None)
-                shard_specs[mlp.experts.up_proj] = (("model", "batch"), None, None)
-                shard_specs[mlp.experts.down_proj] = (("model", "batch"), None, None)
+                shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
+                shard_specs[mlp.experts.gate_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
+                shard_specs[mlp.experts.up_proj] = (("_axis_0", "_axis_1"), None, None)
+                shard_specs[mlp.experts.down_proj] = (
+                    ("_axis_0", "_axis_1"),
+                    None,
+                    None,
+                )
 
                 # Shared experts
                 shared = getattr(mlp_wrapper, "shared_experts", None)
                 if shared is not None:
-                    shard_specs[shared.gate_proj.weight] = (None, "batch")
-                    shard_specs[shared.up_proj.weight] = (None, "batch")
-                    shard_specs[shared.down_proj.weight] = ("batch", None)
+                    shard_specs[shared.gate_proj.weight] = (None, "_axis_0")
+                    shard_specs[shared.up_proj.weight] = (None, "_axis_0")
+                    shard_specs[shared.down_proj.weight] = ("_axis_0", None)
 
-            # Cache sharding
+            # Cache sharding: batch on axis_1
             cache_layer = kwargs["past_key_values"].layers[layer_idx]
-            shard_specs[cache_layer.compressed_kv] = ("model", None, None, None)
-            shard_specs[cache_layer.k_pe] = ("model", None, None, None)
+            shard_specs[cache_layer.compressed_kv] = ("_axis_1", None, None, None)
+            shard_specs[cache_layer.k_pe] = ("_axis_1", None, None, None)
 
         return shard_specs
 
