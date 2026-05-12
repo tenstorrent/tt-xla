@@ -582,9 +582,10 @@ def test_kimi_k2_full_model_4x16():
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
 
     # Enable sparse MLP for MoE layers (layer 1+)
+    # cluster_axis=1 aligns dispatch with batch sharding on axis_1 (model dimension)
     for layer_idx, layer in enumerate(model.model.layers):
         if layer_idx >= config.first_k_dense_replace:
-            enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
+            enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=1, config=config)
 
     # Input tokens
     tokens = torch.randint(0, config.vocab_size, (batch_size, seq_len))
@@ -633,12 +634,13 @@ def test_kimi_k2_full_model_4x16():
                 shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
             else:
                 # Sparse MoE (A2aSparseMLP)
+                # Expert compound shard: first axis matches cluster_axis=1 (model)
                 mlp_wrapper = layer.mlp
                 mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
                 shard_specs[mlp.router.gate.weight] = (None, "batch")
-                shard_specs[mlp.experts.gate_proj] = (("batch", "model"), None, None)
-                shard_specs[mlp.experts.up_proj] = (("batch", "model"), None, None)
-                shard_specs[mlp.experts.down_proj] = (("batch", "model"), None, None)
+                shard_specs[mlp.experts.gate_proj] = (("model", "batch"), None, None)
+                shard_specs[mlp.experts.up_proj] = (("model", "batch"), None, None)
+                shard_specs[mlp.experts.down_proj] = (("model", "batch"), None, None)
 
                 # Shared experts
                 shared = getattr(mlp_wrapper, "shared_experts", None)
