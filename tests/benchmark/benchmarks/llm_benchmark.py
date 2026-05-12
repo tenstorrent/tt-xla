@@ -632,11 +632,16 @@ def benchmark_llm_torch_xla(
     )
     print("\nPCC/TOPK benchmark complete")
 
-    # Post-processing: derive predicted tokens for accuracy testing
+    # Post-processing: derive predicted tokens for accuracy testing (all users)
     if accuracy_testing:
-        predicted_tokens = [
-            logits[:, -1, :].argmax(dim=-1)[0].item() for logits in output_logits
-        ]
+        batch_size_for_accuracy = output_logits[0].shape[0]
+        per_user_predictions = []
+        for user_idx in range(batch_size_for_accuracy):
+            user_tokens = [
+                logits[:, -1, :].argmax(dim=-1)[user_idx].item()
+                for logits in output_logits
+            ]
+            per_user_predictions.append(user_tokens)
 
     # Calculate Time to First Token (TTFT)
     ttft_ns = iteration_times[0] if not decode_only else 0.0
@@ -693,25 +698,54 @@ def benchmark_llm_torch_xla(
     ]
 
     if accuracy_testing:
-        # Compute token accuracy from predictions (after generation completes)
-        top1_accuracy, top5_accuracy = token_accuracy.compute_accuracy(predicted_tokens)
+        # Compute per-user token accuracy across the batch
+        all_top1 = []
+        all_top5 = []
+        for user_idx, user_tokens in enumerate(per_user_predictions):
+            user_top1, user_top5 = token_accuracy.compute_accuracy(user_tokens)
+            all_top1.append(user_top1)
+            all_top5.append(user_top5)
+
+        all_top1 = np.array(all_top1)
+        all_top5 = np.array(all_top5)
+
+        # Use 5th-percentile (p5) as primary metric: "95% of users are at or above this"
+        # This catches broken users that averaging would hide.
+        top1_p5 = float(np.percentile(all_top1, 5))
+        top5_p5 = float(np.percentile(all_top5, 5))
+
+        num_users = len(all_top1)
         print(
-            "Token accuracy: TOP1={:.2f}%, TOP5={:.2f}%".format(
-                top1_accuracy * 100, top5_accuracy * 100
-            )
+            f"Token accuracy over {num_users} users:\n"
+            f"  TOP1 — min={all_top1.min()*100:.2f}%  p5={top1_p5*100:.2f}%  "
+            f"median={np.median(all_top1)*100:.2f}%  mean={all_top1.mean()*100:.2f}%  "
+            f"max={all_top1.max()*100:.2f}%\n"
+            f"  TOP5 — min={all_top5.min()*100:.2f}%  p5={top5_p5*100:.2f}%  "
+            f"median={np.median(all_top5)*100:.2f}%  mean={all_top5.mean()*100:.2f}%  "
+            f"max={all_top5.max()*100:.2f}%"
         )
 
-        # Store accuracy scores
-        evaluation_score = top1_accuracy  # Use TOP1 as primary score
+        # Store p5 and mean accuracy scores for regression tracking
+        evaluation_score = top1_p5  # Use TOP1 p5 as primary score
+        top1_mean = float(all_top1.mean())
+        top5_mean = float(all_top5.mean())
         custom_measurements.extend(
             [
                 {
-                    "measurement_name": "top1_accuracy",
-                    "value": top1_accuracy * 100,  # Store as percentage
+                    "measurement_name": "top1_accuracy_p5",
+                    "value": top1_p5 * 100,
                 },
                 {
-                    "measurement_name": "top5_accuracy",
-                    "value": top5_accuracy * 100,  # Store as percentage
+                    "measurement_name": "top5_accuracy_p5",
+                    "value": top5_p5 * 100,
+                },
+                {
+                    "measurement_name": "top1_accuracy_mean",
+                    "value": top1_mean * 100,
+                },
+                {
+                    "measurement_name": "top5_accuracy_mean",
+                    "value": top5_mean * 100,
                 },
             ]
         )

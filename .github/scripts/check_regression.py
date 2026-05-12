@@ -31,19 +31,24 @@ def check_accuracy(prev_report, current_report):
     for m in current_report.get("measurements", []):
         current[m["measurement_name"]] = float(m["value"])
 
-    print(
-        f"Previous: top1={prev.get('top1_accuracy')}  top5={prev.get('top5_accuracy')}"
-    )
-    print(
-        f"Current:  top1={current.get('top1_accuracy')}  top5={current.get('top5_accuracy')}"
-    )
+    # Each metric is checked independently.  If the previous report lacks a key
+    # (e.g. first run after the metric rename), check_regression() sees prev=None
+    # and skips gracefully — no false failures during transition.
+    metrics = [
+        ("Top-1 accuracy (p5)", "top1_accuracy_p5"),
+        ("Top-5 accuracy (p5)", "top5_accuracy_p5"),
+        ("Top-1 accuracy (mean)", "top1_accuracy_mean"),
+        ("Top-5 accuracy (mean)", "top5_accuracy_mean"),
+    ]
 
-    failed = check_regression(
-        "Top-1 accuracy", prev.get("top1_accuracy"), current.get("top1_accuracy")
-    )
-    failed |= check_regression(
-        "Top-5 accuracy", prev.get("top5_accuracy"), current.get("top5_accuracy")
-    )
+    failed = False
+    for label, key in metrics:
+        prev_val = prev.get(key)
+        current_val = current.get(key)
+
+        print(f"{label}: prev={prev_val}  current={current_val}")
+        failed |= check_regression(label, prev_val, current_val)
+
     return failed
 
 
