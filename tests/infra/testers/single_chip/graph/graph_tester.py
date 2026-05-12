@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 import torch
 from infra.evaluators import ComparisonConfig
@@ -53,6 +53,7 @@ def run_graph_test(
     torch_options: dict = None,
     request=None,
     custom_comparator: Optional[Callable] = None,
+    kwargs: Optional[Mapping[str, Any]] = None,
 ) -> None:
     """
     Tests `graph` with `inputs` by running it on TT device and CPU and comparing the
@@ -67,7 +68,11 @@ def run_graph_test(
     )
     if framework == Framework.TORCH:
         workload = TorchWorkload(
-            model=graph, args=inputs, mesh=mesh, shard_spec_fn=shard_spec_fn
+            model=graph,
+            args=inputs,
+            kwargs=kwargs,
+            mesh=mesh,
+            shard_spec_fn=shard_spec_fn,
         )
     else:
         workload = Workload(framework=framework, executable=graph, args=inputs)
