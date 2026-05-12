@@ -548,6 +548,10 @@ def test_kimi_k2_mla_cache():
     assert torch.equal(mla_val, orig_val)
 
 
+# Use fast constant initialization instead of slow random init
+USE_FIXED_WEIGHTS = True
+
+
 @pytest.mark.nightly
 def test_kimi_k2_full_model_4x16():
     """Full Kimi K2 model test on 4x16 mesh (64 devices).
@@ -563,14 +567,18 @@ def test_kimi_k2_full_model_4x16():
     config = loader._load_config(num_layers=num_layers)
     config._attn_implementation = "eager"
 
-    model = DeepseekV3ForCausalLM(config)
-    model = model.to(torch.bfloat16).eval()
-
-    # Debug: print model state dict keys and shapes
-    print("\n=== Model State Dict ===")
-    for name, param in model.named_parameters():
-        print(f"{name}: {param.shape}")
-    print("========================\n")
+    if USE_FIXED_WEIGHTS:
+        # Fast path: meta-init + constant fill (avoids slow random init)
+        with torch.device("meta"):
+            model = DeepseekV3ForCausalLM(config)
+        for param in model.parameters():
+            param.data = torch.full(
+                param.shape, 0.01, dtype=torch.bfloat16, device="cpu"
+            )
+        model.eval()
+    else:
+        model = DeepseekV3ForCausalLM(config)
+        model = model.to(torch.bfloat16).eval()
 
     batch_size = 64
     seq_len = 32
