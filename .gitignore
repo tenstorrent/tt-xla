@@ -50,3 +50,5 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Tracy profiling files
 /tracy_artifacts/
+autoresearch-results.tsv
+autoresearch_logs/

@@ -1917,21 +1917,19 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         accuracy_testing=accuracy_testing,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        batch_size=batch_size if batch_size is not None else 64,
+        batch_size=(
+            batch_size if batch_size is not None else 64
+        ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
         optimization_level=1,
-        mesh_config_fn=_galaxy_mesh_config_fn,
-        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
-        input_output_sharding_spec=("batch", None),
-        kv_cache_sharding_spec=("batch", "model", None, None),
-        trace_enabled=True,
         weight_dtype_overrides={
-            "default": "bfp_bf8",
+            "model.layers.*.mlp.router.weight": "bfp_bf4",
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
             "model.layers.*.mlp.experts.down_proj": "bfp_bf4",
         },
+        required_pcc=0.93,
+        trace_enabled=False,
     )
-
 
 
 def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(

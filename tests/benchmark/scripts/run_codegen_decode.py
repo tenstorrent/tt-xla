@@ -302,12 +302,17 @@ def main():
     print(f"[harness] mesh_shape={mesh_shape}")
     print(f"[harness] graphs={graphs_to_run}")
 
-    # Apply fabric patch idempotently
-    patch_fabric_to_ring(codegen_dir)
+    is_single_device = mesh_shape == (1, 1)
 
-    # Open shared mesh device with ring fabric (must be set before open_mesh_device)
-    print(f"[harness] setting fabric to FABRIC_1D_RING")
-    ttnn.set_fabric_config(ttnn.FabricConfig.FABRIC_1D_RING)
+    if not is_single_device:
+        # Apply fabric patch idempotently (only relevant for multi-chip emit)
+        patch_fabric_to_ring(codegen_dir)
+
+        # Open shared mesh device with ring fabric (must be set before open_mesh_device)
+        print(f"[harness] setting fabric to FABRIC_1D_RING")
+        ttnn.set_fabric_config(ttnn.FabricConfig.FABRIC_1D_RING)
+    else:
+        print(f"[harness] single-device mode: skipping fabric setup")
 
     print(f"[harness] opening mesh device shape={mesh_shape}")
     l1_small_size = 1 << 15  # matches DeviceGetter default
@@ -331,7 +336,8 @@ def main():
     finally:
         try:
             ttnn.close_mesh_device(mesh_device)
-            ttnn.set_fabric_config(ttnn.FabricConfig.DISABLED)
+            if not is_single_device:
+                ttnn.set_fabric_config(ttnn.FabricConfig.DISABLED)
         except Exception as exc:
             print(f"[harness] cleanup warning: {exc}", file=sys.stderr)
 
