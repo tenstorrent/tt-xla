@@ -6,10 +6,10 @@ import re
 from typing import Tuple
 
 import torch
+import torch._functorch.config as _functorch_config
 import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
-import torch._functorch.config as _functorch_config
 import torch_xla.runtime as xr
 from functorch.compile import make_boxed_func, min_cut_rematerialization_partition
 from torch._decomp import get_decompositions as get_aten_decompositions
@@ -172,6 +172,108 @@ def _build_aot_graph_signature(
                         target=None,
                     )
                 )
+
+    return ExportGraphSignature(input_specs=input_specs, output_specs=output_specs)
+
+
+def _classify_fw_saved_tensors(
+    fw_gm: torch.fx.GraphModule,
+    fw_input_specs: list[InputSpec],
+) -> list[InputSpec | None]:
+    """For each saved-for-backward tensor at the tail of the forward output,
+    return the fw InputSpec it came from (if it's a primal pass-through) or
+    None (if it's a computed activation).
+
+    Must be called before torch_pass_pipeline rewrites fw_gm with
+    mark_argument_attributes nodes — afterwards the output node references
+    marker nodes instead of the placeholders directly, masking the
+    pass-through pattern.
+    """
+    tracing_ctx = torch._guards.TracingContext.try_get()
+    assert tracing_ctx is not None and tracing_ctx.fw_metadata is not None
+    fw_metadata = tracing_ctx.fw_metadata
+
+    fw_placeholders = [n for n in fw_gm.graph.nodes if n.op == "placeholder"]
+    fw_ph_to_spec = {ph.name: spec for ph, spec in zip(fw_placeholders, fw_input_specs)}
+
+    fw_output_node = next(n for n in fw_gm.graph.nodes if n.op == "output")
+    fw_outs = list(fw_output_node.args[0])
+
+    # Forward output layout:
+    #   [*input_tokens?, *mutated_inps, *user_outs, *intermediate_bases,
+    #    *rng_offset?, *saved_tensors, *saved_symints]
+    # num_forward = num_mutated_inps + num_user_outs + num_intermediate_bases
+    #             + num_outputs_rng_offset (tokens NOT counted).
+    num_tokens = len(fw_metadata.tokens) if fw_metadata.tokens else 0
+    num_symints = fw_metadata.num_symints_saved_for_bw or 0
+    start = num_tokens + fw_metadata.num_forward
+    end = -num_symints if num_symints > 0 else None
+    saved_outs = fw_outs[start:end]
+
+    classifications: list[InputSpec | None] = []
+    for src in saved_outs:
+        if isinstance(src, torch.fx.Node) and src.op == "placeholder":
+            classifications.append(fw_ph_to_spec.get(src.name))
+        else:
+            classifications.append(None)
+    return classifications
+
+
+def _build_aot_bw_graph_signature(
+    bw_gm: torch.fx.GraphModule,
+    saved_tensor_classifications: list[InputSpec | None],
+) -> ExportGraphSignature:
+    """Build an ExportGraphSignature for the AOTAutograd backward graph.
+
+    Backward placeholders are ordered as:
+      [*saved_tensors, *saved_symints, *tangents, *backward_tokens?]
+    A saved tensor that's a parameter/buffer pass-through from the forward
+    keeps that classification in the backward — consteval can then hoist
+    those args out of the per-call backward graph the same way it does for
+    the forward.  All other backward inputs (activations, tangents, symints)
+    are USER_INPUT (per-call, not consteval candidates).
+    """
+    bw_placeholders = [n for n in bw_gm.graph.nodes if n.op == "placeholder"]
+    input_specs = []
+    for i, ph in enumerate(bw_placeholders):
+        fw_spec = (
+            saved_tensor_classifications[i]
+            if i < len(saved_tensor_classifications)
+            else None
+        )
+        if fw_spec is not None and fw_spec.kind in (
+            InputKind.PARAMETER,
+            InputKind.BUFFER,
+            InputKind.CONSTANT_TENSOR,
+        ):
+            kwargs = dict(
+                kind=fw_spec.kind,
+                arg=TensorArgument(name=ph.name),
+                target=fw_spec.target,
+            )
+            if fw_spec.kind == InputKind.BUFFER:
+                kwargs["persistent"] = True
+            input_specs.append(InputSpec(**kwargs))
+        else:
+            input_specs.append(
+                InputSpec(
+                    kind=InputKind.USER_INPUT,
+                    arg=TensorArgument(name=ph.name),
+                    target=None,
+                )
+            )
+
+    output_specs = []
+    bw_output_node = next(n for n in bw_gm.graph.nodes if n.op == "output")
+    for out_arg in bw_output_node.args[0]:
+        if isinstance(out_arg, torch.fx.Node):
+            output_specs.append(
+                OutputSpec(
+                    kind=OutputKind.USER_OUTPUT,
+                    arg=TensorArgument(name=out_arg.name),
+                    target=None,
+                )
+            )
 
     return ExportGraphSignature(input_specs=input_specs, output_specs=output_specs)
 
@@ -510,6 +612,12 @@ def aot_backend(
         )
     )
 
+    # Closure state shared between fw and bw compilers: each entry is the fw
+    # InputSpec that produced the corresponding saved-for-bw tensor, or None
+    # if the saved tensor is a computed activation.  Populated by the fw
+    # compiler and read by the bw compiler.
+    saved_tensor_classifications: list = []
+
     def fw_compiler_boxed(fw_gm, fw_example_inputs):
         # Build a synthetic ExportGraphSignature from AOTAutograd's
         # TracingContext.  This uses fw_metadata for authoritative
@@ -517,8 +625,24 @@ def aot_backend(
         signature = _build_aot_graph_signature(
             fw_gm, param_names, buffer_names, flat_name_to_original_fqn
         )
+        # Capture the classification of saved-for-bw tensors BEFORE
+        # torch_pass_pipeline mutates fw_gm with marker nodes — afterwards
+        # the output node points through mark_argument_attributes nodes and
+        # the placeholder pass-through pattern is no longer visible.
+        saved_tensor_classifications[:] = _classify_fw_saved_tensors(
+            fw_gm, signature.input_specs
+        )
         return make_boxed_func(
             fw_compiler(fw_gm, fw_example_inputs, options, signature)
+        )
+
+    def bw_compiler_boxed(bw_gm, bw_example_inputs):
+        # Classify each bw placeholder for consteval: saved tensors that
+        # are parameter/buffer pass-throughs inherit the fw classification;
+        # everything else (activations, tangents, symints) is USER_INPUT.
+        signature = _build_aot_bw_graph_signature(bw_gm, saved_tensor_classifications)
+        return make_boxed_func(
+            fw_compiler(bw_gm, bw_example_inputs, options, signature)
         )
 
     # Dynamo creates FakeTensorMode(allow_non_fake_inputs=False) and stores it in
@@ -535,6 +659,7 @@ def aot_backend(
     try:
         return aot_autograd(
             fw_compiler=fw_compiler_boxed,
+            bw_compiler=bw_compiler_boxed,
             decompositions=aot_decompositions,
             partition_fn=min_cut_rematerialization_partition,
         )(gm, example_inputs)
