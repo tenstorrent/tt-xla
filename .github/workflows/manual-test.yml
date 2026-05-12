@@ -84,7 +84,7 @@ jobs:
     - name: Download wheel artifact
       uses: actions/download-artifact@v8
       with:
-        name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+        name: xla-whl-explorer${{ needs.build-ttxla.outputs.artifact_suffix }}
         path: wheels
         run-id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
         github-token: ${{ github.token }}
