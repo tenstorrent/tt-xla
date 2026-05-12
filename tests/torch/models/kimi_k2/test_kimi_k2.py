@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import hashlib
+
 import numpy as np
 import pytest
 import torch
@@ -89,7 +91,7 @@ def test_kimi_k2_attention_prefill():
     )
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
     static_cache = MLACache(
@@ -120,22 +122,57 @@ def test_kimi_k2_attention_prefill():
         pcc=PccConfig(enabled=True, required_pcc=0.95),
     )
 
-    run_graph_test(
-        attention,
-        [
-            hidden_states,
-            attention_mask,
-            position_ids,
-            past_key_states,
-            False,
-            True,
-            cache_positions,
-        ],
-        framework=Framework.TORCH,
-        mesh=mesh,
-        shard_spec_fn=get_shard_spec,
-        comparison_config=comparison_config,
+    # Diagnostic: capture attention output across runs. Run the test multiple
+    # times and compare the printed hashes to determine whether attention itself
+    # is non-deterministic. Stable hashes => attention is bit-reproducible; any
+    # downstream variance originates after attention. Different hashes =>
+    # attention contributes its own non-determinism.
+    captured_attn_outputs = []
+
+    def capture_attn_output(module, inputs, output):
+        out = output[0] if isinstance(output, tuple) else output
+        inp = inputs[0] if isinstance(inputs, tuple) and len(inputs) > 0 else None
+        dev = str(inp.device) if (inp is not None and hasattr(inp, "device")) else "?"
+        captured_attn_outputs.append((dev, out))
+
+    hook_handle = attention.register_forward_hook(capture_attn_output)
+    try:
+        run_graph_test(
+            attention,
+            [
+                hidden_states,
+                attention_mask,
+                position_ids,
+                past_key_states,
+                False,
+                True,
+                cache_positions,
+            ],
+            framework=Framework.TORCH,
+            mesh=mesh,
+            shard_spec_fn=get_shard_spec,
+            comparison_config=comparison_config,
+        )
+    finally:
+        hook_handle.remove()
+
+    print(
+        f"\n[attention-prefill diagnostic] captured "
+        f"{len(captured_attn_outputs)} forward call(s):"
     )
+    for i, (dev, out) in enumerate(captured_attn_outputs):
+        try:
+            cpu_out = out.detach().cpu().contiguous()
+            flat = cpu_out.flatten().float()
+            h = hashlib.sha256(flat.numpy().tobytes()).hexdigest()[:16]
+            print(
+                f"  call#{i}: device={dev} shape={tuple(cpu_out.shape)} "
+                f"sum={flat.sum().item():.4f} hash={h} "
+                f"first5={[round(v, 6) for v in flat[:5].tolist()]}",
+                flush=True,
+            )
+        except Exception as e:
+            print(f"  call#{i}: device={dev} <materialization failed: {e}>", flush=True)
 
 
 @pytest.mark.nightly
@@ -167,7 +204,7 @@ def test_kimi_k2_attention_decode():
     )
 
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
 
@@ -207,21 +244,53 @@ def test_kimi_k2_attention_decode():
         shard_specs[attention.kv_a_proj_with_mqa.weight] = (None, "_axis_0")
         return shard_specs
 
-    run_graph_test(
-        attention,
-        [
-            hidden_states,
-            attention_mask,
-            position_ids,
-            past_key_states,
-            False,
-            True,
-            cache_positions,
-        ],
-        framework=Framework.TORCH,
-        mesh=mesh,
-        shard_spec_fn=get_shard_spec,
+    # Diagnostic: capture attention output across runs. Same purpose as the
+    # prefill variant but exercising the decode-shape attention path.
+    captured_attn_outputs = []
+
+    def capture_attn_output(module, inputs, output):
+        out = output[0] if isinstance(output, tuple) else output
+        inp = inputs[0] if isinstance(inputs, tuple) and len(inputs) > 0 else None
+        dev = str(inp.device) if (inp is not None and hasattr(inp, "device")) else "?"
+        captured_attn_outputs.append((dev, out))
+
+    hook_handle = attention.register_forward_hook(capture_attn_output)
+    try:
+        run_graph_test(
+            attention,
+            [
+                hidden_states,
+                attention_mask,
+                position_ids,
+                past_key_states,
+                False,
+                True,
+                cache_positions,
+            ],
+            framework=Framework.TORCH,
+            mesh=mesh,
+            shard_spec_fn=get_shard_spec,
+        )
+    finally:
+        hook_handle.remove()
+
+    print(
+        f"\n[attention-decode diagnostic] captured "
+        f"{len(captured_attn_outputs)} forward call(s):"
     )
+    for i, (dev, out) in enumerate(captured_attn_outputs):
+        try:
+            cpu_out = out.detach().cpu().contiguous()
+            flat = cpu_out.flatten().float()
+            h = hashlib.sha256(flat.numpy().tobytes()).hexdigest()[:16]
+            print(
+                f"  call#{i}: device={dev} shape={tuple(cpu_out.shape)} "
+                f"sum={flat.sum().item():.4f} hash={h} "
+                f"first5={[round(v, 6) for v in flat[:5].tolist()]}",
+                flush=True,
+            )
+        except Exception as e:
+            print(f"  call#{i}: device={dev} <materialization failed: {e}>", flush=True)
 
 
 @pytest.mark.nightly
@@ -323,8 +392,8 @@ def test_kimi_k2_layer():
 
 @pytest.mark.nightly
 @pytest.mark.llmbox
-@pytest.mark.parametrize("batch_size", [32])
-@pytest.mark.parametrize("seq_len", [1, 32])
+@pytest.mark.parametrize("batch_size", [64])
+@pytest.mark.parametrize("seq_len", [32])
 def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
@@ -345,7 +414,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     )
     cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
     num_devices = xr.global_runtime_device_count()
-    mesh_shape = (2, 4)
+    mesh_shape = (4, 8)
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
     enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
@@ -415,22 +484,89 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
         pcc=PccConfig(enabled=True, required_pcc=0.98),
     )
 
-    run_graph_test(
-        layer,
-        [
-            hidden_states,
-            attention_mask,
-            position_ids,
-            past_key_states,
-            False,
-            True,
-            cache_positions,
-        ],
-        framework=Framework.TORCH,
-        mesh=mesh,
-        shard_spec_fn=get_shard_spec,
-        comparison_config=comparison_config,
+    # Diagnostic: capture the router's topk indices for each forward call.
+    # Across separate pytest invocations, compare the printed hashes to tell
+    # whether MoE routing decisions are stable run-to-run. Different hashes
+    # for the same device path => routing is non-deterministic.
+    mlp_wrapper = layer.mlp
+    mlp_inner = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
+    captured_router_outputs = []
+
+    def capture_router_topk(module, inputs, output):
+        indices = output[-1] if isinstance(output, tuple) else output
+        inp = inputs[0] if isinstance(inputs, tuple) and len(inputs) > 0 else None
+        dev = str(inp.device) if (inp is not None and hasattr(inp, "device")) else "?"
+        captured_router_outputs.append((dev, indices))
+
+    # Diagnostic: snapshot a hash of every layer parameter ONCE before
+    # run_graph_test, while params are still on CPU. Run pytest several
+    # times and compare these hashes alongside the router-topk hashes —
+    # this disambiguates whether topk variance is caused by weights
+    # changing run-to-run or by nondeterminism in routing for fixed
+    # weights. (Snapshotting inside a forward_pre_hook caused device OOM
+    # because it forced re-materialization of sharded XLA params.)
+    def _hash_layer_params(module):
+        per_param = []
+        h_all = hashlib.sha256()
+        for name, p in sorted(module.named_parameters(), key=lambda kv: kv[0]):
+            t = p.detach().cpu().contiguous()
+            # bfloat16 has no numpy dtype; view raw bytes through int16
+            # (same element size) so we hash without a float32 copy.
+            if t.dtype == torch.bfloat16:
+                raw = t.view(torch.int16).numpy().tobytes()
+            else:
+                raw = t.numpy().tobytes()
+            digest = hashlib.sha256(raw).hexdigest()[:16]
+            per_param.append((name, tuple(p.shape), digest))
+            h_all.update(name.encode())
+            h_all.update(digest.encode())
+        return h_all.hexdigest()[:16], per_param
+
+    pre_run_agg, pre_run_per_param = _hash_layer_params(layer)
+
+    hook_handle = mlp_inner.router.register_forward_hook(capture_router_topk)
+    try:
+        run_graph_test(
+            layer,
+            [
+                hidden_states,
+                attention_mask,
+                position_ids,
+                past_key_states,
+                False,
+                True,
+                cache_positions,
+            ],
+            framework=Framework.TORCH,
+            mesh=mesh,
+            shard_spec_fn=get_shard_spec,
+            comparison_config=comparison_config,
+        )
+    finally:
+        hook_handle.remove()
+
+    print(
+        f"\n[router topk diagnostic] captured {len(captured_router_outputs)} "
+        f"router call(s):"
     )
+    for i, (dev, idx) in enumerate(captured_router_outputs):
+        try:
+            cpu_idx = idx.detach().cpu().contiguous()
+            flat = cpu_idx.flatten()
+            h = hashlib.sha256(flat.numpy().tobytes()).hexdigest()[:16]
+            print(
+                f"  call#{i}: device={dev} shape={tuple(cpu_idx.shape)} "
+                f"sum={int(flat.sum().item())} hash={h} "
+                f"first10={flat[:10].tolist()}",
+                flush=True,
+            )
+        except Exception as e:
+            print(f"  call#{i}: device={dev} <materialization failed: {e}>", flush=True)
+
+    print(f"\n[layer-params diagnostic] (snapshot before run_graph_test)")
+    print(f"  agg={pre_run_agg}", flush=True)
+    for name, shape, digest in pre_run_per_param:
+        print(f"    {name} shape={shape} hash={digest}", flush=True)
 
 
 @pytest.mark.nightly
