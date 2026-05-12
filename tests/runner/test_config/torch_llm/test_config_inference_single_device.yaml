@@ -10,13 +10,16 @@
 test_config:
   falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_1b
 
   falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_3b
 
   falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_7b
 
   falcon/pytorch-3_10B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -24,17 +27,21 @@ test_config:
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_0_5b
 
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
     required_pcc: 0.98
+    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_1_5b
 
   qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_3b
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_7b
 
   qwen_2_5/causal_lm/pytorch-14B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -48,13 +55,16 @@ test_config:
 
   gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_gemma_1_1_2b
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_gemma_1_1_7b
 
   gemma/pytorch-2_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_gemma_2_2b
 
   gemma/pytorch-2_9B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -66,6 +76,7 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_1_8b
 
   llama/causal_lm/pytorch-3.1_70B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -79,25 +90,31 @@ test_config:
   llama/causal_lm/pytorch-3.2_1B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/2845
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_2_1b
 
   llama/causal_lm/pytorch-3.2_3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_2_3b
 
   llama/causal_lm/pytorch-3.3_70B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_0_6b
 
   qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_1_7b
 
   qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_4b
 
   qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
     status: EXPECTED_PASSING
+    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_8b
 
   qwen_3/causal_lm/pytorch-14B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
