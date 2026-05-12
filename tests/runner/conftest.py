@@ -94,6 +94,19 @@ def _get_model_group_from_item(item):
     return model_info.group
 
 
+def _validate_optimization_level(value):
+    """Validate --optimization-level CLI value (0, 1, or 2)."""
+    try:
+        int_value = int(value)
+        if int_value not in (0, 1, 2):
+            raise ValueError
+        return int_value
+    except (ValueError, TypeError):
+        raise pytest.UsageError(
+            f"Invalid value for --optimization-level: '{value}'. Must be 0, 1, or 2."
+        )
+
+
 def pytest_addoption(parser):
     """Register CLI options for selecting target arch."""
     parser.addoption(
@@ -114,6 +127,13 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Run tests marked NOT_SUPPORTED_SKIP instead of skipping them (for local debugging)",
+    )
+    parser.addoption(
+        "--optimization-level",
+        action="store",
+        default=None,
+        type=_validate_optimization_level,
+        help="Compiler optimization level (0, 1, or 2). Overrides per-test YAML optimization_level when set",
     )
 
 
