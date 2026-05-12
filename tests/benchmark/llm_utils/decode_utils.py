@@ -16,6 +16,7 @@ from typing import Optional
 
 import torch
 import tracy
+from infra import MLACache
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
 
@@ -63,8 +64,7 @@ class LLMSamplingWrapper(torch.nn.Module):
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.
         # This is a noop for decode.
-        logits_last = logits[:, -1]
-        next_token_ids = logits_last.argmax(dim=-1, keepdim=True)
+        next_token_ids = logits[:, -1].argmax(dim=-1, keepdim=True)
         next_token_ids_replicated = next_token_ids
         if self.mesh and self.output_sharding_spec:
             # Create two versions of next_token_ids, sharded and replicated.
@@ -79,12 +79,14 @@ class LLMSamplingWrapper(torch.nn.Module):
             )
         next_cache_position = cache_position[-1:] + 1
         if self.return_logits:
-            logits_out = logits_last
+            logits_out = logits
             if self.mesh and self.output_sharding_spec:
                 # Ensure logits are replicated for transfer to CPU.
-                replicate_spec = tuple(None for _ in self.output_sharding_spec)
+                # Use tensor rank (not output_sharding_spec length) since logits may be
+                # rank 3 [batch, seq_len, vocab] while output_sharding_spec is rank 2.
+                replicate_spec = tuple(None for _ in range(logits_out.dim()))
                 logits_out = sharding_constraint_tensor(
-                    logits_last, self.mesh, replicate_spec
+                    logits, self.mesh, replicate_spec
                 )
             return (
                 next_token_ids,
@@ -141,6 +143,83 @@ def init_static_cache(
         device=device,
     )
     return static_cache
+
+
+def init_mla_cache(
+    *,
+    config,
+    batch_size: int,
+    max_cache_len: int,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.bfloat16,
+) -> MLACache:
+    """Initialize an MLACache with pre-allocated backing tensors on the given device.
+
+    Analogous to init_static_cache + early_initialization for StaticCache.
+    Pre-initializes each MLAStaticLayer so that transfer_to_device can move
+    the tensors before any model forward pass runs.
+
+    Args:
+        config: Model config (PretrainedConfig).
+        batch_size: Batch size.
+        max_cache_len: Maximum sequence length to cache.
+        device: Device to allocate tensors on.
+        dtype: Tensor dtype.
+
+    Returns:
+        Fully initialized MLACache instance.
+    """
+    cache = MLACache(config=config, max_cache_len=max_cache_len)
+
+    text_config = config.get_text_config(decoder=True)
+    kv_lora_rank = text_config.kv_lora_rank
+    qk_rope_head_dim = text_config.qk_rope_head_dim
+
+    dummy_kv = torch.zeros((batch_size, 1, 1, kv_lora_rank), dtype=dtype, device=device)
+    dummy_pe = torch.zeros(
+        (batch_size, 1, 1, qk_rope_head_dim), dtype=dtype, device=device
+    )
+
+    for layer in cache.layers:
+        layer.lazy_initialization(dummy_kv, dummy_pe)
+
+    return cache
+
+
+def init_indexer_cache(
+    model,
+    *,
+    batch_size: int,
+    max_cache_len: int,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.bfloat16,
+) -> None:
+    """Initialize Indexer k_caches for all model layers that have an Indexer.
+
+    Analogous to init_mla_cache. Must be called after each construct_inputs()
+    (for both the CPU baseline run and the device run) when the model uses an
+    Indexer whose k_cache is deferred via early_initialization().
+
+    Args:
+        model: The model (e.g. DeepSeekV32ForCausalLM wrapper). Accessed via
+               model.transformer.layers[i].attn.indexer.
+        batch_size: Batch size.
+        max_cache_len: Maximum sequence length to cache (must match MLACache).
+        device: Device to allocate tensors on.
+        dtype: Tensor dtype.
+    """
+    transformer = getattr(model, "transformer", model)
+    layers = getattr(transformer, "layers", [])
+    for layer in layers:
+        attn = getattr(layer, "attn", None)
+        indexer = getattr(attn, "indexer", None) if attn is not None else None
+        if indexer is not None and hasattr(indexer, "early_initialization"):
+            indexer.early_initialization(
+                batch_size=batch_size,
+                max_cache_len=max_cache_len,
+                device=device,
+                dtype=dtype,
+            )
 
 
 def extract_topk(

@@ -28,6 +28,9 @@ on:
           - 'vllm-model-tests.json'
           - 'vllm-model-tests-nightly.json'
           - 'fusion-tests.json'
+          - 'model-test-lb-blackhole-nightly.json'
+          - 'model-test-lb-blackhole-weekly.json'
+          - 'model-test-emitpy.json'
           - 'Custom'
       test_suite_custom:
         description: 'Custom test suite json'
@@ -56,6 +59,10 @@ on:
         required: false
         type: string
         default: ''
+      artifact_sha:
+        description: 'tt-xla commit SHA to reuse pre-built artifacts from instead of building (leave empty to build fresh)'
+        required: false
+        type: string
 
 permissions:
   actions: write
@@ -82,6 +89,7 @@ jobs:
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
       mlir_override: ${{ inputs.mlir_override }}
       build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+      artifact_sha: ${{ inputs.artifact_sha }}
 
   test:
     if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'

@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstring>
 #include <memory>
 #include <numeric>
 #include <optional>
@@ -147,14 +148,26 @@ void BufferInstance::deleteData() {
 
   m_data_deleted = true;
   if (m_done_with_host_buffer_event) {
-    EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
-                                          tt_pjrt_status::kSuccess);
-
     // TODO(mrakita): Revert.
     // https://github.com/openxla/xla/issues/25172
     TT_FATAL(m_done_with_host_buffer_event->isIndestructible(),
              "Expected done_with_host_buffer_event to be indestructible");
-    delete m_done_with_host_buffer_event;
+
+    // Hack on top a hack, as now markAsReadyAndCallback always runs callbacks
+    // on a separate thread, it is theorethically possible for this function to
+    // finish before the callback is executed. So, the delete has to happen in a
+    // callback on the event. As we push_back onto a vector and schedule in
+    // iteration order, the delete callback is always last.
+    TT_FATAL(!m_done_with_host_buffer_event->isReady(),
+             "Expected done_with_host_buffer_event to not be ready");
+    m_done_with_host_buffer_event->onReady(
+        [](PJRT_Error *error, void *user_arg) {
+          delete reinterpret_cast<EventInstance *>(user_arg);
+        },
+        m_done_with_host_buffer_event);
+
+    EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
+                                          tt_pjrt_status::kSuccess);
   }
 }
 
@@ -322,7 +335,19 @@ tt_pjrt_status BufferInstance::copyToHost(void *host_buffer,
                                           size_t host_buffer_size,
                                           EventInstance **out_copy_done_event) {
   ZoneScoped;
-  TT_FATAL(m_pjrt_tensor, "Copy from buffer without an associated tensor.");
+
+  // In compile-only mode, output buffers have no associated tensor (no
+  // hardware to compute on). Zero-fill the host buffer and signal success.
+  if (!m_pjrt_tensor) {
+    TT_FATAL(m_device->getClient()->isCompileOnly(),
+             "Copy from buffer without an associated tensor.");
+    std::memset(host_buffer, 0, host_buffer_size);
+    std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    *out_copy_done_event = event.release();
+    return tt_pjrt_status::kSuccess;
+  }
 
   auto rt_data_type =
       tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
@@ -498,6 +523,17 @@ PJRT_Error *onBufferToHostBuffer(PJRT_Buffer_ToHostBuffer_Args *args) {
 
     args->dst_size = buffer->logicalTensorSize();
 
+    return nullptr;
+  }
+
+  // Empty tensors (e.g. shape [0]) have zero bytes and no device-side
+  // allocation, so there is nothing to copy. Return a ready event immediately
+  // to avoid calling into the runtime with null buffer pointers.
+  if (buffer->logicalTensorSize() == 0) {
+    std::unique_ptr<EventInstance> event = EventInstance::createInstance();
+    EventInstance::markAsReadyAndCallback(event.get(),
+                                          tt_pjrt_status::kSuccess);
+    args->event = *event.release();
     return nullptr;
   }
 

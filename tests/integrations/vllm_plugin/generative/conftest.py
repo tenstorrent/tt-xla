@@ -2,7 +2,44 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """Shared conftest for vLLM generative tests."""
+import re
+
 import psutil
+
+# Common English function words used by `assert_output_coherent` to detect
+# the 2D-mesh sampler garbage-output bug (issue #4440). Coherent natural-
+# language continuations contain several of these per ~30-token output;
+# token-soup garbage contains ~zero.
+_STOPWORDS = frozenset(
+    """
+    the a an and or but i you he she it we they is are was were be been
+    have has had do does did of to in on at for with by from as that this
+    my your her his their can will would should like go get make me so
+    not if when what how there here
+    """.split()
+)
+_WORD_RE = re.compile(r"[A-Za-z']+")
+_MIN_STOPWORD_RATIO = 0.10
+_MIN_WORDS = 5
+
+
+def assert_output_coherent(text: str) -> None:
+    """Heuristic assertion: text is natural-language, not token soup.
+
+    Uses English stopword ratio as the token-soup detector — coherent
+    continuations contain several stopwords per ~30-token output, while
+    token-soup garbage contains ~zero.
+    """
+    s = text.strip()
+    assert s, f"empty output: {text!r}"
+    words = [w.lower() for w in _WORD_RE.findall(s)]
+    assert words, f"output has no word characters: {text!r}"
+    if len(words) < _MIN_WORDS:
+        return
+    sr = sum(1 for w in words if w in _STOPWORDS) / len(words)
+    assert (
+        sr >= _MIN_STOPWORD_RATIO
+    ), f"stopword ratio too low ({sr:.3f} < {_MIN_STOPWORD_RATIO}): {text!r}"
 
 
 def check_host_memory(model_name: str) -> float:

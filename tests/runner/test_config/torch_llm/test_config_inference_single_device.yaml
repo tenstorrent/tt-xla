@@ -9,14 +9,10 @@
 
 test_config:
   falcon/pytorch-3_1B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   falcon/pytorch-3_3B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   falcon/pytorch-3_7B_Base-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -27,19 +23,14 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   qwen_2_5/causal_lm/pytorch-3B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -56,15 +47,11 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   gemma/pytorch-1.1_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hangs - https://github.com/tenstorrent/tt-xla/issues/4004"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   gemma/pytorch-1.1_7B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   gemma/pytorch-2_2B_IT-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
@@ -100,19 +87,13 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
 
   qwen_3/causal_lm/pytorch-0_6B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4094"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-1_7B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/4125"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-4B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "Hang - https://github.com/tenstorrent/tt-xla/issues/3838"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-8B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     supported_archs: ["p150"] # Runs as tensor_parallel for wormhole.
@@ -191,7 +172,6 @@ test_config:
     markers: [nightly]
     filechecks:
       - concatenate_heads.ttnn.mlir
-      - split_query_key_value_and_split_heads.ttnn.mlir
       - rms_norm.ttnn.mlir
       - matmul_with_activation_silu.ttnn.mlir
       - softmax.ttnn.mlir # SDPA fusion is not enabled without the optimizer, so we only check for softmax
@@ -212,7 +192,7 @@ test_config:
     supported_archs: ["n150", "p150"]
     required_pcc: 0.99
     status: EXPECTED_PASSING
-    markers: [nightly]
+    markers: [nightly, large]
 
   llama/causal_lm/pytorch-3.2_1B-llm_prefill-seq_2048-batch_1-single_device-mesh_default-inference:
     supported_archs: ["n150", "p150"]

@@ -15,6 +15,7 @@ Usage:
     model = enable_sparse_mlp(model)  # Replace MLP layers with SparseMLP
 """
 
+import math
 from typing import Any, Dict, List, Optional, Type
 
 import torch
@@ -447,6 +448,7 @@ class A2aSparseMLP(nn.Module):
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
+        use_dense_matmul: bool = False,
     ):
         super().__init__()
 
@@ -462,9 +464,9 @@ class A2aSparseMLP(nn.Module):
         self.dispatch_devices = (
             dispatch_devices if dispatch_devices is not None else num_devices
         )
-        # When True, uses dense torch.matmul instead of sparse_matmul.
-        # Skips remap (no sparsity mask needed). Demo-style approach.
-        self.use_dense_matmul = False
+        # When True, uses dense torch.matmul instead of sparse_matmul. Dense
+        # path skips the sparsity mask and supports autograd.
+        self.use_dense_matmul = use_dense_matmul
 
         # Keep original MLP for CPU golden path.
         # cpu_forward_module overrides original_mlp when the adapter wrapping
@@ -525,6 +527,27 @@ class A2aSparseMLP(nn.Module):
         router_scores, router_indices = _unpack_router_output(
             self.router(router_input), self.num_experts
         )
+
+        # Pad batch so (batch * seq_len) is a multiple of TILE (32). The
+        # downstream MoE ops (moe_expert_token_remap, sparse_matmul) assume
+        # tile-aligned token counts and either segfault or fail validation
+        # otherwise — typical trigger is small-batch decode (e.g. bsz=8
+        # seq_len=1 → 8 tokens; pad batch by 4× → 32 tokens).
+        # Solve for pad_batch directly: padded_batch must be a multiple of
+        # TILE // gcd(seq_len, TILE) (the smallest k such that k*seq_len is
+        # a multiple of TILE), so padded_batch*seq_len is always a multiple
+        # of TILE regardless of seq_len. Padded entries carry zero router
+        # scores/indices and are sliced off the output before return.
+        TILE = 32
+        batch_step = TILE // math.gcd(seq_len, TILE)
+        padded_batch = math.ceil(batch_size / batch_step) * batch_step
+        pad_batch = padded_batch - batch_size
+        if pad_batch > 0:
+            # F.pad's pad-tuple is (last dim ... first dim) pairs of (left, right).
+            hidden_states = F.pad(hidden_states, (0, 0, 0, 0, 0, pad_batch))
+            # router_indices / router_scores are [B*S, K] / [B*S, E] (flat).
+            router_indices = F.pad(router_indices, (0, 0, 0, pad_batch * seq_len))
+            router_scores = F.pad(router_scores, (0, 0, 0, pad_batch * seq_len))
 
         # 2. Dispatch: route tokens to devices along cluster_axis
         # Dispatch accepts [B, S, H] and [B*S, K] directly.
@@ -617,25 +640,16 @@ class A2aSparseMLP(nn.Module):
                     activated = (up_out + 1) * glu
 
             # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
-            act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
+            act_per_expert = activated.reshape(
                 dim_a * dim_b * M, E, self.intermediate_size
-            )
-            act_per_expert = act_per_expert.permute(
-                1, 0, 2
-            )  # [E, dim_a*dim_b*M, inter]
-            down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-            down_out = torch.bmm(
-                act_per_expert, down_per_expert
-            )  # [E, dim_a*dim_b*M, H]
+            ).permute(1, 0, 2)
+            down_per_expert = down_proj.squeeze(0)
+            down_out = torch.bmm(act_per_expert, down_per_expert)
             down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
             down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
 
-            # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
-            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
             if down_bias is not None:
                 down_out = down_out + down_bias
-            # E to front, merge all spatial dims into one token dim
             down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
             down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
 
@@ -680,7 +694,12 @@ class A2aSparseMLP(nn.Module):
             topk_weights.permute(1, 0).unsqueeze(1).unsqueeze(-1)
         )  # [K, 1, B*S, 1]
         output = (combined * topk_weights).sum(dim=0)  # [1, B*S, H]
-        output = output.view(batch_size, seq_len, hidden_size)
+        output = output.view(padded_batch, seq_len, hidden_size)
+        if pad_batch > 0:
+            # Drop the padded batch entries (and matching router_scores rows)
+            # so callers see the original [batch_size, ...] shape.
+            output = output[:batch_size]
+            router_scores = router_scores[: batch_size * seq_len]
 
         return output.to(hidden_states.dtype), router_scores
 
@@ -957,7 +976,11 @@ class A2aSparseMLPWithSharedExperts(nn.Module):
 
     def forward(self, hidden_states):
         out, _ = self.mlp(hidden_states)
-        if self.shared_experts is not None:
+        # On CPU, _cpu_forward delegates to the original MoE which already adds
+        # shared_experts internally (DS V4 MoE.forward: y += self.shared_experts(x)).
+        # On TT, dispatch/combine produces routed-only output, so shared must be
+        # added here. Skip on CPU to avoid double-counting.
+        if self.shared_experts is not None and hidden_states.device.type != "cpu":
             out = out + self.shared_experts(hidden_states)
         return out
 
@@ -1057,9 +1080,13 @@ def enable_sparse_mlp(
     target_classes: Optional[List[Type]] = None,
     verbose: bool = False,
     config: Optional[object] = None,
+    use_dense_matmul: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
+
+    use_dense_matmul: when True, A2aSparseMLP uses dense torch.bmm (autograd
+    supported) instead of sparse_matmul (no autograd).
     """
     replaced_count = 0
 
@@ -1112,9 +1139,12 @@ def enable_sparse_mlp(
         num_experts, num_experts_per_tok = moe_config
 
         # Wrap fused experts (e.g. GptOssExperts) with FusedExpertsWrapper
-        # so they have sparse_forward() like StackedExperts
+        # so they have sparse_forward() like StackedExperts. The dense-matmul
+        # path uses experts directly (no sparse_forward), so the wrapper
+        # is unused and skipped.
         if (
-            hasattr(module, "experts")
+            not use_dense_matmul
+            and hasattr(module, "experts")
             and hasattr(module.experts, "gate_up_proj")
             and not hasattr(module.experts, "sparse_forward")
         ):
@@ -1129,6 +1159,7 @@ def enable_sparse_mlp(
             config=config,
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
+            use_dense_matmul=use_dense_matmul,
         )
 
         setattr(parent, name, sparse_mlp)

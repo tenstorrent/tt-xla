@@ -21,6 +21,23 @@ def make_validator_positive_int(option_name):
     return validate
 
 
+def make_validator_optimization_level(option_name):
+    """Create an optimization level validator (0, 1, or 2)."""
+
+    def validate(value):
+        try:
+            int_value = int(value)
+            if int_value not in [0, 1, 2]:
+                raise ValueError
+            return int_value
+        except (ValueError, TypeError):
+            raise pytest.UsageError(
+                f"Invalid value for {option_name}: '{value}'. Must be 0, 1, or 2."
+            )
+
+    return validate
+
+
 def pytest_addoption(parser):
     """Adds a custom command-line option to pytest."""
     parser.addoption(
@@ -54,6 +71,14 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+        "--optimization-level",
+        action="store",
+        default=None,
+        type=make_validator_optimization_level("--optimization-level"),
+        help="Optimization level (0, 1, or 2). Overrides default value.",
+    )
+
+    parser.addoption(
         "--max-output-tokens",
         action="store",
         default=None,
@@ -66,6 +91,16 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
+    )
+
+    parser.addoption(
+        "--check-fusions",
+        action="store_true",
+        default=False,
+        help=(
+            "Verify that expected fusion ops are present in the compiled IR. "
+            "Tests must declare expected_ops to use this feature."
+        ),
     )
 
 
@@ -90,6 +125,11 @@ def accuracy_testing(request):
 
 
 @pytest.fixture
+def optimization_level(request):
+    return request.config.getoption("--optimization-level")
+
+
+@pytest.fixture
 def max_output_tokens(request):
     return request.config.getoption("--max-output-tokens")
 
@@ -97,3 +137,8 @@ def max_output_tokens(request):
 @pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def check_fusions(request):
+    return request.config.getoption("--check-fusions")

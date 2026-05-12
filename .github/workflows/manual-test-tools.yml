@@ -1,0 +1,41 @@
+name: Test tooling packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      mlir_override:
+        description: 'Git hash of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+
+permissions:
+  actions: write
+  packages: write
+  checks: write
+  contents: read
+
+run-name: 'Test tooling packages ( mlir: ${{ inputs.mlir_override || ''latest'' }} )'
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      mlir_override: ${{ inputs.mlir_override }}
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      mlir_override: ${{ inputs.mlir_override }}
+
+  test-tools:
+    needs: [ build-image, build-ttxla ]
+    uses: ./.github/workflows/call-test-tools.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      wheel_artifact_name: xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+      artifacts_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
