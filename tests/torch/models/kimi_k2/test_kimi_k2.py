@@ -571,10 +571,12 @@ def test_kimi_k2_full_model_4x16():
         # Fast path: meta-init + constant fill (avoids slow random init)
         with torch.device("meta"):
             model = DeepseekV3ForCausalLM(config)
-        for param in model.parameters():
-            param.data = torch.full(
-                param.shape, 0.01, dtype=torch.bfloat16, device="cpu"
-            )
+        # Use load_state_dict with assign=True to materialize meta tensors
+        state_dict = {
+            name: torch.full(param.shape, 0.01, dtype=torch.bfloat16)
+            for name, param in model.named_parameters()
+        }
+        model.load_state_dict(state_dict, strict=False, assign=True)
         model.eval()
     else:
         model = DeepseekV3ForCausalLM(config)
