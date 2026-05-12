@@ -28,6 +28,9 @@ from vllm.config import (
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -980,6 +983,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
             is_causal=is_causal,
+            num_users=self.input_ids_cpu.shape[0],
+            num_tokens=num_scheduled_tokens_per_req,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1462,6 +1467,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
             is_causal=is_causal,
+            num_users=num_reqs,
+            num_tokens=num_tokens,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1751,6 +1758,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 pin_memory=self.pin_memory,
             )
         )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
 
 
 def _get_req_paddings(min_req_size: int, max_req_size: int) -> list[int]:

@@ -112,7 +112,9 @@ def apply_xla_dynamo_guard_repr_patch() -> None:
         code = f"___check_obj_id({ref}, {id_val}), type={type_repr}"
         self._set_guard_export_info(guard, [code], provided_func_name="ID_MATCH")
         self.get_guard_manager(guard).add_id_match_guard(
-            id_val, get_verbose_code_parts(code, guard, recompile_hint)
+            id_val,
+            get_verbose_code_parts(code, guard, recompile_hint),
+            guard.user_stack,
         )
 
         # Handle LocalSource for Module objects

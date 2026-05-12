@@ -37,6 +37,7 @@ class AscendScheduler(Scheduler):
         kv_cache_config: KVCacheConfig,
         structured_output_manager: StructuredOutputManager,
         block_size: int,
+        hash_block_size: int | None = None,
         mm_registry: MultiModalRegistry = MULTIMODAL_REGISTRY,
         include_finished_set: bool = False,
         log_stats: bool = False,
@@ -46,6 +47,7 @@ class AscendScheduler(Scheduler):
             kv_cache_config,
             structured_output_manager,
             block_size,
+            hash_block_size,
             mm_registry,
             include_finished_set,
             log_stats,
@@ -156,6 +158,15 @@ class AscendScheduler(Scheduler):
                 num_computed_tokens = (
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
+                assert num_computed_tokens <= request.num_tokens
+
+                if request.prefill_stats is not None:
+                    assert num_computed_tokens <= request.num_prompt_tokens
+                    request.prefill_stats.set(
+                        num_prompt_tokens=request.num_prompt_tokens,
+                        num_local_cached_tokens=num_new_local_computed_tokens,
+                        num_external_cached_tokens=num_external_computed_tokens,
+                    )
             else:
                 # P/D: skip checking prefix cache if loaded from remote kvs.
                 new_computed_blocks = self.kv_cache_manager.create_empty_block_list()
@@ -282,9 +293,6 @@ class AscendScheduler(Scheduler):
             token_budget -= num_new_tokens
             request.status = RequestStatus.RUNNING
             request.num_computed_tokens = num_computed_tokens
-            # Count the number of prefix cached tokens.
-            if request.num_cached_tokens < 0:
-                request.num_cached_tokens = num_computed_tokens
 
             # Encoder-related: commit the scheduled encoder inputs and reserve
             # space for their outputs in the encoder cache.
@@ -562,6 +570,46 @@ class AscendScheduler(Scheduler):
         model_runner_output: ModelRunnerOutput,
     ) -> dict[int, EngineCoreOutputs]:
         num_scheduled_tokens = scheduler_output.num_scheduled_tokens
+        req_id_to_index = model_runner_output.req_id_to_index
+
+        # Async scheduling can surface stale request ids that were scheduled
+        # but are no longer present in the runner's output map.  The request
+        # was moved to `running` and had its num_computed_tokens updated during
+        # schedule(), but the model never processed it.  Simply dropping it
+        # from num_scheduled_tokens leaves the request in `running` with an
+        # inconsistent num_computed_tokens, causing an AssertionError on the
+        # next schedule() call.  Instead, preempt the request so it is
+        # cleanly re-queued to waiting and will be retried from scratch.
+        stale_req_ids = [
+            req_id for req_id in list(num_scheduled_tokens) if req_id not in req_id_to_index
+        ]
+        if stale_req_ids:
+            stale_set = set(stale_req_ids)
+            for req_id in stale_req_ids:
+                num_scheduled_tokens.pop(req_id, None)
+                scheduler_output.scheduled_spec_decode_tokens.pop(req_id, None)
+                self.scheduled_req_ids.discard(req_id)
+
+            # Preempt each stale request: free its KV cache allocation, reset
+            # state, and move it back to the head of the waiting queue so it
+            # will be re-scheduled on the next step.
+            still_running = []
+            for request in self.running:
+                if request.request_id in stale_set:
+                    self.kv_cache_manager.free(request)
+                    request.status = RequestStatus.PREEMPTED
+                    request.num_computed_tokens = 0
+                    self.waiting.prepend_request(request)
+                else:
+                    still_running.append(request)
+            self.running = still_running
+
+            logger.warning(
+                "Preempted %d stale scheduled request id(s) missing from "
+                "model_runner_output (will retry): %s",
+                len(stale_req_ids),
+                stale_req_ids[:3],
+            )
 
         # NOTE(woosuk): As len(self.running) can be up to 1K or more, the below
         # loop can be a performance bottleneck. We should do our best to avoid

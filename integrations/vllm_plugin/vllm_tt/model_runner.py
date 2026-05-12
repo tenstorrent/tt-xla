@@ -31,6 +31,9 @@ from vllm.config import (
 )
 from vllm.distributed.kv_transfer import get_kv_transfer_group, has_kv_transfer_group
 from vllm.distributed.kv_transfer.kv_connector.utils import copy_kv_blocks
+from vllm.distributed.kv_transfer.kv_transfer_state import (
+    ensure_kv_transfer_shutdown as ensure_kv_transfer_state_shutdown,
+)
 from vllm.forward_context import get_forward_context, set_forward_context
 from vllm.lora.layers import BaseLayerWithLoRA
 from vllm.model_executor.layers.attention.attention import Attention
@@ -1206,6 +1209,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=fill_page_table,
+            num_users=self.max_num_reqs,
+            num_tokens=padded_total_num_scheduled_tokens,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1948,6 +1953,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            num_users=self.max_num_reqs,
+            num_tokens=num_tokens,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2264,6 +2271,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=page_table,
+            num_users=self.max_num_reqs,
+            num_tokens=num_tokens,
         )
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
@@ -2936,10 +2945,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`
         # since the compiled model object of the language backbone of a
         # multimodal model needs to be extracted via `get_language_model`.
-        if self.model_config.is_multimodal_model:
-            compiled_model = self.model.get_language_model().model
-        else:
-            compiled_model = self.model.model
+        compiled_model = self._get_compiled_language_model()
         if isinstance(compiled_model, TorchCompileWithNoGuardsWrapper):
             logger.info("Clear dynamo cache and cached dynamo bytecode.")
             torch._dynamo.eval_frame.remove_from_cache(
@@ -2948,6 +2954,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Reset the wrapper to re-initialize.
             compiled_model.compiled = False
             TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
+            compiled_model.do_not_compile = True
+
+    def _get_compiled_language_model(self):
+        if self.model_config.is_multimodal_model:
+            return self.model.get_language_model().model
+        return self.model.model
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states_compiled(
@@ -3348,6 +3360,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 pin_memory=self.pin_memory,
             )
         )
+
+    def ensure_kv_transfer_shutdown(self) -> None:
+        if has_kv_transfer_group():
+            ensure_kv_transfer_state_shutdown()
 
 
 def _adjust_min_token(min_token_size: int) -> int:

@@ -20,6 +20,16 @@ def register():
 
 
 def register_moe_oot_layer():
+    # Patch vLLM Attention symbol from the general-plugins path. Doing this in
+    # register() (platform detection path) can recursively touch current_platform
+    # while it is still being resolved, leaving an invalid device type.
+    import vllm.model_executor.layers.attention as _attn_pkg
+    import vllm.model_executor.layers.attention.attention as _attn_mod
+    from vllm_tt.attention import TTAttention
+
+    _attn_mod.Attention = TTAttention
+    _attn_pkg.Attention = TTAttention
+
     # OOT-registers TTFusedMoE (CustomOp.register_oot) so Gemma-4's FusedMoE
     # uses our dense / expert-parallel routing path under XLA SPMD. Mirrors the
     # MLA backend's register_*_oot_layer + vllm.general_plugins pattern.
