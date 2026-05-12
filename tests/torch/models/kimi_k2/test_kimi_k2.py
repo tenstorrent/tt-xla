@@ -546,3 +546,123 @@ def test_kimi_k2_mla_cache():
 
     assert torch.equal(mla_key, orig_key)
     assert torch.equal(mla_val, orig_val)
+
+
+@pytest.mark.nightly
+def test_kimi_k2_full_model_4x16():
+    """Full Kimi K2 model test on 4x16 mesh (64 devices).
+
+    Tests DeepseekV3ForCausalLM with vocab-sharded embeddings.
+    Start with 2 layers to validate sharding, increase to 61 for full model.
+    """
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    num_layers = 2  # Start small, increase to 61 after validation
+    loader = ModelLoader()
+    config = loader._load_config(num_layers=num_layers)
+    config._attn_implementation = "eager"
+
+    model = DeepseekV3ForCausalLM(config)
+    model = model.to(torch.bfloat16).eval()
+
+    # Debug: print model state dict keys and shapes
+    print("\n=== Model State Dict ===")
+    for name, param in model.named_parameters():
+        print(f"{name}: {param.shape}")
+    print("========================\n")
+
+    batch_size = 64
+    seq_len = 32
+    max_cache_len = 1024
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (4, 16)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    # Enable sparse MLP for MoE layers (layer 1+)
+    for layer_idx, layer in enumerate(model.model.layers):
+        if layer_idx >= config.first_k_dense_replace:
+            enable_sparse_mlp(layer, mesh=mesh_shape, cluster_axis=0, config=config)
+
+    # Input tokens
+    tokens = torch.randint(0, config.vocab_size, (batch_size, seq_len))
+
+    # MLACache setup
+    static_cache = MLACache(
+        config=config,
+        max_batch_size=batch_size,
+        max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
+    )
+    cache_position = torch.arange(seq_len)
+
+    def get_shard_spec(model, args, kwargs):
+        shard_specs = {}
+
+        # Input tokens: shard on batch dimension
+        shard_specs[args[0]] = ("model", None)
+
+        # Embedding & lm_head: shard on vocab dimension (first dim)
+        shard_specs[model.model.embed_tokens.weight] = ("model", None)
+        shard_specs[model.lm_head.weight] = ("model", None)
+
+        # Final layernorm
+        shard_specs[model.model.norm.weight] = ("batch",)
+
+        # Per-layer sharding
+        for layer_idx, layer in enumerate(model.model.layers):
+            # MLA Attention weights
+            shard_specs[layer.self_attn.q_b_proj.weight] = ("batch", None)
+            shard_specs[layer.self_attn.kv_b_proj.weight] = ("batch", None)
+            shard_specs[layer.self_attn.o_proj.weight] = (None, "batch")
+            shard_specs[layer.self_attn.q_a_proj.weight] = (None, "batch")
+            shard_specs[layer.self_attn.kv_a_proj_with_mqa.weight] = (None, "batch")
+
+            # Layernorms
+            shard_specs[layer.input_layernorm.weight] = ("batch",)
+            shard_specs[layer.post_attention_layernorm.weight] = ("batch",)
+
+            # MLP: dense for layer 0, MoE for layer 1+
+            if layer_idx < config.first_k_dense_replace:
+                # Dense MLP
+                shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+                shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+            else:
+                # Sparse MoE (A2aSparseMLP)
+                mlp_wrapper = layer.mlp
+                mlp = mlp_wrapper.mlp if hasattr(mlp_wrapper, "mlp") else mlp_wrapper
+                shard_specs[mlp.router.gate.weight] = (None, "batch")
+                shard_specs[mlp.experts.gate_proj] = (("batch", "model"), None, None)
+                shard_specs[mlp.experts.up_proj] = (("batch", "model"), None, None)
+                shard_specs[mlp.experts.down_proj] = (("batch", "model"), None, None)
+
+                # Shared experts
+                shared = getattr(mlp_wrapper, "shared_experts", None)
+                if shared is not None:
+                    shard_specs[shared.gate_proj.weight] = (None, "batch")
+                    shard_specs[shared.up_proj.weight] = (None, "batch")
+                    shard_specs[shared.down_proj.weight] = ("batch", None)
+
+            # Cache sharding
+            cache_layer = kwargs["past_key_values"].layers[layer_idx]
+            shard_specs[cache_layer.compressed_kv] = ("model", None, None, None)
+            shard_specs[cache_layer.k_pe] = ("model", None, None, None)
+
+        return shard_specs
+
+    run_graph_test(
+        model,
+        [tokens],
+        kwargs={
+            "past_key_values": static_cache,
+            "use_cache": True,
+            "cache_position": cache_position,
+        },
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
