@@ -119,9 +119,7 @@ def _select_latest_run(paths: list[Path]) -> list[Path]:
     )
 
 
-def _select_g0_g1(
-    paths: list[Path], group: str
-) -> tuple[list[Path], dict[Path, str]]:
+def _select_g0_g1(paths: list[Path], group: str) -> tuple[list[Path], dict[Path, str]]:
     """Strict g0=prefill, g1=decode. Encoders only have g0."""
     if not paths:
         return [], {}
@@ -308,10 +306,18 @@ def _run_pytest(
 ) -> tuple[bool, Optional[str], Optional[str]]:
     test_path = f"{test_file}::{test_name}"
     cmd = [
-        sys.executable, "-m", "pytest", "-x", "-v", test_path,
-        "--num-layers", "1",
-        "--max-output-tokens", str(MAX_OUTPUT_TOKENS),
-        "--output-file", str(per_test_json),
+        sys.executable,
+        "-m",
+        "pytest",
+        "-x",
+        "-v",
+        test_path,
+        "--num-layers",
+        "1",
+        "--max-output-tokens",
+        str(MAX_OUTPUT_TOKENS),
+        "--output-file",
+        str(per_test_json),
     ]
     pytest_env = os.environ.copy()
     # Wide terminal so pytest doesn't truncate the FAILED summary line.
@@ -320,7 +326,11 @@ def _run_pytest(
 
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=PYTEST_TIMEOUT_S, env=pytest_env
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=PYTEST_TIMEOUT_S,
+            env=pytest_env,
         )
     except subprocess.TimeoutExpired:
         return False, "Test timed out", None
@@ -485,25 +495,41 @@ def _run_tests(
         success, error_msg, error_detail = _run_pytest(test_file, name, per_test_json)
 
         if not success:
-            if error_msg and "num_layers override requested but ModelLoader does not support it" in error_msg:
+            if (
+                error_msg
+                and "num_layers override requested but ModelLoader does not support it"
+                in error_msg
+            ):
                 status, error = "unsupported", error_msg
             elif error_msg and "Test was skipped" in error_msg:
                 status, error = "skipped", error_msg
             else:
                 status, error = "failed", error_msg
 
-        ttir_paths = _find_mlirs(export_path, model_name, "ttir", min_mtime=test_start_time)
-        ttnn_paths = _find_mlirs(export_path, model_name, "ttnn", min_mtime=test_start_time)
+        ttir_paths = _find_mlirs(
+            export_path, model_name, "ttir", min_mtime=test_start_time
+        )
+        ttnn_paths = _find_mlirs(
+            export_path, model_name, "ttnn", min_mtime=test_start_time
+        )
         ttir_paths = _select_latest_run(ttir_paths)
         ttnn_paths = _select_latest_run(ttnn_paths)
         ttir_paths, ttir_labels = _select_g0_g1(ttir_paths, group)
         ttnn_paths, ttnn_labels = _select_g0_g1(ttnn_paths, group)
-        copied_paths = _copy_mlirs(ttir_paths, output_dir, group, model_name, "ttir", ttir_labels)
-        copied_ttnn_paths = _copy_mlirs(ttnn_paths, ttnn_output_dir, group, model_name, "ttnn", ttnn_labels)
+        copied_paths = _copy_mlirs(
+            ttir_paths, output_dir, group, model_name, "ttir", ttir_labels
+        )
+        copied_ttnn_paths = _copy_mlirs(
+            ttnn_paths, ttnn_output_dir, group, model_name, "ttnn", ttnn_labels
+        )
 
         metrics = _extract_metrics(per_test_json)
 
-        icon = "✅" if status == "ok" else ("⚠️" if status in {"skipped", "unsupported"} else "❌")
+        icon = (
+            "✅"
+            if status == "ok"
+            else ("⚠️" if status in {"skipped", "unsupported"} else "❌")
+        )
         print(f"{icon} Finished {group}::{name} -> {status}")
         sps = metrics.get("samples_per_sec")
         if sps is not None:
@@ -520,15 +546,17 @@ def _run_tests(
             elif error:
                 print(f"    Failure: {error}")
 
-        results.append({
-            "group": group,
-            "test": name,
-            "status": status,
-            "error": error,
-            "ttir": [str(p) for p in copied_paths],
-            "ttnn": [str(p) for p in copied_ttnn_paths],
-            "metrics": metrics,
-        })
+        results.append(
+            {
+                "group": group,
+                "test": name,
+                "status": status,
+                "error": error,
+                "ttir": [str(p) for p in copied_paths],
+                "ttnn": [str(p) for p in copied_ttnn_paths],
+                "metrics": metrics,
+            }
+        )
         if on_test_done is not None:
             on_test_done()
 
@@ -599,14 +627,18 @@ def main() -> int:
         description="Run single-layer pytest tests, export TTIRs and capture perf/PCC."
     )
     parser.add_argument(
-        "--test", action="append", default=[],
+        "--test",
+        action="append",
+        default=[],
         help=(
             "Comma-separated list of EXACT model names to run (case-insensitive, "
             "test name minus the 'test_' prefix). May be repeated. Empty = all."
         ),
     )
     parser.add_argument(
-        "--continue", dest="resume", action="store_true",
+        "--continue",
+        dest="resume",
+        action="store_true",
         help="Resume: skip tests whose output MLIRs already exist.",
     )
     parser.add_argument("--ttirs-output-dir", type=Path, default=None)
@@ -618,9 +650,15 @@ def main() -> int:
     os.chdir(tt_xla_dir)
 
     export_path = (tt_xla_dir / "modules").resolve()
-    output_dir = (args.ttirs_output_dir or (single_layer_dir / "generated" / "ttir")).resolve()
-    ttnn_output_dir = (args.ttnn_output_dir or (single_layer_dir / "generated" / "ttnn")).resolve()
-    include_tests = {s.strip() for arg in args.test for s in arg.split(",") if s.strip()}
+    output_dir = (
+        args.ttirs_output_dir or (single_layer_dir / "generated" / "ttir")
+    ).resolve()
+    ttnn_output_dir = (
+        args.ttnn_output_dir or (single_layer_dir / "generated" / "ttnn")
+    ).resolve()
+    include_tests = {
+        s.strip() for arg in args.test for s in arg.split(",") if s.strip()
+    }
 
     print(f"single-layer runner: out={output_dir} ttnn={ttnn_output_dir}")
     if include_tests:
@@ -629,13 +667,23 @@ def main() -> int:
         print("resume: skipping tests with existing MLIRs")
 
     groups = [
-        ("llm",     tt_xla_dir / "test_llms.py",
-         _test_names("test_llms", skip={"test_llm", "test_llm_tp"})),
-        ("encoder", tt_xla_dir / "test_encoders.py",
-         _test_names("test_encoders", skip={"test_encoder"}, require_param="num_layers")),
+        (
+            "llm",
+            tt_xla_dir / "test_llms.py",
+            _test_names("test_llms", skip={"test_llm", "test_llm_tp"}),
+        ),
+        (
+            "encoder",
+            tt_xla_dir / "test_encoders.py",
+            _test_names(
+                "test_encoders", skip={"test_encoder"}, require_param="num_layers"
+            ),
+        ),
     ]
 
-    with tempfile.TemporaryDirectory(prefix="single_layer_per_test_json_") as per_test_dir_str:
+    with tempfile.TemporaryDirectory(
+        prefix="single_layer_per_test_json_"
+    ) as per_test_dir_str:
         per_test_dir = Path(per_test_dir_str)
         results: list[dict] = []
         flush_state: dict = {"path": None}
@@ -645,9 +693,17 @@ def main() -> int:
 
         for group, test_file, names in groups:
             _run_tests(
-                group, test_file, names,
-                export_path, output_dir, ttnn_output_dir,
-                include_tests, args.resume, per_test_dir, results, flush,
+                group,
+                test_file,
+                names,
+                export_path,
+                output_dir,
+                ttnn_output_dir,
+                include_tests,
+                args.resume,
+                per_test_dir,
+                results,
+                flush,
             )
 
     # Final flush covers the "every test was filtered out" case where the

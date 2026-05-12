@@ -781,9 +781,7 @@ def benchmark_llm_torch_xla(
                 f"Prefill PCC failed. PCC={prefill_pcc_value:.6f}, Required={required_pcc}"
             )
         if len(output_logits) > 1 and len(cpu_output_logits) > 1:
-            decode_pcc_value = compute_pcc(
-                output_logits[1][0], cpu_output_logits[1][0]
-            )
+            decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
             print(
                 "First decode PCC measured at PCC={:.6f} (required {:.4f})".format(
                     decode_pcc_value, required_pcc
