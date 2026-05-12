@@ -21,6 +21,7 @@ from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
     init_accuracy_testing,
+    init_indexer_cache,
     init_mla_cache,
     init_static_cache,
 )
@@ -101,6 +102,7 @@ def construct_inputs(
         max_cache_len: Maximum cache length
         input_prompt: Input text prompt (optional, defaults to DEFAULT_INPUT_PROMPT)
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
+        use_mla_cache: Whether to use MLA cache
 
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
@@ -266,6 +268,7 @@ def benchmark_llm_torch_xla(
     use_mla_cache: bool = False,
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
+    use_indexer_cache: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -376,6 +379,18 @@ def benchmark_llm_torch_xla(
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
     )
+
+    # Initialize indexer cache if enabled (needs to be done before model.to(device))
+    # Models using this cache are expected to handle stale values since it cannot be
+    # reset once the model is transferred to device.
+    if use_indexer_cache:
+        init_indexer_cache(
+            model,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
 
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:

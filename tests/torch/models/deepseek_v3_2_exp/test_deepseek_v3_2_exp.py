@@ -8,6 +8,8 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
+from modified_model import ModelArgs
+from modified_model import Transformer as ModifiedTransformer
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
@@ -37,7 +39,6 @@ def _fix_layernorm_dtype(model):
 # 2. Disable FP8 quantization features (act_quant, fp8_gemm, fp8_index) with stubs
 #    - the original implementation (kernel.py) relies on custom tilelang kernels not supported on TT
 # 3. Avoid torch.view_as_complex/view_as_real operations
-# 4. Allowing an external MLACache, cache_position and k_cache to be passed in and used.
 
 
 @pytest.mark.xfail(

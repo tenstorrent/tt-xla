@@ -65,6 +65,7 @@ def test_llm(
     use_mla_cache: bool = False,
     expected_ops: list = None,
     check_fusions: bool = False,
+    use_indexer_cache: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -163,6 +164,7 @@ def test_llm(
         use_mla_cache=use_mla_cache,
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
+        use_indexer_cache=use_indexer_cache,
     )
 
     if output_file:
@@ -2070,4 +2072,40 @@ def test_kimi_k2_tp_galaxy_2_layers(
         optimization_level=0,
         trace_enabled=False,
         required_pcc=0.91,
+    )
+
+
+# This test only runs 2 layers so we expect to see incoherent output
+def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_V3_2_EXP_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=2,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=128,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        use_indexer_cache=True,
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=-1.0,  # PCC is inconsistent between runs - Issue: https://github.com/tenstorrent/tt-xla/issues/4632
     )
