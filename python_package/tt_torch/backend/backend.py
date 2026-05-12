@@ -6,10 +6,10 @@ import re
 from typing import Tuple
 
 import torch
+import torch._functorch.config as _functorch_config
 import torch.export
 import torch_xla
 import torch_xla.core.dynamo_bridge as bridge
-import torch._functorch.config as _functorch_config
 import torch_xla.runtime as xr
 from functorch.compile import make_boxed_func, min_cut_rematerialization_partition
 from torch._decomp import get_decompositions as get_aten_decompositions
