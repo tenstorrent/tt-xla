@@ -76,7 +76,7 @@ def test_gpt_oss_moe_multichip_backward():
 
     model.compile(
         backend="tt",
-        options={"tt_legacy_compile": True, "tt_enable_torch_fx_fusion_pass": False},
+        options={"tt_enable_torch_fx_fusion_pass": False},
     )
 
     shard_specs = build_deinterleaved_shard_specs(model)
@@ -91,14 +91,12 @@ def test_gpt_oss_moe_multichip_backward():
         input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
     )
 
-    loss = outputs.loss.mean()
+    loss = outputs.loss
 
     loss.backward()
 
     loss_value = loss.item()
     assert loss_value > 0, f"Loss should be positive, got {loss_value}."
-
-    torch_xla.sync(wait=True)
 
     # Verify gradients exist.
     trainable = [
