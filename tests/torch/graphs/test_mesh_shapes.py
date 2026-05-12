@@ -19,11 +19,6 @@ class _WithInput(torch.nn.Module):
         return x @ x.T + 1.0
 
 
-class _Identity(torch.nn.Module):
-    def forward(self, a):
-        return a + 0.0
-
-
 class _NoInput(torch.nn.Module):
     def forward(self):
         # All operands are constants -> StableHLO module has no func args.
@@ -50,7 +45,7 @@ def test_no_input_single_device():
 
     model = torch.compile(_NoInput().to(device), backend="tt")
     out = model()
-    torch_xla.sync()
+    torch_xla.sync(wait=True)
     assert torch.allclose(out.cpu(), torch.full((4,), 2.0))
 
 
@@ -65,13 +60,15 @@ def test_with_input_multichip_sharded():
     n = xr.global_runtime_device_count()
     mesh = Mesh(np.array(range(n)), (1, n), ("batch", "model"))
 
-    a = torch.randn(32, 32 * n, dtype=torch.float32).to(device)
-    xs.mark_sharding(a, mesh, (None, "model"))
+    a = torch.randn(32, 32 * n, dtype=torch.float32)
+    a_dev = a.to(device)
+    xs.mark_sharding(a_dev, mesh, (None, "model"))
 
-    model = torch.compile(_Identity(), backend="tt").to(device)
-    out = model(a)
-    torch_xla.sync()
-    assert torch.allclose(out.cpu(), a.cpu())
+    model = torch.compile(_WithInput(), backend="tt").to(device)
+    out = model(a_dev)
+    torch_xla.sync(wait=True)
+    expected = a @ a.T + 1.0
+    assert torch.allclose(out.cpu(), expected, rtol=5e-2, atol=1e-1)
 
 
 # Case 4: multichip target, module has no args.
@@ -88,7 +85,7 @@ def test_no_input_multichip_sharded_output():
     t = torch.ones(8, 32 * n, device=xm.xla_device(), dtype=torch.float32)
     xs.mark_sharding(t, mesh, (None, "model"))
     u = t + 1.0
-    torch_xla.sync()
+    torch_xla.sync(wait=True)
     assert torch.allclose(u.cpu(), torch.full((8, 32 * n), 2.0))
 
 
@@ -102,13 +99,13 @@ def test_single_device_sequential_no_input_then_with_input():
 
     no_input = torch.compile(_NoInput().to(device), backend="tt")
     out_a = no_input()
-    torch_xla.sync()
+    torch_xla.sync(wait=True)
     assert torch.allclose(out_a.cpu(), torch.full((4,), 2.0))
 
     with_input = torch.compile(_WithInput().to(device), backend="tt")
     x = torch.randn(3, 3).to(device)
     out_b = with_input(x)
-    torch_xla.sync()
+    torch_xla.sync(wait=True)
     assert out_b.cpu().shape == (3, 3)
 
 
@@ -123,12 +120,12 @@ def test_single_device_sequential_with_input_then_no_input():
     with_input = torch.compile(_WithInput().to(device), backend="tt")
     x = torch.randn(3, 3).to(device)
     out_a = with_input(x)
-    torch_xla.sync()
+    torch_xla.sync(wait=True)
     assert out_a.cpu().shape == (3, 3)
 
     no_input = torch.compile(_NoInput().to(device), backend="tt")
     out_b = no_input()
-    torch_xla.sync()
+    torch_xla.sync(wait=True)
     assert torch.allclose(out_b.cpu(), torch.full((4,), 2.0))
 
 
@@ -143,10 +140,31 @@ def test_with_input_multichip_replicated():
     n = xr.global_runtime_device_count()
     mesh = Mesh(np.array(range(n)), (1, n), ("batch", "model"))
 
-    a = torch.randn(32, 32, dtype=torch.float32).to(device)
-    xs.mark_sharding(a, mesh, (None, None))  # fully replicated
+    a = torch.randn(32, 32, dtype=torch.float32)
+    a_dev = a.to(device)
+    xs.mark_sharding(a_dev, mesh, (None, None))  # fully replicated
 
-    model = torch.compile(_Identity(), backend="tt").to(device)
-    out = model(a)
-    torch_xla.sync()
-    assert torch.allclose(out.cpu(), a.cpu())
+    model = torch.compile(_WithInput(), backend="tt").to(device)
+    out = model(a_dev)
+    torch_xla.sync(wait=True)
+    expected = a @ a.T + 1.0
+    assert torch.allclose(out.cpu(), expected, rtol=1e-2, atol=1e-2)
+
+
+# Case 8: Multichip no mesh.
+@pytest.mark.push
+@pytest.mark.multi_chip
+@pytest.mark.record_test_properties(category=Category.GRAPH_TEST)
+def test_with_input_multichip_no_mesh():
+    enable_spmd()
+    xr.set_device_type("TT")
+    device = torch_xla.device()
+
+    a = torch.randn(32, 32, dtype=torch.float32)
+    a_dev = a.to(device)
+
+    model = torch.compile(_WithInput(), backend="tt").to(device)
+    out = model(a_dev)
+    torch_xla.sync(wait=True)
+    expected = a @ a.T + 1.0
+    assert torch.allclose(out.cpu(), expected, rtol=1e-2, atol=1e-2)
