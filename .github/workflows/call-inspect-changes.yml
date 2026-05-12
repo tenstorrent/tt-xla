@@ -15,6 +15,12 @@ on:
       only-run-forge-models:
         description: "True if only forge-models runner files changed."
         value: ${{ jobs.inspect-changes.outputs.only-run-forge-models }}
+      only-vllm-changes:
+        description: "True if every non-doc changed file is under vLLM paths (skip framework/forge-model tests)."
+        value: ${{ jobs.inspect-changes.outputs.only-vllm-changes }}
+      only-framework-changes:
+        description: "True if every non-doc changed file is under framework paths (skip vLLM tests)."
+        value: ${{ jobs.inspect-changes.outputs.only-framework-changes }}
       uplift-additional-test-suites:
         description: "Test suite presets for detected uplifts, colon-separated"
         value: ${{ jobs.inspect-changes.outputs.uplift-additional-test-suites }}
@@ -33,6 +39,8 @@ jobs:
       run-pr-tests: ${{ steps.inspect.outputs.run-pr-tests }}
       run-perf-tests: ${{ steps.inspect.outputs.run-perf-tests }}
       only-run-forge-models: ${{ steps.inspect.outputs.only-run-forge-models }}
+      only-vllm-changes: ${{ steps.inspect.outputs.only-vllm-changes }}
+      only-framework-changes: ${{ steps.inspect.outputs.only-framework-changes }}
       uplift-additional-test-suites: ${{ steps.inspect.outputs.uplift-additional-test-suites }}
       detected-uplifts: ${{ steps.inspect.outputs.detected-uplifts }}
       wheel-changes: ${{ steps.inspect.outputs.wheel-changes }}
@@ -53,6 +61,8 @@ jobs:
           run_pr_tests=false
           run_perf_tests=false
           only_run_forge_models=false
+          only_vllm_changes=false
+          only_framework_changes=false
           detected_uplifts=""
           uplift_additional_test_suites=""
           wheel_changes=false
@@ -170,6 +180,83 @@ jobs:
               done
             done
 
+            # Classify changed files into vLLM-only vs framework-only buckets.
+            # Anything that doesn't match either bucket (e.g. pjrt_implementation/,
+            # CMake, python_package/, src/) is treated as "shared" and forces the
+            # full test matrix to run. We only set the only-* flags when every
+            # non-skippable changed file falls into exactly one bucket.
+            if [[ "$skip_build_and_test" == "false" ]]; then
+              vllm_paths=(
+                "integrations/vllm_plugin/*"
+                "tests/integrations/vllm_plugin/*"
+                "examples/vllm/*"
+                "tests/benchmark/test_vllm_benchmarks.py"
+                "tests/benchmark/benchmarks/vllm_benchmark.py"
+              )
+              framework_paths=(
+                "tests/jax/*"
+                "tests/torch/*"
+                "tests/infra_tests/*"
+                "tests/runner/*"
+                "tests/op_by_op/*"
+                "tests/examples/*"
+                "third_party/tt_forge_models/*"
+              )
+
+              vllm_touched=false
+              framework_touched=false
+              shared_touched=false
+
+              for file in $CHANGED_FILES; do
+                file_is_skippable=false
+                for pattern in "${skip_patterns[@]}"; do
+                  if [[ $file == $pattern ]]; then
+                    file_is_skippable=true
+                    break
+                  fi
+                done
+                if [[ $file_is_skippable == true ]]; then
+                  continue
+                fi
+
+                matched=false
+                for pattern in "${vllm_paths[@]}"; do
+                  if [[ $file == $pattern ]]; then
+                    vllm_touched=true
+                    matched=true
+                    break
+                  fi
+                done
+                if [[ $matched == true ]]; then
+                  continue
+                fi
+
+                for pattern in "${framework_paths[@]}"; do
+                  if [[ $file == $pattern ]]; then
+                    framework_touched=true
+                    matched=true
+                    break
+                  fi
+                done
+                if [[ $matched == true ]]; then
+                  continue
+                fi
+
+                echo "Shared/core file changed (forces full matrix): $file"
+                shared_touched=true
+              done
+
+              if [[ $shared_touched == false ]]; then
+                if [[ $vllm_touched == true && $framework_touched == false ]]; then
+                  only_vllm_changes=true
+                  echo "Detected vLLM-only changes — framework + forge-model tests will be skipped."
+                elif [[ $framework_touched == true && $vllm_touched == false ]]; then
+                  only_framework_changes=true
+                  echo "Detected framework-only changes — vLLM tests will be skipped."
+                fi
+              fi
+            fi
+
           else
             skip_build_and_test=false
             run_pr_tests=true
@@ -179,12 +266,16 @@ jobs:
           echo "detected-uplifts=${detected_uplifts:-}"
           echo "uplift-additional-test-suites=${uplift_additional_test_suites:-}"
           echo "wheel-changes=$wheel_changes"
+          echo "only-vllm-changes=$only_vllm_changes"
+          echo "only-framework-changes=$only_framework_changes"
           echo "GITHUB_HEAD_REF=${GITHUB_HEAD_REF}"
 
           echo "skip-build-and-test=$skip_build_and_test" >> "$GITHUB_OUTPUT"
           echo "run-pr-tests=$run_pr_tests" >> "$GITHUB_OUTPUT"
           echo "run-perf-tests=$run_perf_tests" >> "$GITHUB_OUTPUT"
           echo "only-run-forge-models=$only_run_forge_models" >> "$GITHUB_OUTPUT"
+          echo "only-vllm-changes=$only_vllm_changes" >> "$GITHUB_OUTPUT"
+          echo "only-framework-changes=$only_framework_changes" >> "$GITHUB_OUTPUT"
           echo "uplift-additional-test-suites=${uplift_additional_test_suites:-}" >> "$GITHUB_OUTPUT"
           echo "detected-uplifts=${detected_uplifts:-}" >> "$GITHUB_OUTPUT"
           echo "wheel-changes=$wheel_changes" >> "$GITHUB_OUTPUT"

@@ -1,3 +1,3 @@
 [
-  { "include": ["basic-test.json", "model-test-push.json", "mlir-uplift-qualification.json"] }
+  { "include": ["basic-test.json", "basic-test-vllm.json", "model-test-push.json", "mlir-uplift-qualification.json"] }
 ]

@@ -53,6 +53,16 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
+  test_vllm:
+    needs: [ build-image, build-ttxla ]
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    with:
+      test_suite: basic-test-vllm.json
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
   test_forge_models_push:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit

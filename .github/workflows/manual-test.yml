@@ -12,6 +12,7 @@ on:
         type: choice
         options:
           - 'basic-test.json'
+          - 'basic-test-vllm.json'
           - 'basic-test-nightly.json'
           - 'model-test-push.json'
           - 'model-test-full.json'
