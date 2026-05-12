@@ -7,9 +7,9 @@ import torch_xla
 import torch_xla.runtime as xr
 
 from third_party.tt_forge_models.llama_lora.causal_lm.pytorch.loader import (
-    ModelLoader as LlamaLoraModelLoader,
+    ModelLoaderPrefill as LlamaLoraModelLoader,
+    ModelVariant
 )
-from third_party.tt_forge_models.llama_lora.causal_lm.pytorch.loader import ModelVariant
 
 
 @pytest.mark.push
