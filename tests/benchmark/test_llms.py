@@ -2040,7 +2040,7 @@ def test_gpt_oss_120b_tp_qb2(
     )
 
 
-def _kimi_k2_mesh_config_fn(model_loader, num_devices):
+def _kimi_k2_mesh_config(self, num_devices):
     """Kimi K2 mesh config with 64-device (4x16) support."""
     if num_devices == 64:
         mesh_shape = (4, 16)
@@ -2051,6 +2051,11 @@ def _kimi_k2_mesh_config_fn(model_loader, num_devices):
     else:
         raise ValueError(f"Kimi K2: unsupported num_devices={num_devices}")
     return mesh_shape, ("batch", "model")
+
+
+def _kimi_k2_mesh_config_fn(model_loader, num_devices):
+    """Wrapper for benchmark's mesh_config_fn signature."""
+    return _kimi_k2_mesh_config(model_loader, num_devices)
 
 
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
@@ -2068,6 +2073,9 @@ def test_kimi_k2_tp_galaxy_2_layers(
         ModelLoader,
         ModelVariant,
     )
+
+    # Monkey-patch to support 64 devices
+    ModelLoader.get_mesh_config = _kimi_k2_mesh_config
 
     variant = ModelVariant.KIMI_K2_INSTRUCT_MODIFIED
     test_llm_tp(
