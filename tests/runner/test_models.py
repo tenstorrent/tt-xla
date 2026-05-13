@@ -104,7 +104,7 @@ def _run_model_test_impl(
             weights_dtype = "bfp_bf8"
 
         # Optimization level precedence:
-        #   --optimization-level CLI option > YAML config value > default value
+        #   CLI option > YAML config value > default value
         cli_optimization_level = request.config.getoption(
             "--optimization-level", default=None
         )
