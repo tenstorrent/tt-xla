@@ -74,11 +74,46 @@ _ORIG_GETITEM = torch.Tensor.__getitem__
 
 
 def _clamp_slice(s: slice, size: int) -> slice:
-    start, stop, step = s.start, s.stop, s.step
+    """Canonicalize a slice into ``[0, size]`` (positive step) or ``[-1, size-1]``
+    (negative step), like ``slice.indices(size)`` would.
 
-    # Python slice.indices(size) implements canonical in-range slicing semantics.
-    # But it returns concrete start/stop/step, so preserve normal behavior.
-    start, stop, step = slice(start, stop, step).indices(size)
+    Hand-written instead of ``slice(...).indices(size)`` because the latter is
+    a CPython slot wrapper and dynamo cannot symbolically execute it — it
+    graph-breaks at trace time, the resume sub-graph carries a malformed
+    ``_guards_fn`` referencing ``L``, and AOT autograd's
+    ``PropagateUnbackedSymInts`` then crashes with ``NameError: name 'L' is
+    not defined``.  Plain ``max``/``min``/comparisons on concrete ints are
+    fully traceable.
+    """
+    start, stop, step = s.start, s.stop, s.step
+    step = 1 if step is None else step
+
+    if step > 0:
+        if start is None:
+            start = 0
+        elif start < 0:
+            start = max(0, start + size)
+        else:
+            start = min(start, size)
+        if stop is None:
+            stop = size
+        elif stop < 0:
+            stop = max(0, stop + size)
+        else:
+            stop = min(stop, size)
+    else:
+        if start is None:
+            start = size - 1
+        elif start < 0:
+            start = max(-1, start + size)
+        else:
+            start = min(start, size - 1)
+        if stop is None:
+            stop = -1
+        elif stop < 0:
+            stop = max(-1, stop + size)
+        else:
+            stop = min(stop, size - 1)
 
     return slice(start, stop, step)
 
@@ -117,8 +152,31 @@ def _normalize_index(idx, shape):
     return tuple(out)
 
 
-def _safe_getitem(self, idx):
-    return _ORIG_GETITEM(self, _normalize_index(idx, self.shape))
+class _SafeSlicingMode(torch.overrides.TorchFunctionMode):
+    """Intercept ``Tensor.__getitem__`` via a stack-managed function mode.
+
+    The earlier implementation did ``torch.Tensor.__getitem__ = _safe_getitem``
+    on entry and reassigned the slot wrapper back on exit. Restoring the value
+    looked correct (identity matched) but the assignment of a Python callable
+    to a C-level slot of an extension type permanently flips a CPython flag
+    saying "this type has Python overrides". That flag stays set even after
+    the slot wrapper is put back, and it disables PyTorch's fast path inside
+    ``torch.tensor(list_of_tensors)`` — the fallback then calls ``__len__`` on
+    each element, which raises on 0-d tensors. This blew up the diffusers
+    UniPC scheduler's ``b = torch.tensor(b, device=device)`` call after the
+    first VAE decode in the e2e test.
+
+    A ``TorchFunctionMode`` is the supported per-thread-stack mechanism for
+    scoped op interception and doesn't touch ``torch.Tensor``'s class slots,
+    so push/pop is properly reversible.
+    """
+
+    def __torch_function__(self, func, types, args=(), kwargs=None):
+        kwargs = kwargs or {}
+        if func is torch.Tensor.__getitem__:
+            self_, idx = args
+            return _ORIG_GETITEM(self_, _normalize_index(idx, self_.shape))
+        return func(*args, **kwargs)
 
 
 @contextmanager
@@ -131,12 +189,8 @@ def safe_xla_slicing():
     on a size-1 temporal dim. Intercept `Tensor.__getitem__` and rewrite
     the index in range before re-dispatching.
     """
-    old = torch.Tensor.__getitem__
-    torch.Tensor.__getitem__ = _safe_getitem
-    try:
+    with _SafeSlicingMode():
         yield
-    finally:
-        torch.Tensor.__getitem__ = old
 
 
 def _patch_wan_resample_rep_sentinel() -> None:
