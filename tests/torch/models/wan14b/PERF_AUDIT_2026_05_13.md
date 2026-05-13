@@ -139,7 +139,8 @@ Measured on `test_wan_dit_480p_sharded` (MAX_BLOCKS=1, BH 4-chip):
 |---|---:|---:|---|
 | baseline (adaln bf16 only) | 1255 | — | 0.99947 |
 | + F2 patchify NDHWC | 1221 | -34 ms | 0.99947 |
-| + F2 + F1a RoPE half-rotation | **1031** | **-224 ms / -17.9 %** | 0.99946 |
+| + F2 + F1a RoPE half-rotation | 1031 | -224 ms / -17.9 % | 0.99946 |
+| + F2 + F1a + tt-mlir SDPA-fold walk-through-Reshape | **1019** | **-236 ms / -18.8 %** | 0.99947 |
 | + F2 + F5 fuse_qkv | 1313 | +58 ms (regressed) | 0.99947 |
 | + F2 + naive RoPE stack form | 1785 | +530 ms (regressed) | 0.99946 |
 
@@ -148,6 +149,10 @@ IR diff: `ttnn.permute<0,4,1,2,3>` (14ms) + `ttnn.reshape` (15ms) + `ttnn.permut
 
 ### F1a RoPE half-rotation — VERIFIED (-190 ms incremental)
 IR diff: `aten__index` 20→0, `ttnn.where` 10→0, `ttnn.embedding` 4→0, `ttnn.permute` 35→22 (the big `(3,0,1,2)` and `(1,2,3,0)` permutes around the embedding chain are gone). The tt-mlir `RoPEFusingPattern` did **not** fire (still no `ttnn.rotary_embedding`), but the half-rotation rewrite produces a cheaper op sequence anyway — all 4D, only small permutes on dim-2 axis (size 2).
+
+### tt-mlir `ScaledDotProductAttentionFoldScaleRewritePattern` extended — VERIFIED (-12 ms incremental)
+**Branch:** `ppadjin/sdpa-scale-fold-walk-through-reshape` in `third_party/tt-mlir/src/tt-mlir/`.
+The fold-scale walk-through op list was `{TypecastOp, PermuteOp}`. Wan's lowering puts the multiply BEHIND a reshape (`multiply(scale) → reshape(BSHD) → permute(0,2,1,3) → typecast → SDPA`), so the walk failed and the multiply stayed. Adding `ReshapeOp` to the walk-through list fires the fold for both Q and K, baking `0.0883883387` into SDPA's `scale` attribute and removing two `ttnn.multiply` ops per attention block. PCC stable; warm time 1031 ms → 1019 ms.
 
 ### F5 fuse_projections — REGRESSED (do not use as-is)
 Combining Q/K/V into one wider matmul triggers the SLOW matmul kernel path (32760×5120×3840 at ~8 % DRAM BW per perf-dit14.txt). Sharding spec also doesn't cover the new `to_qkv.weight`. Needs joint sharding spec + matmul program-config tuning.
