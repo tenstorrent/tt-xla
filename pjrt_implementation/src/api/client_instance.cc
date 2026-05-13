@@ -115,6 +115,9 @@ static tt_pjrt_status launchDistributedRuntime() {
       std::getenv("TT_DISTRIBUTED_TCP_IFACE");
   // Path to an MPI rankfile, needed for >2 hosts when using a rank binding file
   const char *rank_file_path = std::getenv("TT_DISTRIBUTED_RANK_FILE_PATH");
+  // Semicolon-separated extra MPI arguments (e.g.,
+  // "--output-filename;/tmp/ttmpi_logs;-x;TTMLIR_RUNTIME_LOGGER_LEVEL=DEBUG")
+  const char *extra_mpi_args = std::getenv("TT_DISTRIBUTED_EXTRA_MPI_ARGS");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -191,6 +194,20 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   if (rank_file_path) {
     distributed_options.multiProcessArgs->withRankFilePath(rank_file_path);
+  }
+
+  if (extra_mpi_args) {
+    std::vector<std::string> extra_args_vec;
+    std::string arg;
+    std::istringstream argStream(extra_mpi_args);
+    while (std::getline(argStream, arg, ';')) {
+      if (!arg.empty()) {
+        extra_args_vec.push_back(arg);
+      }
+    }
+    if (!extra_args_vec.empty()) {
+      distributed_options.multiProcessArgs->withExtraMpiArgs(extra_args_vec);
+    }
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
