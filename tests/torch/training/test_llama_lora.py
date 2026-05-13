@@ -8,8 +8,8 @@ import torch_xla.runtime as xr
 
 from third_party.tt_forge_models.llama_lora.causal_lm.pytorch.loader import (
     ModelLoaderPrefill as LlamaLoraModelLoader,
-    ModelVariant
 )
+from third_party.tt_forge_models.llama_lora.causal_lm.pytorch.loader import ModelVariant
 
 
 @pytest.mark.push
@@ -32,9 +32,9 @@ def test_llama_lora_backward():
         f"Base model parameters should be frozen: "
         f"{[n for n, p in model.named_parameters() if 'lora_' not in n and p.requires_grad]}"
     )
-    assert any(p.requires_grad for n, p in model.named_parameters() if "lora_" in n), (
-        "Expected at least one trainable LoRA parameter"
-    )
+    assert any(
+        p.requires_grad for n, p in model.named_parameters() if "lora_" in n
+    ), "Expected at least one trainable LoRA parameter"
 
     model = model.to(device)
     model.train()
@@ -49,10 +49,12 @@ def test_llama_lora_backward():
     attention_mask = inputs["attention_mask"].to(device)
 
     # Phase 1: verify gradient flow without compile.
-    outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
-    assert outputs.loss.requires_grad, (
-        "Loss does not require grad before compile - PEFT gradient hooks are broken"
+    outputs = model(
+        input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
     )
+    assert (
+        outputs.loss.requires_grad
+    ), "Loss does not require grad before compile - PEFT gradient hooks are broken"
     outputs.loss.mean().backward()
     torch_xla.sync()
 
@@ -71,11 +73,13 @@ def test_llama_lora_backward():
     # Phase 2: verify gradient flow survives compile.
     model.compile(backend="tt", options={"tt_legacy_compile": True})
 
-    outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=input_ids)
-    loss = outputs.loss.mean()
-    assert loss.requires_grad, (
-        "Loss does not require grad after compile - TT backend breaks the gradient chain"
+    outputs = model(
+        input_ids=input_ids, attention_mask=attention_mask, labels=input_ids
     )
+    loss = outputs.loss.mean()
+    assert (
+        loss.requires_grad
+    ), "Loss does not require grad after compile - TT backend breaks the gradient chain"
     loss.backward()
 
     loss_value = loss.item()
