@@ -184,6 +184,11 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     Returns:
         input_args on device
     """
+    # Track cumulative_length tensors already moved so layers that alias a
+    # shared CL (e.g. after override_cache_cumulative_length) keep aliasing
+    # on device. Without this, .to(device) per layer would create N distinct
+    # device tensors from one CPU source, breaking the alias.
+    moved_cl: dict[int, torch.Tensor] = {}
     for layer in input_args["past_key_values"].layers:
         if isinstance(layer, MLAStaticLayer):
             layer.compressed_kv = layer.compressed_kv.to(device)
@@ -200,8 +205,11 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
             # torch.arange(kv_length, device=self.device) + self.cumulative_length,
             # which fails if CL is on CPU and self.device is XLA.
             # Zero before moving so the fresh cache starts at position 0.
-            layer.cumulative_length.zero_()
-            layer.cumulative_length = layer.cumulative_length.to(device)
+            cl_id = id(layer.cumulative_length)
+            if cl_id not in moved_cl:
+                layer.cumulative_length.zero_()
+                moved_cl[cl_id] = layer.cumulative_length.to(device)
+            layer.cumulative_length = moved_cl[cl_id]
             layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
