@@ -133,7 +133,7 @@ Add `def unpack_forward_output(self, forward_output)` to that model's `ModelLoad
 
 Implementation guidance:
 
-- For nested list/tuple/dict structures: import `extract_tensors_recursive` from `third_party.tt_forge_models.tools.utils`, walk the loss-relevant subtree, and `torch.cat(tensors, dim=0)` (or stack) — see `yolov9/pytorch/loader.py:171-194`.
+- For nested list/tuple/dict structures: import `extract_tensors_recursive` from `third_party.tt_forge_models.tools.utils`, walk the loss-relevant subtree, and `sum(tensors)` — see `yolov9/pytorch/loader.py:171-194`.
 - For a plain tuple where only one element is the loss target: index it.
 - Keep the implementation minimal. No extra abstractions, no inline comments beyond the required docstring.
 
