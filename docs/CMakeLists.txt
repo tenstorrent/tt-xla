@@ -1,38 +1,22 @@
-add_custom_target(copy-docs-dir
-  COMMAND
-    cp -r ${CMAKE_CURRENT_SOURCE_DIR}/* ${CMAKE_CURRENT_BINARY_DIR}
-)
+# All docs work is driven by docs/Makefile. These CMake targets are
+# thin wrappers so `cmake --build build -- docs` keeps working.
+# Assumes docs deps are installed — see docs/build_docs.sh for the
+# install + build path used by CI and first-time local builds.
 
 add_custom_target(docs
-  COMMAND
-    mdbook build
-  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-  DEPENDS
-    copy-docs-dir
+  COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR} html
+  USES_TERMINAL
+  COMMENT "Building Sphinx documentation"
 )
 
-find_package(Doxygen)
+add_custom_target(docs-clean
+  COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR} clean
+  USES_TERMINAL
+  COMMENT "Cleaning Sphinx documentation build"
+)
 
-if (DOXYGEN_FOUND)
-
-  if (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/book/doxygen)
-    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/book/doxygen)
-  endif()
-
-  set(DOXYGEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/book/doxygen)
-  set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
-
-  add_custom_target(doxygen
-    COMMAND
-      ${CMAKE_COMMAND} -E make_directory ${DOXYGEN_DIR}
-    COMMAND
-      ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/ConfigureDoxygen.cmake
-    COMMAND
-      doxygen ${DOXYGEN_DIR}/doxygen.cfg
-    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
-    DEPENDS
-      copy-docs-dir
-  )
-else()
-  message("Doxygen is required to build documentation")
-endif()
+add_custom_target(docs-serve
+  COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR} server
+  USES_TERMINAL
+  COMMENT "Serving Sphinx documentation locally"
+)
