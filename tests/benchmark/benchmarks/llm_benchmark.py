@@ -3,9 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Built-in modules
+import hashlib
 import os
 import socket
 import sys
+from itertools import chain
 from typing import Optional, Union
 
 import numpy as np
@@ -52,6 +54,52 @@ DEFAULT_INPUT_PROMPT = (
 )
 
 MODULE_EXPORT_PATH = "modules"
+
+
+def print_model_weight_hashes(model, label="model-weights"):
+    """Print SHA256 hashes of every parameter and buffer in `model`.
+
+    Run the same test multiple times (in CI or locally) and compare the
+    printed hashes to confirm whether weights are deterministic across
+    invocations. If the aggregate hash differs between runs, the
+    per-tensor lines pinpoint which parameter is uninitialized
+    (e.g. `torch.empty(...)` allocated without a subsequent PRNG-backed
+    init). Buffers are included so caches allocated with `torch.zeros`
+    show up too — they should hash to the same zeros-digest every run.
+
+    Cheap to call on CPU before any device transfer; expensive afterward
+    because materializing sharded XLA tensors round-trips through host.
+    Call this once, before `model.to(device)`.
+    """
+    per_tensor = []
+    h_all = hashlib.sha256()
+    items = chain(
+        (("param", n, p) for n, p in model.named_parameters()),
+        (("buffer", n, b) for n, b in model.named_buffers()),
+    )
+    for kind, name, t in sorted(items, key=lambda x: (x[0], x[1])):
+        cpu_t = t.detach().cpu().contiguous()
+        # bfloat16 has no numpy dtype; view raw bytes through int16
+        # (same element size) so we hash without a float32 copy.
+        if cpu_t.dtype == torch.bfloat16:
+            raw = cpu_t.view(torch.int16).numpy().tobytes()
+        else:
+            raw = cpu_t.numpy().tobytes()
+        digest = hashlib.sha256(raw).hexdigest()[:16]
+        per_tensor.append((kind, name, tuple(cpu_t.shape), digest))
+        h_all.update(kind.encode())
+        h_all.update(name.encode())
+        h_all.update(digest.encode())
+    agg = h_all.hexdigest()[:16]
+
+    print(
+        f"\n[{label}] aggregate hash over "
+        f"{sum(1 for x in per_tensor if x[0] == 'param')} params + "
+        f"{sum(1 for x in per_tensor if x[0] == 'buffer')} buffers: {agg}",
+        flush=True,
+    )
+    for kind, name, shape, digest in per_tensor:
+        print(f"    [{kind}] {name} shape={shape} hash={digest}", flush=True)
 
 
 def setup_model_and_tokenizer(
@@ -357,6 +405,14 @@ def benchmark_llm_torch_xla(
     # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
     full_model_name = model_loader.get_model_info(variant=model_variant).name
+
+    # Diagnostic: print parameter and buffer hashes at the freshly-loaded
+    # CPU state. Run the same test multiple times in CI and compare the
+    # printed hashes — if any line differs across runs the model has an
+    # uninitialized parameter (allocated via torch.empty without a
+    # subsequent PRNG-backed init), which makes routing/PCC nondeterministic
+    # across invocations even with the autouse torch.manual_seed fixture.
+    print_model_weight_hashes(model, label=f"weights:{full_model_name}")
 
     # Initialize accuracy testing if enabled
     token_accuracy = None
