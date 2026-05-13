@@ -2082,7 +2082,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         ModelLoader,
         variant,
         output_file,
-        num_layers=2,
+        num_layers=4,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
