@@ -1219,8 +1219,8 @@ test_config:
     status: EXPECTED_PASSING
 
   deepseek/deepseek_ocr/pytorch-Ocr-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
+    status: EXPECTED_PASSING
+    # reason: "Out of Memory: Not enough space to allocate 4786749440 B DRAM buffer across 12 banks, where each bank needs to store 398897152 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/3412"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
@@ -1811,8 +1811,8 @@ test_config:
 
   llava/pytorch-1.5_7B-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>>'"
+    status: EXPECTED_PASSING
+    # reason: "error: Shardy propagation only supports ranked tensors with a static shape. type: 'tensor<?x3xi32, #stablehlo.bounds<2441216, ?>>'"
 
   qwen_2_5/causal_lm/pytorch-72B_Instruct-single_device-inference:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead.
@@ -2651,10 +2651,10 @@ test_config:
     status: EXPECTED_PASSING
 
   gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007 "
+    status: EXPECTED_PASSING
+    # reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007 "
 
   gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+    status: EXPECTED_PASSING
+    # reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
