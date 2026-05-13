@@ -342,7 +342,7 @@ tt_pjrt_status ClientInstance::populateDevices() {
   // bugs
   if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_2D);
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
   }
 
   const char *system_desc_override = std::getenv("TT_COMPILE_ONLY_SYSTEM_DESC");
@@ -484,7 +484,7 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   // and single bh galaxy in exabox cluster
   if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_2D,
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
                                          {}};
   }
 
