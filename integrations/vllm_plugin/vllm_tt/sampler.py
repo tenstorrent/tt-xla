@@ -31,6 +31,7 @@ def _get_topk_split_params(vocab_size: int) -> tuple[int, int]:
 
 
 _SAMPLING_EPS = 1e-5
+_TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -196,49 +197,27 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
-        greedy_sampled = self.greedy_sample(logits)
+        # Skip greedy_sample when every row is sampling (all_random=True);
+        # the torch.where below would discard greedy_sampled anyway. ArgMax
+        # over full vocab was ~34% of sampler runtime at b=32 in tracy.
+        all_random = sampling_metadata.all_random
+        if not all_random:
+            greedy_sampled = self.greedy_sample(logits)
 
-        # Apply temperature.
-        logits = self.apply_temperature(
-            logits, sampling_metadata.temperature, sampling_metadata.all_random
+        # Build the candidate set via chunked multi-core topk. The fused
+        # tt::sampling kernel applies user top-k, top-p, softmax, and
+        # multinomial downstream — no need to filter twice here.
+        filtered_logits, candidate_indices = chunked_topk_candidates(logits)
+        random_sampled = self._ttnn_sampling_padded(
+            filtered_logits, candidate_indices, sampling_metadata
         )
-
-        # Apply min_p.
-        if sampling_metadata.min_p is not None:
-            logits = self.apply_min_p(logits, sampling_metadata.min_p)
-
-        # Apply top_k and/or top_p using multi-core topk pre-filtering.
-        # This splits vocab into power-of-2 chunks (<= 32768) to trigger
-        # multi-core ttnn.topk (0.18ms per chunk vs 9ms single-core), then
-        # applies top-k/top-p on the small candidate set.
-        filtered_logits, candidate_indices = apply_top_k_top_p_fast(
-            logits,
-            sampling_metadata.top_k,
-            sampling_metadata.top_p,
-        )
-
-        # Random sample on reduced candidate set.
-        probs = filtered_logits.softmax(dim=-1, dtype=torch.float32)
-
-        # If seeded sampling, gather q_samples at candidate positions.
-        q_samples_reduced = None
-        if sampling_metadata.q_samples is not None:
-            q_samples_reduced = sampling_metadata.q_samples.gather(1, candidate_indices)
-
-        random_sampled_local = self.random_sample(
-            probs, sampling_metadata.generators, q_samples_reduced
-        )
-        # Map local candidate index back to global vocab index.
-        random_sampled = candidate_indices.gather(
-            1, random_sampled_local.unsqueeze(-1)
-        ).squeeze(-1)
-
-        sampled = torch.where(
+        if all_random:
+            return random_sampled
+        return torch.where(
             sampling_metadata.temperature < _SAMPLING_EPS,
             greedy_sampled,
             random_sampled,
         )
-        return sampled
 
     def compute_logprobs(self, logits: torch.Tensor) -> torch.Tensor:
         return logits.log_softmax(dim=-1, dtype=torch.float32)
@@ -325,25 +304,88 @@ class Sampler(nn.Module):
                     q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
 
+    def _ttnn_sampling_padded(
+        self,
+        filtered_logits: torch.Tensor,
+        candidate_indices: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+    ) -> torch.Tensor:
+        """Use fused ttnn.sampling kernel for non-greedy sampling.
 
-def apply_top_k_top_p_fast(
+        The kernel does softmax + top-k + top-p + multinomial in one fused
+        call on the pre-filtered candidate set (~128 tokens), avoiding the
+        scatter-back to full vocab and the compiled softmax/Gumbel-max chain.
+        """
+        batch = filtered_logits.shape[0]
+
+        values = filtered_logits.to(torch.bfloat16)
+        indices = candidate_indices.to(torch.int32)
+
+        # Kernel writer's valid k range is 1..nearest32_K (32); k > 32
+        # causes out-of-bounds L1 reads, so cap at _TOPK_K_PER_CHUNK.
+        if sampling_metadata.top_k is not None:
+            k_tensor = (
+                sampling_metadata.top_k[:batch]
+                .to(torch.int32)
+                .clamp(max=_TOPK_K_PER_CHUNK)
+            )
+        else:
+            k_tensor = torch.full(
+                (batch,), _TOPK_K_PER_CHUNK, dtype=torch.int32, device=values.device
+            )
+
+        if sampling_metadata.top_p is not None:
+            p_tensor = sampling_metadata.top_p[:batch].to(torch.bfloat16)
+        else:
+            p_tensor = torch.ones(batch, dtype=torch.bfloat16, device=values.device)
+
+        # Kernel expects 1/temperature; use 1.0 for greedy rows (where the
+        # outer torch.where will discard the random result anyway).
+        raw_temp = sampling_metadata.temperature[:batch]
+        is_greedy = raw_temp < _SAMPLING_EPS
+        temp_tensor = torch.where(
+            is_greedy, torch.ones_like(raw_temp), 1.0 / raw_temp
+        ).to(torch.bfloat16)
+
+        # Pad batch to 32 (kernel requirement).
+        if batch < _TTNN_SAMPLING_BATCH_SIZE:
+            pad_size = _TTNN_SAMPLING_BATCH_SIZE - batch
+            values = torch.nn.functional.pad(
+                values, (0, 0, 0, pad_size), value=float("-inf")
+            )
+            indices = torch.nn.functional.pad(indices, (0, 0, 0, pad_size))
+            k_tensor = torch.nn.functional.pad(k_tensor, (0, pad_size), value=1)
+            p_tensor = torch.nn.functional.pad(p_tensor, (0, pad_size), value=1.0)
+            temp_tensor = torch.nn.functional.pad(temp_tensor, (0, pad_size), value=1.0)
+
+        result = torch.ops.tt.sampling(values, indices, k_tensor, p_tensor, temp_tensor)
+        return result[:batch].to(torch.int64)
+
+
+def chunked_topk_candidates(
     logits: torch.Tensor,
-    k: torch.Tensor | None,
-    p: torch.Tensor | None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Top-k/top-p filtering via multi-core ttnn.topk.
+    """Build a per-row top-K candidate set via multi-core ttnn.topk.
 
     Splits vocab into power-of-2 chunks (<= 32768) so torch.topk compiles
     to multi-core ttnn.topk (~0.18ms/chunk) instead of single-core ttnn.sort
-    (~9ms). Returns (filtered_logits, candidate_indices) where both tensors
-    have shape [batch, num_chunks * k_per_chunk] and candidate_indices holds
-    global vocab positions.
+    (~9ms). Returns (candidate_values, candidate_indices) of shape
+    [batch, num_chunks * k_per_chunk] (~128 tokens for typical vocabs);
+    candidate_indices holds global vocab positions.
 
-    The top-k and top-p filters are applied on the small candidate set
-    (~128 tokens) rather than the full vocab.
+    User-specified top-k / top-p / softmax / multinomial are applied
+    downstream by the fused tt::sampling kernel, not here.
     """
-    vocab_size = logits.shape[-1]
-    chunk_size, padded_chunk_size = _get_topk_split_params(vocab_size)
+    batch = logits.shape[0]
+    chunk_size, padded_chunk_size = _get_topk_split_params(logits.shape[-1])
+
+    # Multi-core topk is 14x faster at batch=32 vs small batches — pad
+    # with -inf rows so dummy entries can't win the topk.
+    logits = torch.nn.functional.pad(
+        logits,
+        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
+        value=float("-inf"),
+    )
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)
@@ -363,25 +405,14 @@ def apply_top_k_top_p_fast(
     all_values = torch.cat(topk_values_list, dim=-1)
     all_indices = torch.cat(topk_indices_list, dim=-1)
 
-    # Apply top-k and top-p on the small candidate set.
-    if k is not None or p is not None:
-        probs = all_values.softmax(dim=-1)
-        probs_sort, _ = probs.sort(dim=-1, descending=False)
+    # Pad W so that Wt = W/32 is a power of 2 AND Wt >= 2 to avoid the
+    # tt::sampling kernel hang (#4560). -inf values can't win the topk /
+    # multinomial draw, so output is unchanged.
+    cur_w = all_values.shape[-1]
+    target_w = max(64, _next_power_of_2(cur_w))
+    if cur_w < target_w:
+        pad = target_w - cur_w
+        all_values = torch.nn.functional.pad(all_values, (0, pad), value=float("-inf"))
+        all_indices = torch.nn.functional.pad(all_indices, (0, pad), value=0)
 
-        if k is not None:
-            top_k_count = probs_sort.size(1) - k.to(torch.long)
-            top_k_count = top_k_count.clamp(max=probs_sort.size(1) - 1).unsqueeze(1)
-            top_k_cutoff = probs_sort.gather(-1, top_k_count)
-            no_top_k_mask = ((k <= 0) | (k >= vocab_size)).unsqueeze(1)
-            top_k_cutoff.masked_fill_(no_top_k_mask, -float("inf"))
-            all_values = all_values.masked_fill(probs < top_k_cutoff, -float("inf"))
-
-        if p is not None:
-            cumprob = torch.cumsum(probs_sort, dim=-1)
-            top_p_mask = cumprob <= 1 - p.unsqueeze(1)
-            top_p_mask[:, -1] = False
-            top_p_count = top_p_mask.sum(dim=-1).unsqueeze(1)
-            top_p_cutoff = probs_sort.gather(-1, top_p_count)
-            all_values = all_values.masked_fill(probs < top_p_cutoff, -float("inf"))
-
-    return all_values, all_indices
+    return all_values[:batch], all_indices[:batch]

@@ -21,6 +21,32 @@ def override_gpt_oss_sliding_window_causal_mask():
     gpt_oss_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
 
 
+def override_olmo3_sliding_window_causal_mask():
+    """
+    Override olmo3's modeling so that its
+    create_sliding_window_causal_mask points to the TT-friendly version.
+    """
+    import transformers.models.olmo3.modeling_olmo3 as olmo3_mod
+
+    olmo3_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
+
+
+def override_ministral_sliding_window_causal_mask():
+    """
+    Override ministral's modeling so that its
+    create_sliding_window_causal_mask points to the TT-friendly version.
+
+    Note: ministral (mistralai/Ministral-*) uses a separate module
+    transformers.models.ministral.modeling_ministral, distinct from
+    transformers.models.mistral.modeling_mistral.
+    """
+    import transformers.models.ministral.modeling_ministral as ministral_mod
+
+    ministral_mod.create_sliding_window_causal_mask = (
+        tt_create_sliding_window_causal_mask
+    )
+
+
 def override_cache_sliding_window_layers(
     cache: StaticCache,
     max_cache_len: int,
@@ -81,7 +107,9 @@ def tt_create_sliding_window_causal_mask(
         layer_idx = past_key_values.is_sliding.index(True)
     else:
         layer_idx = 0
-    sliding_window = past_key_values.layers[layer_idx].max_cache_len
+    _layer = past_key_values.layers[layer_idx]
+    # DynamicSlidingWindowLayer exposes .sliding_window; static layers use .max_cache_len
+    sliding_window = getattr(_layer, "sliding_window", None) or _layer.max_cache_len
 
     batch_size = inputs_embeds.shape[0]
     query_length = cache_position.shape[0]
@@ -150,7 +178,7 @@ class TTStaticSlidingWindowLayer(StaticLayer):
         cache_kwargs: Optional[dict[str, Any]] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if not self.is_initialized:
-            self.lazy_initialization(key_states)
+            self.lazy_initialization(key_states, value_states)
 
         n = key_states.shape[-2]
 
@@ -180,7 +208,8 @@ class TTStaticSlidingWindowLayer(StaticLayer):
         """Return constant (kv_length, kv_offset) — used by create_causal_mask."""
         return self.max_cache_len, 0
 
+    @torch.compiler.disable
     def get_seq_length(self) -> int:
         if not self.is_initialized:
             return 0
-        return (self.keys[0, 0].any(dim=-1)).sum().item()
+        return (self.keys[0, 0].cpu().any(dim=-1)).sum().item()

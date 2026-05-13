@@ -19,6 +19,16 @@ import vllm
 
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "tt::sampling + enable_trace=True + optimization_level>=1 "
+        "triggers a tt-mlir compile-time bug (tt-xla #4570) — rejected by "
+        "TTConfig.__post_init__. The combination is exactly what this test "
+        "exercises by design; xfail until the OpModel fix lands and the "
+        "TTConfig guard is removed."
+    ),
+)
 def test_opt125m_trace_logprobs():
     """Logprobs + trace at opt_level=1: exercised via CPU fallback."""
     llm = vllm.LLM(
