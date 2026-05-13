@@ -19,6 +19,7 @@ import tracy
 from infra import MLACache
 from transformers.cache_utils import StaticCache
 from tt_torch.sharding import sharding_constraint_tensor
+from tt_torch.transformers_overrides import override_cache_cumulative_length
 
 
 class LLMSamplingWrapper(torch.nn.Module):
@@ -143,6 +144,9 @@ def init_static_cache(
         dtype=dtype,
         device=device,
     )
+    # Alias per-layer cumulative_length tensors to a single shared one so the
+    # traced decode graph emits one input + one in-place add instead of N copies.
+    override_cache_cumulative_length(static_cache)
     return static_cache
 
 

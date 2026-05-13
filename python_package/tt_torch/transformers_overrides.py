@@ -122,6 +122,100 @@ def tt_create_sliding_window_causal_mask(
     )
 
 
+class TTSharedCLStaticLayer(StaticLayer):
+    """
+    StaticLayer variant whose ``cumulative_length`` is aliased to a tensor
+    shared across all layers of the cache, and whose in-place increment is
+    gated so only the designated layer mutates it.
+
+    Transformers 5.5+ gave every layer its own ``cumulative_length`` tensor.
+    Inside a compiled graph this produces one redundant per-layer
+    ``add(cumulative_length, kv_length)`` per call, since all layers track
+    the same global decode position. By aliasing the tensor and letting only
+    one layer perform the increment, the traced graph sees a single
+    ``cumulative_length`` input and a single add op.
+
+    The designated incrementer is the *last* layer (highest index), so every
+    layer's update() observes the correct pre-step value when it reads.
+    """
+
+    def __init__(
+        self, max_cache_len: int, shared_cl: torch.Tensor, should_increment: bool
+    ):
+        super().__init__(max_cache_len)
+        # Alias instead of owning a per-layer tensor.
+        self.cumulative_length = shared_cl
+        self._should_increment = should_increment
+
+    def update(
+        self,
+        key_states: torch.Tensor,
+        value_states: torch.Tensor,
+        *args,
+        **kwargs,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if not self.is_initialized:
+            self.lazy_initialization(key_states, value_states)
+
+        kv_length = key_states.shape[-2]
+        cache_position = (
+            torch.arange(kv_length, device=self.device) + self.cumulative_length
+        )
+        if self._should_increment:
+            self.cumulative_length.add_(kv_length)
+
+        try:
+            self.keys.index_copy_(2, cache_position, key_states)
+            self.values.index_copy_(2, cache_position, value_states)
+        except NotImplementedError:
+            self.keys[:, :, cache_position] = key_states
+            self.values[:, :, cache_position] = value_states
+
+        return self.keys, self.values
+
+
+def override_cache_cumulative_length(cache: StaticCache) -> None:
+    """
+    Replace each plain ``StaticLayer`` in ``cache.layers`` with a
+    ``TTSharedCLStaticLayer`` so that every layer aliases one shared
+    ``cumulative_length`` tensor, and only the last such layer increments it.
+
+    Sliding-window and other non-``StaticLayer`` subclasses are left alone, so
+    this is safe to compose with ``override_cache_sliding_window_layers``.
+
+    Must be called *after* ``cache.early_initialization(...)`` so the per-layer
+    buffers exist and we can preserve them.
+    """
+    static_indices = [
+        i for i, layer in enumerate(cache.layers) if type(layer) is StaticLayer
+    ]
+    if not static_indices:
+        return
+
+    template = cache.layers[static_indices[0]]
+    shared_cl = torch.tensor([0], dtype=int, device=template.device)
+
+    last_static_idx = static_indices[-1]
+    for i in static_indices:
+        old_layer = cache.layers[i]
+        tt_layer = TTSharedCLStaticLayer(
+            max_cache_len=old_layer.max_cache_len,
+            shared_cl=shared_cl,
+            should_increment=(i == last_static_idx),
+        )
+        # Preserve already-allocated buffers and lazy-init state.
+        tt_layer.keys = old_layer.keys
+        tt_layer.values = old_layer.values
+        tt_layer.is_initialized = True
+        tt_layer.device = old_layer.device
+        tt_layer.dtype = old_layer.dtype
+        tt_layer.max_batch_size = old_layer.max_batch_size
+        tt_layer.num_heads = old_layer.num_heads
+        tt_layer.v_head_dim = old_layer.v_head_dim
+        tt_layer.k_head_dim = old_layer.k_head_dim
+        cache.layers[i] = tt_layer
+
+
 class TTStaticSlidingWindowLayer(StaticLayer):
     """
     Sliding-window cache layer using the always-roll strategy.
