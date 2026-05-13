@@ -14,12 +14,12 @@ from third_party.tt_forge_models.llama_lora.causal_lm.pytorch.loader import (
 
 @pytest.mark.push
 @pytest.mark.single_device
-def test_llama_lora_tinyllama_backward():
+def test_llama_lora_backward():
     xr.set_device_type("TT")
 
     device = torch_xla.device()
 
-    model_loader = LlamaLoraModelLoader(ModelVariant.TINYLLAMA_V1_1)
+    model_loader = LlamaLoraModelLoader(ModelVariant.LLAMA_3_2_1B)
     model = model_loader.load_model(dtype_override=torch.bfloat16)
 
     assert all(p.dtype == torch.bfloat16 for _, p in model.named_parameters()), (
