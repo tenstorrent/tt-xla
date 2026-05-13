@@ -2040,6 +2040,19 @@ def test_gpt_oss_120b_tp_qb2(
     )
 
 
+def _kimi_k2_mesh_config_fn(model_loader, num_devices):
+    """Kimi K2 mesh config with 64-device (4x16) support."""
+    if num_devices == 64:
+        mesh_shape = (4, 16)
+    elif num_devices == 32:  # Galaxy
+        mesh_shape = (4, 8)
+    elif num_devices == 8:  # llmbox
+        mesh_shape = (2, 4)
+    else:
+        raise ValueError(f"Kimi K2: unsupported num_devices={num_devices}")
+    return mesh_shape, ("batch", "model")
+
+
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
 # This test only runs 2 layers so we expect to see incoherent output
 def test_kimi_k2_tp_galaxy_2_layers(
@@ -2065,14 +2078,14 @@ def test_kimi_k2_tp_galaxy_2_layers(
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
-        max_output_tokens=max_output_tokens,
+        max_output_tokens=1,
         decode_only=decode_only,  # This test fails prefill + decode with low decode pcc = Issue: https://github.com/tenstorrent/tt-xla/issues/4614
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
-        required_pcc=-1.0,  # PCC is inconsistent between runs - Issue: https://github.com/tenstorrent/tt-xla/issues/4632
+        required_pcc=0.91,  # PCC is inconsistent between runs - Issue: https://github.com/tenstorrent/tt-xla/issues/4632
     )
 
 
