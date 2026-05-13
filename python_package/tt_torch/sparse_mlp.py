@@ -15,6 +15,7 @@ Usage:
     model = enable_sparse_mlp(model)  # Replace MLP layers with SparseMLP
 """
 
+import math
 from typing import Any, Dict, List, Optional, Type
 
 import torch
@@ -54,7 +55,12 @@ def _unpack_router_output(router_out, num_experts):
 
 
 def _moe_activation(
-    gate_up_out, activation_type, alpha=1.702, limit=7.0, interleaved=True
+    gate_up_out,
+    activation_type,
+    alpha=1.702,
+    limit=7.0,
+    interleaved=True,
+    swiglu_limit=0.0,
 ):
     """Apply gate-up activation for MoE experts.
 
@@ -65,6 +71,9 @@ def _moe_activation(
         limit: Clamp bound (gpt_oss only).
         interleaved: If True, gate/up are interleaved [g0,u0,g1,u1,...].
                      If False, contiguous [g0,g1,...,u0,u1,...].
+        swiglu_limit: Clamp bound for deepseek SwiGLU (0 = no clamp). Matches
+                      DeepSeek-V4-Flash Expert.forward: gate clamped to
+                      max=limit, up clamped to +/-limit.
     """
     half = gate_up_out.shape[-1] // 2
     if interleaved:
@@ -75,6 +84,9 @@ def _moe_activation(
         up_out = gate_up_out[..., half:]
 
     if activation_type == ACTIVATION_DEEPSEEK:
+        if swiglu_limit > 0:
+            gate_out = gate_out.clamp(max=swiglu_limit)
+            up_out = up_out.clamp(-swiglu_limit, swiglu_limit)
         return F.silu(gate_out) * up_out
     else:
         gate_out = gate_out.clamp(max=limit)
@@ -94,6 +106,7 @@ class _SparseForwardMixin:
         alpha=1.702,
         limit=7.0,
         output_shape=None,
+        swiglu_limit=0.0,
     ):
         return _sparse_expert_forward(
             self,
@@ -103,6 +116,7 @@ class _SparseForwardMixin:
             alpha,
             limit,
             output_shape,
+            swiglu_limit=swiglu_limit,
         )
 
 
@@ -114,6 +128,7 @@ def _sparse_expert_forward(
     alpha=1.702,
     limit=7.0,
     output_shape=None,
+    swiglu_limit=0.0,
 ):
     """Unified sparse_matmul forward for MoE experts.
 
@@ -154,6 +169,9 @@ def _sparse_expert_forward(
             w3_out = w3_out + experts.w3_bias.view(1, 1, E, 1, -1)
 
         if activation_type == ACTIVATION_DEEPSEEK:
+            if swiglu_limit > 0:
+                w1_out = w1_out.clamp(max=swiglu_limit)
+                w3_out = w3_out.clamp(-swiglu_limit, swiglu_limit)
             activated = F.silu(w1_out) * w3_out
         else:
             w1_out = w1_out.clamp(max=limit)
@@ -162,7 +180,9 @@ def _sparse_expert_forward(
             activated = (w3_out + 1) * glu
     else:
         # Fused gate_up: 1 sparse_matmul, split via activation
-        activated = _moe_activation(w1_out, activation_type, alpha, limit)
+        activated = _moe_activation(
+            w1_out, activation_type, alpha, limit, swiglu_limit=swiglu_limit
+        )
 
     # Reshape 5D → 4D canonical for down: [A, B, E, M, K] → [A*B, E, M, K]
     A, B = activated.shape[0], activated.shape[1]
@@ -447,6 +467,8 @@ class A2aSparseMLP(nn.Module):
         activation_type: str = ACTIVATION_GPT_OSS,
         dispatch_devices: Optional[int] = None,
         cpu_forward_module: Optional[nn.Module] = None,
+        use_dense_matmul: bool = False,
+        swiglu_limit: float = 0.0,
     ):
         super().__init__()
 
@@ -462,9 +484,9 @@ class A2aSparseMLP(nn.Module):
         self.dispatch_devices = (
             dispatch_devices if dispatch_devices is not None else num_devices
         )
-        # When True, uses dense torch.matmul instead of sparse_matmul.
-        # Skips remap (no sparsity mask needed). Demo-style approach.
-        self.use_dense_matmul = False
+        # When True, uses dense torch.matmul instead of sparse_matmul. Dense
+        # path skips the sparsity mask and supports autograd.
+        self.use_dense_matmul = use_dense_matmul
 
         # Keep original MLP for CPU golden path.
         # cpu_forward_module overrides original_mlp when the adapter wrapping
@@ -490,6 +512,9 @@ class A2aSparseMLP(nn.Module):
         # GPT-OSS specific activation parameters (used when activation_type=gpt_oss)
         self.alpha = getattr(self.experts, "alpha", 1.702)
         self.limit = getattr(self.experts, "limit", 7.0)
+        # DeepSeek SwiGLU clamp bound (0 = no clamp). Used only when
+        # activation_type=deepseek; matches DeepSeek-V4-Flash Expert.forward.
+        self.swiglu_limit = swiglu_limit
 
         # Expert-to-device mapping [1, 1, E, D] where D = num_devices (total)
         # Maps each expert to its owning device. When cluster_axis=0, the dispatch
@@ -498,24 +523,24 @@ class A2aSparseMLP(nn.Module):
         self.register_buffer("expert_mapping", mapping)
 
     @torch.compiler.disable
-    def _cpu_forward(self, hidden_states):
+    def _cpu_forward(self, hidden_states, *extra_args, **extra_kwargs):
         """CPU golden path: call original MLP forward directly.
 
         Decorated with @torch.compiler.disable so Dynamo won't trace into it —
         original forward may contain numpy ops or other incompatible constructs.
         """
-        result = self._original_mlp(hidden_states)
+        result = self._original_mlp(hidden_states, *extra_args, **extra_kwargs)
         if isinstance(result, tuple):
             return result
         return result, None
 
-    def forward(self, hidden_states):
+    def forward(self, hidden_states, *extra_args, **extra_kwargs):
         batch_size, seq_len, hidden_size = hidden_states.shape
         K = self.num_experts_per_tok
 
         # CPU golden path
         if hidden_states.device.type == "cpu":
-            return self._cpu_forward(hidden_states)
+            return self._cpu_forward(hidden_states, *extra_args, **extra_kwargs)
 
         # 1. Router — pass 3D for RouterAdapter (handles 3D→2D internally),
         # flatten to 2D for raw routers (e.g. GptOssTopKRouter).
@@ -523,8 +548,29 @@ class A2aSparseMLP(nn.Module):
         if not hasattr(self.router, "gate"):
             router_input = hidden_states.view(-1, hidden_size)
         router_scores, router_indices = _unpack_router_output(
-            self.router(router_input), self.num_experts
+            self.router(router_input, *extra_args, **extra_kwargs), self.num_experts
         )
+
+        # Pad batch so (batch * seq_len) is a multiple of TILE (32). The
+        # downstream MoE ops (moe_expert_token_remap, sparse_matmul) assume
+        # tile-aligned token counts and either segfault or fail validation
+        # otherwise — typical trigger is small-batch decode (e.g. bsz=8
+        # seq_len=1 → 8 tokens; pad batch by 4× → 32 tokens).
+        # Solve for pad_batch directly: padded_batch must be a multiple of
+        # TILE // gcd(seq_len, TILE) (the smallest k such that k*seq_len is
+        # a multiple of TILE), so padded_batch*seq_len is always a multiple
+        # of TILE regardless of seq_len. Padded entries carry zero router
+        # scores/indices and are sliced off the output before return.
+        TILE = 32
+        batch_step = TILE // math.gcd(seq_len, TILE)
+        padded_batch = math.ceil(batch_size / batch_step) * batch_step
+        pad_batch = padded_batch - batch_size
+        if pad_batch > 0:
+            # F.pad's pad-tuple is (last dim ... first dim) pairs of (left, right).
+            hidden_states = F.pad(hidden_states, (0, 0, 0, 0, 0, pad_batch))
+            # router_indices / router_scores are [B*S, K] / [B*S, E] (flat).
+            router_indices = F.pad(router_indices, (0, 0, 0, pad_batch * seq_len))
+            router_scores = F.pad(router_scores, (0, 0, 0, pad_batch * seq_len))
 
         # 2. Dispatch: route tokens to devices along cluster_axis
         # Dispatch accepts [B, S, H] and [B*S, K] directly.
@@ -583,7 +629,11 @@ class A2aSparseMLP(nn.Module):
                 if gate_up_bias is not None:
                     gate_up_out = gate_up_out + gate_up_bias
                 activated = _moe_activation(
-                    gate_up_out, self.activation_type, self.alpha, self.limit
+                    gate_up_out,
+                    self.activation_type,
+                    self.alpha,
+                    self.limit,
+                    swiglu_limit=self.swiglu_limit,
                 )
             else:
                 # Separate gate/up: two matmuls
@@ -609,6 +659,9 @@ class A2aSparseMLP(nn.Module):
                     up_out = up_out + up_bias
 
                 if self.activation_type == ACTIVATION_DEEPSEEK:
+                    if self.swiglu_limit > 0:
+                        gate_out = gate_out.clamp(max=self.swiglu_limit)
+                        up_out = up_out.clamp(-self.swiglu_limit, self.swiglu_limit)
                     activated = F.silu(gate_out) * up_out
                 else:
                     gate_out = gate_out.clamp(max=self.limit)
@@ -617,25 +670,16 @@ class A2aSparseMLP(nn.Module):
                     activated = (up_out + 1) * glu
 
             # Down: bmm over experts — [E, T, inter] @ [E, inter, H] → [E, T, H]
-            act_per_expert = activated.permute(0, 1, 3, 2, 4).reshape(
+            act_per_expert = activated.reshape(
                 dim_a * dim_b * M, E, self.intermediate_size
-            )
-            act_per_expert = act_per_expert.permute(
-                1, 0, 2
-            )  # [E, dim_a*dim_b*M, inter]
-            down_per_expert = down_proj.squeeze(0)  # [E, inter, H]
-            down_out = torch.bmm(
-                act_per_expert, down_per_expert
-            )  # [E, dim_a*dim_b*M, H]
+            ).permute(1, 0, 2)
+            down_per_expert = down_proj.squeeze(0)
+            down_out = torch.bmm(act_per_expert, down_per_expert)
             down_out = down_out.permute(1, 0, 2)  # [dim_a*dim_b*M, E, H]
             down_out = down_out.view(dim_a, dim_b, M, E, hidden_size)
 
-            # Untile → [E, 1, BD*S, H] for combine with output_shard_dim=2
-            down_out = down_out.view(dim_a, dim_b, E, M, hidden_size)
-            down_out = down_out.permute(0, 1, 3, 2, 4)  # [dim_a, dim_b, M, E, H]
             if down_bias is not None:
                 down_out = down_out + down_bias
-            # E to front, merge all spatial dims into one token dim
             down_out = down_out.permute(3, 0, 1, 2, 4)  # [E, dim_a, dim_b, M, H]
             down_out = down_out.reshape(E, 1, BD * seq_len, hidden_size)
 
@@ -655,6 +699,7 @@ class A2aSparseMLP(nn.Module):
                 self.alpha,
                 self.limit,
                 output_shape=(BD, seq_len),
+                swiglu_limit=self.swiglu_limit,
             )
 
         # sparse_forward returns [E, 1, BD*S, H] — combine with output_shard_dim=2.
@@ -680,7 +725,12 @@ class A2aSparseMLP(nn.Module):
             topk_weights.permute(1, 0).unsqueeze(1).unsqueeze(-1)
         )  # [K, 1, B*S, 1]
         output = (combined * topk_weights).sum(dim=0)  # [1, B*S, H]
-        output = output.view(batch_size, seq_len, hidden_size)
+        output = output.view(padded_batch, seq_len, hidden_size)
+        if pad_batch > 0:
+            # Drop the padded batch entries (and matching router_scores rows)
+            # so callers see the original [batch_size, ...] shape.
+            output = output[:batch_size]
+            router_scores = router_scores[: batch_size * seq_len]
 
         return output.to(hidden_states.dtype), router_scores
 
@@ -722,12 +772,19 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
             # on a flattened 2D [batch * seq, hidden] input.
             self._gate_returns_idx_first = hasattr(gate, "n_routed_experts")
 
-        def forward(self, hidden_states):
+        def forward(self, hidden_states, *extra_args, **extra_kwargs):
             gate_input = hidden_states
             if hidden_states.dim() == 3 and not self._gate_returns_idx_first:
                 gate_input = hidden_states.view(-1, hidden_states.shape[-1])
+                # Flatten matching positional tensor extras (e.g., input_ids
+                # [bsz, seq] -> [bsz*seq]) so they line up with the flattened
+                # hidden_states. Mirrors DeepSeek V4 MoE.forward behavior.
+                extra_args = tuple(
+                    a.flatten() if torch.is_tensor(a) and a.dim() >= 2 else a
+                    for a in extra_args
+                )
 
-            gate_output = self.gate(gate_input)
+            gate_output = self.gate(gate_input, *extra_args, **extra_kwargs)
 
             if self._route_fn is not None:
                 # Raw-logits gate: use external routing function
@@ -955,9 +1012,13 @@ class A2aSparseMLPWithSharedExperts(nn.Module):
         self.mlp = a2a_mlp
         self.shared_experts = shared_experts
 
-    def forward(self, hidden_states):
-        out, _ = self.mlp(hidden_states)
-        if self.shared_experts is not None:
+    def forward(self, hidden_states, *extra_args, **extra_kwargs):
+        out, _ = self.mlp(hidden_states, *extra_args, **extra_kwargs)
+        # On CPU, _cpu_forward delegates to the original MoE which already adds
+        # shared_experts internally (DS V4 MoE.forward: y += self.shared_experts(x)).
+        # On TT, dispatch/combine produces routed-only output, so shared must be
+        # added here. Skip on CPU to avoid double-counting.
+        if self.shared_experts is not None and hidden_states.device.type != "cpu":
             out = out + self.shared_experts(hidden_states)
         return out
 
@@ -997,6 +1058,7 @@ def create_a2a_from_deepseek_v3_moe(
         activation_type=ACTIVATION_DEEPSEEK,
         dispatch_devices=dispatch_devices,
         cpu_forward_module=moe_module,
+        swiglu_limit=float(getattr(config, "swiglu_limit", 0.0) or 0.0),
     )
     shared_experts = getattr(moe_module, "shared_experts", None)
     return A2aSparseMLPWithSharedExperts(a2a_mlp, shared_experts)
@@ -1057,9 +1119,13 @@ def enable_sparse_mlp(
     target_classes: Optional[List[Type]] = None,
     verbose: bool = False,
     config: Optional[object] = None,
+    use_dense_matmul: bool = False,
 ) -> nn.Module:
     """
     Replace MoE MLP layers in a model with A2aSparseMLP implementations.
+
+    use_dense_matmul: when True, A2aSparseMLP uses dense torch.bmm (autograd
+    supported) instead of sparse_matmul (no autograd).
     """
     replaced_count = 0
 
@@ -1112,9 +1178,12 @@ def enable_sparse_mlp(
         num_experts, num_experts_per_tok = moe_config
 
         # Wrap fused experts (e.g. GptOssExperts) with FusedExpertsWrapper
-        # so they have sparse_forward() like StackedExperts
+        # so they have sparse_forward() like StackedExperts. The dense-matmul
+        # path uses experts directly (no sparse_forward), so the wrapper
+        # is unused and skipped.
         if (
-            hasattr(module, "experts")
+            not use_dense_matmul
+            and hasattr(module, "experts")
             and hasattr(module.experts, "gate_up_proj")
             and not hasattr(module.experts, "sparse_forward")
         ):
@@ -1129,6 +1198,7 @@ def enable_sparse_mlp(
             config=config,
             dispatch_devices=dispatch_devices,
             cpu_forward_module=module,
+            use_dense_matmul=use_dense_matmul,
         )
 
         setattr(parent, name, sparse_mlp)

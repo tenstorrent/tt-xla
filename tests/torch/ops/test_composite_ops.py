@@ -15,6 +15,7 @@ from infra.evaluators import TorchComparisonEvaluator
 from infra.utilities.types import Framework
 from torch.nn import functional as F
 from tt_torch.composite_ops import (
+    composite_gather,
     composite_gelu,
     composite_group_norm,
     composite_layer_norm,
@@ -110,13 +111,10 @@ def test_patched_rms_norm_functional_single_device(
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(
-    reason="Skipping test, issue: https://github.com/tenstorrent/tt-xla/issues/4256"
-)
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize(
-    "batch_size, seq_len, hidden_size", [(1, 32, 32), (1, 128, 768), (1, 1024, 768)]
+    "batch_size, seq_len, hidden_size", [(2, 32, 32), (2, 128, 768), (2, 1024, 768)]
 )
 def test_patched_rms_norm_functional_batch_parallel(
     use_weight, batch_size, seq_len, hidden_size
@@ -454,6 +452,72 @@ def test_patched_topk_both(input_shape, k):
     run_graph_test(
         TopKBoth(k),
         [input],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "input_shape, dim",
+    [((4, 10), 0), ((4, 10), 1), ((2, 3, 8), 2)],
+)
+def test_composite_gather(input_shape, dim):
+    class GatherModel(torch.nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x, index):
+            return composite_gather(x, self.dim, index)
+
+    options = {"tt_enable_composite_ops": False}
+
+    input_tensor = torch.randn(*input_shape)
+    # Build an index tensor with the same number of dims, gathering 2 elements along dim
+    index_shape = list(input_shape)
+    index_shape[dim] = 2
+    index = torch.randint(0, input_shape[dim], index_shape)
+
+    with torch._inductor.config.patch({"inplace_buffers": False}):
+        run_graph_test(
+            GatherModel(dim),
+            [input_tensor, index],
+            comparison_config=ComparisonConfig(),
+            framework=Framework.TORCH,
+            torch_options=options,
+        )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "input_shape, dim",
+    [((4, 10), 0), ((4, 10), 1), ((2, 3, 8), 2)],
+)
+def test_patched_gather(input_shape, dim):
+    """torch.gather patched via tt_enable_composite_ops → composite_gather selected."""
+
+    class GatherModel(torch.nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x, index):
+            return torch.gather(x, self.dim, index)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(*input_shape)
+    index_shape = list(input_shape)
+    index_shape[dim] = 2
+    index = torch.randint(0, input_shape[dim], index_shape)
+
+    run_graph_test(
+        GatherModel(dim),
+        [input_tensor, index],
         comparison_config=ComparisonConfig(),
         framework=Framework.TORCH,
         torch_options=options,

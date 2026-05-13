@@ -203,6 +203,9 @@ class ModelTestConfig:
 
         # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
         self.inject_custom_moe = self._resolve("inject_custom_moe", default=False)
+        # EmitPy verification: assert exact match (default True).
+        # Set to false in YAML config for models with known minor differences.
+        self.emitpy_assert_exact = self._resolve("emitpy_assert_exact", default=True)
 
     def _resolve(self, key, default=None):
         overrides = self.data.get("arch_overrides", {})
@@ -654,7 +657,7 @@ def record_model_test_properties(
         else:
             bringup_status = BringupStatus.INCORRECT_RESULT
 
-        reason = static_reason or runtime_reason or "Not specified"
+        reason = runtime_reason or static_reason or "Not specified"
 
     tags = {
         "test_name": str(request.node.originalname),
@@ -740,7 +743,8 @@ def record_model_test_properties(
         record_property("group", str(model_info.group))
 
     # Control flow for skipped and xfailed tests is handled by pytest.
-    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP:
+    force_run = request.config.getoption("--force-run", default=False)
+    if test_metadata.status == ModelTestStatus.NOT_SUPPORTED_SKIP and not force_run:
         pytest.skip(reason)
     elif test_metadata.status == ModelTestStatus.KNOWN_FAILURE_XFAIL:
         pytest.xfail(reason)

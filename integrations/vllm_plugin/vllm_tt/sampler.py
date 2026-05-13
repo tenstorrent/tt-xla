@@ -2,13 +2,36 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 """Sampler layer implementing XLA supported operations."""
 
+import math
+
 import torch
 import torch.nn as nn
 from vllm.v1.outputs import LogprobsTensors, SamplerOutput
 
 from .metadata import XLASupportedSamplingMetadata
 
+# Multi-core topk parameters.
+# ttnn.topk uses a multi-core bitonic sort when input dim is a power of 2 and
+# < 65536.  We split the vocab into chunks of at most this size, pad each
+# chunk to the next power of 2, and run topk per chunk.  All chunk topk results
+# are concatenated to form the candidate set for sampling.
+_TOPK_MAX_CHUNK_SIZE = 32768  # largest power-of-2 below 65536
+_TOPK_K_PER_CHUNK = 32  # candidates kept per chunk
+
+
+def _next_power_of_2(n: int) -> int:
+    return 1 << (n - 1).bit_length()
+
+
+def _get_topk_split_params(vocab_size: int) -> tuple[int, int]:
+    """Return (chunk_size, padded_chunk_size) for chunked topk."""
+    num_chunks = math.ceil(vocab_size / _TOPK_MAX_CHUNK_SIZE)
+    chunk_size = math.ceil(vocab_size / num_chunks)
+    return chunk_size, _next_power_of_2(chunk_size)
+
+
 _SAMPLING_EPS = 1e-5
+_TTNN_SAMPLING_BATCH_SIZE = 32  # ttnn.sampling kernel requires batch=32
 
 
 def count_tokens_ge(logprobs: torch.Tensor, threshold: torch.Tensor) -> torch.Tensor:
@@ -174,36 +197,27 @@ class Sampler(nn.Module):
                 sampling_metadata.repetition_penalties,
             )
 
-        greedy_sampled = self.greedy_sample(logits)
+        # Skip greedy_sample when every row is sampling (all_random=True);
+        # the torch.where below would discard greedy_sampled anyway. ArgMax
+        # over full vocab was ~34% of sampler runtime at b=32 in tracy.
+        all_random = sampling_metadata.all_random
+        if not all_random:
+            greedy_sampled = self.greedy_sample(logits)
 
-        # Apply temperature.
-        logits = self.apply_temperature(
-            logits, sampling_metadata.temperature, sampling_metadata.all_random
+        # Build the candidate set via chunked multi-core topk. The fused
+        # tt::sampling kernel applies user top-k, top-p, softmax, and
+        # multinomial downstream — no need to filter twice here.
+        filtered_logits, candidate_indices = chunked_topk_candidates(logits)
+        random_sampled = self._ttnn_sampling_padded(
+            filtered_logits, candidate_indices, sampling_metadata
         )
-
-        # Apply min_p.
-        if sampling_metadata.min_p is not None:
-            logits = self.apply_min_p(logits, sampling_metadata.min_p)
-
-        # Apply top_k and/or top_p.
-        logits = apply_top_k_top_p(
-            logits,
-            sampling_metadata.top_k,
-            sampling_metadata.top_p,
-        )
-
-        # Random sample.
-        probs = logits.softmax(dim=-1, dtype=torch.float32)
-        random_sampled = self.random_sample(
-            probs, sampling_metadata.generators, sampling_metadata.q_samples
-        )
-
-        sampled = torch.where(
+        if all_random:
+            return random_sampled
+        return torch.where(
             sampling_metadata.temperature < _SAMPLING_EPS,
             greedy_sampled,
             random_sampled,
         )
-        return sampled
 
     def compute_logprobs(self, logits: torch.Tensor) -> torch.Tensor:
         return logits.log_softmax(dim=-1, dtype=torch.float32)
@@ -290,49 +304,115 @@ class Sampler(nn.Module):
                     q[i].exponential_(generator=generator)
         return probs.div_(q).argmax(dim=-1).view(-1)
 
+    def _ttnn_sampling_padded(
+        self,
+        filtered_logits: torch.Tensor,
+        candidate_indices: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+    ) -> torch.Tensor:
+        """Use fused ttnn.sampling kernel for non-greedy sampling.
 
-def apply_top_k_top_p(
+        The kernel does softmax + top-k + top-p + multinomial in one fused
+        call on the pre-filtered candidate set (~128 tokens), avoiding the
+        scatter-back to full vocab and the compiled softmax/Gumbel-max chain.
+        """
+        batch = filtered_logits.shape[0]
+
+        values = filtered_logits.to(torch.bfloat16)
+        indices = candidate_indices.to(torch.int32)
+
+        # Kernel writer's valid k range is 1..nearest32_K (32); k > 32
+        # causes out-of-bounds L1 reads, so cap at _TOPK_K_PER_CHUNK.
+        if sampling_metadata.top_k is not None:
+            k_tensor = (
+                sampling_metadata.top_k[:batch]
+                .to(torch.int32)
+                .clamp(max=_TOPK_K_PER_CHUNK)
+            )
+        else:
+            k_tensor = torch.full(
+                (batch,), _TOPK_K_PER_CHUNK, dtype=torch.int32, device=values.device
+            )
+
+        if sampling_metadata.top_p is not None:
+            p_tensor = sampling_metadata.top_p[:batch].to(torch.bfloat16)
+        else:
+            p_tensor = torch.ones(batch, dtype=torch.bfloat16, device=values.device)
+
+        # Kernel expects 1/temperature; use 1.0 for greedy rows (where the
+        # outer torch.where will discard the random result anyway).
+        raw_temp = sampling_metadata.temperature[:batch]
+        is_greedy = raw_temp < _SAMPLING_EPS
+        temp_tensor = torch.where(
+            is_greedy, torch.ones_like(raw_temp), 1.0 / raw_temp
+        ).to(torch.bfloat16)
+
+        # Pad batch to 32 (kernel requirement).
+        if batch < _TTNN_SAMPLING_BATCH_SIZE:
+            pad_size = _TTNN_SAMPLING_BATCH_SIZE - batch
+            values = torch.nn.functional.pad(
+                values, (0, 0, 0, pad_size), value=float("-inf")
+            )
+            indices = torch.nn.functional.pad(indices, (0, 0, 0, pad_size))
+            k_tensor = torch.nn.functional.pad(k_tensor, (0, pad_size), value=1)
+            p_tensor = torch.nn.functional.pad(p_tensor, (0, pad_size), value=1.0)
+            temp_tensor = torch.nn.functional.pad(temp_tensor, (0, pad_size), value=1.0)
+
+        result = torch.ops.tt.sampling(values, indices, k_tensor, p_tensor, temp_tensor)
+        return result[:batch].to(torch.int64)
+
+
+def chunked_topk_candidates(
     logits: torch.Tensor,
-    k: torch.Tensor | None,
-    p: torch.Tensor | None,
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Build a per-row top-K candidate set via multi-core ttnn.topk.
+
+    Splits vocab into power-of-2 chunks (<= 32768) so torch.topk compiles
+    to multi-core ttnn.topk (~0.18ms/chunk) instead of single-core ttnn.sort
+    (~9ms). Returns (candidate_values, candidate_indices) of shape
+    [batch, num_chunks * k_per_chunk] (~128 tokens for typical vocabs);
+    candidate_indices holds global vocab positions.
+
+    User-specified top-k / top-p / softmax / multinomial are applied
+    downstream by the fused tt::sampling kernel, not here.
     """
-    Apply top-k and top-p optimized for TPU.
+    batch = logits.shape[0]
+    chunk_size, padded_chunk_size = _get_topk_split_params(logits.shape[-1])
 
-    This algorithm avoids using torch.scatter which is extremely slow on TPU.
-    This is achieved by finding a "cut-off" element in the original logit, and
-    after thresholding the logit using this cut-off, the remaining elements
-    shall constitute the top-p set.
+    # Multi-core topk is 14x faster at batch=32 vs small batches — pad
+    # with -inf rows so dummy entries can't win the topk.
+    logits = torch.nn.functional.pad(
+        logits,
+        (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
+        value=float("-inf"),
+    )
 
-    Note: in the case of tie (i.e. multiple cut-off elements present in the
-    logit), all tie elements are included in the top-p set. In other words,
-    this function does not break ties. Instead, these tie tokens have equal
-    chance of being chosen during final sampling, so we can consider the tie
-    being broken then.
-    """
-    probs = logits.softmax(dim=-1)
-    probs_sort, _ = probs.sort(dim=-1, descending=False)
+    # Split vocab, pad each chunk to power-of-2, run topk.
+    chunks = torch.split(logits, chunk_size, dim=-1)
+    topk_values_list = []
+    topk_indices_list = []
+    for i, chunk in enumerate(chunks):
+        if chunk.shape[-1] < padded_chunk_size:
+            chunk = torch.nn.functional.pad(
+                chunk, (0, padded_chunk_size - chunk.shape[-1]), value=float("-inf")
+            )
+        vals, inds = torch.topk(chunk, k=_TOPK_K_PER_CHUNK, dim=-1)
+        topk_values_list.append(vals)
+        # Offset local chunk indices to global vocab positions.
+        topk_indices_list.append(inds + i * chunk_size)
 
-    if k is not None:
-        top_k_count = probs_sort.size(1) - k.to(torch.long)  # shape: (batch, )
-        top_k_count = top_k_count.clamp(max=probs_sort.size(1) - 1).unsqueeze(dim=1)
-        top_k_cutoff = probs_sort.gather(-1, top_k_count)
+    # Concat: [batch, num_chunks * k_per_chunk]
+    all_values = torch.cat(topk_values_list, dim=-1)
+    all_indices = torch.cat(topk_indices_list, dim=-1)
 
-        # Make sure the disabled top-k rows (k<=0 or k==vocab_size) are no-op.
-        no_top_k_mask = ((k <= 0) | (k == logits.shape[1])).unsqueeze(dim=1)
-        top_k_cutoff.masked_fill_(no_top_k_mask, -float("inf"))
+    # Pad W so that Wt = W/32 is a power of 2 AND Wt >= 2 to avoid the
+    # tt::sampling kernel hang (#4560). -inf values can't win the topk /
+    # multinomial draw, so output is unchanged.
+    cur_w = all_values.shape[-1]
+    target_w = max(64, _next_power_of_2(cur_w))
+    if cur_w < target_w:
+        pad = target_w - cur_w
+        all_values = torch.nn.functional.pad(all_values, (0, pad), value=float("-inf"))
+        all_indices = torch.nn.functional.pad(all_indices, (0, pad), value=0)
 
-        elements_to_discard = probs < top_k_cutoff
-        logits.masked_fill_(elements_to_discard, -float("inf"))
-
-    if p is not None:
-        cumprob = torch.cumsum(probs_sort, dim=-1)
-        top_p_mask = cumprob <= 1 - p.unsqueeze(dim=1)
-        top_p_mask[:, -1] = False  # at least one
-
-        top_p_count = top_p_mask.sum(dim=-1).unsqueeze(1)
-        top_p_cutoff = probs_sort.gather(-1, top_p_count)
-        elements_to_discard = probs < top_p_cutoff
-        logits.masked_fill_(elements_to_discard, -float("inf"))
-
-    return logits
+    return all_values[:batch], all_indices[:batch]

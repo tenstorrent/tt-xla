@@ -126,7 +126,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         )
 
     # @override
-    def _test_inference(self, request=None) -> Tuple[ComparisonResult, ...]:
+    def _test_inference(self, request=None) -> Tuple[Tuple[ComparisonResult, ...], Any]:
         """
         Tests the model by running inference on multichip TT device and on CPU and comparing the
         results.
@@ -146,7 +146,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         self._compile_for_tt_device(self.tt_device_multichip_workload)
         tt_res = self._run_on_tt_device()
 
-        return (self._compare(tt_res, cpu_res),)
+        return (self._compare(tt_res, cpu_res),), tt_res
 
     # @override
     def _compile_for_cpu(self, workload: Workload) -> None:

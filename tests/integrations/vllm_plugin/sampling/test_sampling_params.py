@@ -22,7 +22,11 @@ import signal
 import pytest
 import vllm
 from conftest import TEST_TIMEOUT_SECONDS, get_or_create_llm
-from vllm.sampling_params import RequestOutputKind, StructuredOutputsParams
+from vllm.sampling_params import (
+    RepetitionDetectionParams,
+    RequestOutputKind,
+    StructuredOutputsParams,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -436,6 +440,17 @@ def test_output_length_controls(llm, prompt):
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Device sampler does not honor per-row seeds: the tt::sampling "
+        "kernel uses a single shared seed across all 32 cores and ignores "
+        "per-row q_samples, so seeded sampling is no longer deterministic. "
+        "Tracked in tt-xla #4539. Workaround: set "
+        "additional_config={'cpu_sampling': True}. Remove this xfail once "
+        "the kernel grows per-row seed support."
+    ),
+)
 def test_seed(llm, prompt):
     """Test that same seed produces same output, different seeds diverge."""
     base = {"temperature": 1.5, "top_p": 0.9, "max_tokens": 32}
@@ -648,6 +663,28 @@ def test_repetition_penalty_end_to_end(llm):
     _assert_penalty_reduces_repetition(
         llm, "repetition_penalty=50.0", base, 48, repetition_penalty=50.0
     )
+
+
+@for_targets(single_device="nightly")
+def test_repetition_detection(llm, prompt):
+    """Smoke test that repetition_detection doesn't break the pipeline.
+
+    Scheduler-level stop condition handled by upstream vLLM (no device graph
+    involvement). Single-device only — verifying our plugin doesn't break
+    the upstream behavior is sufficient; no need to cross with TP targets.
+    """
+    rd = RepetitionDetectionParams(max_pattern_size=3, min_count=3)
+    params = vllm.SamplingParams(
+        temperature=0.0, max_tokens=32, repetition_detection=rd
+    )
+    output = llm.generate(prompt, params, use_tqdm=False)[0].outputs[0]
+    print(
+        f"[TESTOUT test_repetition_detection] "
+        f"{len(output.token_ids)} tokens, finish_reason={output.finish_reason}, "
+        f"stop_reason={output.stop_reason}, text: {output.text[:60]!r}"
+    )
+
+    assert len(output.token_ids) > 0, "Should produce output with repetition_detection"
 
 
 @for_targets(single_device="nightly", n300="nightly", n300_llmbox="nightly")
@@ -954,10 +991,13 @@ def test_truncate_prompt_tokens(llm, prompt):
     full_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
     out_full = llm.generate(prompt, full_params, use_tqdm=False)[0].outputs[0]
 
-    trunc_params = vllm.SamplingParams(
-        temperature=0.0, max_tokens=16, truncate_prompt_tokens=4
-    )
-    out_trunc = llm.generate(prompt, trunc_params, use_tqdm=False)[0].outputs[0]
+    trunc_params = vllm.SamplingParams(temperature=0.0, max_tokens=16)
+    out_trunc = llm.generate(
+        prompt,
+        trunc_params,
+        use_tqdm=False,
+        tokenization_kwargs={"truncate_prompt_tokens": 4},
+    )[0].outputs[0]
 
     print(
         f"[TESTOUT test_truncate_prompt_tokens] "

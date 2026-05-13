@@ -2,6 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+# Apply XLA Dynamo guard repr patch and TorchDynamo compatibility patches globally to fix TorchDynamo errors
+from .utils import apply_dynamo_compatibility_patches, apply_xla_dynamo_guard_repr_patch
+
+# Apply patches globally
+apply_xla_dynamo_guard_repr_patch()
+apply_dynamo_compatibility_patches()
+
 # Import module so "tt" backend is registered
 import tt_torch.backend.backend
 
@@ -10,7 +17,7 @@ import tt_torch.custom_ops
 
 # Import torch overrides so they are registered
 import tt_torch.torch_overrides
-from ttxla_tools import enable_compile_only, save_system_descriptor_to_disk
+from ttxla_tools import save_system_descriptor_to_disk
 
 from .codegen import codegen_cpp, codegen_py
 from .serialization import (

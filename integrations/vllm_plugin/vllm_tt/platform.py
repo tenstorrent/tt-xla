@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from vllm.attention.selector import AttentionSelectorConfig
     from vllm.config import VllmConfig
     from vllm.config.cache import BlockSize
-    from vllm.inputs import ProcessorInputs, PromptType
+    from vllm.inputs import PromptType
     from vllm.pooling_params import PoolingParams
     from vllm.sampling_params import SamplingParams
 
@@ -94,12 +94,31 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    enable_trace: bool = False
+
+    def __post_init__(self):
+        # tt::sampling + enable_trace + optimization_level >= 1 hits a
+        # tt-mlir compile bug: TTNNGreedyMemoryLayoutPropagation falls
+        # back to system_memory on the sampling op's output, breaking
+        # ttnn.capture_or_execute_trace. Tracked in tt-xla #4570.
+        # Workarounds: optimization_level=0, cpu_sampling=True, or
+        # enable_trace=False.
+        if self.enable_trace and self.optimization_level >= 1 and not self.cpu_sampling:
+            raise ValueError(
+                "tt::sampling + enable_trace=True + optimization_level>=1 "
+                "triggers a tt-mlir compile-time bug (tt-xla #4570). Set "
+                "additional_config={'cpu_sampling': True}, or "
+                "{'optimization_level': 0}, or {'enable_trace': False}. "
+                "Remove this guard once the kernel-side OpModel fix lands."
+            )
+
     def get_pjrt_compile_config(self) -> dict:
         return {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
+            "enable_trace": "true" if self.enable_trace else "false",
         }
 
 
@@ -121,6 +140,11 @@ class TTPlatform(Platform):
         # "TPU_CHIPS_PER_HOST_BOUNDS", "TPU_HOST_BOUNDS"
     ]
 
+    # Stashed from the active TTConfig so validate_request() can decide
+    # whether seeded sampling is supported (host path supports it; the
+    # device-side tt::sampling kernel does not yet).
+    _cpu_sampling: bool = False
+
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
 
@@ -129,6 +153,7 @@ class TTPlatform(Platform):
         cls,
         selected_backend: "AttentionBackendEnum",
         attn_selector_config: "AttentionSelectorConfig",
+        num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
             raise NotImplementedError(
@@ -181,8 +206,39 @@ class TTPlatform(Platform):
         return torch.no_grad()
 
     @classmethod
+    def validate_request(cls, prompt, params, processed_inputs) -> None:
+        """Reject requests this platform can't currently handle.
+
+        SamplingParams(seed=...) is not supported on the device sampler
+        because the tt::sampling kernel passes a single scalar seed to
+        all 32 cores, breaking per-row reproducibility. The host-side
+        path (cpu_sampling=True) handles seeded sampling correctly via
+        the legacy Sampler.random_sample() Gumbel-max chain. Raising
+        here returns a clean per-request error to the caller without
+        killing the engine; remove this once the kernel grows per-row
+        seed support (see perf_debug/SEEDED_SAMPLING_NOTES.md).
+        """
+        if cls._cpu_sampling:
+            return
+        seed = getattr(params, "seed", None)
+        if seed is not None:
+            raise ValueError(
+                "SamplingParams(seed=...) is not supported by the TT "
+                "device sampler — the tt::sampling kernel does not honor "
+                "per-row seeds yet. Set additional_config="
+                "{'cpu_sampling': True} to use the host-side sampler "
+                "which handles seeded sampling correctly."
+            )
+
+    @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
+
+        # Stash cpu_sampling so validate_request() can read it without
+        # rebuilding TTConfig per request.
+        cls._cpu_sampling = bool(
+            (vllm_config.additional_config or {}).get("cpu_sampling", False)
+        )
 
         # Use AscendScheduler as the default scheduler for TT (except for pooling models)
         if vllm_config.model_config.runner_type != "pooling":
@@ -272,6 +328,11 @@ class TTPlatform(Platform):
             )
 
     @classmethod
+    def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
+        # TT backend requires a block size divisible by 32 for optimal performance.
+        return 32
+
+    @classmethod
     def is_pin_memory_available(cls):
         logger.warning("Pin memory is not supported on TT.")
         return False
@@ -285,7 +346,6 @@ class TTPlatform(Platform):
         cls,
         prompt: "PromptType",
         params: "ParamsType",
-        processed_inputs: "ProcessorInputs",
     ) -> None:
         pass
 

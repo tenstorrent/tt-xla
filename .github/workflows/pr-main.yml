@@ -78,7 +78,24 @@ jobs:
         { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'
       sh-runner: false
       skip-device-perf: true
-      perf_regression_check: false
+      regression_check: false
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
+  perf-benchmark-accuracy:
+    if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
+    needs: [ inspect-changes, build-image, build-ttxla ]
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      adv_filter: '[
+        { "accuracy-testing": true },
+        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp","gpt_oss_120b_tp_dp_galaxy_accuracy"] },
+        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_8b_instruct_tp","llama_3_1_70b_tp"] } ]'
+      sh-runner: false
+      skip-device-perf: true
+      regression_check: true
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
@@ -134,11 +151,12 @@ jobs:
       - test-uplift-extended
       - test-tools
       - perf-benchmark
+      - perf-benchmark-accuracy
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla, build-ttxla-debug, test, test_forge_models_push, test-uplift-extended, test-tools, perf-benchmark, build-docs
+        allowed-skips: build-image, build-ttxla, build-ttxla-debug, test, test_forge_models_push, test-uplift-extended, test-tools, perf-benchmark, perf-benchmark-accuracy, build-docs
         jobs: ${{ toJSON(needs) }}

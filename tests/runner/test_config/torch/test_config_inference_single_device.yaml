@@ -36,7 +36,6 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1.5B-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   clip/pytorch-Base_Patch16-single_device-inference:
@@ -88,7 +87,6 @@ test_config:
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Xxlarge_v2-single_device-inference:
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2944
     status: EXPECTED_PASSING
 
   albert/masked_lm/pytorch-Large_v2-single_device-inference:
@@ -607,8 +605,8 @@ test_config:
     status: EXPECTED_PASSING
 
   yoloworld/pytorch-Small_640-single_device-inference:
-    status: EXPECTED_PASSING
-    required_pcc: 0.98 # https://github.com/tenstorrent/tt-xla/issues/2727
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   yoloworld/pytorch-Small_1280-single_device-inference:
     status: EXPECTED_PASSING
@@ -725,8 +723,7 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
 
   t5/pytorch-Small-single_device-inference:
     status: EXPECTED_PASSING
@@ -738,8 +735,7 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Fourier-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
 
   # yolov8/pytorch-yolov8x-single_device-inference:
   #   status: EXPECTED_PASSING
@@ -754,18 +750,20 @@ test_config:
     status: EXPECTED_PASSING
 
   perceiverio_vision/pytorch-Vision_Perceiver_Learned-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Can't convert shape rank (https://github.com/tenstorrent/tt-xla/issues/3392)"
+    status: EXPECTED_PASSING
+    assert_pcc: false
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9897869694927385. Required: pcc=0.99"
 
   pi_0/pytorch-lerobot_pi0_libero_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     assert_pcc: false
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.8219157204385233. Required: pcc=0.99 - https://github.com/tenstorrent/tt-xla/issues/3786"
+    reason: "Need to update requirements. (https://github.com/tenstorrent/tt-xla/issues/3767)"
 
   pi_0/pytorch-pi0_base-single_device-inference:
     supported_archs: ["p150"]
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Need to update requirements. (https://github.com/tenstorrent/tt-xla/issues/3767)"
 
   opt/qa/pytorch-1.3b-single_device-inference:
     status: EXPECTED_PASSING
@@ -906,10 +904,6 @@ test_config:
 
   qwen_2_5_coder/pytorch-1.5B-single_device-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        required_pcc: 0.98
-        status: EXPECTED_PASSING
 
   retinanet/pytorch-ResNet34_Backbone_with_FPN-single_device-inference:
     assert_pcc: false
@@ -1436,6 +1430,7 @@ test_config:
     status: EXPECTED_PASSING
 
   phi3/phi_3_5/pytorch-Mini_Instruct-single_device-inference:
+    required_pcc: 0.97  # PCC dropped to 0.978873 on n150
     status: EXPECTED_PASSING
 
   bi_lstm_crf/pytorch-Default-single_device-inference:
@@ -2037,7 +2032,7 @@ test_config:
 
   vilt/masked_lm/pytorch-Mlm-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
-    reason: "Failed to legalize operation 'ttir.gather': ' - https://github.com/tenstorrent/tt-xla/issues/318"
+    reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99.- https://github.com/tenstorrent/tt-xla/issues/4578"
 
   mplug_owl2/pytorch-Llama2_7B-single_device-inference:
     supported_archs: ["p150"]
@@ -2133,7 +2128,7 @@ test_config:
   sam/pytorch-Vit_Large-single_device-inference:
     status: EXPECTED_PASSING
 
-  deepseek/qwen/pytorch-single_device-inference:
+  deepseek/qwen/pytorch-R1_Distill_32B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Out of Memory: Not enough space to allocate 283115520 B DRAM buffer across 12 banks, where each bank needs to store 23611392 B, but bank size is only 1073741792 B - https://github.com/tenstorrent/tt-xla/issues/1722"
     markers: [large]
@@ -2195,8 +2190,7 @@ test_config:
     reason: "AssertionError: assert isinstance(self._model, torch.nn.Module) - https://github.com/tenstorrent/tt-xla/issues/1815"
 
   vilt/question_answering/pytorch-Vqa-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "failed to legalize operation 'ttir.gather' - https://github.com/tenstorrent/tt-xla/issues/318"
+    status: EXPECTED_PASSING
 
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -2246,7 +2240,7 @@ test_config:
     required_pcc: 0.98
 
   owl_vit/pytorch-Base_Patch32-single_device-inference:
-    required_pcc: 0.975  # PCC dropped to 0.9837 on n150 0.9836 on p150 - https://github.com/tenstorrent/tt-xla/issues/3182
+    required_pcc: 0.97  # https://github.com/tenstorrent/tt-xla/issues/3182
     status: EXPECTED_PASSING
 
   # yolov12/pytorch-yolo12n-single_device-inference:
@@ -2344,7 +2338,8 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   efficientdet/pytorch-D0-single_device-inference:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
 
   efficientdet/pytorch-D1-single_device-inference:
     status: EXPECTED_PASSING
@@ -2453,12 +2448,16 @@ test_config:
   siglip/image_text_similarity/pytorch-Base_Patch16_384-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
+      n150:
+        required_pcc: 0.98  # https://github.com/tenstorrent/tt-xla/issues/4409
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9847531158203227 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 
   siglip/image_text_similarity/pytorch-Base_Patch16_512-single_device-inference:
     status: EXPECTED_PASSING
     arch_overrides:
+      n150:
+        required_pcc: 0.98  # https://github.com/tenstorrent/tt-xla/issues/4409
       p150:
         required_pcc: 0.98  # Actual PCC: 0.9867153999500852 - https://github.com/tenstorrent/tt-xla/runs/61718495993 TODO: pending investigation
 

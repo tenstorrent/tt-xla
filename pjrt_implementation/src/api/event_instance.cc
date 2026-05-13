@@ -29,6 +29,8 @@ CallbackWorker &EventInstance::getCallbackWorker() {
   return instance;
 }
 
+void EventInstance::shutdownCallbackWorker() { getCallbackWorker().shutdown(); }
+
 std::unique_ptr<EventInstance> EventInstance::createInstance() {
   struct make_unique_enabler : public EventInstance {};
 
