@@ -388,7 +388,7 @@ def benchmark_llm_torch_xla(
 
         # Iter 0: prefill. After this, input_args holds the post-prefill decode
         # state (input_ids=next_token_0, cache_position=[prompt_len]).
-        prefill_logits, _ = generate_and_benchmark(
+        cpu_prefill_logits, _ = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
@@ -397,14 +397,13 @@ def benchmark_llm_torch_xla(
             collect_logits=True,
         )
 
-        if decode_only:
-            # Snapshot first-decode inputs before CPU iter 1 advances them.
-            decode_only_input_ids = input_args["input_ids"].clone()
-            decode_only_cache_position = input_args["cache_position"].clone()
-            decode_only_cache = input_args["past_key_values"]
+        # Snapshot first-decode inputs before CPU iter 1 advances them.
+        first_decode_input_ids = input_args["input_ids"].clone()
+        decode_only_cache_position = input_args["cache_position"].clone()
+        decode_only_cache = input_args["past_key_values"]
 
         # Iter 1: first decode. Provides the PCC reference for device first decode.
-        decode_logits, _ = generate_and_benchmark(
+        cpu_decode_logits, _ = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
@@ -413,7 +412,7 @@ def benchmark_llm_torch_xla(
             collect_logits=True,
         )
 
-        cpu_output_logits = prefill_logits + decode_logits
+        cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
@@ -538,7 +537,7 @@ def benchmark_llm_torch_xla(
 
     if decode_only:
         # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids.clone()
+        input_args["input_ids"] = first_decode_input_ids.clone()
         input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
@@ -596,7 +595,7 @@ def benchmark_llm_torch_xla(
 
     if decode_only:
         # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids.clone()
+        input_args["input_ids"] = first_decode_input_ids.clone()
         input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
@@ -606,15 +605,57 @@ def benchmark_llm_torch_xla(
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
     print("\nStarting PCC/TOPK benchmark...")
-    output_logits, _ = generate_and_benchmark(
+
+    device_prefill_logits = []
+    if not decode_only:
+        device_prefill_logits, _ = generate_and_benchmark(
+            compiled_logits,
+            input_args,
+            device,
+            1,
+            verbose=False,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=True,
+        )
+
+        device_prefill_output_ids = input_args["input_ids"].to("cpu")
+
+        # Override device's first-decode input with CPU's prefill output when they
+        # diverge, so the decode PCC reference is comparing apples to apples
+        # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
+        if not accuracy_testing and not torch.equal(
+            device_prefill_output_ids, first_decode_input_ids.cpu()
+        ):
+            logger.warning(
+                "Device prefill produced different tokens than CPU prefill; "
+                "using CPU prefill output as decode PCC reference."
+            )
+            input_args["input_ids"] = first_decode_input_ids.to(device)
+            if input_output_sharding_spec:
+                xs.mark_sharding(
+                    input_args["input_ids"], mesh, input_output_sharding_spec
+                )
+
+    # The prefill call above already consumed gt[0] as teacher-forced input for
+    # the first decode step, so the decode call must start its ground-truth
+    # window at gt[1] to stay aligned.
+    decode_ground_truth = (
+        ground_truth_for_benchmark[1:]
+        if ground_truth_for_benchmark is not None and not decode_only
+        else ground_truth_for_benchmark
+    )
+    device_decode_logits, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
         device,
         logits_steps,
         verbose=False,
-        ground_truth_tokens=ground_truth_for_benchmark,
+        ground_truth_tokens=decode_ground_truth,
         collect_logits=True,
     )
+
+    output_logits = device_prefill_logits + device_decode_logits
+
     print("\nPCC/TOPK benchmark complete")
 
     # Post-processing: derive predicted tokens for accuracy testing
