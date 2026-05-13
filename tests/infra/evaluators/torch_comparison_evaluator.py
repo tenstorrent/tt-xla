@@ -108,16 +108,16 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree,
         golden_output: PyTree,
         pcc_config: PccConfig,
-        pcc_mask: torch.Tensor | None = None,
+        real_token_mask: torch.Tensor | None = None,
     ) -> float:
         def apply_real_token_mask(x: torch.Tensor, y: torch.Tensor):
-            if pcc_mask is None:
+            if real_token_mask is None:
                 return x, y
 
             assert (
-                pcc_mask.ndim == 2
-            ), f"Expected pcc_mask to have shape [batch, seq], got {tuple(pcc_mask.shape)}"
-            batch_size, seq_len = pcc_mask.shape
+                real_token_mask.ndim == 2
+            ), f"Expected real_token_mask to have shape [batch, seq], got {tuple(real_token_mask.shape)}"
+            batch_size, seq_len = real_token_mask.shape
 
             if x.dim() < 2 or y.dim() < 2:
                 return x, y
@@ -129,11 +129,11 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             # - rank-4 tensors (e.g. KV [B, H, S, D]) -> sequence dim is -2
             assert (
                 x.shape == y.shape
-            ), f"pcc_mask requires matching shapes, got {x.shape} vs {y.shape}"
+            ), f"real_token_mask requires matching shapes, got {x.shape} vs {y.shape}"
             assert x.dim() in (
                 3,
                 4,
-            ), f"pcc_mask only supports rank-3 (logits) or rank-4 (KV) tensors, got rank {x.dim()} with shape {x.shape}"
+            ), f"real_token_mask only supports rank-3 (logits) or rank-4 (KV) tensors, got rank {x.dim()} with shape {x.shape}"
             assert (
                 x.shape[-2] == seq_len
             ), f"dim -2 should be seq_len ({seq_len}), got {x.shape[-2]} in shape {x.shape}"
@@ -141,9 +141,12 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             x_seq_first = x.movedim(-2, 1)
             y_seq_first = y.movedim(-2, 1)
 
-            x, y = x_seq_first[pcc_mask], y_seq_first[pcc_mask]
+            x, y = x_seq_first[real_token_mask], y_seq_first[real_token_mask]
             return x, y
 
+        # Nested so the closure can capture `apply_real_token_mask` (and through
+        # it `real_token_mask`); also lets us pass a clean `(x, y) -> float` to
+        # tree_map without functools.partial.
         def compute_pcc(x: torch.Tensor, y: torch.Tensor):
             if x is None and y is None:
                 return None
@@ -195,16 +198,16 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         device_output: PyTree,
         golden_output: PyTree,
         rel_l2_config: RelL2Config,
-        pcc_mask: torch.Tensor | None = None,
+        real_token_mask: torch.Tensor | None = None,
     ) -> float:
         def apply_real_token_mask(x: torch.Tensor, y: torch.Tensor):
-            if pcc_mask is None:
+            if real_token_mask is None:
                 return x, y
 
             assert (
-                pcc_mask.ndim == 2
-            ), f"Expected pcc_mask to have shape [batch, seq], got {tuple(pcc_mask.shape)}"
-            batch_size, seq_len = pcc_mask.shape
+                real_token_mask.ndim == 2
+            ), f"Expected real_token_mask to have shape [batch, seq], got {tuple(real_token_mask.shape)}"
+            batch_size, seq_len = real_token_mask.shape
 
             if x.dim() < 2 or y.dim() < 2:
                 return x, y
@@ -213,28 +216,31 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
 
             assert (
                 x.shape == y.shape
-            ), f"pcc_mask requires matching shapes, got {x.shape} vs {y.shape}"
+            ), f"real_token_mask requires matching shapes, got {x.shape} vs {y.shape}"
             assert x.dim() in (
                 3,
                 4,
-            ), f"pcc_mask only supports rank-3 (logits) or rank-4 (KV) tensors, got rank {x.dim()} with shape {x.shape}"
+            ), f"real_token_mask only supports rank-3 (logits) or rank-4 (KV) tensors, got rank {x.dim()} with shape {x.shape}"
             assert (
                 x.shape[-2] == seq_len
             ), f"dim -2 should be seq_len ({seq_len}), got {x.shape[-2]} in shape {x.shape}"
 
             x_seq_first = x.movedim(-2, 1)
             y_seq_first = y.movedim(-2, 1)
-            return x_seq_first[pcc_mask], y_seq_first[pcc_mask]
+            return x_seq_first[real_token_mask], y_seq_first[real_token_mask]
 
+        # Nested so the closure can capture `apply_real_token_mask` (and through
+        # it `real_token_mask`); also lets us pass a clean `(x, y) -> float` to
+        # tree_map without functools.partial. Same pattern as `_compare_pcc`.
         def compute_rel_l2(x: torch.Tensor, y: torch.Tensor):
             if x is None and y is None:
                 return None
             x, y = apply_real_token_mask(x, y)
             # _match_data_types already casted to float64; redundant cast kept for safety.
-            x64 = x.to(torch.float64).flatten()
-            y64 = y.to(torch.float64).flatten()
-            diff_norm = torch.linalg.vector_norm(x64 - y64)
-            golden_norm = torch.linalg.vector_norm(y64)
+            device_flat = x.to(torch.float64).flatten()
+            golden_flat = y.to(torch.float64).flatten()
+            diff_norm = torch.linalg.vector_norm(device_flat - golden_flat)
+            golden_norm = torch.linalg.vector_norm(golden_flat)
             if golden_norm.item() == 0.0:
                 # Both exactly zero -> perfect match; otherwise undefined (inf).
                 return 0.0 if diff_norm.item() == 0.0 else float("inf")

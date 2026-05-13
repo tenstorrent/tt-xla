@@ -257,8 +257,12 @@ class DynamicTorchModelTester(TorchModelTester):
             return get_mesh(mesh_shape, mesh_names)
         return None
 
-    def _get_prefill_pcc_mask(self):
-        """Return boolean token mask for LLM prefill PCC filtering."""
+    def _get_prefill_real_token_mask(self):
+        """Return boolean real-token mask for LLM prefill metric filtering.
+
+        Excludes padded positions from PCC, rel_l2, and any other
+        sequence-aware metric that consumes the mask.
+        """
         if self.run_phase != RunPhase.LLM_PREFILL:
             return None
 
@@ -268,11 +272,11 @@ class DynamicTorchModelTester(TorchModelTester):
         return attention_mask.to(dtype=torch.bool)
 
     def _compare(self, device_out, golden_out):
-        """Compare outputs, masking padded prefill tokens for PCC only."""
+        """Compare outputs, masking padded prefill tokens for mask-aware metrics."""
         return self._evaluator.evaluate(
             device_out,
             golden_out,
-            pcc_mask=self._get_prefill_pcc_mask(),
+            real_token_mask=self._get_prefill_real_token_mask(),
         )
 
     def _unpack_forward_output(self, output: Any) -> torch.Tensor:

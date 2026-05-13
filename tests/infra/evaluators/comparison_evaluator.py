@@ -28,7 +28,11 @@ class ComparisonEvaluator(Evaluator):
         self._comparison_config = comparison_config
 
     def evaluate(
-        self, device_out: Tensor, golden_out: Tensor, *, pcc_mask: Tensor | None = None
+        self,
+        device_out: Tensor,
+        golden_out: Tensor,
+        *,
+        real_token_mask: Tensor | None = None,
     ) -> ComparisonResult:
         """
         Compares device output with golden output based on ComparisonConfig provided
@@ -61,7 +65,7 @@ class ComparisonEvaluator(Evaluator):
             device_output,
             golden_output,
             self._comparison_config.pcc,
-            pcc_mask=pcc_mask,
+            real_token_mask=real_token_mask,
         )
         _comparison_result.allclose = self._compare_allclose(
             device_output, golden_output, self._comparison_config.allclose
@@ -70,7 +74,7 @@ class ComparisonEvaluator(Evaluator):
             device_output,
             golden_output,
             self._comparison_config.rel_l2,
-            pcc_mask=pcc_mask,
+            real_token_mask=real_token_mask,
         )
 
         # Check if output is single-element (PCC undefined, force atol check)
@@ -218,11 +222,13 @@ class ComparisonEvaluator(Evaluator):
         device_output: PyTree,
         golden_output: PyTree,
         pcc_config: PccConfig,
-        pcc_mask: Tensor | None = None,
+        real_token_mask: Tensor | None = None,
     ) -> float:
         """
-        Compares PCC metric between device and golden output, with optional
-        masking for padded tokens.
+        Compares PCC metric between device and golden output. If
+        `real_token_mask` is provided (the LLM attention mask, supplied by
+        callers like the dynamic torch tester during LLM prefill), padded
+        positions are excluded before computing PCC.
         Returns the calculated PCC value.
         """
         raise NotImplementedError("Subclasses must implement this method")
@@ -233,13 +239,15 @@ class ComparisonEvaluator(Evaluator):
         device_output: PyTree,
         golden_output: PyTree,
         rel_l2_config: RelL2Config,
-        pcc_mask: Tensor | None = None,
+        real_token_mask: Tensor | None = None,
     ) -> float:
         """
         Computes relative L2 error ||device - golden||_2 / ||golden||_2 over a
         pytree of tensors. Aggregated as max across leaves (larger is worse).
         Computed in float64. Returns the calculated value (>= 0; inf if golden
         norm is zero and tensors differ; 0 if both are exactly equal).
+        If `real_token_mask` is provided, padded positions are excluded before
+        computing the metric (same convention as `_compare_pcc`).
         """
         raise NotImplementedError("Subclasses must implement this method")
 
