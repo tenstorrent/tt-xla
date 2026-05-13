@@ -54,7 +54,7 @@ class RelL2Config(ConfigBase):
     # Computed in float64 to avoid norm underflow.
     # Pytree aggregation is max-across-leaves (larger = worse).
     # Threshold defaults to 1.0 (very loose) so this metric is effectively
-    # observability-only until per-model tuning lands.
+    # observability-only for now.
     required_rel_l2: float = 1.0
 
 

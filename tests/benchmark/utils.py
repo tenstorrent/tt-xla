@@ -219,9 +219,7 @@ def compute_pcc(golden_output: torch.Tensor, device_output: torch.Tensor) -> flo
     return max(-1.0, min(1.0, pcc))
 
 
-def compute_rel_l2(
-    golden_output: torch.Tensor, device_output: torch.Tensor
-) -> float:
+def compute_rel_l2(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
     """Compute relative L2 error between two tensors.
 
     rel_l2 = ||device_output - golden_output||_2 / ||golden_output||_2
