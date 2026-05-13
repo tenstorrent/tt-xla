@@ -7,7 +7,7 @@
 import jax.numpy as jnp
 import pytest
 import torch
-from infra.evaluators import AtolConfig, ComparisonConfig, PccConfig
+from infra.evaluators import AtolConfig, ComparisonConfig, PccConfig, RelL2Config
 
 from tests.infra.evaluators import (
     Evaluator,
@@ -378,3 +378,71 @@ def test_invalid_pcc_triggers_assertion(framework_setup, invalid_value):
     # Should raise AssertionError because PCC will be invalid
     with pytest.raises(AssertionError, match="PCC comparison failed"):
         comparator.evaluate(device_output, golden_output)
+
+
+@pytest.mark.push
+def test_rel_l2_zero_for_identical_tensors(framework_setup):
+    """rel_l2 must be exactly 0 for identical tensors."""
+    create_tensor = framework_setup["create_tensor"]
+    comparator_class = framework_setup["comparator_class"]
+
+    config = ComparisonConfig(
+        pcc=PccConfig(enabled=False),
+        atol=AtolConfig(enabled=False),
+        rel_l2=RelL2Config(enabled=True, required_rel_l2=0.0),
+    )
+    comparator = comparator_class(config)
+
+    x = create_tensor([1.0, 2.0, 3.0, 4.0])
+    y = create_tensor([1.0, 2.0, 3.0, 4.0])
+
+    result = comparator.evaluate(x, y)
+    assert result.passed is True
+    assert result.rel_l2 == 0.0
+
+
+@pytest.mark.push
+def test_rel_l2_small_for_close_tensors(framework_setup):
+    """rel_l2 must be near 0 for almost-matching tensors and pass a 1e-2 threshold."""
+    create_tensor = framework_setup["create_tensor"]
+    comparator_class = framework_setup["comparator_class"]
+
+    config = ComparisonConfig(
+        pcc=PccConfig(enabled=False),
+        atol=AtolConfig(enabled=False),
+        rel_l2=RelL2Config(enabled=True, required_rel_l2=1e-2),
+    )
+    comparator = comparator_class(config)
+
+    x = create_tensor([1.0, 2.0, 3.0, 4.0])
+    y = create_tensor([1.0001, 2.0001, 3.0001, 4.0001])
+
+    result = comparator.evaluate(x, y)
+    assert result.passed is True
+    assert result.rel_l2 is not None
+    assert 0.0 < result.rel_l2 < 1e-2
+
+
+@pytest.mark.push
+def test_rel_l2_fail_for_clearly_different_tensors(framework_setup):
+    """rel_l2 must exceed a strict threshold for clearly different tensors."""
+    create_tensor = framework_setup["create_tensor"]
+    comparator_class = framework_setup["comparator_class"]
+
+    config = ComparisonConfig(
+        pcc=PccConfig(enabled=False),
+        atol=AtolConfig(enabled=False),
+        rel_l2=RelL2Config(enabled=True, required_rel_l2=1e-2),
+        assert_on_failure=False,
+    )
+    comparator = comparator_class(config)
+
+    x = create_tensor([1.0, 2.0, 3.0, 4.0])
+    y = create_tensor([5.0, 1.0, 4.0, 2.0])
+
+    result = comparator.evaluate(x, y)
+    assert result.passed is False
+    assert result.rel_l2 is not None
+    assert result.rel_l2 > 1e-2
+    assert result.error_message is not None
+    assert "RelL2 comparison failed" in result.error_message

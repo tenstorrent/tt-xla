@@ -8,7 +8,13 @@ from typing import Tuple
 
 from infra.utilities import PyTree, Tensor
 
-from .evaluation_config import AllcloseConfig, AtolConfig, ComparisonConfig, PccConfig
+from .evaluation_config import (
+    AllcloseConfig,
+    AtolConfig,
+    ComparisonConfig,
+    PccConfig,
+    RelL2Config,
+)
 from .evaluator import ComparisonResult, Evaluator
 
 
@@ -43,6 +49,7 @@ class ComparisonEvaluator(Evaluator):
             atol=None,
             allclose=None,
             equal=None,
+            rel_l2=None,
             error_message=None,
         )
 
@@ -58,6 +65,12 @@ class ComparisonEvaluator(Evaluator):
         )
         _comparison_result.allclose = self._compare_allclose(
             device_output, golden_output, self._comparison_config.allclose
+        )
+        _comparison_result.rel_l2 = self._compare_rel_l2(
+            device_output,
+            golden_output,
+            self._comparison_config.rel_l2,
+            pcc_mask=pcc_mask,
         )
 
         # Check if output is single-element (PCC undefined, force atol check)
@@ -146,6 +159,29 @@ class ComparisonEvaluator(Evaluator):
                 f"Required: atol={allclose_config.atol}, rtol={allclose_config.rtol}."
             )
 
+        if (
+            self._comparison_config.rel_l2.enabled
+            and comparison_result.rel_l2 is not None
+        ):
+            required_rel_l2 = self._comparison_config.rel_l2.required_rel_l2
+            # rel_l2 is an error metric: larger is worse. Guard nan/inf first.
+            if math.isnan(comparison_result.rel_l2) or math.isinf(
+                comparison_result.rel_l2
+            ):
+                passed = False
+                error_messages.append(
+                    f"RelL2 comparison failed. "
+                    f"Calculated: rel_l2={comparison_result.rel_l2} (invalid value). "
+                    f"Required: rel_l2<={required_rel_l2}."
+                )
+            elif comparison_result.rel_l2 > required_rel_l2:
+                passed = False
+                error_messages.append(
+                    f"RelL2 comparison failed. "
+                    f"Calculated: rel_l2={comparison_result.rel_l2}. "
+                    f"Required: rel_l2<={required_rel_l2}."
+                )
+
         # Combine all error messages if any failures occurred
         combined_error_message = None
         if error_messages:
@@ -188,6 +224,22 @@ class ComparisonEvaluator(Evaluator):
         Compares PCC metric between device and golden output, with optional
         masking for padded tokens.
         Returns the calculated PCC value.
+        """
+        raise NotImplementedError("Subclasses must implement this method")
+
+    @abstractmethod
+    def _compare_rel_l2(
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        rel_l2_config: RelL2Config,
+        pcc_mask: Tensor | None = None,
+    ) -> float:
+        """
+        Computes relative L2 error ||device - golden||_2 / ||golden||_2 over a
+        pytree of tensors. Aggregated as max across leaves (larger is worse).
+        Computed in float64. Returns the calculated value (>= 0; inf if golden
+        norm is zero and tensors differ; 0 if both are exactly equal).
         """
         raise NotImplementedError("Subclasses must implement this method")
 

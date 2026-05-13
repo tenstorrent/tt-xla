@@ -36,6 +36,7 @@ from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
     build_xla_export_name,
     compute_pcc,
+    compute_rel_l2,
     create_benchmark_result,
     get_benchmark_metadata,
     get_xla_device_arch,
@@ -751,32 +752,43 @@ def benchmark_llm_torch_xla(
         )
     elif decode_only:
         decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
+        decode_rel_l2_value = compute_rel_l2(
+            cpu_output_logits[1][0], output_logits[0][0]
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                decode_pcc_value, decode_rel_l2_value
             )
         )
     else:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+        rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
         assert (
             pcc_value >= required_pcc
         ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
-        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
+        print(
+            "Prefill PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                pcc_value, rel_l2_value
+            )
+        )
         # Check PCC for first decode token
         assert (
             len(output_logits) > 1 and len(cpu_output_logits) > 1
         ), "Not enough logits to check PCC"
         decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+        decode_rel_l2_value = compute_rel_l2(
+            cpu_output_logits[1][0], output_logits[1][0]
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                decode_pcc_value, decode_rel_l2_value
             )
         )
 
