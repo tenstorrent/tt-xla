@@ -310,6 +310,271 @@ def _patch_adaln_modulation_bf16() -> None:
     WanTransformerBlock.forward = patched_block_forward
 
 
+def _patch_apply_rotary_emb_stack_form() -> None:
+    """Replace ``apply_rotary_emb`` with a half-rotation form that
+    eliminates the ``aten__index``/embedding/where lowering chain.
+
+    Upstream ``diffusers.WanAttnProcessor`` does:
+
+        out = torch.empty_like(h)
+        out[..., 0::2] = x1 * cos - x2 * sin
+        out[..., 1::2] = x1 * sin + x2 * cos
+
+    The strided writes lower under torch-xla to ``aten__index`` /
+    ``aten__index_put`` which materialize the interleaved write as a
+    ``permute(3,0,1,2) → reshape → embedding(W, idx) → reshape →
+    permute(1,2,3,0)`` chain — each big permute on ``(B,S,H,D)`` costs
+    ~25 ms, ×4 sites/layer (Q×2 + K×2).
+
+    The rewrite reorganizes the input to half-rotation layout
+    ``[evens | odds]`` (via a transpose on the inner-most ``(D/2, 2)``
+    axes — cheap because the swapped dims are size 2 and 64),
+    computes ``h * cos_full + concat([-second, first]) * sin_full``,
+    then reorganizes the output back to interleaved layout for SDPA.
+    All elementwise math runs in 4D — no 5D intermediates — so the
+    ttnn kernels stay on the fast path.
+
+    Empirical impact (MAX_BLOCKS=1, 480p sharded, BH 4-chip), with
+    [[_patch_patchify_ndhwc_aware]] also applied:
+        1255 ms → 1031 ms ≈ -17.9 %, PCC 0.99946.
+
+    IR diff: ``aten__index`` 20→0, ``ttnn.where`` 10→0,
+    ``ttnn.embedding`` 4→0, ``ttnn.permute`` 35→22 (the big
+    ``(3,0,1,2)`` and ``(1,2,3,0)`` permutes are gone).
+
+    NOTE: a simpler ``torch.stack((r1, r2), dim=-1).flatten(-2)`` form
+    was tried first and regressed by ~580 ms — it eliminated
+    ``aten__index`` but the resulting 5D slice/multiply/concat ran
+    slower than the embedding lookup. The half-rotation form keeps
+    all ops in 4D.
+
+    The tt-mlir ``RoPEFusingPattern`` does NOT match this rewrite
+    today (the input/output reorganization breaks the matcher), so
+    no ``ttnn.rotary_embedding`` fused op is emitted. The win comes
+    purely from eliminating the embedding chain. A future tt-mlir
+    pattern that recognizes the half-rotation form with
+    ``transpose(-1,-2)``-based reorganization could fuse the whole
+    thing into ``ttnn.rotary_embedding`` for additional savings.
+
+    Since ``apply_rotary_emb`` is a closure inside
+    ``WanAttnProcessor.__call__``, this patch replaces the whole
+    ``__call__`` method with a copy that uses the new form.
+    """
+    import torch
+    from diffusers.models.transformers.transformer_wan import (
+        WanAttnProcessor,
+        _get_qkv_projections,
+        _get_added_kv_projections,
+    )
+    from diffusers.models.attention_dispatch import dispatch_attention_fn
+
+    def apply_rotary_emb(hidden_states, freqs_cos, freqs_sin):
+        # Half-rotation form: reorganize h into [evens | odds] halves so the
+        # half-rotation `[-second, first]` shape matches tt-mlir's existing
+        # RoPEFusingPattern. Reorganization permutes only the innermost 2
+        # axes (size 2 and D/2=64), so it's cheap. The output is reorganized
+        # back to interleaved layout for downstream SDPA.
+        B, S, H, D = hidden_states.shape
+        h_p = hidden_states.unflatten(-1, (D // 2, 2))
+        h_p = h_p.transpose(-1, -2).reshape(B, S, H, D)
+        cos = freqs_cos[..., 0::2]
+        sin = freqs_sin[..., 1::2]
+        cos_full = torch.cat([cos, cos], dim=-1)
+        sin_full = torch.cat([sin, sin], dim=-1)
+        first, second = h_p[..., : D // 2], h_p[..., D // 2:]
+        rotated = torch.cat([-second, first], dim=-1)
+        out = h_p * cos_full + rotated * sin_full
+        out = out.reshape(B, S, H, 2, D // 2).transpose(-1, -2).reshape(B, S, H, D)
+        return out.type_as(hidden_states)
+
+    def patched_processor_call(
+        self,
+        attn,
+        hidden_states,
+        encoder_hidden_states=None,
+        attention_mask=None,
+        rotary_emb=None,
+    ):
+        encoder_hidden_states_img = None
+        if attn.add_k_proj is not None:
+            image_context_length = encoder_hidden_states.shape[1] - 512
+            encoder_hidden_states_img = encoder_hidden_states[:, :image_context_length]
+            encoder_hidden_states = encoder_hidden_states[:, image_context_length:]
+
+        query, key, value = _get_qkv_projections(attn, hidden_states, encoder_hidden_states)
+
+        query = attn.norm_q(query)
+        key = attn.norm_k(key)
+
+        query = query.unflatten(2, (attn.heads, -1))
+        key = key.unflatten(2, (attn.heads, -1))
+        value = value.unflatten(2, (attn.heads, -1))
+
+        if rotary_emb is not None:
+            query = apply_rotary_emb(query, *rotary_emb)
+            key = apply_rotary_emb(key, *rotary_emb)
+
+        hidden_states_img = None
+        if encoder_hidden_states_img is not None:
+            key_img, value_img = _get_added_kv_projections(attn, encoder_hidden_states_img)
+            key_img = attn.norm_added_k(key_img)
+            key_img = key_img.unflatten(2, (attn.heads, -1))
+            value_img = value_img.unflatten(2, (attn.heads, -1))
+            hidden_states_img = dispatch_attention_fn(
+                query,
+                key_img,
+                value_img,
+                attn_mask=None,
+                dropout_p=0.0,
+                is_causal=False,
+                backend=self._attention_backend,
+                parallel_config=None,
+            )
+            hidden_states_img = hidden_states_img.flatten(2, 3)
+            hidden_states_img = hidden_states_img.type_as(query)
+
+        hidden_states = dispatch_attention_fn(
+            query,
+            key,
+            value,
+            attn_mask=attention_mask,
+            dropout_p=0.0,
+            is_causal=False,
+            backend=self._attention_backend,
+            parallel_config=(self._parallel_config if encoder_hidden_states is None else None),
+        )
+        hidden_states = hidden_states.flatten(2, 3)
+        hidden_states = hidden_states.type_as(query)
+
+        if hidden_states_img is not None:
+            hidden_states = hidden_states + hidden_states_img
+
+        hidden_states = attn.to_out[0](hidden_states)
+        hidden_states = attn.to_out[1](hidden_states)
+        return hidden_states
+
+    WanAttnProcessor.__call__ = patched_processor_call
+
+
+def _patch_patchify_ndhwc_aware() -> None:
+    """Replace ``flatten(2).transpose(1,2)`` after ``patch_embedding`` with
+    ``permute(0,2,3,4,1).flatten(1,3)``.
+
+    Upstream ``WanTransformer3DModel.forward`` does:
+
+        hidden_states = self.patch_embedding(hidden_states)         # (B, C, D, H, W)
+        hidden_states = hidden_states.flatten(2).transpose(1, 2)    # (B, D*H*W, C)
+
+    TTNN's ``conv3d`` natively returns NDHWC ``(B, D, H, W, C)``, so the
+    compiler inserts a ``permute(0,4,1,2,3)`` to restore NCDHW for the
+    user code — which then immediately does ``flatten(2).transpose(1,2)``
+    to re-arrive at ``(B, D*H*W, C)``. The intermediate NCDHW
+    materialization costs ~14 ms permute + 15 ms reshape + 4 ms tilize +
+    4 ms transpose ≈ 33 ms total.
+
+    Rewriting the user code to ``permute(0,2,3,4,1).flatten(1,3)``
+    algebraically inverts the compiler's NCDHW-restore permute. ``EraseInverseOps``
+    can then cancel the two permutes, leaving a single contiguous
+    ``reshape`` from NDHWC to ``(B, D*H*W, C)``.
+    """
+    import torch
+    from diffusers.models.modeling_outputs import Transformer2DModelOutput
+    from diffusers.models.transformers.transformer_wan import WanTransformer3DModel
+
+    def patched_model_forward(
+        self,
+        hidden_states,
+        timestep,
+        encoder_hidden_states,
+        encoder_hidden_states_image=None,
+        return_dict=True,
+        attention_kwargs=None,
+    ):
+        batch_size, num_channels, num_frames, height, width = hidden_states.shape
+        p_t, p_h, p_w = self.config.patch_size
+        post_patch_num_frames = num_frames // p_t
+        post_patch_height = height // p_h
+        post_patch_width = width // p_w
+
+        rotary_emb = self.rope(hidden_states)
+
+        hidden_states = self.patch_embedding(hidden_states)
+        # NDHWC-aware path: permute the (B, C, D, H, W) conv3d output so the
+        # torch-level permute (0,2,3,4,1) algebraically cancels with the
+        # compiler-inserted NCDHW-restore permute (0,4,1,2,3) — the underlying
+        # TTNN conv3d already produced NDHWC, so the net effect is one
+        # contiguous reshape from (B, D, H, W, C) to (B, D*H*W, C).
+        C = hidden_states.shape[1]
+        hidden_states = hidden_states.permute(0, 2, 3, 4, 1).flatten(1, 3)
+
+        if timestep.ndim == 2:
+            ts_seq_len = timestep.shape[1]
+            timestep = timestep.flatten()
+        else:
+            ts_seq_len = None
+
+        temb, timestep_proj, encoder_hidden_states, encoder_hidden_states_image = self.condition_embedder(
+            timestep, encoder_hidden_states, encoder_hidden_states_image, timestep_seq_len=ts_seq_len
+        )
+        if ts_seq_len is not None:
+            timestep_proj = timestep_proj.unflatten(2, (6, -1))
+        else:
+            timestep_proj = timestep_proj.unflatten(1, (6, -1))
+
+        if encoder_hidden_states_image is not None:
+            encoder_hidden_states = torch.concat([encoder_hidden_states_image, encoder_hidden_states], dim=1)
+
+        for block in self.blocks:
+            hidden_states = block(hidden_states, encoder_hidden_states, timestep_proj, rotary_emb)
+
+        if temb.ndim == 3:
+            shift, scale = (self.scale_shift_table.unsqueeze(0).to(temb.device) + temb.unsqueeze(2)).chunk(2, dim=2)
+            shift = shift.squeeze(2)
+            scale = scale.squeeze(2)
+        else:
+            shift, scale = (self.scale_shift_table.to(temb.device) + temb.unsqueeze(1)).chunk(2, dim=1)
+
+        shift = shift.to(hidden_states.device)
+        scale = scale.to(hidden_states.device)
+
+        hidden_states = (self.norm_out(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)
+        hidden_states = self.proj_out(hidden_states)
+
+        hidden_states = hidden_states.reshape(
+            batch_size, post_patch_num_frames, post_patch_height, post_patch_width, p_t, p_h, p_w, -1
+        )
+        hidden_states = hidden_states.permute(0, 7, 1, 4, 2, 5, 3, 6)
+        output = hidden_states.flatten(6, 7).flatten(4, 5).flatten(2, 3)
+
+        if not return_dict:
+            return (output,)
+        return Transformer2DModelOutput(sample=output)
+
+    WanTransformer3DModel.forward = patched_model_forward
+
+
+def _patch_fuse_qkv_projections(dit) -> None:
+    """Fuse Q/K/V projections inside each ``WanAttention``.
+
+    diffusers' ``WanAttention`` supports ``fuse_projections()`` —
+    it replaces ``to_q/to_k/to_v`` with a single ``to_qkv`` (and
+    ``to_kv`` for cross-attn), packing the three weight matrices
+    along the output dim. This collapses 3 sharded matmuls into 1
+    wider matmul per attn block, reducing matmul launch overhead
+    and enabling the tt-mlir
+    ``SplitQueryKeyValueAndSplitHeadsFusing`` pattern to match
+    the slice-and-reshape chain at the QKV split.
+
+    Must be called on the model instance (after ``load_dit``) because
+    ``fuse_projections`` mutates layer instances.
+    """
+    from diffusers.models.transformers.transformer_wan import WanAttention
+
+    for module in dit.modules():
+        if isinstance(module, WanAttention) and hasattr(module, "fuse_projections"):
+            module.fuse_projections()
+
+
 def _patch_apply_lora_scale() -> None:
     """Make `@apply_lora_scale` a pass-through.
 
