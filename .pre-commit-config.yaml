@@ -10,11 +10,14 @@ repos:
       - id: clang-format
         types_or: [c++, c]
         args: [-style=file, -i]
-  - repo: https://github.com/espressif/check-copyright/
-    rev: v1.1.1
+  - repo: local
     hooks:
-      - id: check-copyright
-        args: ['--config', '.github/check-spdx.yaml']
+      - id: check-spdx
+        name: Validate SPDX license identifiers
+        entry: python .github/scripts/check_spdx.py --config .github/check-spdx.yaml
+        language: python
+        additional_dependencies: ['license-expression>=30.3.0', 'pyyaml>=6.0']
+        types_or: [python, c, c++]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
