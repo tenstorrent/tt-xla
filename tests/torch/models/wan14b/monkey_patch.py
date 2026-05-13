@@ -227,6 +227,89 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
     WanAttnProcessor.__call__ = patched_processor_call
 
 
+def _patch_adaln_modulation_bf16() -> None:
+    """Run the AdaLN ``scale-shift-gate`` modulation in bf16 instead of fp32.
+
+    The Wan transformer block does:
+
+        norm_hidden_states = (self.norm1(hidden_states.float())
+                              * (1 + scale_msa) + shift_msa
+                             ).type_as(hidden_states)
+
+    The layernorm itself runs in fp32 for numerical stability — but the
+    broadcast multiply by ``1 + scale_msa`` and add of ``shift_msa`` also
+    run in fp32. On a ``(1, 32760, 5120)`` activation that's ``670 MB``
+    moved per op at fp32 vs ``335 MB`` at bf16. The final
+    ``.type_as(hidden_states)`` then immediately throws the precision
+    away.
+
+    The fix moves the ``.type_as`` cast to right after the layernorm so
+    the broadcast modulation runs on bf16. The tiny scale/shift/gate
+    chunks themselves are also cast down once at the top of the block.
+
+    In the IR these are the fp32 binary ops the patch eliminates:
+
+        %164 = ttnn.multiply ... (1x32760x5120xf32, 1x1x5120xf32) -> 1x32760x5120xf32
+        %165 = ttnn.add      ... (1x32760x5120xf32, 1x32760x5120xf32) -> 1x32760x5120xf32
+
+    Empirical impact (MAX_BLOCKS=1, 480p sharded, BH 4-chip):
+    1445 ms → 1345 ms ≈ -6.9 %, PCC 0.99947 (slightly *better* than
+    baseline 0.99943 — different fp ordering, not real precision loss).
+    """
+    import torch
+    from diffusers.models.transformers.transformer_wan import WanTransformerBlock
+
+    def patched_block_forward(
+        self,
+        hidden_states,
+        encoder_hidden_states,
+        temb,
+        rotary_emb,
+    ):
+        if temb.ndim == 4:
+            # batch, seq, 6, inner_dim (wan2.2 ti2v path; A14B doesn't take this branch)
+            shift_msa, scale_msa, gate_msa, c_shift_msa, c_scale_msa, c_gate_msa = (
+                self.scale_shift_table.unsqueeze(0) + temb.float()
+            ).chunk(6, dim=2)
+            shift_msa = shift_msa.squeeze(2).type_as(hidden_states)
+            scale_msa = scale_msa.squeeze(2).type_as(hidden_states)
+            gate_msa = gate_msa.squeeze(2).type_as(hidden_states)
+            c_shift_msa = c_shift_msa.squeeze(2).type_as(hidden_states)
+            c_scale_msa = c_scale_msa.squeeze(2).type_as(hidden_states)
+            c_gate_msa = c_gate_msa.squeeze(2).type_as(hidden_states)
+        else:
+            # batch, 6, inner_dim (A14B path)
+            shift_msa, scale_msa, gate_msa, c_shift_msa, c_scale_msa, c_gate_msa = (
+                self.scale_shift_table + temb.float()
+            ).chunk(6, dim=1)
+            shift_msa = shift_msa.type_as(hidden_states)
+            scale_msa = scale_msa.type_as(hidden_states)
+            gate_msa = gate_msa.type_as(hidden_states)
+            c_shift_msa = c_shift_msa.type_as(hidden_states)
+            c_scale_msa = c_scale_msa.type_as(hidden_states)
+            c_gate_msa = c_gate_msa.type_as(hidden_states)
+
+        # 1. Self-attention — modulation now runs in bf16.
+        normed = self.norm1(hidden_states.float()).type_as(hidden_states)
+        norm_hidden_states = normed * (1 + scale_msa) + shift_msa
+        attn_output = self.attn1(norm_hidden_states, None, None, rotary_emb)
+        hidden_states = hidden_states + attn_output * gate_msa
+
+        # 2. Cross-attention.
+        norm_hidden_states = self.norm2(hidden_states.float()).type_as(hidden_states)
+        attn_output = self.attn2(norm_hidden_states, encoder_hidden_states, None, None)
+        hidden_states = hidden_states + attn_output
+
+        # 3. Feed-forward — modulation in bf16.
+        normed = self.norm3(hidden_states.float()).type_as(hidden_states)
+        norm_hidden_states = normed * (1 + c_scale_msa) + c_shift_msa
+        ff_output = self.ffn(norm_hidden_states)
+        hidden_states = hidden_states + ff_output * c_gate_msa
+        return hidden_states
+
+    WanTransformerBlock.forward = patched_block_forward
+
+
 def _patch_apply_lora_scale() -> None:
     """Make `@apply_lora_scale` a pass-through.
 

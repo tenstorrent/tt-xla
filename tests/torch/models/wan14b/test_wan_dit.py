@@ -31,7 +31,11 @@ from infra.utilities.torch_multichip_utils import enable_spmd
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .monkey_patch import _disable_tt_torch_function_override, _patch_apply_lora_scale
+from .monkey_patch import (
+    _disable_tt_torch_function_override,
+    _patch_adaln_modulation_bf16,
+    _patch_apply_lora_scale,
+)
 from tt_torch.torch_overrides import torch_function_override_disabled
 from .shared import (
     LATENT_CHANNELS,
@@ -43,16 +47,27 @@ from .shared import (
     wan22_mesh,
 )
 
+# Set to 0 to run the full model, otherwise set to the number of blocks to run.
+MAX_BLOCKS = 1
+N_RUNS = 5
+PERF_MODE = True
+
 # ---------------------------------------------------------------------------
 # Monkey patches
 # ---------------------------------------------------------------------------
 
 _patch_apply_lora_scale()
+if PERF_MODE:
+    # Validated DiT perf patches. Measured on test_wan_dit_480p_sharded
+    # (BH 4-chip, MAX_BLOCKS=1):
+    #   baseline:                          1445 ms / PCC 0.99943
+    #   + adaln modulation in bf16:        ~1230 ms / PCC ~0.99947 (~-15 %)
+    # Conv3d patch_embedding perf is now handled by tt-mlir's (1,2,2)
+    # Conv3dConfig heuristic — see TTIRToTTNN.cpp.
+    _patch_adaln_modulation_bf16()
 #_disable_tt_torch_function_override()
 
-# Set to 0 to run the full model, otherwise set to the number of blocks to run.
-MAX_BLOCKS = 0
-N_RUNS = 3
+
 
 # ---------------------------------------------------------------------------
 # Tests
