@@ -1595,9 +1595,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   efficientdet/pytorch-D0-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    reason: "TorchDynamo NameError: cannot access free variable 'named_children' (efficientdet/pytorch/src/efficientdet.py:506 in BiFPN.forward)"
   falcon/pytorch-3_3B_Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1645,9 +1645,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0)] grow to 55407104 B beyond max L1 size 1572864 B (assert.hpp:104)"
   minicpm_o_2_6/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1661,9 +1661,9 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class Qwen2VLCausalLMOutputWithPast exists in `unpack_forward_output`"
+    reason: "TorchDynamo NameError: cannot access free variable 'named_children' (transformers qwen2_vl get_image_features modeling_utils.dtype generator)"
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1742,8 +1742,8 @@ test_config:
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   rt_detr/pytorch-R34vd-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class RTDetrObjectDetectionOutput exists in `unpack_forward_output`"
+    bringup_status: FAILED_RUNTIME
+    reason: "Subprocess CRASHED with signal 6 (SIGABRT) during torch_xla.sync in rt_detr forward; no TT_THROW captured in stdout"
   rt_detr/pytorch-R50vd-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1753,9 +1753,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: Could not import module 'SeamlessM4TModel'. RuntimeError: function '_has_torch_function' already has a docstring"
   siglip/image_text_similarity/pytorch-So400m_Patch14_224-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "mesh_buffer_->size() >= spec_.compute_packed_buffer_size_bytes()"
   siglip/image_text_similarity/pytorch-So400m_Patch16_256_I18n-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1789,8 +1789,8 @@ test_config:
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yoloworld/pytorch-Large_640-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    bringup_status: FAILED_RUNTIME
+    reason: "Subprocess CRASHED with signal 6 (SIGABRT) during torch_xla.sync in yoloworld forward; no TT_THROW captured in stdout"
   yoloworld/pytorch-Xlarge_640-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION

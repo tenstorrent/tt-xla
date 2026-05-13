@@ -169,6 +169,7 @@ timeout 300 pytest --force-run --runxfail \
 ```
 
 Read both XML files with the Read tool. Use the `.log` companion only if the XML is missing detail (e.g. only a generic "Error code 13" with no `error_message`).
+Never write Error code 13 to the yaml.
 
 ### Step 7 — Classify the training outcome from junit XML
 
