@@ -164,6 +164,7 @@ def upsample_nearest_vec(
     )
     return upsample_nearest(input, osize, scales)
 
+
 def upsample_nearest_default(
     input: torch.Tensor,
     output_size: list[int],
@@ -179,6 +180,7 @@ def upsample_nearest_default(
         scale_factors if scale_factors else [None] * len(osize)  # type: ignore[list-item]
     )
     return upsample_nearest(input, osize, scales)
+
 
 # TODO: Remove this decomposition when we can lower a stablehlo.reduce_window which is equivalent to a sum-pool
 # to ttir
