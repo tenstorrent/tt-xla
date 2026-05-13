@@ -49,11 +49,22 @@ class PccConfig(ConfigBase):
 
 
 @dataclass
+class RelL2Config(ConfigBase):
+    # Relative L2 error: ||device - golden||_2 / ||golden||_2.
+    # Computed in float64 to avoid norm underflow.
+    # Pytree aggregation is max-across-leaves (larger = worse).
+    # Threshold defaults to 1.0 (very loose) so this metric is effectively
+    # observability-only until per-model tuning lands.
+    required_rel_l2: float = 1.0
+
+
+@dataclass
 class ComparisonConfig:
     equal: EqualConfig = field(default_factory=lambda: EqualConfig(False))
     atol: AtolConfig = field(default_factory=lambda: AtolConfig(False))
     pcc: PccConfig = field(default_factory=PccConfig)
     allclose: AllcloseConfig = field(default_factory=lambda: AllcloseConfig(False))
+    rel_l2: RelL2Config = field(default_factory=lambda: RelL2Config(False))
     assert_on_failure: bool = True  # Default to True for backwards compatibility
 
     def __post_init__(self):
@@ -67,12 +78,14 @@ class ComparisonConfig:
         self.atol.enable()
         self.allclose.enable()
         self.pcc.enable()
+        self.rel_l2.enable()
 
     def disable_all(self) -> None:
         self.equal.disable()
         self.atol.disable()
         self.allclose.disable()
         self.pcc.disable()
+        self.rel_l2.disable()
 
     def all_disabled(self) -> bool:
         return not any(
@@ -81,6 +94,7 @@ class ComparisonConfig:
                 self.atol.enabled,
                 self.allclose.enabled,
                 self.pcc.enabled,
+                self.rel_l2.enabled,
             ]
         )
 

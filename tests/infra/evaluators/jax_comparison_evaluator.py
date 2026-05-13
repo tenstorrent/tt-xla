@@ -11,7 +11,7 @@ from infra.utilities import Framework, PyTree
 from jax.tree import map as tree_map
 
 from .comparison_evaluator import ComparisonEvaluator
-from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
+from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig, RelL2Config
 
 
 class JaxComparisonEvaluator(ComparisonEvaluator):
@@ -114,3 +114,33 @@ class JaxComparisonEvaluator(ComparisonEvaluator):
         )
         passed = jax.tree.reduce(lambda x, y: x and y, all_close)
         return bool(passed)
+
+    # @override
+    @run_on_cpu(Framework.JAX)
+    def _compare_rel_l2(
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        rel_l2_config: RelL2Config,
+        pcc_mask: PyTree | None = None,
+    ) -> float:
+        # TODO: Once https://github.com/tenstorrent/tt-xla/issues/3641 is fixed, add support for pcc_mask, as done in TorchComparisonEvaluator.
+        if pcc_mask is not None:
+            warnings.warn(
+                "pcc_mask was provided to JaxComparisonEvaluator but will be ignored.",
+            )
+
+        def compute_rel_l2(x: jax.Array, y: jax.Array):
+            x64 = x.astype("float64").flatten()
+            y64 = y.astype("float64").flatten()
+            diff_norm = jnp.linalg.norm(x64 - y64)
+            golden_norm = jnp.linalg.norm(y64)
+            if float(golden_norm) == 0.0:
+                return 0.0 if float(diff_norm) == 0.0 else float("inf")
+            return float(diff_norm / golden_norm)
+
+        leaf_rel_l2s = jax.tree.map(compute_rel_l2, device_output, golden_output)
+        flat_rel_l2s, _ = jax.tree_util.tree_flatten(leaf_rel_l2s)
+        if not flat_rel_l2s:
+            return 0.0
+        return float(max(flat_rel_l2s))

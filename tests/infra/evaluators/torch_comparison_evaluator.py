@@ -9,7 +9,7 @@ from torch.utils._pytree import tree_flatten, tree_map
 from transformers import Cache, DynamicCache, EncoderDecoderCache
 
 from .comparison_evaluator import ComparisonEvaluator
-from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig
+from .evaluation_config import AllcloseConfig, AtolConfig, PccConfig, RelL2Config
 
 
 class TorchComparisonEvaluator(ComparisonEvaluator):
@@ -190,3 +190,62 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
         all_close = tree_map(_allclose_leaf, device_output, golden_output)
         flat_close, _ = tree_flatten(all_close)
         return all(flat_close)
+
+    # @override
+    @run_on_cpu(Framework.TORCH)
+    def _compare_rel_l2(
+        self,
+        device_output: PyTree,
+        golden_output: PyTree,
+        rel_l2_config: RelL2Config,
+        pcc_mask: torch.Tensor | None = None,
+    ) -> float:
+        def apply_real_token_mask(x: torch.Tensor, y: torch.Tensor):
+            if pcc_mask is None:
+                return x, y
+
+            assert (
+                pcc_mask.ndim == 2
+            ), f"Expected pcc_mask to have shape [batch, seq], got {tuple(pcc_mask.shape)}"
+            batch_size, seq_len = pcc_mask.shape
+
+            if x.dim() < 2 or y.dim() < 2:
+                return x, y
+            if x.shape[0] != batch_size or y.shape[0] != batch_size:
+                return x, y
+
+            assert (
+                x.shape == y.shape
+            ), f"pcc_mask requires matching shapes, got {x.shape} vs {y.shape}"
+            assert x.dim() in (
+                3,
+                4,
+            ), f"pcc_mask only supports rank-3 (logits) or rank-4 (KV) tensors, got rank {x.dim()} with shape {x.shape}"
+            assert (
+                x.shape[-2] == seq_len
+            ), f"dim -2 should be seq_len ({seq_len}), got {x.shape[-2]} in shape {x.shape}"
+
+            x_seq_first = x.movedim(-2, 1)
+            y_seq_first = y.movedim(-2, 1)
+            return x_seq_first[pcc_mask], y_seq_first[pcc_mask]
+
+        def compute_rel_l2(x: torch.Tensor, y: torch.Tensor):
+            if x is None and y is None:
+                return None
+            x, y = apply_real_token_mask(x, y)
+            # _match_data_types already casted to float64; redundant cast kept for safety.
+            x64 = x.to(torch.float64).flatten()
+            y64 = y.to(torch.float64).flatten()
+            diff_norm = torch.linalg.vector_norm(x64 - y64)
+            golden_norm = torch.linalg.vector_norm(y64)
+            if golden_norm.item() == 0.0:
+                # Both exactly zero -> perfect match; otherwise undefined (inf).
+                return 0.0 if diff_norm.item() == 0.0 else float("inf")
+            return float(diff_norm / golden_norm)
+
+        leaf_rel_l2s = tree_map(compute_rel_l2, device_output, golden_output)
+        flat_rel_l2s, _ = tree_flatten(leaf_rel_l2s)
+        filtered = [v for v in flat_rel_l2s if v is not None]
+        if not filtered:
+            return 0.0
+        return float(max(filtered))
