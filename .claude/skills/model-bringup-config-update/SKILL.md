@@ -9,11 +9,38 @@ allowed-tools: Read Write Edit Bash Grep
 You are the **config update** stage of the model bringup pipeline.
 
 ## Invocation
-`/model-bringup-config-update <model_key> --result <PASSED|TIMEOUT|ESCALATED> [--arch <arch>]`
+`/model-bringup-config-update <model_key> --result <PASSED|TIMEOUT|ESCALATED> [--arch <arch>] [--apply]`
 
 ## Responsibility
-Update the test YAML configuration and the test file's `bringup_status` marker
-to reflect the final bringup outcome.
+Update the test YAML configuration and the test file's `bringup_status`
+marker to reflect the final bringup outcome.
+
+## Default mode: dry-run
+
+Unless `--apply` is passed, this skill **does not mutate any file**. It
+writes a proposed-change report to
+`.claude/bringup/<safe_key>/config_update_proposed.md` with:
+- A unified-diff snippet for the YAML entry.
+- A unified-diff snippet for the test-fixture `bringup_status` line.
+- The reason the change is being proposed (PASSED / TIMEOUT / ESCALATED).
+- The provenance block (tt-xla SHA, tt-foundry SHA, timestamp, source skill).
+
+The orchestrator should re-invoke with `--apply` once the user (or a
+non-interactive policy) approves. This matches the opt-in mutate convention
+that `model_issue_pick` already uses, so the pipeline never silently writes
+to the YAML.
+
+## Provenance block (write into both the proposed-change report and the
+final escalation_report when in ESCALATED state)
+
+```
+Provenance:
+  tt-xla SHA       : <short sha>
+  tt-foundry SHA   : <short sha or 'not a submodule'>
+  Generated        : <YYYY-MM-DD HH:MM>
+  Source skill     : model-bringup-config-update
+  Result classified from : json_report | stdout_fallback
+```
 
 ## Steps
 
@@ -26,7 +53,14 @@ Check for:
 Find `bringup_status=BringupStatus.<value>` inside the pytest fixture for the model variant
 in `third_party/tt_forge_models/<family>/pytorch/tests/test_*.py`.
 
-### 3. Apply the update
+### 3. Apply the update (only if `--apply` was passed)
+
+If `--apply` was NOT passed: write the proposed-change diff to
+`config_update_proposed.md` per the **Default mode: dry-run** section above
+and stop. The orchestrator records the dry-run path in state.json under
+`history[].details.proposed_path` and exits this stage.
+
+If `--apply` WAS passed: continue with the per-result branches below.
 
 **If result == PASSED:**
 - Set `bringup_status=BringupStatus.EXPECTED_PASSING` in the test fixture.

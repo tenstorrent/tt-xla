@@ -47,6 +47,32 @@ Try strategies in order, stopping when one resolves the OOM:
 2. Check if `output.sample`, `output[0]`, or a dict key is the correct extraction path.
 3. Patch the wrapper to match the actual output structure.
 
+### `graph_break_analysis` (delegates to graph-break-analysis)
+
+Use when diagnosis sets `escalation_skill: "graph-break-analysis"` — i.e.
+the failure is a Dynamo / torch.compile graph break and the cheap
+`monkey_patch` strategy is unlikely to succeed (e.g. multiple breaks, an
+unknown break source, or `monkey_patch` already tried and failed in a
+prior iteration).
+
+This strategy **delegates** to the `graph-break-analysis` skill, mirroring
+the `runtime_debug` → `runtime-failure-debugger` pattern:
+
+1. Pass the failing pytest log path and `model_key` to the skill.
+2. The skill identifies the break source (dynamic shape, unsupported op,
+   control flow, mutation), proposes one of: targeted op replacement,
+   `torch.compiler.disable(...)` region, or a `torch._dynamo.config` flag.
+3. Repair records the skill's recommendation in
+   `details.graph_break_recommendation` and sets
+   `requires_human_review: true` — the actual patch goes through a human
+   review before VERIFY.
+
+The Code Review Gate **does apply** here because the recommendation
+usually edits model code. If the gate blocks, surface the finding.
+
+State fields specific to this strategy: `graph_break_recommendation`,
+`break_source`, and (optional) `proposed_patch_path`.
+
 ### `runtime_debug` (delegates to runtime-failure-debugger)
 Use when diagnosis sets `escalation_skill: "runtime-failure-debugger"` — i.e.
 the failure is a runtime fault (OOM / L1 overflow / PCC drop / NaN PCC /
@@ -71,12 +97,35 @@ expects, so it does not have to ask the user for them:
 | `model_name` | `model_key.split("/")[0]` (e.g. `qwen_2_5_vl/pytorch-3B_Instruct-single_device-inference` → `qwen_2_5_vl`). This is what the debugger uses for `claude_logs_<model_name>/` and `tests/torch/ops/<model_name>/`. |
 | `failing_log_path` | `<log_path>` from the diagnosis (passed so the debugger can extract failure type and op from it instead of running an extra pass). |
 
-Items the debugger needs that **cannot** be auto-derived:
-- `tt_metal_machine`, `tt_metal_repo`, `tt_metal_branch` (Phase 5).
+Items the debugger needs for Phase 5: `tt_metal_machine`, `tt_metal_repo`,
+`tt_metal_branch`.
 
-If those three are absent, do **not** pre-fill — the debugger will pause on
-its own Phase 0 and ask. The orchestrator should treat that pause as a
-human-input gate (see `runtime_debug` notes in `model-bringup`).
+**Resolution order:**
+
+1. **`.claude/bringup.config.json`** in the tt-xla repo root, if it exists.
+   Schema (all fields optional):
+   ```json
+   {
+     "tt_metal_machine": "<hostname>",
+     "tt_metal_repo":    "<absolute path>",
+     "tt_metal_branch":  "<branch>",
+     "default_failure_type": "OOM | PCC drop | NaN PCC | L1 | other"
+   }
+   ```
+   Read this file and pass any present fields through to the debugger.
+
+2. **CLI override** — if the orchestrator was invoked with
+   `--tt-metal-machine ...` / `--tt-metal-repo ...` / `--tt-metal-branch ...`,
+   prefer those over the config file.
+
+3. **Fall through** — if a field is missing after steps 1 and 2, do **not**
+   pre-fill. The debugger will resolve it via its own Phase 0 fallback
+   (which will then pause and ask the user). The orchestrator should treat
+   that pause as a human-input gate (see `runtime_debug` notes in
+   `model-bringup`).
+
+Record the source of each Phase 5 field (`config | cli | asked`) in
+`details.phase5_inputs[]` so the escalation report is auditable.
 
 #### Step 2 — Invoke the skill
 
@@ -148,6 +197,54 @@ If the review raises a blocking issue, set `blocked: true` with the review findi
 The gate is **skipped** for `runtime_debug` because that strategy modifies no
 source files — it only delegates to the runtime-failure-debugger skill and
 records the analysis artefact path.
+
+## Sanity-set regression check (post-patch, pre-VERIFY)
+
+After a patch is applied to model or wrapper code — i.e. for `monkey_patch`,
+`fix_output_handling`, and any `graph_break_analysis` recommendation that
+ends up editing source — run a small **sanity regression set** before the
+orchestrator transitions to VERIFY. The purpose is to catch patches that
+fix the target model but break unrelated coverage.
+
+**Skipped** for `lower_pcc_threshold` (config-only), `adjust_oom_config`
+(config-only), `runtime_debug` (no source edits), and `escalate` (no
+patch). For these, set `details.regression_check: "skipped_no_source_change"`.
+
+**Sanity set** (3 fast EXPECTED_PASSING tests, chosen for diversity):
+- `resnet/pytorch-ResNet50_HuggingFace-single_device-inference`
+- `bert/pytorch-Base_Uncased-single_device-inference`
+- `clip/pytorch-Base_Patch16-single_device-inference`
+
+If any of these is itself `KNOWN_FAILURE_XFAIL` or absent from the YAML at
+the time of the check, drop it from the set and substitute the next
+EXPECTED_PASSING test in YAML order. Record the actual set used.
+
+**Run** with the same flags + JSON report as model-bringup-run, using a
+600 s budget per test, sequential:
+
+```bash
+for nid in <sanity node ids>; do
+  TT_XLA_ARCH=<arch> timeout 600 python -m pytest "$nid" \
+    -svv --tb=long -p no:cacheprovider \
+    --json-report --json-report-file=.claude/bringup/<safe_key>/logs/iter_<N>_regression_<i>.json \
+    2>&1 | tee .claude/bringup/<safe_key>/logs/iter_<N>_regression_<i>.log
+done
+```
+
+**Outcome mapping:**
+
+| Sanity result | Action |
+|---|---|
+| All 3 pass | `details.regression_check: "passed"`. Continue to VERIFY. |
+| One sanity test fails AND was passing on the pre-patch baseline | `result: blocked`, `block_reason: "patch regressed <sanity_test_name>"`. Do NOT transition to VERIFY. Surface the regression log path in the orchestrator output. |
+| One sanity test fails AND we have no pre-patch baseline (first repair iteration) | `details.regression_check: "ambiguous_no_baseline"`. Warn in the report, but **proceed** to VERIFY — the failure may predate the patch. |
+| One sanity test times out (exit 124) | Treat as `ambiguous` (timeouts are not evidence). |
+
+To establish the baseline used by the "was passing on the pre-patch
+baseline" check, the orchestrator should run the sanity set **once** at
+iteration 0 (between VALIDATE and FIRST_RUN) and cache the baseline in
+`state.regression_baseline`. Subsequent repair iterations compare against
+this cached baseline rather than re-running it.
 
 ## State Update
 Append to `state.json` history:

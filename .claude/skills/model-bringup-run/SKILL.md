@@ -9,15 +9,31 @@ allowed-tools: Bash Read Write
 You are the **test execution** stage of the model bringup pipeline.
 
 ## Invocation
-`/model-bringup-run <model_key> [--arch <arch>] [--iteration <N>]`
+`/model-bringup-run <model_key> [--arch <arch>] [--iteration <N>] [--timeout <seconds>]`
 
 ## Responsibility
 Run the pytest test for the given model_key and capture the full output to a log file.
 
 ## Timeout Policy
-**Maximum allowed wall-clock time: 5 minutes (300 seconds).**
-If the test process exceeds this limit, kill it immediately and treat the result as
-`TIMEOUT`. Do NOT wait for it to finish.
+
+**Adaptive budget** based on rough param-count estimate from the model name.
+The orchestrator may override the chosen budget via `--timeout <seconds>`;
+otherwise the table below applies. First regex match wins, case-insensitive,
+fallback 900s.
+
+| Pattern (regex on model_key)            | Budget |
+|------------------------------------------|--------|
+| `\b\d+(?:\.\d+)?\s*B(?:[_\-]\|$\|\b)` (N B params) | 1800s if N ≤ 13 else **reject — multi-chip required** |
+| `bi_lstm\|hippynn\|mobilenetv3\|\bnano\b\|\d+M` | 300s |
+| `\btiny\b\|\bsmall\b`                     | 600s |
+| `\bbase\b\|resnet50\|resnet101`           | 900s |
+| `\blarge\b\|vgg16\|perceiver`             | 1200s |
+| (fallback)                               | 900s  |
+
+If the chosen budget is exceeded, kill the process and treat the result as
+`TIMEOUT`. Record the chosen budget in `state.json` under
+`details.timeout_seconds` so escalation reports show what was actually
+allowed.
 
 ## Steps
 
@@ -49,18 +65,33 @@ If `test_node_ids` is empty, **fail immediately** — do not proceed to run:
   Verify: python -c "from third_party.tt_forge_models.<family>.pytorch import ModelLoader"
 ```
 
-### 2. Run pytest with timeout
-Execute the discovered node IDs with a hard 300-second wall-clock limit:
+### 2. Run pytest with adaptive timeout + JSON report
+
+Resolve `TIMEOUT_S` from the table in **Timeout Policy** above (or the
+explicit `--timeout` arg). Then:
+
 ```bash
-timeout 300 python -m pytest <test_node_ids> -v --tb=short 2>&1 | tee .claude/bringup/<safe_key>/logs/iter_<N>_run.log
+mkdir -p .claude/bringup/<safe_key>/logs
+TT_XLA_ARCH=<arch> timeout $TIMEOUT_S python -m pytest <test_node_ids> \
+  -svv --tb=long -p no:cacheprovider \
+  --json-report --json-report-file=.claude/bringup/<safe_key>/logs/iter_<N>_result.json \
+  2>&1 | tee .claude/bringup/<safe_key>/logs/iter_<N>_run.log
 exit_code=${PIPESTATUS[0]}
 ```
 
-- If `exit_code == 124` → the process was killed by `timeout`; record `result = "timeout"`.
-- If `exit_code == 0` → `result = "passed"`.
-- Any other exit code → `result = "failed"`.
+Flag rationale (same as model_issue_pick):
+- **`-s`**: no stdout capture → live progress (downloads, compile traces,
+  tqdm) reaches the log. Silent-hang failures are otherwise undiagnosable.
+- **`-vv`**: full assertion diffs, unambiguous test summary.
+- **`--tb=long`**: full traceback with source context — DIAGNOSE needs this
+  to extract a useful root-cause snippet.
+- **`--json-report-file`**: machine-readable result. Prefer reading this
+  over grepping the log; the log is for human review.
 
-Set env var `TT_XLA_ARCH=<arch>` for the subprocess.
+Exit-code rules:
+- `exit_code == 124` → `result = "timeout"`.
+- `exit_code == 0`   → `result = "passed"`.
+- otherwise          → `result = "failed"`.
 
 Do not suppress any output — the full stdout+stderr must be captured.
 
@@ -84,7 +115,9 @@ Please run the test yourself with a longer budget and share the log:
 
   TT_XLA_ARCH=<arch> timeout 1800 python -m pytest \
     '<test_node_id>' \
-    -v --tb=short -s 2>&1 | tee /tmp/<safe_key>_manual.log
+    -svv --tb=long -p no:cacheprovider \
+    --json-report --json-report-file=/tmp/<safe_key>_manual.json \
+    2>&1 | tee /tmp/<safe_key>_manual.log
 
 Then reply with one of:
   - the path to the log file (e.g. /tmp/<safe_key>_manual.log), or
@@ -153,7 +186,24 @@ Output:
 ```
 
 ### 4. Record result in state.json (non-timeout)
-Load `.claude/bringup/<safe_key>/state.json`, append to `history`:
+
+Read the JSON report at `logs/iter_<N>_result.json` (written by
+`pytest-json-report`). Use it to populate richer fields than the stdout
+log can carry:
+
+- `tests[0].outcome` → cross-check against exit code.
+- `tests[0].metadata.tags.bringup_status` → already-classified outcome
+  from the runner (PASSED / INCORRECT_RESULT / FAILED_*).
+- `tests[0].metadata.tags.pcc` and `tags.pcc_threshold` → for VERIFY
+  acceptance and for `now_incorrect_result` PCC guardrails downstream.
+- `tests[0].metadata.tags.failing_reason.description` → canonical reason
+  string (preferred over regexing stdout).
+
+If the JSON file is missing (e.g. the test crashed before pytest could
+write it), fall back to stdout summary and record `details.json_report:
+"missing"`.
+
+Append to `history`:
 ```json
 {
   "stage": "first_run",
@@ -161,8 +211,14 @@ Load `.claude/bringup/<safe_key>/state.json`, append to `history`:
   "result": "passed" | "failed",
   "details": {
     "log": "logs/iter_<N>_run.log",
+    "json_report": "logs/iter_<N>_result.json",
     "returncode": <int>,
-    "duration_seconds": <float>
+    "duration_seconds": <float>,
+    "timeout_seconds": <budget that was applied>,
+    "bringup_status": "<from json tags, if present>",
+    "pcc": <from json tags, if present>,
+    "pcc_threshold": <from json tags, if present>,
+    "failing_reason": "<from json tags, if present>"
   }
 }
 ```
@@ -176,8 +232,10 @@ STEP <N> — First Run / Verify (model-bringup-run, iteration <N>)
 --------------------------------------------------------------------------------
 Collect : pytest -q --collect-only tests/runner/test_models.py | grep '<family>/pytorch-...'
 Node IDs: <list of discovered test node IDs>
-Command : TT_XLA_ARCH=<arch> timeout 300 python -m pytest <test_node_ids> -v --tb=short
+Budget  : <TIMEOUT_S>s (auto from name heuristic | --timeout override)
+Command : TT_XLA_ARCH=<arch> timeout $TIMEOUT_S python -m pytest <test_node_ids> -svv --tb=long --json-report --json-report-file=...
 Log     : .claude/bringup/<safe_key>/logs/iter_<N>_run.log
+JSON    : .claude/bringup/<safe_key>/logs/iter_<N>_result.json
 Duration: <Xs>
 Exit    : <exit_code>
 

@@ -9,15 +9,38 @@ allowed-tools: Bash Read Write Edit Grep Glob Task Agent
 You are the E2E Model Bringup Pipeline orchestrator for Tenstorrent hardware.
 
 ## Invocation
-`/model-bringup <model_key> [--arch <arch>] [--resume]`
+`/model-bringup [model_key] [--mode auto|bringup|retriage] [--arch <arch>] [--resume]`
 
-Example: `/model-bringup ltx2/pytorch-Fast-single_device-inference --arch n150`
+Examples:
+- `/model-bringup ltx2/pytorch-Fast-single_device-inference --arch n150`
+- `/model-bringup perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference --mode retriage`
+- `/model-bringup` (no key → list smallest XFAIL candidates and exit)
 
 ## Argument Parsing
 Parse `$ARGUMENTS`:
-- `model_key` (required): first positional argument
+- `model_key` (optional): first positional argument.
+  - If omitted, see **No-key behavior** below.
+- `--mode` (optional, default `bringup`):
+  - `bringup` — the existing new-model FSM (VALIDATE → FIRST_RUN → …).
+  - `retriage` — the XFAIL re-triage FSM (see **XFAIL Re-triage Mode** below).
+    Use this when the entry already exists in the YAML with status
+    `KNOWN_FAILURE_XFAIL` and you want to check whether it still reproduces.
 - `--arch` (optional, default `n150`): target architecture
 - `--resume` (optional flag): resume from existing state.json instead of starting fresh
+
+## No-key behavior
+
+If `model_key` is omitted, do **not** run the FSM. Instead:
+1. Invoke the `failure_summary` skill internally to generate the digest
+   (target arch from `--arch`).
+2. Print the **Quick-pick: 3 smallest models** section directly to the
+   terminal so the user can copy a candidate key for the next invocation.
+3. Print a one-line hint:
+   ```
+   Run: /model-bringup <model_key> --mode retriage  to re-verify an XFAIL,
+        /model-bringup <model_key>                  to bring up a new model.
+   ```
+4. Exit. Do not create any bringup state.
 
 ## State Location
 All state lives at `.claude/bringup/<model_key_with_slashes_replaced_by_double_underscore>/state.json`.
@@ -25,10 +48,75 @@ All state lives at `.claude/bringup/<model_key_with_slashes_replaced_by_double_u
 ## Startup
 1. If `--resume` is set and `state.json` exists, load it and resume from the recorded stage.
 2. Otherwise, if `state.json` exists, ask the user whether to resume or restart.
-3. If no state exists, create a new one by invoking the `model-bringup-scaffold` skill.
+3. If no state exists, create a new one by invoking the `model-bringup-scaffold` skill
+   (bringup mode only — retriage mode skips scaffold; see below).
+
+## XFAIL Re-triage Mode (`--mode retriage`)
+
+This mode is for entries that already exist in
+`tests/runner/test_config/torch/test_config_inference_single_device.yaml`
+with status `KNOWN_FAILURE_XFAIL`. The goal is to determine whether the
+recorded failure still reproduces against current code.
+
+### Entry gate
+Before doing anything else, verify the entry's current status in the YAML
+(top-level `status` OR `arch_overrides.<arch>.status`). If it is **not**
+`KNOWN_FAILURE_XFAIL`:
+- Print `[bringup] --mode retriage requires a KNOWN_FAILURE_XFAIL entry; <key> is currently <status>.`
+- Suggest dropping `--mode retriage` to use the standard bringup flow.
+- Exit.
+
+### Skip scaffold
+The loader already exists (the entry is in the YAML, so it has a node id).
+Do **not** invoke `model-bringup-scaffold`. Initialize a minimal `state.json`
+at `.claude/bringup/<safe_key>/state.json` with `mode: "retriage"` and an
+empty `history` array.
+
+### Single delegated step
+Invoke the `model_issue_pick` skill with `<model_key> --arch <arch>`. It will
+run the pytest with `--runxfail` in the background, classify the log, and
+return a verdict. The verdicts and routing:
+
+| Verdict from model_issue_pick | Next action |
+|---|---|
+| `now_passing`           | Invoke `model-bringup-config-update` with `result=PASSED`. Promote `KNOWN_FAILURE_XFAIL` → `EXPECTED_PASSING`; drop `reason`. Done. |
+| `now_incorrect_result`  | Invoke `model-bringup-config-update` with `result=PASSED` AND pass through the recorded PCC so config-update can add `assert_pcc: false` + a lowered `required_pcc`. Done. |
+| `xfail_same`            | The recorded failure still reproduces. **Fall into the standard pipeline at DIAGNOSE** with the new run.log so the orchestrator can attempt a fix via REPAIR → VERIFY. The first iteration counts as iteration 1. |
+| `xfail_changed`         | The failure is real but different from the YAML's recorded reason. **Fall into the standard pipeline at DIAGNOSE** with the new run.log, same as `xfail_same`. The first iteration counts as iteration 1. |
+| `timeout`               | No YAML change. Append a `retriage` history entry with `result=timeout`. Exit. (Consistent with the rule that automated timeouts are not evidence.) |
+| `runner_error`          | No YAML change. Surface the error and exit ESCALATED. |
+
+The `xfail_same` vs `xfail_changed` distinction is informational only — it
+controls the **final** YAML write at CONFIG_UPDATE time, not the routing:
+
+- If `xfail_same` and the pipeline ends in PASSED → config-update promotes to
+  `EXPECTED_PASSING` and drops `reason` (same as `now_passing` path).
+- If `xfail_changed` and the pipeline ends in ESCALATED → config-update keeps
+  status as `KNOWN_FAILURE_XFAIL` but rewrites `reason` to reflect the new
+  failure (the recorded reason is stale).
+- If `xfail_same` and the pipeline ends in ESCALATED → leave the YAML
+  untouched; the existing reason is still accurate.
+
+Stash the verdict (`xfail_same` | `xfail_changed`) in
+`state.retriage_verdict` so CONFIG_UPDATE can read it when the loop ends.
+
+### Logging
+Open `.claude/bringup/<safe_key>/bringup_steps.txt` with the same header
+block as standard bringup, but tag the mode:
+```
+================================================================================
+MODEL BRINGUP LOG (mode: retriage)
+================================================================================
+```
+Append one step section for the `model_issue_pick` invocation, then a step
+section per fall-through stage if `xfail_changed` routed into DIAGNOSE.
 
 ## FSM Loop
-Run the following loop (max 5 iterations total across repair cycles):
+Run the following loop (max 5 iterations total across repair cycles).
+In `--mode retriage`, skip the loop entirely for `now_passing`,
+`now_incorrect_result`, `timeout`, and `runner_error` verdicts. For both
+`xfail_same` and `xfail_changed` verdicts, enter the loop at **DIAGNOSE**
+with the run.log produced by `model_issue_pick`.
 
 ```
 VALIDATE  →  FIRST_RUN
@@ -142,8 +230,17 @@ Escalate immediately when any of the following is true:
 
 ## Escalation Report
 Write `.claude/bringup/<model_key>/escalation_report.md` containing:
+- **Provenance block** at the top:
+  ```
+  tt-xla SHA       : <short sha of tt-xla HEAD>
+  tt-foundry SHA   : <short sha if submodule present, else 'not a submodule'>
+  Generated        : <YYYY-MM-DD HH:MM>
+  Source skill     : model-bringup (orchestrator)
+  Mode             : bringup | retriage
+  ```
 - model_key, arch, total iterations
-- Each iteration: stage, diagnosis, repair attempted
+- Each iteration: stage, diagnosis (with `source: json_report|stdout_fallback`),
+  repair attempted, links to `iter_<N>_run.log` and `iter_<N>_result.json`
 - Final failure category and confidence
 - Recommended next human action
 

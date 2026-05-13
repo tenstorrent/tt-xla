@@ -10,24 +10,59 @@ Systematic, fast, zero-ambiguity debugging of runtime failures in tt-xla model t
 
 ---
 
-## Phase 0 — Ask for Prerequisites (if not provided)
+## Phase 0 — Collect Prerequisites
 
-Before any action, collect:
+Before any action, collect the items below. Order of source preference:
 
-| Item | How to get it |
+1. **Caller-provided arguments** (e.g. when invoked from
+   `model-bringup-repair`'s `runtime_debug` strategy, which pre-fills the
+   first 5 fields).
+2. **Project config file** `.claude/bringup.config.json` (see schema below).
+3. **Failure log header** — the pytest invocation line gives test command,
+   repo path, model name.
+4. **Ask the user** — last resort, only for items not resolvable above.
+
+### `.claude/bringup.config.json` schema
+
+If this file exists in the tt-xla repo root, pre-fill Phase 5 fields from
+it instead of pausing for input. Recommended location:
+`<tt_xla_repo>/.claude/bringup.config.json`.
+
+```json
+{
+  "tt_metal_machine": "<hostname or alias>",
+  "tt_metal_repo":    "<absolute path on that machine>",
+  "tt_metal_branch":  "<branch name>",
+  "default_failure_type": "OOM | PCC drop | NaN PCC | L1 | other",
+  "ttmlir_toolchain_dir": "/opt/ttmlir-toolchain/"
+}
+```
+
+All fields are optional; fall through to the next source if absent.
+
+### Item resolution table
+
+| Item | Source order |
 |------|---------------|
-| **Test command** | Ask user, OR extract from a provided failure log (log header contains the pytest invocation) |
-| **tt-xla repo path** | Ask user, OR derive from the log file path if user provides one |
-| **tt-xla branch** | `git -C <path> branch --show-current` |
-| **Failure type** | PCC drop / NaN PCC / OOM / L1 / other — from log or user |
-| **Model name** | From log or user — used for log dir and file naming |
-| **tt-metal machine** | Ask user: hostname or machine name that has a tt-metal build ready |
-| **tt-metal repo path** | Ask user: full path to the tt-metal repo on that machine |
-| **tt-metal branch** | Ask user: branch to use (or confirm after connecting) |
+| **Test command**         | caller arg → log header → ask |
+| **tt-xla repo path**     | caller arg → log file path → ask |
+| **tt-xla branch**        | `git -C <path> branch --show-current` (automatic) |
+| **Failure type**         | caller arg → `bringup.config.json:default_failure_type` → log → ask |
+| **Model name**           | caller arg → log → ask |
+| **tt-metal machine**     | caller arg → `bringup.config.json:tt_metal_machine` → ask |
+| **tt-metal repo path**   | caller arg → `bringup.config.json:tt_metal_repo` → ask |
+| **tt-metal branch**      | caller arg → `bringup.config.json:tt_metal_branch` → ask |
 
-**Shortcut:** If the user provides a failure log file, you can derive the test command, repo path, and failure type directly from that log.
+Do **not** proceed until every item above is known. **Print the resolved
+values once at the start of Phase 1** so the user can spot a mis-cached
+config without reading state.json. Format:
 
-Do **not** proceed until every item above is known.
+```
+[Phase 0] Resolved inputs:
+  tt_metal_machine : <value>  (source: bringup.config.json)
+  tt_metal_repo    : <value>  (source: caller_arg)
+  ...
+```
 
 ---
 
@@ -202,7 +237,8 @@ Create `<tt_xla_repo>/tests/torch/ops/<model_name>/test_<op_name>_sanity.py` fol
 
 Run:
 ```bash
-pytest -svv tests/torch/ops/<model_name>/test_<op_name>_sanity.py \
+pytest -svv --tb=long tests/torch/ops/<model_name>/test_<op_name>_sanity.py \
+  --json-report --json-report-file=claude_logs_<model_name>/sanity_v1.json \
   2>&1 | tee claude_logs_<model_name>/sanity_v1.log
 ```
 
@@ -282,7 +318,7 @@ while len(scope) > 1:
 
 **At each iteration:**
 - Write the bisect variant as a standalone `.py` file (do NOT edit the confirmed block sanity from Phase 3 — keep it intact).
-- Run with `pytest -svv ... 2>&1 | tee claude_logs_<model_name>/bisect_sanity_<iteration>[ab].log`.
+- Run with `pytest -svv --tb=long ... --json-report --json-report-file=claude_logs_<model_name>/bisect_sanity_<iteration>[ab].json 2>&1 | tee claude_logs_<model_name>/bisect_sanity_<iteration>[ab].log`.
 - Read the log and check: same error type? For OOM: same allocation size (within 10%)?
 - Move to the next iteration immediately without asking the user.
 
@@ -349,7 +385,8 @@ def test_<op_name>_minimal_oom():
 
 Run the minimal sanity:
 ```bash
-pytest -svv tests/torch/ops/<model_name>/test_<op_name>_minimal_sanity.py \
+pytest -svv --tb=long tests/torch/ops/<model_name>/test_<op_name>_minimal_sanity.py \
+  --json-report --json-report-file=claude_logs_<model_name>/minimal_sanity.json \
   2>&1 | tee claude_logs_<model_name>/minimal_sanity.log
 ```
 
@@ -531,6 +568,14 @@ cp <tt_metal_repo>/tests/ttnn/unit_tests/operations/<model_name>_<op_name>/ttmet
 
 Create `claude_logs_<model_name>/debug_report.md` with:
 
+0. **Provenance** — at the very top, write:
+   ```
+   tt-xla SHA       : <short sha of tt-xla HEAD>
+   tt-foundry SHA   : <short sha if submodule present, else 'not a submodule'>
+   Generated        : <YYYY-MM-DD HH:MM>
+   Source skill     : runtime-failure-debugger
+   Phase 5 inputs   : <tt_metal_machine>, <tt_metal_repo>, <tt_metal_branch>
+   ```
 1. **Failure summary** — type, model, op, input shape/dtype
 2. **Bisect trace** (model-level, PCC only) — which blocks were tested, what passed/failed
 3. **Block sanity result** (Phase 3) — file path, error match vs original

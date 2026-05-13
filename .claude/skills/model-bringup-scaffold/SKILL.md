@@ -131,6 +131,50 @@ If no lines appear, the loader failed to import during collection — check the 
 
 ---
 
+## Step 4b — Pre-flight size gate
+
+Before any pytest run, estimate the model's parameter count and reject
+anything that obviously cannot fit on a single device. This prevents the
+pipeline from burning an hour on a 70B model that will OOM during compile.
+
+Order of preference:
+
+1. **Live count from the loader** (most accurate):
+   ```python
+   from third_party.tt_forge_models.<family>.pytorch import ModelLoader
+   m = ModelLoader().load_model()
+   n = sum(p.numel() for p in m.parameters())
+   ```
+   Skip if the loader requires HF download and offline-mode is set, or if
+   `load_model()` would itself cost minutes (large checkpoints).
+
+2. **Config-only count** (fast, weights not loaded):
+   ```python
+   from transformers import AutoConfig
+   c = AutoConfig.from_pretrained("<hf_id>")
+   # most HF configs expose num_parameters or hidden_size+num_layers+vocab_size
+   ```
+
+3. **Name-based heuristic** (always available — same regex table as
+   `failure_summary`):
+   - Explicit `\d+(?:\.\d+)?B` tokens → that many billion params
+   - `\d+M` tokens → that many million
+   - Fallback: 100M
+
+**Gate logic** (single-device-inference target on n150):
+
+| Params estimate | Action |
+|---|---|
+| < 14 B  | proceed |
+| 14–30 B | warn — likely OOM, ask the user to confirm before continuing |
+| > 30 B  | **reject** with `result=blocked`, `block_reason="exceeds single-device capacity; route to multi_chip pipeline"` |
+
+Record the estimate (and its source: `loader | config | name_heuristic`) in
+state.json under `details.param_estimate` so escalation reports can show
+the gate decision.
+
+---
+
 ## Step 5 — Initialize bringup state
 
 Create `.claude/bringup/<safe_model_key>/` with subdirectories `logs/` and `patches/`.
@@ -210,3 +254,4 @@ Only exit with failure (and let the orchestrator escalate) if:
 - The HF model ID is unreachable / does not exist
 - The model inspection (`AutoModel.from_pretrained`) fails with an unrecoverable error
 - The import validation still fails after creating the loader (syntax/logic error)
+- The size gate (Step 4b) rejects the model as too large for single-device
