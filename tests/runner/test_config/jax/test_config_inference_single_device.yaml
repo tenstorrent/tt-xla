@@ -300,6 +300,18 @@ test_config:
     reason: "Flax model class removed in transformers 5.x"
     markers: [large]
 
+  openelm/causal_lm/jax-270M-single_device-inference:
+    status: EXPECTED_PASSING
+
+  openelm/causal_lm/jax-450M-single_device-inference:
+    status: EXPECTED_PASSING
+
+  openelm/causal_lm/jax-1_1B-single_device-inference:
+    status: EXPECTED_PASSING
+
+  openelm/causal_lm/jax-3B-single_device-inference:
+    status: EXPECTED_PASSING
+
   opt/causal_lm/jax-125M-single_device-inference:
     status: NOT_SUPPORTED_SKIP
     reason: "Flax model class removed in transformers 5.x"
