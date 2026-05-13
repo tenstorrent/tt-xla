@@ -2094,6 +2094,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         optimization_level=0,
         trace_enabled=False,
         required_pcc=0.91,  # PCC is inconsistent between runs - Issue: https://github.com/tenstorrent/tt-xla/issues/4632
+        mesh_config_fn=_kimi_k2_mesh_config_fn,
     )
 
 
