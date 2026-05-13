@@ -479,6 +479,22 @@ class CMakeBuildPy(build_py):
         )
         shutil.copy2(runtime_module_path, runtime_so_dest)
 
+        # The .so is built with RPATH=$ORIGIN, but after installation it lives in
+        # site-packages/ while libTTMLIRRuntime.so is in site-packages/pjrt_plugin_tt/lib/.
+        # Patch the RPATH so the dynamic linker can find it at runtime.
+        patchelf = shutil.which("patchelf")
+        if patchelf is None:
+            raise RuntimeError(
+                "patchelf not found; cannot fix RPATH on _ttmlir_runtime. "
+                "Install it with: apt-get install patchelf"
+            )
+        rpath = "$ORIGIN/pjrt_plugin_tt/lib"
+        subprocess.run(
+            [patchelf, "--set-rpath", rpath, str(runtime_so_dest)],
+            check=True,
+        )
+        print(f"Set RPATH on {runtime_so_dest.name} to {rpath}")
+
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
             return
