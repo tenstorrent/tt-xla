@@ -51,6 +51,10 @@ Cheap early exit before Step 3: `grep -n "def unpack_forward_output(" <loader_pa
 
 ### Step 3 — CPU triage
 
+Before running: confirm `IRD_LF_CACHE` is set, then ask the user if they want to proceed:
+
+> **Note:** The triage script downloads model weights from the LF cache. If `IRD_LF_CACHE` is not exported, downloads will fail with a confusing network error rather than an actionable message. Check with `echo $IRD_LF_CACHE`; if empty, run `export IRD_LF_CACHE=<link>`. Then confirm with the user: "Ready to run the CPU triage for `<model_dir>`. This will download weights and run a forward pass on CPU — proceed?"
+
 Run the bundled script. It loads the model, calls `forward`, and prints the output structure plus a final `OUTPUT_CLASS:` line for grep:
 
 ```bash

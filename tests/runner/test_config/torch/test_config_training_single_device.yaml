@@ -491,8 +491,8 @@ test_config:
     reason: "RuntimeError: Boolean value of Tensor with more than one value is ambiguous"
   maptr/pytorch-Tiny_R50_24e_Bevpool-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
-    reason: "ValueError: Error code: 13 from _xla_sync_multi during bev_pool"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<1x3x3xf32>, tensor<1x3xf32>>'"
   maptr/pytorch-Tiny_Fusion_24e-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
