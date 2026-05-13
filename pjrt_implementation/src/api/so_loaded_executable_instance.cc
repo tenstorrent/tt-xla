@@ -29,7 +29,7 @@
 #include <tools/tt-alchemist/python_runner/python_runner.hpp>
 
 constexpr static char MODULE_NAME[] = "main";
-constexpr static char ENTRYPOINT_NAME[] = "main_for_test";
+constexpr static char ENTRYPOINT_NAME[] = "forward";
 #endif
 
 namespace tt::pjrt {

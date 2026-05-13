@@ -1517,7 +1517,8 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string split_files =
         compile_options.codegen_split_files ? "true" : "false";
     pipeline_options += " split-files=" + split_files;
-    pipeline_options += " create-main-for-test=true";
+    pipeline_options += " create-main-for-test=false";
+    pipeline_options += " target-module=true";
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,
