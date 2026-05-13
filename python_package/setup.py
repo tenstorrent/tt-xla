@@ -462,7 +462,6 @@ class CMakeBuildPy(build_py):
         # Destination: install both packages at the root level alongside other packages
         # The parent of install_dir is the build_lib directory where packages are discovered
         ttmlir_dest = install_dir.parent / "ttmlir"
-        ttmlir_runtime_dest = install_dir.parent / "_ttmlir_runtime"
 
         # Copy ttmlir package
         print(f"Copying ttmlir Python module from {ttmlir_source_dir} to {ttmlir_dest}")
@@ -470,20 +469,15 @@ class CMakeBuildPy(build_py):
             shutil.rmtree(ttmlir_dest)
         shutil.copytree(ttmlir_source_dir, ttmlir_dest, symlinks=True)
 
-        # Create _ttmlir_runtime package directory and copy the .so module
+        # _ttmlir_runtime is a single nanobind .so extension module (not a package).
+        # It must be placed directly in the Python path root so that Python finds it
+        # as a top-level module. Placing it inside a directory of the same name would
+        # shadow the .so and prevent submodule access (e.g. _ttmlir_runtime.runtime).
+        runtime_so_dest = install_dir.parent / runtime_module_name
         print(
-            f"Creating _ttmlir_runtime package at {ttmlir_runtime_dest} with {runtime_module_name}"
+            f"Copying _ttmlir_runtime extension module from {runtime_module_path} to {runtime_so_dest}"
         )
-        if ttmlir_runtime_dest.exists():
-            shutil.rmtree(ttmlir_runtime_dest)
-        ttmlir_runtime_dest.mkdir(parents=True, exist_ok=True)
-
-        # Copy the nanobind .so module
-        shutil.copy2(runtime_module_path, ttmlir_runtime_dest / runtime_module_name)
-
-        # Create a minimal __init__.py to make it a package
-        init_content = '"""TT-MLIR Runtime Python bindings."""\n'
-        (ttmlir_runtime_dest / "__init__.py").write_text(init_content)
+        shutil.copy2(runtime_module_path, runtime_so_dest)
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
