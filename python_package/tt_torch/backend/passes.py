@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import math
 import operator
 import re
 
@@ -125,6 +126,84 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
                         modified = True
 
     if modified:
+        gm.recompile()
+
+    return gm
+
+
+def fold_view_bmm_view_to_einsum(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Recover rank-preserving matmul from the post-AOTA view->bmm->view sandwich.
+
+    AOTAutograd's SDPA decomp (and PyTorch's N-D matmul -> bmm folding,
+    LinearAlgebra.cpp#L1999) reshapes (..., M, K) operands to (B*H, M, K)
+    before bmm, then reshapes the output back.  Under tensor parallelism with
+    the head dim sharded, that destroys head sharding and forces SPMD to
+    insert an f32 all_gather on the 4-D Q/K/V, which OOMs L1.
+
+    Detect the sandwich and rewrite it to a rank-preserving einsum, which
+    torch-xla lowers to a 4-D stablehlo.dot_general with head sharding intact.
+    aten.einsum.default is opaque (we pop its decomp in populate_decompositions),
+    so it survives to torch-xla unchanged.
+    """
+    graph = gm.graph
+    views = (
+        torch.ops.aten.view.default,
+        torch.ops.aten._unsafe_view.default,
+        torch.ops.aten.reshape.default,
+    )
+    modified = False
+
+    def shape(n):
+        val = n.meta.get("val") if isinstance(n, torch.fx.Node) else None
+        return tuple(int(d) for d in val.shape) if val is not None else None
+
+    for bmm in list(graph.nodes):
+        if (
+            bmm.op != "call_function"
+            or bmm.target is not torch.ops.aten.bmm.default
+            or len(bmm.users) != 1
+        ):
+            continue
+        lhs_v, rhs_v = bmm.args[:2]
+        out_v = next(iter(bmm.users))
+        if not all(
+            isinstance(n, torch.fx.Node) and n.target in views
+            for n in (lhs_v, rhs_v, out_v)
+        ):
+            continue
+
+        lhs_src, rhs_src = lhs_v.args[0], rhs_v.args[0]
+        ls, rs, lc, rc, os = (shape(x) for x in (lhs_src, rhs_src, lhs_v, rhs_v, out_v))
+        if any(s is None for s in (ls, rs, lc, rc, os)):
+            continue
+
+        # Sandwich invariants: LHS/RHS sources are rank-4+ with identical
+        # batch prefix; collapsed views fuse all batch dims into dim 0;
+        # bmm M/K/N agree with sources' trailing two dims; out view
+        # restores the LHS source's batch prefix + (M, N).
+        if (
+            len(ls) < 4
+            or ls[:-2] != rs[:-2]
+            or os[:-2] != ls[:-2]
+            or lc != (math.prod(ls[:-2]), ls[-2], ls[-1])
+            or rc != (math.prod(rs[:-2]), rs[-2], rs[-1])
+            or ls[-1] != rs[-2]
+            or os[-2:] != (ls[-2], rs[-1])
+        ):
+            continue
+
+        with graph.inserting_before(bmm):
+            einsum = graph.call_function(
+                torch.ops.aten.einsum.default,
+                args=("...mk,...kn->...mn", [lhs_src, rhs_src]),
+            )
+        einsum.meta.update(out_v.meta)
+        out_v.replace_all_uses_with(einsum)
+        modified = True
+
+    if modified:
+        graph.eliminate_dead_code()
+        graph.lint()
         gm.recompile()
 
     return gm
