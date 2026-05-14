@@ -26,7 +26,7 @@ from llm_utils import (
     init_static_cache,
 )
 from llm_utils.decode_utils import LLMSamplingWrapper
-from loguru import logger
+from ttxla_tools.logging import logger
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
 from transformers.cache_utils import StaticCache
@@ -69,7 +69,9 @@ def setup_model_and_tokenizer(
     """
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
+    logger.info("llm_benchmark: Initializing model weights (this may take a while for large models)...")
     model = model_loader.load_model(dtype_override=torch.bfloat16)
+    logger.info("llm_benchmark: Model weight initialization complete")
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
