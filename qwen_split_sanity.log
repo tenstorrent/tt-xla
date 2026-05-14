@@ -1,0 +1,591 @@
+2026-05-14 11:30:39.791 | INFO     | pjrt_plugin_tt:setup_tt_pjrt_plugin_dir:46 - Using PJRT plugin directory: /localdev/ctr-sbaskaran/tt-xla/python_package/pjrt_plugin_tt
+2026-05-14 11:30:39.791 | INFO     | pjrt_plugin_tt:setup_tt_metal_home:107 - Using TT-Metal from the source tree: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+2026-05-14 11:30:40.059 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /localdev/ctr-sbaskaran/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-153-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'metadata': '3.1.1', 'anyio': '4.13.0', 'forked': '1.6.0', 'json-report': '1.5.0', 'split': '0.11.0', 'jaxtyping': '0.3.9'}}
+rootdir: /localdev/ctr-sbaskaran/tt-xla
+configfile: pytest.ini
+plugins: metadata-3.1.1, anyio-4.13.0, forked-1.6.0, json-report-1.5.0, split-0.11.0, jaxtyping-0.3.9
+collecting ... collected 1 item
+
+tests/torch/ops/test_split_with_sizes_qwen35_sanity.py::test_split_with_sizes_qwen35 2026-05-14 11:30:42.351552: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-05-14 11:30:42.531793: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-05-14 11:30:42.536 (   2.476s) [        8C291140]      module_builder.cc:1279     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<1x!vhlo.i64_v1> loc("p0.1")) -> (!vhlo.tensor_v1<1x!vhlo.i64_v1>) {
+    "vhlo.return_v1"(%arg0) : (!vhlo.tensor_v1<1x!vhlo.i64_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:42.538 (   2.478s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<1xi64> loc("p0.1")) -> tensor<1xi64> {
+    return %arg0 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:42.538 (   2.478s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>} loc("p0.1")) -> tensor<1xi64> {
+    return %arg0 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:42.540 (   2.481s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_compiler:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1")) -> (tensor<1xi64> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    return %arg0 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:42.540 (   2.481s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_set_mesh_attr:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1")) -> (tensor<1xi64> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    return %arg0 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:42.541 (   2.481s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_compiler_cleaned:
+#loc = loc(unknown)
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<1xi64> loc(unknown)) -> tensor<1xi64> {
+    return %arg0 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:42.542 (   2.482s) [        8C291140]      module_builder.cc:1279     1| MLIR Module ttir:
+#loc1 = loc("p0.1")
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1")) -> (tensor<1xi64> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+        return %arg0 : tensor<1xi64> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:42.548 (   2.488s) [        8C291140]      module_builder.cc:1279     1| MLIR Module ttnn:
+#dram = #ttnn.buffer_type<dram>
+#loc1 = loc("p0.1")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)]}], [0, 1, 2, 3, 4, 5, 6, 7], [1 : i32, 1 : i32, 1 : i32, 1 : i32, 0 : i32, 0 : i32, 0 : i32, 0 : i32], [ 0x0x0x0], [<[0, 6, 0], [3, 6, 0]>, <[0, 7, 0], [3, 7, 0]>, <[0, 8, 0], [7, 0, 0]>, <[0, 14, 0], [1, 14, 0]>, <[0, 15, 0], [1, 15, 0]>, <[1, 0, 0], [2, 0, 0]>, <[1, 1, 0], [2, 1, 0]>, <[1, 8, 0], [4, 0, 0]>, <[2, 8, 0], [6, 0, 0]>, <[2, 14, 0], [3, 14, 0]>, <[2, 15, 0], [3, 15, 0]>, <[3, 8, 0], [5, 0, 0]>, <[4, 7, 0], [7, 7, 0]>, <[5, 7, 0], [6, 7, 0]>]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1xsi32, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, dramGrid = #ttcore.grid<1x12>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func @main(%arg0: tensor<1xsi32, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1")) -> (tensor<1xsi32, #ttnn_layout1> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<1xsi32, #ttnn_layout>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<1xsi32, #ttnn_layout>) -> () loc(#loc)
+        return %0 : tensor<1xsi32, #ttnn_layout1> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.378 (   3.319s) [        8C291140]      module_builder.cc:1279     1| MLIR Module ttnn_runtime:
+#dram = #ttnn.buffer_type<dram>
+#loc1 = loc("p0.1")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)]}], [0, 1, 2, 3, 4, 5, 6, 7], [1 : i32, 1 : i32, 1 : i32, 1 : i32, 0 : i32, 0 : i32, 0 : i32, 0 : i32], [ 0x0x0x0], [<[0, 6, 0], [3, 6, 0]>, <[0, 7, 0], [3, 7, 0]>, <[0, 8, 0], [7, 0, 0]>, <[0, 14, 0], [1, 14, 0]>, <[0, 15, 0], [1, 15, 0]>, <[1, 0, 0], [2, 0, 0]>, <[1, 1, 0], [2, 1, 0]>, <[1, 8, 0], [4, 0, 0]>, <[2, 8, 0], [6, 0, 0]>, <[2, 14, 0], [3, 14, 0]>, <[2, 15, 0], [3, 15, 0]>, <[3, 8, 0], [5, 0, 0]>, <[4, 7, 0], [7, 7, 0]>, <[5, 7, 0], [6, 7, 0]>]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1xsi32, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.4 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, dramGrid = #ttcore.grid<1x12>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func @main(%arg0: tensor<1xsi32, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1")) -> (tensor<1xsi32, #ttnn_layout1> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<1xsi32, #ttnn_layout>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<1xsi32, #ttnn_layout>) -> () loc(#loc)
+        return %0 : tensor<1xsi32, #ttnn_layout1> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.462876: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-05-14 11:30:43.466 (   3.406s) [        8C291140]      module_builder.cc:1279     1| MLIR Module vhlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  vhlo.func_v1 @main(%arg0: !vhlo.tensor_v1<1x!vhlo.i64_v1> loc("p0.1"), %arg1: !vhlo.tensor_v1<1x!vhlo.i64_v1> loc("p1.2")) -> (!vhlo.tensor_v1<1x!vhlo.i64_v1>) {
+    %0 = "vhlo.convert_v1"(%arg0) : (!vhlo.tensor_v1<1x!vhlo.i64_v1>) -> !vhlo.tensor_v1<1x!vhlo.ui32_v1> loc(#loc3)
+    %1 = "vhlo.gather_v2"(%arg1, %0) <{collapsed_slice_dims = #vhlo.tensor_v1<dense<0> : tensor<1xi64>>, index_vector_dim = #vhlo.integer_v1<1 : i64>, indices_are_sorted = #vhlo.bool_v1<false>, offset_dims = #vhlo.tensor_v1<dense<> : tensor<0xi64>>, operand_batching_dims = #vhlo.tensor_v1<dense<> : tensor<0xi64>>, slice_sizes = #vhlo.tensor_v1<dense<1> : tensor<1xi64>>, start_index_map = #vhlo.tensor_v1<dense<0> : tensor<1xi64>>, start_indices_batching_dims = #vhlo.tensor_v1<dense<> : tensor<0xi64>>}> : (!vhlo.tensor_v1<1x!vhlo.i64_v1>, !vhlo.tensor_v1<1x!vhlo.ui32_v1>) -> !vhlo.tensor_v1<1x!vhlo.i64_v1> loc(#loc4)
+    "vhlo.return_v1"(%1) : (!vhlo.tensor_v1<1x!vhlo.i64_v1>) -> () loc(#loc)
+  } {arg_attrs = #vhlo.array_v1<[]>, res_attrs = #vhlo.array_v1<[]>, sym_visibility = #vhlo.string_v1<"">} loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3")
+#loc4 = loc("gather.4")
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.466 (   3.407s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<1xi64> loc("p0.1"), %arg1: tensor<1xi64> loc("p1.2")) -> tensor<1xi64> {
+    %0 = stablehlo.convert %arg0 : (tensor<1xi64>) -> tensor<1xui32> loc(#loc3)
+    %1 = "stablehlo.gather"(%arg1, %0) <{dimension_numbers = #stablehlo.gather<collapsed_slice_dims = [0], start_index_map = [0], index_vector_dim = 1>, slice_sizes = array<i64: 1>}> : (tensor<1xi64>, tensor<1xui32>) -> tensor<1xi64> loc(#loc4)
+    return %1 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3")
+#loc4 = loc("gather.4")
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.467 (   3.407s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_frontend:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>} loc("p0.1"), %arg1: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>} loc("p1.2")) -> tensor<1xi64> {
+    %0 = stablehlo.convert %arg0 : (tensor<1xi64>) -> tensor<1xui32> loc(#loc3)
+    %1 = "stablehlo.gather"(%arg1, %0) <{dimension_numbers = #stablehlo.gather<collapsed_slice_dims = [0], start_index_map = [0], index_vector_dim = 1>, slice_sizes = array<i64: 1>}> : (tensor<1xi64>, tensor<1xui32>) -> tensor<1xi64> loc(#loc4)
+    return %1 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3")
+#loc4 = loc("gather.4")
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.469 (   3.409s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_compiler:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1"), %arg1: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p1.2")) -> (tensor<1xi64> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %0 = stablehlo.convert %arg0 : (tensor<1xi64>) -> tensor<1xui32> loc(#loc3)
+    %1 = "stablehlo.gather"(%arg1, %0) <{dimension_numbers = #stablehlo.gather<collapsed_slice_dims = [0], start_index_map = [0], index_vector_dim = 1>, slice_sizes = array<i64: 1>}> : (tensor<1xi64>, tensor<1xui32>) -> tensor<1xi64> loc(#loc4)
+    return %1 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3")
+#loc4 = loc("gather.4")
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.469 (   3.409s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_set_mesh_attr:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  sdy.mesh @mesh = <["x"=1, "y"=1]> loc(#loc)
+  func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1"), %arg1: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p1.2")) -> (tensor<1xi64> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+    %0 = stablehlo.convert %arg0 : (tensor<1xi64>) -> tensor<1xui32> loc(#loc3)
+    %1 = "stablehlo.gather"(%arg1, %0) <{dimension_numbers = #stablehlo.gather<collapsed_slice_dims = [0], start_index_map = [0], index_vector_dim = 1>, slice_sizes = array<i64: 1>}> : (tensor<1xi64>, tensor<1xui32>) -> tensor<1xi64> loc(#loc4)
+    return %1 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3")
+#loc4 = loc("gather.4")
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.469 (   3.410s) [        8C291140]      module_builder.cc:1279     1| MLIR Module shlo_compiler_cleaned:
+#loc = loc(unknown)
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
+  func.func @main(%arg0: tensor<1xi64> loc(unknown), %arg1: tensor<1xi64> loc(unknown)) -> tensor<1xi64> {
+    %0 = stablehlo.convert %arg0 : (tensor<1xi64>) -> tensor<1xui32> loc(#loc)
+    %1 = "stablehlo.gather"(%arg1, %0) <{dimension_numbers = #stablehlo.gather<collapsed_slice_dims = [0], start_index_map = [0], index_vector_dim = 1>, slice_sizes = array<i64: 1>}> : (tensor<1xi64>, tensor<1xui32>) -> tensor<1xi64> loc(#loc)
+    return %1 : tensor<1xi64> loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.471 (   3.411s) [        8C291140]      module_builder.cc:1279     1| MLIR Module ttir:
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+      func.func @main(%arg0: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1"), %arg1: tensor<1xi64> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p1.2")) -> (tensor<1xi64> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) {
+        %0 = "ttir.typecast"(%arg0) <{conservative_folding = false}> : (tensor<1xi64>) -> tensor<1xui32> loc(#loc3)
+        %1 = "ttir.permute"(%arg1) <{permutation = array<i64: 0>}> : (tensor<1xi64>) -> tensor<1xi64> loc(#loc5)
+        %2 = "ttir.reshape"(%1) <{shape = [1 : i32, 1 : i32]}> : (tensor<1xi64>) -> tensor<1x1xi64> loc(#loc6)
+        %3 = "ttir.reshape"(%0) <{shape = [1 : i32, 1 : i32]}> : (tensor<1xui32>) -> tensor<1x1xui32> loc(#loc7)
+        %4 = "ttir.embedding"(%3, %2) : (tensor<1x1xui32>, tensor<1x1xi64>) -> tensor<1x1x1xi64> loc(#loc4)
+        %5 = "ttir.reshape"(%4) <{shape = [1 : i32]}> : (tensor<1x1x1xi64>) -> tensor<1xi64> loc(#loc8)
+        %6 = "ttir.permute"(%5) <{permutation = array<i64: 0>}> : (tensor<1xi64>) -> tensor<1xi64> loc(#loc9)
+        return %6 : tensor<1xi64> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3")
+#loc4 = loc("gather.4")
+#loc5 = loc("gather.4_permuteInput"(#loc4))
+#loc6 = loc("gather.4_reshapeInput"(#loc4))
+#loc7 = loc("gather.4_reshapeStartIndices"(#loc4))
+#loc8 = loc("gather.4_reshapeOutput"(#loc4))
+#loc9 = loc("gather.4_permuteOutput"(#loc4))
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.477 (   3.417s) [        8C291140]      module_builder.cc:1279     1| MLIR Module ttnn:
+#dram = #ttnn.buffer_type<dram>
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)]}], [0, 1, 2, 3, 4, 5, 6, 7], [1 : i32, 1 : i32, 1 : i32, 1 : i32, 0 : i32, 0 : i32, 0 : i32, 0 : i32], [ 0x0x0x0], [<[0, 6, 0], [3, 6, 0]>, <[0, 7, 0], [3, 7, 0]>, <[0, 8, 0], [7, 0, 0]>, <[0, 14, 0], [1, 14, 0]>, <[0, 15, 0], [1, 15, 0]>, <[1, 0, 0], [2, 0, 0]>, <[1, 1, 0], [2, 1, 0]>, <[1, 8, 0], [4, 0, 0]>, <[2, 8, 0], [6, 0, 0]>, <[2, 14, 0], [3, 14, 0]>, <[2, 15, 0], [3, 15, 0]>, <[3, 8, 0], [5, 0, 0]>, <[4, 7, 0], [7, 7, 0]>, <[5, 7, 0], [6, 7, 0]>]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1xsi32, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, u32>, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, u32>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+#ttnn_layout5 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1xui32, #dram>, <interleaved>>
+#ttnn_layout6 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout7 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1xbf16, #dram>, <interleaved>>
+#ttnn_layout8 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout9 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, dramGrid = #ttcore.grid<1x12>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func @main(%arg0: tensor<1xsi32, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1"), %arg1: tensor<1xsi32, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p1.2")) -> (tensor<1xsi32, #ttnn_layout1> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<1xsi32, #ttnn_layout>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc3)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<1xsi32, #ttnn_layout>) -> () loc(#loc3)
+        %1 = "ttnn.typecast"(%0) <{dtype = #ttcore.supportedDataTypes<u32>}> : (tensor<1xsi32, #ttnn_layout1>) -> tensor<1xui32, #ttnn_layout2> loc(#loc4)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1xsi32, #ttnn_layout1>) -> () loc(#loc4)
+        %2 = "ttnn.reshape"(%1) <{shape = [1 : i32, 1 : i32]}> : (tensor<1xui32, #ttnn_layout2>) -> tensor<1x1xui32, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<1xui32, #ttnn_layout2>) -> () loc(#loc4)
+        %3 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<1xsi32, #ttnn_layout>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc6)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<1xsi32, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.reshape"(%3) <{shape = [1 : i32, 1 : i32]}> : (tensor<1xsi32, #ttnn_layout1>) -> tensor<1x1xsi32, #ttnn_layout4> loc(#loc7)
+        "ttnn.deallocate"(%3) <{force = false}> : (tensor<1xsi32, #ttnn_layout1>) -> () loc(#loc7)
+        %5 = "ttnn.to_layout"(%2) <{layout = #ttnn.layout<row_major>}> : (tensor<1x1xui32, #ttnn_layout3>) -> tensor<1x1xui32, #ttnn_layout5> loc(#loc8)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<1x1xui32, #ttnn_layout3>) -> () loc(#loc8)
+        %6 = "ttnn.typecast"(%4) <{dtype = #ttcore.supportedDataTypes<bf16>}> : (tensor<1x1xsi32, #ttnn_layout4>) -> tensor<1x1xbf16, #ttnn_layout6> loc(#loc8)
+        "ttnn.deallocate"(%4) <{force = false}> : (tensor<1x1xsi32, #ttnn_layout4>) -> () loc(#loc8)
+        %7 = "ttnn.to_layout"(%6) <{layout = #ttnn.layout<row_major>}> : (tensor<1x1xbf16, #ttnn_layout6>) -> tensor<1x1xbf16, #ttnn_layout7> loc(#loc8)
+        "ttnn.deallocate"(%6) <{force = false}> : (tensor<1x1xbf16, #ttnn_layout6>) -> () loc(#loc8)
+        %8 = "ttnn.embedding"(%5, %7) : (tensor<1x1xui32, #ttnn_layout5>, tensor<1x1xbf16, #ttnn_layout7>) -> tensor<1x1x1xbf16, #ttnn_layout8> loc(#loc5)
+        "ttnn.deallocate"(%7) <{force = false}> : (tensor<1x1xbf16, #ttnn_layout7>) -> () loc(#loc5)
+        "ttnn.deallocate"(%5) <{force = false}> : (tensor<1x1xui32, #ttnn_layout5>) -> () loc(#loc5)
+        %9 = "ttnn.typecast"(%8) <{dtype = #ttcore.supportedDataTypes<si32>}> : (tensor<1x1x1xbf16, #ttnn_layout8>) -> tensor<1x1x1xsi32, #ttnn_layout9> loc(#loc8)
+        "ttnn.deallocate"(%8) <{force = false}> : (tensor<1x1x1xbf16, #ttnn_layout8>) -> () loc(#loc8)
+        %10 = "ttnn.reshape"(%9) <{shape = [1 : i32]}> : (tensor<1x1x1xsi32, #ttnn_layout9>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc9)
+        "ttnn.deallocate"(%9) <{force = false}> : (tensor<1x1x1xsi32, #ttnn_layout9>) -> () loc(#loc9)
+        return %10 : tensor<1xsi32, #ttnn_layout1> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3_in_0_layout")
+#loc4 = loc("convert.3")
+#loc5 = loc("gather.4")
+#loc6 = loc("gather.4_reshapeInput_in_0_layout"(#loc5))
+#loc7 = loc("gather.4_reshapeInput"(#loc5))
+#loc8 = loc("gather.4_workaround"(#loc5))
+#loc9 = loc("gather.4_reshapeOutput"(#loc5))
+------------------ END OF MLIR MODULE ------------------
+2026-05-14 11:30:43.481 (   3.421s) [        8C291140]      module_builder.cc:1279     1| MLIR Module ttnn_runtime:
+#dram = #ttnn.buffer_type<dram>
+#loc1 = loc("p0.1")
+#loc2 = loc("p1.2")
+#system_desc = #ttcore.system_desc<[{role = host, target_triple = "x86_64-pc-linux"}], [{arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073136832, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (7, 7), (1, 4), (6, 4), (3, 6), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (1, 4), (6, 4), (5, 4), (2, 6), (3, 4), (4, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (4, 0), (5, 0), (0, 4), (3, 7), (1, 4), (7, 4), (6, 4), (2, 4), (4, 4), (5, 4)]}, {arch = <wormhole_b0>, grid = 8x8, coord_translation_offsets = 18x18, l1_size = 1499136, num_dram_channels = 12, dram_channel_size = 1073741824, noc_l1_address_align_bytes = 16, pcie_address_align_bytes = 32, noc_dram_address_align_bytes = 32, l1_unreserved_base = 103712, erisc_l1_unreserved_base = 98304, dram_unreserved_base = 1920032, dram_unreserved_end = 1073154112, supported_data_types = [<f32>, <f16>, <bf16>, <bfp_f8>, <bfp_bf8>, <bfp_f4>, <bfp_bf4>, <bfp_f2>, <bfp_bf2>, <u32>, <u16>, <u8>, <si32>], supported_tile_sizes = [ 4x16,  16x16,  32x16,  4x32,  16x32,  32x32], dst_physical_size_tiles = 16, num_cbs = 64, num_compute_threads = 1, num_datamovement_threads = 2, dram_grid = 1x12, dram_bank_to_logical_worker_noc0 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)], dram_bank_to_logical_worker_noc1 = [(7, 3), (0, 0), (3, 0), (4, 0), (0, 4), (7, 7), (2, 6), (6, 4), (5, 4), (1, 4), (3, 4), (4, 4)]}], [0, 1, 2, 3, 4, 5, 6, 7], [1 : i32, 1 : i32, 1 : i32, 1 : i32, 0 : i32, 0 : i32, 0 : i32, 0 : i32], [ 0x0x0x0], [<[0, 6, 0], [3, 6, 0]>, <[0, 7, 0], [3, 7, 0]>, <[0, 8, 0], [7, 0, 0]>, <[0, 14, 0], [1, 14, 0]>, <[0, 15, 0], [1, 15, 0]>, <[1, 0, 0], [2, 0, 0]>, <[1, 1, 0], [2, 1, 0]>, <[1, 8, 0], [4, 0, 0]>, <[2, 8, 0], [6, 0, 0]>, <[2, 14, 0], [3, 14, 0]>, <[2, 15, 0], [3, 15, 0]>, <[3, 8, 0], [5, 0, 0]>, <[4, 7, 0], [7, 7, 0]>, <[5, 7, 0], [6, 7, 0]>]>
+#ttnn_layout = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1xsi32, #dram>, <interleaved>>
+#ttnn_layout1 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+#ttnn_layout2 = #ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, u32>, #dram>, <interleaved>>
+#ttnn_layout3 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, u32>, #dram>, <interleaved>>
+#ttnn_layout4 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+#ttnn_layout5 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1xui32, #dram>, <interleaved>>
+#ttnn_layout6 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout7 = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1xbf16, #dram>, <interleaved>>
+#ttnn_layout8 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, bf16>, #dram>, <interleaved>>
+#ttnn_layout9 = #ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #dram>, <interleaved>>
+module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>} {
+  ttcore.device_module {
+    builtin.module @SyncTensorsGraph.6 attributes {mhlo.cross_program_prefetches = [], mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false, ttcore.meshes = #ttcore.meshes<[<"mesh" = 1x1>]>, ttcore.system_desc = #system_desc} {
+      ttcore.device @default_device = <workerGrid = #ttcore.grid<8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, dramGrid = #ttcore.grid<1x12>, l1Map = (d0, d1, d2)[s0] -> (0, d0, d1, d2 + s0), dramMap = (d0, d1, d2)[s0, s1, s2, s3, s4, s5, s6] -> (0, 0, (((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) mod 12, ((((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) floordiv s4) floordiv 12) * s4 + ((d0 * s1) * (s2 * (s3 * s6)) + d1 * (s2 * (s3 * s6)) + d2) mod s4 + s5), meshShape = 1x1, chipIds = [0]> loc(#loc)
+      func.func @main(%arg0: tensor<1xsi32, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p0.1"), %arg1: tensor<1xsi32, #ttnn_layout> {ttcore.argument_type = #ttcore.argument_type<input>, ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<unsharded>} loc("p1.2")) -> (tensor<1xsi32, #ttnn_layout1> {ttcore.local_shape = #ttcore<local_shape local_shape = tensor<1xi64>>, ttcore.shard_status = #ttcore.shard_status<presharded>}) attributes {tt.function_type = "forward_device"} {
+        %0 = "ttnn.to_layout"(%arg0) <{layout = #ttnn.layout<tile>}> : (tensor<1xsi32, #ttnn_layout>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc3)
+        "ttnn.deallocate"(%arg0) <{force = false}> : (tensor<1xsi32, #ttnn_layout>) -> () loc(#loc3)
+        %1 = "ttnn.typecast"(%0) <{dtype = #ttcore.supportedDataTypes<u32>}> : (tensor<1xsi32, #ttnn_layout1>) -> tensor<1xui32, #ttnn_layout2> loc(#loc4)
+        "ttnn.deallocate"(%0) <{force = false}> : (tensor<1xsi32, #ttnn_layout1>) -> () loc(#loc4)
+        %2 = "ttnn.reshape"(%1) <{shape = [1 : i32, 1 : i32]}> : (tensor<1xui32, #ttnn_layout2>) -> tensor<1x1xui32, #ttnn_layout3> loc(#loc4)
+        "ttnn.deallocate"(%1) <{force = false}> : (tensor<1xui32, #ttnn_layout2>) -> () loc(#loc4)
+        %3 = "ttnn.to_layout"(%arg1) <{layout = #ttnn.layout<tile>}> : (tensor<1xsi32, #ttnn_layout>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc6)
+        "ttnn.deallocate"(%arg1) <{force = false}> : (tensor<1xsi32, #ttnn_layout>) -> () loc(#loc6)
+        %4 = "ttnn.reshape"(%3) <{shape = [1 : i32, 1 : i32]}> : (tensor<1xsi32, #ttnn_layout1>) -> tensor<1x1xsi32, #ttnn_layout4> loc(#loc7)
+        "ttnn.deallocate"(%3) <{force = false}> : (tensor<1xsi32, #ttnn_layout1>) -> () loc(#loc7)
+        %5 = "ttnn.to_layout"(%2) <{layout = #ttnn.layout<row_major>}> : (tensor<1x1xui32, #ttnn_layout3>) -> tensor<1x1xui32, #ttnn_layout5> loc(#loc8)
+        "ttnn.deallocate"(%2) <{force = false}> : (tensor<1x1xui32, #ttnn_layout3>) -> () loc(#loc8)
+        %6 = "ttnn.typecast"(%4) <{dtype = #ttcore.supportedDataTypes<bf16>}> : (tensor<1x1xsi32, #ttnn_layout4>) -> tensor<1x1xbf16, #ttnn_layout6> loc(#loc8)
+        "ttnn.deallocate"(%4) <{force = false}> : (tensor<1x1xsi32, #ttnn_layout4>) -> () loc(#loc8)
+        %7 = "ttnn.to_layout"(%6) <{layout = #ttnn.layout<row_major>}> : (tensor<1x1xbf16, #ttnn_layout6>) -> tensor<1x1xbf16, #ttnn_layout7> loc(#loc8)
+        "ttnn.deallocate"(%6) <{force = false}> : (tensor<1x1xbf16, #ttnn_layout6>) -> () loc(#loc8)
+        %8 = "ttnn.embedding"(%5, %7) : (tensor<1x1xui32, #ttnn_layout5>, tensor<1x1xbf16, #ttnn_layout7>) -> tensor<1x1x1xbf16, #ttnn_layout8> loc(#loc5)
+        "ttnn.deallocate"(%7) <{force = false}> : (tensor<1x1xbf16, #ttnn_layout7>) -> () loc(#loc5)
+        "ttnn.deallocate"(%5) <{force = false}> : (tensor<1x1xui32, #ttnn_layout5>) -> () loc(#loc5)
+        %9 = "ttnn.typecast"(%8) <{dtype = #ttcore.supportedDataTypes<si32>}> : (tensor<1x1x1xbf16, #ttnn_layout8>) -> tensor<1x1x1xsi32, #ttnn_layout9> loc(#loc8)
+        "ttnn.deallocate"(%8) <{force = false}> : (tensor<1x1x1xbf16, #ttnn_layout8>) -> () loc(#loc8)
+        %10 = "ttnn.reshape"(%9) <{shape = [1 : i32]}> : (tensor<1x1x1xsi32, #ttnn_layout9>) -> tensor<1xsi32, #ttnn_layout1> loc(#loc9)
+        "ttnn.deallocate"(%9) <{force = false}> : (tensor<1x1x1xsi32, #ttnn_layout9>) -> () loc(#loc9)
+        return %10 : tensor<1xsi32, #ttnn_layout1> loc(#loc)
+      } loc(#loc)
+    } loc(#loc)
+  } loc(#loc)
+} loc(#loc)
+#loc = loc(unknown)
+#loc3 = loc("convert.3_in_0_layout")
+#loc4 = loc("convert.3")
+#loc5 = loc("gather.4")
+#loc6 = loc("gather.4_reshapeInput_in_0_layout"(#loc5))
+#loc7 = loc("gather.4_reshapeInput"(#loc5))
+#loc8 = loc("gather.4_workaround"(#loc5))
+#loc9 = loc("gather.4_reshapeOutput"(#loc5))
+------------------ END OF MLIR MODULE ------------------
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0] failed while attempting to run meta for aten.split_with_sizes.default
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0] Traceback (most recent call last):
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]   File "/localdev/ctr-sbaskaran/tt-xla/venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py", line 2823, in _dispatch_impl
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]     r = func(*args, **kwargs)
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]         ^^^^^^^^^^^^^^^^^^^^^
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]   File "/localdev/ctr-sbaskaran/tt-xla/venv/lib/python3.12/site-packages/torch/_ops.py", line 819, in __call__
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]     return self._op(*args, **kwargs)
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]            ^^^^^^^^^^^^^^^^^^^^^^^^^
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]   File "/localdev/ctr-sbaskaran/tt-xla/venv/lib/python3.12/site-packages/torch/_refs/__init__.py", line 4359, in split_with_sizes
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]     torch._check_with(
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]   File "/localdev/ctr-sbaskaran/tt-xla/venv/lib/python3.12/site-packages/torch/__init__.py", line 1714, in _check_with
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0]     raise error_type(message_evaluated)
+E0514 11:30:43.517000 964213 venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2827] [3/0] ValueError: Split sizes add up to 1904 but got the tensor's size of 1900
+FAILED
+
+=================================== FAILURES ===================================
+_________________________ test_split_with_sizes_qwen35 _________________________
+tests/torch/ops/test_split_with_sizes_qwen35_sanity.py:37: in test_split_with_sizes_qwen35
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:73: in test
+    tt_res = self._device_runner.run_on_tt_device(tt_workload)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:30: in run_on_tt_device
+    return self.run_on_device(workload, DeviceType.TT, device_num)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:40: in run_on_device
+    return self._run_on_device(device_workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:105: in _run_on_device
+    return workload.execute()
+           ^^^^^^^^^^^^^^^^^^
+tests/infra/workloads/workload.py:71: in execute
+    return self.compiled_executable(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:465: in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:953: in compile_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/torch/ops/test_split_with_sizes_qwen35_sanity.py:23: in forward
+    lengths = torch.repeat_interleave(hw_prod, repeats)
+tests/torch/ops/test_split_with_sizes_qwen35_sanity.py:24: in torch_dynamo_resume_in_forward_at_23
+    splits = torch.split(qkv, lengths.tolist(), dim=2)
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:2202: in __call__
+    result = self._torchdynamo_orig_backend(
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1945: in __call__
+    result = self._inner_convert(
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:707: in __call__
+    result = _compile(
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1752: in _compile
+    guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_utils_internal.py:97: in wrapper_function
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1433: in compile_inner
+    return _compile_inner(code, one_graph, hooks)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1467: in _compile_inner
+    dynamo_output = compile_frame(
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1341: in compile_frame
+    bytecode, tracer_output = transform_code_object(code, transform)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/bytecode_transformation.py:1600: in transform_code_object
+    tracer_output = transformations(instructions, code_options)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:1313: in transform
+    tracer_output = trace_frame(
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:328: in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:838: in trace_frame
+    run_tracer()
+venv/lib/python3.12/site-packages/torch/_dynamo/convert_frame.py:819: in run_tracer
+    tracer.run()
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:1654: in run
+    while self.step():
+          ^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:1334: in step
+    self.dispatch_table[inst.opcode](self, inst)
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:866: in wrapper
+    return inner_fn(self, inst)
+           ^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:3807: in CALL
+    self._call(inst)
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:3798: in _call
+    self.call_function(fn, args, kwargs)
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:1240: in call_function
+    self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/lazy.py:229: in realize_and_forward
+    return getattr(self.realize(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/torch.py:1468: in call_function
+    return dispatch_torch_function(tx, self, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/torch_function.py:543: in dispatch_torch_function
+    res = tx.symbolic_torch_function_state.call_torch_function_mode(
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/torch_function.py:324: in call_torch_function_mode
+    return cur_mode.call_torch_function(tx, fn, types, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/torch_function.py:193: in call_torch_function
+    return call_torch_function(
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/torch_function.py:498: in call_torch_function
+    return torch_function_var.call_function(tx, tf_args, {})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:1450: in call_function
+    return super().call_function(tx, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:685: in call_function
+    return super().call_function(tx, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:401: in call_function
+    return tx.inline_user_function_return(self, [*self.self_args(), *args], kwargs)  # type: ignore[attr-defined]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:1262: in inline_user_function_return
+    return InliningInstructionTranslator.inline_call(self, fn, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:4718: in inline_call
+    return tracer.inline_call_()
+           ^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:4935: in inline_call_
+    self.run()
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:1654: in run
+    while self.step():
+          ^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:1334: in step
+    self.dispatch_table[inst.opcode](self, inst)
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:866: in wrapper
+    return inner_fn(self, inst)
+           ^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:2582: in CALL_FUNCTION_EX
+    self.call_function(fn, argsvars.items, kwargsvars)
+venv/lib/python3.12/site-packages/torch/_dynamo/symbolic_convert.py:1240: in call_function
+    self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/torch.py:1596: in call_function
+    tensor_variable = wrap_fx_proxy(
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/builder.py:2795: in wrap_fx_proxy
+    return wrap_fx_proxy_cls(target_cls=TensorVariable, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/builder.py:2861: in wrap_fx_proxy_cls
+    out = _wrap_fx_proxy(
+venv/lib/python3.12/site-packages/torch/_dynamo/variables/builder.py:2972: in _wrap_fx_proxy
+    example_value = get_fake_value(proxy.node, tx, allow_non_graph_fake=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/utils.py:3626: in get_fake_value
+    raise TorchRuntimeError(msg).with_traceback(e.__traceback__) from None
+venv/lib/python3.12/site-packages/torch/_dynamo/utils.py:3524: in get_fake_value
+    ret_val = wrap_fake_exception(
+venv/lib/python3.12/site-packages/torch/_dynamo/utils.py:2966: in wrap_fake_exception
+    return fn()
+           ^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/utils.py:3525: in <lambda>
+    lambda: run_node(tx.output, node, args, kwargs, nnmodule)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/utils.py:3735: in run_node
+    raise RuntimeError(make_error_message(e)).with_traceback(
+venv/lib/python3.12/site-packages/torch/_dynamo/utils.py:3694: in run_node
+    return node.target(*args, **kwargs)  # type: ignore[operator]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/functional.py:173: in split
+    return tensor.split(split_size_or_sections, dim)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_tensor.py:1066: in split
+    return torch._VF.split_with_sizes(
+venv/lib/python3.12/site-packages/torch/utils/_stats.py:29: in wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:1397: in __torch_dispatch__
+    return self.dispatch(func, types, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2155: in dispatch
+    return self._cached_dispatch_impl(func, types, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:1544: in _cached_dispatch_impl
+    output = self._dispatch_impl(func, types, args, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_subclasses/fake_tensor.py:2823: in _dispatch_impl
+    r = func(*args, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_ops.py:819: in __call__
+    return self._op(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_refs/__init__.py:4359: in split_with_sizes
+    torch._check_with(
+venv/lib/python3.12/site-packages/torch/__init__.py:1714: in _check_with
+    raise error_type(message_evaluated)
+E   torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_function <function split at 0x7f6a22b49440>(*(FakeTensor(..., device='xla:0', size=(1, 4, 1900, 32), dtype=torch.bfloat16), [1904]), **{'dim': 2}): got ValueError("Split sizes add up to 1904 but got the tensor's size of 1900")
+E   
+E   from user code:
+E      File "/localdev/ctr-sbaskaran/tt-xla/tests/torch/ops/test_split_with_sizes_qwen35_sanity.py", line 24, in torch_dynamo_resume_in_forward_at_24
+E       splits = torch.split(qkv, lengths.tolist(), dim=2)
+E     File "/localdev/ctr-sbaskaran/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__
+E       return func(*args, **(kwargs or {}))
+E   
+E   Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /localdev/ctr-sbaskaran/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/ops/test_split_with_sizes_qwen35_sanity.py::test_split_with_sizes_qwen35
+  /localdev/ctr-sbaskaran/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/ops/test_split_with_sizes_qwen35_sanity.py::test_split_with_sizes_qwen35
+  /localdev/ctr-sbaskaran/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/ops/test_split_with_sizes_qwen35_sanity.py::test_split_with_sizes_qwen35 - torch._dynamo.exc.TorchRuntimeError: Dynamo failed to run FX node with fake tensors: call_function <function split at 0x7f6a22b49440>(*(FakeTensor(..., device='xla:0', size=(1, 4, 1900, 32), dtype=torch.bfloat16), [1904]), **{'dim': 2}): got ValueError("Split sizes add up to 1904 but got the tensor's size of 1900")
+
+from user code:
+   File "/localdev/ctr-sbaskaran/tt-xla/tests/torch/ops/test_split_with_sizes_qwen35_sanity.py", line 24, in torch_dynamo_resume_in_forward_at_24
+    splits = torch.split(qkv, lengths.tolist(), dim=2)
+  File "/localdev/ctr-sbaskaran/tt-xla/python_package/tt_torch/torch_overrides.py", line 22, in __torch_function__
+    return func(*args, **(kwargs or {}))
+
+Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+======================== 1 failed, 18 warnings in 4.15s ========================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
