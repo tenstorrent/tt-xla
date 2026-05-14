@@ -19,6 +19,7 @@ import argparse
 import collections.abc
 import importlib
 import inspect
+import re
 import sys
 from pathlib import Path
 
@@ -26,6 +27,24 @@ import torch
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
+
+_MODEL_DIR_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_/]*$")
+
+
+def _validate_model_dir(value: str) -> str:
+    if not _MODEL_DIR_RE.match(value):
+        raise argparse.ArgumentTypeError(
+            f"--model-dir must contain only letters, digits, underscores, and forward slashes (got {value!r})"
+        )
+    return value
+
+
+def _validate_identifier(value: str) -> str:
+    if not value.isidentifier():
+        raise argparse.ArgumentTypeError(
+            f"--variant must be a valid Python identifier (got {value!r})"
+        )
+    return value
 
 
 def describe(x, depth=0, name="out"):
@@ -57,12 +76,14 @@ def main():
     parser.add_argument(
         "--model-dir",
         required=True,
+        type=_validate_model_dir,
         help="Top-level model directory under third_party/tt_forge_models, "
         "e.g. yolov9 or bert/question_answering",
     )
     parser.add_argument(
         "--variant",
         default=None,
+        type=_validate_identifier,
         help="ModelVariant enum name (e.g. T, Base, Squad2). Omit if the loader has no ModelVariant.",
     )
     parser.add_argument("--batch-size", type=int, default=2)
