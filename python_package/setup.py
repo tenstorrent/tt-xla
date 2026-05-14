@@ -520,6 +520,22 @@ class CMakeBuildPy(build_py):
         )
         print(f"Set RPATH on {runtime_so_dest.name} to {rpath}")
 
+        # The .so extensions inside ttmlir/_mlir_libs/ also need to find libtt_metal.so
+        # and other libraries in pjrt_plugin_tt/lib/. Their RPATH must point two levels
+        # up from site-packages/ttmlir/_mlir_libs/ to site-packages/pjrt_plugin_tt/lib/.
+        ttmlir_mlir_libs_dir = install_dir.parent / "ttmlir" / "_mlir_libs"
+        if ttmlir_mlir_libs_dir.exists():
+            mlir_libs_rpath = "$ORIGIN/../../pjrt_plugin_tt/lib"
+            for so_file in ttmlir_mlir_libs_dir.glob("*.so*"):
+                if so_file.is_file() and not so_file.is_symlink():
+                    subprocess.run(
+                        [patchelf, "--set-rpath", mlir_libs_rpath, str(so_file)],
+                        check=True,
+                    )
+                    print(
+                        f"Set RPATH on ttmlir/_mlir_libs/{so_file.name} to {mlir_libs_rpath}"
+                    )
+
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():
             return
