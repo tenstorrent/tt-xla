@@ -1832,29 +1832,49 @@ test_config:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
   d_fine/pytorch-Nano-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine nano hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.004327041538509983. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Small-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine small hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Medium-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine medium hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.20286665988748961. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Large-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine large hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.3777558992205605. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Xlarge-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine xlarge hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   hrnet/pytorch-v2_W48_Osmr-single_device-inference:
     required_pcc: 0.985  # https://github.com/tenstorrent/tt-xla/issues/1491
