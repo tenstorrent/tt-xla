@@ -3,6 +3,8 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 
+from tests.conftest import run_around_tests  # noqa: F401 — autouse fixture
+
 
 def make_validator_positive_int(option_name):
     """Create a positive integer validator with the option name in error messages."""
