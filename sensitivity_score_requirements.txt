@@ -1,0 +1,15 @@
+# Requirements for running sensitivity_score.py --stage fisher
+# (the Fisher-information / GPU stage; no tt-xla / ttnn / TT-MLIR needed)
+#
+# Usage:
+#   python -m venv .venv && source .venv/bin/activate
+#   pip install -r sensitivity_score_requirements.txt
+#   huggingface-cli login    # Llama-3.2 is a gated model
+#   python sensitivity_score.py --stage fisher --model meta-llama/Llama-3.2-1B
+
+torch>=2.4
+transformers>=4.50
+datasets>=2.20
+accelerate>=0.30
+sentencepiece
+protobuf
