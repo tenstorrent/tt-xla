@@ -667,6 +667,23 @@ def benchmark_llm_torch_xla(
             logits[:, -1, :].argmax(dim=-1)[0].item() for logits in output_logits
         ]
 
+        # Also dump per-position argmax over the prefill logits, so codegen-path
+        # output (which also produces a (B,S,V) prefill logits tensor) can be
+        # compared apples-to-apples on the prefill window. output_logits[0] is
+        # the prefill call result; subsequent entries are single-step decodes.
+        try:
+            prefill_logits = output_logits[0]  # (B, S, V)
+            prefill_argmax = prefill_logits[0].argmax(dim=-1).tolist()
+            prefill_top5 = prefill_logits[0].topk(5, dim=-1).indices.tolist()
+            prefill_argmax_str = ",".join(str(int(x)) for x in prefill_argmax)
+            prefill_top5_str = ";".join(
+                ",".join(str(int(x)) for x in row) for row in prefill_top5
+            )
+            print(f"AUTORESEARCH_PREFILL_PERPOS_ARGMAX_BATCH0={prefill_argmax_str}")
+            print(f"AUTORESEARCH_PREFILL_PERPOS_TOP5_BATCH0={prefill_top5_str}")
+        except Exception as exc:
+            print(f"[token-debug] prefill per-pos dump failed: {type(exc).__name__}: {exc}")
+
     # Calculate Time to First Token (TTFT)
     ttft_ns = iteration_times[0] if not decode_only else 0.0
     ttft_ms = ttft_ns / 1e6

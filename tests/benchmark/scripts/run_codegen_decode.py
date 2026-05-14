@@ -270,6 +270,41 @@ def run_one_graph(graph: str, codegen_dir: str, mesh_device, mesh_shape) -> floa
                     print(f"AUTORESEARCH_{graph.upper()}_PRED_TOKENS={pred_str}")
                 else:
                     print(f"[harness] gather composer failed for {graph} — relying on SHA16 fingerprints")
+
+                # Per-position argmax over the full logits tensor — used for accuracy
+                # testing against a .refpt reference. outputs[3] is the logits tensor
+                # of shape (batch, seq, vocab); we argmax over vocab for batch index 0,
+                # giving one predicted token id per sequence position.
+                gathered_logits = _gather_via_composer(outputs[3], mesh_device)
+                if gathered_logits is not None:
+                    try:
+                        # take batch element 0, shape (seq, vocab)
+                        per_pos_argmax = gathered_logits[0].argmax(dim=-1)
+                        per_pos_list = per_pos_argmax.flatten().tolist()
+                        pred_str = ",".join(str(int(x)) for x in per_pos_list)
+                        print(
+                            f"AUTORESEARCH_{graph.upper()}_PERPOS_ARGMAX_BATCH0={pred_str}"
+                        )
+                        # Top-5 per position too — needed for TOP5 accuracy
+                        top5_vals = gathered_logits[0].topk(5, dim=-1).indices
+                        top5_list = top5_vals.tolist()
+                        top5_str = ";".join(
+                            ",".join(str(int(x)) for x in row) for row in top5_list
+                        )
+                        print(
+                            f"AUTORESEARCH_{graph.upper()}_PERPOS_TOP5_BATCH0={top5_str}"
+                        )
+                    except Exception as exc:
+                        print(
+                            f"[harness] per-position argmax failed for {graph}: "
+                            f"{type(exc).__name__}: {exc}",
+                            file=sys.stderr,
+                        )
+                else:
+                    print(
+                        f"[harness] could not gather logits for {graph} — "
+                        f"per-position argmax skipped"
+                    )
         except Exception as exc:
             print(f"[harness] fingerprint extract failed for {graph}: {type(exc).__name__}: {exc}", file=sys.stderr)
 
