@@ -126,5 +126,5 @@ Use `@pytest.mark.record_test_properties()` to tag tests with:
 - OpenMPI, protobuf-compiler, ccache, libnuma-dev, libhwloc-dev, libboost-all-dev
 
 ### Python Requirements
-- jax==0.7.1, jaxlib==0.7.1, torch==2.7.0
+- jax==0.7.1, jaxlib==0.7.1, torch==2.10.0
 - torch-xla (custom build from Tenstorrent PyPI)

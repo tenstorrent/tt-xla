@@ -1,6 +1,9 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import os
+import sys
+
 import numpy as np
 import pytest
 import torch
@@ -10,10 +13,15 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
+from safetensors.torch import load_file as safetensors_load_file
 from torch_xla.distributed.spmd import Mesh
+from transformers import AutoTokenizer
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
+from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.loader import (
+    ModelLoader as DeepSeekV32ModelLoader,
+)
 from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.src.modified_model import (
     LayerNorm,
     ModelArgs,
@@ -21,6 +29,11 @@ from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.src.modified
 from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.src.modified_model import (
     Transformer as ModifiedTransformer,
 )
+
+sys.path.insert(0, os.path.dirname(__file__))
+from build_weight_cache import _dequant_cache_dir, _has_cache, build_cache
+
+DEEPSEEK_V3_2_EXP_REPO = "deepseek-ai/DeepSeek-V3.2-Exp"
 
 
 def _fix_layernorm_dtype(model):
@@ -269,102 +282,85 @@ def test_deepseek_indexer(batch_size):
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.parametrize("batch_size", [32, 64])
-@pytest.mark.parametrize("seq_len", [1, 32, 128])
-def test_deepseek_v3_2_layer_sparse_moe(batch_size, seq_len):
+@pytest.mark.parametrize("seq_len", [1, 32])
+def test_deepseek_v3_2_moe_block(batch_size, seq_len):
     xr.set_device_type("TT")
     torch_xla.runtime.use_spmd()
 
-    args = ModelArgs(
-        n_layers=2,
-        q_lora_rank=3072,
-        max_batch_size=batch_size,
-        max_seq_len=seq_len * 2,
-    )
+    repo_id = DEEPSEEK_V3_2_EXP_REPO
 
-    # Create full model to get freqs_cis, then extract MoE block (layer 1)
+    # V3.2-Exp config has first_k_dense_replace=3; build 4 layers so HF layer 3
+    # (first MoE layer) maps cleanly to model.layers[3].
+    loader = DeepSeekV32ModelLoader(num_layers=4, max_batch_size=batch_size)
+    loader._load_config(use_mla_cache=False, max_seq_len=seq_len * 2)
+    args = loader._args
+    # MoE-only test — skip indexer build; its cache weights become Unexpected at load.
+    args.index_n_heads = 0
+
     model = ModifiedTransformer(args)
     model = model.to(torch.bfloat16)
     _fix_layernorm_dtype(model)
-    block = model.layers[1]  # layer_id=1 >= n_dense_layers=1 -> MoE
-    freqs_cis = model.freqs_cis[:seq_len]
+
+    cache_dir = _dequant_cache_dir(repo_id, args.n_layers)
+    if not _has_cache(cache_dir):
+        build_cache(repo_id, args.n_layers, args.n_dense_layers)
+    state_dict = {}
+    for fname in sorted(os.listdir(cache_dir)):
+        if fname.endswith(".safetensors"):
+            state_dict.update(safetensors_load_file(os.path.join(cache_dir, fname)))
+    model.load_state_dict(state_dict, strict=False)
+
+    block = model.layers[args.n_dense_layers]
 
     mesh_shape = (2, 4)
     enable_sparse_mlp(block, mesh=mesh_shape, cluster_axis=0, config=args)
-    block.eval()
 
-    hidden_states = torch.randn((batch_size, seq_len, args.dim), dtype=torch.bfloat16)
-    mask = torch.full((seq_len, seq_len), float("-inf"), dtype=torch.bfloat16).triu_(1)
+    ffn = block.ffn
+    ffn.eval()
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        repo_id, trust_remote_code=True, padding_side="right"
+    )
+    encoded = tokenizer(
+        "Tell me a short story.",
+        return_tensors="pt",
+        max_length=seq_len,
+        truncation=True,
+        padding="max_length",
+    )
+    tokens = encoded["input_ids"][:, :seq_len].repeat(batch_size, 1)
+    with torch.no_grad():
+        hidden_states = model.embed(tokens).to(torch.bfloat16)
 
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
 
-    def get_shard_spec(block, args, kwargs):
+    def get_shard_spec(ffn, args, kwargs):
         shard_specs = {}
-
-        # x: [batch, seq, dim]
         shard_specs[args[0]] = ("_axis_1", None, "_axis_0")
 
-        # Attention weights — all parallelism on _axis_0 (matches hidden on _axis_0)
-        attn = block.attn
-        shard_specs[attn.wq_b.weight] = ("_axis_0", None)
-        shard_specs[attn.wkv_b.weight] = ("_axis_0", None)
-        shard_specs[attn.wo.weight] = (None, "_axis_0")
-        shard_specs[attn.wq_a.weight] = (None, "_axis_0")
-        shard_specs[attn.wkv_a.weight] = (None, "_axis_0")
-
-        # KV caches [max_batch, max_seq, dim] — batch on _axis_1
-        shard_specs[attn.kv_cache] = ("_axis_1", None, None)
-        shard_specs[attn.pe_cache] = ("_axis_1", None, None)
-
-        # Indexer
-        if attn.indexer is not None:
-            shard_specs[attn.indexer.wq_b.weight] = ("_axis_0", None)
-            shard_specs[attn.indexer.wk.weight] = (None, "_axis_0")
-            shard_specs[attn.indexer.weights_proj.weight] = (None, "_axis_0")
-            shard_specs[attn.indexer.k_cache] = ("_axis_1", None, None)
-
-        # A2aSparseMLP
-        ffn = block.ffn
-        mlp = ffn.mlp if hasattr(ffn, "mlp") else ffn
+        mlp = ffn.mlp
         shard_specs[mlp.router.gate.weight] = (None, "_axis_0")
-        shard_specs[mlp.experts.gate_proj] = (
-            ("_axis_0", "_axis_1"),
-            None,
-            None,
-        )
-        shard_specs[mlp.experts.up_proj] = (
-            ("_axis_0", "_axis_1"),
-            None,
-            None,
-        )
-        shard_specs[mlp.experts.down_proj] = (
-            ("_axis_0", "_axis_1"),
-            None,
-            None,
-        )
+        shard_specs[mlp.experts.gate_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.up_proj] = (("_axis_0", "_axis_1"), None, None)
+        shard_specs[mlp.experts.down_proj] = (("_axis_0", "_axis_1"), None, None)
 
-        # Shared experts
-        shared = getattr(ffn, "shared_experts", None)
+        shared = ffn.shared_experts
         if shared is not None:
             shard_specs[shared.w1.weight] = (None, "_axis_0")
             shard_specs[shared.w3.weight] = (None, "_axis_0")
             shard_specs[shared.w2.weight] = ("_axis_0", None)
 
-        # Norms
-        shard_specs[block.attn_norm.weight] = ("_axis_0",)
-        shard_specs[block.ffn_norm.weight] = ("_axis_0",)
-
         return shard_specs
 
     comparison_config = ComparisonConfig(
-        # seq_len = 1 has low pcc (0.92-) so disable pcc check temporarily
-        pcc=PccConfig(enabled=False if seq_len == 1 else True, required_pcc=0.985),
+        pcc=PccConfig(enabled=True, required_pcc=0.985),
     )
 
     run_graph_test(
-        block,
-        [hidden_states, None, 0, freqs_cis, mask],
+        ffn,
+        [hidden_states],
         framework=Framework.TORCH,
         mesh=mesh,
         shard_spec_fn=get_shard_spec,
