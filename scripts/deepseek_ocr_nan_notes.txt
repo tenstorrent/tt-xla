@@ -1,0 +1,36 @@
+DeepSeek-OCR NaN investigation (branch akannan/deepseek_nan_check)
+================================================================
+
+Observations (CPU float32, forge loader, doc.png inputs)
+--------------------------------------------------------
+- sanity_2 / DEEPSEEK_OCR_FINITE_DEBUG: layer 0 hidden states stay finite through
+  input_layernorm; first non-finite tensors are rotary_emb outputs (cos/sin tuple).
+- sanity_3 / test_deepseek_ocr_layer0_rotary_standalone.py: same captured tensors
+  replayed through layers[0].rotary_emb alone still yield non-finite cos/sin
+  (partial NaNs, not necessarily the whole tensor).
+
+Transformers LlamaRotaryEmbedding — is upstream "wrong"?
+-------------------------------------------------------
+- The HF implementation (transformers.models.llama.modeling_llama.LlamaRotaryEmbedding)
+  is standard RoPE: inv_freq from rope_theta and head dimension, then
+  freqs = inv_freq_expanded @ position_ids_expanded, emb = cat(freqs,freqs), cos/sin.
+- Its forward() uses the first argument `x` only for device and output dtype; the
+  actual cos/sin values depend on position_ids and the inv_freq buffer. So a replay
+  test isolates RoPE math + buffers + position_ids, not the hidden state magnitudes.
+
+Likely conclusion
+-----------------
+- This does NOT point to a generic bug in stock Llama RoPE for all models; it points
+  to an integration or numerics issue for THIS checkpoint + config path, for example:
+  - rope_parameters / rope_theta / rope_type as seen by LlamaRotaryEmbedding after
+    DeepseekV2Config / nested language_config loading vs what DeepSeek-OCR expects;
+  - inv_freq buffer dtype or values after from_pretrained / materialization;
+  - position_ids (range, shape, or stray values) for long OCR sequences;
+  - partial NaNs (subset of positions) suggest position-specific or slice-specific
+    pathology rather than uniform overflow.
+
+Next steps for owners
+---------------------
+- Dump min/max of position_ids, inv_freq, and freqs before cos() for failing batches.
+- Compare rope fields against upstream DeepSeek-OCR HF config and transformers version
+  used at training (checkpoint lists transformers_version 4.46.3).
