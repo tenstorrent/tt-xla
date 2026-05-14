@@ -254,30 +254,33 @@ python tests/benchmark/scripts/patch_attention_sink.py \
 - `tests/benchmark/benchmarks/llm_benchmark.py` — emits
   `AUTORESEARCH_PREFILL_PERPOS_ARGMAX_BATCH0` for apples-to-apples scoring
 
-### Logs (gitignored, on disk)
+### What is committed to git
 
-- `autoresearch_logs/regular_1layer_apples_v2.log` — row 1
-- `autoresearch_logs/harness_1lyr_fresh.log` — row 2
-- `autoresearch_logs/harness_1lyr_patched.log` — row 3
-- `autoresearch_logs/harness_full120b_iter0.log` — row 6
-- `autoresearch_logs/harness_full120b_notrace_nopatch.log` — row 7
-- `autoresearch_logs/harness_full120b_patched.log` — row 8
-
-### Artifacts
-
-- `autoresearch_logs/codegen_artifacts/gpt_oss_120b_1lyr_fresh/` — rows 2,3
-  (~6 GB, with `.orig` and `.patched` variants of `graph_0/main.py`)
-- `autoresearch_logs/codegen_artifacts/gpt_oss_120b_full_notrace/` — rows 7,8
-  (~437 GB)
-- `autoresearch_logs/codegen_artifacts/gpt_oss_120b_full/` — row 6, original
-  trace-on artifact (~872 GB)
-
-### Reference data
-
+- The scripts above
+- `gpt_oss_oom_repro/` (89 MB) — a hand-picked subset of the full-120B
+  trace-on codegen artifact (only graph_2 + graph_3 main.py + utils.py +
+  ttir_cpu.py + all per-stage MLIR dumps; NO tensorbins), plus the
+  production-path MLIR dumps for diff-style diagnosis. Good enough to
+  diff IRs without needing hardware. Has its own `README.md`.
 - `tests/benchmark/reference_outputs/gpt-oss-120b.refpt` — 36-layer CPU
-  reference (pre-existing)
-- `tests/benchmark/reference_outputs/gpt-oss-120b-1layer.refpt` — newly
-  generated 1-layer CPU reference
+  reference (pre-existing in the repo)
+- `tests/benchmark/reference_outputs/gpt-oss-120b.refpt.offset{0,512,1024}`
+  — prompt-offset variants
+
+### What is NOT in git (regenerate locally by following the repro steps)
+
+- All codegen artifacts (`autoresearch_logs/codegen_artifacts/…`) — total
+  hundreds of GB, gitignored. Regenerate with the codegen pytest invocation
+  in the repro section.
+- All run logs (`autoresearch_logs/*.log`) — gitignored. Regenerated on
+  every harness invocation in the repro section. Local copies on the
+  worktree have the original captures referenced from this doc (let me
+  know if any are needed and I can share them out-of-band).
+- `tests/benchmark/reference_outputs/gpt-oss-120b-1layer.refpt` — `.refpt`
+  files match `tests/benchmark/reference_outputs/*.refpt` in `.gitignore`
+  and auto-regenerate from `init_accuracy_testing` whenever missing. The
+  wiring in `91019efa2` makes generation pick up `--num-layers N` and
+  saves to `gpt-oss-120b-{N}layer.refpt` automatically.
 
 ### Failing-op context in the OOM (rows 6, 7, 8)
 

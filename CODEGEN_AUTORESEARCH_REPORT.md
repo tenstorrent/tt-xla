@@ -255,13 +255,9 @@ choosing memory layouts that don't account for live-tensor liveness across
 - `tests/benchmark/reference_outputs/gpt-oss-120b.refpt` — pre-existing
   36-layer reference (used for full-model accuracy)
 
-### Logs
+### Logs and codegen artifacts (NOT in git)
 
-- `autoresearch_logs/regular_1layer_apples_v2.log` — regular path 1-layer
-  TOP1=89.06% baseline
-- `autoresearch_logs/harness_1lyr_fresh.log` — codegen 1-layer unpatched
-  TOP1=48.44%
-- `autoresearch_logs/harness_1lyr_patched.log` — codegen 1-layer
-  attention_sink-patched TOP1=89.06%
-- `autoresearch_logs/harness_full120b_patched.log` — codegen full-120B
-  attention_sink-patched, OOM in `ttnn.slice` at line 34834
+The harness run logs and the codegen artifacts (`autoresearch_logs/`) are
+gitignored and live only on the worktree where the runs happened. Numbers
+quoted in this doc come from those local captures. Regenerate them via the
+repro commands in `CODEGEN_HANDOFF.md`.
