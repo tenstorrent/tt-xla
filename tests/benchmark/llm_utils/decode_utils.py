@@ -329,6 +329,7 @@ def init_accuracy_testing(
     max_cache_len: int,
     tokenizer,
     hf_model_name: str = None,
+    num_layers: int = None,
 ):
     """Initialize token accuracy testing for LLM benchmarks.
 
@@ -345,6 +346,10 @@ def init_accuracy_testing(
         hf_model_name: Full HuggingFace model name for on-demand generation
             (e.g., "meta-llama/Llama-3.2-1B-Instruct"). Required when
             the .refpt file needs to be generated.
+        num_layers: If set, the CPU reference is generated using a truncated model
+            (config.num_hidden_layers=num_layers) and saved to a layer-suffixed
+            .refpt path so it doesn't shadow the full-model reference. Required
+            for apples-to-apples comparison against TT runs with --num-layers N.
 
     Returns:
         Tuple of (token_accuracy, custom_input_prompt)
@@ -362,11 +367,17 @@ def init_accuracy_testing(
             "model_name_for_accuracy must be provided when accuracy_testing=True"
         )
 
+    # Suffix the reference filename when num_layers is overridden so we don't
+    # shadow the full-model reference.
+    effective_model_name = model_name_for_accuracy
+    if num_layers is not None:
+        effective_model_name = f"{model_name_for_accuracy}-{num_layers}layer"
+
     # On-demand generation: check if .refpt exists and versions match
-    if TokenAccuracy.needs_regeneration(model_name_for_accuracy):
+    if TokenAccuracy.needs_regeneration(effective_model_name):
         if hf_model_name is None:
             raise ValueError(
-                f"Reference file for '{model_name_for_accuracy}' needs generation "
+                f"Reference file for '{effective_model_name}' needs generation "
                 f"but hf_model_name was not provided."
             )
 
@@ -375,15 +386,16 @@ def init_accuracy_testing(
             generate_reference_outputs,
         )
 
-        output_file = os.path.join(_REFERENCE_DIR, f"{model_name_for_accuracy}.refpt")
+        output_file = os.path.join(_REFERENCE_DIR, f"{effective_model_name}.refpt")
         print(
-            f"Generating reference outputs for {model_name_for_accuracy} on CPU "
+            f"Generating reference outputs for {effective_model_name} on CPU "
             f"(this may take a minute)..."
         )
         generate_reference_outputs(
             total_length=max_cache_len,
             output_file=output_file,
             model_name=hf_model_name,
+            num_layers=num_layers,
         )
         print(f"Reference generation complete: {output_file}")
 
@@ -393,7 +405,7 @@ def init_accuracy_testing(
     max_decode = max_cache_len // 2
 
     token_accuracy = TokenAccuracy(
-        model_name=model_name_for_accuracy,
+        model_name=effective_model_name,
         max_prefill_tokens=max_prefill,
         max_decode_tokens=max_decode,
     )

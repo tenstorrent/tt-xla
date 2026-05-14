@@ -28,7 +28,7 @@ _REFERENCE_DIR = str(Path(__file__).resolve().parent.parent / "reference_outputs
 _CORPUS_FILE = os.path.join(_REFERENCE_DIR, "tale-of-two-cities.txt.bz2")
 
 
-def generate_reference_outputs(total_length, output_file, model_name):
+def generate_reference_outputs(total_length, output_file, model_name, num_layers=None):
     """
     Generate reference outputs for accuracy testing using HuggingFace models.
 
@@ -39,12 +39,21 @@ def generate_reference_outputs(total_length, output_file, model_name):
                      degradation even with teacher forcing.
         output_file: Path to save .refpt file
         model_name: HuggingFace model name (e.g., 'meta-llama/Llama-3.2-1B-Instruct')
+        num_layers: If set, override config.num_hidden_layers so the CPU reference is
+                     computed with a truncated model — required for apples-to-apples
+                     comparison against TT runs that use --num-layers N.
     """
     device = torch.device("cpu")
     logger.info(f"Using device: {device} (CPU forced for reference generation)")
 
     # Load model and tokenizer from HuggingFace
     config = AutoConfig.from_pretrained(model_name)
+    if num_layers is not None:
+        logger.info(
+            f"Overriding num_hidden_layers: {config.num_hidden_layers} -> {num_layers} "
+            f"for apples-to-apples CPU reference"
+        )
+        config.num_hidden_layers = num_layers
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForCausalLM.from_pretrained(

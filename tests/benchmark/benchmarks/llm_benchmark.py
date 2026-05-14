@@ -356,11 +356,16 @@ def benchmark_llm_torch_xla(
     token_accuracy = None
     custom_input_prompt = None
     if accuracy_testing:
+        # Read num_layers from the model loader so the CPU reference is generated
+        # with a matching truncated model — keeps the comparison apples-to-apples
+        # when running with --num-layers N (see decode_utils.init_accuracy_testing).
+        num_layers_override = getattr(model_loader, "num_layers", None)
         token_accuracy, custom_input_prompt = init_accuracy_testing(
             model_name_for_accuracy=model_name_for_accuracy,
             max_cache_len=max_cache_len,
             tokenizer=tokenizer,
             hf_model_name=hf_model_name_for_accuracy,
+            num_layers=num_layers_override,
         )
 
     # Construct inputs, including static cache
@@ -724,6 +729,37 @@ def benchmark_llm_torch_xla(
                 top1_accuracy * 100, top5_accuracy * 100
             )
         )
+
+        # Dump raw predicted vs reference tokens for debugging accuracy mismatches.
+        # Compares first 64 token positions; decodes them to text where possible.
+        try:
+            ref_top1 = token_accuracy.top1_tokens
+            ref_top5 = token_accuracy.top5_tokens
+            n_dump = min(64, len(predicted_tokens), ref_top1.shape[0])
+            tt_ids = list(predicted_tokens[:n_dump])
+            cpu_top1_ids = [int(ref_top1[i].item()) for i in range(n_dump)]
+            cpu_top5_ids = [ref_top5[i, :].tolist() for i in range(n_dump)]
+            print(f"[token-debug] dumping first {n_dump} positions:")
+            print(f"[token-debug] TT_predicted_ids = {tt_ids}")
+            print(f"[token-debug] CPU_top1_ids     = {cpu_top1_ids}")
+            print(f"[token-debug] CPU_top5_ids     = {cpu_top5_ids}")
+            if tokenizer is not None:
+                tt_text = tokenizer.decode(tt_ids, skip_special_tokens=False)
+                cpu_text = tokenizer.decode(cpu_top1_ids, skip_special_tokens=False)
+                print(f"[token-debug] TT_predicted_text  = {tt_text!r}")
+                print(f"[token-debug] CPU_top1_text      = {cpu_text!r}")
+            mismatches = [
+                (i, tt_ids[i], cpu_top1_ids[i])
+                for i in range(n_dump)
+                if tt_ids[i] != cpu_top1_ids[i]
+            ]
+            print(
+                f"[token-debug] {len(mismatches)}/{n_dump} positions differ from CPU top1"
+            )
+            if mismatches:
+                print(f"[token-debug] first 8 mismatches (pos, tt, cpu_top1): {mismatches[:8]}")
+        except Exception as exc:
+            print(f"[token-debug] dump failed: {type(exc).__name__}: {exc}")
 
         # Store accuracy scores
         evaluation_score = top1_accuracy  # Use TOP1 as primary score
