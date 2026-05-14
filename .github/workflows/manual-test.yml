@@ -5,6 +5,64 @@ name: Run Test
 
 on:
   workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite preset options or custom'
+        required: true
+        type: choice
+        options:
+          - 'basic-test.json'
+          - 'basic-test-nightly.json'
+          - 'model-test-push.json'
+          - 'model-test-full.json'
+          - 'on-pr.json'
+          - 'schedule-nightly.json'
+          - 'model-test-passing.json'
+          - 'model-test-xfail.json'
+          - 'model-test-experimental.json'
+          - 'model-test-training-xfail-weekly.json'
+          - 'model-test-extended.json'
+          - 'full-mlir-uplift-qualification.json'
+          - 'model-test-passing-weekly.json'
+          - 'model-test-weekly.json'
+          - 'vllm-model-tests.json'
+          - 'vllm-model-tests-nightly.json'
+          - 'fusion-tests.json'
+          - 'model-test-lb-blackhole-nightly.json'
+          - 'model-test-lb-blackhole-weekly.json'
+          - 'model-test-emitpy.json'
+          - 'Custom'
+      test_suite_custom:
+        description: 'Custom test suite json'
+        required: false
+        type: string
+      mlir_override:
+        description: 'Git SHA of commit in tenstorrent/tt-mlir'
+        required: false
+        type: string
+      forge_models_override:
+        description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
+        required: false
+        type: string
+      manylinux_build:
+        description: 'Build and use manylinux wheel'
+        required: false
+        type: boolean
+        default: false
+      run_multihost_dualt3k:
+        description: 'Run multi-host dual T3K basic tests'
+        required: false
+        type: boolean
+        default: false
+      torchxla_build_run_id:
+        description: 'Manual torch-xla build run ID'
+        required: false
+        type: string
+        default: ''
+      artifact_sha:
+        description: 'tt-xla commit SHA to reuse pre-built artifacts from instead of building (leave empty to build fresh)'
+        required: false
+        type: string
 
 permissions:
   actions: write
@@ -12,19 +70,15 @@ permissions:
   checks: write
   contents: read
 
-run-name: 'Test ( Suite: nsumrak/explorer )'
-
-env:
-  GH_TOKEN: ${{ github.token }} # for gh cli tool
-  TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
-  TT_XLA_CI: 1
+run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
 
 jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
-      dockbuild: 'ci'
+      mlir_override: ${{ inputs.mlir_override }}
+      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
 
   build-ttxla:
     needs: build-image
@@ -33,75 +87,31 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: 'explorer'
+      mlir_override: ${{ inputs.mlir_override }}
+      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+      artifact_sha: ${{ inputs.artifact_sha }}
 
   test:
-    if: always() && !cancelled() && !failure()
+    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
+    uses: ./.github/workflows/call-test.yml
     needs: [ build-image, build-ttxla ]
-    runs-on: n150
-    container:
-      image: ${{ needs.build-image.outputs.docker-image }}
-      options: --device /dev/tenstorrent
-      volumes:
-        - /dev/hugepages:/dev/hugepages
-        - /dev/hugepages-1G:/dev/hugepages-1G
-        - /etc/udev/rules.d:/etc/udev/rules.d
-        - /lib/modules:/lib/modules
-        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
-        - /mnt/dockercache:/mnt/dockercache
-    steps:
-    - name: Mark repo as safe for git
-      run: |
-        git config --global --add safe.directory /__w/tt-xla/tt-xla
-        git config --global --add safe.directory /__w/tt-xla/tt-xla/third_party/tt_forge_models
+    secrets: inherit
+    with:
+      test_suite: ${{ inputs.test_suite }}
+      test_suite_custom: ${{ inputs.test_suite_custom }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+      torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
+      forge_models_override: ${{ inputs.forge_models_override }}
 
-    - name: Log disk space
-      run: df -h
-
-    - name: Set caching env variables
-      shell: bash
-      run: |
-        shared_runners=${{ matrix.build.shared-runners }}
-        if [[ "$shared_runners" == "" || "$shared_runners" == "false" ]]; then
-          echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
-        else
-          echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
-        fi
-
-    - uses: actions/checkout@v6
-      with:
-        submodules: recursive
-        sparse-checkout-cone-mode: false
-        sparse-checkout: |
-          .github/scripts/
-          .gitmodules
-          .test_durations
-          pytest.ini
-          python_package/requirements.txt
-          integrations/vllm_plugin/requirements-vllm-plugin.txt
-          tests/
-
-    - name: Download wheel artifact
-      uses: actions/download-artifact@v8
-      with:
-        name: xla-whl-explorer${{ needs.build-ttxla.outputs.artifact_suffix }}
-        path: wheels
-        run-id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-        github-token: ${{ github.token }}
-
-    - name: Install wheel
-      shell: bash
-      run: |
-        echo "Downloaded wheel files:"
-        ls -la wheels
-
-        source venv/activate
-        echo "=== Installing wheel ==="
-        pip install wheels/*.whl
-
-
-    - name: Run Tests
-      shell: bash
-      run: |
-        source venv/activate
-        python tests/op_by_op/test_tool_capability.py
+  test-multihost-dualt3k:
+    if: always() && !cancelled() && !failure() && inputs.run_multihost_dualt3k
+    uses: ./.github/workflows/call-test-multihost-dualt3k.yml
+    needs: [ build-image, build-ttxla ]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
