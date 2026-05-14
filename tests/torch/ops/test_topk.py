@@ -6,6 +6,7 @@ import pytest
 import torch
 from benchmark.utils import compute_pcc
 from infra import Framework, run_op_test, run_op_test_with_random_inputs
+from infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig, PccConfig
 from utils import Category
 
 
@@ -189,6 +190,44 @@ def test_topk_both(input_shape: tuple, k: int):
         dtype=torch.float32,
         framework=Framework.TORCH,
         custom_comparator=topk_both_comparator,
+    )
+
+
+# @pytest.mark.nightly
+# @pytest.mark.single_device
+# @pytest.mark.record_test_properties(
+#     category=Category.OP_TEST,
+#     torch_op_name="torch.topk",
+# )
+def test_topk_deepseek_ocr_moe_route_count():
+    """DeepSeek-OCR MoE expects topk routes to be unique per token.
+
+    The model failure saw ``topk_idx.shape == (913, 6)`` but only 5477 routed
+    tokens before ``view(913, 6, -1)``. That can happen if a row contains a
+    duplicate top-k expert id: ``scatter_(..., 1)`` records unique experts, while
+    ``topk_idx.view(-1)`` still has 913 * 6 entries.
+    """
+
+    class DeepseekMoeTopKRouteCount(torch.nn.Module):
+        def forward(self, scores):
+            _, topk_ids = torch.topk(scores, k=6, dim=-1, sorted=False)
+            cnts = topk_ids.new_zeros((topk_ids.shape[0], 64))
+            cnts.scatter_(1, topk_ids, 1)
+            routed_tokens = cnts.sum(dim=0).sum()
+            return (topk_ids.numel() - routed_tokens).float()
+
+    torch.manual_seed(0)
+    scores = torch.randn(913, 64, dtype=torch.float32)
+
+    comparison_config = ComparisonConfig(
+        atol=AtolConfig(True, 0.0),
+        pcc=PccConfig(False),
+    )
+    run_op_test(
+        DeepseekMoeTopKRouteCount(),
+        [scores],
+        framework=Framework.TORCH,
+        comparison_config=comparison_config,
     )
 
 
