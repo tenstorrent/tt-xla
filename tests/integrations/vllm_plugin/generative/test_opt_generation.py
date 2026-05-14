@@ -21,6 +21,7 @@ def test_opt_generation():
         "additional_config": {
             "enable_const_eval": False,
             "min_context_len": 32,
+            # "num_hidden_layers": 1,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -46,6 +47,7 @@ def test_opt_generation_multibatch():
         "additional_config": {
             "enable_const_eval": False,
             "min_context_len": 32,
+            "num_hidden_layers": 1,
         },
     }
 

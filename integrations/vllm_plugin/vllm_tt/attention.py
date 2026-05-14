@@ -177,9 +177,13 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    batch_size: int
+    num_tokens: int
 
     def __init__(
         self,
+        batch_size: int,
+        num_tokens: int,
         cache_position: torch.Tensor | None = None,
         attn_mask: torch.Tensor | None = None,
         page_table: torch.Tensor | None = None,
@@ -193,6 +197,8 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.batch_size = batch_size
+        self.num_tokens = num_tokens
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -278,6 +284,8 @@ class TTAttentionBackendImpl(AttentionImpl):
             value: shape = [batch_size, num_tokens, num_kv_heads * head_size]
             output: shape = [batch_size, num_tokens, num_heads * head_size]
         """
+        # logger.info(f"0::Running TT attention with query {type(query)}, key {type(key)}, value {type(value)}, kv_cache {type(kv_cache)}, attn_metadata: {attn_metadata}")
+        # logger.info(f"0::Running TT attention with query shape {query.shape}, key shape {key.shape}, value shape {value.shape}, attn_metadata: {attn_metadata}")
 
         # Prepare inputs and metadata
         inputs = self._prepare_inputs(query, key, value, attn_metadata)
@@ -310,14 +318,7 @@ class TTAttentionBackendImpl(AttentionImpl):
         """Prepare and reshape input tensors for attention computation."""
         from collections import namedtuple
 
-        # Extract common metadata
-        # Handle case when cache_position is None (e.g., during profiling)
-        if attn_metadata is not None and attn_metadata.cache_position is not None:
-            num_users = attn_metadata.cache_position.shape[0]  # logical batch size
-        else:
-            # Fallback: infer from query shape
-            num_users = query.shape[0] if query.ndim > 2 else 1
-
+        num_users = attn_metadata.batch_size
         orig_query_shape = query.shape
         orig_query_ndim = query.ndim
 
@@ -337,6 +338,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             raise ValueError(
                 f"Unsupported query ndim: {orig_query_ndim}, expected 2 or 3."
             )
+        # logger.info(f"1::Running TT attention with query shape {query.shape}, key shape {key.shape}, value shape {value.shape}")
 
         users_kv = key.shape[0]
         query_num_tokens = query.shape[1]
@@ -357,6 +359,7 @@ class TTAttentionBackendImpl(AttentionImpl):
             kv_num_tokens,
             hidden_size,
         )
+        # logger.info(f"2::Running TT attention with query shape {query.shape}, key shape {key.shape}, value shape {value.shape}")
 
         # Create named tuple for inputs
         AttentionInputs = namedtuple(
@@ -398,6 +401,9 @@ class TTAttentionBackendImpl(AttentionImpl):
             total_tokens % users == 0
         ), f"total_tokens ({total_tokens}) not divisible by num_users ({users})."
         query_num_tokens = total_tokens // users  # tokens per user
+        assert (
+            query_num_tokens == self.num_tokens
+        ), f"query_num_tokens ({query_num_tokens}) does not match metadata num_tokens ({self.num_tokens})."
         query = query.view(users, query_num_tokens, hidden_size)
 
         return query

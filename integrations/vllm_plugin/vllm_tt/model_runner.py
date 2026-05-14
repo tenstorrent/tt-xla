@@ -992,9 +992,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 i, computed_tokens : n + computed_tokens
             ]
 
-        # Move input_ids and position_ids to the target device for execution.
-        self.input_ids = input_ids_cpu.to(self.device)
-        self.position_ids = arange.to(self.device)
+        # Flatten on CPU before transfer and keep 1D on device.
+        flat_input_ids_cpu = input_ids_cpu.reshape(-1)
+        flat_position_ids_cpu = arange.reshape(-1)
+        self.input_ids = flat_input_ids_cpu.to(self.device)
+        self.position_ids = flat_position_ids_cpu.to(self.device)
 
         # Prepare the attention metadata.
         self.query_start_loc_np[0] = 0
@@ -1074,6 +1076,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
         attn_metadata = TTMetadata(
+            self.max_num_reqs,
+            padded_total_num_scheduled_tokens,
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
@@ -1353,6 +1357,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     positions=self.position_ids,
                     inputs_embeds=inputs_embeds,
                 )
+            # Inputs are flattened as [max_num_reqs * num_tokens]. Restore
+            # hidden_states to [max_num_reqs, num_tokens, hidden_size].
+            if hidden_states.ndim == 2:
+                num_tokens = self.input_ids.numel() // self.max_num_reqs
+                hidden_states = hidden_states.reshape(
+                    self.max_num_reqs, num_tokens, hidden_states.shape[-1]
+                )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1628,12 +1639,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
         else:
             input_ids = torch.zeros(
-                (self.max_num_reqs, num_tokens), dtype=torch.int32
+                (self.max_num_reqs * num_tokens,), dtype=torch.int32
             ).to(self.device)
             inputs_embeds = None
 
         position_ids = torch.zeros(
-            (self.max_num_reqs, num_tokens), dtype=torch.int32
+            (self.max_num_reqs * num_tokens,), dtype=torch.int32
         ).to(self.device)
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
@@ -1641,6 +1652,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
+            self.max_num_reqs,
+            num_tokens,
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,

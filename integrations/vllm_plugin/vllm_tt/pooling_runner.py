@@ -930,8 +930,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 arange = torch.cat([arange, zero_rows], dim=0)
                 attn_mask_batch_size += self.num_additional_inputs
 
-        self.input_ids = self.input_ids_cpu.to(self.device)
-        self.position_ids = arange.to(self.device)
+        # Flatten on CPU before transfer and keep 1D on device.
+        self.input_ids = self.input_ids_cpu.reshape(-1).to(self.device)
+        self.position_ids = arange.reshape(-1).to(self.device)
 
         # Prepare the attention metadata.
         self.query_start_loc_np[0] = 0
@@ -971,7 +972,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 seq_lens,
-                self.input_ids.shape[-1],
+                padded_total_num_scheduled_tokens,
                 attn_mask_batch_size,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
@@ -1221,8 +1222,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Mark inputs for data parallel sharding.
             if self.enable_data_parallel:
-                xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-                xs.mark_sharding(self.position_ids, self.mesh, ("batch", None))
+                xs.mark_sharding(input_ids, self.mesh, ("batch",))
+                xs.mark_sharding(self.position_ids, self.mesh, ("batch",))
 
             # Run the decoder
             with set_forward_context(
@@ -1236,6 +1237,15 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     inputs_embeds=inputs_embeds,
                 )
                 hidden_states = hidden_states.to("cpu")
+
+            # Inputs are flattened as [batch_size * num_tokens]. Restore
+            # hidden_states to [batch_size, num_tokens, hidden_size].
+            if hidden_states.ndim == 2:
+                hidden_states = hidden_states.reshape(
+                    self.input_ids_cpu.shape[0],
+                    self.input_ids_cpu.shape[1],
+                    hidden_states.shape[-1],
+                )
 
             # Split along batch dimension and remove the extra dimension
             hidden_states_list = [
@@ -1429,19 +1439,19 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
             )
         else:
-            input_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
+            input_ids = torch.zeros((num_reqs * num_tokens,), dtype=torch.int32).to(
                 self.device
             )
             inputs_embeds = None
-        position_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
+        position_ids = torch.zeros((num_reqs * num_tokens,), dtype=torch.int32).to(
             self.device
         )
         context_lens = torch.ones((num_reqs,), dtype=torch.int32)
 
         # Mark inputs for data parallel sharding.
         if self.enable_data_parallel:
-            xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-            xs.mark_sharding(position_ids, self.mesh, ("batch", None))
+            xs.mark_sharding(input_ids, self.mesh, ("batch",))
+            xs.mark_sharding(position_ids, self.mesh, ("batch",))
 
         # Default Configurations: valid for single input per batch.
         attn_mask = None
@@ -1452,7 +1462,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 context_lens,
-                input_ids.shape[-1],
+                num_tokens,
                 num_reqs,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
