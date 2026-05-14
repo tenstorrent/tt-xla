@@ -16,18 +16,24 @@ from tt_torch.sparse_mlp import enable_sparse_mlp
 
 PCC_99 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
 
+
 def setup_spmd():
     pass
 
+
 def make_2d_mesh() -> Mesh:
     num_devices = xr.global_runtime_device_count()
-    assert num_devices in (8, 32), "Need to run on either an LLMBox or Galaxy in order to make a 2D Mesh"
+    assert num_devices in (
+        8,
+        32,
+    ), "Need to run on either an LLMBox or Galaxy in order to make a 2D Mesh"
     if num_devices == 32:
         mesh_shape = (4, 8)
     else:
         mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
     return Mesh(device_ids, mesh_shape, ("batch", "model"))
+
 
 def real_args(**overrides) -> ModelArgs:
     """Attention-focused args copied from the real config.json with bounded test sizes."""

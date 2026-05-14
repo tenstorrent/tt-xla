@@ -13,16 +13,34 @@ from safetensors import safe_open
 from third_party.tt_forge_models.deepseek_v4.modified_model import model
 
 # FP4 e2m1fn lookup: 4 bits -> float value. Bits 0-7 positive, 8-15 negative
-# (bit 3 acts as sign). Copied verbatim from https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/blob/main/inference/convert.py 
-_FP4_TABLE = torch.tensor([
-    0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0,
-    0.0, -0.5, -1.0, -1.5, -2.0, -3.0, -4.0, -6.0
-], dtype=torch.float32)
+# (bit 3 acts as sign). Copied verbatim from https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/blob/main/inference/convert.py
+_FP4_TABLE = torch.tensor(
+    [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        3.0,
+        4.0,
+        6.0,
+        0.0,
+        -0.5,
+        -1.0,
+        -1.5,
+        -2.0,
+        -3.0,
+        -4.0,
+        -6.0,
+    ],
+    dtype=torch.float32,
+)
 
 _FP4_BLOCK = 32
 _FP8_BLOCK = 128
 
-_VALID_MODEL_NAMES = ('deepseek-ai/DeepSeek-V4-Flash', 'deepseek-ai/DeepSeek-V4-Pro')
+_VALID_MODEL_NAMES = ("deepseek-ai/DeepSeek-V4-Flash", "deepseek-ai/DeepSeek-V4-Pro")
+
 
 ##################################################################
 # Dequanting helper functions START
@@ -64,6 +82,7 @@ def _dequant_fp8(weight: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
     )  # [bOut, 128, bIn, 128]
     s = scale.to(torch.float32)[:, None, :, None]  # [bOut, 1, bIn, 1]
     return (w * s).flatten(2, 3).flatten(0, 1).to(torch.bfloat16)
+
 
 def _dequant_paired(
     raw: Dict[str, torch.Tensor], base_prefix: str
@@ -113,13 +132,15 @@ def _dequant_paired(
         local = k[len(base_prefix) :]
         out[local] = v
     return out
+
+
 ##################################################################
 # Dequanting helper functions END
 ##################################################################
 
 
 ##################################################################
-# Weight loading helper functions START 
+# Weight loading helper functions START
 ##################################################################
 def _find_shards_for_keys(
     weight_map: Dict[str, str], prefixes: Iterable[str]
@@ -129,7 +150,8 @@ def _find_shards_for_keys(
 
 
 def _load_raw_subset(
-    model_name: str, prefixes: Iterable[str],
+    model_name: str,
+    prefixes: Iterable[str],
 ) -> Dict[str, torch.Tensor]:
     """Download relevant shards and return tensors whose keys match any prefix.
     Keys are returned verbatim (with the original "layers.{L}.ffn." prefix)."""
@@ -154,9 +176,12 @@ def _load_raw_subset(
                 if key.startswith(prefix_tuple):
                     raw[key] = f.get_tensor(key)
     return raw
+
+
 ##################################################################
-# Weight loading helper functions END 
+# Weight loading helper functions END
 ##################################################################
+
 
 def load_config_args(model_name: str, force_bf16: bool) -> model.ModelArgs:
     path = hf_hub_download(repo_id=model_name, filename="inference/config.json")
@@ -175,6 +200,7 @@ def load_config_args(model_name: str, force_bf16: bool) -> model.ModelArgs:
         kwargs["scale_fmt"] = None
     return model.ModelArgs(**kwargs)
 
+
 def load_moe_state_dict(model_name: str, layer_id: int) -> Dict[str, torch.Tensor]:
     """State dict matching `model.MoE(layer_id, args).state_dict()` keys.
 
@@ -186,7 +212,10 @@ def load_moe_state_dict(model_name: str, layer_id: int) -> Dict[str, torch.Tenso
     raw = _load_raw_subset(model_name, [base])
     return _dequant_paired(raw, base)
 
-def load_expert_state_dict(model_name: str, layer_id: int, expert_id: int) -> Dict[str, torch.Tensor]:
+
+def load_expert_state_dict(
+    model_name: str, layer_id: int, expert_id: int
+) -> Dict[str, torch.Tensor]:
     """State dict matching `model.Expert(...).state_dict()` keys.
 
     Returns keys: w1.weight, w2.weight, w3.weight — bf16.
@@ -236,7 +265,7 @@ def load_top_level_state_dict(model_name: str) -> Dict[str, torch.Tensor]:
             "hc_head_scale",
             "norm.",
             "head.",
-        ]
+        ],
     )
     out: Dict[str, torch.Tensor] = {}
     # Pair-dequant within each base prefix that has fp4/fp8 weights.
@@ -252,6 +281,7 @@ def load_top_level_state_dict(model_name: str) -> Dict[str, torch.Tensor]:
             continue
         out[k] = v.to(torch.bfloat16) if v.is_floating_point() else v
     return out
+
 
 def load_transformer_state_dict(
     model_name: str,
@@ -269,6 +299,3 @@ def load_transformer_state_dict(
         prefixes.append("mtp.")
     raw = _load_raw_subset(model_name, prefixes)
     return _dequant_paired(raw, "")
-
-
-
