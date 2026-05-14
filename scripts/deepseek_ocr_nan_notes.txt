@@ -34,3 +34,12 @@ Next steps for owners
 - Dump min/max of position_ids, inv_freq, and freqs before cos() for failing batches.
 - Compare rope fields against upstream DeepSeek-OCR HF config and transformers version
   used at training (checkpoint lists transformers_version 4.46.3).
+
+HF hub forward sanity (tt-xla)
+------------------------------
+- tests/torch/models/deepseek_ocr/test_hf_forward_sanity.py loads
+  ``AutoModelForCausalLM.from_pretrained("deepseek-ai/DeepSeek-OCR", trust_remote_code=True)``
+  and runs one CPU forward with the same forge ``ModelLoader`` inputs.
+- tt-xla dev venv pins ``transformers==5.2.0`` (venv/requirements-dev.txt). Hub remote
+  ``modeling_deepseekv2.py`` may import symbols removed/renamed in 5.x; the test then
+  **pytest.skip** with the exception so the blocker is explicit.

@@ -4,11 +4,77 @@
 
 """Utility classes for Kimi K2 model testing, including MLA cache implementations."""
 
+from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import torch
 from transformers import PretrainedConfig
-from transformers.cache_utils import Cache, CacheLayerMixin
+from transformers.cache_utils import Cache
+
+try:
+    from transformers.cache_utils import CacheLayerMixin
+except ImportError:
+    # transformers < ~4.48 (e.g. 4.46.x): layered cache API not present yet.
+    class CacheLayerMixin(ABC):
+        """Minimal stand-in for ``transformers.cache_utils.CacheLayerMixin`` (5.x)."""
+
+        is_compileable = False
+
+        def __init__(self) -> None:
+            self.keys: Optional[torch.Tensor] = None
+            self.values: Optional[torch.Tensor] = None
+            self.is_initialized = False
+
+        def __repr__(self) -> str:
+            return f"{self.__class__.__name__}"
+
+        @abstractmethod
+        def lazy_initialization(
+            self, key_states: torch.Tensor, value_states: torch.Tensor
+        ) -> None: ...
+
+        @abstractmethod
+        def update(
+            self,
+            key_states: torch.Tensor,
+            value_states: torch.Tensor,
+            cache_kwargs: Optional[dict[str, Any]] = None,
+        ) -> tuple[torch.Tensor, torch.Tensor]: ...
+
+        @abstractmethod
+        def get_mask_sizes(
+            self, cache_position: torch.Tensor
+        ) -> tuple[int, int]: ...
+
+        @abstractmethod
+        def get_seq_length(self) -> int: ...
+
+        @abstractmethod
+        def get_max_cache_shape(self) -> int: ...
+
+        def offload(self) -> None:
+            if self.is_initialized:
+                self.keys = self.keys.to("cpu", non_blocking=True)
+                self.values = self.values.to("cpu", non_blocking=True)
+
+        def prefetch(self) -> None:
+            if self.is_initialized and self.keys.device != self.device:
+                self.keys = self.keys.to(self.device, non_blocking=True)
+                self.values = self.values.to(self.device, non_blocking=True)
+
+        def reset(self) -> None:
+            if self.is_initialized:
+                self.keys.zero_()
+                self.values.zero_()
+            if hasattr(self, "cumulative_length"):
+                self.cumulative_length = 0
+
+        def reorder_cache(self, beam_idx: torch.LongTensor) -> None:
+            if self.get_seq_length() > 0:
+                self.keys = self.keys.index_select(0, beam_idx.to(self.keys.device))
+                self.values = self.values.index_select(
+                    0, beam_idx.to(self.values.device)
+                )
 
 
 class MLAStaticLayer(CacheLayerMixin):
@@ -229,11 +295,24 @@ class MLACache(Cache):
             layer = MLAStaticLayer(max_cache_len=max_cache_len)
             layers.append(layer)
 
-        super().__init__(
-            layers=layers,
-            offloading=offloading,
-            offload_only_non_sliding=offload_only_non_sliding,
-        )
+        try:
+            super().__init__(
+                layers=layers,
+                offloading=offloading,
+                offload_only_non_sliding=offload_only_non_sliding,
+            )
+        except TypeError:
+            # transformers 4.4x: ``Cache`` is the legacy abstract base with a no-arg ``__init__``.
+            Cache.__init__(self)
+            self.layers = layers
+            self.layer_class_to_replicate = None
+            self.offloading = offloading
+            if offloading:
+                self.only_non_sliding = offload_only_non_sliding
+                if hasattr(torch, "Stream"):
+                    self.prefetch_stream = torch.Stream()
+                else:
+                    self.prefetch_stream = torch.cuda.Stream()
 
     def to_legacy_cache(self) -> tuple[tuple[torch.Tensor]]:
         """Converts the `MLACache` instance into its equivalent in the legacy cache format."""

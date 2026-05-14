@@ -1,0 +1,47 @@
+2026-05-14 16:24:53.405 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/14_new_may_bgd/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.4.0-212-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'split': '0.11.0', 'forked': '1.6.0', 'anyio': '4.13.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/14_new_may_bgd/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.9, split-0.11.0, forked-1.6.0, anyio-4.13.0
+collecting ... collected 1 item
+
+tests/torch/models/deepseek_ocr/test_hf_forward_sanity.py::test_deepseek_ocr_hf_hub_forward_logits_finite You are using a model of type deepseek_vl_v2 to instantiate a model of type DeepseekOCR. This is not supported for all configurations of models and can yield errors.
+Some weights of DeepseekOCRForCausalLM were not initialized from the model checkpoint at deepseek-ai/DeepSeek-OCR and are newly initialized: ['model.vision_model.embeddings.position_ids']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+The attention layers in this model are transitioning from computing the RoPE embeddings internally through `position_ids` (2D tensor with the indexes of the tokens), to using externally computed `position_embeddings` (Tuple of tensors, containing cos and sin). In v4.46 `position_ids` will be removed and `position_embeddings` will be mandatory.
+=====================
+BASE:  torch.Size([1, 256, 1280])
+PATCHES:  torch.Size([6, 100, 1280])
+=====================
+PASSED
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/14_new_may_bgd/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/deepseek_ocr/test_hf_forward_sanity.py::test_deepseek_ocr_hf_hub_forward_logits_finite
+tests/torch/models/deepseek_ocr/test_hf_forward_sanity.py::test_deepseek_ocr_hf_hub_forward_logits_finite
+  /proj_sw/user_dev/ctr-akannan/14_new_may_bgd/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:1480: DeprecationWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+tests/torch/models/deepseek_ocr/test_hf_forward_sanity.py::test_deepseek_ocr_hf_hub_forward_logits_finite
+  /proj_sw/user_dev/ctr-akannan/14_new_may_bgd/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/deepseek_ocr/test_hf_forward_sanity.py::test_deepseek_ocr_hf_hub_forward_logits_finite
+  /proj_sw/user_dev/ctr-akannan/14_new_may_bgd/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 1 passed, 20 warnings in 27.04s ========================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

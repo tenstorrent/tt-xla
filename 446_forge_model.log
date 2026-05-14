@@ -1,0 +1,10 @@
+2026-05-14 16:53:42.539 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+transformers 4.46.3
+load_inputs ...
+load_model ...
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 464.26it/s]
+The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is ignored.
+You are using a model of type deepseek_vl_v2 to instantiate a model of type deepseek_v2. This is not supported for all configurations of models and can yield errors.
+forward ...
+local forge logits: shape=(1, 913, 129280) dtype=torch.float32 elements=118032640 finite=118032640 nan=0 inf=0 all_finite=True
+OK: logits are all finite under this transformers build ('4.46.3').

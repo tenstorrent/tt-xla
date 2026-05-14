@@ -1,0 +1,24 @@
+2026-05-14 16:42:53.918 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+Building inputs via forge ModelLoader.load_inputs() ...
+Loading forge (local modeling + snapshot weights) ...
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 470.28it/s]
+The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is ignored.
+You are using a model of type deepseek_vl_v2 to instantiate a model of type deepseek_v2. This is not supported for all configurations of models and can yield errors.
+Loading HF AutoModel from 'deepseek-ai/DeepSeek-OCR' (trust_remote_code=True) ...
+You are using a model of type deepseek_vl_v2 to instantiate a model of type DeepseekOCR. This is not supported for all configurations of models and can yield errors.
+Some weights of DeepseekOCRForCausalLM were not initialized from the model checkpoint at deepseek-ai/DeepSeek-OCR and are newly initialized: ['model.vision_model.embeddings.position_ids']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+The attention layers in this model are transitioning from computing the RoPE embeddings internally through `position_ids` (2D tensor with the indexes of the tokens), to using externally computed `position_embeddings` (Tuple of tensors, containing cos and sin). In v4.46 `position_ids` will be removed and `position_embeddings` will be mandatory.
+=====================
+BASE:  torch.Size([1, 256, 1280])
+PATCHES:  torch.Size([6, 100, 1280])
+=====================
+---
+forge logits: shape=(1, 913, 129280) dtype=torch.float32 elements=118032640 finite=118032640 nan=0 inf=0 all_nan=False all_finite=True
+hf logits: shape=(1, 913, 129280) dtype=torch.float32 elements=118032640 finite=118032640 nan=0 inf=0 all_nan=False all_finite=True
+---
+logits shape: (1, 913, 129280)
+max_abs_diff: 43.060638427734375
+pcc (forge vs hf): 0.020682435482740402
+DIVERGED: local forge modeling or weights path differs from hub remote code (investigate before blaming TT/XLA).
+Note: Hub often prints newly initialized tensors (e.g. `model.vision_model.embeddings.position_ids`). Those are not loaded from the checkpoint, so HF logits are not a faithful full-weight reference until that matches the hub revision / config. Forge uses a local snapshot + forked `modeling_*` sources, so expect drift until those are aligned.

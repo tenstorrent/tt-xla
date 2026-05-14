@@ -5,6 +5,16 @@
 """Exposes only what is really needed to write tests, nothing else."""
 
 # isort: off
+import sys
+
+# Pytest and most tests add ``tests/`` on ``sys.path`` and import this tree as
+# ``infra``. One-off commands often use ``import tests.infra``, which would otherwise
+# load the same ``tests/infra`` directory a second time as top-level ``infra`` when
+# in-repo code does ``from infra...``. That duplicate package breaks with a circular
+# import; register one module object under both names.
+if __name__ == "tests.infra":
+    sys.modules.setdefault("infra", sys.modules[__name__])
+
 # NOTE: Import order matters here - evaluators must come before connectors
 # to avoid circular import (connectors -> utilities -> runners -> connectors)
 from .evaluators import ComparisonConfig
