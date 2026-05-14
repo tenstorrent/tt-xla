@@ -85,6 +85,16 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   const bool retain = tt::runtime::getTensorRetain(m_runtime_tensor);
   m_runtime_tensor =
       tt::runtime::toLayout(m_runtime_tensor, device, layout, retain);
+
+  // Notify each shard so the host-buffer-done event fires now and the
+  // framework releases its source reference, instead of holding it for
+  // the BufferInstance's full lifetime. No-op when the event was already
+  // fired or never set.
+  for (BufferInstance *shard : m_shards) {
+    if (shard != nullptr) {
+      shard->fireDoneWithHostBufferEvent();
+    }
+  }
 }
 
 // Moves pjrt tensor to host.
