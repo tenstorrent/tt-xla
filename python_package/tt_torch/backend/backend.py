@@ -46,6 +46,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    fold_view_bmm_view_to_einsum,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
@@ -463,6 +464,13 @@ def aot_backend(
     # There is a Torch/TorchXLA bug where fakified XLA tensors fault in AdaptiveAveragePool, because of an as_strided_ call
     # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549
     gm = rewrite_adaptive_avgpool_to_mean(gm)
+
+    # There is a known bug in our stack where if two axes get squashed to
+    # one, and one is sharded, that can induce extra all_gathers to appear.
+    # We worked around that with a TorchDispatch mode, but with AOTAutograd,
+    # that is no longer enough. This pass matches view->bmm->view patterns
+    # and re expands back to 4D via an einsum.
+    fold_view_bmm_view_to_einsum(gm)
 
     # Rewrite F.interpolate(bilinear/nearest) to matmul-based implementation.
     # AOTAutograd seems to force decompose F.interpolate no matter what, and that op doesn't reach our decomposition table.
