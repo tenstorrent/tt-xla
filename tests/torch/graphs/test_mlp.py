@@ -227,6 +227,7 @@ def test_llama_mlp(seq_len, variant, variant_config, arch, request):
     loader = LlamaModelLoader(variant=variant)
     config = loader.load_config()
     mlp = LlamaMLP(config).to(torch.bfloat16)
+    mlp.forward = torch.inference_mode()(mlp.forward)
 
     batch_size = 1
 
