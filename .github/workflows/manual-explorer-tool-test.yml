@@ -1,7 +1,7 @@
-name: Run Test
+name: Run Explorer Tools Test
 
-# This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
-# It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
+# This workflow allows manual triggering of explorer tools tests.
+# It builds the Docker image, explorer build, and runs tests.
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ permissions:
   checks: write
   contents: read
 
-run-name: 'Test ( Suite: nsumrak/explorer )'
+run-name: 'Explorer Tools Test'
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool

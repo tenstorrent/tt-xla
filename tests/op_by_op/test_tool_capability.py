@@ -6,9 +6,12 @@
 Test to verify that explorer build for op by op tests has tool capability.
 """
 
+import chisel
+import golden
 import torch
 import torch_xla
 import torch_xla.runtime as xr
+import ttmlir
 from _ttmlir_runtime.runtime import DebugHooks, unregister_hooks
 
 xr.set_device_type("TT")

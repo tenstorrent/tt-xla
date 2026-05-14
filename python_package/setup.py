@@ -451,16 +451,36 @@ class CMakeBuildPy(build_py):
         Copy the ttmlir Python module and _ttmlir_runtime from tt-mlir build directory
         to the install directory. This is only called when config.enable_explorer is True.
         """
+
+        def copy_py_module(name: str, source: Path, dest: Path) -> None:
+            source_dir = source / "python_packages" / name
+            if not source_dir.exists():
+                raise RuntimeError(
+                    f"{name} Python module not found at {source_dir}. "
+                    "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
+                )
+            dest_dir = dest / name
+            print(f"Copying {name} Python module from {source_dir} to {dest_dir}")
+            if dest_dir.exists():
+                shutil.rmtree(dest_dir)
+            shutil.copytree(source_dir, dest_dir, symlinks=True)
+
         # Path to the built ttmlir Python package in tt-mlir build directory
         ttmlir_build_dir = (
             REPO_DIR / "third_party" / "tt-mlir" / "src" / "tt-mlir" / "build"
         )
-        ttmlir_source_dir = ttmlir_build_dir / "python_packages" / "ttmlir"
-        ttmlir_runtime_lib_dir = ttmlir_build_dir / "runtime" / "python"
+
+        # Copy ttmlir, chiseal, and golden packages
+        # Destination: install packages at the root level alongside other packages
+        # The parent of install_dir is the build_lib directory where packages are discovered
+        copy_py_module("ttmlir", ttmlir_build_dir, install_dir.parent)
+        copy_py_module("chisel", ttmlir_build_dir, install_dir.parent)
+        copy_py_module("golden", ttmlir_build_dir, install_dir.parent)
 
         # Detect the platform-specific extension name for the _ttmlir_runtime module
         import glob
 
+        ttmlir_runtime_lib_dir = ttmlir_build_dir / "runtime" / "python"
         runtime_module_pattern = str(
             ttmlir_runtime_lib_dir / "_ttmlir_runtime.cpython-*.so"
         )
@@ -473,22 +493,6 @@ class CMakeBuildPy(build_py):
 
         runtime_module_path = Path(runtime_modules[0])
         runtime_module_name = runtime_module_path.name
-
-        if not ttmlir_source_dir.exists():
-            raise RuntimeError(
-                f"ttmlir Python module not found at {ttmlir_source_dir}. "
-                "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
-            )
-
-        # Destination: install both packages at the root level alongside other packages
-        # The parent of install_dir is the build_lib directory where packages are discovered
-        ttmlir_dest = install_dir.parent / "ttmlir"
-
-        # Copy ttmlir package
-        print(f"Copying ttmlir Python module from {ttmlir_source_dir} to {ttmlir_dest}")
-        if ttmlir_dest.exists():
-            shutil.rmtree(ttmlir_dest)
-        shutil.copytree(ttmlir_source_dir, ttmlir_dest, symlinks=True)
 
         # _ttmlir_runtime is a single nanobind .so extension module (not a package).
         # It must be placed directly in the Python path root so that Python finds it
