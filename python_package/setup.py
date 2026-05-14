@@ -525,7 +525,7 @@ class CMakeBuildPy(build_py):
         # up from site-packages/ttmlir/_mlir_libs/ to site-packages/pjrt_plugin_tt/lib/.
         ttmlir_mlir_libs_dir = install_dir.parent / "ttmlir" / "_mlir_libs"
         if ttmlir_mlir_libs_dir.exists():
-            mlir_libs_rpath = "$ORIGIN/../../pjrt_plugin_tt/lib"
+            mlir_libs_rpath = "$ORIGIN:$ORIGIN/../../pjrt_plugin_tt/lib"
             for so_file in ttmlir_mlir_libs_dir.glob("*.so*"):
                 if so_file.is_file() and not so_file.is_symlink():
                     subprocess.run(
