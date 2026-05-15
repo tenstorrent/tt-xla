@@ -178,7 +178,7 @@ test_config:
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
   speecht5/pytorch-Tts-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttir.sum' op Reduce dimensions are not unique"
   rmbg/pytorch-2.0-single_device-training:
     status: NOT_SUPPORTED_SKIP
