@@ -2,8 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
-
-from tests.conftest import run_around_tests  # noqa: F401 — autouse fixture
+import torch
 
 
 def make_validator_positive_int(option_name):
@@ -144,3 +143,9 @@ def decode_only(request):
 @pytest.fixture
 def check_fusions(request):
     return request.config.getoption("--check-fusions")
+
+
+@pytest.fixture(autouse=True)
+def seed_torch():
+    """Seed torch before every benchmark test for reproducible PCC runs."""
+    torch.manual_seed(0)
