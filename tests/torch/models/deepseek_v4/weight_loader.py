@@ -9,8 +9,11 @@ from typing import Dict, Iterable, List, Optional
 import torch
 from huggingface_hub import hf_hub_download
 from safetensors import safe_open
+from torch import nn
 
-from third_party.tt_forge_models.deepseek_v4.modified_model import model
+from third_party.tt_forge_models.deepseek_v4.modified_model import (
+    model_decode_opt as model,
+)
 
 # FP4 e2m1fn lookup: 4 bits -> float value. Bits 0-7 positive, 8-15 negative
 # (bit 3 acts as sign). Copied verbatim from https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/blob/main/inference/convert.py
@@ -299,3 +302,48 @@ def load_transformer_state_dict(
         prefixes.append("mtp.")
     raw = _load_raw_subset(model_name, prefixes)
     return _dequant_paired(raw, "")
+
+
+def init_transformer_weights(
+    model_name: str, model: model.Transformer, num_layers: int
+) -> None:
+    """Load real V4-Flash weights for embed + layers[0..N-1] + top-level
+    (norm, head, hc_head_*)."""
+    model.embed.load_state_dict(load_embed_state_dict(model_name), strict=True)
+    for i in range(num_layers):
+        model.layers[i].load_state_dict(
+            load_block_state_dict(model_name, i), strict=False
+        )
+    model.load_state_dict(load_top_level_state_dict(model_name), strict=False)
+
+
+def init_weights(
+    model_name: str,
+    module: nn.Module,
+    args: model.ModelArgs,
+    layer_id: int,
+    sub_prefix: str = "",
+) -> None:
+    """Initialize a sub-module's weights from the block checkpoint.
+
+    `load_block_state_dict` returns keys rooted at the block (e.g.
+    `attn.wq_a.weight`, `attn.indexer.wq_b.weight`). When `module` is a
+    sub-module of the block (Attention, Indexer, …), pass `sub_prefix` so the
+    matching slice of the state dict is stripped down to the module's own
+    key namespace before loading.
+    """
+    state = load_block_state_dict(model_name, layer_id)
+    if sub_prefix:
+        state = {
+            k[len(sub_prefix) :]: v
+            for k, v in state.items()
+            if k.startswith(sub_prefix)
+        }
+    missing, unexpected = module.load_state_dict(state, strict=False)
+    own_params = set(module.state_dict().keys())
+    still_missing = [k for k in missing if k in own_params]
+    assert not still_missing, (
+        f"init_weights did not load {len(still_missing)} expected param(s) "
+        f"for {type(module).__name__} (sub_prefix={sub_prefix!r}): "
+        f"{still_missing[:8]}"
+    )

@@ -12,13 +12,15 @@ from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
-from tt_torch.sparse_mlp import enable_sparse_mlp
+
+from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt import (
+    Attention,
+    Block,
+    ModelArgs,
+    Transformer,
+)
 
 PCC_99 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
-
-
-def setup_spmd():
-    pass
 
 
 def make_2d_mesh() -> Mesh:
@@ -122,3 +124,23 @@ def real_args(**overrides) -> ModelArgs:
     )
     defaults.update(overrides)
     return ModelArgs(**defaults)
+
+
+def make_transformer(args: ModelArgs, use_bf16: bool = False) -> Transformer:
+    prev = None
+    if use_bf16:
+        prev = torch.get_default_dtype()
+        torch.set_default_dtype(torch.bfloat16)
+    try:
+        return Transformer(args).eval()
+    finally:
+        if prev is not None:
+            torch.set_default_dtype(prev)
+
+
+def make_attention(args: ModelArgs, layer_id: int) -> Attention:
+    return Attention(layer_id, args).eval()
+
+
+def make_block(args: ModelArgs, layer_id: int) -> Block:
+    return Block(layer_id, args).eval()
