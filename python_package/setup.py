@@ -6,6 +6,7 @@ import hashlib
 import inspect
 import json
 import os
+import platform
 import shutil
 import subprocess
 from dataclasses import dataclass, fields
@@ -242,8 +243,6 @@ class BdistWheel(bdist_wheel):
         python, abi = "cp312", "cp312"
         # Ensure platform-specific tag for x86_64 architecture
         # This prevents 'any' platform and enables auditwheel to properly repair
-        import platform
-
         if plat == "any" or not plat:
             machine = platform.machine().lower()
             if machine in ("x86_64", "amd64"):
@@ -316,6 +315,7 @@ class CMakeBuildPy(build_py):
             "-B",
             "build",
             "-DTTXLA_ENABLE_EWHEEL_INSTALL=OFF",
+            "-DTTMLIR_ENABLE_BINDINGS_PYTHON=" + enable_explorer,
             "-DTTXLA_ENABLE_TOOLS=" + enable_explorer,
             "-DCODE_COVERAGE=" + code_coverage,
             "-DTTXLA_ENABLE_EXPLORER=" + enable_explorer,
@@ -386,6 +386,10 @@ class CMakeBuildPy(build_py):
             subprocess.run("ccache -s", shell=True, cwd=REPO_DIR, capture_output=False)
             print("::endgroup::")
 
+        if config.enable_explorer:
+            print("Install ttmlir Python module")
+            self._install_ttmlir_python(install_dir)
+
         print("::group::Add missing libs")
         self._add_missing_libs(install_dir)
         print("::endgroup::")
@@ -441,6 +445,96 @@ class CMakeBuildPy(build_py):
 
             print(f"Copying {lib} from {lib_path} to {lib_dir}")
             shutil.copy2(lib_path, lib_dir / lib)
+
+    def _install_ttmlir_python(self, install_dir: Path) -> None:
+        """
+        Copy the ttmlir Python module and _ttmlir_runtime from tt-mlir build directory
+        to the install directory. This is only called when config.enable_explorer is True.
+        """
+
+        def copy_py_module(name: str, source: Path, dest: Path) -> None:
+            source_dir = source / "python_packages" / name
+            if not source_dir.exists():
+                raise RuntimeError(
+                    f"{name} Python module not found at {source_dir}. "
+                    "Ensure TTMLIR_ENABLE_BINDINGS_PYTHON was enabled during build."
+                )
+            dest_dir = dest / name
+            print(f"Copying {name} Python module from {source_dir} to {dest_dir}")
+            if dest_dir.exists():
+                shutil.rmtree(dest_dir)
+            shutil.copytree(source_dir, dest_dir, symlinks=True)
+
+        # Path to the built ttmlir Python package in tt-mlir build directory
+        ttmlir_build_dir = (
+            REPO_DIR / "third_party" / "tt-mlir" / "src" / "tt-mlir" / "build"
+        )
+
+        # Copy ttmlir, chiseal, and golden packages
+        # Destination: install packages at the root level alongside other packages
+        # The parent of install_dir is the build_lib directory where packages are discovered
+        copy_py_module("ttmlir", ttmlir_build_dir, install_dir.parent)
+        copy_py_module("chisel", ttmlir_build_dir, install_dir.parent)
+        copy_py_module("golden", ttmlir_build_dir, install_dir.parent)
+
+        # Detect the platform-specific extension name for the _ttmlir_runtime module
+        import glob
+
+        ttmlir_runtime_lib_dir = ttmlir_build_dir / "runtime" / "python"
+        runtime_module_pattern = str(
+            ttmlir_runtime_lib_dir / "_ttmlir_runtime.cpython-*.so"
+        )
+        runtime_modules = glob.glob(runtime_module_pattern)
+
+        if not runtime_modules:
+            raise RuntimeError(
+                f"ttmlir runtime library not found matching pattern: {runtime_module_pattern}"
+            )
+
+        runtime_module_path = Path(runtime_modules[0])
+        runtime_module_name = runtime_module_path.name
+
+        # _ttmlir_runtime is a single nanobind .so extension module (not a package).
+        # It must be placed directly in the Python path root so that Python finds it
+        # as a top-level module. Placing it inside a directory of the same name would
+        # shadow the .so and prevent submodule access (e.g. _ttmlir_runtime.runtime).
+        runtime_so_dest = install_dir.parent / runtime_module_name
+        print(
+            f"Copying _ttmlir_runtime extension module from {runtime_module_path} to {runtime_so_dest}"
+        )
+        shutil.copy2(runtime_module_path, runtime_so_dest)
+
+        # The .so is built with RPATH=$ORIGIN, but after installation it lives in
+        # site-packages/ while libTTMLIRRuntime.so is in site-packages/pjrt_plugin_tt/lib/.
+        # Patch the RPATH so the dynamic linker can find it at runtime.
+        patchelf = shutil.which("patchelf")
+        if patchelf is None:
+            raise RuntimeError(
+                "patchelf not found; cannot fix RPATH on _ttmlir_runtime. "
+                "Install it with: apt-get install patchelf"
+            )
+        rpath = "$ORIGIN/pjrt_plugin_tt/lib"
+        subprocess.run(
+            [patchelf, "--set-rpath", rpath, str(runtime_so_dest)],
+            check=True,
+        )
+        print(f"Set RPATH on {runtime_so_dest.name} to {rpath}")
+
+        # The .so extensions inside ttmlir/_mlir_libs/ also need to find libtt_metal.so
+        # and other libraries in pjrt_plugin_tt/lib/. Their RPATH must point two levels
+        # up from site-packages/ttmlir/_mlir_libs/ to site-packages/pjrt_plugin_tt/lib/.
+        ttmlir_mlir_libs_dir = install_dir.parent / "ttmlir" / "_mlir_libs"
+        if ttmlir_mlir_libs_dir.exists():
+            mlir_libs_rpath = "$ORIGIN:$ORIGIN/../../pjrt_plugin_tt/lib"
+            for so_file in ttmlir_mlir_libs_dir.glob("*.so*"):
+                if so_file.is_file() and not so_file.is_symlink():
+                    subprocess.run(
+                        [patchelf, "--set-rpath", mlir_libs_rpath, str(so_file)],
+                        check=True,
+                    )
+                    print(
+                        f"Set RPATH on ttmlir/_mlir_libs/{so_file.name} to {mlir_libs_rpath}"
+                    )
 
     def _prune_install_tree(self, install_dir: Path) -> None:
         if not install_dir.exists():

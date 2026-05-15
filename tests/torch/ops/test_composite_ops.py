@@ -111,13 +111,10 @@ def test_patched_rms_norm_functional_single_device(
 
 
 @pytest.mark.nightly
-@pytest.mark.skip(
-    reason="Skipping test, issue: https://github.com/tenstorrent/tt-xla/issues/4256"
-)
 @pytest.mark.dual_chip
 @pytest.mark.parametrize("use_weight", [True, False])
 @pytest.mark.parametrize(
-    "batch_size, seq_len, hidden_size", [(1, 32, 32), (1, 128, 768), (1, 1024, 768)]
+    "batch_size, seq_len, hidden_size", [(2, 32, 32), (2, 128, 768), (2, 1024, 768)]
 )
 def test_patched_rms_norm_functional_batch_parallel(
     use_weight, batch_size, seq_len, hidden_size

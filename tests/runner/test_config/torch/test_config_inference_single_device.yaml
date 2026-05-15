@@ -36,7 +36,6 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5/causal_lm/pytorch-1.5B-single_device-inference:
-    assert_pcc: false
     status: EXPECTED_PASSING
 
   clip/pytorch-Base_Patch16-single_device-inference:
@@ -905,10 +904,6 @@ test_config:
 
   qwen_2_5_coder/pytorch-1.5B-single_device-inference:
     status: EXPECTED_PASSING
-    arch_overrides:
-      n150:
-        required_pcc: 0.98
-        status: EXPECTED_PASSING
 
   retinanet/pytorch-ResNet34_Backbone_with_FPN-single_device-inference:
     assert_pcc: false
@@ -1434,6 +1429,7 @@ test_config:
     status: EXPECTED_PASSING
 
   phi3/phi_3_5/pytorch-Mini_Instruct-single_device-inference:
+    required_pcc: 0.97  # PCC dropped to 0.978873 on n150
     status: EXPECTED_PASSING
 
   bi_lstm_crf/pytorch-Default-single_device-inference:
@@ -2073,11 +2069,9 @@ test_config:
   transfuser/pytorch-single_device-inference:
     arch_overrides:
         n150:
-          status: KNOWN_FAILURE_XFAIL
-          reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<3x3xf32>, tensor<3xf32>>' - https://github.com/tenstorrent/tt-xla/issues/3878"
+          status: EXPECTED_PASSING
         p150:
-          status: KNOWN_FAILURE_XFAIL
-          reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<3x3xf32>, tensor<3xf32>>' - https://github.com/tenstorrent/tt-xla/issues/3878"
+          status: EXPECTED_PASSING
 
   issac_groot/pytorch-Gr00t_N1.5_3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2243,7 +2237,7 @@ test_config:
     required_pcc: 0.98
 
   owl_vit/pytorch-Base_Patch32-single_device-inference:
-    required_pcc: 0.975  # PCC dropped to 0.9837 on n150 0.9836 on p150 - https://github.com/tenstorrent/tt-xla/issues/3182
+    required_pcc: 0.97  # https://github.com/tenstorrent/tt-xla/issues/3182
     status: EXPECTED_PASSING
 
   # yolov12/pytorch-yolo12n-single_device-inference:

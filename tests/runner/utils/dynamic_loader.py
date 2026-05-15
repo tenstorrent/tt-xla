@@ -195,15 +195,21 @@ class DynamicLoader:
         return models_root
 
     @classmethod
-    def import_model_loader(cls, loader_path: str, models_root: str):
-        """Dynamically import and return ModelLoader class from a loader.py path, ensuring relative imports work.
+    def import_loader_module(cls, loader_path: str, models_root: str):
+        """Dynamically import a loader.py and return its module.
+
+        Returning the module (rather than just ``ModelLoader``) lets callers
+        inspect sibling classes — e.g. ``ForgePrefillModel`` subclasses living
+        in the same file — without having to recompute the dashed
+        ``sys.modules`` key used below.
 
         Args:
             loader_path: Path to the loader.py file
             models_root: Root directory of the models
 
         Returns:
-            ModelLoader class from the imported module
+            The imported module object. Callers access ``mod.ModelLoader`` (and
+            any sibling classes) directly.
         """
         # Import the base module first to ensure it's available
         models_parent = os.path.dirname(models_root)
@@ -236,11 +242,15 @@ class DynamicLoader:
         sys.modules[module_path] = mod
         spec.loader.exec_module(mod)
 
-        return mod.ModelLoader
+        return mod
 
     @classmethod
     def get_model_variants(cls, loader_path: str, loader_paths: Dict, models_root: str):
-        """Fill loader_paths[loader_path] with (variant_name, ModelLoader) tuples by querying the loader; on failure, log and continue.
+        """Fill loader_paths[loader_path] with (variant_name, LoaderCls) tuples.
+
+        Registers the primary ``ModelLoader`` plus any ``ForgePrefillModel``
+        subclass defined in the same module, so one loader.py can host both
+        regular and prefill-specialized loaders.
 
         Args:
             loader_path: Path to the loader.py file
@@ -248,16 +258,33 @@ class DynamicLoader:
             models_root: Root directory of the models
         """
         try:
-            # Import the ModelLoader class from the module
-            ModelLoader = cls.import_model_loader(loader_path, models_root)
-            variants = ModelLoader.query_available_variants()
+            mod = cls.import_loader_module(loader_path, models_root)
+            ModelLoader = mod.ModelLoader
 
-            # Store variant_name, ModelLoader together for usage, or empty one if no variants found.
-            if variants:
-                for variant_name in variants.keys():
-                    loader_paths[loader_path].append((variant_name, ModelLoader))
-            else:
-                loader_paths[loader_path].append((None, ModelLoader))
+            # Lazy import: must come from the same namespace the dynamically
+            # loaded module uses, so issubclass sees the same class object.
+            from tt_forge_models.base import ForgePrefillModel
+
+            loader_classes = [ModelLoader]
+            for attr_name in dir(mod):
+                attr = getattr(mod, attr_name)
+                if not isinstance(attr, type):
+                    continue
+                if attr is ForgePrefillModel or attr is ModelLoader:
+                    continue
+                if not issubclass(attr, ForgePrefillModel):
+                    continue
+                if getattr(attr, "__module__", None) != mod.__name__:
+                    continue
+                loader_classes.append(attr)
+
+            for LoaderCls in loader_classes:
+                variants = LoaderCls.query_available_variants()
+                if variants:
+                    for variant_name in variants.keys():
+                        loader_paths[loader_path].append((variant_name, LoaderCls))
+                else:
+                    loader_paths[loader_path].append((None, LoaderCls))
 
         except Exception as e:
             logger.warning(f"Cannot import path: {loader_path}: {e}")
@@ -399,19 +426,20 @@ class TorchDynamicLoader(DynamicLoader):
             return self.loader.load_inputs_decode(**kwargs)
 
         if run_phase == RunPhase.LLM_PREFILL:
-            assert hasattr(
-                self.loader, "load_inputs_prefill"
-            ), f"{type(self.loader).__name__} missing load_inputs_prefill for run_phase={run_phase}"
+            # Lazy import to ensure we get the same class object as the
+            # dynamically imported loader modules.
+            from tt_forge_models.base import ForgePrefillModel
 
-            prefill_sig = inspect.signature(self.loader.load_inputs_prefill)
-            kwargs = {}
-            if "dtype_override" in prefill_sig.parameters:
-                kwargs["dtype_override"] = torch.bfloat16
-            if "seq_len" in prefill_sig.parameters and seq_len is not None:
-                kwargs["seq_len"] = seq_len
-            if "batch_size" in prefill_sig.parameters and batch_size is not None:
-                kwargs["batch_size"] = batch_size
-            return self.loader.load_inputs_prefill(**kwargs)
+            assert isinstance(self.loader, ForgePrefillModel), (
+                f"{type(self.loader).__name__} must be a ForgePrefillModel "
+                f"subclass for run_phase={run_phase}"
+            )
+
+            return self.loader.load_inputs_prefill(
+                dtype_override=torch.bfloat16,
+                batch_size=batch_size,
+                seq_len=seq_len,
+            )
 
         # Default path
         kwargs = {}

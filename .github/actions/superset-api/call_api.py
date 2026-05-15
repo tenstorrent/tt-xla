@@ -34,7 +34,18 @@ data = []
 for attempt in range(1, max_attempts + 1):
     if max_attempts > 1:
         print(f"Attempt {attempt}/{max_attempts}", file=sys.stderr, flush=True)
-    data = call_api()
+    try:
+        data = call_api()
+    except requests.HTTPError as e:
+        if e.response.status_code in (500, 504) and attempt < max_attempts:
+            print(
+                f"Got HTTP {e.response.status_code}, waiting {retry_interval}s...",
+                file=sys.stderr,
+                flush=True,
+            )
+            time.sleep(retry_interval)
+            continue
+        raise
     if data or max_attempts == 1:
         break
     if attempt < max_attempts:

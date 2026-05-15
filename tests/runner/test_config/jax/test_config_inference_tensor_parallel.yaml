@@ -43,6 +43,30 @@ test_config:
     reason: "Out of Memory: Not enough space to allocate 112197632 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4320"
     bringup_status: FAILED_RUNTIME
 
+  openelm/causal_lm/jax-270M-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: number of output elements (55296) doesn't match expected number of elements (6912) - https://github.com/tenstorrent/tt-xla/issues/4665"
+    bringup_status: FAILED_RUNTIME
+
+  openelm/causal_lm/jax-450M-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: number of output elements (55296) doesn't match expected number of elements (6912) - https://github.com/tenstorrent/tt-xla/issues/4665"
+    bringup_status: FAILED_RUNTIME
+
+  openelm/causal_lm/jax-1_1B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: number of output elements (110592) doesn't match expected number of elements (13824) - https://github.com/tenstorrent/tt-xla/issues/4665"
+    bringup_status: FAILED_RUNTIME
+
+  openelm/causal_lm/jax-3B-tensor_parallel-inference:
+    supported_archs: ["n300-llmbox"]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "error: number of output elements (110592) doesn't match expected number of elements (13824) - https://github.com/tenstorrent/tt-xla/issues/4665"
+    bringup_status: FAILED_RUNTIME
+
   qwen_2_5/causal_lm/jax-0.5B-tensor_parallel-inference:
     supported_archs: ["n300"]
     status: EXPECTED_PASSING

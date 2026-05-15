@@ -121,6 +121,31 @@ def test_non_greedy(device, vocab_size):
     assert_valid_tokens(actual, vocab_size)
 
 
+# Vocabs whose chunk count under chunked_topk_candidates is unsupported by
+# the tt::sampling kernel: Wt=1 (single chunk) or Wt not a power of 2.
+# Covers the kernel-hang cases from #4560 that VOCAB_SIZES doesn't reach.
+UNSUPPORTED_WT_VOCAB_SIZES = [
+    pytest.param(32000, id="wt1_1chunk"),
+    pytest.param(65537, id="wt3_3chunks"),
+    pytest.param(196608, id="wt6_6chunks"),
+]
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize("vocab_size", UNSUPPORTED_WT_VOCAB_SIZES)
+def test_non_greedy_unsupported_wt(device, vocab_size):
+    """Regression: unsupported Wt (=1, or non-power-of-2) must not hang the kernel (#4560)."""
+    logits_cpu = torch.randn(1, vocab_size, dtype=torch.float32)
+
+    compiled_fn = torch.compile(run_sampler, backend="tt", dynamic=False)
+    metadata_dev = make_metadata(device=device)
+    actual = compiled_fn(logits_cpu.to(device), metadata_dev).cpu()
+
+    assert actual.shape == (1, 1)
+    assert_valid_tokens(actual, vocab_size)
+
+
 @pytest.mark.push
 @pytest.mark.single_device
 def test_greedy_batch32(device):
@@ -426,6 +451,23 @@ def _seeded_metadata(q_cpu, device):
 @pytest.mark.push
 @pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+@pytest.mark.xfail(
+    # strict=False because deepseek_r1_7b XPASSed on a p150 CI run while
+    # reproducing reliably elsewhere (25/25 local xfails). Hardware RNG state
+    # can occasionally align between sequential kernel calls; the bug is real
+    # but the test's symptomatic check (same-seed -> same-token) can pass by
+    # luck. The other two seed xfails (test_seed, test_seed_mixed_batch) stay
+    # strict and serve as the kernel-fix tripwire.
+    strict=False,
+    reason=(
+        "Device sampler does not honor per-row seeds: the tt::sampling "
+        "kernel uses a single shared seed across all 32 cores and ignores "
+        "per-row q_samples, so seeded sampling is no longer deterministic. "
+        "Tracked in tt-xla #4539. Workaround: set "
+        "additional_config={'cpu_sampling': True}. Remove this xfail once "
+        "the kernel grows per-row seed support."
+    ),
+)
 def test_seed_precomputed_noise(device, vocab_size):
     """Pre-computed Gumbel noise (q_samples) produces deterministic sampling on TT.
 
@@ -563,6 +605,17 @@ def test_gather_logprobs_topk_indices_exact_on_device(device):
 @pytest.mark.push
 @pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Device sampler does not honor per-row seeds: the tt::sampling "
+        "kernel uses a single shared seed across all 32 cores and ignores "
+        "per-row q_samples, so seeded sampling is no longer deterministic. "
+        "Tracked in tt-xla #4539. Workaround: set "
+        "additional_config={'cpu_sampling': True}. Remove this xfail once "
+        "the kernel grows per-row seed support."
+    ),
+)
 def test_seed_mixed_batch(device, vocab_size):
     """Mixed batch on TT: seeded rows deterministic, all tokens valid.
 
