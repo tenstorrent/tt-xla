@@ -397,9 +397,9 @@ test_config:
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   yolov9/pytorch-T-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
+    status: NOT_SUPPORTED_SKIP
+    bringup_status: FAILED_RUNTIME
+    reason: "crashed with signal 6"
   yolov9/pytorch-S-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
@@ -1661,7 +1661,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "ElementsAttr does not provide iteration facilities for type `int` (https://github.com/tenstorrent/tt-xla/issues/3109)"
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "TorchDynamo NameError: cannot access free variable 'named_children' (transformers qwen2_vl get_image_features modeling_utils.dtype generator)"
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-training:
@@ -1777,7 +1777,7 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yolos_small/pytorch-Small-single_device-training:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
     assert_pcc: false
   yolov7/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
