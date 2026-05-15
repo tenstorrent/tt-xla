@@ -99,8 +99,7 @@ SINGLE_DEVICE_CONFIGS = [
         ),
         id="opt-125m-batch32-opt1",
         marks=pytest.mark.xfail(
-            reason="tt-mlir MemoryLayoutPropagation::consolidateBeam assert "
-            "(regression from tt-mlir uplift #4569); see tt-mlir issue TODO",
+            reason="tt-mlir MemoryLayoutPropagation::consolidateBeam assert",
             strict=False,
             run=True,
         ),
