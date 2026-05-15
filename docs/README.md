@@ -2,9 +2,9 @@
 
 The tt-xla documentation is built with [Sphinx](https://www.sphinx-doc.org/) and the `sphinx_rtd_theme`, with
 [MyST](https://myst-parser.readthedocs.io/) as the markdown parser so pages stay in `.md`. The theme CSS and fonts
-are served from `https://docs.tenstorrent.com/_static/`, so styling stays aligned with the canonical Tenstorrent docs site
-and tt-xla doesn't need to bundle its own copies. Only the project logo and favicon are kept locally (Sphinx requires
-`html_logo` and `html_favicon` to be local file paths).
+are served from `https://docs.tenstorrent.com/_static/`, so styling stays aligned with the canonical Tenstorrent
+docs site and tt-xla doesn't need to bundle its own copies. Only the project logo and favicon are kept locally
+(Sphinx requires `html_logo` and `html_favicon` to be local file paths).
 
 ## Folder structure
 
@@ -43,7 +43,8 @@ bash docs/build_docs.sh
 ```
 
 This installs the requirements and builds the docs. Re-running it is fine but the install step is wasteful - once
-it's done, prefer the direct entry points below.
+it's done, prefer the direct entry points below. `build_docs.sh` installs into the active venv if one is sourced,
+otherwise into an isolated venv at `/tmp/tt-xla-docs-venv` (reused on subsequent runs).
 
 ## Building
 
