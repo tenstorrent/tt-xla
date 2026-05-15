@@ -76,6 +76,49 @@ def _(ctx, grad_output):
     return grad_output, None, None
 
 
+# ---------------------------------------------------------------------------
+# Passthrough Autograd for upstream ``xla::mark_tensor``.
+#
+# ``torch_xla.experimental.mark_pattern_utils.StableHLOCompositeBuilder`` (used
+# by every entry in ``composite_ops.replacements`` -- gelu, rms_norm,
+# layer_norm, sdpa, topk, gather, ...) wraps composite inputs/outputs with
+# ``torch.ops.xla.mark_tensor`` to delimit the StableHLO composite boundary.
+# Upstream registers ``mark_tensor`` only under the ``XLA``,
+# ``CompositeExplicitAutograd``, and ``Meta`` dispatch keys -- there is no
+# ``Autograd`` kernel. When a user does ``torch.compile(backend="tt")`` without
+# AOTAutograd, only the forward is compiled; ``loss.backward()`` runs in the
+# normal autograd dispatcher and walks back through ``mark_tensor`` (the
+# composite-output marker), which has no autograd kernel and falls into
+# ``autograd_not_implemented_fallback``. That fallback silently substitutes
+# ``zeros_like`` for the gradient -- breaking backprop for every composite
+# (most visibly: GELU-bwd grads are zero, then mul-bwd multiplies the zero
+# upstream into ``a.grad`` / ``b.grad``, and the warning
+#   ``xla::mark_tensor: an autograd kernel was not registered``
+# fires on stderr.
+#
+# ``mark_tensor`` is semantically a no-op (it only attaches StableHLO
+# composite-boundary metadata; the ``XLA`` impl is the one that actually emits
+# the boundary, and it only runs on the forward pass). Its derivative is
+# therefore identity, exactly like ``mark_argument_attributes`` above. We
+# register it from outside since the op lives in ``torch_xla`` upstream.
+# ---------------------------------------------------------------------------
+def _xla_mark_tensor_setup_context(ctx, inputs, output):
+    pass
+
+
+def _xla_mark_tensor_backward(ctx, grad_output):
+    # xla::mark_tensor(Tensor x, str name, int pos, str id, bool is_input, Any? attr)
+    # Only ``x`` is a differentiable Tensor; the rest are metadata.
+    return grad_output, None, None, None, None, None
+
+
+torch.library.register_autograd(
+    "xla::mark_tensor",
+    _xla_mark_tensor_backward,
+    setup_context=_xla_mark_tensor_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::sharding_constraint", mutates_args=[], device_types=["cpu", "xla"]
 )
