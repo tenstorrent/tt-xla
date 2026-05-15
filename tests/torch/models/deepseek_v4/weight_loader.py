@@ -317,7 +317,7 @@ def init_transformer_weights(
     model.load_state_dict(load_top_level_state_dict(model_name), strict=False)
 
 
-def init_weights(
+def init_block_weights(
     model_name: str,
     module: nn.Module,
     args: model.ModelArgs,
