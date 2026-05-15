@@ -79,7 +79,7 @@ test_config:
   resnet/pytorch-ResNet50_HuggingFace-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_resnet50
+    optimization_level: 2
 
   mamba/pytorch-790M_HF-single_device-inference:
     status: EXPECTED_PASSING
@@ -118,16 +118,16 @@ test_config:
   falcon/pytorch-3_1B_Base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push]
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_1b
+    optimization_level: 2
 
   falcon/pytorch-3_3B_Base-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_3b
+    optimization_level: 2
 
   falcon/pytorch-3_7B_Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_7b
+    optimization_level: 2
 
   falcon/pytorch-3_10B_Base-single_device-inference:
     supported_archs: ["p150"]
@@ -162,7 +162,7 @@ test_config:
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
     required_pcc: 0.99
     markers: [push, nightly]
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_mnist
+    optimization_level: 2
 
   mnist/image_classification/pytorch-Cnn_Nodropout-single_device-inference:
     status: EXPECTED_PASSING
@@ -386,7 +386,7 @@ test_config:
 
   mobilenetv2/pytorch-Mobilenet_v2-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_mobilenetv2
+    optimization_level: 2
 
   nanogpt/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
@@ -447,7 +447,6 @@ test_config:
 
   swin/image_classification/pytorch-S-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_swin
 
   swin/image_classification/pytorch-B-single_device-inference:
     status: EXPECTED_PASSING
@@ -502,7 +501,6 @@ test_config:
       # - split_query_key_value_and_split_heads.ttnn.mlir # now only appears with optimization level 1
       - layer_norm.ttnn.mlir
     markers: [push, nightly]
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_vit
 
   vit/pytorch-Large-single_device-inference:
     status: EXPECTED_PASSING
@@ -527,7 +525,6 @@ test_config:
 
   mamba/pytorch-2.8b_HF-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_mamba_2_8b
 
   deit/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
@@ -564,7 +561,7 @@ test_config:
 
   phi2/causal_lm/pytorch-Phi_2-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_phi2
+    optimization_level: 2
 
   phi2/causal_lm/pytorch-Phi_2_Pytdml-single_device-inference:
     status: EXPECTED_PASSING
@@ -598,7 +595,6 @@ test_config:
 
   phi1_5/causal_lm/pytorch-Phi_1_5-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_phi1_5
 
   phi1_5/sequence_classification/pytorch-Phi_1_5-single_device-inference:
     status: EXPECTED_PASSING
@@ -686,7 +682,7 @@ test_config:
 
   segformer/semantic_segmentation/pytorch-B0_Finetuned_Ade_512_512-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_segformer
+    optimization_level: 2
 
   albert/token_classification/pytorch-Base_v1-single_device-inference:
     status: EXPECTED_PASSING
@@ -723,14 +719,13 @@ test_config:
 
   phi1/causal_lm/pytorch-Phi_1-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_phi1
 
   phi1/token_classification/pytorch-Phi_1-single_device-inference:
     status: EXPECTED_PASSING
 
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_encoders.py::test_bert
+    optimization_level: 2
 
   yolos/pytorch-single_device-inference:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1168 https://github.com/tenstorrent/tt-xla/issues/2759
@@ -892,7 +887,6 @@ test_config:
 
   qwen_3/causal_lm/pytorch-4B-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_4b
     filechecks:
       - concatenate_heads.ttnn.mlir
       - rms_norm.ttnn.mlir
@@ -901,14 +895,14 @@ test_config:
 
   qwen_3/causal_lm/pytorch-1_7B-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_1_7b
+    optimization_level: 2
 
   qwen_2_5_coder/pytorch-3B-single_device-inference:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-0_6B-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_0_6b
+    optimization_level: 2
 
   qwen_2_5/causal_lm/pytorch-3B-single_device-inference:
     status: EXPECTED_PASSING
@@ -916,7 +910,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-3B_Instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_3b
+    optimization_level: 2
 
   qwen_2_5_coder/pytorch-3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -936,7 +930,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     markers: [push]
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_1_5b
+    optimization_level: 1
 
   retinanet/pytorch-ResNet18_Backbone_with_FPN-single_device-inference:
     assert_pcc: false
@@ -992,15 +986,12 @@ test_config:
   llama/causal_lm/pytorch-3.2_1B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push]
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_2_1b
 
   qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_0_5b
 
   llama/causal_lm/pytorch-3.2_3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_2_3b
 
   yolov6/pytorch-N-single_device-inference:
     status: EXPECTED_PASSING
@@ -1218,7 +1209,7 @@ test_config:
 
   unet_for_conditional_generation/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_encoders.py::test_unet_for_conditional_generation
+    optimization_level: 1
 
   mlp_mixer/pytorch-Mixer_Github-single_device-inference:
     status: EXPECTED_PASSING
@@ -1239,7 +1230,7 @@ test_config:
 
   vovnet/pytorch-Ese_Vovnet19b_Dw.ra_In1k-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_vovnet
+    optimization_level: 2
 
   resnext/pytorch-50_32x4d-single_device-inference:
     status: EXPECTED_PASSING
@@ -1258,7 +1249,6 @@ test_config:
 
   gemma/pytorch-1.1_2B_IT-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_gemma_1_1_2b
 
   nbeats/pytorch-generic_basis-single_device-inference:
     status: EXPECTED_PASSING
@@ -1309,7 +1299,7 @@ test_config:
 
   efficientnet/pytorch-Timm_B0-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_efficientnet
+    optimization_level: 2
 
   efficientnet/pytorch-Timm_B4-single_device-inference:
     status: EXPECTED_PASSING
@@ -1421,7 +1411,7 @@ test_config:
   gemma/pytorch-2_2B_IT-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended", push]
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_gemma_2_2b
+    optimization_level: 2
 
   wide_resnet/pytorch-50_2.timm-single_device-inference:
     status: EXPECTED_PASSING
@@ -1464,7 +1454,6 @@ test_config:
   phi3/phi_3_5/pytorch-Mini_Instruct-single_device-inference:
     required_pcc: 0.97  # PCC dropped to 0.978873 on n150
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_phi3_5_mini
 
   bi_lstm_crf/pytorch-Default-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
@@ -1487,7 +1476,7 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_gemma_1_1_7b
+    optimization_level: 2
 
   stable_diffusion_xl/pytorch-Base_1.0-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -1536,7 +1525,7 @@ test_config:
   phi3/causal_lm/pytorch-Mini_4K_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push]
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_phi3_mini
+    optimization_level: 2
 
   phi3/token_cls/pytorch-Mini_128K_Instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -1560,7 +1549,7 @@ test_config:
 
   qwen_3/embedding/pytorch-Embedding_8B-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_encoders.py::test_qwen3_embedding_8b
+    optimization_level: 1
     arch_overrides:
       n150:
         enable_weight_bfp8_conversion: true
@@ -1618,7 +1607,7 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_1_8b
+    optimization_level: 2
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1711,7 +1700,7 @@ test_config:
 
   mistral/pytorch-7B_INSTRUCT_v03-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_mistral_7b
+    optimization_level: 2
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1719,7 +1708,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-Ministral_8B_Instruct-single_device-inference:
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_ministral_8b
+    optimization_level: 2
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1768,7 +1757,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-single_device-inference:
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_7b
+    optimization_level: 1
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1835,7 +1824,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-8B-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_8b
+    optimization_level: 2
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -2151,7 +2140,6 @@ test_config:
 
   vgg19_unet/pytorch-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_unet
 
   qwen_2/token_classification/pytorch-single_device-inference:
     arch_overrides:
@@ -2296,7 +2284,7 @@ test_config:
 
   ultra_fast_lane_detection_v2/pytorch-TuSimple_ResNet34_Backbone-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_ufld_v2
+    optimization_level: 2
 
   faster_rcnn/pytorch-ResNet50_Backbone_with_FPN-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2413,7 +2401,7 @@ test_config:
 
   ultra_fast_lane_detection/pytorch-TuSimple_ResNet34_Backbone-single_device-inference:
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_vision.py::test_ufld
+    optimization_level: 2
 
   dense_unet_3d/pytorch-Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP

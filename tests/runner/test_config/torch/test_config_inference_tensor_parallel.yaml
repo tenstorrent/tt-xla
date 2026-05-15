@@ -7,12 +7,10 @@ test_config:
   falcon/pytorch-3_7B_Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_7b_tp
 
   falcon/pytorch-3_10B_Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_falcon3_10b_tp
 
   falcon/pytorch-3_Mamba_7B_Base-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -37,14 +35,12 @@ test_config:
     status: EXPECTED_PASSING
     required_pcc: 0.98
     inject_custom_moe: true
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_gpt_oss_20b_tp
 
   gpt_oss/pytorch-120B-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
     inject_custom_moe: true
     assert_pcc: false # https://github.com/tenstorrent/tt-xla/issues/3490
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_galaxy_batch_size_64
 
   falcon/pytorch-7B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -53,18 +49,15 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_1_8b_tp
 
   llama/causal_lm/pytorch-3.1_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
     required_pcc: 0.98 # PCC dropped to 0.9894 on n300-llmbox - https://github.com/tenstorrent/tt-xla/issues/4154
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_1_8b_instruct_tp
 
   llama/causal_lm/pytorch-3.0_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_llama_3_8b_instruct_tp
 
   mistral/pixtral/pytorch-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -75,34 +68,28 @@ test_config:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
     markers: [extended]
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_mistral_7b_tp
 
   qwen_3/causal_lm/pytorch-0_6B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
     assert_pcc: True
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_0_6b_tp
 
   qwen_3/causal_lm/pytorch-14B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_3_14b_tp
 
   qwen_3/causal_lm/pytorch-1_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
     assert_pcc: True
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_1_7b_tp
 
   qwen_3/causal_lm/pytorch-32B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_3_32b_tp
 
   qwen_3/causal_lm/pytorch-8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_3_8b_tp
 
   qwen_3/embedding/pytorch-Embedding_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -112,17 +99,14 @@ test_config:
   mistral/pytorch-Ministral_8B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_ministral_8b_tp
 
   mistral/pytorch-Small_24B_INSTRUCT_2501-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_mistral_small_24b_instruct_2501_tp
 
   mistral/pytorch-Nemo_INSTRUCT_2407-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_mistral_nemo_instruct_2407_tp
 
   mistral/pytorch-Large_INSTRUCT_2411-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -144,17 +128,14 @@ test_config:
   qwen_2_5/causal_lm/pytorch-14B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_14b_instruct_tp
 
   qwen_2_5/causal_lm/pytorch-32B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 2  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_32b_instruct_tp
 
   qwen_2_5_coder/pytorch-32B_Instruct-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp
 
   qwen_2_5/causal_lm/pytorch-Math_7B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -180,7 +161,6 @@ test_config:
         required_pcc: 0.94
 
   llama/causal_lm/pytorch-3.1_70B_Instruct-tensor_parallel-inference:
-    optimization_level: 1  # Matches tests/benchmark/test_llms.py::test_llama_3_1_70b_tp
     arch_overrides:
       n300-llmbox:
         status: EXPECTED_PASSING
