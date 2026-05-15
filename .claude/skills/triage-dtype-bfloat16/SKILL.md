@@ -60,11 +60,21 @@ Auto-detect both:
 
 ### Step 3 — CPU triage script (combined bfloat16 + float32, with input-dtype dump)
 
-One script, one process, two phases. Per-phase try/except so a bfloat16 raise doesn't skip the float32 phase. The script also prints the dtype of every tensor returned by `load_inputs(dtype_override=torch.bfloat16)` — that's the diagnostic for Step 5. Write `/tmp/triage_dtype_<model_dir>_<variant>.py`:
+One script, one process, two phases. Per-phase try/except so a bfloat16 raise doesn't skip the float32 phase. The script also prints the dtype of every tensor returned by `load_inputs(dtype_override=torch.bfloat16)` — that's the diagnostic for Step 5.
+
+Before writing the script, check whether the loader defines a `ModelVariant` enum:
+
+```bash
+grep -n "class ModelVariant" third_party/tt_forge_models/<model_dir>/pytorch/loader.py
+```
+
+If the grep returns a match, include `, ModelVariant` in the import and use `ModelLoader(variant=ModelVariant.<VARIANT>)`. If it returns nothing, drop both — use `ModelLoader()` with no `variant` argument.
+
+Write `/tmp/triage_dtype_<model_dir>_<variant>.py`:
 
 ```python
 import sys, traceback, torch
-sys.path.insert(0, "/localdev/<user>/tt-xla")
+sys.path.insert(0, ".")
 from third_party.tt_forge_models.<model_dir>.pytorch.loader import ModelLoader  # add , ModelVariant if used
 
 
@@ -133,7 +143,13 @@ python /tmp/triage_dtype_<model_dir>_<variant>.py &> /tmp/triage_dtype_<model_di
 
 **Read the log with the Read tool. Never use `tail` or `less` — they hide errors behind generic exit codes** (this is a hard rule from feedback memory).
 
-If `load_inputs` requires a non-default kwarg (e.g. `seq_len`, `batch_size`), mirror what the runner passes and re-run — see `tests/runner/utils/dynamic_loader.py:380-419` for the exact kwargs by phase.
+If `load_inputs` requires a non-default kwarg (e.g. `seq_len`, `batch_size`), mirror what the runner passes and re-run. To find the exact kwargs the runner uses for this model, grep:
+
+```bash
+grep -n "<model_dir>" tests/runner/utils/dynamic_loader.py
+```
+
+This surfaces any model-specific overrides in the `380-419` block. Use those kwargs verbatim in the script's `kw` dict alongside `dtype_override`.
 
 If `loader.unpack_forward_output(...)` itself raises in either phase, the model also has the unrelated `unpack_forward_output` failure. Abort and tell the user to run the `triage-unpack-forward-output` skill first.
 
@@ -260,7 +276,7 @@ Loader fix succeeded at the CPU level. The pytest verification above runs agains
   ```yaml
   <model_dir>/pytorch-<variant>-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION  # or FAILED_RUNTIME if the failure is past compilation
+    bringup_status: FAILED_TTMLIR_COMPILATION  # or FAILED_FE_COMPILATION / FAILED_RUNTIME — see bringup_status selection table below
     reason: "<exact new error string>"
   ```
 
@@ -285,12 +301,20 @@ The pytest verification above (with `--force-run --runxfail`) confirms the entry
 
 #### `bringup_status` selection
 
+Three stages exist (defined in `tests/utils.py:BringupStatus`):
+
 | Situation | Use |
 | --- | --- |
-| Default — frontend never compiles because the CPU forward/backward errors out first, OR TT-MLIR fails before/at compilation | `FAILED_FE_COMPILATION` |
-| Test reaches runtime/execution and fails there (rare for this skill, but possible after a loader fix) | `FAILED_RUNTIME` |
+| CPU forward/backward errors out before TT compilation is ever invoked — bfloat16 op errors, cross-dtype mismatches, Python exceptions in the loader | `FAILED_FE_COMPILATION` |
+| TT-MLIR's compilation pipeline fails — MLIR lowering passes, dialect errors (e.g. `error: 'ttir.*'`), `ElementsAttr` assertion, process abort (SIGABRT / exit 134) from the compiler | `FAILED_TTMLIR_COMPILATION` |
+| Compilation succeeds but the test fails during device kernel execution | `FAILED_RUNTIME` |
 | Numerics divergence (PCC / atol failure) after a loader fix | not a `bringup_status` — set `status: EXPECTED_PASSING` with `assert_pcc: false` instead |
 | Test now passes on TT-XLA | drop `bringup_status` (status: EXPECTED_PASSING is enough) |
+
+**How to classify a new error from pytest verification (Branch B):** look at the `error_message` and failure traceback in the JUnit XML:
+- Contains `error:`, `ttir.`, `ttnn.`, `ElementsAttr`, `Aborted`, or `core dumped` → `FAILED_TTMLIR_COMPILATION`
+- Contains `TT_FATAL` / `TT_THROW` with kernel/dispatch/device context → `FAILED_RUNTIME`
+- Python exception (`RuntimeError`, `ValueError`, etc.) before any TT call → `FAILED_FE_COMPILATION`
 
 #### Canonical bfloat16 reason strings (Branch A)
 

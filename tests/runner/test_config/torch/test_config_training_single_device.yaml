@@ -142,20 +142,20 @@ test_config:
     reason: "RuntimeError: Test Hangs"
   centernet/pytorch-ResNet18_Backbone_COCO-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   centernet/pytorch-ResNet101_Backbone_COCO-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   centernet/pytorch-Dla1x_Coco-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   centernet/pytorch-Dla2x_Coco-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   vadv2/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
