@@ -1285,7 +1285,7 @@ def test_mistral_nemo_instruct_2407_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
     )
 
 
@@ -1315,7 +1315,7 @@ def test_mistral_small_24b_instruct_2501_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1345,7 +1345,7 @@ def test_qwen_2_5_14b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
     )
 
 
@@ -1409,7 +1409,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
     )
 
 
@@ -1507,7 +1507,7 @@ def test_qwen_3_8b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1537,7 +1537,7 @@ def test_qwen_3_14b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
     )
 
 
@@ -1707,7 +1707,7 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1762,7 +1762,7 @@ def test_gpt_oss_20b_tp(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
-        optimization_level=1,
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
     )
 
 
@@ -1794,7 +1794,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
-        optimization_level=1,
+        optimization_level=DEFAULT_TP_OPTIMIZATION_LEVEL,
     )
 
 
