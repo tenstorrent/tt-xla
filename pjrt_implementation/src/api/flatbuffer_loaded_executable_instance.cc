@@ -156,7 +156,7 @@ void FlatbufferLoadedExecutableInstance::releaseResources() {
 tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
-  DLOG_F(LOG_DEBUG, "FlatbufferLoadedExecutableInstance::Execute");
+  LOG_F(INFO, "FlatbufferLoadedExecutableInstance::Execute");
   LOG_BRINGUP_STAGE("RUNTIME_EXECUTION_START");
 
   if (args->num_devices != m_executable_image->getNumDevicesToUtilize()) {
@@ -183,6 +183,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
+  LOG_F(INFO, "Invoking getInputRuntimeTensors");
+
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
@@ -205,9 +207,12 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     FlatbufferExecutableImage *executable_image =
         static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
+    LOG_F(INFO, "Invoking tt::runtime::submit");
     auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
                                     executable_image->getFlatbufferBinary(),
                                     program_index, input_tensors);
+
+    LOG_F(INFO, "Done tt::runtime::submit");
 
     if (!r) {
       m_client_instance->closeMeshDevice();
@@ -227,6 +232,8 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     status = fillPJRTOutputLists(output_tensors, args->num_devices,
                                  args->output_lists,
                                  m_executable_image->getOutputTypes());
+    LOG_F(INFO, "Done fillPJRTOutputLists");
+
     if (!tt_pjrt_status_is_ok(status)) {
       return status;
     }
