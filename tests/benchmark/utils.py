@@ -174,6 +174,12 @@ def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
         system_memory_ops = 0
         num_graphs_with_metrics = 0
 
+        # Perf target aggregation: track the largest graph (by total weight
+        # bytes) so a top-level estimate is reported even when the model is
+        # split into several per-graph JSONs.
+        biggest_targets = None
+        biggest_weight_bytes = -1
+
         for perf_file in sorted(perf_files):
             with open(perf_file, "r") as f:
                 perf_metrics_data = json.load(f)
@@ -187,6 +193,17 @@ def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
                 effectively_sharded_ops += summary.get("effectively_sharded_ops", 0)
                 system_memory_ops += summary.get("system_memory_ops", 0)
                 num_graphs_with_metrics += 1
+
+            targets = perf_metrics_data.get("perf_targets")
+            if isinstance(targets, dict):
+                params = targets.get("params", {})
+                kv = targets.get("kv_cache", {})
+                weight_bytes = int(params.get("memory_bytes", 0)) + int(
+                    kv.get("memory_bytes", 0)
+                )
+                if weight_bytes > biggest_weight_bytes:
+                    biggest_weight_bytes = weight_bytes
+                    biggest_targets = targets
 
         if num_graphs_with_metrics > 0:
             results["config"]["ttnn_total_ops"] = total_ops
@@ -203,6 +220,35 @@ def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
                 results["config"]["ttnn_effectively_sharded_percentage"] = 0.0
 
             results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
+
+        if biggest_targets is not None:
+            params = biggest_targets.get("params", {})
+            kv = biggest_targets.get("kv_cache", {})
+            compute = biggest_targets.get("compute", {})
+            roofline = biggest_targets.get("roofline", {})
+            results["config"]["ttnn_perf_target_arch"] = biggest_targets.get("arch", "")
+            results["config"]["ttnn_perf_target_param_count"] = int(
+                params.get("count", 0)
+            )
+            results["config"]["ttnn_perf_target_param_memory_bytes"] = int(
+                params.get("memory_bytes", 0)
+            )
+            results["config"]["ttnn_perf_target_kv_cache_memory_bytes"] = int(
+                kv.get("memory_bytes", 0)
+            )
+            results["config"]["ttnn_perf_target_total_flops"] = int(
+                compute.get("total_flops", 0)
+            )
+            results["config"]["ttnn_perf_target_dram_time_sec"] = float(
+                roofline.get("dram_time_sec", 0.0)
+            )
+            results["config"]["ttnn_perf_target_compute_time_sec_lofi"] = float(
+                roofline.get("compute_time_sec_lofi", 0.0)
+            )
+            results["config"]["ttnn_perf_target_bound"] = roofline.get("bound", "")
+            results["config"]["ttnn_perf_target_top_perf_samples_per_sec"] = float(
+                roofline.get("top_perf_samples_per_sec", 0.0)
+            )
 
 
 def compute_pcc(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
