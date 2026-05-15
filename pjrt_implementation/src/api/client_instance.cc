@@ -357,7 +357,10 @@ tt_pjrt_status ClientInstance::populateDevices() {
   // [Workaround] Override fabric config to FABRIC_2D for dual t3k cluster
   // or else querying system desc will fail in metal init due to fabric init
   // bugs
-
+  if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::FABRIC_1D);
+  }
 
   const char *system_desc_override = std::getenv("TT_COMPILE_ONLY_SYSTEM_DESC");
   if (system_desc_override != nullptr) {
@@ -412,16 +415,13 @@ tt_pjrt_status ClientInstance::populateDevices() {
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
     if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
-    std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+        std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
       LOG_F(INFO, "Force - opening mesh as 4x8");
+      m_parent_mesh = getOrCreateMeshDevice({4, 8});
+    } else {
       m_parent_mesh =
-      getOrCreateMeshDevice({4, 8});
-      }
-    else{
-      m_parent_mesh =
-      getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
     }
-
   }
 
   return tt_pjrt_status::kSuccess;
@@ -505,11 +505,11 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
   // [Workaround] Override fabric config to FABRIC_2D due to device init bugs
   // under default 1D ring + topology auto-detection required for dual t3k
   // and single bh galaxy in exabox cluster
-  // if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
-  //     std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
-  //   return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
-  //                                        {}};
-  // }
+  if (std::getenv("TT_RUNTIME_USING_DUALT3K") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_USING_DUALT3K")) != "0") {
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
+  }
 
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
