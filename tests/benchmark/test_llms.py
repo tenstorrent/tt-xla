@@ -814,6 +814,43 @@ def test_qwen_3_8b(
     )
 
 
+def test_qwen_1_5_7b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_1_5.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_1_5_7B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        weight_dtype_overrides={"default": "bfp_bf8"},
+        # Trace disabled: DRAM OOM at batch_size=32 with trace on n150
+        trace_enabled=False,
+    )
+
+
 def test_qwen_2_5_7b(
     output_file,
     num_layers,
