@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 # Minimal makefile for Sphinx documentation.
 # Assumes docs deps are installed — see docs/build_docs.sh for the
 # install + build path used by CI and first-time local builds.

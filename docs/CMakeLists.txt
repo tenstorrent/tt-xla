@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 # All docs work is driven by docs/Makefile. These CMake targets are
 # thin wrappers so `cmake --build build -- docs` keeps working.
 # Assumes docs deps are installed — see docs/build_docs.sh for the

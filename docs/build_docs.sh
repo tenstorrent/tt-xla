@@ -1,4 +1,8 @@
 #!/bin/bash
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 # Install docs requirements and build the Sphinx documentation.
 # This is the entry point used by CI and recommended for first-time
 # local builds. Repeat local builds can skip this script and run
