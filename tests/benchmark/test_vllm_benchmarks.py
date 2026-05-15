@@ -98,6 +98,12 @@ SINGLE_DEVICE_CONFIGS = [
             "facebook/opt-125m", 32, gpu_memory_utilization=0.02, optimization_level=1
         ),
         id="opt-125m-batch32-opt1",
+        marks=pytest.mark.xfail(
+            reason="tt-mlir MemoryLayoutPropagation::consolidateBeam assert "
+            "(regression from tt-mlir uplift #4569); see tt-mlir issue TODO",
+            strict=False,
+            run=True,
+        ),
     ),
     pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct", 1), id="qwen2.5-0.5b-instruct"),
     pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct", 1), id="qwen2.5-1.5b-instruct"),
