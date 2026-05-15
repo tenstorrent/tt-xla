@@ -265,46 +265,6 @@ private:
   static std::string
   getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module);
 
-  // Collect input sharding if we are using GSPMD.
-  tt_pjrt_status collectInputShardingsGSPMD(
-      const mlir::OwningOpRef<mlir::ModuleOp> &module,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings);
-
-  // Collect output sharding if we are using GSPMD.
-  tt_pjrt_status collectOutputShardingsGSPMD(
-      const mlir::OwningOpRef<mlir::ModuleOp> &module,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
-
-  // Collect input sharding if we are using Shardy.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectInputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Collect output sharding if we are using Shardy.
-  std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
-  collectOutputShardingsShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Checks if the StableHLO code is using the Shardy mlir dialect.
-  bool isUsingShardy(const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Checks if the StableHLO code is using manual computation ops of the Shardy
-  // mlir dialect.
-  bool isUsingShardyManualComputation(
-      const mlir::OwningOpRef<mlir::ModuleOp> &module);
-
-  // Takes a vector of string attributes representing GSPMD sharding and fills
-  // the vector of tt_mlir Sharding with the appropriate corresponding values.
-  static mlir::LogicalResult createShardingsFromGSPMD(
-      const std::vector<mlir::StringAttr> &gspmd_attributes,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
-
-  // Takes a vector of Shardy sharding attributes, the overall Shardy mesh and
-  // fills the vector of tt_mlir MeshSharding objects with the appropriate
-  // corresponding values.
-  static mlir::LogicalResult createShardingsFromShardy(
-      std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
-      const mlir::sdy::MeshAttr &shardy_mesh,
-      std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
-
   // Collects memory kinds for output buffers.
   static void collectMemoryKinds(size_t num_outputs,
                                  std::vector<const char *> &memory_kinds,
