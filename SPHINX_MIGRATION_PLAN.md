@@ -25,7 +25,7 @@ These have been settled and shape the rest of the plan:
 | CMake integration | Keep thin wrapper targets in `docs/CMakeLists.txt` that shell out to the Makefile |
 | Local preview | `make server` target included |
 | Directory layout | `docs/source/` (Sphinx convention) |
-| Theme & static assets | Copy tt-metal's `_static/` wholesale for cross-site visual consistency |
+| Theme & static assets | Reference the canonical `tt_theme.css` and fonts from `docs.tenstorrent.com/_static/` via absolute URLs; bundle only `tt_logo.svg` + `favicon.png` locally (Sphinx requires `html_logo` / `html_favicon` to be local file paths) |
 | Analytics (PostHog) | Skipped for now |
 | Intersphinx | Enabled, with mappings for tt-mlir and tt-metal |
 | Sitemap (`sphinx_sitemap`) | Skipped |
@@ -41,7 +41,7 @@ docs/
 └── source/
     ├── conf.py
     ├── index.md                # MyST markdown root (toctree)
-    ├── _static/                # copied from tt-metal: fonts, tt_theme.css, logo, favicon
+    ├── _static/                # local: tt_logo.svg, favicon.png (CSS + fonts pulled from docs.tenstorrent.com/_static/)
     ├── _templates/
     │   └── layout.html         # copied from tt-metal common/_templates
     ├── getting_started.md
@@ -107,9 +107,9 @@ Key configuration choices:
 - `html_theme = "sphinx_rtd_theme"`.
 - `html_baseurl = "/tt-xla/"` (path under `docs.tenstorrent.com`).
 - `html_logo = "_static/tt_logo.svg"`, `html_favicon = "_static/favicon.png"` (local files, **not** URLs — Sphinx requires this).
-- `html_static_path = ["_static"]`.
+- `html_static_path = ["_static"]` — only logo + favicon live here.
 - `templates_path = ["_templates"]`.
-- `html_css_files = ["tt_theme.css"]`.
+- `html_css_files = ["https://docs.tenstorrent.com/_static/tt_theme.css"]` — absolute URL to the canonical theme on the root docs site. The CSS resolves its `./fonts/...` URLs relative to itself, so fonts come from `docs.tenstorrent.com/_static/fonts/` automatically — nothing to bundle.
 - `html_context = {"logo_link_url": "https://docs.tenstorrent.com/"}`.
 - `intersphinx_mapping`:
   - `"tt-mlir": ("https://docs.tenstorrent.com/tt-mlir/", None)`
@@ -122,16 +122,27 @@ No PostHog, no breathe, no sitemap. No `REQUESTED_DOCS_PKG` switching
 
 ### Step 3 — `docs/source/_static/` and `_templates/`
 
-Copy from `/localdev/acicovic/tt-metal/docs/source/common/`:
+Local bundle (small — only what Sphinx requires as local paths):
 
-- `_static/tt_theme.css`
-- `_static/fonts/` (Degular*, RMMono*)
-- `_static/tt_logo.svg` (or pull from canonical location)
-- `_static/favicon.png`
-- `_templates/layout.html` (no edits needed — it's parametric on `project`)
+- `_static/tt_logo.svg` — `html_logo` must be a local file.
+- `_static/favicon.png` — same for `html_favicon`.
+- `_templates/layout.html` — copied from tt-metal `common/_templates/` (no edits — it's parametric on `project`).
 
-**Not** copying: `posthog.js`, `versions.html`, screenshot PNGs/MP4s
-specific to tt-metal tutorials.
+**Pulled from the root docs site at build/serve time:**
+
+- `tt_theme.css` — referenced by absolute URL `https://docs.tenstorrent.com/_static/tt_theme.css` in `html_css_files`.
+- Fonts (`DegularDisplay-Light.woff/woff2`, `DegularText-{Bold,Medium,MediumItalic}.woff/woff2`, `RMMono-Regular.woff/woff2`) — resolved by the browser via the CSS's `./fonts/...` relative URLs, landing at `docs.tenstorrent.com/_static/fonts/...`.
+
+Rationale: tt-metal bundles these per-project and the bundled `tt_theme.css`
+has already drifted from the canonical version at `docs.tenstorrent.com/_static/tt_theme.css`
+(the root has an extended color palette tt-metal doesn't). Referencing the
+root copy keeps tt-xla automatically aligned with the canonical Tenstorrent
+theme and cuts ~3MB of fonts from every build. Trade-off: local preview
+needs network access to render styled, and a root-side path change would
+break the docs (low risk — would also break docs.tenstorrent.com itself).
+
+**Not** copying from tt-metal: `posthog.js`, `versions.html`, screenshot
+PNGs/MP4s specific to tt-metal tutorials.
 
 ### Step 4 — `docs/source/index.md`
 

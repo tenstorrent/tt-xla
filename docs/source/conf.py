@@ -70,11 +70,10 @@ html_theme = "sphinx_rtd_theme"
 html_logo = "_static/tt_logo.svg"
 html_favicon = "_static/favicon.png"
 html_static_path = ["_static"]
-html_css_files = ["tt_theme.css"]
+# Pull the canonical Tenstorrent theme + fonts from the root docs site so they
+# don't drift per-project. The CSS resolves its `./fonts/...` URLs relative to
+# itself, so fonts come from the same root _static/ automatically.
+html_css_files = ["https://docs.tenstorrent.com/_static/tt_theme.css"]
 html_baseurl = "/tt-xla/"
 html_context = {"logo_link_url": "https://docs.tenstorrent.com/"}
 html_last_updated_fmt = "%b %d, %Y"
-
-
-def setup(app):
-    app.add_css_file("tt_theme.css")
