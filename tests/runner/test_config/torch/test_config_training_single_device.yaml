@@ -542,7 +542,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=7,y=6) - (x=7,y=6)] grow to 2371840 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
   detr/object_detection/pytorch-ResNet50_Backbone-single_device-training:
-    status: KNOWN_FAILURE_XFAIL
+    status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Fatal Python error: Aborted during torch_xla.sync after forward pass."
   detr/segmentation/pytorch-ResNet50_Backbone_Panoptic-single_device-training:
