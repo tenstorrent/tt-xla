@@ -20,7 +20,7 @@ class LogLevel(Enum):
     CRITICAL = "CRITICAL"
 
     @classmethod
-    def from_env(cls, env_var="TTXLA_LOGGER_LEVEL", default="WARNING"):
+    def from_env(cls, env_var="TTXLA_LOGGER_LEVEL", default="INFO"):
         """Get level from environment variable with validation"""
         level_name = os.getenv(env_var, default).upper()
 
@@ -36,4 +36,4 @@ class LogLevel(Enum):
 
 _LOG_LEVEL = LogLevel.from_env()
 logger.remove()  # clear sinks
-logger.add(sys.stderr, level=_LOG_LEVEL.value)
+logger.add(sys.stderr, level=_LOG_LEVEL.value, colorize=True)
