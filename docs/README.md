@@ -34,7 +34,7 @@ will fail CI.
 Docs deps are pinned in `docs/requirements-docs.txt` and are **not** installed by `venv/activate`. They're kept out
 of the main venv on purpose: docs is a niche workflow (CI and the occasional contributor), and there's no reason to
 add ~20MB of Sphinx machinery to every developer's environment when most people never build docs. Install them once
-when you need them, the same way tt-metal does (`tests/scripts/run_build_docs.sh`).
+when you need them.
 
 The easiest one-time setup:
 
@@ -52,17 +52,16 @@ Three entry points, all producing HTML in `docs/build/html/`:
 | Command | When to use |
 |---|---|
 | `bash docs/build_docs.sh` | First-time local build; what CI runs. Installs deps + does a clean build. |
-| `cmake --build build -- docs` | When you're already working in the CMake build flow. Assumes deps are installed. |
 | `make -C docs html` | Fast local iteration. Assumes deps are installed. |
+| `cmake --build build -- docs` | CMake target (see below). Assumes deps are installed. |
 
 The CMake target `docs` (defined in `docs/CMakeLists.txt`) is a thin wrapper around `make -C docs html`. It exists
 so `cmake --build build -- docs` works the same way it did under the old mdBook setup - the docs build stays
 discoverable from the project's primary build system, but the actual work happens in the Makefile. There are
 matching `docs-clean` and `docs-serve` CMake targets that wrap `make clean` and `make server`.
 
-The Makefile sets `SPHINXOPTS = -W` by default, so any Sphinx warning (broken cross-reference, unknown Pygments
-lexer, heading starting below H1, orphan page, ...) fails the build. CI uses the same setting via `build_docs.sh`,
-so local and CI builds either both pass or both fail.
+The Makefile sets `SPHINXOPTS = -W` by default, so any Sphinx warning fails the build.
+CI invokes `make` via `build_docs.sh`, so local and CI builds either both pass or both fail.
 
 ## Previewing locally
 
