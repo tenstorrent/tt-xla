@@ -334,9 +334,13 @@ Edits (both files):
   `./docs/build/html`.
 
 Deployment mechanism (current: `actions/configure-pages` →
-`upload-pages-artifact` → `deploy-pages` to GitHub Pages) stays the same
-for the rolling-latest model. The migration to `docs.tenstorrent.com/tt-xla`
-is a DNS/CNAME concern handled outside this PR — see "Out of scope" below.
+`upload-pages-artifact` → `deploy-pages` to GitHub Pages) stays the same.
+The CNAME / Pages custom-domain wiring for `docs.tenstorrent.com/tt-xla/`
+is already in place — `tenstorrent.github.io/tt-xla/` 301-redirects to
+the custom domain, and `docs.tenstorrent.com` resolves to GitHub Pages'
+custom-domain anycast IPs (`185.199.108-111.153`). When this PR merges,
+the new Sphinx output is served at both URLs automatically; no infra
+work is required.
 
 ### Step 9 — Pre-commit / formatting
 
@@ -365,11 +369,6 @@ Before opening the PR:
 
 ## Out of scope for this PR
 
-- DNS / CNAME setup for `docs.tenstorrent.com/tt-xla`. That is an
-  infrastructure change owned by whoever runs `docs.tenstorrent.com`.
-  Until it's wired up, docs continue to publish at the existing GitHub
-  Pages URL — only the `html_baseurl` in `conf.py` anticipates the
-  future location.
 - Multi-version hosting (`published_versions.json`, version dropdown).
 - Jupyter notebook support via `nbsphinx`.
 - Doxygen / `breathe` integration (no public C++ API).

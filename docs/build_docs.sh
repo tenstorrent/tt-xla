@@ -7,9 +7,10 @@
 set -eo pipefail
 
 DOCS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOCS_REQ_FILE="${DOCS_DIR}/requirements-docs.txt"
 
-echo "Installing docs requirements..."
-pip install -r "${DOCS_DIR}/requirements-docs.txt"
+echo "Installing docs requirements from ${DOCS_REQ_FILE}..."
+pip install -r "${DOCS_REQ_FILE}"
 
 echo "Building docs..."
 cd "${DOCS_DIR}"
