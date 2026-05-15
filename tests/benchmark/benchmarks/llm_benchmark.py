@@ -69,9 +69,9 @@ def setup_model_and_tokenizer(
     """
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
-    logger.info("llm_benchmark: Initializing model weights (this may take a while for large models)...")
+    logger.warning("llm_benchmark: Initializing model weights (this may take a while for large models)...")
     model = model_loader.load_model(dtype_override=torch.bfloat16)
-    logger.info("llm_benchmark: Model weight initialization complete")
+    logger.warning("llm_benchmark: Model weight initialization complete")
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
