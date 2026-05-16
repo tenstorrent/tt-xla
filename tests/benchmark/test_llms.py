@@ -1091,6 +1091,43 @@ def test_llama_3_1_8b(
     )
 
 
+def test_029_shisa_gamma_7b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    import importlib
+
+    loader_mod = importlib.import_module(
+        "third_party.tt_forge_models.029_shisa_gamma_7b_v1_v2new_dpo405b_i1_gguf.causal_lm.pytorch.loader"
+    )
+    ModelLoader = loader_mod.ModelLoader
+    ModelVariant = loader_mod.ModelVariant
+
+    variant = ModelVariant.SHISA_GAMMA_7B_V1_V2NEW_DPO405B_I1_Q4_K_M_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
