@@ -74,8 +74,17 @@ def setup_model_and_tokenizer(
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
+    # Prefer "dense" (no sort, no dynamic dispatch), fall back to "batched_mm"
+    # (also no sort) when "dense" is not registered (transformers >= 5.2).
     if hasattr(model.config, "_experts_implementation"):
-        model.config._experts_implementation = "dense"
+        try:
+            from transformers.integrations.moe import ALL_EXPERTS_FUNCTIONS
+
+            ALL_EXPERTS_FUNCTIONS.get_interface("dense", None)
+            model.config._experts_implementation = "dense"
+        except (KeyError, ImportError):
+            # "dense" not available; fall back to "batched_mm" which avoids sort
+            model.config._experts_implementation = "batched_mm"
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -475,7 +484,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:

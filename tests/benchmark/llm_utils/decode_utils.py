@@ -118,14 +118,20 @@ def init_static_cache(
     device: str = "cpu",
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
-    """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
-    else:
-        head_dim = config.hidden_size // config.num_attention_heads
+    """Initialize a transformers StaticCache consistently.
 
+    For models with DeepSeek V3 style MLA that store expanded K/V in the cache
+    (i.e. config has ``qk_nope_head_dim`` and ``v_head_dim``), the key and value
+    tensors have *different* head dimensions:
+        k_head_dim = qk_nope_head_dim + qk_rope_head_dim
+        v_head_dim = v_head_dim (the config field)
+    Standard ``early_initialization`` can't express this because it takes a single
+    ``head_dim`` for both K and V.  Instead we call ``layer.lazy_initialization``
+    directly for each layer with fake tensors of the correct shapes.
+    """
+    text_config = config.get_text_config(decoder=True)
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        text_config, "num_key_value_heads", text_config.num_attention_heads
     )
 
     static_cache = StaticCache(
@@ -135,6 +141,27 @@ def init_static_cache(
         device=device,
         dtype=dtype,
     )
+
+    # DeepSeek V3 style: expanded K/V cache where K and V have different head dims.
+    # Detect by the presence of qk_nope_head_dim (exclusive to this architecture family).
+    if hasattr(text_config, "qk_nope_head_dim") and hasattr(text_config, "v_head_dim"):
+        k_head_dim = text_config.qk_nope_head_dim + text_config.qk_rope_head_dim
+        v_head_dim = text_config.v_head_dim
+        fake_k = torch.zeros(
+            (batch_size, num_key_value_heads, 0, k_head_dim), dtype=dtype, device=device
+        )
+        fake_v = torch.zeros(
+            (batch_size, num_key_value_heads, 0, v_head_dim), dtype=dtype, device=device
+        )
+        for layer in static_cache.layers:
+            layer.lazy_initialization(fake_k, fake_v)
+        return static_cache
+
+    if hasattr(text_config, "head_dim") and getattr(text_config, "head_dim"):
+        head_dim = text_config.head_dim
+    else:
+        head_dim = text_config.hidden_size // text_config.num_attention_heads
+
     static_cache.early_initialization(
         batch_size=batch_size,
         num_heads=num_key_value_heads,
