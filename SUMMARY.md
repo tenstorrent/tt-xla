@@ -25,8 +25,25 @@ tests/benchmark/test_llms.py::test_abacusai_bigstral_12b_32k
 - Loader:     third_party.tt_forge_models.abacusai.causal_lm.pytorch.loader
 - Variant:    ModelVariant.BIGSTRAL_12B_32K ("bigstral_12B_32K")
 
+## Rejection reason
+
+The variant `BIGSTRAL_12B_32K` encodes a **12B** parameter model
+(`abacusai/bigstral-12b-32k`). The single-chip n150 capacity ceiling for
+LLMs is ≈10B parameters at `bfp_bf8` weights. A 12B model will OOM during
+weight transfer regardless of dtype or optimization settings.
+
+Per the skill rules (Step 1.6), models larger than 10B are rejected before
+any test code is written or any device time is spent.
+
+No files were modified. No test was added to `tests/benchmark/test_llms.py`.
+
 ## Test config landed
-N/A — early exit before test was written
+- optimization_level:        N/A
+- trace_enabled:             N/A
+- experimental_weight_dtype: N/A
+- batch_size:                N/A
+- input_sequence_length:     N/A
+- required_pcc:              N/A
 
 ## Measured (full model, defaults)
 - Sample per second:  N/A
@@ -37,20 +54,10 @@ N/A — early exit before test was written
 - Hardware:           n150
 
 ## Decode roofline (first decode graph, single-chip)
-N/A — early exit before any run
+N/A — test not run
 
 ## Files changed
-- SUMMARY.md (this file)
+- SUMMARY.md (this file only)
 
 ## tt-forge-models submodule
 no change
-
-## Notes
-The model `abacusai/bigstral-12b-32k` is a 12B parameter model. The single-chip
-n150 capacity ceiling is ~10B parameters at bfp_bf8 weights. This model cannot
-fit on a single n150 device and would OOM during weight transfer.
-
-Early exit per Step 1.6: model size ~12B exceeds 10B single-chip capacity.
-
-Source HF runner test:
-tests/runner/test_models.py::test_all_models_torch[abacusai/causal_lm/pytorch-bigstral_12B_32K-single_device-inference]
