@@ -12,8 +12,8 @@ pct_of_target: null
 roofline_bound: null
 optimization_level: 2
 trace_enabled: true
-experimental_weight_dtype: bfp_bf8
-failure_reason: "GGUF model architecture 'qwen35' not supported by transformers==5.2.0; transformers 5.2.0 GGUF loader only supports qwen2/qwen3/qwen2_moe/qwen3_moe but not qwen35 (Qwen3.5)"
+experimental_weight_dtype: "bfp_bf8"
+failure_reason: "transformers==5.2.0 does not support GGUF architecture 'qwen35': ValueError: GGUF model with architecture qwen35 is not supported yet."
 
 # Benchmark added: test_aaryank_qwen3_5_4b_gguf
 
@@ -23,7 +23,7 @@ tests/benchmark/test_llms.py::test_aaryank_qwen3_5_4b_gguf
 ## Model
 - HF name:    AaryanK/Qwen3.5-4B-GGUF
 - Loader:     third_party.tt_forge_models.aaryank_qwen3_5_4b_gguf.causal_lm.pytorch.loader
-- Variant:    ModelVariant.QWEN3_5_4B_GGUF ("4B_GGUF")
+- Variant:    ModelVariant.QWEN3_5_4B_GGUF (value: "4B_GGUF")
 
 ## Test config landed
 - optimization_level:        2
@@ -41,34 +41,40 @@ tests/benchmark/test_llms.py::test_aaryank_qwen3_5_4b_gguf
 - Wall clock:         N/A
 - Hardware:           n150
 
-## Failure details
+## Failure Details
 
-The test fails immediately during model loading with:
+The test fails immediately at model loading with:
 
 ```
 ValueError: GGUF model with architecture qwen35 is not supported yet.
 ```
 
-`transformers==5.2.0` (installed in the venv) does not support the `qwen35`
-GGUF architecture. The `GGUF_SUPPORTED_ARCHITECTURES` list in
-`transformers/modeling_gguf_pytorch_utils.py` includes `qwen3` and `qwen2`
-but not `qwen35`, which is how llama.cpp identifies Qwen3.5 models.
+Traceback:
+```
+transformers/modeling_gguf_pytorch_utils.py:478: in load_gguf_checkpoint
+    raise ValueError(f"GGUF model with architecture {architecture} is not supported yet.")
+```
 
-The fix belongs upstream in either:
-1. A newer release of `transformers` that adds `qwen35` GGUF support, or
-2. The `tt-forge-models` loader rewriting the tokenizer/model loading to work
-   around the missing GGUF architecture support (e.g. by loading config from
-   the GGUF file and then instantiating the model a different way).
+The installed `transformers==5.2.0` does not support loading GGUF models that use the
+`qwen35` architecture identifier (Qwen3.5 models). This is a library compatibility
+issue — the loader calls `AutoTokenizer.from_pretrained` with `gguf_file=...` which
+triggers GGUF parsing, and `transformers 5.2.0` only knows about a subset of GGUF
+architecture strings (does not include `qwen35`).
 
-No changes were made to `third_party/tt_forge_models/`.
+A newer version of `transformers` is required to support this GGUF architecture type.
+This is a loader/dependency fix that belongs in either the tt-forge-models repo or by
+updating the pinned `transformers` version in the benchmark pyreq.
+
+The test function has been added with a `# FAILED:` comment prefix (matching the
+established pattern in `test_llms.py`) and a matrix entry added to
+`.github/workflows/perf-bench-matrix.json`.
 
 ## Decode roofline (first decode graph, single-chip)
 N/A — test did not reach compilation or execution.
 
 ## Files changed
-- tests/benchmark/test_llms.py (test function added)
+- tests/benchmark/test_llms.py (test function added with # FAILED: comment)
 - .github/workflows/perf-bench-matrix.json (matrix entry added)
-- SUMMARY.md
 
 ## tt-forge-models submodule
-no change
+no change — submodule remains at 6cb56d720b
