@@ -1,5 +1,5 @@
 loader_path: third_party.tt_forge_models.aaryank_qwen3_5_4b_gguf.causal_lm.pytorch.loader
-variant_id: QWEN3_5_4B_GGUF
+variant_id: 4B_GGUF
 arch: n150
 status: DONE_FAIL
 test_function: test_aaryank_qwen3_5_4b_gguf
