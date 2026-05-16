@@ -18,9 +18,10 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
 from tt_torch.utils import torch_dynamo_jax_compatibility
+
+import vllm.envs as envs
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -1863,11 +1864,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # shlo_clean_for_xla_ingestion's "at most one ManualComputationOp"
             # assertion.
             if self.enable_tensor_parallel:
+                # For 2D mesh, batch=1 can't be sharded along a size>1 axis.
+                # Inputs are tiny — replicate; weights are still 2D-sharded.
+                if self.use_2d_mesh:
+                    input_spec = (None, None)
+                    embed_spec = (None, None, None)
+                else:
+                    input_spec = ("model", None)
+                    embed_spec = ("model", None, None)
                 if input_ids is not None:
-                    xs.mark_sharding(input_ids, self.mesh, ("model", None))
-                xs.mark_sharding(position_ids, self.mesh, ("model", None))
+                    xs.mark_sharding(input_ids, self.mesh, input_spec)
+                xs.mark_sharding(position_ids, self.mesh, input_spec)
                 if inputs_embeds is not None:
-                    xs.mark_sharding(inputs_embeds, self.mesh, ("model", None, None))
+                    xs.mark_sharding(inputs_embeds, self.mesh, embed_spec)
             (
                 model_input_ids,
                 model_positions,
@@ -2214,7 +2223,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self._precompile_gather_logprobs()
         self._signpost("precompile_end")
 
-
     def profile_run(
         self,
         num_tokens: int,
@@ -2415,11 +2423,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]
+            # Align heads-dim axis with K/V projection output: QKV weight is
+            # sharded ("batch", "model"), so projection output has heads-dim
+            # on the "batch" axis. Under 2D mesh both axes are >1, and a
+            # mismatch (cache on "model") forces a collective_permute that
+            # tt-mlir cannot lower yet (issue #3370). Under 1D mesh the
+            # alternate axis has size 1, so this is a no-op there.
+            kv_heads_axis = "batch" if self.use_2d_mesh else "model"
+            kv_cache_spec = (None, kv_heads_axis, None, None)
             for kv_pair in self.kv_caches:
                 for cache in kv_pair:
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    xs.mark_sharding(cache, self.mesh, (None, "model", None, None))
+                    xs.mark_sharding(cache, self.mesh, kv_cache_spec)
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -2453,7 +2468,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        if self.enable_tensor_parallel and not self.use_2d_mesh:
+        if self.enable_tensor_parallel:
+            # lm_head weight is sharded ("batch", None) so logits end up
+            # sharded on vocab dim. Force replication before sampling so
+            # argmax sees the full vocab on each device.
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
