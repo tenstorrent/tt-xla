@@ -267,7 +267,7 @@
       },
       {
         "name": "aaryank_qwen3_5_4b_gguf",
-        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pyreq": "datasets gguf loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_aaryank_qwen3_5_4b_gguf"
       },
       {
