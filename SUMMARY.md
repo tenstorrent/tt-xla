@@ -23,41 +23,29 @@ tests/benchmark/test_llms.py::test_abacusai_bigstral_12b_32k
 ## Model
 - HF name:    abacusai/bigstral-12b-32k
 - Loader:     third_party.tt_forge_models.abacusai.causal_lm.pytorch.loader
-- Variant:    ModelVariant.BIGSTRAL_12B_32K ("bigstral_12B_32K")
+- Variant:    BIGSTRAL_12B_32K (= "bigstral_12B_32K")
 
-## Rejection reason
+## Early-exit reason
+The variant name and `pretrained_model_name` both indicate a **12B** parameter
+model. The single-chip n150 (Wormhole_b0) can fit at most ≈8 B parameters even
+at bfp_bf8 weights. 12 B > 10 B threshold → rejected up front per Step 1.6 of
+the add-llm-benchmark-test skill to avoid wasting a device hour on a guaranteed
+OOM.
 
-The variant `BIGSTRAL_12B_32K` encodes a **12B** parameter model
-(`abacusai/bigstral-12b-32k`). The single-chip n150 capacity ceiling for
-LLMs is ≈10B parameters at `bfp_bf8` weights. A 12B model will OOM during
-weight transfer regardless of dtype or optimization settings.
-
-Per the skill rules (Step 1.6), models larger than 10B are rejected before
-any test code is written or any device time is spent.
-
-No files were modified. No test was added to `tests/benchmark/test_llms.py`.
+If this model should run on a multi-chip or p150 setup (≲25 B threshold),
+re-run the skill with the appropriate TP harness and target hardware.
 
 ## Test config landed
-- optimization_level:        N/A
-- trace_enabled:             N/A
-- experimental_weight_dtype: N/A
-- batch_size:                N/A
-- input_sequence_length:     N/A
-- required_pcc:              N/A
+N/A — test not added (early exit)
 
 ## Measured (full model, defaults)
-- Sample per second:  N/A
-- TTFT (ms):          N/A
-- Prefill PCC:        N/A
-- First decode PCC:   N/A
-- Wall clock:         N/A
-- Hardware:           n150
+N/A
 
 ## Decode roofline (first decode graph, single-chip)
-N/A — test not run
+N/A
 
 ## Files changed
-- SUMMARY.md (this file only)
+- SUMMARY.md (this file)
 
 ## tt-forge-models submodule
 no change
