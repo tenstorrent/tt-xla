@@ -103,6 +103,21 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--prefill-only",
+        action="store_true",
+        default=False,
+        help="Run only the prefill step on device to measure TTFT without full decode.",
+    )
+
+    parser.addoption(
+        "--input-sequence-length",
+        action="store",
+        default=None,
+        type=make_validator_positive_int("--input-sequence-length"),
+        help="Input (prefill) sequence length in tokens. Overrides model default.",
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -142,3 +157,13 @@ def decode_only(request):
 @pytest.fixture
 def check_fusions(request):
     return request.config.getoption("--check-fusions")
+
+
+@pytest.fixture
+def prefill_only(request):
+    return request.config.getoption("--prefill-only")
+
+
+@pytest.fixture
+def input_sequence_length(request):
+    return request.config.getoption("--input-sequence-length")

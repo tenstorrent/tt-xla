@@ -269,6 +269,7 @@ def benchmark_llm_torch_xla(
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
+    prefill_only: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -524,7 +525,7 @@ def benchmark_llm_torch_xla(
                     input_args["input_ids"], mesh, input_output_sharding_spec
                 )
         print("Warming up...")
-        warmup_tokens = min(MIN_STEPS, max_output_tokens)
+        warmup_tokens = 1 if prefill_only else min(MIN_STEPS, max_output_tokens)
         _, _ = generate_and_benchmark(
             compiled_perf_model,
             input_args,
@@ -568,11 +569,12 @@ def benchmark_llm_torch_xla(
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
+    benchmark_tokens = 1 if prefill_only else max_output_tokens
     _, iteration_times = generate_and_benchmark(
         compiled_perf_model,
         input_args,
         device,
-        max_output_tokens,
+        benchmark_tokens,
         verbose=True,
         tokenizer=tokenizer,
         ground_truth_tokens=ground_truth_for_benchmark,
@@ -595,7 +597,7 @@ def benchmark_llm_torch_xla(
     logits_wrapper.eval()
     compiled_logits = torch.compile(logits_wrapper, backend="tt")
 
-    logits_steps = max_output_tokens
+    logits_steps = 1 if prefill_only else max_output_tokens
 
     # Reconstruct inputs for PCC/TOPK run
     input_args = construct_inputs(
@@ -645,6 +647,7 @@ def benchmark_llm_torch_xla(
 
     # Calculate Time to First Token (TTFT)
     ttft_ns = iteration_times[0] if not decode_only else 0.0
+    ttft_s = ttft_ns / 1e9
     ttft_ms = ttft_ns / 1e6
 
     # Calculate decode time
@@ -685,14 +688,14 @@ def benchmark_llm_torch_xla(
         batch_size=batch_size,
         data_format=data_format,
         input_sequence_length=input_sequence_length,
-        ttft_ms=ttft_ms,
+        ttft_s=ttft_s,
     )
 
     evaluation_score = 0.0
     custom_measurements = [
         {
-            "measurement_name": "ttft",
-            "value": ttft_ms,
+            "measurement_name": "ttft_s",
+            "value": ttft_s,
             "target": -1,
         },
     ]
@@ -766,19 +769,20 @@ def benchmark_llm_torch_xla(
             pcc_value >= required_pcc
         ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
         print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
-        # Check PCC for first decode token
-        assert (
-            len(output_logits) > 1 and len(cpu_output_logits) > 1
-        ), "Not enough logits to check PCC"
-        decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
-        assert (
-            decode_pcc_value >= required_pcc
-        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
-        print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+        # Check PCC for first decode token (skipped in prefill-only mode)
+        if not prefill_only:
+            assert (
+                len(output_logits) > 1 and len(cpu_output_logits) > 1
+            ), "Not enough logits to check PCC"
+            decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+            assert (
+                decode_pcc_value >= required_pcc
+            ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
+            print(
+                "First decode PCC verification passed with PCC={:.6f}".format(
+                    decode_pcc_value
+                )
             )
-        )
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()

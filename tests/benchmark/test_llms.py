@@ -66,6 +66,7 @@ def test_llm(
     expected_ops: list = None,
     check_fusions: bool = False,
     use_indexer_cache: bool = False,
+    prefill_only: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -165,6 +166,7 @@ def test_llm(
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
+        prefill_only=prefill_only,
     )
 
     if output_file:
@@ -789,6 +791,8 @@ def test_qwen_3_8b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    prefill_only,
+    input_sequence_length,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -810,6 +814,12 @@ def test_qwen_3_8b(
             optimization_level
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        prefill_only=prefill_only,
+        **(
+            {"input_sequence_length": input_sequence_length}
+            if input_sequence_length is not None
+            else {}
         ),
     )
 
@@ -1064,6 +1074,8 @@ def test_llama_3_1_8b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    prefill_only,
+    input_sequence_length,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1088,6 +1100,12 @@ def test_llama_3_1_8b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         required_pcc=0.90,
+        prefill_only=prefill_only,
+        **(
+            {"input_sequence_length": input_sequence_length}
+            if input_sequence_length is not None
+            else {}
+        ),
     )
 
 
@@ -1686,6 +1704,8 @@ def test_llama_3_1_70b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    prefill_only,
+    input_sequence_length,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1708,6 +1728,12 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        prefill_only=prefill_only,
+        **(
+            {"input_sequence_length": input_sequence_length}
+            if input_sequence_length is not None
+            else {}
+        ),
     )
 
 

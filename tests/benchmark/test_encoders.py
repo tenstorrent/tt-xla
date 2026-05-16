@@ -153,6 +153,64 @@ def test_encoder(
             json.dump(results, file, indent=2)
 
 
+def test_nanogpt(output_file, num_layers, request):
+    from transformers import AutoTokenizer
+
+    from third_party.tt_forge_models.nanogpt.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    data_format = "bfloat16"
+    input_sequence_length = 128
+
+    variant = ModelVariant.FINANCIAL_SUPPORT_NANOGPT
+    loader = create_model_loader(ModelLoader, num_layers=num_layers, variant=variant)
+    if num_layers is not None and loader is None:
+        pytest.fail(
+            "num_layers override requested but ModelLoader does not support it."
+        )
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    tokenizer = AutoTokenizer.from_pretrained("FinancialSupport/NanoGPT")
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+
+    preprocess_fn = lambda sentences, device: {
+        k: v.to(device)
+        for k, v in tokenizer(
+            sentences,
+            padding="max_length",
+            truncation=True,
+            max_length=input_sequence_length,
+            return_tensors="pt",
+        ).items()
+    }
+
+    output_processor_fn = lambda out, inputs: apply_mean_pooling(
+        out.last_hidden_state, inputs["attention_mask"]
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="nanogpt",
+        request=request,
+        load_inputs_fn=get_default_inputs,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        num_layers=num_layers,
+        batch_size=1,
+        input_sequence_length=input_sequence_length,
+        loop_count=32,
+        optimization_level=DEFAULT_OPTIMIZATION_LEVEL,
+    )
+
+
 def test_bert(output_file, num_layers, request):
     from third_party.tt_forge_models.bert.sentence_embedding_generation.pytorch.loader import (
         ModelLoader,
