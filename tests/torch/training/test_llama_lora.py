@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import math
+
 import pytest
 import torch
 import torch_xla
@@ -83,7 +85,7 @@ def test_llama_lora_backward():
     loss.backward()
 
     loss_value = loss.item()
-    assert loss_value > 0, f"Loss should be positive, got {loss_value}."
+    assert math.isfinite(loss_value) and loss_value > 0, f"Loss should be finite and positive, got {loss_value}."
 
     assert all(p.grad is not None for _, p in lora_params), (
         f"LoRA parameters missing gradients (post-compile): "
