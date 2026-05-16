@@ -10,10 +10,10 @@ first_decode_pcc: null
 top_perf_samples_per_sec: null
 pct_of_target: null
 roofline_bound: null
-optimization_level: null
-trace_enabled: null
-experimental_weight_dtype: null
-failure_reason: "GGUF architecture 'qwen35' not supported by transformers (verified up to v5.8.1); loader cannot load the model"
+optimization_level: 2
+trace_enabled: true
+experimental_weight_dtype: "bfp_bf8"
+failure_reason: "GGUF model with architecture qwen35 is not supported by transformers 5.2.0 or 5.8.1 (latest); qwen35 GGUF support is absent from all available transformers releases"
 
 # Benchmark added: test_aaryank_qwen3_5_4b_gguf
 
@@ -25,42 +25,35 @@ tests/benchmark/test_llms.py::test_aaryank_qwen3_5_4b_gguf
 - Loader:     third_party.tt_forge_models.aaryank_qwen3_5_4b_gguf.causal_lm.pytorch.loader
 - Variant:    ModelVariant.QWEN3_5_4B_GGUF ("4B_GGUF")
 
+## Test config landed
+- optimization_level:        2
+- trace_enabled:             true
+- experimental_weight_dtype: "bfp_bf8"
+- batch_size:                32
+- input_sequence_length:     128
+- required_pcc:              0.94
+
 ## Failure
 
-The test fails immediately at model load time:
+The test was added and collected cleanly, but fails immediately during model
+loading with:
 
 ```
 ValueError: GGUF model with architecture qwen35 is not supported yet.
 ```
 
-Root cause: `transformers.modeling_gguf_pytorch_utils.load_gguf_checkpoint` maintains an
-allowlist (`GGUF_SUPPORTED_ARCHITECTURES`) of recognized GGUF architecture strings. The
-Qwen3.5-4B GGUF file declares its architecture as `qwen35`, which is absent from the
-list in every released transformers version including the latest (`5.8.1` as of 2026-05-16).
+Raised from `transformers/modeling_gguf_pytorch_utils.py` when
+`AutoTokenizer.from_pretrained("AaryanK/Qwen3.5-4B-GGUF", gguf_file="Qwen3.5-4B.q4_k_m.gguf")`
+is called. The installed transformers version is 5.2.0. The latest available
+version (5.8.1) was also inspected and does not include `qwen35` in its GGUF
+architecture map — meaning no currently available transformers release supports
+loading this GGUF checkpoint.
 
-The project currently pins `transformers==5.2.0` in CI (`perf-bench-matrix.json`), and
-upgrading to `5.8.1` does not resolve the issue (verified by inspecting the packaged
-`modeling_gguf_pytorch_utils.py` in the `5.8.1` wheel).
-
-## Fix required (out of scope for this skill)
-
-Options to unblock:
-1. **Loader-side**: avoid the GGUF tokenizer path and instead load the original
-   (non-GGUF) Qwen3.5-4B weights + a GGUF-compatible weight quantisation step.
-2. **Transformers PR**: add `qwen35` → `qwen3` or `qwen3_5` mapping in
-   `GGUF_TO_TRANSFORMERS_MAPPING` inside `modeling_gguf_pytorch_utils.py` and
-   release in transformers `5.9.0+`; then bump the project pin.
-
-This is out of scope for the `add-llm-benchmark-test` skill, which is not permitted
-to modify files under `third_party/tt_forge_models/` or the project's dependency pins.
-
-## Test config landed
-- optimization_level:        N/A (never reached)
-- trace_enabled:             N/A
-- experimental_weight_dtype: N/A
-- batch_size:                32
-- input_sequence_length:     128
-- required_pcc:              0.94
+The loader is correct for what it is attempting to do; the fix belongs in the
+transformers library (adding `qwen35` to the GGUF architecture dispatch table)
+or in the tt-forge-models loader (switching to a non-GGUF loading path for
+this model). No changes to `third_party/tt_forge_models/` are within scope
+for this skill.
 
 ## Measured (full model, defaults)
 - Sample per second:  N/A
@@ -71,11 +64,11 @@ to modify files under `third_party/tt_forge_models/` or the project's dependency
 - Hardware:           n150 (Wormhole_b0)
 
 ## Decode roofline (first decode graph, single-chip)
-Source JSON: N/A (test did not reach compilation)
-Achieved vs top_perf_samples_per_sec: N/A
+N/A — model did not run.
 
 ## Files changed
-- tests/benchmark/test_llms.py  (test_aaryank_qwen3_5_4b_gguf added with # FAILED: comment)
+- tests/benchmark/test_llms.py (test function added)
+- SUMMARY.md
 
 ## tt-forge-models submodule
-no change
+no change — submodule remains at 6cb56d720b
