@@ -72,6 +72,20 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+        # Sync per-layer attention_type / layer_type attributes so that
+        # Gemma3Model.forward()'s position_embeddings lookup matches the
+        # overridden config.  Without this the forward loop raises
+        # KeyError: 'sliding_attention' because position_embeddings is
+        # keyed only by the (now-overridden) config.layer_types values.
+        for module in model.modules():
+            if hasattr(module, "attention_type"):
+                module.attention_type = "full_attention"
+            if getattr(module, "layer_type", None) == "sliding_attention":
+                module.layer_type = "full_attention"
+                if hasattr(module, "is_sliding"):
+                    module.is_sliding = False
+                if hasattr(module, "sliding_window"):
+                    module.sliding_window = None
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
@@ -475,7 +489,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
