@@ -847,6 +847,45 @@ def test_qwen_2_5_7b(
     )
 
 
+# FAILED: First decode PCC 0.554 < 0.94 required; consistent across optimization_level 0/1/2 and trace True/False; bfp_bf8 required (bf16 OOMs)
+def test_029_shisa_gamma_7b_v1_v2new_dpo405b_i1_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    import importlib
+
+    # Directory name starts with a digit so from-import syntax is invalid; use importlib
+    module = importlib.import_module(
+        "third_party.tt_forge_models.029_shisa_gamma_7b_v1_v2new_dpo405b_i1_gguf.causal_lm.pytorch.loader"
+    )
+    ModelLoader = module.ModelLoader
+    ModelVariant = module.ModelVariant
+
+    variant = ModelVariant.SHISA_GAMMA_7B_V1_V2NEW_DPO405B_I1_Q4_K_M_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 # FAILED: KeyError: "L['self'].model.lifted_tensor_0"
 def test_gemma_1_1_7b(
     output_file, num_layers, request, max_output_tokens, optimization_level
