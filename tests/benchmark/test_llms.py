@@ -814,8 +814,7 @@ def test_qwen_3_8b(
     )
 
 
-# FAILED: ValueError: GGUF model with architecture qwen35 is not supported yet.
-# The qwen35 architecture is not in GGUF_SUPPORTED_ARCHITECTURES in transformers==5.2.0.
+# FAILED: ValueError: GGUF model with architecture qwen35 is not supported yet (transformers 5.2.0–5.8.1)
 def test_aaryank_qwen3_5_4b_gguf(
     output_file,
     num_layers,
