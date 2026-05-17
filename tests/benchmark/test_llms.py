@@ -1091,6 +1091,39 @@ def test_llama_3_1_8b(
     )
 
 
+def test_alpaca_native(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.alpaca.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.ALPACA_NATIVE
+    # optimization_level=0: hangs at level 1 and 2 on n150
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level if optimization_level is not None else 0
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
