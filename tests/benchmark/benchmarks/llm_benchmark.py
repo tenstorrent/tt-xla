@@ -46,6 +46,24 @@ xr.set_device_type("TT")
 
 MIN_STEPS = 16
 
+
+def _compute_rel_l2(device_t: torch.Tensor, golden_t: torch.Tensor) -> float:
+    """Relative L2 error ||x - y||_2 / ||y||_2 over flattened tensors.
+
+    Used as a magnitude-aware companion to PCC for LLM logits/activations.
+    PCC captures alignment but is scale-blind; max-based atol/rtol are too
+    sensitive to outliers (one bad element dominates, and rtol blows up
+    wherever the golden tensor has values near zero). Relative L2 is
+    scale-sensitive, stable near zero globally, and reflects distributed
+    degradation rather than a single worst element. The convention used in
+    numerical linear algebra and HPC validation.
+
+    Computed in float64 to avoid bf16 underflow in the norms.
+    """
+    a = device_t.detach().to(torch.float64).flatten()
+    b = golden_t.detach().to(torch.float64).flatten()
+    return float(((a - b).norm(p=2) / b.norm(p=2).clamp_min(1e-12)).item())
+
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
     "Here is an exaustive list of the best practices for writing clean code:"
@@ -470,6 +488,25 @@ def benchmark_llm_torch_xla(
     if experimental_kv_cache_dtype is not None:
         options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
 
+    # When experimenting with IR edits we typically only care about PCC, not
+    # throughput. TTXLA_SKIP_PERF skips the warmup + perf-benchmark phases so
+    # the only device compiles are the two PCC-pass compiles (prefill + first
+    # decode). Those become g0 and g1 with the FB-override directory naming.
+    skip_perf = os.environ.get("TTXLA_SKIP_PERF") == "1"
+
+    # In experiment mode, disable CPU const-eval hoisting so the dumped TTNN
+    # MLIR contains only ttnn-dialect ops (no ttir.* in a separate cpu_module).
+    # ttmlir-translate --ttnn-to-flatbuffer rejects unknown dialects, so the
+    # round-trip after a hand-edit otherwise fails.
+    if skip_perf:
+        options["enable_const_eval_on_cpu"] = "false"
+
+    # Allow loading pre-built flatbuffers from disk instead of compiling from
+    # MLIR. Used by the ttnn-ir-edit workflow.
+    fb_load_path = os.environ.get("TTXLA_FB_LOAD_PATH")
+    if fb_load_path:
+        options["flatbuffer_load_path"] = fb_load_path
+
     torch_xla.set_custom_compile_options(options)
 
     # Apply per-tensor weight dtype overrides from explicit dict (takes priority).
@@ -489,96 +526,106 @@ def benchmark_llm_torch_xla(
     # PERFORMANCE BENCHMARK
     # ========================================================
 
-    # No logits returned to maximize performance and avoid device DRAM OOM.
-    perf_wrapper = LLMSamplingWrapper(
-        model,
-        read_logits_fn,
-        return_logits=False,
-        mesh=mesh,
-        output_sharding_spec=input_output_sharding_spec,
-    )
-    perf_wrapper.eval()
-    compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
+    if skip_perf:
+        # Experiment mode: skip warmup + perf so the only device compiles are
+        # the two PCC compiles (g0=prefill, g1=decode). Dummy iteration_times
+        # keep the post-PCC reporting code from erroring out.
+        print("TTXLA_SKIP_PERF=1: skipping warmup + perf phases.")
+        iteration_times = [1.0, 1.0]
+        ground_truth_for_benchmark = (
+            token_accuracy.reference_tokens if accuracy_testing else None
+        )
+    else:
+        # No logits returned to maximize performance and avoid device DRAM OOM.
+        perf_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=False,
+            mesh=mesh,
+            output_sharding_spec=input_output_sharding_spec,
+        )
+        perf_wrapper.eval()
+        compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
-    warmup_kv_cache = None
+        warmup_kv_cache = None
 
-    # Warmup run (skip in decode-only mode)
-    if not decode_only:
-        # Construct inputs for warmup run
+        # Warmup run (skip in decode-only mode)
+        if not decode_only:
+            # Construct inputs for warmup run
+            input_args = construct_inputs(
+                tokenizer,
+                model.config,
+                batch_size,
+                max_cache_len,
+                input_prompt=custom_input_prompt,
+                input_prompt_tokens=(
+                    token_accuracy.input_prompt if accuracy_testing else None
+                ),
+                use_mla_cache=use_mla_cache,
+            )
+            input_args = transfer_to_device(input_args, device)
+            if is_multichip:
+                _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
+                if input_output_sharding_spec:
+                    xs.mark_sharding(
+                        input_args["input_ids"], mesh, input_output_sharding_spec
+                    )
+            print("Warming up...")
+            warmup_tokens = min(MIN_STEPS, max_output_tokens)
+            _, _ = generate_and_benchmark(
+                compiled_perf_model,
+                input_args,
+                device,
+                warmup_tokens,
+                verbose=False,
+                collect_logits=False,
+            )
+            print("Warmup complete")
+
+            warmup_kv_cache = input_args["past_key_values"]
+
+            tracy.signpost("warmup_complete")
+
+        # Reconstruct inputs for the perf benchmark run
         input_args = construct_inputs(
             tokenizer,
             model.config,
             batch_size,
             max_cache_len,
+            past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
             input_prompt=custom_input_prompt,
-            input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
-            ),
+            input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
             use_mla_cache=use_mla_cache,
         )
+
+        if decode_only:
+            # Reset to post-prefill decode state (single token input)
+            input_args["input_ids"] = decode_only_input_ids.clone()
+            input_args["cache_position"] = decode_only_cache_position.clone()
+
         input_args = transfer_to_device(input_args, device)
-        if is_multichip:
+        if is_multichip and decode_only:
             _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-            if input_output_sharding_spec:
-                xs.mark_sharding(
-                    input_args["input_ids"], mesh, input_output_sharding_spec
-                )
-        print("Warming up...")
-        warmup_tokens = min(MIN_STEPS, max_output_tokens)
-        _, _ = generate_and_benchmark(
+        if input_output_sharding_spec:
+            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+
+        ground_truth_for_benchmark = (
+            token_accuracy.reference_tokens if accuracy_testing else None
+        )
+
+        # Run perf benchmark
+        print(f"\nStarting performance benchmark...")
+        _, iteration_times = generate_and_benchmark(
             compiled_perf_model,
             input_args,
             device,
-            warmup_tokens,
-            verbose=False,
+            max_output_tokens,
+            verbose=True,
+            tokenizer=tokenizer,
+            ground_truth_tokens=ground_truth_for_benchmark,
             collect_logits=False,
         )
-        print("Warmup complete")
-
-        warmup_kv_cache = input_args["past_key_values"]
-
-        tracy.signpost("warmup_complete")
-
-    # Reconstruct inputs for the perf benchmark run
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
-        use_mla_cache=use_mla_cache,
-    )
-
-    if decode_only:
-        # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
-
-    input_args = transfer_to_device(input_args, device)
-    if is_multichip and decode_only:
-        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-    if input_output_sharding_spec:
-        xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
-
-    ground_truth_for_benchmark = (
-        token_accuracy.reference_tokens if accuracy_testing else None
-    )
-
-    # Run perf benchmark
-    print(f"\nStarting performance benchmark...")
-    _, iteration_times = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        max_output_tokens,
-        verbose=True,
-        tokenizer=tokenizer,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=False,
-    )
-    print("\nPerformance benchmark complete")
+        print("\nPerformance benchmark complete")
 
     # ========================================================
     # PCC/TOPK BENCHMARK
@@ -751,6 +798,11 @@ def benchmark_llm_torch_xla(
         )
     elif decode_only:
         decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
+        _rel_l2 = _compute_rel_l2(output_logits[0][0], cpu_output_logits[1][0])
+        print(
+            f"First decode metrics: PCC={decode_pcc_value:.6f} "
+            f"rel_l2={_rel_l2:.6f}"
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
@@ -762,6 +814,11 @@ def benchmark_llm_torch_xla(
     else:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+        _rel_l2_p = _compute_rel_l2(output_logits[0][0], cpu_output_logits[0][0])
+        print(
+            f"Prefill metrics: PCC={pcc_value:.6f} "
+            f"rel_l2={_rel_l2_p:.6f}"
+        )
         assert (
             pcc_value >= required_pcc
         ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
@@ -771,6 +828,11 @@ def benchmark_llm_torch_xla(
             len(output_logits) > 1 and len(cpu_output_logits) > 1
         ), "Not enough logits to check PCC"
         decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+        _rel_l2_d = _compute_rel_l2(output_logits[1][0], cpu_output_logits[1][0])
+        print(
+            f"First decode metrics: PCC={decode_pcc_value:.6f} "
+            f"rel_l2={_rel_l2_d:.6f}"
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"

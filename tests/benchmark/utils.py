@@ -97,7 +97,14 @@ def build_xla_export_name(
     input_sequence_length: Optional[int],
 ) -> str:
     """Build a standardized export name for XLA benchmark runs."""
-    run_id = secrets.token_hex(2)
+    # In experiment mode the export name must be deterministic so the
+    # flatbuffer override directory (which is keyed by export_model_name) hits
+    # across pytest invocations. TTXLA_SKIP_PERF doubles as the experiment-mode
+    # flag.
+    if os.environ.get("TTXLA_SKIP_PERF") == "1":
+        run_id = "expt"
+    else:
+        run_id = secrets.token_hex(2)
 
     if num_layers is None or (isinstance(num_layers, int) and num_layers <= 0):
         layers_part = None

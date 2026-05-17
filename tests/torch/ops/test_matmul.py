@@ -2,6 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+from pathlib import Path
+
 import numpy as np
 import pytest
 import torch
@@ -12,6 +15,13 @@ from utils import Category
 
 from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
 from tests.infra.testers.compiler_config import CompilerConfig
+
+# Directory layout for the manual-TTNN-IR-edit workflow:
+#   modules/irs/ttnn_<model_name>_<ts>.mlir   <- exported TTNN IR (compile run)
+#   modules/fb_<model_name>_<ts>.ttnn         <- exported flatbuffer (compile run)
+#   flatbuffers/<model_name>.ttnn             <- user-edited flatbuffer (load run)
+TTNN_IR_EXPORT_DIR = Path(__file__).resolve().parents[3] / "modules"
+TTNN_FB_LOAD_DIR = Path(__file__).resolve().parents[3] / "flatbuffers"
 
 
 class Matmul(torch.nn.Module):
@@ -67,9 +77,20 @@ def test_matmul_mf_fp32_acc(math_fidelity, fp32_dest_acc_en):
     lhs_outer_dim = 64
 
     matmul = Matmul(inner_dim, rhs_outer_dim, dtype=dtype)
+
+    model_name = f"matmul_mf_fp32_acc_{math_fidelity}_{fp32_dest_acc_en}"
     compiler_config = CompilerConfig(
-        math_fidelity=math_fidelity, fp32_dest_acc_en=fp32_dest_acc_en
+        math_fidelity=math_fidelity,
+        fp32_dest_acc_en=fp32_dest_acc_en,
+        export_path=str(TTNN_IR_EXPORT_DIR),
+        export_model_name=model_name,
     )
+
+    # If a hand-edited flatbuffer for this config exists, reuse it (skips
+    # `ttnnToFlatbuffer`); otherwise compile normally and export the IR/FB.
+    fb_path = TTNN_FB_LOAD_DIR / f"{model_name}.ttnn"
+    if fb_path.exists():
+        compiler_config.flatbuffer_load_path = str(fb_path)
 
     run_op_test_with_random_inputs(
         matmul,

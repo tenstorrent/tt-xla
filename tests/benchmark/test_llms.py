@@ -90,6 +90,12 @@ def test_llm(
     if batch_size is None:
         batch_size = DEFAULT_BATCH_SIZE
 
+    # Experiment escape hatch: allow lowering required_pcc from the environment
+    # so a degraded run (e.g. with hand-edited TTNN IR) still prints both
+    # prefill and decode PCC instead of asserting on the first failure.
+    if "TTXLA_REQUIRED_PCC" in os.environ:
+        required_pcc = float(os.environ["TTXLA_REQUIRED_PCC"])
+
     model_loader = create_model_loader(
         ModelLoaderModule, num_layers=num_layers, variant=variant
     )

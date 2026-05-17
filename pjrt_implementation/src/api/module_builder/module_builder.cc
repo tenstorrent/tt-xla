@@ -1183,8 +1183,38 @@ tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
-    tt::runtime::Binary &flatbuffer_binary) {
-  flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+    tt::runtime::Binary &flatbuffer_binary,
+    const std::optional<std::string> &flatbuffer_load_path,
+    const std::string &export_model_name) {
+  std::optional<std::string> resolved_path;
+  if (flatbuffer_load_path.has_value()) {
+    std::filesystem::path p(flatbuffer_load_path.value());
+    if (std::filesystem::is_directory(p)) {
+      if (!export_model_name.empty()) {
+        std::filesystem::path candidate = p / (export_model_name + ".ttnn");
+        if (std::filesystem::exists(candidate)) {
+          resolved_path = candidate.string();
+        }
+      }
+    } else if (std::filesystem::exists(p)) {
+      resolved_path = p.string();
+    }
+  }
+
+  if (resolved_path.has_value()) {
+    LOG_F(INFO, "Loading flatbuffer from override path: %s",
+          resolved_path->c_str());
+    flatbuffer_binary =
+        tt::runtime::Binary::loadFromPath(resolved_path->c_str());
+  } else {
+    if (flatbuffer_load_path.has_value()) {
+      LOG_F(WARNING,
+            "flatbuffer_load_path='%s' did not resolve to an existing file "
+            "(model_name='%s'); compiling from MLIR instead.",
+            flatbuffer_load_path.value().c_str(), export_model_name.c_str());
+    }
+    flatbuffer_binary = mlir::tt::ttnn::ttnnToFlatbuffer(mlir_module.get());
+  }
 
   tt_pjrt_status status = verifyCreatedFlatbufferBinary(
       flatbuffer_binary, input_shardings, output_shardings);
@@ -1396,8 +1426,9 @@ ModuleBuilder::buildModuleForTTNNRuntime(
               compile_options.export_model_name);
 
   tt::runtime::Binary flatbuffer(nullptr);
-  tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,
-                                                 output_shardings, flatbuffer);
+  tt_pjrt_status status = createFlatbufferBinary(
+      mlir_module, input_shardings, output_shardings, flatbuffer,
+      compile_options.flatbuffer_load_path, compile_options.export_model_name);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }

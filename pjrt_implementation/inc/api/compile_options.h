@@ -133,6 +133,13 @@ struct CompileOptions {
   // The graph number (g0, g1, etc.) is automatically appended.
   std::string export_model_name = "";
 
+  // Path to a pre-built TTNN flatbuffer (.ttnn). When set and the file exists,
+  // the flatbuffer is loaded from disk instead of being generated from MLIR by
+  // `ttnnToFlatbuffer`. The MLIR pipeline still runs (so sharding metadata is
+  // produced for verification). Used to test hand-edited TTNN IR without
+  // changing the tt-mlir compiler.
+  std::optional<std::string> flatbuffer_load_path = std::nullopt;
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };

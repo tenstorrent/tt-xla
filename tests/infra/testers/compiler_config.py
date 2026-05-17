@@ -67,6 +67,12 @@ class CompilerConfig:
     # When set, exported IRs are named: <stage>_<model_name>_g<N>_<timestamp>.mlir
     export_model_name: str = ""
 
+    # Path to a pre-built TTNN flatbuffer (.ttnn). When set and the file exists,
+    # the compilation pipeline loads this binary instead of calling
+    # `ttnnToFlatbuffer` on the in-memory MLIR. Lets tests reuse hand-edited IR
+    # roundtripped through `ttmlir-translate --ttnn-to-flatbuffer`.
+    flatbuffer_load_path: str = ""
+
     # Enables "try to recover structure" option for TTNN IR. Tries to match the
     # structure of the original graph. This generates a more readable solution,
     # useful when generating code.
@@ -110,6 +116,9 @@ class CompilerConfig:
 
         if self.export_model_name:
             options["export_model_name"] = self.export_model_name
+
+        if self.flatbuffer_load_path:
+            options["flatbuffer_load_path"] = self.flatbuffer_load_path
 
         if self.codegen_try_recover_structure:
             options["codegen_try_recover_structure"] = "true"

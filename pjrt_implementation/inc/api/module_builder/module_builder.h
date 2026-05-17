@@ -223,14 +223,21 @@ private:
       const CompileOptions &compile_options, ClientInstance *client_instance,
       std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code);
 
-  // Creates flatbuffer binary from the built TTNN module.
+  // Creates flatbuffer binary from the built TTNN module. If
+  // `flatbuffer_load_path` is set and resolves to an existing file, loads the
+  // binary from disk instead of generating it from MLIR. If
+  // `flatbuffer_load_path` is a directory, the plugin looks for
+  // `<dir>/<export_model_name>.ttnn`. This lets multi-graph compiles (e.g.
+  // benchmarks that compile prefill+decode separately) be overridden per graph.
   tt_pjrt_status createFlatbufferBinary(
       const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &input_shardings,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &output_shardings,
-      tt::runtime::Binary &flatbuffer_binary);
+      tt::runtime::Binary &flatbuffer_binary,
+      const std::optional<std::string> &flatbuffer_load_path = std::nullopt,
+      const std::string &export_model_name = "");
 
   // Verifies that creates flatbuffer binary satisfies conditions estimated by
   // the compiler from the input graph.

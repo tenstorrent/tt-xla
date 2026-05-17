@@ -81,6 +81,8 @@ CompileOptions CompileOptions::parse(
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
+  options.flatbuffer_load_path =
+      internal::parseStringOption(compile_options, "flatbuffer_load_path");
 
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {
