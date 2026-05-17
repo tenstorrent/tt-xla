@@ -258,3 +258,13 @@ test_config:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
     enable_weight_bfp8_conversion: true
+
+  llama/vision/pytorch-meta-llama/Llama-3.2-90B-Vision-Instruct-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+
+  llama/vision/pytorch-meta-llama/Llama-3.2-90B-Vision-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true

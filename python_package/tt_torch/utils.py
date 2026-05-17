@@ -31,6 +31,71 @@ def apply_dynamo_compatibility_patches():
     """Apply TorchDynamo compatibility patches for TT devices."""
     torch._C._accelerator_getDeviceIndex = cpu_device_index
     torch._C._accelerator_getStream = cpu_stream
+    apply_dynamo_nn_module_wrap_values_patch()
+
+
+def apply_dynamo_nn_module_wrap_values_patch() -> None:
+    """
+    Patch a bug in torch._dynamo's ``NNModuleVariable.call_method`` where the
+    local helper ``wrap_values`` references an undefined ``named_children``
+    free variable instead of its local ``result`` list. This raises
+    ``InternalTorchDynamoError: NameError: cannot access free variable
+    'named_children' ...`` whenever Dynamo traces ``nn.Module`` methods like
+    ``.parameters()``, ``.children()``, ``.modules()`` or ``.buffers()`` (e.g.
+    via transformers' ``invert_attention_mask`` -> ``self.dtype``).
+
+    Introduced in pytorch/pytorch#167342, fixed upstream in
+    pytorch/pytorch#174399. Affects torch 2.10.0; remove this patch once we
+    move to a torch release containing the fix.
+
+    Safe to call multiple times (no-op after the first successful apply, or
+    when running on a torch version that no longer contains the bug).
+    """
+    try:
+        from torch._dynamo.variables import nn_module as _nn_module_mod
+        from torch._dynamo.variables.nn_module import NNModuleVariable
+    except ImportError:
+        return
+
+    if getattr(
+        NNModuleVariable.call_method, "_tt_xla_wrap_values_patch_applied", False
+    ):
+        return
+
+    import inspect
+    import textwrap
+
+    try:
+        src = textwrap.dedent(inspect.getsource(NNModuleVariable.call_method))
+    except (OSError, TypeError):
+        return
+
+    # The buggy `wrap_values` helper is the FIRST occurrence in source order;
+    # a second, correctly-scoped occurrence lives inside the ``name ==
+    # "named_children"`` branch further down and must be left untouched.
+    buggy_marker = "named_children, mutation_type=ValueMutationNew()"
+    fixed_marker = "result, mutation_type=ValueMutationNew()"
+    if src.count(buggy_marker) < 2:
+        # Either already patched upstream, or the source layout changed
+        # enough that we can't safely apply the textual fix.
+        return
+    new_src = src.replace(buggy_marker, fixed_marker, 1)
+
+    namespace: dict = {}
+    try:
+        exec(
+            compile(new_src, _nn_module_mod.__file__, "exec"),
+            _nn_module_mod.__dict__,
+            namespace,
+        )
+    except Exception:
+        return
+
+    patched = namespace.get("call_method")
+    if patched is None:
+        return
+    patched._tt_xla_wrap_values_patch_applied = True
+    NNModuleVariable.call_method = patched
 
 
 @contextlib.contextmanager
