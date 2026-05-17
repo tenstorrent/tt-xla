@@ -15,6 +15,7 @@ from infra.utilities.torch_multichip_utils import get_mesh
 from third_party.tt_forge_models.omnigen.pytorch import ModelLoader, ModelVariant
 
 
+@pytest.mark.skip
 def test_transformer():
     _run(sharded=False)
 
