@@ -104,6 +104,7 @@ def assert_mode(
     asserts that no dropout modules are active (determinism)."""
     expected = "train" if train_mode else "eval"
     assert model.training is train_mode, f"Model must be in {expected} mode"
+    dropout_active = None
     if not train_mode:
         dropout_active = any(
             m.training for m in model.modules() if isinstance(m, torch.nn.Dropout)
