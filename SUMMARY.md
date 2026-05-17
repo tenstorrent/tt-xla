@@ -97,6 +97,7 @@ Achieved vs top_perf_samples_per_sec: 73.6% (17.64 / 23.9513)
 ## Files changed
 - tests/benchmark/test_llms.py
 - tests/benchmark/benchmarks/llm_benchmark.py (infrastructure fix: add hasattr guard before calling get_weight_dtype_config_path)
+- .github/workflows/perf-bench-matrix.json
 
 ## tt-forge-models submodule
 no change
