@@ -475,8 +475,9 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
+        # Guard with hasattr since not every ForgeModel loader provides this method.
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
