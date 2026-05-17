@@ -286,6 +286,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "open_r1_olympiccoder_7b_gguf",
+        "pyreq": "datasets loguru pytest requests torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_open_r1_olympiccoder_7b_gguf"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pyreq": "datasets loguru pytest requests timm torch==2.10.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
