@@ -400,7 +400,7 @@ def benchmark_llm_torch_xla(
     # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
     if not accuracy_testing:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
-        cpu_wrapper.eval()
+        cpu_wrapper.train() if prefill_only else cpu_wrapper.eval()
 
         # Iter 0: prefill. After this, input_args holds the post-prefill decode
         # state (input_ids=next_token_0, cache_position=[prompt_len]).
@@ -411,6 +411,7 @@ def benchmark_llm_torch_xla(
             1,
             verbose=False,
             collect_logits=True,
+            train_mode=prefill_only,
         )
 
         if decode_only:
@@ -427,6 +428,7 @@ def benchmark_llm_torch_xla(
             1,
             verbose=False,
             collect_logits=True,
+            train_mode=prefill_only,
         )
 
         cpu_output_logits = prefill_logits + decode_logits
@@ -498,7 +500,7 @@ def benchmark_llm_torch_xla(
         mesh=mesh,
         output_sharding_spec=input_output_sharding_spec,
     )
-    perf_wrapper.eval()
+    perf_wrapper.train() if prefill_only else perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
     warmup_kv_cache = None
@@ -533,6 +535,7 @@ def benchmark_llm_torch_xla(
             warmup_tokens,
             verbose=False,
             collect_logits=False,
+            train_mode=prefill_only,
         )
         print("Warmup complete")
 
@@ -579,6 +582,7 @@ def benchmark_llm_torch_xla(
         tokenizer=tokenizer,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
+        train_mode=prefill_only,
     )
     print("\nPerformance benchmark complete")
 
@@ -594,7 +598,7 @@ def benchmark_llm_torch_xla(
         mesh=mesh,
         output_sharding_spec=input_output_sharding_spec,
     )
-    logits_wrapper.eval()
+    logits_wrapper.train() if prefill_only else logits_wrapper.eval()
     compiled_logits = torch.compile(logits_wrapper, backend="tt")
 
     logits_steps = 1 if prefill_only else max_output_tokens
@@ -631,6 +635,7 @@ def benchmark_llm_torch_xla(
         verbose=False,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=True,
+        train_mode=prefill_only,
     )
     print("\nPCC/TOPK benchmark complete")
 

@@ -97,16 +97,21 @@ class LLMSamplingWrapper(torch.nn.Module):
         return next_token_ids, next_token_ids_replicated, next_cache_position
 
 
-def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> None:
-    """Ensure determinism-relevant flags are set."""
-    assert model.training is False, "Model must be in eval mode"
-    dropout_active = any(
-        m.training for m in model.modules() if isinstance(m, torch.nn.Dropout)
-    )
-    assert not dropout_active, "No dropout modules should be in inference mode"
+def assert_mode(
+    model: torch.nn.Module, train_mode: bool, *, verbose: bool = False
+) -> None:
+    """Ensure model is in the expected train/eval mode. In eval mode, also
+    asserts that no dropout modules are active (determinism)."""
+    expected = "train" if train_mode else "eval"
+    assert model.training is train_mode, f"Model must be in {expected} mode"
+    if not train_mode:
+        dropout_active = any(
+            m.training for m in model.modules() if isinstance(m, torch.nn.Dropout)
+        )
+        assert not dropout_active, "No dropout modules should be active in eval mode"
     if verbose:
         dropout_count = sum(isinstance(m, torch.nn.Dropout) for m in model.modules())
-        print(f"Model training mode: {model.training} (should be False)")
+        print(f"Model training mode: {model.training} (should be {train_mode})")
         print(f"Dropout modules found: {dropout_count}, any active: {dropout_active}")
 
 
@@ -266,6 +271,7 @@ def generate_and_benchmark(
     ground_truth_tokens: Optional[torch.Tensor] = None,
     collect_logits: bool = True,
     tokenizer=None,
+    train_mode: bool = False,
 ) -> tuple[list[torch.Tensor], list[int]]:
     """On-device decode loop for benchmarks and accuracy testing.
 
@@ -295,7 +301,7 @@ def generate_and_benchmark(
             ground_truth_tokens.ndim == 1
         ), f"ground_truth_tokens must be 1D token IDs, got shape {tuple(ground_truth_tokens.shape)}"
 
-    assert_eval_no_dropout(model, verbose=verbose)
+    assert_mode(model, train_mode, verbose=verbose)
 
     batch_size = input_args["input_ids"].shape[0]
 
