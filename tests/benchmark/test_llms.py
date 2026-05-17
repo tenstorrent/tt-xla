@@ -502,6 +502,41 @@ def test_phi2(
     )
 
 
+# FAILED: compiler crash: Assertion `!empty()' failed in llvm::ArrayRef::back() during longrope_frequency_update compilation (phi3 RoPE graph lowering)
+def test_phi_3_5_mini_ita(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.anakin87_phi_3_5_mini_ita.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.PHI_3_5_MINI_ITA
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 def test_falcon3_1b(
     output_file,
     num_layers,
