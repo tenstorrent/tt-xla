@@ -72,6 +72,19 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+        # Also update individual decoder layer attention_type attributes so that
+        # the position_embeddings lookup in the model's forward() stays consistent
+        # with the config. Without this, models with mixed attention types (e.g.
+        # Gemma3 with sliding_attention + full_attention) raise KeyError because
+        # position_embeddings is built from config.layer_types (now all
+        # "full_attention") but the layers still carry their original
+        # attention_type value ("sliding_attention").
+        inner_model = getattr(model, "model", None)
+        layers = getattr(inner_model, "layers", None) if inner_model is not None else None
+        if layers is not None:
+            for layer in layers:
+                if hasattr(layer, "attention_type"):
+                    layer.attention_type = "full_attention"
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
@@ -475,7 +488,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
