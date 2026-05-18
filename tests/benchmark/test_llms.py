@@ -1091,7 +1091,7 @@ def test_llama_3_1_8b(
     )
 
 
-def test_claude2_alpaca_13b_gguf(
+def test_deepseek_r1_distill_nsfw_rpv1_gguf(
     output_file,
     num_layers,
     request,
@@ -1101,12 +1101,12 @@ def test_claude2_alpaca_13b_gguf(
     decode_only,
     optimization_level,
 ):
-    from third_party.tt_forge_models.claude2_alpaca_13b_gguf.causal_lm.pytorch.loader import (
+    from third_party.tt_forge_models.deepseek_r1_distill_nsfw_rpv1_gguf.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    variant = ModelVariant.CLAUDE2_ALPACA_13B_GGUF
+    variant = ModelVariant.DISTILL_NSFW_RPV1_GGUF
     test_llm(
         ModelLoaderModule=ModelLoader,
         variant=variant,
@@ -1125,6 +1125,40 @@ def test_claude2_alpaca_13b_gguf(
     )
 
 
+def test_claude2_alpaca_13b_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.claude2_alpaca_13b_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.CLAUDE2_ALPACA_13B_GGUF
+    # Trace disabled: Bus error during warmup with trace_enabled=True on full 40-layer model
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1
+        ),
+        trace_enabled=False,
+    )
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
