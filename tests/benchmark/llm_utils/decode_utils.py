@@ -128,6 +128,22 @@ def init_static_cache(
         config, "num_key_value_heads", config.num_attention_heads
     )
 
+    # StaticCache.__init__ calls config.get_text_config() which is a method on
+    # transformers.PretrainedConfig.  Custom config dataclasses (e.g. GGUF
+    # loaders that build their own config from raw GGUF metadata) don't inherit
+    # from PretrainedConfig and therefore lack this method.  Monkey-patching it
+    # here is the general fix — get_text_config() on a plain text model just
+    # returns self, so returning the config unchanged is always correct.
+    if not hasattr(config, "get_text_config"):
+        config.get_text_config = lambda decoder=False: config
+
+    # Newer versions of transformers' StaticCache call config.get_text_config(),
+    # which is only available on PreTrainedConfig subclasses.  Custom config
+    # dataclasses (e.g. DeepseekOCRConfig) don't inherit from PreTrainedConfig,
+    # so we add a no-op shim that simply returns self when the method is absent.
+    if not hasattr(config, "get_text_config"):
+        config.get_text_config = lambda decoder=False: config
+
     static_cache = StaticCache(
         config=config,
         max_batch_size=batch_size,
