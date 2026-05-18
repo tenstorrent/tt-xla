@@ -381,6 +381,10 @@ test_config:
   mobilenetv2/pytorch-Mobilenet_v2-single_device-inference:
     status: EXPECTED_PASSING
 
+  motif_image_6B_preview/text_to_image/pytorch-Motif-Image-6B-Preview-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "DYNAMO_FAKE_TENSORS_FX_NODE: Dynamo failed to run FX node with fake tensors: aten.add.Tensor — two different devices xla:0, cpu"
+
   nanogpt/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
 
