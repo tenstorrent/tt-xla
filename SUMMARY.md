@@ -1,49 +1,49 @@
-loader_path: third_party.tt_forge_models.ethereal_aurora_12b_v2_heretic_i1_gguf.causal_lm.pytorch.loader
-variant_id: ETHEREAL_AURORA_12B_V2_HERETIC_I1_Q4_K_M_GGUF
+loader_path: third_party.tt_forge_models.gallm_multi_14b_v0_1_i1_gguf.causal_lm.pytorch.loader
+variant_id: multi_14B_v0.1_i1_GGUF
 arch: p150
 status: DONE_PASS
-test_function: test_ethereal_aurora_12b_v2_heretic_i1_gguf
-samples_per_second: 21.027
-ttft_ms: 472.414
-prefill_pcc: 0.996602
-first_decode_pcc: 0.998030
-top_perf_samples_per_sec: 27.7857
-pct_of_target: 75.7
+test_function: test_gallm_multi_14b_v0_1_i1_gguf
+samples_per_second: 16.603
+ttft_ms: 530.679
+prefill_pcc: 0.998313
+first_decode_pcc: 0.997174
+top_perf_samples_per_sec: 22.9948
+pct_of_target: 72.2
 roofline_bound: dram
 optimization_level: 2
 trace_enabled: true
 experimental_weight_dtype: bfp_bf8
 failure_reason: null
 
-# Benchmark added: test_ethereal_aurora_12b_v2_heretic_i1_gguf
+# Benchmark added: test_gallm_multi_14b_v0_1_i1_gguf
 
 ## Test
-tests/benchmark/test_llms.py::test_ethereal_aurora_12b_v2_heretic_i1_gguf
+tests/benchmark/test_llms.py::test_gallm_multi_14b_v0_1_i1_gguf
 
 ## Model
-- HF name:    mradermacher/EtherealAurora-12B-v2-Heretic-i1-GGUF
-- Loader:     third_party.tt_forge_models.ethereal_aurora_12b_v2_heretic_i1_gguf.causal_lm.pytorch.loader
-- Variant:    ETHEREAL_AURORA_12B_V2_HERETIC_I1_Q4_K_M_GGUF
+- HF name:    mradermacher/GaLLM-multi-14B-v0.1-i1-GGUF
+- Loader:     third_party.tt_forge_models.gallm_multi_14b_v0_1_i1_gguf.causal_lm.pytorch.loader
+- Variant:    multi_14B_v0.1_i1_GGUF
 
 ## Test config landed
 - optimization_level:        2
 - trace_enabled:             true
-- experimental_weight_dtype: bfp_bf8
+- experimental_weight_dtype: "bfp_bf8"
 - batch_size:                32
 - input_sequence_length:     128
 - required_pcc:              0.94
 
 ## Measured (full model, defaults)
-- Sample per second:  21.027
-- TTFT (ms):          472.414
-- Prefill PCC:        0.996602
-- First decode PCC:   0.998030
-- Wall clock:         0:12:48
+- Sample per second:  16.603
+- TTFT (ms):          530.679
+- Prefill PCC:        0.998313
+- First decode PCC:   0.997174
+- Wall clock:         0:15:45
 - Hardware:           p150
 
 ## Decode roofline (first decode graph, single-chip)
-Source JSON: tt_xla_ethereal_aurora_12b_v2_heretic_i1_gguf_perf_metrics_1.json
-Achieved vs top_perf_samples_per_sec: 75.7% (21.027 / 27.7857)
+Source JSON: tests/benchmark/tt_xla_gallm_multi_14b_v0_1_i1_gguf_perf_metrics_1.json
+Achieved vs top_perf_samples_per_sec: 72.2%
 
 ### System
 - arch:                        blackhole
@@ -59,9 +59,9 @@ Achieved vs top_perf_samples_per_sec: 75.7% (21.027 / 27.7857)
 - hifi4: 220000000000000
 
 ### Compute
-- total_flops:             740881858688
-- breakdown.matmul:        740881858688
-- breakdown.linear:        0
+- total_flops:             895411028096
+- breakdown.matmul:        782657126528
+- breakdown.linear:        112753901568
 - breakdown.conv2d:        0
 - breakdown.sparse_matmul: 0
 
@@ -70,34 +70,33 @@ Achieved vs top_perf_samples_per_sec: 75.7% (21.027 / 27.7857)
 - memory_bytes: 132
 
 ### KV cache
-- count:        335544320
-- memory_bytes: 671088640
-- memory_gb:    0.625
+- count:        402653184
+- memory_bytes: 805306368
+- memory_gb:    0.75
 
 ### Params
-- count:                  12247782595
-- effective_count:        11576693955
-- memory_bytes:           13642803976
-- memory_gb:              12.705851323902607
-- effective_memory_bytes: 12300626696
-- effective_memory_gb:    11.455851323902607
-- embedding_count:        671088640
-- embedding_memory_bytes: 1342177280
+- count:                  14770033859
+- effective_count:        13991466179
+- memory_bytes:           16423856904
+- memory_gb:              15.295908696949482
+- effective_memory_bytes: 14866721544
+- effective_memory_gb:    13.845713384449482
+- embedding_count:        778567680
+- embedding_memory_bytes: 1557135360
 
 ### Roofline
 - bound:                    dram
-- top_perf_samples_per_sec: 27.7857
-- top_perf_time_ms:         35.9897
-- dram_time_ms:             23.9932
-- compute_time_ms_lofi:     0.8419
-- compute_time_ms_hifi2:    1.6838
-- compute_time_ms_hifi3:    2.5257
-- compute_time_ms_hifi4:    3.3676
+- top_perf_samples_per_sec: 22.9948
+- top_perf_time_ms:         43.4881
+- dram_time_ms:             28.9921
+- compute_time_ms_lofi:     1.0175
+- compute_time_ms_hifi2:    2.0350
+- compute_time_ms_hifi3:    3.0525
+- compute_time_ms_hifi4:    4.0701
 
 ## Files changed
-- tests/benchmark/test_llms.py (added test_ethereal_aurora_12b_v2_heretic_i1_gguf)
-- .github/workflows/perf-bench-matrix.json (added benchmark entry)
-- tests/benchmark/benchmarks/llm_benchmark.py (fixed hasattr guard for get_weight_dtype_config_path)
+- tests/benchmark/test_llms.py
+- .github/workflows/perf-bench-matrix.json
 
 ## tt-forge-models submodule
 no change

@@ -98,6 +98,11 @@
                 "pytest": "tests/benchmark/test_llms.py::test_ethereal_aurora_12b_v2_heretic_i1_gguf"
             },
             {
+                "name": "gallm_multi_14b_v0_1_i1_gguf",
+                "pyreq": "datasets gguf loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+                "pytest": "tests/benchmark/test_llms.py::test_gallm_multi_14b_v0_1_i1_gguf"
+            },
+            {
                 "name": "falcon3_7b_tp",
                 "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
                 "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
