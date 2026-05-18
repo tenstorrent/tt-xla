@@ -93,6 +93,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
+        "name": "arc1_mini_gguf",
+        "pyreq": "datasets gguf>=0.10.0 loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_arc1_mini_gguf"
+      },
+      {
         "name": "falcon3_7b_tp",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
