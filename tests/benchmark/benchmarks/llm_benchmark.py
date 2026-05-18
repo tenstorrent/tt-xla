@@ -54,6 +54,23 @@ DEFAULT_INPUT_PROMPT = (
 MODULE_EXPORT_PATH = "modules"
 
 
+def get_text_config(config):
+    """Extract the text config from a model config.
+
+    For vision-language models (e.g. Qwen3VLForConditionalGeneration), the top-level
+    config is a VL config (e.g. Qwen3VLConfig) whose text-decoder attributes live in
+    a nested `text_config` object.  Passing the VL config directly to cache-init
+    helpers that expect `hidden_size` / `num_attention_heads` fails with AttributeError.
+
+    This helper returns `config.text_config` when available, otherwise returns the
+    config unchanged — making the call site work for both plain LLMs and VL models
+    without any model-specific branching.
+    """
+    if hasattr(config, "text_config"):
+        return config.text_config
+    return config
+
+
 def setup_model_and_tokenizer(
     model_loader, model_variant
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
@@ -372,7 +389,7 @@ def benchmark_llm_torch_xla(
     # Construct inputs, including static cache
     input_args = construct_inputs(
         tokenizer,
-        model.config,
+        get_text_config(model.config),
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
@@ -475,7 +492,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
@@ -506,7 +523,7 @@ def benchmark_llm_torch_xla(
         # Construct inputs for warmup run
         input_args = construct_inputs(
             tokenizer,
-            model.config,
+            get_text_config(model.config),
             batch_size,
             max_cache_len,
             input_prompt=custom_input_prompt,
@@ -541,7 +558,7 @@ def benchmark_llm_torch_xla(
     # Reconstruct inputs for the perf benchmark run
     input_args = construct_inputs(
         tokenizer,
-        model.config,
+        get_text_config(model.config),
         batch_size,
         max_cache_len,
         past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
@@ -599,7 +616,7 @@ def benchmark_llm_torch_xla(
     # Reconstruct inputs for PCC/TOPK run
     input_args = construct_inputs(
         tokenizer,
-        model.config,
+        get_text_config(model.config),
         batch_size,
         max_cache_len,
         past_key_values=decode_only_cache if decode_only else None,
@@ -708,8 +725,8 @@ def benchmark_llm_torch_xla(
 
     # Extract number of layers from model config if available
     num_layers = (
-        model.config.num_hidden_layers
-        if hasattr(model.config, "num_hidden_layers")
+        get_text_config(model.config).num_hidden_layers
+        if hasattr(get_text_config(model.config), "num_hidden_layers")
         else -1
     )
 
