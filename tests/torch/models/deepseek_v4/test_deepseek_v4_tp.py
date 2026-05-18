@@ -164,10 +164,9 @@ def test_attention_decode(model_name, bsz, prefill_seq_len, is_compression_layer
     )
 
 
-def _layer_shard_spec(layer: Block, bsz: int):
+def _layer_shard_spec(layer: Block, shard_specs: dict):
     """Per-layer attn + ffn shard entries. Mutates shard_specs in place."""
     attn = layer.attn
-    shard_specs = {}
     shard_specs[attn.wq_b.weight] = ("model", None)
     shard_specs[attn.wo_a.weight] = ("model", None)
     shard_specs[attn.wo_b.weight] = (None, "model")
@@ -194,8 +193,8 @@ def _layer_shard_spec(layer: Block, bsz: int):
 
 
 def block_shard_spec(block: Block, args, kwargs):
-    bsz = args[0].size(0)
-    shard_specs = _layer_shard_spec(block, bsz)
+    shard_specs = {}
+    _layer_shard_spec(block, shard_specs)
     shard_specs[args[0]] = ("batch", None, None, None)  # x: [b, s, hc, d]
     shard_specs[args[2]] = ("batch", None)  # input_ids: [b, s]
     return shard_specs
@@ -287,4 +286,114 @@ def test_block_decode(model_name, is_compression_layer, use_realistic_inputs):
         mesh=mesh,
         shard_spec_fn=block_shard_spec,
         comparison_config=utils.PCC_99,
+    )
+
+
+def transformer_shard_spec(model, args, kwargs):
+    shard_specs: dict = {}
+    for layer in model.layers:
+        _layer_shard_spec(layer, shard_specs)
+    shard_specs[args[0]] = ("batch", None)  # inputs_id: [b, s]
+    return shard_specs
+
+
+@pytest.mark.nightly
+@pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
+@pytest.mark.parametrize("num_layers", [1, 2, 3])
+def test_transformer_prefill(model_name, num_layers):
+    enable_spmd()
+    xr.set_device_type("TT")
+
+    bsz = 16
+    seq_len = 32
+    args = utils.real_args(n_layers=num_layers, max_batch_size=bsz)
+    args.compress_ratios = args.compress_ratios[:num_layers]
+
+    model = utils.make_transformer(args, True)
+    weight_loader.init_transformer_weights(model_name, model, num_layers=num_layers)
+
+    input_ids, _ = realistic_inputs.get_realistic_inputs(
+        model_name, layer_id=args.n_hash_layers, batch_size=bsz, seq_len=seq_len
+    )
+
+    mesh = utils.make_2d_mesh()
+    enable_sparse_mlp(model, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
+
+    run_graph_test(
+        model,
+        [input_ids, torch.tensor(0, dtype=torch.long)],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=transformer_shard_spec,
+        comparison_config=utils.PCC_99,
+    )
+
+
+def prime_decode_kv_buffers(model: Transformer, std: float = 0.02) -> None:
+    """Fill KV-cache and compressor state buffers with deterministic random
+    values."""
+    g = torch.Generator(device="cpu").manual_seed(0)
+    with torch.no_grad():
+        for name, buf in model.named_buffers():
+            if not buf.is_floating_point():
+                continue
+            if name.endswith(".freqs_cis"):
+                continue
+            noise = torch.empty_like(buf, device="cpu").normal_(
+                mean=0.0, std=std, generator=g
+            )
+            buf.copy_(noise)
+
+
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
+@pytest.mark.parametrize(
+    "num_layers,start_pos,expected_pcc",
+    [
+        # (num_layers, start_pos)
+        # - start_pos must satisfy `start_pos + 1 - compress_ratio >= 0` for
+        #   every Compressor in the included layers (rope_idx index bounds).
+        # - start_pos==127 with num_layers==4 hits `(start_pos + 1) % ratio == 0`
+        #   for both layer 2 (ratio=4) and layer 3 (ratio=128) — exercises the
+        #   compressor's "compress step" branch (kv_state roll, kv_cache write).
+        (1, 4, utils.PCC_99),
+        (2, 4, utils.PCC_99),
+        (3, 128, utils.PCC_99),
+        (3, 127, utils.PCC_99),
+        (3, 4, utils.PCC_99),
+        (3, 128, utils.PCC_99),
+        (3, 127, utils.PCC_99),
+        (4, 128, utils.PCC_99),
+        # https://github.com/tenstorrent/tt-xla/issues/4740
+        (4, 127, utils.PCC_97),
+    ],
+)
+def test_transformer_decode(model_name, num_layers, start_pos, expected_pcc):
+    enable_spmd()
+    xr.set_device_type("TT")
+
+    bsz = 32
+    seq_len = 1
+    args = utils.real_args(n_layers=num_layers, max_batch_size=bsz)
+    args.compress_ratios = args.compress_ratios[:num_layers]
+
+    model = utils.make_transformer(args, True)
+    weight_loader.init_transformer_weights(model_name, model, num_layers=num_layers)
+    prime_decode_kv_buffers(model)
+
+    input_ids, _ = realistic_inputs.get_realistic_inputs(
+        model_name, layer_id=args.n_hash_layers, batch_size=bsz, seq_len=seq_len
+    )
+
+    mesh = utils.make_2d_mesh()
+    enable_sparse_mlp(model, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
+
+    run_graph_test(
+        model,
+        [input_ids, torch.tensor(start_pos, dtype=torch.long)],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=transformer_shard_spec,
+        comparison_config=expected_pcc,
     )
