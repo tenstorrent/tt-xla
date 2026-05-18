@@ -21,6 +21,7 @@ from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt imp
 )
 
 PCC_99 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.99))
+PCC_98 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.98))
 PCC_97 = ComparisonConfig(pcc=PccConfig(enabled=True, required_pcc=0.97))
 
 
