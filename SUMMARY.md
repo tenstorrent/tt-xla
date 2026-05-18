@@ -3,12 +3,12 @@ variant_id: arch_router_1_5b
 arch: p150
 status: DONE_PASS
 test_function: test_arch_router_1_5b
-samples_per_second: 66.609
-ttft_ms: 151.335
+samples_per_second: 67.005
+ttft_ms: 150.535
 prefill_pcc: 0.981512
 first_decode_pcc: 0.998650
 top_perf_samples_per_sec: 206.5544
-pct_of_target: 32.2
+pct_of_target: 32.4
 roofline_bound: dram
 optimization_level: 1
 trace_enabled: true
@@ -23,31 +23,31 @@ tests/benchmark/test_llms.py::test_arch_router_1_5b
 ## Model
 - HF name:    katanemo/Arch-Router-1.5B
 - Loader:     third_party.tt_forge_models.arch_router.causal_lm.pytorch.loader
-- Variant:    ARCH_ROUTER_1_5B
+- Variant:    ModelVariant.ARCH_ROUTER_1_5B
 
 ## Test config landed
 - optimization_level:        1
 - trace_enabled:             true
-- experimental_weight_dtype: bfp_bf8
+- experimental_weight_dtype: "bfp_bf8"
 - batch_size:                32
 - input_sequence_length:     128
 - required_pcc:              0.94
 
-Note: optimization_level=2 fails with compiler bug: ttnn.paged_update_cache expects
-sharded input tensor but receives an interleaved DRAM tensor. Set to 1 as the best
-stable level.
-
 ## Measured (full model, defaults)
-- Sample per second:  66.609
-- TTFT (ms):          151.335
+- Sample per second:  67.005
+- TTFT (ms):          150.535
 - Prefill PCC:        0.981512
 - First decode PCC:   0.998650
-- Wall clock:         0:03:11
+- Wall clock:         0:01:57
 - Hardware:           p150
 
 ## Decode roofline (first decode graph, single-chip)
 Source JSON: tt_xla_arch_router_1_5b_perf_metrics_1.json
-Achieved vs top_perf_samples_per_sec: 66.609 / 206.5544 = 32.2%
+Achieved vs top_perf_samples_per_sec: 32.4% (67.0 / 206.6)
+
+Note: optimization_level=2 fails with a compiler bug (ttnn.paged_update_cache
+requires input_tensor.is_sharded() but tensor is DRAM-interleaved). Capped at
+optimization_level=1 which avoids SRAM tensor placement.
 
 ### System
 - arch:                        blackhole
@@ -99,8 +99,9 @@ Achieved vs top_perf_samples_per_sec: 66.609 / 206.5544 = 32.2%
 - compute_time_ms_hifi4:    0.4490
 
 ## Files changed
-- tests/benchmark/test_llms.py
-- tests/benchmark/benchmarks/llm_benchmark.py (general fix: guard get_weight_dtype_config_path with hasattr)
+- tests/benchmark/test_llms.py (added test_arch_router_1_5b)
+- tests/benchmark/benchmarks/llm_benchmark.py (general fix: getattr guard for get_weight_dtype_config_path)
+- .github/workflows/perf-bench-matrix.json (added arch_router_1_5b entry)
 
 ## tt-forge-models submodule
 no change
