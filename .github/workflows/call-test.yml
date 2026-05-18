@@ -237,7 +237,7 @@ jobs:
         MULTIHOST_WORKER_IMAGE: ${{ inputs.docker_image }}
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
-        multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+        .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
           --script-dir tests/torch/multi_host/experimental > topology_exports.sh
@@ -476,7 +476,7 @@ jobs:
       if: ${{ always() && matrix.build.multihost }}
       shell: bash
       run: |
-        multihost-cleanup-workers.sh /etc/mpirun/hostfile || true
+        .github/scripts/multihost-cleanup-workers.sh /etc/mpirun/hostfile || true
 
 
   test-summary:

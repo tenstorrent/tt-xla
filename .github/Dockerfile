@@ -18,10 +18,6 @@ COPY --chown=root:root --chmod=777 .github/scripts/install-tt-triage.sh /tmp/ins
 COPY third_party/CMakeLists.txt third_party/CMakeLists.txt
 RUN /tmp/install-tt-triage.sh || true
 
-# Bake in multihost lifecycle scripts (used only by multihost CI jobs).
-COPY --chmod=755 .github/scripts/multihost-start-workers.sh  /usr/local/bin/multihost-start-workers.sh
-COPY --chmod=755 .github/scripts/multihost-cleanup-workers.sh /usr/local/bin/multihost-cleanup-workers.sh
-
 #============================================================================
 # CI image
 #============================================================================

@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Starts multihost worker containers on all remote worker hosts.
-# Baked into the tt-xla-multihost-controller image.
 #
 # Usage:
 #   multihost-start-workers.sh <worker-image> [hostfile]
