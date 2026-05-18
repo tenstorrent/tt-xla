@@ -105,3 +105,12 @@ jobs:
       run: |
         source venv/activate
         python tests/op_by_op/test_tool_capability.py
+        python tests/op_by_op/test_op_by_op_capability.py
+
+    - name: Run op-by-op integration test
+      shell: bash
+      run: |
+        source venv/activate
+        pytest -svv tests/op_by_op/op_by_op_test.py \
+          --folder=tests/op_by_op/smoke_irs \
+          --ir-file-prefix=irs/shlo_compiler

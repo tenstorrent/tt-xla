@@ -470,12 +470,13 @@ class CMakeBuildPy(build_py):
             REPO_DIR / "third_party" / "tt-mlir" / "src" / "tt-mlir" / "build"
         )
 
-        # Copy ttmlir, chiseal, and golden packages
+        # Copy ttmlir, chiseal, golden, and op_by_op_infra packages
         # Destination: install packages at the root level alongside other packages
         # The parent of install_dir is the build_lib directory where packages are discovered
         copy_py_module("ttmlir", ttmlir_build_dir, install_dir.parent)
         copy_py_module("chisel", ttmlir_build_dir, install_dir.parent)
         copy_py_module("golden", ttmlir_build_dir, install_dir.parent)
+        copy_py_module("op_by_op_infra", ttmlir_build_dir, install_dir.parent)
 
         # Detect the platform-specific extension name for the _ttmlir_runtime module
         import glob
