@@ -780,6 +780,42 @@ def test_qwen_2_5_3b(
     )
 
 
+def test_cerebras_gpt_1_3b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.cerebras_gpt_1_3b.causal_lm.pytorch.loader import (
+        ModelLoader,
+    )
+
+    variant = "base"
+    # Trace disabled: optimization_level=2 + trace_enabled=True hits Error code 13 (OOM)
+    # during PCC graph compilation on p150. trace_enabled=False avoids the issue.
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        trace_enabled=False,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 def test_qwen_3_8b(
     output_file,
     num_layers,
@@ -1088,6 +1124,40 @@ def test_llama_3_1_8b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         required_pcc=0.90,
+    )
+
+
+def test_chatqa_1_5_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.chatqa.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA3_CHATQA_1_5_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
