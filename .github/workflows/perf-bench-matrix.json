@@ -286,6 +286,16 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "agentflow_slime_agentic_qwen2_5_7b_gguf",
+        "pyreq": "datasets gguf loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_agentflow_slime_agentic_qwen2_5_7b_gguf"
+      },
+      {
+        "name": "a0l_12b_heretic_gguf",
+        "pyreq": "datasets gguf loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_a0l_12b_heretic_gguf"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pyreq": "datasets loguru pytest requests timm torch==2.10.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
