@@ -2040,6 +2040,41 @@ def test_gpt_oss_120b_tp_qb2(
     )
 
 
+def test_hermes_2_theta_llama_3_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.hermes_2_theta_llama_3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.HERMES_2_THETA_LLAMA_3_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        experimental_weight_dtype="bfp_bf8",
+    )
+
+
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
 # This test only runs 2 layers so we expect to see incoherent output
 def test_kimi_k2_tp_galaxy_2_layers(
