@@ -118,7 +118,16 @@ def init_static_cache(
     device: str = "cpu",
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
-    """Initialize a transformers StaticCache consistently."""
+    """Initialize a transformers StaticCache consistently.
+
+    Some models (e.g. depth-recurrent architectures such as Huginn) require more
+    KV cache layers than ``config.num_hidden_layers`` because the same physical
+    layer is applied many times and each application needs its own KV slot.  Such
+    models expose the true cache depth via ``config.effective_expected_depth``.
+    When that attribute is present and larger, we temporarily override
+    ``num_hidden_layers`` on the config so that ``StaticCache`` allocates the
+    right number of layers.
+    """
     if hasattr(config, "head_dim") and getattr(config, "head_dim"):
         head_dim = config.head_dim
     else:
@@ -128,20 +137,31 @@ def init_static_cache(
         config, "num_key_value_heads", config.num_attention_heads
     )
 
-    static_cache = StaticCache(
-        config=config,
-        max_batch_size=batch_size,
-        max_cache_len=max_cache_len,
-        device=device,
-        dtype=dtype,
+    # For depth-recurrent models the effective KV-cache depth may exceed the
+    # number of physical layers stored in num_hidden_layers.
+    effective_cache_layers = getattr(
+        config, "effective_expected_depth", config.num_hidden_layers
     )
-    static_cache.early_initialization(
-        batch_size=batch_size,
-        num_heads=num_key_value_heads,
-        head_dim=head_dim,
-        dtype=dtype,
-        device=device,
-    )
+    original_num_hidden_layers = config.num_hidden_layers
+    if effective_cache_layers != original_num_hidden_layers:
+        config.num_hidden_layers = effective_cache_layers
+    try:
+        static_cache = StaticCache(
+            config=config,
+            max_batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device=device,
+            dtype=dtype,
+        )
+        static_cache.early_initialization(
+            batch_size=batch_size,
+            num_heads=num_key_value_heads,
+            head_dim=head_dim,
+            dtype=dtype,
+            device=device,
+        )
+    finally:
+        config.num_hidden_layers = original_num_hidden_layers
     return static_cache
 
 
