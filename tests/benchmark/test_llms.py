@@ -1125,6 +1125,45 @@ def test_llama_3_1_8b(
     )
 
 
+def test_bartowski_nvidia_openreasoning_nemotron_7b_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.bartowski_nvidia_openreasoning_nemotron_7b_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.BARTOWSKI_NVIDIA_OPENREASONING_NEMOTRON_7B_GGUF
+    # PCC fails at optimization_level>=1 due to GGUF Q4_K_M quantization
+    # accumulation error across 32 layers. optimization_level=0 gets prefill
+    # PCC to 0.944 (pass) but decode PCC=0.895 (fail). Needs compiler fix.
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        experimental_weight_dtype="",
+        fp32_dest_acc_en=True,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 0
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
