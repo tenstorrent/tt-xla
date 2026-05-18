@@ -135,6 +135,47 @@ def construct_inputs(
             truncation=True,
         )
 
+        # Some non-standard tokenizers (e.g. custom MorPiece-based tokenizers) do not
+        # support batched tokenization and return 1-D tensors regardless of input list
+        # length.  When that happens, fall back to tokenizing a single prompt and
+        # repeating it to form the batch.  This is always correct here because
+        # `input_prompt` is already `[single_prompt] * batch_size` (all identical).
+        _input_ids_probe = (
+            inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
+        )
+        if _input_ids_probe.ndim == 1:
+            inputs = tokenizer(
+                input_prompt[0],
+                return_tensors="pt",
+                max_length=max_cache_len,
+                truncation=True,
+            )
+            _single_ids = (
+                inputs["input_ids"]
+                if isinstance(inputs, dict)
+                else inputs.input_ids
+            )
+            if _single_ids.ndim == 1:
+                _single_ids = _single_ids.unsqueeze(0)
+            _single_mask = (
+                inputs.get("attention_mask")
+                if isinstance(inputs, dict)
+                else getattr(inputs, "attention_mask", None)
+            )
+            input_ids_batched = _single_ids.expand(batch_size, -1).contiguous()
+            if _single_mask is not None:
+                if _single_mask.ndim == 1:
+                    _single_mask = _single_mask.unsqueeze(0)
+                _attention_mask_batched = _single_mask.expand(
+                    batch_size, -1
+                ).contiguous()
+                inputs = {
+                    "input_ids": input_ids_batched,
+                    "attention_mask": _attention_mask_batched,
+                }
+            else:
+                inputs = {"input_ids": input_ids_batched}
+
     if past_key_values is None:
         # Static cache should be initialized on CPU and separately transferred to device
         # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
@@ -477,7 +518,9 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        # Use getattr so loaders that don't implement this optional method are handled gracefully.
+        _get_dtype_cfg = getattr(model_loader, "get_weight_dtype_config_path", None)
+        weight_dtype_config = _get_dtype_cfg() if _get_dtype_cfg is not None else None
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
             logger.info(
