@@ -1077,6 +1077,8 @@ def test_llama_3_1_8b(
     prefill_only,
     input_sequence_length,
 ):
+    # Deliberate do not touch
+    num_layers = 1
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1095,10 +1097,10 @@ def test_llama_3_1_8b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
+            # Deliberate set to 0
+            0
         ),
+        trace_enabled=False,
         required_pcc=0.90,
         prefill_only=prefill_only,
         **(

@@ -6,8 +6,8 @@
 set -euo pipefail
 
 MODELS=(
+    # "test_llama_3_1_8b:llama_3_1_8b"
     "test_qwen_3_8b:qwen_3_8b"
-    "test_llama_3_1_8b:llama_3_1_8b"
     # "test_llama_3_1_70b_tp:llama_3_1_70b"
 )
 
@@ -18,13 +18,15 @@ for model_entry in "${MODELS[@]}"; do
         for seq in 128 512 1024; do
             out_dir="results/${model_name}_bs${bs}_seq${seq}"
             mkdir -p "$out_dir"
-            pytest "tests/benchmark/test_llms.py::${test_fn}" \
-                --prefill-only \
-                --batch-size "$bs" \
-                --input-sequence-length "$seq" \
-                --output-file "${out_dir}/metrics.json" \
-                --optimization-level 0
-            mv tt_xla_*_perf_metrics*.json "${out_dir}/" 2>/dev/null || true
+            TT_METAL_DEVICE_PROFILER=1 python3 -m tracy -v -r -p \
+                -o "${out_dir}/tracy" \
+                --tracy-tools-folder "$(pwd)/third_party/tt-mlir/install/bin" \
+                -m "pytest tests/benchmark/test_llms.py::${test_fn} \
+                    --prefill-only \
+                    --batch-size $bs \
+                    --input-sequence-length $seq \
+                    --output-file ${out_dir}/metrics.json \
+                    --optimization-level 0"
         done
     done
 done
