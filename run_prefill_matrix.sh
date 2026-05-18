@@ -7,6 +7,7 @@ set -euo pipefail
 
 MODELS=(
     "test_qwen_3_8b:qwen_3_8b"
+    "test_llama_3_1_8b:llama_3_1_8b"
     # "test_llama_3_1_70b_tp:llama_3_1_70b"
 )
 
