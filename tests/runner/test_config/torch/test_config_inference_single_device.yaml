@@ -605,8 +605,7 @@ test_config:
     status: EXPECTED_PASSING
 
   yoloworld/pytorch-Small_640-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
+    status: EXPECTED_PASSING
 
   yoloworld/pytorch-Small_1280-single_device-inference:
     status: EXPECTED_PASSING
@@ -2338,8 +2337,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
 
   efficientdet/pytorch-D0-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "PyTorch 2.10 bug causing compilation failure - https://github.com/tenstorrent/tt-xla/issues/3752"
+    status: EXPECTED_PASSING
 
   efficientdet/pytorch-D1-single_device-inference:
     status: EXPECTED_PASSING
