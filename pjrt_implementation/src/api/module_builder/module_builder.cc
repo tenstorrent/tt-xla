@@ -1079,6 +1079,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     }
     options.experimentalKVCacheDtype = dtype.value();
   }
+  options.enableActivationDtypeLowering =
+      compile_options.enable_activation_dtype_lowering;
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
