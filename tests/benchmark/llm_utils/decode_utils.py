@@ -119,6 +119,8 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
+    import copy
+
     if hasattr(config, "head_dim") and getattr(config, "head_dim"):
         head_dim = config.head_dim
     else:
@@ -128,8 +130,19 @@ def init_static_cache(
         config, "num_key_value_heads", config.num_attention_heads
     )
 
+    # Use a shallow copy of the config with all layer_types set to "full_attention"
+    # so that StaticCache creates StaticLayer (not StaticSlidingWindowLayer) for every
+    # layer. This avoids sliding-window cache eviction during benchmarking while
+    # preserving the original config — models like Gemma3 route position embeddings
+    # via config.layer_types in their forward pass and must not see the overridden
+    # value there.
+    cache_config = config
+    if hasattr(config, "layer_types") and config.layer_types is not None:
+        cache_config = copy.copy(config)
+        cache_config.layer_types = ["full_attention"] * len(config.layer_types)
+
     static_cache = StaticCache(
-        config=config,
+        config=cache_config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device=device,
