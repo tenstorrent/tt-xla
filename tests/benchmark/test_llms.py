@@ -799,7 +799,7 @@ def test_qwen_3_8b(
         ModelVariant,
     )
 
-    num_layers = 1
+    # num_layers = 1
     variant = ModelVariant.QWEN_3_8B
     test_llm(
         ModelLoaderModule=ModelLoader,
@@ -1076,7 +1076,7 @@ def test_llama_3_1_8b(
     input_sequence_length,
 ):
     # Deliberate do not touch
-    num_layers = 1
+    # num_layers = 1
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
         ModelVariant,

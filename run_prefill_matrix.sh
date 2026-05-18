@@ -6,7 +6,7 @@
 set -euo pipefail
 
 MODELS=(
-    # "test_llama_3_1_8b:llama_3_1_8b"
+    "test_llama_3_1_8b:llama_3_1_8b"
     "test_qwen_3_8b:qwen_3_8b"
     # "test_llama_3_1_70b_tp:llama_3_1_70b"
 )
@@ -15,7 +15,7 @@ for model_entry in "${MODELS[@]}"; do
     test_fn="${model_entry%%:*}"
     model_name="${model_entry##*:}"
     for bs in 1 8 16 32; do
-        for seq in 128 512 1024; do
+        for seq in 1024 512 128; do
             out_dir="results/${model_name}_bs${bs}_seq${seq}"
             mkdir -p "$out_dir"
             TT_METAL_DEVICE_PROFILER=1 python3 -m tracy -v -r -p \

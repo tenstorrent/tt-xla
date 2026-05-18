@@ -91,6 +91,7 @@ def construct_inputs(
     input_prompt: str = None,
     input_prompt_tokens: Optional[torch.Tensor] = None,
     use_mla_cache: bool = False,
+    prefill_only: bool = False,
 ) -> dict:
     """
     Construct inputs including static cache.
@@ -103,9 +104,12 @@ def construct_inputs(
         input_prompt: Input text prompt (optional, defaults to DEFAULT_INPUT_PROMPT)
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
         use_mla_cache: Whether to use MLA cache
+        prefill_only: When True, omit past_key_values so the model creates a DynamicCache
+            internally — no static cache tensors enter the compiled graph as I/O.
 
     Returns:
-        Dictionary containing input_ids, past_key_values, cache_position, and use_cache
+        Dictionary containing input_ids, cache_position, and (unless prefill_only)
+        past_key_values and use_cache.
     """
     if input_prompt_tokens is not None:
         if input_prompt_tokens.ndim != 1:
@@ -135,6 +139,12 @@ def construct_inputs(
             truncation=True,
         )
 
+    input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
+    cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
+
+    if prefill_only:
+        return {"input_ids": input_ids, "cache_position": cache_position}
+
     if past_key_values is None:
         # Static cache should be initialized on CPU and separately transferred to device
         # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
@@ -156,17 +166,13 @@ def construct_inputs(
             )
     else:
         static_cache = past_key_values
-    input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
-    cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
 
-    input_args = {
+    return {
         "input_ids": input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "use_cache": True,
     }
-
-    return input_args
 
 
 def get_mesh(model_loader, mesh_config_fn):
@@ -187,18 +193,19 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     Returns:
         input_args on device
     """
-    for layer in input_args["past_key_values"].layers:
-        if isinstance(layer, MLAStaticLayer):
-            layer.compressed_kv = layer.compressed_kv.to(device)
-            layer.k_pe = layer.k_pe.to(device)
-            layer.keys = layer.compressed_kv
-            layer.values = layer.k_pe
-            if not torch.compiler.is_compiling():
-                torch._dynamo.mark_static_address(layer.compressed_kv)
-                torch._dynamo.mark_static_address(layer.k_pe)
-        else:
-            layer.keys = layer.keys.to(device)
-            layer.values = layer.values.to(device)
+    if "past_key_values" in input_args:
+        for layer in input_args["past_key_values"].layers:
+            if isinstance(layer, MLAStaticLayer):
+                layer.compressed_kv = layer.compressed_kv.to(device)
+                layer.k_pe = layer.k_pe.to(device)
+                layer.keys = layer.compressed_kv
+                layer.values = layer.k_pe
+                if not torch.compiler.is_compiling():
+                    torch._dynamo.mark_static_address(layer.compressed_kv)
+                    torch._dynamo.mark_static_address(layer.k_pe)
+            else:
+                layer.keys = layer.keys.to(device)
+                layer.values = layer.values.to(device)
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
@@ -350,7 +357,7 @@ def benchmark_llm_torch_xla(
     # WARNING: max_cache_len determines context window size for accuracy testing.
     # Reference outputs must be generated with total_length = max_cache_len for accurate comparison.
     # Changing this value requires regenerating ALL reference outputs (*.refpt files).
-    max_cache_len: int = input_sequence_length
+    max_cache_len: int = input_sequence_length if prefill_only else input_sequence_length + 1
 
     # Connect the device
     device: torch.device = torch_xla.device()
@@ -370,6 +377,18 @@ def benchmark_llm_torch_xla(
             hf_model_name=hf_model_name_for_accuracy,
         )
 
+    # When not doing accuracy testing, generate random token IDs of the requested
+    # length so the embedding layer sees the correct sequence length instead of the
+    # fixed 18-token DEFAULT_INPUT_PROMPT.
+    random_input_tokens = None
+    if not accuracy_testing:
+        random_input_tokens = torch.randint(
+            0, model.config.vocab_size, (input_sequence_length,)
+        )
+
+    def _input_prompt_tokens():
+        return token_accuracy.input_prompt if accuracy_testing else random_input_tokens
+
     # Construct inputs, including static cache
     input_args = construct_inputs(
         tokenizer,
@@ -377,8 +396,9 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=_input_prompt_tokens(),
         use_mla_cache=use_mla_cache,
+        prefill_only=prefill_only,
     )
 
     # Initialize indexer cache if enabled (needs to be done before model.to(device))
@@ -514,13 +534,12 @@ def benchmark_llm_torch_xla(
             batch_size,
             max_cache_len,
             input_prompt=custom_input_prompt,
-            input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
-            ),
+            input_prompt_tokens=_input_prompt_tokens(),
             use_mla_cache=use_mla_cache,
+            prefill_only=prefill_only,
         )
         input_args = transfer_to_device(input_args, device)
-        if is_multichip:
+        if is_multichip and not prefill_only:
             _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
             if input_output_sharding_spec:
                 xs.mark_sharding(
@@ -539,7 +558,7 @@ def benchmark_llm_torch_xla(
         )
         print("Warmup complete")
 
-        warmup_kv_cache = input_args["past_key_values"]
+        warmup_kv_cache = input_args.get("past_key_values")
 
         tracy.signpost("warmup_complete")
 
@@ -551,8 +570,9 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=_input_prompt_tokens(),
         use_mla_cache=use_mla_cache,
+        prefill_only=prefill_only,
     )
 
     if decode_only:
@@ -611,8 +631,9 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=decode_only_cache if decode_only else None,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=_input_prompt_tokens(),
         use_mla_cache=use_mla_cache,
+        prefill_only=prefill_only,
     )
 
     if decode_only:

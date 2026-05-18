@@ -54,13 +54,13 @@ class LLMSamplingWrapper(torch.nn.Module):
         self.mesh = mesh
         self.output_sharding_spec = output_sharding_spec
 
-    def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
-        output = self.model(
-            input_ids=input_ids,
-            past_key_values=past_key_values,
-            cache_position=cache_position,
-            use_cache=use_cache,
-        )
+    def forward(self, input_ids, cache_position, past_key_values=None, use_cache=True):
+        model_kwargs = {"input_ids": input_ids, "cache_position": cache_position, "use_cache": use_cache}
+        if past_key_values is not None:
+            model_kwargs["past_key_values"] = past_key_values
+        # When past_key_values is None (prefill-only), the model creates a DynamicCache
+        # internally so no static cache tensors enter the compiled graph as I/O.
+        output = self.model(**model_kwargs)
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.
         # This is a noop for decode.
