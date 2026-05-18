@@ -559,6 +559,11 @@
         "accuracy-testing": true
       },
       {
+        "name": "deephermes_3_llama_3_3b_preview_gguf",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_deephermes_3_llama_3_3b_preview_gguf"
+      },
+      {
         "name": "codellama_13b_python_q4_k_m_gguf",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_codellama_13b_python_q4_k_m_gguf"

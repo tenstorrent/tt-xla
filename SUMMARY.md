@@ -1,60 +1,49 @@
-loader_path: third_party.tt_forge_models.codellama_13b_python_gguf.causal_lm.pytorch.loader
-variant_id: CodeLlama_13B_Python_Q4_K_M_GGUF
+loader_path: third_party.tt_forge_models.deephermes_3_llama_3_3b_preview_gguf.causal_lm.pytorch.loader
+variant_id: 3B_PREVIEW_GGUF
 arch: p150
-status: DONE_FAIL
-test_function: test_codellama_13b_python_q4_k_m_gguf
-samples_per_second: 12.935
-ttft_ms: 628.75
-prefill_pcc: 0.994976
-first_decode_pcc: 0.866785
-top_perf_samples_per_sec: 22.7802
-pct_of_target: 56.8
+status: DONE_PASS
+test_function: test_deephermes_3_llama_3_3b_preview_gguf
+samples_per_second: 58.995
+ttft_ms: 196.94
+prefill_pcc: 0.998524
+first_decode_pcc: 0.998707
+top_perf_samples_per_sec: 96.0050
+pct_of_target: 61.4
 roofline_bound: dram
-optimization_level: 1
+optimization_level: 2
 trace_enabled: true
 experimental_weight_dtype: bfp_bf8
-failure_reason: "First decode PCC consistently fails (0.83-0.87) across all opt levels (0,1,2), with/without bfp_bf8, with/without fp32_dest_acc_en; prefill PCC consistently good (>0.994). Suspected KV-cache numerical precision accumulation over 40 layers with Q4_K_M GGUF dequantized to bfloat16."
+failure_reason: null
 
-# Benchmark added: test_codellama_13b_python_q4_k_m_gguf
+# Benchmark added: test_deephermes_3_llama_3_3b_preview_gguf
 
 ## Test
-tests/benchmark/test_llms.py::test_codellama_13b_python_q4_k_m_gguf
+tests/benchmark/test_llms.py::test_deephermes_3_llama_3_3b_preview_gguf
 
 ## Model
-- HF name:    TheBloke/CodeLlama-13B-Python-GGUF
-- Loader:     third_party.tt_forge_models.codellama_13b_python_gguf.causal_lm.pytorch.loader
-- Variant:    CodeLlama_13B_Python_Q4_K_M_GGUF
+- HF name:    bartowski/NousResearch_DeepHermes-3-Llama-3-3B-Preview-GGUF
+- Loader:     third_party.tt_forge_models.deephermes_3_llama_3_3b_preview_gguf.causal_lm.pytorch.loader
+- Variant:    ModelVariant.DEEPHERMES_3_LLAMA_3_3B_PREVIEW_GGUF (3B_PREVIEW_GGUF)
 
 ## Test config landed
-- optimization_level:        2 (DEFAULT_OPTIMIZATION_LEVEL — not hard-coded, test uses default)
-- trace_enabled:             true (DEFAULT — not hard-coded)
-- experimental_weight_dtype: "bfp_bf8" (DEFAULT — not hard-coded)
+- optimization_level:        2
+- trace_enabled:             true
+- experimental_weight_dtype: "bfp_bf8"
 - batch_size:                32
 - input_sequence_length:     128
 - required_pcc:              0.94
 
-## Measured (full model, best passing config — all configurations FAIL PCC)
-Best config tested: optimization_level=1, trace_enabled=True, experimental_weight_dtype=bfp_bf8
-- Sample per second:  12.935 (decode throughput)
-- TTFT (ms):          628.75
-- Prefill PCC:        0.994976 (PASSED)
-- First decode PCC:   0.866785 (FAILED — required 0.94)
+## Measured (full model, defaults)
+- Sample per second:  58.995
+- TTFT (ms):          196.94
+- Prefill PCC:        0.998524
+- First decode PCC:   0.998707
+- Wall clock:         0:06:43
 - Hardware:           p150
 
-## PCC Failure Summary
-All configurations tested fail First Decode PCC; Prefill PCC always passes:
-
-| Configuration                                  | Prefill PCC | Decode PCC | Status  |
-|------------------------------------------------|-------------|------------|---------|
-| opt_level=2, bfp_bf8=True, trace=True          | 0.996230    | 0.833985   | FAILED  |
-| opt_level=2, bfp_bf8=False, trace=True         | 0.997897    | 0.832305   | FAILED  |
-| opt_level=1, bfp_bf8=True, trace=True          | 0.994976    | 0.866785   | FAILED  |
-| opt_level=1, fp32_dest_acc_en=True             | 0.994976    | 0.866785   | FAILED  |
-| opt_level=0, bfp_bf8=False, trace=False        | 0.997366    | 0.841102   | FAILED  |
-
 ## Decode roofline (first decode graph, single-chip)
-Source JSON: tt_xla_codellama_13b_python_q4_k_m_gguf_perf_metrics_1.json
-Achieved vs top_perf_samples_per_sec: 56.8% (12.935 / 22.78)
+Source JSON: tt_xla_deephermes_3_llama_3_3b_preview_gguf_perf_metrics_1.json
+Achieved vs top_perf_samples_per_sec: 61.4% (58.995 / 96.0050)
 
 ### System
 - arch:                        blackhole
@@ -70,8 +59,8 @@ Achieved vs top_perf_samples_per_sec: 56.8% (12.935 / 22.78)
 - hifi4: 220000000000000
 
 ### Compute
-- total_flops:             822503014528
-- breakdown.matmul:        822503014528
+- total_flops:             205604782208
+- breakdown.matmul:        205604782208
 - breakdown.linear:        0
 - breakdown.conv2d:        0
 - breakdown.sparse_matmul: 0
@@ -81,33 +70,33 @@ Achieved vs top_perf_samples_per_sec: 56.8% (12.935 / 22.78)
 - memory_bytes: 132
 
 ### KV cache
-- count:        1677721600
-- memory_bytes: 3355443200
-- memory_gb:    3.125
+- count:        234881024
+- memory_bytes: 469762048
+- memory_gb:    0.4375
 
 ### Params
-- count:                  13015864384
-- effective_count:        12852024384
-- memory_bytes:           26031728768
-- memory_gb:              24.24
-- effective_memory_bytes: 25704048768
-- effective_memory_gb:    23.94
-- embedding_count:        163840000
-- embedding_memory_bytes: 327680000
+- count:                  3606752451
+- effective_count:        3212750019
+- memory_bytes:           4201716488
+- memory_gb:              3.9131534174084663
+- effective_memory_bytes: 3413711624
+- effective_memory_gb:    3.1792666986584663
+- embedding_count:        394002432
+- embedding_memory_bytes: 788004864
 
 ### Roofline
 - bound:                    dram
-- top_perf_samples_per_sec: 22.7802
-- top_perf_time_ms:         43.8979
-- dram_time_ms:             29.2652
-- compute_time_ms_lofi:     0.9347
-- compute_time_ms_hifi2:    1.8693
-- compute_time_ms_hifi3:    2.8040
-- compute_time_ms_hifi4:    3.7387
+- top_perf_samples_per_sec: 96.0050
+- top_perf_time_ms:         10.4161
+- dram_time_ms:             6.9441
+- compute_time_ms_lofi:     0.2336
+- compute_time_ms_hifi2:    0.4673
+- compute_time_ms_hifi3:    0.7009
+- compute_time_ms_hifi4:    0.9346
 
 ## Files changed
-- tests/benchmark/test_llms.py (test already existed; no changes made)
-- .github/workflows/perf-bench-matrix.json (added codellama_13b_python_q4_k_m_gguf entry)
+- tests/benchmark/test_llms.py (new test function added)
+- .github/workflows/perf-bench-matrix.json (new entry added)
 
 ## tt-forge-models submodule
 no change
