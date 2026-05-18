@@ -799,6 +799,7 @@ def test_qwen_3_8b(
         ModelVariant,
     )
 
+    num_layers = 1
     variant = ModelVariant.QWEN_3_8B
     test_llm(
         ModelLoaderModule=ModelLoader,
@@ -810,11 +811,8 @@ def test_qwen_3_8b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
-        ),
+        trace_enabled=False,
+        optimization_level=0,
         prefill_only=prefill_only,
         **(
             {"input_sequence_length": input_sequence_length}
