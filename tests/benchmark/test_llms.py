@@ -1091,6 +1091,43 @@ def test_llama_3_1_8b(
     )
 
 
+# FAILED: First decode PCC 0.902 does not reach required 0.94 with opt2+bfp_bf8;
+# opt1 causes prefill to fail at 0.914. Q4_K_M GGUF + bfp_bf8 double quantization
+# across 28 layers accumulates beyond tolerable error. Passes at num_layers=1.
+def test_deepseek_r1_distill_qwen_1_5b_uncensored_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.deepseek_r1_distill_qwen_1_5b_uncensored_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_R1_DISTILL_QWEN_1_5B_UNCENSORED_Q4_K_M_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
