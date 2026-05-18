@@ -119,17 +119,22 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # VLM configs (e.g. Qwen3VLConfig) store language-model attributes under
+    # .text_config rather than directly on the top-level config.  Fall back to
+    # text_config for attribute lookups so that VLM loaders work transparently.
+    lm_config = getattr(config, "text_config", config)
+
+    if hasattr(lm_config, "head_dim") and getattr(lm_config, "head_dim"):
+        head_dim = lm_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = lm_config.hidden_size // lm_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        lm_config, "num_key_value_heads", lm_config.num_attention_heads
     )
 
     static_cache = StaticCache(
-        config=config,
+        config=lm_config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device=device,

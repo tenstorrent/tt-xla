@@ -77,7 +77,20 @@ def setup_model_and_tokenizer(
     if hasattr(model.config, "_experts_implementation"):
         model.config._experts_implementation = "dense"
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    # VLM loaders (e.g. Qwen3VL-based) may expose a processor instead of a
+    # tokenizer.  The processor wraps a tokenizer at .tokenizer, so we can
+    # use it transparently for the text-only portions of the benchmark.
+    if hasattr(model_loader, "tokenizer") and model_loader.tokenizer is not None:
+        tokenizer = model_loader.tokenizer
+    elif hasattr(model_loader, "processor") and hasattr(
+        model_loader.processor, "tokenizer"
+    ):
+        tokenizer = model_loader.processor.tokenizer
+    else:
+        raise AttributeError(
+            f"Model loader {type(model_loader).__name__} has neither a 'tokenizer' "
+            "nor a 'processor.tokenizer' attribute. Cannot extract tokenizer."
+        )
 
     return model, tokenizer
 
@@ -475,7 +488,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
