@@ -72,6 +72,21 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+        # Sync per-layer cached attention_type attributes so they stay consistent
+        # with the updated config.  Gemma3DecoderLayer (and similar architectures)
+        # cache `attention_type` / `layer_type` / `is_sliding` / `sliding_window`
+        # at construction time from the original config; if we only patch the config
+        # those attributes go stale and the forward pass raises a KeyError when it
+        # tries to index `position_embeddings[decoder_layer.attention_type]`.
+        for module in model.modules():
+            if hasattr(module, "attention_type"):
+                module.attention_type = "full_attention"
+            if hasattr(module, "layer_type") and module.layer_type is not None:
+                module.layer_type = "full_attention"
+            if hasattr(module, "is_sliding"):
+                module.is_sliding = False
+            if hasattr(module, "sliding_window") and module.sliding_window is not None:
+                module.sliding_window = None
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
@@ -477,12 +492,14 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
-        if weight_dtype_config:
-            applied = apply_weight_dtype_overrides(model, weight_dtype_config)
-            logger.info(
-                f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
-            )
+        # Guard against loaders that don't implement get_weight_dtype_config_path.
+        if hasattr(model_loader, "get_weight_dtype_config_path"):
+            weight_dtype_config = model_loader.get_weight_dtype_config_path()
+            if weight_dtype_config:
+                applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+                logger.info(
+                    f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+                )
 
     # ========================================================
     # PERFORMANCE BENCHMARK
