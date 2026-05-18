@@ -23,6 +23,8 @@ PRIVATE
     ${PROJECT_SOURCE_DIR}/pjrt_implementation/inc
     ${TTMLIR_TOOLCHAIN_DIR}/include
     ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/install/include
+    # fmt headers (used by utils/assert.h polyfill for <format>).
+    ${PROJECT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build_Release/include
 PUBLIC
     # Includes used in public headers.
     ${PROJECT_SOURCE_DIR}/third_party/loguru/src/loguru-install/include

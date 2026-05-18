@@ -13,8 +13,8 @@ from loguru import logger
 from utils import create_model_loader, resolve_display_name
 
 # Defaults for all llms
-DEFAULT_OPTIMIZATION_LEVEL = 2
-DEFAULT_TP_OPTIMIZATION_LEVEL = 2
+DEFAULT_OPTIMIZATION_LEVEL = 1
+DEFAULT_TP_OPTIMIZATION_LEVEL = 1
 DEFAULT_MEMORY_LAYOUT_ANALYSIS = False
 DEFAULT_TRACE_ENABLED = True
 DEFAULT_BATCH_SIZE = 32
@@ -181,6 +181,21 @@ def test_llm(
             if f.startswith(base_name) and f.endswith(".json")
         ]
         perf_files = sorted(perf_files)
+
+        # Copy per-graph perf_metrics JSONs next to output_file so the CI
+        # "Upload Perf Report" step uploads them as part of the artifact.
+        # The JSONs include the `perf_targets` block emitted by
+        # TTNNCollectPerfMetrics. Temp for benchmark runs.
+        try:
+            import shutil
+
+            output_dir = os.path.dirname(output_file) or "."
+            for pf in perf_files:
+                dst = os.path.join(output_dir, os.path.basename(pf))
+                if os.path.abspath(pf) != os.path.abspath(dst):
+                    shutil.copy2(pf, dst)
+        except Exception as e:
+            logger.warning(f"Failed to copy per-graph perf_metrics files: {e}")
 
         if len(perf_files) == 2:
             # Use only the decode graph (second file)

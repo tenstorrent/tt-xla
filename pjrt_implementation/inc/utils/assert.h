@@ -25,7 +25,6 @@
 // c++ standard library includes
 #include <cxxabi.h>
 #include <execinfo.h>
-#include <format>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -34,8 +33,28 @@
 #include <string>
 #include <vector>
 
+// fmt for format support (used in place of std::format which requires
+// libstdc++-13). fmt is header-only and bundled with tt-metal.
+#ifndef FMT_HEADER_ONLY
+#define FMT_HEADER_ONLY
+#endif
+#include <fmt/format.h>
+
 // tt-xla includes
 #include "logging.h"
+
+// Polyfill std::format / std::format_string using fmt to support hosts whose
+// libstdc++ predates C++20 <format> support (e.g. Ubuntu 22.04 libstdc++-12).
+namespace tt::assert::detail {
+template <typename... Args>
+using fmt_format_string_t = fmt::format_string<Args...>;
+
+template <typename... Args>
+inline std::string format_polyfill(fmt::format_string<Args...> fmt,
+                                   Args &&...args) {
+  return fmt::format(fmt, std::forward<Args>(args)...);
+}
+} // namespace tt::assert::detail
 
 namespace tt::assert {
 
@@ -107,7 +126,7 @@ tt_throw_impl(const char *file, int line, const char *assert_type,
               const char *condition_str, const Args &...args) {
   if (std::getenv("TT_XLA_ASSERT_ABORT")) {
     if constexpr (sizeof...(args) > 0) {
-      LOG_F(ERROR, "%s: %s", assert_type, std::format(args...).c_str());
+      LOG_F(ERROR, "%s: %s", assert_type, fmt::format(args...).c_str());
     }
     abort();
   }
@@ -117,8 +136,8 @@ tt_throw_impl(const char *file, int line, const char *assert_type,
                    << condition_str << std::endl;
   if constexpr (sizeof...(args) > 0) {
     trace_message_ss << "info:" << std::endl;
-    trace_message_ss << std::format(args...) << std::endl;
-    LOG_F(ERROR, "%s: %s", assert_type, std::format(args...).c_str());
+    trace_message_ss << fmt::format(args...) << std::endl;
+    LOG_F(ERROR, "%s: %s", assert_type, fmt::format(args...).c_str());
   }
 
   static const bool disable_backtrace =
@@ -140,9 +159,9 @@ tt_throw_impl(const char *file, int line, const char *assert_type,
 template <typename... Args>
 [[noreturn]] void tt_throw(const char *file, int line, const char *assert_type,
                            const char *condition_str,
-                           std::format_string<const Args &...> fmt,
+                           fmt::format_string<const Args &...> fmt_str,
                            const Args &...args) {
-  tt_throw_impl(file, line, assert_type, condition_str, fmt, args...);
+  tt_throw_impl(file, line, assert_type, condition_str, fmt_str, args...);
 }
 
 inline void tt_assert(char const *file, int line, char const *assert_type,
@@ -155,10 +174,10 @@ inline void tt_assert(char const *file, int line, char const *assert_type,
 template <typename... Args>
 inline void tt_assert(char const *file, int line, char const *assert_type,
                       bool condition, char const *condition_str,
-                      std::format_string<Args const &...> fmt,
+                      fmt::format_string<Args const &...> fmt_str,
                       Args const &...args) {
   if (not condition) {
-    tt_throw(file, line, assert_type, condition_str, fmt, args...);
+    tt_throw(file, line, assert_type, condition_str, fmt_str, args...);
   }
 }
 } // namespace detail
