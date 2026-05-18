@@ -1117,11 +1117,11 @@ def test_document_validation_qwen2_5_vl_simple_v2_i1_gguf(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        # optimization_level=1 fails PCC (0.690); optimization_level=2 crashes during MLIR compilation
+        trace_enabled=False,  # Trace disabled: hung with trace_enabled=True
         optimization_level=(
             optimization_level
             if optimization_level is not None
-            else 0
+            else DEFAULT_OPTIMIZATION_LEVEL
         ),
     )
 
