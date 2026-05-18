@@ -332,6 +332,41 @@ def test_llama_3_2_3b(
     )
 
 
+def test_dolphin3_0_llama3_2_3b_mlx_4bit(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.dolphin3_0_llama3_2_3b_mlx_4bit.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DOLPHIN3_0_LLAMA3_2_3B_MLX_4BIT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # optimization_level=2 causes RESOURCE_EXHAUSTED (OOM) on the full 28-layer model
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1
+        ),
+    )
+
+
 def test_gemma_1_1_2b(
     output_file,
     num_layers,
@@ -1088,6 +1123,40 @@ def test_llama_3_1_8b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         required_pcc=0.90,
+    )
+
+
+def test_fallen_amoral_gemma3_12b_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.fallen_amoral_gemma3_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.FALLEN_AMORAL_GEMMA3_12B_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
