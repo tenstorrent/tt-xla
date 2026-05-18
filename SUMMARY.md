@@ -1,0 +1,103 @@
+loader_path: third_party.tt_forge_models.flexan_kkenna_tsundere_qwen_0_6_gguf.causal_lm.pytorch.loader
+variant_id: 0_6_GGUF
+arch: p150
+status: DONE_PASS
+test_function: test_flexan_kkenna_tsundere_qwen_0_6_gguf
+samples_per_second: 71.18167073169334
+ttft_ms: 230.381157
+prefill_pcc: 0.995811
+first_decode_pcc: 0.994215
+top_perf_samples_per_sec: 398.3361
+pct_of_target: 17.9
+roofline_bound: dram
+optimization_level: 2
+trace_enabled: true
+experimental_weight_dtype: "bfp_bf8"
+failure_reason: null
+
+# Benchmark added: flexan_kkenna_tsundere_qwen_0_6_gguf
+
+## Test
+tests/benchmark/test_llms.py::test_flexan_kkenna_tsundere_qwen_0_6_gguf
+
+## Model
+- HF name:    Flexan/kkenna-tsundere-qwen-0.6-GGUF
+- Loader:     third_party.tt_forge_models.flexan_kkenna_tsundere_qwen_0_6_gguf.causal_lm.pytorch.loader
+- Variant:    ModelVariant.TSUNDERE_QWEN_0_6_GGUF (value: "0_6_GGUF")
+
+## Test config landed
+- optimization_level:        2
+- trace_enabled:             true
+- experimental_weight_dtype: "bfp_bf8"
+- batch_size:                32
+- input_sequence_length:     128
+- required_pcc:              0.94
+
+## Measured (full model, defaults)
+- Sample per second:  71.18167073169334
+- TTFT (ms):          230.381157
+- Prefill PCC:        0.995811
+- First decode PCC:   0.994215
+- Wall clock:         0:05:20
+- Hardware:           p150 (Blackhole p300c)
+
+## Decode roofline (first decode graph, single-chip)
+Source JSON: tt_xla_flexan_kkenna_tsundere_qwen_0_6_gguf_perf_metrics_0.json
+Achieved vs top_perf_samples_per_sec: 17.9% (71.18 / 398.34)
+
+### System
+- arch:                        blackhole
+- chip_count_in_system_desc:   1
+- single_chip_assumption:      True
+- worker_grid_cores:           110
+- dram_bandwidth_bytes_per_sec: 512000000000
+
+### Peak FLOPs
+- lofi:  880000000000000
+- hifi2: 440000000000000
+- hifi3: 293333333333333
+- hifi4: 220000000000000
+
+### Compute
+- total_flops:             648431011968
+- breakdown.matmul:        648431011968
+- breakdown.linear:        0
+- breakdown.conv2d:        0
+- breakdown.sparse_matmul: 0
+
+### Inputs
+- count:        561
+- memory_bytes: 2244
+
+### KV cache
+- count:        234881024
+- memory_bytes: 469762048
+- memory_gb:    0.4375
+
+### Params
+- count:                  751632579
+- effective_count:        596050115
+- memory_bytes:           944530184
+- memory_gb:              0.8796622827649117
+- effective_memory_bytes: 633365256
+- effective_memory_gb:    0.5898673608899117
+- embedding_count:        155582464
+- embedding_memory_bytes: 311164928
+
+### Roofline
+- bound:                    dram
+- top_perf_samples_per_sec: 398.3361
+- top_perf_time_ms:         2.5104
+- dram_time_ms:             1.6736
+- compute_time_ms_lofi:     0.7369
+- compute_time_ms_hifi2:    1.4737
+- compute_time_ms_hifi3:    2.2106
+- compute_time_ms_hifi4:    2.9474
+
+## Files changed
+- tests/benchmark/test_llms.py (new test function test_flexan_kkenna_tsundere_qwen_0_6_gguf)
+- tests/benchmark/benchmarks/llm_benchmark.py (infrastructure fix: add hasattr guard for get_weight_dtype_config_path)
+- .github/workflows/perf-bench-matrix.json (new entry flexan_kkenna_tsundere_qwen_0_6_gguf)
+
+## tt-forge-models submodule
+no change
