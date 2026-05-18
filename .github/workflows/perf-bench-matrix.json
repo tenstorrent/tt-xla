@@ -559,6 +559,11 @@
         "accuracy-testing": true
       },
       {
+        "name": "exaone_3_5_7_8b_instruct_awq",
+        "pyreq": "autoawq datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_exaone_3_5_7_8b_instruct_awq"
+      },
+      {
         "name": "vllm_llama_3_2_3b",
         "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]",
