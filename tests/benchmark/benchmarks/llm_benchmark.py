@@ -78,6 +78,12 @@ def setup_model_and_tokenizer(
         model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
+    # Some loaders (e.g. gpt2_spanish) don't initialise the tokenizer inside
+    # load_model but expose a private _load_tokenizer() method. Fall back to it
+    # so the benchmark harness works regardless of whether the loader eagerly
+    # sets self.tokenizer in load_model.
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        tokenizer = model_loader._load_tokenizer()
 
     return model, tokenizer
 
@@ -477,12 +483,14 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
-        if weight_dtype_config:
-            applied = apply_weight_dtype_overrides(model, weight_dtype_config)
-            logger.info(
-                f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
-            )
+        # Older-style loaders may not expose get_weight_dtype_config_path().
+        if hasattr(model_loader, "get_weight_dtype_config_path"):
+            weight_dtype_config = model_loader.get_weight_dtype_config_path()
+            if weight_dtype_config:
+                applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+                logger.info(
+                    f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+                )
 
     # ========================================================
     # PERFORMANCE BENCHMARK
