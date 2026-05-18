@@ -93,8 +93,8 @@ jobs:
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
         - /mnt/dockercache:/mnt/dockercache
         # Multihost: MPI hostfile and SSH agent socket for controller→worker SSH.
-        - /etc/mpirun:/etc/mpirun:ro
-        - /var/run/mpirun:/var/run/mpirun:ro
+        - /etc/mpirun:/etc/mpirun
+        - /var/run/mpirun:/var/run/mpirun
 
     steps:
 
