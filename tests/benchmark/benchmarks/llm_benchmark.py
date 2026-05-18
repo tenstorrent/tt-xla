@@ -77,7 +77,20 @@ def setup_model_and_tokenizer(
     if hasattr(model.config, "_experts_implementation"):
         model.config._experts_implementation = "dense"
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    # Support loaders that expose a processor (e.g. VL models) rather than a
+    # bare tokenizer.  processor.tokenizer provides the same interface that the
+    # rest of the harness expects (callable, .batch_decode, .pad_token_id, …).
+    if hasattr(model_loader, "tokenizer"):
+        tokenizer = model_loader.tokenizer
+    elif hasattr(model_loader, "processor") and hasattr(
+        model_loader.processor, "tokenizer"
+    ):
+        tokenizer = model_loader.processor.tokenizer
+    else:
+        raise AttributeError(
+            f"{type(model_loader).__name__!r} exposes neither 'tokenizer' nor "
+            "'processor.tokenizer'.  The harness cannot extract a tokenizer."
+        )
 
     return model, tokenizer
 
@@ -369,10 +382,20 @@ def benchmark_llm_torch_xla(
             hf_model_name=hf_model_name_for_accuracy,
         )
 
+    # For VL/multimodal models the cache-relevant config (num_key_value_heads,
+    # hidden_size, etc.) lives on the nested language_model, not on the
+    # top-level composite config.  Using the wrong config causes a shape
+    # mismatch between StaticCache and the actual key_states tensors.
+    lm_config = (
+        model.language_model.config
+        if hasattr(model, "language_model")
+        else model.config
+    )
+
     # Construct inputs, including static cache
     input_args = construct_inputs(
         tokenizer,
-        model.config,
+        lm_config,
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
@@ -506,7 +529,7 @@ def benchmark_llm_torch_xla(
         # Construct inputs for warmup run
         input_args = construct_inputs(
             tokenizer,
-            model.config,
+            lm_config,
             batch_size,
             max_cache_len,
             input_prompt=custom_input_prompt,
@@ -541,7 +564,7 @@ def benchmark_llm_torch_xla(
     # Reconstruct inputs for the perf benchmark run
     input_args = construct_inputs(
         tokenizer,
-        model.config,
+        lm_config,
         batch_size,
         max_cache_len,
         past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
@@ -599,7 +622,7 @@ def benchmark_llm_torch_xla(
     # Reconstruct inputs for PCC/TOPK run
     input_args = construct_inputs(
         tokenizer,
-        model.config,
+        lm_config,
         batch_size,
         max_cache_len,
         past_key_values=decode_only_cache if decode_only else None,
