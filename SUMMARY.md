@@ -1,29 +1,29 @@
-loader_path: third_party.tt_forge_models.aspire_v4_alt_8b_model_stock_gguf.causal_lm.pytorch.loader
-variant_id: Aspire_V4_ALT_8B_Model_Stock_GGUF
+loader_path: third_party.tt_forge_models.bimedix2_gguf.causal_lm.pytorch.loader
+variant_id: 8B_i1_GGUF
 arch: p150
 status: DONE_PASS
-test_function: test_aspire_v4_alt_8b_model_stock_gguf
-samples_per_second: 33.11
-ttft_ms: 307.494809
-prefill_pcc: 0.998990
-first_decode_pcc: 0.998527
-top_perf_samples_per_sec: 42.5800
-pct_of_target: 77.8
+test_function: test_bimedix2_8b_i1_gguf
+samples_per_second: 33.18
+ttft_ms: 309.57
+prefill_pcc: 0.998954
+first_decode_pcc: 0.998410
+top_perf_samples_per_sec: 42.5786
+pct_of_target: 77.9
 roofline_bound: dram
 optimization_level: 2
 trace_enabled: true
-experimental_weight_dtype: "bfp_bf8"
+experimental_weight_dtype: bfp_bf8
 failure_reason: null
 
-# Benchmark added: test_aspire_v4_alt_8b_model_stock_gguf
+# Benchmark added: test_bimedix2_8b_i1_gguf
 
 ## Test
-tests/benchmark/test_llms.py::test_aspire_v4_alt_8b_model_stock_gguf
+tests/benchmark/test_llms.py::test_bimedix2_8b_i1_gguf
 
 ## Model
-- HF name:    mradermacher/Aspire_V4_ALT-8B-Model_Stock-i1-GGUF
-- Loader:     third_party.tt_forge_models.aspire_v4_alt_8b_model_stock_gguf.causal_lm.pytorch.loader
-- Variant:    Aspire_V4_ALT_8B_Model_Stock_GGUF
+- HF name:    mradermacher/BiMediX2-8B-hf-i1-GGUF
+- Loader:     third_party.tt_forge_models.bimedix2_gguf.causal_lm.pytorch.loader
+- Variant:    ModelVariant.BIMEDIX2_8B_I1_GGUF
 
 ## Test config landed
 - optimization_level:        2
@@ -34,16 +34,16 @@ tests/benchmark/test_llms.py::test_aspire_v4_alt_8b_model_stock_gguf
 - required_pcc:              0.94
 
 ## Measured (full model, defaults)
-- Sample per second:  33.11
-- TTFT (ms):          307.494809
-- Prefill PCC:        0.998990
-- First decode PCC:   0.998527
-- Wall clock:         0:16:11
+- Sample per second:  33.18
+- TTFT (ms):          309.57
+- Prefill PCC:        0.998954
+- First decode PCC:   0.998410
+- Wall clock:         0:09:33
 - Hardware:           p150
 
 ## Decode roofline (first decode graph, single-chip)
-Source JSON: tt_xla_aspire_v4_alt_8b_model_stock_gguf_perf_metrics_3.json
-Achieved vs top_perf_samples_per_sec: 77.8% (33.11 / 42.58)
+Source JSON: tt_xla_bimedix2_8b_i1_gguf_perf_metrics_3.json
+Achieved vs top_perf_samples_per_sec: 77.9% (33.18 / 42.58)
 
 ### System
 - arch:                        blackhole
@@ -59,8 +59,8 @@ Achieved vs top_perf_samples_per_sec: 77.8% (33.11 / 42.58)
 - hifi4: 220000000000000
 
 ### Compute
-- total_flops:             480298139776
-- breakdown.matmul:        480298139776
+- total_flops:             480314916992
+- breakdown.matmul:        480314916992
 - breakdown.linear:        0
 - breakdown.conv2d:        0
 - breakdown.sparse_matmul: 0
@@ -75,28 +75,28 @@ Achieved vs top_perf_samples_per_sec: 77.8% (33.11 / 42.58)
 - memory_gb:    0.5
 
 ### Params
-- count:                  8030261443
-- effective_count:        7504924867
-- memory_bytes:           9024905992
-- memory_gb:              8.4050986841321
-- effective_memory_bytes: 7974232840
-- effective_memory_gb:    7.426583059132099
-- embedding_count:        525336576
-- embedding_memory_bytes: 1050673152
+- count:                  8030785731
+- effective_count:        7505187011
+- memory_bytes:           9025708808
+- memory_gb:              8.405846364796162
+- effective_memory_bytes: 7974511368
+- effective_memory_gb:    7.426842458546162
+- embedding_count:        525598720
+- embedding_memory_bytes: 1051197440
 
 ### Roofline
 - bound:                    dram
-- top_perf_samples_per_sec: 42.5800
-- top_perf_time_ms:         23.4852
-- dram_time_ms:             15.6568
+- top_perf_samples_per_sec: 42.5786
+- top_perf_time_ms:         23.4860
+- dram_time_ms:             15.6573
 - compute_time_ms_lofi:     0.5458
 - compute_time_ms_hifi2:    1.0916
 - compute_time_ms_hifi3:    1.6374
 - compute_time_ms_hifi4:    2.1832
 
 ## Files changed
-- tests/benchmark/test_llms.py (added test_aspire_v4_alt_8b_model_stock_gguf)
-- tests/benchmark/benchmarks/llm_benchmark.py (added hasattr guard for get_weight_dtype_config_path)
+- tests/benchmark/test_llms.py
+- .github/workflows/perf-bench-matrix.json
 
 ## tt-forge-models submodule
 no change
