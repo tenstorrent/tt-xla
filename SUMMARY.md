@@ -1,70 +1,103 @@
-loader_path: third_party.tt_forge_models.claude2_alpaca_13b_gguf.causal_lm.pytorch.loader
-variant_id: 13B_GGUF
+loader_path: third_party.tt_forge_models.deepseek_r1_distill_nsfw_rpv1_gguf.causal_lm.pytorch.loader
+variant_id: Distill_NSFW_RPv1_GGUF
 arch: p150
-status: DONE_FAIL
-test_function: test_claude2_alpaca_13b_gguf
-samples_per_second: 12.826982366001024
-ttft_ms: 390.3101
-prefill_pcc: 0.997294
-first_decode_pcc: 0.467600
-top_perf_samples_per_sec: 22.7801
-pct_of_target: 56.3
+status: DONE_PASS
+test_function: test_deepseek_r1_distill_nsfw_rpv1_gguf
+samples_per_second: 33.679225862983756
+ttft_ms: 306.122928
+prefill_pcc: 0.997470
+first_decode_pcc: 0.996729
+top_perf_samples_per_sec: 42.5800
+pct_of_target: 79.1
 roofline_bound: dram
-optimization_level: 1
-trace_enabled: false
-experimental_weight_dtype: bfp_bf8
-failure_reason: "First decode PCC failed across all optimization levels: opt=2 Fatal Python Bus error during warmup, opt=1 decode PCC=0.4676 (required 0.94), opt=0 decode PCC denominator=zero error"
+optimization_level: 2
+trace_enabled: true
+experimental_weight_dtype: "bfp_bf8"
+failure_reason: null
 
-# Benchmark: test_claude2_alpaca_13b_gguf (p150)
+# Benchmark added: test_deepseek_r1_distill_nsfw_rpv1_gguf
+
+## Test
+tests/benchmark/test_llms.py::test_deepseek_r1_distill_nsfw_rpv1_gguf
 
 ## Model
-- **Loader**: `third_party.tt_forge_models.claude2_alpaca_13b_gguf.causal_lm.pytorch.loader`
-- **Variant**: `13B_GGUF`
-- **HF Model**: TheBloke/claude2-alpaca-13B-GGUF (Q4_K_M quantization)
-- **Architecture**: LLaMA-2 13B (40 layers)
-- **Test function**: `test_claude2_alpaca_13b_gguf`
+- HF name:    mradermacher/Deepseek-R1-Distill-NSFW-RPv1-GGUF
+- Loader:     third_party.tt_forge_models.deepseek_r1_distill_nsfw_rpv1_gguf.causal_lm.pytorch.loader
+- Variant:    Distill_NSFW_RPv1_GGUF
 
-## Result: DONE_FAIL
+## Test config landed
+- optimization_level:        2
+- trace_enabled:             true
+- experimental_weight_dtype: "bfp_bf8"
+- batch_size:                32
+- input_sequence_length:     128
+- required_pcc:              0.94
 
-The model consistently fails first decode PCC across all optimization levels on p150.
-Prefill PCC passes at all tested levels, but the first decode step produces wrong results.
+## Measured (full model, defaults)
+- Sample per second:  33.679225862983756
+- TTFT (ms):          306.122928
+- Prefill PCC:        0.997470
+- First decode PCC:   0.996729
+- Wall clock:         0:09:55
+- Hardware:           p150
 
-## Performance (optimization_level=1, trace_enabled=False)
-- **Samples per second**: 12.83
-- **TTFT (ms)**: 390.31
-- **Roofline (top_perf_samples_per_sec)**: 22.78
-- **% of roofline target**: 56.3%
-- **Roofline bound**: DRAM
-- **Prefill PCC**: 0.9973 ✓ (required 0.94)
-- **First decode PCC**: 0.4676 ✗ (required 0.94)
+## Decode roofline (first decode graph, single-chip)
+Source JSON: tt_xla_deepseek_r1_distill_nsfw_rpv1_gguf_perf_metrics_1.json
+Achieved vs top_perf_samples_per_sec: 79.1%
 
-## Optimization Level Sweep (all with trace_enabled=False, bfp_bf8)
+### System
+- arch:                        blackhole
+- chip_count_in_system_desc:   1
+- single_chip_assumption:      True
+- worker_grid_cores:           110
+- dram_bandwidth_bytes_per_sec: 512000000000
 
-| optimization_level | Result                              |
-|--------------------|-------------------------------------|
-| 0                  | FAIL: decode PCC denominator=0 error |
-| 1                  | FAIL: decode PCC=0.4676 < 0.94      |
-| 2                  | CRASH: Fatal Python Bus error during warmup |
+### Peak FLOPs
+- lofi:  880000000000000
+- hifi2: 440000000000000
+- hifi3: 293333333333333
+- hifi4: 220000000000000
 
-## 1-layer Sanity Check
-- `--num-layers 1`, opt=2, trace=False: **PASSED** (Prefill PCC=0.9990, Decode PCC=0.9620)
-- The 1-layer test passes, confirming model loads and compiles correctly
-- Full 40-layer model fails decode PCC, suggesting KV-cache or memory issue in decode path
+### Compute
+- total_flops:             480298139776
+- breakdown.matmul:        480298139776
+- breakdown.linear:        0
+- breakdown.conv2d:        0
+- breakdown.sparse_matmul: 0
 
-## Hardware
-- Device: Blackhole p300c (single chip, p150 arch)
-- Chip count: 1
-- DRAM bandwidth: 512 GB/s
+### Inputs
+- count:        33
+- memory_bytes: 132
 
-## Configuration (hard-coded in test)
-```python
-optimization_level=1
-trace_enabled=False  # Trace disabled: Bus error during warmup with trace=True on full 40-layer model
-experimental_weight_dtype=bfp_bf8  # default
-```
+### KV cache
+- count:        268435456
+- memory_bytes: 536870912
+- memory_gb:    0.5
 
-## Roofline Analysis (from extract_perf_targets.py)
-- Total parameters: 13.0B (effective: 12.9B)
-- KV cache memory: 3.125 GB
-- Model weights memory (bf16): 24.24 GB
-- Decode bound: DRAM (dram_time=29.27ms, top_perf=22.78 S/s)
+### Params
+- count:                  8030261443
+- effective_count:        7504924867
+- memory_bytes:           9024905992
+- memory_gb:              8.4050986841321
+- effective_memory_bytes: 7974232840
+- effective_memory_gb:    7.426583059132099
+- embedding_count:        525336576
+- embedding_memory_bytes: 1050673152
+
+### Roofline
+- bound:                    dram
+- top_perf_samples_per_sec: 42.5800
+- top_perf_time_ms:         23.4852
+- dram_time_ms:             15.6568
+- compute_time_ms_lofi:     0.5458
+- compute_time_ms_hifi2:    1.0916
+- compute_time_ms_hifi3:    1.6374
+- compute_time_ms_hifi4:    2.1832
+
+## Files changed
+- tests/benchmark/test_llms.py
+- tests/benchmark/benchmarks/llm_benchmark.py
+- .github/workflows/perf-bench-matrix.json
+
+## tt-forge-models submodule
+no change
