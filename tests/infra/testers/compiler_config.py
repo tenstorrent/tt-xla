@@ -34,6 +34,11 @@ class CompilerConfig:
     # Enables experimental KV cache dtype override in MLIR optimizer passes.
     experimental_kv_cache_dtype: Optional[str] = None
 
+    # Enable activation dtype lowering around CCL ops in matmul-driven
+    # sub-graphs (QKV->RoPE, O-proj+residual, MLP, LM-head+argmax). Default
+    # off until PCC validated per model.
+    enable_activation_dtype_lowering: bool = False
+
     # Override math fidelity for all ttnn operations exposing compute kernel
     # config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
     # "ttnn_default" - means that we don't override math_fidelity in comiler,
@@ -98,6 +103,9 @@ class CompilerConfig:
 
         if self.experimental_kv_cache_dtype is not None:
             options["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
+
+        if self.enable_activation_dtype_lowering:
+            options["enable_activation_dtype_lowering"] = "true"
 
         if self.math_fidelity is not None:
             options["math_fidelity"] = self.math_fidelity

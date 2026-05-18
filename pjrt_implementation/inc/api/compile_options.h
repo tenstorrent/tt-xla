@@ -44,6 +44,12 @@ struct CompileOptions {
   // Enables experimental KV cache dtype override.
   std::optional<std::string> experimental_kv_cache_dtype = std::nullopt;
 
+  // Enable activation dtype lowering around CCL ops (matmul -> reduce_scatter
+  // / all_gather -> consumer). Pattern-matches Llama-style sub-graphs
+  // (QKV->RoPE, O-proj+residual, MLP, LM-head+argmax). Default off; flip on
+  // per-model after PCC validation.
+  bool enable_activation_dtype_lowering = false;
+
   // Override math fidelity for all ttnn operations exposing compute kernel
   // config. Valid values: "lofi", "hifi2", "hifi3", "hifi4", "ttnn_default".
   // "ttnn_default" - means that we don't override math_fidelity in comiler,
