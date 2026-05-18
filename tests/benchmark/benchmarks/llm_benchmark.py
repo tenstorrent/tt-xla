@@ -77,7 +77,17 @@ def setup_model_and_tokenizer(
     if hasattr(model.config, "_experts_implementation"):
         model.config._experts_implementation = "dense"
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    # Some VLM loaders expose a processor instead of a tokenizer. Use
+    # processor.tokenizer when available so callers get a plain tokenizer
+    # with the standard pad_token/eos_token interface; fall back to the
+    # processor itself which is also callable for text-only tokenisation.
+    if hasattr(model_loader, "tokenizer"):
+        tokenizer = model_loader.tokenizer
+    elif hasattr(model_loader, "processor") and model_loader.processor is not None:
+        proc = model_loader.processor
+        tokenizer = getattr(proc, "tokenizer", proc)
+    else:
+        tokenizer = None
 
     return model, tokenizer
 
@@ -477,7 +487,13 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        # Loaders that don't implement get_weight_dtype_config_path (e.g. VLM
+        # loaders) simply skip per-tensor dtype override auto-discovery.
+        weight_dtype_config = (
+            model_loader.get_weight_dtype_config_path()
+            if hasattr(model_loader, "get_weight_dtype_config_path")
+            else None
+        )
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
             logger.info(

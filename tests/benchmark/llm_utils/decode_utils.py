@@ -119,13 +119,20 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # For VL models the top-level config wraps a language-model sub-config.
+    # Use get_text_config() when available so that LM-specific attributes
+    # (hidden_size, num_attention_heads, …) are always present.
+    text_config = (
+        config.get_text_config() if hasattr(config, "get_text_config") else config
+    )
+
+    if hasattr(text_config, "head_dim") and getattr(text_config, "head_dim"):
+        head_dim = text_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = text_config.hidden_size // text_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        text_config, "num_key_value_heads", text_config.num_attention_heads
     )
 
     static_cache = StaticCache(
