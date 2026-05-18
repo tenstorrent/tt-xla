@@ -1,0 +1,103 @@
+loader_path: third_party.tt_forge_models.babylm_baseline_10m_gpt2.causal_lm.pytorch.loader
+variant_id: 10M
+arch: p150
+status: DONE_PASS
+test_function: test_babylm_baseline_10m_gpt2
+samples_per_second: 170.07
+ttft_ms: 80.97
+prefill_pcc: 0.999742
+first_decode_pcc: 0.999909
+top_perf_samples_per_sec: 1911.73
+pct_of_target: 8.9
+roofline_bound: dram
+optimization_level: 2
+trace_enabled: true
+experimental_weight_dtype: "bfp_bf8"
+failure_reason: null
+
+# Benchmark added: test_babylm_baseline_10m_gpt2
+
+## Test
+tests/benchmark/test_llms.py::test_babylm_baseline_10m_gpt2
+
+## Model
+- HF name:    BabyLM-community/babylm-baseline-10m-gpt2
+- Loader:     third_party.tt_forge_models.babylm_baseline_10m_gpt2.causal_lm.pytorch.loader
+- Variant:    ModelVariant.BABYLM_BASELINE_10M_GPT2 (= "10M")
+
+## Test config landed
+- optimization_level:        2
+- trace_enabled:             true
+- experimental_weight_dtype: "bfp_bf8"
+- batch_size:                32
+- input_sequence_length:     128
+- required_pcc:              0.94
+
+## Measured (full model, defaults)
+- Sample per second:  170.07
+- TTFT (ms):          80.97
+- Prefill PCC:        0.999742
+- First decode PCC:   0.999909
+- Wall clock:         0:02:08
+- Hardware:           p150
+
+## Decode roofline (first decode graph, single-chip)
+Source JSON: tt_xla_babylm_baseline_10m_gpt2_perf_metrics_0.json
+Achieved vs top_perf_samples_per_sec: 8.9% (170.07 / 1911.73)
+
+### System
+- arch:                        blackhole
+- chip_count_in_system_desc:   1
+- single_chip_assumption:      True
+- worker_grid_cores:           110
+- dram_bandwidth_bytes_per_sec: 512000000000
+
+### Peak FLOPs
+- lofi:  880000000000000
+- hifi2: 440000000000000
+- hifi3: 293333333333333
+- hifi4: 220000000000000
+
+### Compute
+- total_flops:             118631792640
+- breakdown.matmul:        15300820992
+- breakdown.linear:        103330971648
+- breakdown.conv2d:        0
+- breakdown.sparse_matmul: 0
+
+### Inputs
+- count:        627
+- memory_bytes: 2508
+
+### KV cache
+- count:        75497472
+- memory_bytes: 150994944
+- memory_gb:    0.140625
+
+### Params
+- count:                  111008388
+- effective_count:        97639044
+- memory_bytes:           130760204
+- memory_gb:              0.12177992984652519
+- effective_memory_bytes: 104021516
+- effective_memory_gb:    0.09687758609652519
+- embedding_count:        13369344
+- embedding_memory_bytes: 26738688
+
+### Roofline
+- bound:                    dram
+- top_perf_samples_per_sec: 1911.7278
+- top_perf_time_ms:         0.5231
+- dram_time_ms:             0.3487
+- compute_time_ms_lofi:     0.1348
+- compute_time_ms_hifi2:    0.2696
+- compute_time_ms_hifi3:    0.4044
+- compute_time_ms_hifi4:    0.5392
+
+## Files changed
+- tests/benchmark/test_llms.py (new test function test_babylm_baseline_10m_gpt2)
+- tests/benchmark/benchmarks/llm_benchmark.py (fix: guard get_weight_dtype_config_path with hasattr)
+- .github/workflows/perf-bench-matrix.json (added babylm_baseline_10m_gpt2 entry)
+
+## tt-forge-models submodule
+no change
