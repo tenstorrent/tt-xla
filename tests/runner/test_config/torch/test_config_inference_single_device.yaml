@@ -1434,8 +1434,7 @@ test_config:
     status: EXPECTED_PASSING
 
   bi_lstm_crf/pytorch-Default-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+    status: EXPECTED_PASSING
 
   flux/pytorch-Schnell-single_device-inference:
     supported_archs: ["p150"]
@@ -2070,9 +2069,11 @@ test_config:
   transfuser/pytorch-single_device-inference:
     arch_overrides:
         n150:
-          status: EXPECTED_PASSING
+          status: KNOWN_FAILURE_XFAIL
+          reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<3x3xf32>, tensor<3xf32>>' - https://github.com/tenstorrent/tt-xla/issues/3878"
         p150:
-          status: EXPECTED_PASSING
+          status: KNOWN_FAILURE_XFAIL
+          reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<3x3xf32>, tensor<3xf32>>' - https://github.com/tenstorrent/tt-xla/issues/3878"
 
   issac_groot/pytorch-Gr00t_N1.5_3B-single_device-inference:
     status: NOT_SUPPORTED_SKIP
