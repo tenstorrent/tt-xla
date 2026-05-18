@@ -117,6 +117,13 @@ static tt_pjrt_status launchDistributedRuntime() {
       std::getenv("TT_DISTRIBUTED_TCP_IFACE");
   // Path to an MPI rankfile, needed for >2 hosts when using a rank binding file
   const char *rank_file_path = std::getenv("TT_DISTRIBUTED_RANK_FILE_PATH");
+  // Fixed TCP port for the controller socket. When set, workers connect to
+  // controller_host_name:PORT instead of a randomly assigned ephemeral port.
+  // Required when the controller runs inside a Docker container with -p
+  // PORT:PORT published, so remote worker nodes can reach it through the host's
+  // network stack.
+  const char *controller_port_str =
+      std::getenv("TT_DISTRIBUTED_CONTROLLER_PORT");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -170,6 +177,10 @@ static tt_pjrt_status launchDistributedRuntime() {
   tt::runtime::DistributedOptions distributed_options;
   distributed_options.mode = tt::runtime::DistributedMode::MultiProcess;
   distributed_options.workerPath = distributed_worker_path;
+  if (controller_port_str) {
+    distributed_options.controllerPort =
+        static_cast<uint16_t>(std::stoul(controller_port_str));
+  }
   distributed_options.multiProcessArgs =
       tt::runtime::MultiProcessArgs::create(rank_binding_path)
           .withAllowRunAsRoot(true)

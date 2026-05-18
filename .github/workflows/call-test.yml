@@ -84,7 +84,7 @@ jobs:
 
     container:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
-      options: --device /dev/tenstorrent --network=host
+      options: --device /dev/tenstorrent -p 14200:14200
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
@@ -244,6 +244,10 @@ jobs:
         echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
         echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
         echo "export TT_METAL_LOGGER_TYPES=Fabric,Always" >> topology_exports.sh
+        # Fix the controller port so it matches the -p 14200:14200 published in
+        # container.options; workers connect to controller_host_name:14200 which
+        # Docker forwards into this container.
+        echo "export TT_DISTRIBUTED_CONTROLLER_PORT=14200" >> topology_exports.sh
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
