@@ -1091,6 +1091,41 @@ def test_llama_3_1_8b(
     )
 
 
+def test_document_validation_qwen2_5_vl_simple_v2_i1_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.document_validation_qwen2_5_vl_simple_v2_i1_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DOCUMENT_VALIDATION_QWEN2_5_VL_SIMPLE_V2_I1_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # optimization_level=1 fails PCC (0.690); optimization_level=2 crashes during MLIR compilation
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 0
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
