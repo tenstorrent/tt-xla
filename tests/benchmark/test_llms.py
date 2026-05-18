@@ -2076,6 +2076,40 @@ def test_kimi_k2_tp_galaxy_2_layers(
     )
 
 
+def test_llama_3_8b_instruct_gradient_1048k_q4_k_m(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama_3_8b_instruct_gradient_1048k_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.CRUSOEAI_LLAMA_3_8B_INSTRUCT_GRADIENT_1048K_Q4_K_M
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 # This test only runs 2 layers so we expect to see incoherent output
 def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     output_file,
