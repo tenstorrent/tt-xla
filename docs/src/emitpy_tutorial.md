@@ -40,6 +40,17 @@ ird reserve --docker-image ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-24-04:la
 
 > **Tip:** The `[additional ird options]` should include your typical IRD configuration like architecture, number of chips, etc.
 
+After the container starts, confirm it matches the source-build prerequisites:
+
+```bash
+cat /etc/os-release
+python3.12 --version
+```
+
+The image must report Ubuntu 24.04 and Python 3.12 before continuing. If either
+check fails, use a TT-XLA IRD image tag that satisfies those prerequisites before
+running `source venv/activate`.
+
 ### Step 2: Clone and Setup TT-XLA
 
 Inside your Docker container, clone the repository:
