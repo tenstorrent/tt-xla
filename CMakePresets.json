@@ -13,6 +13,7 @@
           "CMAKE_C_COMPILER_LAUNCHER": "ccache",
           "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
           "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
+          "TTMLIR_ENABLE_BINDINGS_PYTHON": "ON",
           "TT_RUNTIME_DEBUG": "ON",
           "TTMLIR_BUILD_TYPE": "Debug"
         },
