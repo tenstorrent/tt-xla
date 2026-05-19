@@ -713,6 +713,17 @@
         "runs-on": "n150"
       },
       {
+        "name": "vllm_falcon3_1b_base_opt1",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-1b-base-opt1]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
         "name": "vllm_falcon3_3b_base",
         "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-3b-base]",

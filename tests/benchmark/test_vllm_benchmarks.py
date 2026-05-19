@@ -99,7 +99,8 @@ SINGLE_DEVICE_CONFIGS = [
         ),
         id="opt-125m-batch32-opt1",
         marks=pytest.mark.xfail(
-            reason="tt-mlir MemoryLayoutPropagation::consolidateBeam assert",
+            reason="tt-mlir MemoryLayoutPropagation::consolidateBeam assert "
+            "(regression from tt-mlir uplift #4569); see tt-mlir issue TODO",
             strict=False,
             run=True,
         ),
@@ -113,6 +114,10 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("microsoft/phi-1_5", 1), id="phi-1_5"),
     pytest.param(_config("microsoft/phi-2", 1), id="phi-2"),
     pytest.param(_config("tiiuae/Falcon3-1B-Base", 1), id="falcon3-1b-base"),
+    pytest.param(
+        _config("tiiuae/Falcon3-1B-Base", 1, optimization_level=1),
+        id="falcon3-1b-base-opt1",
+    ),
     pytest.param(_config("tiiuae/Falcon3-3B-Base", 1), id="falcon3-3b-base"),
 ]
 
@@ -121,6 +126,10 @@ TP_CONFIGS = [
     pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 1), id="falcon3-7b-tp"),
     pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 1), id="falcon3-10b-tp"),
     pytest.param(_tp_config("Qwen/Qwen3-8B", 1), id="qwen3-8b-tp"),
+    pytest.param(
+        _tp_config("Qwen/Qwen3-8B", 1, optimization_level=1),
+        id="qwen3-8b-tp-opt1",
+    ),
     pytest.param(_tp_config("Qwen/Qwen3-14B", 1), id="qwen3-14b-tp"),
     pytest.param(_tp_config("Qwen/Qwen3-32B", 1), id="qwen3-32b-tp"),
     pytest.param(
