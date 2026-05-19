@@ -54,6 +54,106 @@ DEFAULT_INPUT_PROMPT = (
 MODULE_EXPORT_PATH = "modules"
 
 
+def maybe_dequantize_model(model: torch.nn.Module) -> torch.nn.Module:
+    """Dequantize a bitsandbytes quantized model to bfloat16 for TT device compatibility.
+
+    BNB NF4/INT8 models cannot be cast via .to(dtype=bfloat16) as the harness
+    requires. This function:
+      1. Replaces all Linear4bit/Linear8bitLt layers with standard nn.Linear
+         layers containing dequantized bfloat16 weights (when BNB layers exist).
+      2. Always resets the model's quantization metadata (quantization_method,
+         hf_quantizer, config.quantization_config, is_loaded_in_4bit/8bit) so
+         that the subsequent model.to(dtype=bfloat16) does not raise
+         "You cannot cast a bitsandbytes model in a new dtype".
+         transformers 5.x checks getattr(self, "quantization_method", None) ==
+         QuantizationMethod.BITS_AND_BYTES before raising, so clearing that
+         attribute is the authoritative fix.
+
+    Args:
+        model: A model that may contain bitsandbytes quantized layers.
+
+    Returns:
+        The model with BNB layers replaced by regular Linear layers (when found),
+        and with quantization metadata cleared so model.to(dtype=...) succeeds.
+    """
+    # Determine whether we should attempt layer replacement (bitsandbytes installed)
+    _bnb_available = False
+    try:
+        from bitsandbytes.nn import Linear4bit, Linear8bitLt
+        import bitsandbytes.functional as F_bnb
+
+        _bnb_available = True
+    except ImportError:
+        pass  # bitsandbytes not installed — skip layer replacement, still reset flags
+
+    if _bnb_available:
+        has_bnb = any(
+            isinstance(m, (Linear4bit, Linear8bitLt)) for m in model.modules()
+        )
+        if has_bnb:
+            logger.info(
+                "BNB quantized model detected — dequantizing to bfloat16 for TT device transfer"
+            )
+            for name, module in list(model.named_modules()):
+                if isinstance(module, Linear4bit):
+                    dq_weight = F_bnb.dequantize_4bit(
+                        module.weight.data, module.weight.quant_state
+                    ).to(torch.bfloat16)
+                    new_linear = torch.nn.Linear(
+                        module.in_features,
+                        module.out_features,
+                        bias=module.bias is not None,
+                    )
+                    new_linear.weight = torch.nn.Parameter(dq_weight)
+                    if module.bias is not None:
+                        new_linear.bias = torch.nn.Parameter(
+                            module.bias.to(torch.bfloat16)
+                        )
+                    parent_name, _, child_name = name.rpartition(".")
+                    parent = (
+                        model
+                        if parent_name == ""
+                        else model.get_submodule(parent_name)
+                    )
+                    setattr(parent, child_name, new_linear)
+                elif isinstance(module, Linear8bitLt):
+                    dq_weight = module.weight.dequantize().to(torch.bfloat16)
+                    new_linear = torch.nn.Linear(
+                        module.in_features,
+                        module.out_features,
+                        bias=module.bias is not None,
+                    )
+                    new_linear.weight = torch.nn.Parameter(dq_weight)
+                    if module.bias is not None:
+                        new_linear.bias = torch.nn.Parameter(
+                            module.bias.to(torch.bfloat16)
+                        )
+                    parent_name, _, child_name = name.rpartition(".")
+                    parent = (
+                        model
+                        if parent_name == ""
+                        else model.get_submodule(parent_name)
+                    )
+                    setattr(parent, child_name, new_linear)
+
+    # Always reset quantization metadata so model.to(dtype=...) does not raise
+    # "You cannot cast a bitsandbytes model in a new dtype".  transformers 5.x
+    # checks getattr(self, "quantization_method", None) ==
+    # QuantizationMethod.BITS_AND_BYTES before raising, so clearing that
+    # attribute is the authoritative fix.
+    if hasattr(model, "quantization_method"):
+        model.quantization_method = None
+    if hasattr(model, "hf_quantizer"):
+        model.hf_quantizer = None
+    if hasattr(model, "config") and hasattr(model.config, "quantization_config"):
+        model.config.quantization_config = None
+    for _flag in ("is_loaded_in_4bit", "is_loaded_in_8bit"):
+        if hasattr(model, _flag):
+            setattr(model, _flag, False)
+
+    return model
+
+
 def setup_model_and_tokenizer(
     model_loader, model_variant
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
@@ -358,6 +458,11 @@ def benchmark_llm_torch_xla(
     model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
+    # Dequantize bitsandbytes quantized models to bfloat16 before any CPU
+    # reference runs so that both the CPU golden and the TT device see the
+    # same float weights.  This is a no-op for non-quantized models.
+    model = maybe_dequantize_model(model)
+
     # Initialize accuracy testing if enabled
     token_accuracy = None
     custom_input_prompt = None
@@ -477,7 +582,9 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        # Not all loaders implement get_weight_dtype_config_path; guard with hasattr.
+        get_wdtype_fn = getattr(model_loader, "get_weight_dtype_config_path", None)
+        weight_dtype_config = get_wdtype_fn() if get_wdtype_fn is not None else None
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
             logger.info(
