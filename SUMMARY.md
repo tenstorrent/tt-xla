@@ -96,7 +96,10 @@ Achieved vs top_perf_samples_per_sec: 79.5% (33.84 / 42.58)
 
 ## Files changed
 - tests/benchmark/test_llms.py
+- tests/benchmark/benchmarks/llm_benchmark.py (infrastructure fix: guard get_weight_dtype_config_path with hasattr check, matching dynamic_torch_model_tester.py pattern)
 - .github/workflows/perf-bench-matrix.json
+- third_party/tt_forge_models (submodule advanced to include llama_3_elyza_jp_8b_gguf loader)
 
 ## tt-forge-models submodule
-no change
+e42c28a07d → 7405dbc59b212513189094848fa4cdff173c561b
+Advanced to HEAD of origin/arch-c-36-tt-xla-dev/nsmith/2026-04-22_16-58/hf-bringup-20 to include llama_3_elyza_jp_8b_gguf causal LM loader
