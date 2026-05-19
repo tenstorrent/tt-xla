@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable, Mapping, Optional, Sequence
 
+import jax
 from flax import nnx
 from infra.utilities import Framework, Model, ShardingMode
 from jax.sharding import Mesh, PartitionSpec
@@ -92,7 +93,7 @@ class JaxMultichipWorkload(Workload):
     def execute(self) -> Any:
         if isinstance(self.model, nnx.Module):
             self.set_nnx_model_mesh_recursive(self._device_mesh)
-            with self.device_mesh:
+            with jax.set_mesh(self.device_mesh):
                 return super().execute()
         else:
             return super().execute()
