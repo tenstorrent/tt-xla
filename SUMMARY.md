@@ -12,8 +12,8 @@ pct_of_target: null
 roofline_bound: null
 optimization_level: 2
 trace_enabled: true
-experimental_weight_dtype: bfp_bf8
-failure_reason: "LFM2 model uses Lfm2HybridConvCache (hybrid SSM/attention cache with conv_cache attribute) which is incompatible with the StaticCache used by the benchmark harness; AttributeError: 'StaticCache' object has no attribute 'conv_cache' during CPU golden forward pass"
+experimental_weight_dtype: "bfp_bf8"
+failure_reason: "AttributeError: 'StaticCache' object has no attribute 'conv_cache' — LFM2 is a hybrid attention-conv model requiring Lfm2HybridConvCache (is_compileable=False); incompatible with static-cache-based benchmarking harness"
 
 # Benchmark added: test_lfm2_5_1_2b_thinking_kimi_v2_distill_gguf
 
@@ -28,7 +28,7 @@ tests/benchmark/test_llms.py::test_lfm2_5_1_2b_thinking_kimi_v2_distill_gguf
 ## Test config landed
 - optimization_level:        2
 - trace_enabled:             true
-- experimental_weight_dtype: bfp_bf8
+- experimental_weight_dtype: "bfp_bf8"
 - batch_size:                32
 - input_sequence_length:     128
 - required_pcc:              0.94
@@ -41,78 +41,34 @@ tests/benchmark/test_llms.py::test_lfm2_5_1_2b_thinking_kimi_v2_distill_gguf
 - Wall clock:         N/A
 - Hardware:           p150
 
-## Failure Details
-The LFM2 model (Liquid Foundation Model 2) uses a hybrid SSM/attention architecture
-that requires `Lfm2HybridConvCache` — a custom cache class with both `conv_cache`
-(for SSM/convolutional recurrence layers) and standard KV cache (for attention layers).
+## Failure detail
+The test fails before reaching the TT device. LFM2 is a hybrid attention + short-convolution
+architecture (similar to RWKV/Mamba-hybrid). Its forward pass requires `Lfm2HybridConvCache`
+(defined in `transformers.models.lfm2.modeling_lfm2`) rather than `StaticCache`.
 
-The benchmark harness (`llm_benchmark.py`) creates and passes a `StaticCache` object,
-which is incompatible: `StaticCache` has no `conv_cache` attribute and does not
-implement the `Lfm2HybridConvCache` interface.
+`Lfm2HybridConvCache` has `is_compileable = False` and uses dynamic key/value concatenation
+(not pre-allocated static tensors). The benchmarking harness calls `init_static_cache` and
+passes the resulting `StaticCache` as `past_key_values`; the model's `Lfm2ShortConv.slow_forward`
+then tries to call `past_key_values.conv_cache[self.layer_idx].copy_(conv_state)`, raising:
 
-Error (CPU golden forward pass):
-  AttributeError: 'StaticCache' object has no attribute 'conv_cache'
-  at transformers/models/lfm2/modeling_lfm2.py:522 in slow_forward()
+    AttributeError: 'StaticCache' object has no attribute 'conv_cache'
 
-Fixing this would require the harness to support model-specific hybrid caches,
-which is out of scope for this skill. The fix belongs in the benchmark infrastructure
-as a general "hybrid SSM/attention model" support path.
+Supporting this model class would require:
+1. A new `init_lfm2_cache` function analogous to `init_static_cache`/`init_mla_cache`
+2. Changes to `construct_inputs` and `benchmark_llm_torch_xla` to select the right cache type
+3. Confirming the model can be traced/compiled with a static conv_cache (the dynamic
+   key/value cache in `Lfm2HybridConvCache` may prevent static graph capture)
+
+This is analogous to `test_mamba_2_8b` (FAILED: MambaConfig has no attribute
+`num_attention_heads`) — non-transformer architectures with non-standard caches
+need dedicated infrastructure support before they can be benchmarked.
 
 ## Decode roofline (first decode graph, single-chip)
-Source JSON: N/A
+Source JSON: N/A — test failed before device execution
 Achieved vs top_perf_samples_per_sec: N/A
 
-### System
-- arch:                        p150
-- chip_count_in_system_desc:   N/A
-- single_chip_assumption:      N/A
-- worker_grid_cores:           N/A
-- dram_bandwidth_bytes_per_sec: N/A
-
-### Peak FLOPs
-- lofi:  N/A
-- hifi2: N/A
-- hifi3: N/A
-- hifi4: N/A
-
-### Compute
-- total_flops:             N/A
-- breakdown.matmul:        N/A
-- breakdown.linear:        N/A
-- breakdown.conv2d:        N/A
-- breakdown.sparse_matmul: N/A
-
-### Inputs
-- count:        N/A
-- memory_bytes: N/A
-
-### KV cache
-- count:        N/A
-- memory_bytes: N/A
-- memory_gb:    N/A
-
-### Params
-- count:                  N/A
-- effective_count:        N/A
-- memory_bytes:           N/A
-- memory_gb:              N/A
-- effective_memory_bytes: N/A
-- effective_memory_gb:    N/A
-- embedding_count:        N/A
-- embedding_memory_bytes: N/A
-
-### Roofline
-- bound:                    N/A
-- top_perf_samples_per_sec: N/A
-- top_perf_time_ms:         N/A
-- dram_time_ms:             N/A
-- compute_time_ms_lofi:     N/A
-- compute_time_ms_hifi2:    N/A
-- compute_time_ms_hifi3:    N/A
-- compute_time_ms_hifi4:    N/A
-
 ## Files changed
-- tests/benchmark/test_llms.py
+- tests/benchmark/test_llms.py (test function added with FAILED comment)
 
 ## tt-forge-models submodule
 no change

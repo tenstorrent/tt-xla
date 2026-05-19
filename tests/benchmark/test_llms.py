@@ -1091,6 +1091,44 @@ def test_llama_3_1_8b(
     )
 
 
+# FAILED: AttributeError: 'StaticCache' object has no attribute 'conv_cache'
+# LFM2 is a hybrid attention-conv model that requires Lfm2HybridConvCache (is_compileable=False);
+# incompatible with the static-cache-based benchmarking harness.
+def test_lfm2_5_1_2b_thinking_kimi_v2_distill_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.lfm2_5_1_2b_thinking_kimi_v2_distill_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LFM2_5_1_2B_THINKING_KIMI_V2_DISTILL_Q4_K_M_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        experimental_weight_dtype=DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE,
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
