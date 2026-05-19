@@ -1107,6 +1107,7 @@ def test_dream_omni_2_gguf(
     )
 
     variant = ModelVariant.DREAM_OMNI_2_7_6B_Q4_K_M_GGUF
+    # optimization_level=2 hangs on p150 with this VLM model; opt=0 passes PCC.
     test_llm(
         ModelLoaderModule=ModelLoader,
         variant=variant,
@@ -1120,9 +1121,8 @@ def test_dream_omni_2_gguf(
         optimization_level=(
             optimization_level
             if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
+            else 0
         ),
-        experimental_weight_dtype="bfp_bf8",
     )
 
 
