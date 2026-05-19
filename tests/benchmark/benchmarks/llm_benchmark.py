@@ -156,6 +156,15 @@ def construct_inputs(
             )
     else:
         static_cache = past_key_values
+        # When a past_key_values is reused (e.g. across warmup → perf-run), the
+        # per-layer cumulative_length still reflects the prior pass. Reset it
+        # here so the new run starts at slot 0 and the prefill graph identity
+        # is preserved. Handles both torch.Tensor and plain-int cumulative_length.
+        for layer in static_cache.layers:
+            if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
+                layer.cumulative_length.zero_()
+            elif hasattr(layer, "cumulative_length"):
+                layer.cumulative_length = 0
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
     cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
 
@@ -545,24 +554,15 @@ def benchmark_llm_torch_xla(
 
         tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the perf benchmark run.
-    existing_cache = (
-        input_args["past_key_values"] if not decode_only else decode_only_cache
-    )
-
-    # Reset cumulative_length to 0 on CPU
-    for layer in existing_cache.layers:
-        if hasattr(layer, "cumulative_length"):
-            if layer.cumulative_length.device.type != "cpu":
-                layer.cumulative_length = layer.cumulative_length.cpu()
-            layer.cumulative_length.zero_()
-
+    # Reconstruct inputs for the perf benchmark run. cumulative_length is reset
+    # inside construct_inputs whenever a past_key_values is reused, so no manual
+    # reset is needed here.
     input_args = construct_inputs(
         tokenizer,
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=existing_cache,
+        past_key_values=(decode_only_cache if decode_only else input_args["past_key_values"]),
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
