@@ -477,7 +477,9 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        # Not all loaders implement get_weight_dtype_config_path; guard with hasattr.
+        get_wdtype_fn = getattr(model_loader, "get_weight_dtype_config_path", None)
+        weight_dtype_config = get_wdtype_fn() if get_wdtype_fn is not None else None
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
             logger.info(
