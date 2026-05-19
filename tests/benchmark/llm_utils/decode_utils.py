@@ -110,6 +110,50 @@ def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> 
         print(f"Dropout modules found: {dropout_count}, any active: {dropout_active}")
 
 
+def _get_config_attr(config, *candidate_attrs):
+    """Return the first matching attribute from config, trying multiple naming conventions.
+
+    Different model architectures use different attribute names for the same
+    concept (e.g. ``num_attention_heads`` vs ``n_heads`` vs ``num_heads``).
+    This helper lets callers express a priority-ordered list of candidates and
+    returns the first one that exists on *config*.  Raises ``AttributeError``
+    if none match.
+    """
+    for attr in candidate_attrs:
+        if hasattr(config, attr):
+            return getattr(config, attr)
+    raise AttributeError(
+        f"{type(config).__name__} has none of the expected attributes: {candidate_attrs}"
+    )
+
+
+def _ensure_standard_config_attrs(config):
+    """Patch missing canonical HuggingFace attribute names onto a non-standard config.
+
+    Some model configs (e.g. HeliosNovaConfig) store the same information under
+    alternative attribute names (``n_layers``, ``n_heads``, ``n_kv_heads``) rather
+    than the canonical names required by transformers utilities such as
+    ``StaticCache``.  This function adds the missing canonical aliases in-place so
+    that downstream code does not need to be aware of each model's naming quirks.
+
+    The mapping is intentionally conservative: we only add an alias when the standard
+    name is *absent* and at least one alternative is *present*, so existing configs
+    that already use the standard names are unaffected.
+    """
+    _canonical_aliases = [
+        ("num_hidden_layers", ["n_layers", "num_layers"]),
+        ("num_attention_heads", ["n_heads", "num_heads"]),
+        ("num_key_value_heads", ["n_kv_heads", "num_kv_heads"]),
+    ]
+    for standard, alternatives in _canonical_aliases:
+        if not hasattr(config, standard):
+            for alt in alternatives:
+                if hasattr(config, alt):
+                    setattr(config, standard, getattr(config, alt))
+                    break
+    return config
+
+
 def init_static_cache(
     *,
     config,
@@ -119,13 +163,23 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
+    # Ensure the config exposes standard HuggingFace attribute names so that
+    # transformers utilities (StaticCache) and our own helpers work regardless
+    # of the model's internal naming conventions.
+    config = _ensure_standard_config_attrs(config)
+
     if hasattr(config, "head_dim") and getattr(config, "head_dim"):
         head_dim = config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        num_attn_heads = _get_config_attr(
+            config, "num_attention_heads", "n_heads", "num_heads"
+        )
+        head_dim = config.hidden_size // num_attn_heads
 
-    num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+    num_key_value_heads = _get_config_attr(
+        config,
+        "num_key_value_heads", "n_kv_heads", "num_kv_heads",
+        "num_attention_heads", "n_heads", "num_heads",
     )
 
     static_cache = StaticCache(
