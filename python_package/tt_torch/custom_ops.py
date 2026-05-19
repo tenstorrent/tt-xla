@@ -331,6 +331,165 @@ def scaled_dot_product_attention(
 
 
 @torch.library.custom_op(
+    "tt::flash_mla_prefill", mutates_args=[], device_types=["xla", "cpu"]
+)
+def flash_mla_prefill(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    value: torch.Tensor = None,
+    attn_mask: torch.Tensor = None,
+    is_causal: bool = True,
+    scale: float = None,
+) -> torch.Tensor:
+    """
+    Multi-head Latent Attention (MLA) prefill, mirroring
+    ttnn.transformer.flash_mla_prefill semantics.
+
+    Shapes:
+        query:               [b, nqh, s, dh_qk]
+        key:                 [b, nkv, s, dh_qk]
+        value (optional):    [b, nkv, s, head_dim_v]. When ``None``, V is taken
+                             from the first ``head_dim_v`` features of ``key``
+                             (the MLA-from-latent path; K and V share the same
+                             compressed latent representation).
+        attn_mask (optional):[b, 1, s, s]. Head broadcasting is implied. Must
+                             be ``None`` when ``is_causal`` is ``True``.
+
+    Args:
+        head_dim_v: head dimension of V. When ``value`` is provided it must
+                    equal ``value.shape[-1]``; when ``value`` is ``None`` it
+                    must be ``<= key.shape[-1]``.
+        is_causal:  Defaults to ``True``.
+        scale:      Defaults to ``1 / sqrt(dh_qk)`` inside the ttnn op.
+
+    Returns:
+        Output of shape [b, nqh, s, head_dim_v] with the same dtype as ``query``.
+    """
+    assert len(query.shape) == 4, "query must be a 4D tensor: [b, nqh, s, dh_qk]."
+    assert len(key.shape) == 4, "key must be a 4D tensor: [b, nkv, s, dh_qk]."
+    assert (
+        key.shape[-1] == query.shape[-1]
+    ), "key and query must have the same head size (dh_qk)."
+    assert (
+        query.shape[0] == key.shape[0]
+    ), "query and key must have the same batch size."
+    assert (
+        query.shape[2] == key.shape[2]
+    ), "query and key must have the same sequence length for MLA prefill."
+    assert (
+        query.shape[1] % key.shape[1] == 0
+    ), "nqh must be divisible by nkv (GQA/MQA/MLA constraint)."
+
+    # The ttnn op requires the Q sequence length to be tile-aligned.
+    assert (
+        query.shape[2] % 32 == 0
+    ), f"query sequence length must be divisible by 32 but got {query.shape[2]}."
+
+    assert (
+        isinstance(head_dim_v, int) and head_dim_v > 0
+    ), f"head_dim_v must be a positive int, got {head_dim_v} ({type(head_dim_v)})."
+
+    if value is not None:
+        assert (
+            len(value.shape) == 4
+        ), "value must be a 4D tensor: [b, nkv, s, head_dim_v]."
+        assert value.shape[:3] == key.shape[:3], (
+            "value's batch/head/seq dims must match key's "
+            f"(value.shape={tuple(value.shape)}, key.shape={tuple(key.shape)})."
+        )
+        assert (
+            value.shape[-1] == head_dim_v
+        ), f"value's last dim ({value.shape[-1]}) must equal head_dim_v ({head_dim_v})."
+    else:
+        assert head_dim_v <= key.shape[-1], (
+            f"head_dim_v ({head_dim_v}) cannot exceed key's head dim "
+            f"({key.shape[-1]}) when value is None."
+        )
+
+    assert query.device == key.device, "query and key must be on the same device."
+    if value is not None:
+        assert (
+            value.device == query.device
+        ), "value must be on the same device as query and key."
+
+    if attn_mask is not None:
+        assert (
+            attn_mask.device == query.device
+        ), "attn_mask must be on the same device as query, key, and value."
+        assert (
+            is_causal == False
+        ), "is_causal cannot be True when attn_mask is provided."
+        assert (
+            attn_mask.shape[0] == query.shape[0]
+        ), "attention mask batch size must match query batch size."
+
+    output_shape = torch.Size(
+        [query.shape[0], query.shape[1], query.shape[2], head_dim_v]
+    )
+
+    if query.device.type == "xla":
+        inputs = [query, key]
+        if value is not None:
+            inputs.append(value)
+        if attn_mask is not None:
+            inputs.append(attn_mask)
+
+        frontend_attributes = {
+            "head_dim_v": str(head_dim_v),
+            "is_causal": str(is_causal),
+            "has_value": str(value is not None),
+            "has_attention_mask": str(attn_mask is not None),
+        }
+        if scale is not None:
+            frontend_attributes["scale"] = str(scale)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.flash_mla_prefill",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif query.device.type == "cpu":
+        # MLA-from-latent: when V is not provided, V is the leading head_dim_v
+        # features of K (K and V share the compressed latent).
+        if value is None:
+            value = key[..., :head_dim_v]
+
+        # The ttnn op handles GQA automatically; enable_gqa=True matches that.
+        return torch.nn.functional.scaled_dot_product_attention(
+            query,
+            key,
+            value,
+            attn_mask,
+            is_causal=is_causal,
+            scale=scale,
+            enable_gqa=True,
+        )
+    else:
+        raise ValueError(f"Unsupported device type: {query.device.type}")
+
+
+@flash_mla_prefill.register_fake
+def flash_mla_prefill_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    value: torch.Tensor = None,
+    attn_mask: torch.Tensor = None,
+    is_causal: bool = True,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros(
+        (query.shape[0], query.shape[1], query.shape[2], head_dim_v),
+        dtype=query.dtype,
+        device=query.device,
+    )
+
+
+@torch.library.custom_op(
     "tt::scaled_dot_product_attention_decode",
     mutates_args=[],
     device_types=["xla", "cpu"],

@@ -125,6 +125,53 @@ def test_tensor_parallel_generation_llmbox_large(
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V2-Lite"])
+@pytest.mark.parametrize("use_2d_mesh", [False])
+def test_tensor_parallel_mla_prefill_only(model_name: str, use_2d_mesh: bool):
+    """Prefill-only smoke test for the MLA attention backend.
+
+    DeepSeek-V2-Lite is the smallest readily-available model that exercises
+    MLAAttention. The TT MLA backend implements prefill but raises
+    NotImplementedError on paged decode, so this test sets ``max_tokens=1``
+    so that the only generated token comes from the prefill logits and the
+    decode path is never invoked.
+
+    Coherence is not asserted (one-token output is below the stopword-ratio
+    sampling window); we only check that prefill produced a non-empty
+    output token without raising.
+    """
+    prompts = [
+        "I like taking walks in the",
+    ]
+    # max_tokens=1 → single generated token from prefill logits; no decode.
+    # temperature=0.0 makes the prefill→sample path deterministic, which
+    # makes diagnosing future regressions easier.
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=1)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.02,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "use_2d_mesh": use_2d_mesh,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    print(f"prompt: {prompts[0]}, output: {output_text!r}")
+    # One-token output is below the coherence helper's _MIN_WORDS gate;
+    # the helper still verifies the output is non-empty.
+    assert_output_coherent(output_text)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],

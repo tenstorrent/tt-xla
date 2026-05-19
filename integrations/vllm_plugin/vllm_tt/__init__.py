@@ -12,6 +12,10 @@ register_backend(
     class_path="vllm_tt.attention.TTAttentionBackend",
 )
 
+# Side-effect import: registers FLASH_ATTN_MLA backend and the OOT
+# TTMultiHeadLatentAttentionWrapper that replaces vLLM's stock MLA layer.
+from . import attention_mla  # noqa: F401, E402
+
 
 def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
