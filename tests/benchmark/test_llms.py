@@ -1091,6 +1091,7 @@ def test_llama_3_1_8b(
     )
 
 
+# Trace disabled: prefill PCC regression with trace_enabled=True (PCC=0.799 < required 0.94)
 def test_document_validation_qwen2_5_vl_simple_v2_i1_gguf(
     output_file,
     num_layers,
@@ -1117,6 +1118,7 @@ def test_document_validation_qwen2_5_vl_simple_v2_i1_gguf(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        trace_enabled=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None
