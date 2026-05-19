@@ -298,6 +298,41 @@ def test_llama_3_2_1b(
     )
 
 
+def test_tiny_random_smollm3(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.tiny_random_smollm3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.TINY_RANDOM_SMOLLM3
+    # optimization_level=0: levels 1 and 2 fail (PCC regression at 1, compiler circular buffer error at 2)
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 0
+        ),
+    )
+
+
 def test_llama_3_2_3b(
     output_file,
     num_layers,
