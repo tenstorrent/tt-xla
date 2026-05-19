@@ -47,6 +47,35 @@ def override_ministral_sliding_window_causal_mask():
     )
 
 
+def override_mistral_sliding_window_causal_mask():
+    """
+    Override mistral's modeling so that its
+    create_sliding_window_causal_mask points to the TT-friendly version.
+
+    This is needed for MistralForCausalLM-based models (e.g. BioMistral)
+    when using TTStaticSlidingWindowLayer, which returns concatenated
+    (existing_cache + new_tokens) tensors during prefill, requiring a
+    wider attention mask than the standard create_sliding_window_causal_mask.
+    """
+    import transformers.models.mistral.modeling_mistral as mistral_mod
+
+    mistral_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
+
+
+def override_all_sliding_window_causal_masks():
+    """
+    Apply the TT-friendly sliding-window causal mask override to all known
+    model families that use sliding window attention.
+
+    Safe to call unconditionally: each function patches a distinct module
+    and is a no-op for model families not present in the current run.
+    """
+    override_gpt_oss_sliding_window_causal_mask()
+    override_olmo3_sliding_window_causal_mask()
+    override_ministral_sliding_window_causal_mask()
+    override_mistral_sliding_window_causal_mask()
+
+
 def override_cache_sliding_window_layers(
     cache: StaticCache,
     max_cache_len: int,
