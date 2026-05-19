@@ -1648,6 +1648,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            batch_size=num_reqs,
+            num_tokens=num_tokens,
         )
 
         layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
@@ -1942,6 +1944,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._precompile_backbone()
             if self.tt_config.decode_only:
                 return
+            return
             self._precompile_mm_encoder()
             self._precompile_select_hidden_states()
             self._precompile_compute_logits()
