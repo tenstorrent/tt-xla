@@ -645,6 +645,41 @@ def test_qwen_3_0_6b(
     )
 
 
+def test_qwen_3_0_6b_gensyn_swarm_amphibious_leaping_bison(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_3_0_6b_gensyn_swarm_amphibious_leaping_bison.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.AMPHIBIOUS_LEAPING_BISON
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        experimental_weight_dtype="bfp_bf8",
+    )
+
+
 def test_qwen_3_1_7b(
     output_file,
     num_layers,
