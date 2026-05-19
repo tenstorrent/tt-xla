@@ -1091,6 +1091,43 @@ def test_llama_3_1_8b(
     )
 
 
+def test_olmo2_1124_7b_dpo(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.olmo2.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.OLMo_2_1124_7B_DPO
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # optimization_level=2 and 1 fail with compiler bug:
+        # 'ttnn.scaled_dot_product_attention' op Query and result must have the same element type
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 0
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
