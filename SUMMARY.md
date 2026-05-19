@@ -3,107 +3,56 @@ variant_id: Simple_V2_i1_GGUF
 arch: p150
 status: DONE_PASS
 test_function: test_document_validation_qwen2_5_vl_simple_v2_i1_gguf
-samples_per_second: 4.19515704026459
-ttft_ms: 1241.081805
-prefill_pcc: 0.992996
-first_decode_pcc: 0.997859
-top_perf_samples_per_sec: 46.04714291796427
-pct_of_target: 9.1
+samples_per_second: 33.407
+ttft_ms: 307
+prefill_pcc: 0.999228
+first_decode_pcc: 0.998096
+top_perf_samples_per_sec: 46.0471
+pct_of_target: 72.5
 roofline_bound: dram
 optimization_level: 2
-trace_enabled: false
+trace_enabled: true
 experimental_weight_dtype: bfp_bf8
 failure_reason: null
 
-# Benchmark added: test_document_validation_qwen2_5_vl_simple_v2_i1_gguf
-
-## Test
-tests/benchmark/test_llms.py::test_document_validation_qwen2_5_vl_simple_v2_i1_gguf
+# Benchmark: test_document_validation_qwen2_5_vl_simple_v2_i1_gguf (p150)
 
 ## Model
-- HF name:    hienphantt161/Document-Validation-Qwen2.5-VL-Simple-V2
-- Loader:     third_party.tt_forge_models.document_validation_qwen2_5_vl_simple_v2_i1_gguf.causal_lm.pytorch.loader
-- Variant:    Simple_V2_i1_GGUF
+- **HuggingFace repo**: hienphantt161/Document-Validation-Qwen2.5-VL-Simple-V2
+- **Architecture**: Qwen2ForCausalLM (7.6B params, extracted from Qwen2_5_VLForConditionalGeneration)
+- **Variant**: Simple_V2_i1_GGUF
+- **Loader**: third_party.tt_forge_models.document_validation_qwen2_5_vl_simple_v2_i1_gguf.causal_lm.pytorch.loader
 
-Note: This model loads the full Qwen2_5_VLForConditionalGeneration (multimodal vision-language model,
-~7.6B params) and extracts the language model component (Qwen2ForCausalLM). The loader
-does not properly restrict layers when num_layers is passed, so all 28 transformer layers
-are used regardless of the num_layers parameter.
+## Test Configuration
+- **optimization_level**: 2 (DEFAULT_OPTIMIZATION_LEVEL)
+- **trace_enabled**: true (DEFAULT_TRACE_ENABLED)
+- **experimental_weight_dtype**: bfp_bf8 (DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE)
+- **batch_size**: 32 (default)
+- **input_sequence_length**: 128 (default)
 
-## Test config landed
-- optimization_level:        2
-- trace_enabled:             false
-- experimental_weight_dtype: bfp_bf8
-- batch_size:                32
-- input_sequence_length:     128
-- required_pcc:              0.94
+## Measured Performance (p150 / blackhole)
+- **Samples per second**: 33.407
+- **TTFT (ms)**: 307
+- **Prefill PCC**: 0.999228 (≥ 0.94 required)
+- **First decode PCC**: 0.998096 (≥ 0.94 required)
 
-## Measured (full model, defaults)
-- Sample per second:  4.19515704026459
-- TTFT (ms):          1241.081805
-- Prefill PCC:        0.992996
-- First decode PCC:   0.997859
-- Wall clock:         0:05:27
-- Hardware:           p150 (blackhole)
+## Roofline Analysis
+- **Theoretical max (DRAM-bound)**: 46.0471 samples/sec
+- **Achieved**: 33.407 samples/sec = **72.5% of roofline**
+- **Bound**: DRAM
+- **Model params**: ~7.6B (effective 7.07B at bfp_bf8)
+- **DRAM bandwidth**: 512 GB/s
 
-Note: low samples/sec (9.1% of roofline) is expected with trace_enabled=False.
-Trace was disabled because a previous investigation found it hung with trace_enabled=True.
-
-## Decode roofline (first decode graph, single-chip)
-Source JSON: tt_xla_document_validation_qwen2_5_vl_simple_v2_i1_gguf_perf_metrics_1.json
-Achieved vs top_perf_samples_per_sec: 9.1%
-
-### System
-- arch:                        blackhole
-- chip_count_in_system_desc:   1
-- single_chip_assumption:      True
-- worker_grid_cores:           110
-- dram_bandwidth_bytes_per_sec: 512000000000
-
-### Peak FLOPs
-- lofi:  880000000000000
-- hifi2: 440000000000000
-- hifi3: 293333333333333
-- hifi4: 220000000000000
-
-### Compute
-- total_flops:             454146600960
-- breakdown.matmul:        424547463168
-- breakdown.linear:        29599137792
-- breakdown.conv2d:        0
-- breakdown.sparse_matmul: 0
-
-### Inputs
-- count:        33
-- memory_bytes: 132
-
-### KV cache
-- count:        117440512
-- memory_bytes: 234881024
-- memory_gb:    0.21875
-
-### Params
-- count:                  7615622790
-- effective_count:        7070625414
-- memory_bytes:           8602865172
-- memory_gb:              8.012042541056871
-- effective_memory_bytes: 7512870420
-- effective_memory_gb:    6.996905822306871
-- embedding_count:        544997376
-- embedding_memory_bytes: 1089994752
-
-### Roofline
-- bound:                    dram
-- top_perf_samples_per_sec: 46.04714291796427
-- top_perf_time_ms:         21.716873982421873
-- dram_time_ms:             14.47791598828125
-- compute_time_ms_lofi:     0.5160756829090909
-- compute_time_ms_hifi2:    1.0321513658181818
-- compute_time_ms_hifi3:    1.5482270487272745
-- compute_time_ms_hifi4:    2.0643027316363636
-
-## Files changed
-- tests/benchmark/test_llms.py
-
-## tt-forge-models submodule
-no change
+## Notes
+- The previous benchmark branch recorded trace_enabled=false with ~4.2 samples/sec (9% of
+  roofline). This was based on a mischaracterized "hang" that was actually a cold-kernel
+  compilation timeout (57 min) from the first run. Subsequent runs with trace=True complete
+  successfully and achieve 72.5% of the DRAM-bound roofline ceiling.
+- The loader extracts Qwen2ForCausalLM from the multimodal Qwen2_5_VLForConditionalGeneration
+  checkpoint because the GGUF qwen2vl architecture is not yet supported by transformers.
+- llm_benchmark.py required a hasattr guard around get_weight_dtype_config_path() since
+  this loader does not implement that method (fixed in this branch).
+- Submodule must be on branch arch-c-36-tt-xla-dev/nsmith/hf-bringup-47
+  (commit 215d1080a2) to see the document_validation_qwen2_5_vl_simple_v2_i1_gguf module.
+- Cold compilation (MLIR→hardware binary) takes ~3-4 hours for full trace_enabled=True run;
+  subsequent warm-process runs reuse the in-memory JIT cache and are faster.

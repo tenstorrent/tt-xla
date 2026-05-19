@@ -1117,7 +1117,6 @@ def test_document_validation_qwen2_5_vl_simple_v2_i1_gguf(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        trace_enabled=False,  # Trace disabled: hung with trace_enabled=True
         optimization_level=(
             optimization_level
             if optimization_level is not None
