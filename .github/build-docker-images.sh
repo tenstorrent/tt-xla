@@ -50,6 +50,7 @@ echo "Docker tag: $DOCKER_TAG"
 REPO=tenstorrent/tt-xla
 BASE_IMAGE_NAME=ghcr.io/$REPO/tt-xla-base-ubuntu-24-04
 CI_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ci-ubuntu-24-04
+MULTIHOST_IMAGE_NAME=ghcr.io/$REPO/tt-xla-multihost-ubuntu-24-04
 IRD_IMAGE_NAME=ghcr.io/$REPO/tt-xla-ird-ubuntu-24-04
 CIBW_IMAGE_NAME=ghcr.io/$REPO/tt-xla-cibuildwheel-manylinux-2-34
 
@@ -93,6 +94,7 @@ build_and_push() {
 
 build_and_push $BASE_IMAGE_NAME .github/Dockerfile base
 build_and_push $CI_IMAGE_NAME .github/Dockerfile ci
+build_and_push $MULTIHOST_IMAGE_NAME .github/Dockerfile multihost
 build_and_push $IRD_IMAGE_NAME .github/Dockerfile ird
 if [ "$dockbuild" == "all" ] || [ "$dockbuild" == "cibuildwheel" ]; then
   echo "Building cibuildwheel image"
@@ -104,3 +106,4 @@ fi
 echo "All images built and pushed successfully"
 # Labeled output consumed by call-build-docker.yml
 echo "DOCKER_IMAGE_CI=$CI_IMAGE_NAME:$DOCKER_TAG"
+echo "DOCKER_IMAGE_MULTIHOST=$MULTIHOST_IMAGE_NAME:$DOCKER_TAG"

@@ -128,6 +128,10 @@ static tt_pjrt_status launchDistributedRuntime() {
   // (e.g. "docker0,lo"). Prevents mpirun from advertising a Docker bridge IP
   // as the HNP address, which remote workers cannot route back to.
   const char *tcp_if_exclude = std::getenv("TT_DISTRIBUTED_TCP_IF_EXCLUDE");
+  // Comma-separated interfaces to restrict MPI OOB and BTL TCP channels to
+  // (e.g. "wg0"). When set, PRTE/mpirun will only use these interfaces,
+  // ensuring it advertises the WireGuard overlay IP as the HNP address.
+  const char *tcp_if_include = std::getenv("TT_DISTRIBUTED_TCP_IF_INCLUDE");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -170,6 +174,10 @@ static tt_pjrt_status launchDistributedRuntime() {
   if (tcp_if_exclude) {
     mca_options["oob_tcp_if_exclude"] = tcp_if_exclude;
     mca_options["btl_tcp_if_exclude"] = tcp_if_exclude;
+  }
+  if (tcp_if_include) {
+    mca_options["oob_tcp_if_include"] = tcp_if_include;
+    mca_options["btl_tcp_if_include"] = tcp_if_include;
   }
 
   std::string rank_binding_path = getRankBindingPath(metal_home);

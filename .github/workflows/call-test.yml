@@ -53,6 +53,11 @@ on:
         required: false
         default: false
         type: boolean
+      docker_image_multihost:
+        description: 'Docker image with WireGuard for multihost jobs (defaults to docker_image)'
+        required: false
+        type: string
+        default: ''
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -83,8 +88,10 @@ jobs:
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
-      image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
-      options: --device /dev/tenstorrent -p 14200:14200
+      image: ${{ !matrix.build.shared-runners && (matrix.build.multihost && (inputs.docker_image_multihost || inputs.docker_image) || inputs.docker_image) || format('harbor.ci.tenstorrent.net/{0}', matrix.build.multihost && (inputs.docker_image_multihost || inputs.docker_image) || inputs.docker_image) }}
+      options: >-
+        --device /dev/tenstorrent
+        ${{ matrix.build.multihost && '--cap-add NET_ADMIN' || '' }}
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
@@ -234,27 +241,27 @@ jobs:
       env:
         HOST_WORKSPACE_PATH: ${{ github.workspace }}
         CONTAINER_WORKSPACE: ${{ steps.strings.outputs.work-dir }}
-        # Workers use the same base image passed to regular test jobs.
-        MULTIHOST_WORKER_IMAGE: ${{ inputs.docker_image }}
+        MULTIHOST_WORKER_IMAGE: ${{ inputs.docker_image_multihost || inputs.docker_image }}
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
+        # Start worker containers AND set up WireGuard overlay network.
+        # The script exits non-zero if any worker fails to start or WireGuard
+        # cannot be configured.
         .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+
         source venv/activate
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
           --script-dir tests/torch/multi_host/experimental > topology_exports.sh
 
-        # Fix the controller port so it matches the -p 14200:14200 published in
-        # container.options; workers connect to controller_host_name:14200 which
-        # Docker forwards into this container.
-        echo "export TT_DISTRIBUTED_CONTROLLER_PORT=14200" >> topology_exports.sh
-        # Forward the SSH agent socket so remote_docker.sh can authenticate when
-        # ttrun.py launches mpirun during the test run.
+        # WireGuard overlay: controller is always reachable at 10.200.0.1 inside
+        # every container, regardless of Docker bridge addressing.
+        echo "export TT_DISTRIBUTED_CONTROLLER_HOST_NAME=10.200.0.1" >> topology_exports.sh
+        # Tell PRTE/MPI to bind exclusively to the WireGuard interface so it
+        # advertises 10.200.0.1 (not the Docker bridge IP) as the HNP address.
+        echo "export TT_DISTRIBUTED_TCP_IF_INCLUDE=wg0" >> topology_exports.sh
+        # Forward the SSH agent socket so remote_docker.sh can authenticate.
         echo "export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock" >> topology_exports.sh
-        # Exclude docker bridge interfaces from MPI OOB and BTL TCP channels so
-        # mpirun advertises the physical NIC IP as the HNP address, not the
-        # unreachable Docker container hostname.
-        echo "export TT_DISTRIBUTED_TCP_IF_EXCLUDE=docker0,lo" >> topology_exports.sh
 
         echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
         echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh

@@ -28,6 +28,9 @@ on:
       docker-image-base:
         description: "Docker base image for running tests"
         value: ${{ jobs.check-if-docker-exist.outputs.docker-image-base || jobs.build-image.outputs.docker-image-base }}
+      docker-image-multihost:
+        description: "Docker image with WireGuard for multihost tests"
+        value: ${{ jobs.check-if-docker-exist.outputs.docker-image-multihost || jobs.build-image.outputs.docker-image-multihost }}
       docker-image-manylinux:
         description: "Built manylinux docker image name"
         value: ${{ jobs.check-if-docker-exist.outputs.docker-image-manylinux || jobs.build-image.outputs.docker-image-manylinux }}
@@ -43,6 +46,7 @@ jobs:
     outputs:
       docker-image: ${{ steps.check.outputs.docker-image }}
       docker-image-base: ${{ steps.check.outputs.docker-image-base }}
+      docker-image-multihost: ${{ steps.check.outputs.docker-image-multihost }}
       docker-image-manylinux: ${{ steps.check.outputs.docker-image-manylinux }}
       tt-mlir-sha: ${{ steps.check.outputs.tt-mlir-sha }}
     steps:
@@ -70,6 +74,7 @@ jobs:
             echo "Docker image already exists: $DOCKER_CI_IMAGE"
             echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
             echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
+            echo "docker-image-multihost=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-multihost-/')" >> "$GITHUB_OUTPUT"
             echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-24-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
           else
             echo "Docker image does not exist, proceeding to build"
@@ -82,6 +87,7 @@ jobs:
     outputs:
       docker-image: ${{ steps.build.outputs.docker-image }}
       docker-image-base: ${{ steps.build.outputs.docker-image-base }}
+      docker-image-multihost: ${{ steps.build.outputs.docker-image-multihost }}
       docker-image-manylinux: ${{ steps.build.outputs.docker-image-manylinux }}
     steps:
       - name: Fix workspace permissions issue
@@ -114,6 +120,7 @@ jobs:
           echo "DOCKER_CI_IMAGE $DOCKER_CI_IMAGE"
           echo "docker-image=$DOCKER_CI_IMAGE" >> "$GITHUB_OUTPUT"
           echo "docker-image-base=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-base-/')" >> "$GITHUB_OUTPUT"
+          echo "docker-image-multihost=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-/-multihost-/')" >> "$GITHUB_OUTPUT"
           echo "docker-image-manylinux=$(echo $DOCKER_CI_IMAGE | sed 's/-ci-ubuntu-24-04/-cibuildwheel-manylinux-2-34/')" >> "$GITHUB_OUTPUT"
 
   set-latest-tag:

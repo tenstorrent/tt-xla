@@ -115,6 +115,23 @@ ENV CCACHE_COMPRESS="true"
 # IRD image
 #============================================================================
 
+#============================================================================
+# Multihost image (CI image + WireGuard for L3 overlay networking)
+#============================================================================
+
+FROM ci as multihost
+SHELL ["/bin/bash", "-c"]
+
+# wireguard-tools provides wg(8) and wg-quick(8); the kernel module ships with
+# Ubuntu 24.04 (linux 6.8+) so no extra DKMS package is required.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wireguard-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+#============================================================================
+# IRD image
+#============================================================================
+
 FROM ghcr.io/tenstorrent/tt-mlir/tt-mlir-ird-ubuntu-24-04:${MLIR_TAG} AS ird
 SHELL ["/bin/bash", "-c"]
 
