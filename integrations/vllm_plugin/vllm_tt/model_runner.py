@@ -1538,6 +1538,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         self.max_num_reqs, dtype=torch.int32, device=self.device
                     )
                     hidden_states = hidden_states[batch_idx, logits_indices, :].unsqueeze(1)
+                    if self.enable_tensor_parallel and self.use_2d_mesh:
+                        xs.mark_sharding(
+                            hidden_states, self.mesh, (None, None, "model")
+                        )
                     logits_indices = torch.zeros(
                         self.max_num_reqs, dtype=torch.int32, device=self.device
                     )
