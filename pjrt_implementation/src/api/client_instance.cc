@@ -124,6 +124,10 @@ static tt_pjrt_status launchDistributedRuntime() {
   // network stack.
   const char *controller_port_str =
       std::getenv("TT_DISTRIBUTED_CONTROLLER_PORT");
+  // Comma-separated interfaces to exclude from MPI OOB and BTL TCP channels
+  // (e.g. "docker0,lo"). Prevents mpirun from advertising a Docker bridge IP
+  // as the HNP address, which remote workers cannot route back to.
+  const char *tcp_if_exclude = std::getenv("TT_DISTRIBUTED_TCP_IF_EXCLUDE");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -162,6 +166,10 @@ static tt_pjrt_status launchDistributedRuntime() {
   std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
   if (plm_rsh_agent) {
     mca_options["plm_rsh_agent"] = plm_rsh_agent;
+  }
+  if (tcp_if_exclude) {
+    mca_options["oob_tcp_if_exclude"] = tcp_if_exclude;
+    mca_options["btl_tcp_if_exclude"] = tcp_if_exclude;
   }
 
   std::string rank_binding_path = getRankBindingPath(metal_home);

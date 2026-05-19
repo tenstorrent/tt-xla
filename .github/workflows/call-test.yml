@@ -251,6 +251,10 @@ jobs:
         # Forward the SSH agent socket so remote_docker.sh can authenticate when
         # ttrun.py launches mpirun during the test run.
         echo "export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock" >> topology_exports.sh
+        # Exclude docker bridge interfaces from MPI OOB and BTL TCP channels so
+        # mpirun advertises the physical NIC IP as the HNP address, not the
+        # unreachable Docker container hostname.
+        echo "export TT_DISTRIBUTED_TCP_IF_EXCLUDE=docker0,lo" >> topology_exports.sh
 
         echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
         echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
