@@ -15,7 +15,7 @@ from third_party.tt_forge_models.krea_realtime_video.pytorch import (
     ModelLoader,
     ModelVariant,
 )
-
+from loguru import logger
 
 @pytest.mark.skip(
     reason="OOM on single device — CausalWanModel exceeds single-chip memory; sharded variant runs"
@@ -24,9 +24,9 @@ def test_transformer():
     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="error: failed to legalize unresolved materialization from ('tensor<0x2xf64>') to ('tensor<0xcomplex<f64>>') that remained live after conversion — https://github.com/tenstorrent/tt-mlir/issues/8291"
-)
+# @pytest.mark.xfail(
+#     reason="error: failed to legalize unresolved materialization from ('tensor<0x2xf64>') to ('tensor<0xcomplex<f64>>') that remained live after conversion — https://github.com/tenstorrent/tt-mlir/issues/8291"
+# )
 def test_transformer_sharded():
     _run(sharded=True)
 
@@ -37,6 +37,9 @@ def _run(sharded: bool):
 
     loader = ModelLoader(ModelVariant.TRANSFORMER)
     model = loader.load_model(dtype_override=torch.bfloat16)
+    
+    logger.info("model={}", model)
+    
     inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     mesh = None
