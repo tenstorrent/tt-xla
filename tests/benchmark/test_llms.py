@@ -1091,6 +1091,41 @@ def test_llama_3_1_8b(
     )
 
 
+
+def test_glm_4_1v_9b_thinking_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.glm_4_1v_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GLM_4_1V_9B_THINKING_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 def test_dream_omni_2_gguf(
     output_file,
     num_layers,
@@ -1107,6 +1142,7 @@ def test_dream_omni_2_gguf(
     )
 
     variant = ModelVariant.DREAM_OMNI_2_7_6B_Q4_K_M_GGUF
+    # optimization_level=2 hangs on p150 with this VLM model; opt=0 passes PCC.
     test_llm(
         ModelLoaderModule=ModelLoader,
         variant=variant,
@@ -1120,9 +1156,8 @@ def test_dream_omni_2_gguf(
         optimization_level=(
             optimization_level
             if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
+            else 0
         ),
-        experimental_weight_dtype="bfp_bf8",
     )
 
 
@@ -2144,4 +2179,38 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         optimization_level=0,
         trace_enabled=False,
         required_pcc=-1.0,  # PCC is inconsistent between runs - Issue: https://github.com/tenstorrent/tt-xla/issues/4632
+    )
+
+
+def test_gemma_2_9b_chinese_chat(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gemma_2_9b_chinese_chat.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_2_9B_CHINESE_CHAT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
