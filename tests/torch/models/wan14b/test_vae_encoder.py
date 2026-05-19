@@ -73,7 +73,9 @@ def _run(resolution: str, sharded: bool):
     inputs_on_device = [x.to(device)]
 
     if use_sharding:
-        for tensor, spec in shard_vae_encoder_specs(wrapper_on_device.vae).items():
+        for tensor, spec in shard_vae_encoder_specs(
+            wrapper_on_device.vae, mesh
+        ).items():
             xs.mark_sharding(tensor, mesh, spec)
 
     compiled = torch.compile(wrapper_on_device, backend="tt")

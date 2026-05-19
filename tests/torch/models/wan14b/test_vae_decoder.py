@@ -23,9 +23,9 @@ from infra.utilities.torch_multichip_utils import enable_spmd
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
+    _disable_tt_torch_function_override,
     _patch_wan_resample_avoid_4d_fold,
     _patch_wan_resample_rep_sentinel,
-    _disable_tt_torch_function_override,
     safe_xla_slicing,
 )
 from .shared import (
@@ -51,6 +51,7 @@ N_RUNS = 3
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_vae_decoder_480p():
     _run(resolution="480p", sharded=False)
@@ -103,7 +104,9 @@ def _run(resolution: str, sharded: bool):
     inputs_on_device = [z.to(device)]
 
     if use_sharding:
-        for tensor, spec in shard_vae_decoder_specs(wrapper_on_device.vae).items():
+        for tensor, spec in shard_vae_decoder_specs(
+            wrapper_on_device.vae, mesh
+        ).items():
             xs.mark_sharding(tensor, mesh, spec)
 
     compiled = torch.compile(wrapper_on_device, backend="tt")
