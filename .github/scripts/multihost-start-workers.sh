@@ -54,11 +54,15 @@ while IFS= read -r line; do
   [[ -z "$host" ]] && continue
 
   ssh $SSH_OPTS -l ubuntu "$host" bash << EOF &
+  set -euo pipefail
   CONTAINER_NAME=ubuntu-host-mapped
-  if docker ps --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
+  # Remove any existing container with this name (running or stopped) so the
+  # subsequent docker run doesn't fail with a name conflict.
+  if docker ps -a --filter "name=^\${CONTAINER_NAME}\$" --format '{{.Names}}' \
      | grep -q "\${CONTAINER_NAME}"; then
-    echo "\$(hostname): container \${CONTAINER_NAME} already running, skipping"
-    exit 0
+    echo "\$(hostname): removing existing container \${CONTAINER_NAME}"
+    docker stop "\${CONTAINER_NAME}" 2>/dev/null || true
+    docker rm "\${CONTAINER_NAME}"
   fi
   docker run --rm -d \\
     --name "\${CONTAINER_NAME}" \\
