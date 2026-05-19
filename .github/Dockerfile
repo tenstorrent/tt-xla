@@ -112,14 +112,10 @@ ENV CCACHE_MAXSIZE="5G"
 ENV CCACHE_COMPRESS="true"
 
 #============================================================================
-# IRD image
-#============================================================================
-
-#============================================================================
 # Multihost image (CI image + WireGuard for L3 overlay networking)
 #============================================================================
 
-FROM ci as multihost
+FROM base as multihost
 SHELL ["/bin/bash", "-c"]
 
 # wireguard-tools provides wg(8) and wg-quick(8); the kernel module ships with
