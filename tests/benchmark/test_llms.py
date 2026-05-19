@@ -847,6 +847,41 @@ def test_qwen_2_5_7b(
     )
 
 
+def test_qwen_2_5_sex_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_2_5_sex_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_2_5_SEX_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        experimental_weight_dtype="",
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1
+        ),
+    )
+
+
 # FAILED: KeyError: "L['self'].model.lifted_tensor_0"
 def test_gemma_1_1_7b(
     output_file, num_layers, request, max_output_tokens, optimization_level
