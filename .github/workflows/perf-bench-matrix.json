@@ -231,6 +231,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_3b"
       },
       {
+        "name": "falcon3_1b_instruct_abliterated_gguf",
+        "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b_instruct_abliterated_gguf"
+      },
+      {
         "name": "tiiuae_falcon3-7b-base",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b"
