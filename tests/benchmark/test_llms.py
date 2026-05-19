@@ -1091,6 +1091,8 @@ def test_llama_3_1_8b(
     )
 
 
+
+# Trace disabled: TTIRToTTNNCommon pipeline fails when compiling logits model for full 32-layer model on p150
 def test_ziadky_velora_crystal_think_v2_q4(
     output_file,
     num_layers,
