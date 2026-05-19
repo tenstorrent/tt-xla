@@ -99,9 +99,8 @@ class CompilerConfig:
         if self.experimental_enable_fusing_conv2d_with_multiply_pattern:
             options["experimental_enable_fusing_conv2d_with_multiply_pattern"] = "true"
 
-        options["experimental_enable_permute_matmul_fusion"] = (
-            "true" if self.experimental_enable_permute_matmul_fusion else "false"
-        )
+        if not self.experimental_enable_permute_matmul_fusion:
+            options["experimental_enable_permute_matmul_fusion"] = "false"
 
         if self.enable_trace:
             options["enable_trace"] = "true"
