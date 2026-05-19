@@ -238,16 +238,19 @@ jobs:
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
         .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+        source venv/activate
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
           --script-dir tests/torch/multi_host/experimental > topology_exports.sh
-        echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
-        echo "export TT_METAL_LOGGER_TYPES=Fabric,Always" >> topology_exports.sh
+
         # Fix the controller port so it matches the -p 14200:14200 published in
         # container.options; workers connect to controller_host_name:14200 which
         # Docker forwards into this container.
         echo "export TT_DISTRIBUTED_CONTROLLER_PORT=14200" >> topology_exports.sh
+
+        echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
+        echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
+        echo "export TT_METAL_LOGGER_TYPES=Fabric,Always" >> topology_exports.sh
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
