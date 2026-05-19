@@ -1,6 +1,9 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
-jax==0.7.1
-jaxlib==0.7.1
+jax==0.9.2
+jaxlib==0.9.2
+# flax<0.12 imports jax._src.core.mutable_array which was removed in jax 0.9.
+# Pinning flax 0.12+ is required for jax 0.9 compatibility.
+flax==0.12.3
 requests
 torch@https://download.pytorch.org/whl/cpu/torch-2.10.0%2Bcpu-cp312-cp312-manylinux_2_28_x86_64.whl
 loguru

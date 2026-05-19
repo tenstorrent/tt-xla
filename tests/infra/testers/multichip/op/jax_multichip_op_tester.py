@@ -134,11 +134,11 @@ class JaxMultichipOpTester(BaseTester):
                     False
                 ), "Serialization/filecheck not supported through JAX multichip op/graph testers yet."
 
-        with self._device_mesh:
+        with jax.set_mesh(self._device_mesh):
             self._compile_for_tt_device(device_workload)
             device_res = self._run_on_multichip_device(device_workload)
 
-        with self._cpu_mesh:
+        with jax.set_mesh(self._cpu_mesh):
             self._compile_for_cpu(cpu_workload)
             cpu_res = self._run_on_multichip_device(cpu_workload)
 
@@ -194,7 +194,7 @@ class JaxMultichipOpTester(BaseTester):
         compiler_options = self._compiler_config.to_jax_compiler_options()
 
         # For multichip, we need to compile the workload first within the device mesh
-        with self._device_mesh:
+        with jax.set_mesh(self._device_mesh):
             self._compile(workload, compiler_options)
 
         # Then serialize using the device runner
