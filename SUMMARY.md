@@ -3,13 +3,13 @@ variant_id: 7B_Instruct_GGUF
 arch: p150
 status: DONE_PASS
 test_function: test_adasearch_qwen2_5_7b_instruct_gguf
-samples_per_second: 4.041006113504318
-ttft_ms: 796.699338
+samples_per_second: 4.042893565013293
+ttft_ms: 797.702866
 prefill_pcc: 0.987598
 first_decode_pcc: 0.991624
 top_perf_samples_per_sec: 46.0472
 pct_of_target: 8.8
-roofline_bound: "dram"
+roofline_bound: dram
 optimization_level: 1
 trace_enabled: true
 experimental_weight_dtype: null
@@ -23,22 +23,22 @@ tests/benchmark/test_llms.py::test_adasearch_qwen2_5_7b_instruct_gguf
 ## Model
 - HF name:    mradermacher/AdaSearch-Qwen2.5-7B-Instruct-GGUF
 - Loader:     third_party.tt_forge_models.adasearch_qwen2_5_7b_instruct_gguf.causal_lm.pytorch.loader
-- Variant:    ModelVariant.ADASEARCH_QWEN2_5_7B_INSTRUCT_GGUF (= "7B_Instruct_GGUF")
+- Variant:    7B_Instruct_GGUF (ModelVariant.ADASEARCH_QWEN2_5_7B_INSTRUCT_GGUF)
 
 ## Test config landed
 - optimization_level:        1
 - trace_enabled:             true
-- experimental_weight_dtype: none (disabled; bfp_bf8 caused first decode PCC < 0.94 at full 28-layer depth)
+- experimental_weight_dtype: none (disabled; GGUF model with Q4_K_M quantization causes PCC regression with bfp_bf8 double-quantization)
 - batch_size:                32
 - input_sequence_length:     128
 - required_pcc:              0.94
 
 ## Measured (full model, defaults)
-- Sample per second:  4.041006113504318
-- TTFT (ms):          796.699338
+- Sample per second:  4.042893565013293
+- TTFT (ms):          797.702866
 - Prefill PCC:        0.987598
 - First decode PCC:   0.991624
-- Wall clock:         0:25:29
+- Wall clock:         0:44:55
 - Hardware:           p150 (blackhole)
 
 ## Decode roofline (first decode graph, single-chip)
@@ -96,7 +96,19 @@ Achieved vs top_perf_samples_per_sec: 8.8% (4.04 / 46.05)
 
 ## Files changed
 - tests/benchmark/test_llms.py (added test_adasearch_qwen2_5_7b_instruct_gguf)
-- tests/benchmark/benchmarks/llm_benchmark.py (general fix: added hasattr guard for get_weight_dtype_config_path)
+- tests/benchmark/benchmarks/llm_benchmark.py (fix: use hasattr guard for get_weight_dtype_config_path)
 
 ## tt-forge-models submodule
 no change
+
+## Notes
+- The GGUF model (Q4_K_M quantization) causes PCC regression when bfp_bf8 is applied on
+  top (double quantization: GGUF already quantized, then bfp_bf8 adds another layer).
+  experimental_weight_dtype="" disables bfp_bf8 to avoid this. As a result, the measured
+  throughput (4.04 samples/sec) is lower than the roofline (46.05 samples/sec) which was
+  computed assuming bfp_bf8 weights.
+- optimization_level=2 also causes decode PCC failure (0.876 vs 0.94 threshold), so
+  optimization_level=1 is used.
+- llm_benchmark.py fix: added hasattr guard before calling get_weight_dtype_config_path()
+  to handle loaders that don't implement this optional method (general fix, not specific
+  to this model).
