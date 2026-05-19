@@ -77,7 +77,20 @@ def setup_model_and_tokenizer(
     if hasattr(model.config, "_experts_implementation"):
         model.config._experts_implementation = "dense"
     model = model.eval()
+    # Some loaders (e.g. GPT2-based) set torch_dtype in config rather than passing it
+    # as a from_pretrained kwarg, so the model loads in float32 despite dtype_override=bfloat16.
+    # Cast to bfloat16 here if the model is float32 — the static KV cache is always
+    # initialized in bfloat16, so a float32 model causes index_copy_ dtype mismatch.
+    # We only cast float32 → bfloat16; quantized models (int8, etc.) are left untouched.
+    first_param_dtype = next(iter(model.parameters())).dtype
+    if first_param_dtype == torch.float32:
+        model = model.to(torch.bfloat16)
     tokenizer = model_loader.tokenizer
+    # Some loaders initialize the tokenizer lazily (only in load_inputs, not load_model).
+    # If tokenizer is still None, try calling _load_tokenizer() if available.
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        model_loader._load_tokenizer()
+        tokenizer = model_loader.tokenizer
 
     return model, tokenizer
 
@@ -477,7 +490,12 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        # Not all loaders implement get_weight_dtype_config_path; guard with hasattr.
+        weight_dtype_config = (
+            model_loader.get_weight_dtype_config_path()
+            if hasattr(model_loader, "get_weight_dtype_config_path")
+            else None
+        )
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
             logger.info(
