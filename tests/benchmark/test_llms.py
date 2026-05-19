@@ -1091,6 +1091,42 @@ def test_llama_3_1_8b(
     )
 
 
+def test_black_goo_recipe_e(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.black_goo_recipe_e.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.BLACK_GOO_RECIPE_E
+    # optimization_level=1 causes low PCC (0.86 vs 0.94 required) due to compiler numerical issue
+    # optimization_level=2 causes TT_THROW: circular buffers clash with L1 buffers
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 0
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
