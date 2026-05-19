@@ -261,6 +261,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_1_7b"
       },
       {
+        "name": "sandlogic_qwen3_1_7b_q4_k_m_gguf",
+        "pyreq": "datasets gguf>=0.10.0 loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_sandlogic_qwen3_1_7b_q4_k_m_gguf"
+      },
+      {
         "name": "qwen_3_4b",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b"
