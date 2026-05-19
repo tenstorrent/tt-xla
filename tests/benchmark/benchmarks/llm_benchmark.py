@@ -72,6 +72,14 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+        # Also update each decoder layer's attention_type to match the config override.
+        # Some models (e.g. Gemma3) set layer.attention_type from config.layer_types[idx]
+        # at __init__ time; without updating these attributes, the model's forward pass
+        # builds position_embeddings only for "full_attention" but the layers still look
+        # up "sliding_attention", causing a KeyError.
+        for module in model.modules():
+            if hasattr(module, "attention_type"):
+                module.attention_type = "full_attention"
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
@@ -477,12 +485,13 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
-        if weight_dtype_config:
-            applied = apply_weight_dtype_overrides(model, weight_dtype_config)
-            logger.info(
-                f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
-            )
+        if hasattr(model_loader, "get_weight_dtype_config_path"):
+            weight_dtype_config = model_loader.get_weight_dtype_config_path()
+            if weight_dtype_config:
+                applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+                logger.info(
+                    f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+                )
 
     # ========================================================
     # PERFORMANCE BENCHMARK
