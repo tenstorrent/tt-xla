@@ -332,6 +332,40 @@ def test_llama_3_2_3b(
     )
 
 
+def test_llama_600m_v4_unigram(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama_600m_v4_unigram.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_600M_V4_UNIGRAM
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1  # optimization_level=2 fails with ttnn.paged_update_cache sharding error
+        ),
+    )
+
+
 def test_gemma_1_1_2b(
     output_file,
     num_layers,
