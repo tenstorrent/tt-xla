@@ -46,18 +46,22 @@ fi
 echo "Starting worker containers on:"
 cat "${WORKER_HOSTFILE}"
 
-# Shell fragment executed on each worker host via mpirun+SSH.
-# Uses single-quotes inside the outer double-quoted heredoc deliberately:
-# the variables are expanded HERE (on the controller) before being sent.
-DOCKER_RUN_CMD="
+SSH_OPTS="-A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+pids=()
+
+while IFS= read -r line; do
+  host=$(awk '{print $1}' <<< "$line")
+  [[ -z "$host" ]] && continue
+
+  ssh $SSH_OPTS -l ubuntu "$host" bash << EOF &
   CONTAINER_NAME=ubuntu-host-mapped
   if docker ps --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
-     | grep -q \"\${CONTAINER_NAME}\"; then
-    echo \"\$(hostname): container \${CONTAINER_NAME} already running, skipping\"
+     | grep -q "\${CONTAINER_NAME}"; then
+    echo "\$(hostname): container \${CONTAINER_NAME} already running, skipping"
     exit 0
   fi
   docker run --rm -d \\
-    --name \"\${CONTAINER_NAME}\" \\
+    --name "\${CONTAINER_NAME}" \\
     --pid=host --network=host \\
     --device /dev/tenstorrent \\
     -v /dev/hugepages:/dev/hugepages \\
@@ -70,14 +74,19 @@ DOCKER_RUN_CMD="
     -v '${HOST_WORKSPACE_PATH}:${CONTAINER_WORKSPACE}' \\
     -w '${CONTAINER_WORKSPACE}' \\
     '${WORKER_IMAGE}' sleep infinity
-  echo \"\$(hostname): container \${CONTAINER_NAME} started\"
-"
+  echo "\$(hostname): container \${CONTAINER_NAME} started"
+EOF
+  pids+=("$!")
+done < "${WORKER_HOSTFILE}"
 
-mpirun --allow-run-as-root \
-  --hostfile "${WORKER_HOSTFILE}" \
-  --mca btl_tcp_if_exclude docker0,lo \
-  --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
-  --tag-output \
-  bash -c "${DOCKER_RUN_CMD}"
+# Wait for all SSH commands and collect failures
+failed=0
+for pid in "${pids[@]}"; do
+  wait "$pid" || failed=$((failed + 1))
+done
+if [[ $failed -gt 0 ]]; then
+  echo "ERROR: $failed worker(s) failed to start" >&2
+  exit 1
+fi
 
 echo "All worker containers started successfully"

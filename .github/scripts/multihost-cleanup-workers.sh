@@ -34,12 +34,21 @@ fi
 echo "Stopping worker containers on:"
 cat "${WORKER_HOSTFILE}"
 
-mpirun --allow-run-as-root \
-  --hostfile "${WORKER_HOSTFILE}" \
-  --mca btl_tcp_if_exclude docker0,lo \
-  --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
-  --tag-output \
-  bash -c "docker stop ubuntu-host-mapped 2>/dev/null || true; docker rm ubuntu-host-mapped 2>/dev/null || true; echo \"\$(hostname): cleaned up\"" \
-  || true
+SSH_OPTS="-A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
+pids=()
+
+while IFS= read -r line; do
+  host=$(awk '{print $1}' <<< "$line")
+  [[ -z "$host" ]] && continue
+
+  ssh $SSH_OPTS -l ubuntu "$host" \
+    'docker stop ubuntu-host-mapped 2>/dev/null || true; docker rm ubuntu-host-mapped 2>/dev/null || true' \
+    && echo "${host}: cleaned up" &
+  pids+=("$!")
+done < "${WORKER_HOSTFILE}"
+
+for pid in "${pids[@]}"; do
+  wait "$pid" || true
+done
 
 echo "Worker container cleanup complete"
