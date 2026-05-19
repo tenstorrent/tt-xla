@@ -497,8 +497,9 @@ test_config:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
-      # - split_query_key_value_and_split_heads.ttnn.mlir # now only appears with optimization level 1
+      - split_query_key_value_and_split_heads.ttnn.mlir
       - layer_norm.ttnn.mlir
+    optimization_level: 1
     markers: [push, nightly]
 
   vit/pytorch-Large-single_device-inference:
