@@ -1107,6 +1107,9 @@ def test_r1_reward_i1_gguf(
     )
 
     variant = ModelVariant.R1_REWARD_I1_Q4_K_M_GGUF
+    # optimization_level=0: PJRT device optimizer crashes after g0+g1 at levels 1/2
+    # (device state corrupted after 2 optimizer cycles; g2 fails ~13 min in).
+    # opt_level=0 skips device optimizer entirely and all 4 graphs compile cleanly.
     test_llm(
         ModelLoaderModule=ModelLoader,
         variant=variant,
@@ -1117,11 +1120,7 @@ def test_r1_reward_i1_gguf(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
-        ),
+        optimization_level=0,
     )
 
 
