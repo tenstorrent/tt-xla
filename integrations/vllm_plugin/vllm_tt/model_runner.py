@@ -1529,7 +1529,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, sampling_metadata
                 )
             else:
-                # fused path: select → compute_logits → structured_decode → sample
+                # fused path: decode_postprocess is compiled only for num_tokens=1.
+                # For prefill (num_tokens > 1), eagerly select the last token per
+                # request outside the compiled function so the shape is always
+                # (max_num_reqs, 1, hsize) — no extra compiled graphs needed.
+                if hidden_states.shape[1] != 1:
+                    batch_idx = torch.arange(
+                        self.max_num_reqs, dtype=torch.int32, device=self.device
+                    )
+                    hidden_states = hidden_states[batch_idx, logits_indices, :].unsqueeze(1)
+                    logits_indices = torch.zeros(
+                        self.max_num_reqs, dtype=torch.int32, device=self.device
+                    )
                 if grammar_output is not None:
                     # prepare_structured_decoding_input only uses logits for shape/device
                     _shape_proxy = hidden_states.new_empty(
@@ -2140,7 +2151,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(self.device)
         bitmasks = self.structured_decode_bitmasks.to(self.device)
-        for num_tokens in self.num_tokens_paddings:
+        # decode always processes exactly 1 token per request, so only num_tokens=1
+        # is needed here. Prefill batches (num_tokens > 1) use the cpu-sample fallback.
+        for num_tokens in [1]:
             for all_greedy in [False, True]:
                 logger.info(
                     "  -- num_tokens: %d, all_greedy: %s", num_tokens, all_greedy
@@ -2189,11 +2202,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 return
             self._precompile_mm_encoder()
             if not self.tt_config.cpu_sampling:
+                # decode_postprocess handles both decode (num_tokens=1) and
+                # prefill (last token pre-selected eagerly before the call).
                 self._precompile_decode_postprocess()
             else:
+                # cpu_sampling: fused decode_postprocess skipped (sampling on CPU);
+                # precompile the device-side graphs separately instead.
                 logger.warning(
-                    "cpu_sampling=True: skipping device sampling precompilation"
+                    "cpu_sampling=True: using separate precompile for select/compute/structured"
                 )
+                self._precompile_select_hidden_states()
+                self._precompile_compute_logits()
+                self._precompile_structured_decoding()
             # TODO(#4387): precompile fails trace-insertion at opt_level=1;
             # skip when trace is on. Paired with the CPU fallback at the
             # runtime call site. Remove both once the compiler bug is fixed.

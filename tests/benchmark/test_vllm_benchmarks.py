@@ -155,6 +155,11 @@ TP_CONFIGS = [
         _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 1),
         id="mistral-small-24b-instruct-2501-tp",
     ),
+    # temp: measure fused decode_postprocess graph count (cpu_sampling=False path)
+    pytest.param(
+        _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
+        id="opt-125m-fused-measure",
+    ),
 ]
 
 
