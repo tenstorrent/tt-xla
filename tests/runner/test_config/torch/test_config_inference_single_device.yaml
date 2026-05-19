@@ -1834,8 +1834,9 @@ test_config:
   d_fine/pytorch-Nano-single_device-inference:
     arch_overrides:
       n150:
-        status: KNOWN_FAILURE_XFAIL
-        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+        status: EXPECTED_PASSING
+        # status: KNOWN_FAILURE_XFAIL
+        # reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
       p150:
         status: KNOWN_FAILURE_XFAIL
         reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.004327041538509983. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
@@ -2654,9 +2655,10 @@ test_config:
     status: EXCLUDE_MODEL # Too large for single chip, run as tensor_parallel instead. Huge weights, need more diskspace.
 
   smolvla/vision_language_action/pytorch-smolvla_base-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "stablehlo.scatter failed to legalize to TTIR - https://github.com/tenstorrent/tt-xla/issues/4044"
+    status: EXPECTED_PASSING
+    # status: KNOWN_FAILURE_XFAIL
+    # bringup_status: FAILED_TTMLIR_COMPILATION
+    # reason: "stablehlo.scatter failed to legalize to TTIR - https://github.com/tenstorrent/tt-xla/issues/4044"
 
   gemma/text_extraction_and_translation/pytorch-Translategemma_4B_IT-single_device-inference:
     status: KNOWN_FAILURE_XFAIL
