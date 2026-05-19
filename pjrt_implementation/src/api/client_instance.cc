@@ -335,6 +335,23 @@ void ClientInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Client_DefaultDeviceAssignment =
       internal::onClientDefaultDeviceAssignment;
   api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
+  api->PJRT_Client_TopologyDescription = internal::onClientTopologyDescription;
+}
+
+TopologyDescription *ClientInstance::getOrCreateTopologyDescription() {
+  if (m_topology_description != nullptr) {
+    return m_topology_description.get();
+  }
+
+  std::vector<DeviceDescription *> descriptions;
+  descriptions.reserve(m_devices_raw.size());
+  for (DeviceInstance *device : m_devices_raw) {
+    descriptions.push_back(&device->getDeviceDescription());
+  }
+
+  m_topology_description = std::make_unique<TopologyDescription>(
+      m_platform_name, m_platform_version, std::move(descriptions));
+  return m_topology_description.get();
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
@@ -945,6 +962,18 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   // Releasing the ownership to the PJRT API caller since the caller is
   // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
   args->buffer = *buffer.release();
+
+  return nullptr;
+}
+
+PJRT_Error *
+onClientTopologyDescription(PJRT_Client_TopologyDescription_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_TopologyDescription");
+
+  TopologyDescription *topology =
+      ClientInstance::unwrap(args->client)->getOrCreateTopologyDescription();
+  args->topology = reinterpret_cast<PJRT_TopologyDescription *>(topology);
 
   return nullptr;
 }

@@ -48,6 +48,8 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
       internal::onLoadedExecutableGetExecutable;
   api->PJRT_LoadedExecutable_AddressableDevices =
       internal::onLoadedExecutableAddressableDevices;
+  api->PJRT_LoadedExecutable_AddressableDeviceLogicalIds =
+      internal::onLoadedExecutableAddressableDeviceLogicalIds;
   api->PJRT_LoadedExecutable_GetDeviceAssignment =
       internal::onLoadedExecutableGetDeviceAssignment;
   api->PJRT_LoadedExecutable_Delete = internal::onLoadedExecutableDelete;
@@ -57,6 +59,21 @@ void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
 
 bool LoadedExecutableInstance::isCompileOnly() const {
   return m_client_instance->isCompileOnly();
+}
+
+const std::vector<PJRT_LogicalDeviceIds> &
+LoadedExecutableInstance::getAddressableDeviceLogicalIds() {
+  if (m_addressable_device_logical_ids.size() == m_addressable_devices.size()) {
+    return m_addressable_device_logical_ids;
+  }
+  m_addressable_device_logical_ids.clear();
+  m_addressable_device_logical_ids.reserve(m_addressable_devices.size());
+  for (size_t i = 0; i < m_addressable_devices.size(); ++i) {
+    m_addressable_device_logical_ids.push_back(
+        PJRT_LogicalDeviceIds{/*replica=*/static_cast<int>(i),
+                              /*partition=*/0});
+  }
+  return m_addressable_device_logical_ids;
 }
 
 bool LoadedExecutableInstance::isDeleted() {
@@ -426,6 +443,25 @@ PJRT_Error *onLoadedExecutableAddressableDevices(
   args->addressable_devices =
       reinterpret_cast<PJRT_Device *const *>(addressable_devices.data());
   args->num_addressable_devices = addressable_devices.size();
+
+  return nullptr;
+}
+
+PJRT_Error *onLoadedExecutableAddressableDeviceLogicalIds(
+    PJRT_LoadedExecutable_AddressableDeviceLogicalIds_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::"
+                    "PJRT_LoadedExecutable_AddressableDeviceLogicalIds");
+
+  LoadedExecutableInstance *loaded_executable =
+      LoadedExecutableInstance::unwrap(args->executable);
+
+  const std::vector<PJRT_LogicalDeviceIds> &logical_ids =
+      loaded_executable->getAddressableDeviceLogicalIds();
+
+  args->addressable_device_logical_ids =
+      const_cast<PJRT_LogicalDeviceIds *>(logical_ids.data());
+  args->num_addressable_device_logical_ids = logical_ids.size();
 
   return nullptr;
 }
