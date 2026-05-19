@@ -1018,6 +1018,40 @@ def test_mistral_7b(
     )
 
 
+def test_llama_2_7b_chat_hf_q4f16_1_mlc(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama_2_7b_chat_hf_q4f16_1_mlc.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_2_7B_CHAT_HF_Q4F16_1_MLC
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 # Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3934)
 def test_ministral_8b(
     output_file,
@@ -2073,6 +2107,39 @@ def test_kimi_k2_tp_galaxy_2_layers(
         optimization_level=0,
         trace_enabled=False,
         required_pcc=-1.0,  # PCC is inconsistent between runs - Issue: https://github.com/tenstorrent/tt-xla/issues/4632
+    )
+
+
+def test_llama_300m_v2_bigram(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama_300m_v2_bigram.causal_lm.pytorch.loader import (
+        ModelLoader,
+    )
+
+    variant = "base"
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
     )
 
 
