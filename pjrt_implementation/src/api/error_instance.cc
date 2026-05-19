@@ -38,6 +38,7 @@ void ErrorInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Error_Destroy = internal::onErrorDestroy;
   api->PJRT_Error_Message = internal::onErrorMessage;
   api->PJRT_Error_GetCode = internal::onErrorGetCode;
+  api->PJRT_Error_ForEachPayload = internal::onErrorForEachPayload;
 }
 
 namespace internal {
@@ -119,6 +120,15 @@ PJRT_Error *onErrorGetCode(PJRT_Error_GetCode_Args *args) {
     args->code = PJRT_Error_Code_UNKNOWN;
   }
 
+  return nullptr;
+}
+
+PJRT_Error *onErrorForEachPayload(PJRT_Error_ForEachPayload_Args *args) {
+  DLOG_F(LOG_DEBUG, "ErrorInstance::PJRT_Error_ForEachPayload");
+
+  // tt-xla errors carry no key/value payloads, so the visitor is not invoked.
+  // Returning success (rather than an "unimplemented" error) breaks the loop
+  // JAX 0.9 enters when probing PJRT_Client_TopologyDescription failures.
   return nullptr;
 }
 

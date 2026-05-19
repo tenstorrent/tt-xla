@@ -20,6 +20,7 @@
 #include "api/loaded_executable_instance.h"
 #include "api/memory_instance.h"
 #include "api/plugin_attributes.h"
+#include "api/topology_description.h"
 #include "utils/logging.h"
 
 namespace tt::pjrt {
@@ -45,6 +46,7 @@ void bindApi(PJRT_Api *api) {
   LoadedExecutableInstance::bindApi(api);
   MemoryInstance::bindApi(api);
   PluginAttributes::bindApi(api);
+  TopologyDescription::bindApi(api);
 }
 
 void bindUndefineds(PJRT_Api *api) {

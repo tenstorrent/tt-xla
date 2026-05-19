@@ -36,6 +36,7 @@ add_library(TTPJRTApi
     "serialized_executable_instance.cc"
     "tensor.cc"
     "tensor_pool.cc"
+    "topology_description.cc"
 )
 
 target_include_directories(TTPJRTApi
