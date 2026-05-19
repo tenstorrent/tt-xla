@@ -2099,7 +2099,7 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
         num_layers=2,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=128,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,  # This test fails prefill + decode with low decode pcc = Issue: https://github.com/tenstorrent/tt-xla/issues/4614
         input_output_sharding_spec=("batch", None),
