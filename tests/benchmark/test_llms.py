@@ -1091,6 +1091,41 @@ def test_llama_3_1_8b(
     )
 
 
+def test_quantfactory_qwen_2_5_sex_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.quantfactory_qwen_2_5_sex_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QUANTFACTORY_QWEN_2_5_SEX_GGUF
+    # optimization_level=2 fails with ttnn.paged_update_cache compiler error
+    # (input_tensor.is_sharded() constraint not met at level 2).
+    # experimental_weight_dtype="" required: model is already GGUF Q4_K_M quantized;
+    # additional bfp_bf8 quantization causes decode PCC to drop below 0.94.
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        experimental_weight_dtype="",
+        optimization_level=1,
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
