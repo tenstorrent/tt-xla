@@ -3,13 +3,13 @@ variant_id: Llama_3_Nectar_DPO_8B
 arch: p150
 status: DONE_PASS
 test_function: test_llama_3_nectar_dpo_8b
-samples_per_second: 33.809
-ttft_ms: 310.228
+samples_per_second: 31.836562132915493
+ttft_ms: 318.160971
 prefill_pcc: 0.998587
 first_decode_pcc: 0.998576
-top_perf_samples_per_sec: 342.5017
-pct_of_target: 9.9
-roofline_bound: compute
+top_perf_samples_per_sec: 42.5800
+pct_of_target: 74.8
+roofline_bound: dram
 optimization_level: 2
 trace_enabled: true
 experimental_weight_dtype: bfp_bf8
@@ -28,22 +28,22 @@ tests/benchmark/test_llms.py::test_llama_3_nectar_dpo_8b
 ## Test config landed
 - optimization_level:        2
 - trace_enabled:             true
-- experimental_weight_dtype: bfp_bf8
+- experimental_weight_dtype: "bfp_bf8"
 - batch_size:                32
 - input_sequence_length:     128
 - required_pcc:              0.94
 
 ## Measured (full model, defaults)
-- Sample per second:  33.809
-- TTFT (ms):          310.228
+- Sample per second:  31.836562132915493
+- TTFT (ms):          318.160971
 - Prefill PCC:        0.998587
 - First decode PCC:   0.998576
-- Wall clock:         0:08:36
+- Wall clock:         0:09:30
 - Hardware:           p150
 
 ## Decode roofline (first decode graph, single-chip)
-Source JSON: tt_xla_llama_3_nectar_dpo_8b_perf_metrics_0.json
-Achieved vs top_perf_samples_per_sec: 9.9% (33.809 / 342.5017)
+Source JSON: tt_xla_llama_3_nectar_dpo_8b_perf_metrics_1.json
+Achieved vs top_perf_samples_per_sec: 74.8% (31.84 / 42.58)
 
 ### System
 - arch:                        blackhole
@@ -59,44 +59,43 @@ Achieved vs top_perf_samples_per_sec: 9.9% (33.809 / 342.5017)
 - hifi4: 220000000000000
 
 ### Compute
-- total_flops:             856443324672
-- breakdown.matmul:        856443324672
+- total_flops:             480298139776
+- breakdown.matmul:        480298139776
 - breakdown.linear:        0
 - breakdown.conv2d:        0
 - breakdown.sparse_matmul: 0
 
 ### Inputs
-- count:        594
-- memory_bytes: 2376
+- count:        33
+- memory_bytes: 132
 
 ### KV cache
-- count:        8388608
-- memory_bytes: 16777216
-- memory_gb:    0.015625
+- count:        268435456
+- memory_bytes: 536870912
+- memory_gb:    0.5
 
 ### Params
-- count:                  1268789443
-- effective_count:        743452867
-- memory_bytes:           1840603912
-- memory_gb:              1.7141959741711617
-- effective_memory_bytes: 789930760
-- effective_memory_gb:    0.7356803491711617
+- count:                  8030261443
+- effective_count:        7504924867
+- memory_bytes:           9024905992
+- memory_gb:              8.4050986841321
+- effective_memory_bytes: 7974232840
+- effective_memory_gb:    7.426583059132099
 - embedding_count:        525336576
 - embedding_memory_bytes: 1050673152
 
 ### Roofline
-- bound:                    compute
-- top_perf_samples_per_sec: 342.5017
-- top_perf_time_ms:         2.9197
-- dram_time_ms:             1.5143
-- compute_time_ms_lofi:     0.9732
-- compute_time_ms_hifi2:    1.9465
-- compute_time_ms_hifi3:    2.9197
-- compute_time_ms_hifi4:    3.8929
+- bound:                    dram
+- top_perf_samples_per_sec: 42.5800
+- top_perf_time_ms:         23.4852
+- dram_time_ms:             15.6568
+- compute_time_ms_lofi:     0.5458
+- compute_time_ms_hifi2:    1.0916
+- compute_time_ms_hifi3:    1.6374
+- compute_time_ms_hifi4:    2.1832
 
 ## Files changed
 - tests/benchmark/test_llms.py
-- tests/benchmark/benchmarks/llm_benchmark.py
 - .github/workflows/perf-bench-matrix.json
 
 ## tt-forge-models submodule
