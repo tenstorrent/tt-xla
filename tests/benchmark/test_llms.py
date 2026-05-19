@@ -1091,6 +1091,40 @@ def test_llama_3_1_8b(
     )
 
 
+def test_wizardlm_1_0_uncensored_llama2_13b_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.wizardlm_1_0_uncensored_llama2_13b_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.WIZARDLM_1_0_UNCENSORED_LLAMA2_13B_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # optimization_level=2 drops first-decode PCC to ~0.9397 (below 0.94 required).
+        optimization_level=(optimization_level if optimization_level is not None else 1),
+        # GGUF model is already Q4_K_M quantized; applying bfp_bf8 on top causes
+        # double-quantization with severe PCC degradation.
+        experimental_weight_dtype="",
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
