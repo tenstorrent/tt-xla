@@ -248,6 +248,9 @@ jobs:
         # container.options; workers connect to controller_host_name:14200 which
         # Docker forwards into this container.
         echo "export TT_DISTRIBUTED_CONTROLLER_PORT=14200" >> topology_exports.sh
+        # Forward the SSH agent socket so remote_docker.sh can authenticate when
+        # ttrun.py launches mpirun during the test run.
+        echo "export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock" >> topology_exports.sh
 
         echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
         echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
