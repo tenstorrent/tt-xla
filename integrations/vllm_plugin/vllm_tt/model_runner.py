@@ -1498,9 +1498,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         local_idx = i - start_index
                         prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
-            hidden_states = self.select_hidden_states(hidden_states, logits_indices)
-            logits = self.compute_logits(hidden_states)
-
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
@@ -1515,17 +1512,51 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
-            if grammar_output is not None:
-                (
+            if self.tt_config.cpu_sampling:
+                # cpu_sampling path: select + compute on device, sample on CPU
+                hidden_states = self.select_hidden_states(hidden_states, logits_indices)
+                logits = self.compute_logits(hidden_states)
+                if grammar_output is not None:
+                    (
+                        require_struct_decoding,
+                        grammar_bitmask_padded,
+                        arange,
+                    ) = self.prepare_structured_decoding_input(logits, grammar_output)
+                    logits = self.structured_decode(
+                        require_struct_decoding, grammar_bitmask_padded, logits, arange
+                    )
+                selected_token_ids = self.sample_from_logits_func(
+                    logits, sampling_metadata
+                )
+            else:
+                # fused path: select → compute_logits → structured_decode → sample
+                if grammar_output is not None:
+                    # prepare_structured_decoding_input only uses logits for shape/device
+                    _shape_proxy = hidden_states.new_empty(
+                        self.max_num_reqs, self.vocab_size
+                    )
+                    require_struct_decoding, grammar_bitmask_padded, bitmasks = (
+                        self.prepare_structured_decoding_input(
+                            _shape_proxy, grammar_output
+                        )
+                    )
+                else:
+                    self.require_structured_out_cpu.zero_()
+                    require_struct_decoding = self.require_structured_out_cpu[
+                        : self.max_num_reqs
+                    ].to(self.device)
+                    grammar_bitmask_padded = self.grammar_bitmask_cpu[
+                        : self.max_num_reqs
+                    ].to(self.device)
+                    bitmasks = self.structured_decode_bitmasks.to(self.device)
+                selected_token_ids = self.decode_postprocess(
+                    hidden_states,
+                    logits_indices,
+                    sampling_metadata,
                     require_struct_decoding,
                     grammar_bitmask_padded,
-                    arange,
-                ) = self.prepare_structured_decoding_input(logits, grammar_output)
-                logits = self.structured_decode(
-                    require_struct_decoding, grammar_bitmask_padded, logits, arange
+                    bitmasks,
                 )
-
-            selected_token_ids = self.sample_from_logits_func(logits, sampling_metadata)
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -2099,6 +2130,54 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("gather_logprobs")
 
+    def _precompile_decode_postprocess(self) -> None:
+        torch._dynamo.config.dynamic_shapes = False
+        logger.info("Compiling decode_postprocess with different input shapes.")
+        start = time.perf_counter()
+        hsize = self.model_config.get_hidden_size()
+        dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
+            self.device
+        )
+        dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(self.device)
+        bitmasks = self.structured_decode_bitmasks.to(self.device)
+        for num_tokens in self.num_tokens_paddings:
+            for all_greedy in [False, True]:
+                logger.info(
+                    "  -- num_tokens: %d, all_greedy: %s", num_tokens, all_greedy
+                )
+                dummy_hidden = torch.zeros(
+                    (self.max_num_reqs, num_tokens, hsize),
+                    dtype=self._hidden_states_dtype,
+                ).to(self.device)
+                indices = torch.zeros(
+                    self.max_num_reqs, dtype=torch.int32
+                ).to(self.device)
+                if self.enable_tensor_parallel and self.use_2d_mesh:
+                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+                sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+                    self.input_batch,
+                    self.max_num_reqs,
+                    self.device,
+                    not all_greedy,
+                    vocab_size=self.vocab_size,
+                )
+                sampling_metadata.all_greedy = all_greedy
+                with self.maybe_select_dummy_loras(
+                    self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
+                ):
+                    self.decode_postprocess(
+                        dummy_hidden,
+                        indices,
+                        sampling_metadata,
+                        dummy_require,
+                        dummy_bitmask,
+                        bitmasks,
+                    )
+        xm.wait_device_ops()
+        end = time.perf_counter()
+        logger.info("Compilation finished in %.2f [secs].", end - start)
+        self._update_num_xla_graphs("decode_postprocess")
+
     def capture_model(self) -> None:
         """
         Precompile all the subgraphs with possible input shapes.
@@ -2109,11 +2188,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.tt_config.decode_only:
                 return
             self._precompile_mm_encoder()
-            self._precompile_select_hidden_states()
-            self._precompile_compute_logits()
-            self._precompile_structured_decoding()
             if not self.tt_config.cpu_sampling:
-                self._precompile_sample_from_logits()
+                self._precompile_decode_postprocess()
             else:
                 logger.warning(
                     "cpu_sampling=True: skipping device sampling precompilation"
@@ -2130,6 +2206,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ) -> None:
         if self.tt_config.decode_only:
             return
+        return  # TODO(#4468): profile_run adds no value currently; remove once confirmed
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
@@ -2394,6 +2471,49 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def decode_postprocess(
+        self,
+        hidden_states: torch.Tensor,
+        logits_indices: torch.Tensor,
+        sampling_metadata: XLASupportedSamplingMetadata,
+        require_struct_decoding: torch.Tensor,
+        grammar_bitmask: torch.Tensor,
+        bitmasks: torch.Tensor,
+    ) -> torch.Tensor:
+        """Fused select_hidden_states → compute_logits → structured_decode → sample."""
+        # select_hidden_states
+        batch_indices = torch.arange(logits_indices.shape[0], dtype=torch.int32)
+        hidden = hidden_states[batch_indices, logits_indices, :]
+        if self.enable_tensor_parallel and self.use_2d_mesh:
+            hidden = sharding_constraint_tensor(hidden, self.mesh, (None, None))
+        # compute_logits
+        logits = self.model.compute_logits(hidden)
+        if self.enable_tensor_parallel and (
+            not self.use_2d_mesh or self.is_sharded_compute_logits
+        ):
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        # structured_decode (always applied; require_struct_decoding masks inactive reqs)
+        bits = grammar_bitmask.unsqueeze(-1) & bitmasks
+        allowed = (bits != 0).reshape(logits.shape[0], -1)[:, : self.vocab_size]
+        logits = torch.where(
+            require_struct_decoding,
+            torch.where(allowed, logits, torch.full_like(logits, float("-inf"))),
+            logits,
+        )
+        # sample_from_logits
+        if (
+            sampling_metadata.all_greedy
+            and sampling_metadata.no_penalties
+            and sampling_metadata.no_logit_bias
+            and sampling_metadata.no_bad_words
+            and sampling_metadata.no_allowed_token_ids
+            and sampling_metadata.no_min_tokens
+            and sampling_metadata.no_generators
+        ):
+            return torch.argmax(logits, dim=-1, keepdim=True)
+        return self.sampler(logits, sampling_metadata).sampled_token_ids
 
     def sample_from_logits_cpu(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
