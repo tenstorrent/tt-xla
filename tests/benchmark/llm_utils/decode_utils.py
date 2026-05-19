@@ -119,13 +119,18 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # Some configs (e.g. Gemma3Config) wrap text-model attributes in a
+    # sub-config.  Resolve to the effective text config for attribute access.
+    effective_config = (
+        config.get_text_config() if hasattr(config, "get_text_config") else config
+    )
+    if hasattr(effective_config, "head_dim") and getattr(effective_config, "head_dim"):
+        head_dim = effective_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = effective_config.hidden_size // effective_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        effective_config, "num_key_value_heads", effective_config.num_attention_heads
     )
 
     static_cache = StaticCache(
