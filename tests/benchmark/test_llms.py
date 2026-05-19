@@ -1091,6 +1091,7 @@ def test_llama_3_1_8b(
     )
 
 
+# Trace disabled: ttir.paged_update_cache legalization fails in trace compilation path, hangs indefinitely
 def test_m7_7b(
     output_file,
     num_layers,
@@ -1117,6 +1118,7 @@ def test_m7_7b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        trace_enabled=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None

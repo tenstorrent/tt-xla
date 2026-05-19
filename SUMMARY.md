@@ -7,118 +7,82 @@ samples_per_second: null
 ttft_ms: null
 prefill_pcc: null
 first_decode_pcc: null
-top_perf_samples_per_sec: null
+top_perf_samples_per_sec: 44.8551
 pct_of_target: null
-roofline_bound: null
+roofline_bound: dram
 optimization_level: 2
-trace_enabled: true
-experimental_weight_dtype: "bfp_bf8"
-failure_reason: "compiler error: failed to legalize operation 'ttir.paged_update_cache' with optimization_level=2; full model OOM/killed with optimization_level=0 (~33min); root cause: M7-7B uses Mistral sliding window attention which requires paged KV cache not yet legalized in TTNN at opt2"
+trace_enabled: false
+experimental_weight_dtype: bfp_bf8
+failure_reason: "RuntimeError: Error code 13 on next_token_ids_replicated.to('cpu') during perf benchmark; root cause is ttir.paged_update_cache op failing to legalize in TTIRToTTNNCommon pipeline (Mistral sliding-window KV-cache scatter op not supported in TTNN backend on p150)"
 
-# Benchmark added: test_m7_7b
-
-## Test
-tests/benchmark/test_llms.py::test_m7_7b
+# M7 7B Benchmark — DONE_FAIL
 
 ## Model
-- HF name:    liminerity/M7-7b
-- Loader:     third_party.tt_forge_models.m7.causal_lm.pytorch.loader
-- Variant:    ModelVariant.M7_7B (= "7B")
+- **Loader**: `third_party.tt_forge_models.m7.causal_lm.pytorch.loader`
+- **Variant**: `7B` (liminerity/M7-7b)
+- **Architecture**: Mistral 7B with sliding-window attention
+- **Parameters**: 7.24B (7,241,732,160), ~13.49 GB weights
+- **KV Cache**: 0.5 GB
 
-## Test config landed
-- optimization_level:        2 (default — fails with paged_update_cache compiler bug)
-- trace_enabled:             true
-- experimental_weight_dtype: "bfp_bf8"
-- batch_size:                32
-- input_sequence_length:     128
-- required_pcc:              0.94
+## Hardware
+- **Device**: Blackhole p300c → arch `p150`
+- **Worker grid**: 110 cores
+- **DRAM bandwidth**: 512 GB/s
 
-## Measured (full model, defaults)
-- Sample per second:  N/A (test failed before performance benchmark)
-- TTFT (ms):          N/A
-- Prefill PCC:        N/A
-- First decode PCC:   N/A
-- Wall clock:         ~12 min (opt2), ~33 min (opt0, killed)
-- Hardware:           p150 (Blackhole p300c)
+## Roofline (from compile-time analysis)
+- **Decode graph**: DRAM-bound
+- **top_perf_samples_per_sec**: 44.8551
+- **top_perf_time_ms**: 22.2940 ms
 
-## Bring-up results (num_layers=1)
-- optimization_level=2, trace=True, num_layers=1: PASSED (PCC prefill=0.999106, first_decode=0.999428)
-- optimization_level=0, trace=True, num_layers=1: PASSED (PCC prefill=0.998474, first_decode=0.999370)
+## Test Configuration
+- `optimization_level`: 2
+- `trace_enabled`: False (trace compilation hangs indefinitely; see comment in test)
+- `experimental_weight_dtype`: bfp_bf8 (default)
+- `batch_size`: 32
 
-## Failure analysis
-The M7-7B model (based on Mistral architecture) uses sliding window attention.
-The model loader explicitly handles `sliding_window` in `load_inputs()`. This requires
-`paged_update_cache` for KV cache management in the decode graph.
+## Failure Details
 
-At optimization_level=2 (default), the full 32-layer model fails during performance
-benchmark compilation with:
-  loc("scatter.11541"): error: failed to legalize operation 'ttir.paged_update_cache'
+The test consistently fails with `RuntimeError: Error code: 13` during the performance
+benchmark phase. The full sequence of events:
 
-Single-layer (num_layers=1) passes at both opt0 and opt2 because the 1-layer decode
-graph does not trigger the paged cache optimization path.
+1. **Prefill compilation** (~5 min): Compiles and runs successfully; writes
+   `tt_xla_m7_7b_perf_metrics_0.json`.
+2. **Decode compilation** (~7 min): MLIR compilation fails with:
+   ```
+   loc("scatter.11541"): error: failed to legalize operation 'ttir.paged_update_cache'
+   Failed to run TTIRToTTNNCommon pipeline
+   ```
+   The test falls back to a non-paged-cache execution path.
+3. **Warmup** (16 tokens): Completes successfully using the fallback path.
+4. **Performance benchmark**: Fails immediately at:
+   ```python
+   decoded = tokenizer.batch_decode(next_token_ids_replicated.to("cpu"))
+   RuntimeError: Error code: 13
+   ```
 
-At optimization_level=0, the full model is killed by SIGKILL after approximately
-33 minutes, suggesting either a compilation timeout or device hang during execution.
+The `ttir.paged_update_cache` op is generated because M7 7B (Mistral architecture) uses
+sliding-window attention, which the MLIR compiler represents via scatter-based KV-cache
+updates. This op is not supported by the TTNN backend on p150 (Blackhole).
 
-This is a compiler bug — `ttir.paged_update_cache` is not yet legalized in TTNN for
-opt2. Fix belongs in the MLIR compiler, not in the test harness.
+With `trace_enabled=True`, the trace compilation hangs indefinitely (45+ minutes with no
+output) in the decode graph compilation phase.
 
-## Decode roofline (first decode graph, single-chip)
-Source JSON: N/A (test failed before producing perf metrics JSON)
-Achieved vs top_perf_samples_per_sec: N/A
+## Single-Layer Pass (num_layers=1)
 
-### System
-- arch:                        N/A
-- chip_count_in_system_desc:   N/A
-- single_chip_assumption:      N/A
-- worker_grid_cores:           N/A
-- dram_bandwidth_bytes_per_sec: N/A
+The model passes at `--num-layers 1` (38.61s total):
+- Sample per second: 0.5413
+- TTFT: 4581 ms
+- Prefill PCC: 0.999106
+- First decode PCC: 0.999428
 
-### Peak FLOPs
-- lofi:  N/A
-- hifi2: N/A
-- hifi3: N/A
-- hifi4: N/A
+Full 32-layer model fails at the `paged_update_cache` compilation step.
 
-### Compute
-- total_flops:             N/A
-- breakdown.matmul:        N/A
-- breakdown.linear:        N/A
-- breakdown.conv2d:        N/A
-- breakdown.sparse_matmul: N/A
+## Changes Made
 
-### Inputs
-- count:        N/A
-- memory_bytes: N/A
-
-### KV cache
-- count:        N/A
-- memory_bytes: N/A
-- memory_gb:    N/A
-
-### Params
-- count:                  N/A
-- effective_count:        N/A
-- memory_bytes:           N/A
-- memory_gb:              N/A
-- effective_memory_bytes: N/A
-- effective_memory_gb:    N/A
-- embedding_count:        N/A
-- embedding_memory_bytes: N/A
-
-### Roofline
-- bound:                    N/A
-- top_perf_samples_per_sec: N/A
-- top_perf_time_ms:         N/A
-- dram_time_ms:             N/A
-- compute_time_ms_lofi:     N/A
-- compute_time_ms_hifi2:    N/A
-- compute_time_ms_hifi3:    N/A
-- compute_time_ms_hifi4:    N/A
-
-## Files changed
-- tests/benchmark/test_llms.py (added test_m7_7b)
-
-## tt-forge-models submodule
-old → 93218a34fc9fc6a671e0e41101da470c80891b2a → 7cf0e9b8df122b73c9a40dc67624f25d0232d3ee
-(updated submodule to include m7 causal_lm loader)
+1. **`tests/benchmark/test_llms.py`**: Added `test_m7_7b` with `trace_enabled=False`
+   (trace hangs; comment references paged_update_cache issue) and a comment before the
+   function noting the trace issue.
+2. **`tests/benchmark/benchmarks/llm_benchmark.py`**: Added `hasattr` guard for
+   `get_weight_dtype_config_path` to support ModelLoaders that don't implement this
+   optional method.
+3. **`third_party/tt_forge_models`**: Submodule updated to include `m7/causal_lm/pytorch/loader.py`.
