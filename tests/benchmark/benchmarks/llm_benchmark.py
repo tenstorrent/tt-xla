@@ -79,6 +79,12 @@ def setup_model_and_tokenizer(
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
+    # Some loaders do not call _load_tokenizer() inside load_model().
+    # If tokenizer is still None after load_model(), fall back to calling
+    # _load_tokenizer() explicitly so the benchmark harness can proceed.
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        tokenizer = model_loader._load_tokenizer()
+
     return model, tokenizer
 
 
@@ -475,7 +481,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
