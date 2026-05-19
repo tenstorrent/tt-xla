@@ -27,6 +27,7 @@ DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
 DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
+DEFAULT_ENABLE_ACTIVATION_DTYPE_LOWERING = False
 DEFAULT_REQUIRED_PCC = 0.94
 
 
@@ -66,6 +67,7 @@ def test_llm(
     expected_ops: list = None,
     check_fusions: bool = False,
     use_indexer_cache: bool = False,
+    enable_activation_dtype_lowering: bool = DEFAULT_ENABLE_ACTIVATION_DTYPE_LOWERING,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -165,6 +167,7 @@ def test_llm(
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
+        enable_activation_dtype_lowering=enable_activation_dtype_lowering,
     )
 
     if output_file:
