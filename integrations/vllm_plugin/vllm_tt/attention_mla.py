@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.nn as nn
-from vllm.config import VllmConfig
 from vllm.forward_context import get_forward_context
 from vllm.model_executor.custom_op import PluggableLayer
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
@@ -32,7 +31,13 @@ from .attention import TTAttentionMetadataBuilder, TTMetadata
 from .logger import tt_init_logger
 
 if TYPE_CHECKING:
-    pass
+    # Type-only: importing `vllm.config.VllmConfig` at module top-level
+    # races vLLM's own initialization. Plugin discovery calls our
+    # `register()` while `vllm.config` is still mid-init, so a real
+    # import would raise `ImportError: cannot import name 'VllmConfig'
+    # from partially initialized module 'vllm.config'`. Keep it
+    # type-only — it's only used in a `get_page_size` annotation.
+    from vllm.config import VllmConfig
 
 logger = tt_init_logger(__name__)
 
@@ -72,7 +77,7 @@ class TTMLAAttentionBackend(AttentionBackend):
         return (num_blocks, num_kv_heads, block_size, head_size)
 
     @staticmethod
-    def get_page_size(vllm_config: VllmConfig) -> int:
+    def get_page_size(vllm_config: "VllmConfig") -> int:
         return 32
 
     @staticmethod
@@ -212,6 +217,18 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         V = self.v_head_dim
         P = self.qk_nope_head_dim
 
+        # DEBUG: log shapes to file (Dynamo will trace through Python)
+        try:
+            with open("/tmp/mla_shapes.log", "a") as _f:
+                _f.write(
+                    f"[TTMLAImpl.forward] users={users} S={S} N={N} L={L} R={R} V={V} P={P} | "
+                    f"q_nope.shape={tuple(q_nope.shape)} q_pe.shape={tuple(q_pe.shape)} "
+                    f"kv_c_normed.shape={tuple(kv_c_normed.shape)} k_pe.shape={tuple(k_pe.shape)} "
+                    f"kv_cache.shape={tuple(kv_cache.shape) if isinstance(kv_cache, torch.Tensor) else type(kv_cache).__name__}\n"
+                )
+        except Exception:
+            pass
+
         # -- 1. Reshape inputs to [users, S, ...] --------------------------
         q_nope = q_nope.view(users, S, N, P)
         q_pe = q_pe.view(users, S, N, R)
@@ -219,10 +236,17 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         k_pe_v = k_pe.view(users, S, 1, R)
 
         # -- 2. Q absorption: q_nope @ W_UK_T  ----------------------------
-        # layer.W_UK_T : [num_heads, qk_nope_head_dim, kv_lora_rank]
+        # layer.W_UK_T : [num_heads, qk_nope_head_dim, kv_lora_rank].
+        # W_UK_T is assigned as a plain tensor attribute (not nn.Parameter
+        # or registered buffer) in MLAAttention.process_weights_after_loading
+        # (mla_attention.py:797), so `model.to('xla')` doesn't move it —
+        # explicit `.to(device=q_nope.device)` is required here.
         act_dtype = q_pe.dtype
+        device = q_nope.device
         q_nope_lat = torch.einsum(
-            "bsnp,npl->bsnl", q_nope.to(torch.float32), layer.W_UK_T.to(torch.float32)
+            "bsnp,npl->bsnl",
+            q_nope.to(torch.float32),
+            layer.W_UK_T.to(device=device, dtype=torch.float32),
         ).to(act_dtype)
 
         # -- 3. Build concatenated latent Q / K ---------------------------
@@ -246,11 +270,12 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         )  # [b, N, S, L]
 
         # -- 5. Project latent output back to v_head_dim via W_UV ---------
-        # layer.W_UV : [num_heads, kv_lora_rank, v_head_dim]
+        # layer.W_UV : [num_heads, kv_lora_rank, v_head_dim].
+        # Same plain-tensor caveat as W_UK_T above — explicit device move.
         out = torch.einsum(
             "bnsl,nlv->bnsv",
             out_lat.to(torch.float32),
-            layer.W_UV.to(torch.float32),
+            layer.W_UV.to(device=device, dtype=torch.float32),
         ).to(
             act_dtype
         )  # [b, N, S, V]
@@ -260,9 +285,14 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
 
         # -- 7. Persist new tokens into the latent KV cache. --------------
         # paged_fill_cache wants the fill tensor as [b, num_kv_heads, S, head_dim].
-        # Skip during profile runs / when cache hasn't been allocated yet
-        # (numel() == 0 is vLLM's profile-run sentinel).
-        if isinstance(kv_cache, torch.Tensor) and kv_cache.numel() > 0:
+        # Skip during profile runs (attn_metadata is None or kv_cache.numel()
+        # == 0 — both are vLLM's profile-run sentinels). Without this guard
+        # `attn_metadata.fill_page_table` raises AttributeError on None.
+        if (
+            attn_metadata is not None
+            and isinstance(kv_cache, torch.Tensor)
+            and kv_cache.numel() > 0
+        ):
             k_lat_for_fill = k_lat.transpose(1, 2)  # [b, 1, S, L+R]
             fill_page_table = attn_metadata.fill_page_table
             for batch_idx in range(users):
@@ -376,6 +406,39 @@ class TTMultiHeadLatentAttentionWrapper(MultiHeadLatentAttentionWrapper):
             "torch.ops.tt.flash_mla_prefill; decode is NotImplementedError.",
             getattr(self, "prefix", "?"),
         )
+
+    def forward(
+        self,
+        positions: torch.Tensor,
+        hidden_states: torch.Tensor,
+        llama_4_scaling: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        # The TT model runner passes hidden_states as 3D [users, S, H] and
+        # positions as 2D [users, S]. The upstream MultiHeadLatentAttentionWrapper.forward
+        # at mla.py:154-155 does:
+        #     q = q.view(-1, num_heads, qk_head_dim)   # collapses leading
+        #     k_pe = k_pe.unsqueeze(1)                 # assumes 2D input
+        # `unsqueeze(1)` is only correct for 2D k_pe `[tokens, rope_dim]`. With
+        # 3D k_pe `[users, S, rope_dim]` it produces `[users, 1, S, rope_dim]`,
+        # which then broadcasts incorrectly against DeepseekScalingRotaryEmbedding's
+        # cos/sin of shape `[users, S, 1, rope_dim]` (deepseek_scaling_rope.py:137-141)
+        # — producing `[users, S, S, rope_dim]`, applying every position's
+        # cosine to every token.
+        #
+        # Flatten to vLLM's standard 2D `[total_tokens, hidden]` before the
+        # upstream forward, then reshape the output back so downstream layers
+        # see the same shape they sent in.
+        orig_ndim = hidden_states.ndim
+        if orig_ndim == 3:
+            orig_users, orig_S, hidden_size = hidden_states.shape
+            hidden_states = hidden_states.reshape(orig_users * orig_S, hidden_size)
+            positions = positions.reshape(-1)
+
+        out = super().forward(positions, hidden_states, llama_4_scaling)
+
+        if orig_ndim == 3:
+            out = out.reshape(orig_users, orig_S, out.shape[-1])
+        return out
 
 
 # --------------------------------------------------------------------------- #

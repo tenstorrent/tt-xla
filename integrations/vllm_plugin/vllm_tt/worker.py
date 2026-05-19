@@ -128,6 +128,17 @@ class TTWorker:
         self.cache_config.num_cpu_blocks = num_cpu_blocks
 
     def init_device(self):
+        # Side-effect import: registers the OOT TTMultiHeadLatentAttentionWrapper
+        # so that model code's `MultiHeadLatentAttentionWrapper(...)` is
+        # rewritten to our subclass via PluggableLayer.__new__. Must run
+        # BEFORE model loading. Worker processes don't call
+        # TTPlatform.check_and_update_config (only the main process does),
+        # so the registration is wired here too. Deferred to inside the
+        # method because attention_mla.py transitively imports
+        # vllm.config submodules that aren't fully loaded during plugin
+        # discovery — by the time init_device runs, vllm is fully init'd.
+        from . import attention_mla  # noqa: F401
+
         # os.environ["PJRT_DEVICE"] = "TT"
         xr.set_device_type("TT")
         torch.set_grad_enabled(False)
