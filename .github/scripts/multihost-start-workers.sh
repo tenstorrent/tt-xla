@@ -62,7 +62,7 @@ while IFS= read -r line; do
      | grep -q "\${CONTAINER_NAME}"; then
     echo "\$(hostname): removing existing container \${CONTAINER_NAME}"
     docker stop "\${CONTAINER_NAME}" 2>/dev/null || true
-    docker rm "\${CONTAINER_NAME}"
+    docker rm "\${CONTAINER_NAME}" 2>/dev/null || true
   fi
   docker run --rm -d \\
     --name "\${CONTAINER_NAME}" \\
