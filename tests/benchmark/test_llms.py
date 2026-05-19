@@ -1091,6 +1091,47 @@ def test_llama_3_1_8b(
     )
 
 
+def test_029_shisa_gamma_7b_v1_v2new_dpo405b_i1_q4_k_m_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    import importlib
+
+    _loader_mod = importlib.import_module(
+        "third_party.tt_forge_models.029_shisa_gamma_7b_v1_v2new_dpo405b_i1_gguf.causal_lm.pytorch.loader"
+    )
+    ModelLoader = _loader_mod.ModelLoader
+    ModelVariant = _loader_mod.ModelVariant
+
+    variant = ModelVariant.SHISA_GAMMA_7B_V1_V2NEW_DPO405B_I1_Q4_K_M_GGUF
+    # Note: experimental_weight_dtype="" (disabled) — bfp_bf8 on top of Q4_K_M
+    # causes double quantization. optimization_level=1 keeps tensors in DRAM to
+    # avoid precision accumulation that causes decode PCC failure on p150.
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1  # opt_level=2 (SRAM) causes decode PCC failure on p150
+        ),
+        experimental_weight_dtype="",
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
@@ -2077,6 +2118,40 @@ def test_kimi_k2_tp_galaxy_2_layers(
 
 
 # This test only runs 2 layers so we expect to see incoherent output
+def test_bartowski_glm_4_9b_chat_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.bartowski_glm_4_9b_chat_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.BARTOWSKI_GLM_4_9B_CHAT_Q4_K_M
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     output_file,
     num_layers,
