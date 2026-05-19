@@ -713,6 +713,42 @@ def test_qwen_3_4b(
     )
 
 
+def test_pygmalion_6b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.pygmalion_6b.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.PYGMALION_6B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # optimization_level=2 causes shard alignment error: Physical shard shape (17, 32)
+        # must be tile {32, 32} sized — compiler limitation with GPTJ rotary attention
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1
+        ),
+    )
+
+
 def test_qwen_2_5_1_5b(
     output_file,
     num_layers,
