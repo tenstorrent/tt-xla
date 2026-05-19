@@ -1537,7 +1537,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     batch_idx = torch.arange(
                         self.max_num_reqs, dtype=torch.int32, device=self.device
                     )
-                    hidden_states = hidden_states[batch_idx, logits_indices, :].unsqueeze(1)
+                    hidden_states = hidden_states[
+                        batch_idx, logits_indices, :
+                    ].unsqueeze(1)
                     if self.enable_tensor_parallel and self.use_2d_mesh:
                         xs.mark_sharding(
                             hidden_states, self.mesh, (None, None, "model")
@@ -2166,9 +2168,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     (self.max_num_reqs, num_tokens, hsize),
                     dtype=self._hidden_states_dtype,
                 ).to(self.device)
-                indices = torch.zeros(
-                    self.max_num_reqs, dtype=torch.int32
-                ).to(self.device)
+                indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
+                    self.device
+                )
                 if self.enable_tensor_parallel and self.use_2d_mesh:
                     xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
                 sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
