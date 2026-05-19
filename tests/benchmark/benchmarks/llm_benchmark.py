@@ -54,6 +54,54 @@ DEFAULT_INPUT_PROMPT = (
 MODULE_EXPORT_PATH = "modules"
 
 
+
+def maybe_dequantize_model(model):
+    """Dequantize a bitsandbytes quantized model to bfloat16 for TT device compatibility."""
+    try:
+        from bitsandbytes.nn import Linear4bit, Linear8bitLt
+        import bitsandbytes.functional as F_bnb
+        _bnb_available = True
+    except ImportError:
+        _bnb_available = False
+
+    if _bnb_available:
+        has_bnb = any(isinstance(m, (Linear4bit, Linear8bitLt)) for m in model.modules())
+        if has_bnb:
+            logger.info("BNB quantized model detected — dequantizing to bfloat16 for TT device transfer")
+            for name, module in list(model.named_modules()):
+                if isinstance(module, Linear4bit):
+                    import bitsandbytes.functional as F_bnb
+                    dq_weight = F_bnb.dequantize_4bit(module.weight.data, module.weight.quant_state).to(torch.bfloat16)
+                    new_linear = torch.nn.Linear(module.in_features, module.out_features, bias=module.bias is not None)
+                    new_linear.weight = torch.nn.Parameter(dq_weight)
+                    if module.bias is not None:
+                        new_linear.bias = torch.nn.Parameter(module.bias.to(torch.bfloat16))
+                    parent_name, _, child_name = name.rpartition(".")
+                    parent = model if parent_name == "" else model.get_submodule(parent_name)
+                    setattr(parent, child_name, new_linear)
+                elif isinstance(module, Linear8bitLt):
+                    dq_weight = module.weight.dequantize().to(torch.bfloat16)
+                    new_linear = torch.nn.Linear(module.in_features, module.out_features, bias=module.bias is not None)
+                    new_linear.weight = torch.nn.Parameter(dq_weight)
+                    if module.bias is not None:
+                        new_linear.bias = torch.nn.Parameter(module.bias.to(torch.bfloat16))
+                    parent_name, _, child_name = name.rpartition(".")
+                    parent = model if parent_name == "" else model.get_submodule(parent_name)
+                    setattr(parent, child_name, new_linear)
+
+    # Clear BNB metadata so model.to(dtype=bfloat16) does not raise
+    if hasattr(model, "hf_quantizer"):
+        model.hf_quantizer = None
+    if hasattr(model, "quantization_method"):
+        model.quantization_method = None
+    if hasattr(model, "config") and hasattr(model.config, "quantization_config"):
+        model.config.quantization_config = None
+    for flag in ("is_loaded_in_4bit", "is_loaded_in_8bit"):
+        if hasattr(model, flag):
+            setattr(model, flag, False)
+    return model
+
+
 def setup_model_and_tokenizer(
     model_loader, model_variant
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
@@ -429,6 +477,9 @@ def benchmark_llm_torch_xla(
 
         cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
+    # Dequantize BNB quantized models before device transfer
+    model = maybe_dequantize_model(model)
+
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
 
@@ -475,7 +526,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
