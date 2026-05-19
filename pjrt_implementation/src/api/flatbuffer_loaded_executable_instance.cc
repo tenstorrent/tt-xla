@@ -107,6 +107,14 @@ void FlatbufferLoadedExecutableInstance::materializeShellTensors(
              buffers.front()->getUID(),
              static_cast<const void *>(buffers.front()));
 
+    for (size_t i = 1; i < buffers.size(); ++i) {
+      const auto &other = buffers[i]->getPjrtTensor()->host_tensor_shell();
+      TT_FATAL(other.has_value() && *other == *shell,
+               "Shell metadata mismatch for buffers sharing host_buffer %p: "
+               "buffer uid=%lu vs uid=%lu",
+               host_base, buffers[i]->getUID(), buffers.front()->getUID());
+    }
+
     // First buffer gets a newly-allocated owned host tensor that actually
     // copies the bytes from the client's host_base pointer. Subsequent
     // buffers in the group get unsafe-borrowed tensors aliasing that owned

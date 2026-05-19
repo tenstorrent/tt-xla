@@ -57,6 +57,12 @@ public:
     std::vector<std::uint32_t> strides;
     std::uint32_t element_size;
     ::tt::target::DataType runtime_data_type;
+
+    bool operator==(const HostTensorShell &other) const {
+      return host_buffer == other.host_buffer && shape == other.shape &&
+             strides == other.strides && element_size == other.element_size &&
+             runtime_data_type == other.runtime_data_type;
+    }
   };
 
   // Initializes pjrt tensor from pjrt buffers.
