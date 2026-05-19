@@ -76,6 +76,12 @@ def setup_model_and_tokenizer(
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
         model.config._experts_implementation = "dense"
+    # Disable sliding window attention: paged KV cache ops (ttir.paged_update_cache)
+    # required by sliding window models are not supported by TTNN.  Setting
+    # sliding_window=None forces full attention, which is compatible with the
+    # static cache we always use in benchmarks.
+    if hasattr(model.config, "sliding_window") and model.config.sliding_window is not None:
+        model.config.sliding_window = None
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -477,7 +483,12 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
+        # Not all loaders implement get_weight_dtype_config_path; skip gracefully if absent.
+        weight_dtype_config = (
+            model_loader.get_weight_dtype_config_path()
+            if hasattr(model_loader, "get_weight_dtype_config_path")
+            else None
+        )
         if weight_dtype_config:
             applied = apply_weight_dtype_overrides(model, weight_dtype_config)
             logger.info(
