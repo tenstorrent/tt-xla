@@ -1125,6 +1125,41 @@ def test_neon_maid_12b_v2_heretic_i1_gguf(
     )
 
 
+def test_pythia_6_9b_deduped_sft_tldr_gguf(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.pythia_6_9b_deduped_sft_tldr_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.PYTHIA_6_9B_DEDUPED_SFT_TLDR_Q4_K_M_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        experimental_weight_dtype="bfp_bf8",
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
