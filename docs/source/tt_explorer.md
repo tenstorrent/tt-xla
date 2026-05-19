@@ -31,7 +31,7 @@ tt-explorer
 This will start the interactive GUI for analyzing your model's compilation and execution.
 
 ### Example graph to try out
-```mlir
+```text
 module attributes {} {
   func.func @forward(%arg0: tensor<64x128xbf16>, %arg1: tensor<64x128xbf16>, %arg2: tensor<64x128xbf16>, %arg3: tensor<64x128xbf16>) -> tensor<64x128xbf16> {
     %0 = ttir.empty() : tensor<64x128xbf16>
