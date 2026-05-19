@@ -900,7 +900,7 @@ class Gemma3ForCausalLM(BaseModel):
             )
             return logits
 
-        with device_mesh:
+        with jax.set_mesh(device_mesh):
             if self.config.use_cache:
                 self.init_cache(input_ids)
             model_spec = self._udpate_with_sharding(self)

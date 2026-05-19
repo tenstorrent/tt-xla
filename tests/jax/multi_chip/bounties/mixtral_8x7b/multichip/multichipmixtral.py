@@ -870,7 +870,7 @@ class FlaxMixtralForCausalLM(nnx.Module):
             )
             return outputs.logits, outputs.past_key_values
 
-        with device_mesh:
+        with jax.set_mesh(device_mesh):
             cache_specs = self.prepare_sharding()
 
             model_state = nnx.state(self)

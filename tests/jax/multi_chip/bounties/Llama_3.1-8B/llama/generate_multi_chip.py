@@ -78,7 +78,7 @@ def main(
     )
 
     print("✍️ Generating...")
-    with mesh:
+    with jax.set_mesh(mesh):
         results = llama.generate_from_str(
             [prompt],
             max_gen_len=max_gen_len,

@@ -77,10 +77,10 @@ def test_compare_hf(tokenizer, mesh, nnx_model):
         graphdef, state = nnx.split(nnx_model)
         tokens = tokenizer(input, return_tensors="jax")["input_ids"]
 
-        with timer("test_compare_hf - jit compile"), mesh:
+        with timer("test_compare_hf - jit compile"), jax.set_mesh(mesh):
             compiled_model = jit_model.lower(graphdef, state, tokens).compile()
 
-        with timer("test_compare_hf - nnx forward pass"), mesh:
+        with timer("test_compare_hf - nnx forward pass"), jax.set_mesh(mesh):
             nnx_result = compiled_model(graphdef, state, tokens)
             nnx_result.block_until_ready()
             return nnx_result
