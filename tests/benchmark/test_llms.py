@@ -287,6 +287,7 @@ def test_llama_3_2_1b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        trace_enabled=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None
@@ -360,6 +361,7 @@ def test_gemma_1_1_2b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        trace_enabled=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None
@@ -428,6 +430,7 @@ def test_phi1(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        trace_enabled=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None
