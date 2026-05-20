@@ -4365,7 +4365,7 @@ def _main(activations, weights):
         pad_value=0.0,
     )
     ttnn.deallocate(ttnn_reshape_35, False)
-    ttnn_matmul_4 = ttnn.matmul(
+    ttnn_relu_0 = ttnn.matmul(
         ttnn_reshape_28,
         ttnn_permute_28,
         transpose_a=False,
@@ -4375,20 +4375,13 @@ def _main(activations, weights):
         ),
         dtype=ttnn.DataType.BFLOAT16,
         program_config=None,
-        activation=None,
+        activation="relu",
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
     )
     ttnn.deallocate(ttnn_permute_28, False)
     ttnn.deallocate(ttnn_reshape_28, False)
-    ttnn_relu_0 = ttnn.relu(
-        ttnn_matmul_4,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_matmul_4, False)
     ttnn_reshape_36 = ttnn.reshape(
         ttnn_slice_69,
         [1, 1, 32, 64],
@@ -6539,7 +6532,7 @@ def _main(activations, weights):
         pad_value=0.0,
     )
     ttnn.deallocate(ttnn_reshape_87, False)
-    ttnn_matmul_19 = ttnn.matmul(
+    ttnn_relu_1 = ttnn.matmul(
         ttnn_reshape_80,
         ttnn_permute_37,
         transpose_a=False,
@@ -6549,20 +6542,13 @@ def _main(activations, weights):
         ),
         dtype=ttnn.DataType.BFLOAT16,
         program_config=None,
-        activation=None,
+        activation="relu",
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
     )
     ttnn.deallocate(ttnn_permute_37, False)
     ttnn.deallocate(ttnn_reshape_80, False)
-    ttnn_relu_1 = ttnn.relu(
-        ttnn_matmul_19,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_matmul_19, False)
     ttnn_reshape_88 = ttnn.reshape(
         ttnn_slice_162,
         [1, 1, 32, 64],
