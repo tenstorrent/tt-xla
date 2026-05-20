@@ -3584,23 +3584,15 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_rsqrt_0, False)
-    ttnn_multiply_2 = ttnn.multiply(
+    ttnn_typecast_37 = ttnn.multiply(
         ce_cache__main["main_const_eval_40"],
         ttnn_multiply_1,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_multiply_1, False)
-    ttnn_typecast_37 = ttnn.typecast(
-        ttnn_multiply_2,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_multiply_2, False)
     ttnn_matmul_0 = ttnn.matmul(
         ttnn_typecast_37,
         ce_cache__main["main_const_eval_32"],
@@ -5520,23 +5512,15 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_rsqrt_1, False)
-    ttnn_multiply_27 = ttnn.multiply(
+    ttnn_typecast_58 = ttnn.multiply(
         ce_cache__main["main_const_eval_41"],
         ttnn_multiply_26,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_multiply_26, False)
-    ttnn_typecast_58 = ttnn.typecast(
-        ttnn_multiply_27,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_multiply_27, False)
     ttnn_all_gather_9 = ttnn.all_gather(
         input_tensor=ttnn_typecast_58,
         dim=0,
@@ -5695,24 +5679,16 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_all_gather_11, False)
-    ttnn_multiply_28 = ttnn.multiply(
+    ttnn_typecast_61 = ttnn.multiply(
         ttnn_typecast_59,
         ttnn_typecast_60,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_typecast_60, False)
     ttnn.deallocate(ttnn_typecast_59, False)
-    ttnn_typecast_61 = ttnn.typecast(
-        ttnn_multiply_28,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_multiply_28, False)
     ttnn_matmul_14 = ttnn.matmul(
         ttnn_typecast_61,
         ce_cache__main["main_const_eval_43"],
@@ -5875,23 +5851,15 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_rsqrt_2, False)
-    ttnn_multiply_31 = ttnn.multiply(
+    ttnn_typecast_63 = ttnn.multiply(
         ce_cache__main["main_const_eval_34"],
         ttnn_multiply_30,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_multiply_30, False)
-    ttnn_typecast_63 = ttnn.typecast(
-        ttnn_multiply_31,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_multiply_31, False)
     ttnn_matmul_15 = ttnn.matmul(
         ttnn_typecast_63,
         ce_cache__main["main_const_eval_28"],
@@ -7692,23 +7660,15 @@ def _main(activations, weights):
     )
     ttnn.deallocate(ttnn_reshape_119, False)
     ttnn.deallocate(ttnn_reshape_117, False)
-    ttnn_multiply_56 = ttnn.multiply(
+    ttnn_typecast_78 = ttnn.multiply(
         ce_cache__main["main_const_eval_24"],
         ttnn_multiply_55,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_multiply_55, False)
-    ttnn_typecast_78 = ttnn.typecast(
-        ttnn_multiply_56,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_multiply_56, False)
     ttnn_reshape_120 = ttnn.reshape(
         ttnn_typecast_78,
         [32, 896],
@@ -9076,24 +9036,16 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_all_gather_30, False)
-    ttnn_multiply_61 = ttnn.multiply(
+    ttnn_typecast_104 = ttnn.multiply(
         ttnn_typecast_102,
         ttnn_typecast_103,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_typecast_103, False)
     ttnn.deallocate(ttnn_typecast_102, False)
-    ttnn_typecast_104 = ttnn.typecast(
-        ttnn_multiply_61,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_multiply_61, False)
     ttnn_matmul_33 = ttnn.matmul(
         ttnn_typecast_104,
         ce_cache__main["main_const_eval_16"],
