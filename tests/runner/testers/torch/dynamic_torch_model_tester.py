@@ -290,7 +290,25 @@ class DynamicTorchModelTester(TorchModelTester):
         mesh_info = self._workload.mesh.shape()
         mesh_shape = tuple(mesh_info.values())
         mesh_names = tuple(mesh_info.keys())
-        enable_sparse_mlp(model, mesh=mesh_shape)
+
+        # Pick the all-to-all dispatch axis. ``enable_sparse_mlp`` defaults to
+        # ``cluster_axis=0``, which only works when ``mesh_shape[0] > 1``;
+        # otherwise ``dispatch_devices == 1`` and the TT fabric aborts with
+        # "Expected different src and dst chip ids but got same" because each
+        # device's all-to-all transfer becomes src==dst. On a (1, N) mesh the
+        # only axis with multiple devices is axis 1, so dispatch must happen
+        # there. ``get_moe_shard_specs`` shards experts across both axes
+        # jointly, so either axis is a valid dispatch axis when both are > 1.
+        cluster_axis = 0
+        if len(mesh_shape) > 1 and mesh_shape[0] == 1 and mesh_shape[1] > 1:
+            cluster_axis = 1
+            logger.info(
+                f"Mesh axis 0 has only 1 device (mesh_shape={mesh_shape}); "
+                f"using cluster_axis=1 for all-to-all dispatch to avoid "
+                f"single-chip fabric src==dst fatal."
+            )
+
+        enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=cluster_axis)
         shard_spec_fn = self._workload.shard_spec_fn
         if shard_spec_fn:
 

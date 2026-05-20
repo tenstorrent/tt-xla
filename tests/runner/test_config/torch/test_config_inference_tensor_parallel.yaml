@@ -193,9 +193,11 @@ test_config:
 
   qwen_3/causal_lm/pytorch-30B_A3b-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
-    status: NOT_SUPPORTED_SKIP
-    reason: "Needs bringup on n300-llmbox"
-    bringup_status: FAILED_RUNTIME
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+    inject_custom_moe: true
+    # reason: "Needs bringup on n300-llmbox"
+    # bringup_status: FAILED_RUNTIME
 
   olmo3/causal_lm/pytorch-3_32b_think-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
@@ -257,4 +259,10 @@ test_config:
   command/pytorch-command-a-reasoning-08-2025-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+
+  deepseek/deepseek_v3/pytorch-DeepSeek-V3.2-tensor_parallel-inference:
+    supported_archs: [n300-llmbox, lb-blackhole]
+    status: EXPECTED_PASSING
+    inject_custom_moe: true
     enable_weight_bfp8_conversion: true

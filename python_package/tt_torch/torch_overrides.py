@@ -138,3 +138,97 @@ try:
     GptOssMLP.forward = _sparse_mlp_forward
 except ImportError:
     pass
+
+
+def _deepseek_v2_rotary_forward(self, x, position_ids):
+    """Monkey-patched ``DeepseekV2RotaryEmbedding.forward`` that emits a
+    real-packed ``[cos, sin]`` tensor instead of a complex ``freqs_cis``.
+
+    Upstream produces a complex tensor::
+
+        freqs_cis = torch.polar(torch.ones_like(freqs), freqs)
+        freqs_cis = freqs_cis * self.attention_scaling
+
+    and ``apply_rotary_emb`` then runs ``view_as_complex`` / complex
+    multiplication / ``view_as_real`` on it. The TT PJRT plugin does not
+    support these complex-tensor codepaths (the original failure was
+    "Complex tensor with num_dims == 0 is not supported." from
+    ``mul(polar, 1.0)``; downstream ``view_as_complex`` / complex mul also
+    crash the device backend).
+
+    This patch (paired with ``_deepseek_v2_apply_rotary_emb``) replaces the
+    complex pipeline with mathematically equivalent real arithmetic:
+    ``freqs_cis`` becomes a real ``[..., 2]`` tensor whose last dim is
+    ``(scaling * cos(theta), scaling * sin(theta))``.
+    """
+    from transformers.utils.generic import maybe_autocast
+
+    inv_freq_expanded = (
+        self.inv_freq[None, :, None].float().expand(position_ids.shape[0], -1, 1)
+    )
+    position_ids_expanded = position_ids[:, None, :].float()
+
+    device_type = (
+        x.device.type
+        if isinstance(x.device.type, str) and x.device.type != "mps"
+        else "cpu"
+    )
+    with maybe_autocast(device_type=device_type, enabled=False):  # Force float32
+        freqs = (inv_freq_expanded.to(x.device) @ position_ids_expanded).transpose(1, 2)
+        scaling = float(self.attention_scaling)
+        cos = torch.cos(freqs) * scaling
+        sin = torch.sin(freqs) * scaling
+        # Pack as real (..., 2) — last dim is [cos, sin]. Drop-in for the
+        # complex freqs_cis since the only consumer (apply_rotary_emb) is
+        # patched below.
+        freqs_cis = torch.stack((cos, sin), dim=-1)
+
+    return freqs_cis
+
+
+def _deepseek_v2_apply_rotary_emb(xq, xk, freqs_cis):
+    """Monkey-patched ``apply_rotary_emb`` that performs the rotation using
+    only real arithmetic.
+
+    Expects ``freqs_cis`` to be a real ``(B, S, D/2, 2)`` tensor whose last
+    dim is ``(cos, sin)`` (produced by the patched
+    ``DeepseekV2RotaryEmbedding.forward`` above), not a complex tensor.
+
+    For each adjacent ``(a, b)`` pair in the input head_dim:
+        out_even = a * cos - b * sin
+        out_odd  = a * sin + b * cos
+    which is exactly ``(a + b*i) * (cos + i*sin)`` written in real form.
+    """
+
+    def _rotate(x):
+        # x: (B, H, S, D) -> pairs: (B, H, S, D/2, 2)
+        pairs = x.float().reshape(*x.shape[:-1], -1, 2)
+        a = pairs[..., 0]
+        b = pairs[..., 1]
+        cos = fc[..., 0]
+        sin = fc[..., 1]
+        out_even = a * cos - b * sin
+        out_odd = a * sin + b * cos
+        out = torch.stack((out_even, out_odd), dim=-1).flatten(-2)
+        return out.type_as(x)
+
+    # freqs_cis: (B, S, D/2, 2) -> broadcast over head dim H -> (B, 1, S, D/2, 2)
+    fc = freqs_cis.unsqueeze(1).to(xq.device)
+    return _rotate(xq), _rotate(xk)
+
+
+# Monkey patch DeepseekV2RotaryEmbedding.forward + apply_rotary_emb to avoid
+# every complex-tensor op (torch.polar, view_as_complex, complex multiply,
+# view_as_real), which the TT PJRT plugin does not fully support.
+# Re-apply @torch.no_grad and @dynamic_rope_update on the rotary forward so
+# dynamic / longrope rope types still recompute inv_freq correctly.
+try:
+    from transformers.modeling_rope_utils import dynamic_rope_update
+    from transformers.models.deepseek_v2 import modeling_deepseek_v2
+
+    modeling_deepseek_v2.DeepseekV2RotaryEmbedding.forward = torch.no_grad()(
+        dynamic_rope_update(_deepseek_v2_rotary_forward)
+    )
+    modeling_deepseek_v2.apply_rotary_emb = _deepseek_v2_apply_rotary_emb
+except ImportError:
+    pass

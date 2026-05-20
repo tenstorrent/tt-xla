@@ -993,11 +993,18 @@ def sparse_matmul(
                 if split_seq:
                     input_tensor_a = input_tensor_a.reshape(BD, S // M, M, H)
                     sparsity = sparsity.reshape(BD, S // M, 1, E_experts)
-                else:
+                elif BD >= M:
                     # Decode: tile on BD instead
                     input_tensor_a = input_tensor_a.reshape(BD // M, M, S, H)
                     input_tensor_a = input_tensor_a.permute(0, 2, 1, 3)
                     sparsity = sparsity.reshape(BD // M, S, 1, E_experts)
+                else:
+                    # BD < M and S % M != 0 (e.g. padded_batch=16, seq_len=18, M=32):
+                    # flatten BD*S into reduced tiles of size M.
+                    # BD*S is divisible by M (guaranteed by batch padding), so
+                    # BD*S // M == reduced exactly.
+                    input_tensor_a = input_tensor_a.reshape(1, reduced, M, H)
+                    sparsity = sparsity.reshape(1, reduced, 1, E_experts)
 
         frontend_attributes = {
             "is_input_a_sparse": str(is_input_a_sparse),
@@ -1145,6 +1152,10 @@ def sparse_matmul_fake(
             split_seq = S % M == 0 and S >= M
             A = BD if split_seq else BD // M
             B = S // M if split_seq else S
+            if A == 0:
+                # BD < M (e.g. padded_batch=4, M=32): neither split covers this.
+                # Fall back to A=1, B=reduced so A*B*M = BD*S is preserved.
+                A, B = 1, reduced
             output_shape = [A, B, E, M, N]
         else:
             output_shape = [BD, S, E, N]
