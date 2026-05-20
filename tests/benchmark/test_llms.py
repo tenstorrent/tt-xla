@@ -1091,6 +1091,41 @@ def test_llama_3_1_8b(
     )
 
 
+def test_llamantino_2_chat_13b_hf_ultrachat_ita(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llamantino_2_chat_13b_hf_ultrachat_ita.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMANTINO_2_CHAT_13B_HF_ULTRACHAT_ITA
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # optimization_level=2 fails decode PCC (0.783 at num_layers=1)
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1
+        ),
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
