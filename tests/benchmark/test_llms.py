@@ -847,6 +847,40 @@ def test_qwen_2_5_7b(
     )
 
 
+def test_gemma3_1b_instruct_awq_int4(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gemma3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_3_1B_IT_AWQ_INT4
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+    )
+
+
 # FAILED: KeyError: "L['self'].model.lifted_tensor_0"
 def test_gemma_1_1_7b(
     output_file, num_layers, request, max_output_tokens, optimization_level
