@@ -216,18 +216,6 @@ def load_moe_state_dict(model_name: str, layer_id: int) -> Dict[str, torch.Tenso
     return _dequant_paired(raw, base)
 
 
-def load_expert_state_dict(
-    model_name: str, layer_id: int, expert_id: int
-) -> Dict[str, torch.Tensor]:
-    """State dict matching `model.Expert(...).state_dict()` keys.
-
-    Returns keys: w1.weight, w2.weight, w3.weight — bf16.
-    """
-    base = f"layers.{layer_id}.ffn.experts.{expert_id}."
-    raw = _load_raw_subset(model_name, [base])
-    return _dequant_paired(raw, base)
-
-
 def load_block_state_dict(model_name: str, layer_id: int) -> Dict[str, torch.Tensor]:
     """State dict matching `model.Block(layer_id, args).state_dict()` keys.
 
@@ -284,24 +272,6 @@ def load_top_level_state_dict(model_name: str) -> Dict[str, torch.Tensor]:
             continue
         out[k] = v.to(torch.bfloat16) if v.is_floating_point() else v
     return out
-
-
-def load_transformer_state_dict(
-    model_name: str,
-    layer_ids: Iterable[int],
-    include_mtp: bool = False,
-) -> Dict[str, torch.Tensor]:
-    """Full Transformer state dict for the requested layer subset plus
-    top-level (embed, norm, head, hc_head_*). Load with strict=False —
-    non-persistent buffers (kv_cache, freqs_cis) aren't in the checkpoint.
-    """
-    layer_ids = sorted(set(layer_ids))
-    prefixes: List[str] = ["embed.", "norm.", "head.", "hc_head_"]
-    prefixes.extend(f"layers.{L}." for L in layer_ids)
-    if include_mtp:
-        prefixes.append("mtp.")
-    raw = _load_raw_subset(model_name, prefixes)
-    return _dequant_paired(raw, "")
 
 
 def init_transformer_weights(

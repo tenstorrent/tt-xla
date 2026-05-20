@@ -1,15 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import numpy as np
 import pytest
 import torch
-import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from infra.evaluators import ComparisonConfig, PccConfig
 from infra.utilities.torch_multichip_utils import enable_spmd
-from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from third_party.tt_forge_models.deepseek_v4.modified_model import (
@@ -107,8 +103,6 @@ def test_flash_moe_hash(model_name, batch_size, seq_len):
     mesh = utils.make_2d_mesh()
     enable_sparse_mlp(block, mesh=mesh.mesh_shape, cluster_axis=0, config=args)
     runner = _HashMoERunner(block.ffn)
-
-    ffn = block.ffn
 
     input_ids, hidden_states = realistic_inputs.get_realistic_inputs(
         model_name, layer_id=args.n_hash_layers, batch_size=batch_size, seq_len=seq_len

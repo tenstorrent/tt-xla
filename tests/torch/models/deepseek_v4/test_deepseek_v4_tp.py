@@ -1,25 +1,16 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-
-from pathlib import Path
-
-import numpy as np
 import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from infra.evaluators import ComparisonConfig, PccConfig
 from infra.utilities.torch_multichip_utils import enable_spmd
-from torch import nn
-from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from third_party.tt_forge_models.deepseek_v4.modified_model.model_decode_opt import (
     Attention,
     Block,
-    ModelArgs,
-    RMSNorm,
     Transformer,
 )
 
@@ -185,7 +176,7 @@ def _layer_shard_spec(layer: Block, shard_specs: dict):
     ffn = layer.ffn
     if hasattr(ffn, "mlp") and hasattr(ffn.mlp, "experts"):
         experts = ffn.mlp.experts
-        compound = ("batch", "model") if "batch" is not None else "model"
+        compound = ("batch", "model")
         shard_specs[experts.gate_proj] = (compound, None, None)
         shard_specs[experts.up_proj] = (compound, None, None)
         shard_specs[experts.down_proj] = (compound, None, None)
@@ -298,6 +289,7 @@ def transformer_shard_spec(model, args, kwargs):
 
 
 @pytest.mark.nightly
+@pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("num_layers", [1, 2, 3])
 def test_transformer_prefill(model_name, num_layers):
@@ -359,8 +351,6 @@ def prime_decode_kv_buffers(model: Transformer, std: float = 0.02) -> None:
         #   compressor's "compress step" branch (kv_state roll, kv_cache write).
         (1, 4, utils.PCC_99),
         (2, 4, utils.PCC_99),
-        (3, 128, utils.PCC_99),
-        (3, 127, utils.PCC_99),
         (3, 4, utils.PCC_99),
         (3, 128, utils.PCC_99),
         (3, 127, utils.PCC_99),
