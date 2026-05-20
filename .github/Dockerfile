@@ -118,11 +118,12 @@ ENV CCACHE_COMPRESS="true"
 FROM base as multihost
 SHELL ["/bin/bash", "-c"]
 
-# wireguard-tools provides wg(8) and wg-quick(8); the kernel module ships with
-# Ubuntu 24.04 (linux 6.8+) so no extra DKMS package is required.
+# wireguard-tools provides wg(8) for configuration.
+# wireguard-go is a pure-userspace implementation; it only needs CAP_NET_ADMIN
+# and /dev/net/tun — no kernel module or CAP_SYS_MODULE required.
 # kmod provides modprobe, needed to load the wireguard kernel module at runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends wireguard-tools kmod \
+    && apt-get install -y --no-install-recommends wireguard-tools wireguard-go \
     && rm -rf /var/lib/apt/lists/*
 
 #============================================================================
