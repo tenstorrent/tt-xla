@@ -31,13 +31,37 @@ readonly HOST_WORKSPACE_PATH="${HOST_WORKSPACE_PATH:?HOST_WORKSPACE_PATH must be
 # Controller always gets .1; workers get .2, .3, …
 readonly WG_SUBNET="10.200.0"
 readonly WG_CTRL_IP="${WG_SUBNET}.1"
-readonly WG_PORT="51820"
+# Controller uses 51821 (published via Docker -p 51821:51821/udp).
+# Workers use 51820 (on host network, default WireGuard port).
+readonly WG_CTRL_PORT="51821"
+readonly WG_WORKER_PORT="51820"
+
+# Discover the controller's physical hostname via the Docker socket.
+# GitHub Actions bind-mounts /var/run/docker.sock into every container.
+# `docker info .Name` returns the HOST's hostname (e.g. "f10cs02").
+CONTROLLER_PHYSICAL_HOST=$(python3 -c "
+import socket, json, sys
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.connect('/var/run/docker.sock')
+s.sendall(b'GET /info HTTP/1.0\r\nHost: localhost\r\n\r\n')
+d = b''
+while True:
+    c = s.recv(4096)
+    if not c: break
+    d += c
+s.close()
+print(json.loads(d.split(b'\r\n\r\n', 1)[1])['Name'])
+")
+echo "Controller physical hostname: ${CONTROLLER_PHYSICAL_HOST}"
+
+# Container hostname (Docker container ID) — used for /etc/hosts on workers.
+CONTROLLER_CONTAINER_HOSTNAME=$(hostname)
 
 WORKER_HOSTFILE="/tmp/mpirun-workers-hostfile"
-CONTROLLER_HOSTNAME=$(hostname -s)
 
-# Build the filtered worker-only hostfile (exclude the controller)
-awk -v controller="${CONTROLLER_HOSTNAME}" '
+# Build the filtered worker-only hostfile (exclude the controller).
+# Use the PHYSICAL hostname (not the container ID) for matching.
+awk -v controller="${CONTROLLER_PHYSICAL_HOST}" '
   /^[[:space:]]*#/ {next}
   NF == 0 {next}
   {
@@ -48,7 +72,7 @@ awk -v controller="${CONTROLLER_HOSTNAME}" '
 ' "${HOSTFILE}" > "${WORKER_HOSTFILE}"
 
 if [[ ! -s "${WORKER_HOSTFILE}" ]]; then
-  echo "No worker hosts found after filtering controller (${CONTROLLER_HOSTNAME}), skipping"
+  echo "No worker hosts found after filtering controller (${CONTROLLER_PHYSICAL_HOST}), skipping"
   exit 0
 fi
 
@@ -99,6 +123,11 @@ for i in "${!WORKER_HOSTS[@]}"; do
     docker stop "\${CONTAINER_NAME}" 2>/dev/null || true
     docker rm "\${CONTAINER_NAME}" 2>/dev/null || true
   fi
+  # Kill stale wireguard-go processes from previous runs.  With --pid=host
+  # --network=host, wireguard-go daemonizes into the host PID namespace and
+  # survives docker stop, leaving port 51820 bound.
+  pkill -f 'wireguard-go' 2>/dev/null || true
+  ip link del wg0 2>/dev/null || true
   docker run --rm -d \\
     --name "\${CONTAINER_NAME}" \\
     --pid=host --network=host \\
@@ -138,11 +167,15 @@ echo "All worker containers started successfully"
 
 echo "Setting up WireGuard overlay network…"
 
+# Kill any stale wireguard-go on the controller container from a previous run.
+pkill -f 'wireguard-go' 2>/dev/null || true
+ip link del wg0 2>/dev/null || true
+
 # Start a userspace WireGuard daemon (wireguard-go). It only requires
 # CAP_NET_ADMIN and /dev/net/tun — no kernel module or CAP_SYS_MODULE needed.
 # wireguard-go forks into the background and creates the wg0 TUN interface.
 wireguard-go wg0
-echo "${CTRL_PRIVKEY}" | wg set wg0 private-key /dev/stdin listen-port "${WG_PORT}"
+echo "${CTRL_PRIVKEY}" | wg set wg0 private-key /dev/stdin listen-port "${WG_CTRL_PORT}"
 ip addr replace "${WG_CTRL_IP}/24" dev wg0
 ip link set up dev wg0
 
@@ -153,7 +186,7 @@ for i in "${!WORKER_HOSTS[@]}"; do
   pubkey="${WORKER_PUBKEYS[$i]}"
   wg set wg0 peer "${pubkey}" \
     allowed-ips "${wg_ip}/32" \
-    endpoint "${host}:${WG_PORT}" \
+    endpoint "${host}:${WG_WORKER_PORT}" \
     persistent-keepalive 25
   echo "Controller: added WireGuard peer ${wg_ip} (${host})"
 done
@@ -181,20 +214,19 @@ set -euo pipefail
 # Map the controller's Docker hostname to its WireGuard IP so that PRTE's
 # remote daemons can resolve the HNP node name (which is the container ID,
 # e.g. "cde67301ec05") and connect back via the WireGuard tunnel.
-echo "${WG_CTRL_IP} ${CONTROLLER_HOSTNAME}" >> /etc/hosts
+echo "${WG_CTRL_IP} ${CONTROLLER_CONTAINER_HOSTNAME}" >> /etc/hosts
 
 wireguard-go wg0
-printf '%s' '${privkey}' | wg set wg0 private-key /dev/stdin listen-port ${WG_PORT}
-# No endpoint for the controller: the controller initiates the handshake from
-# inside its Docker bridge network.  Docker MASQUERADE NAT translates the
-# source address; workers learn the NATed endpoint from the incoming handshake
-# and respond via the same conntrack entry.  No port publishing needed.
-wg set wg0 peer ${CTRL_PUBKEY} allowed-ips ${WG_CTRL_IP}/32
+printf '%s' '${privkey}' | wg set wg0 private-key /dev/stdin listen-port ${WG_WORKER_PORT}
+# Explicit endpoint to the controller via its published WireGuard port.
+# Workers can always reach the controller host at CONTROLLER_PHYSICAL_HOST:51821
+# because Docker publishes that UDP port from the controller container.
+wg set wg0 peer ${CTRL_PUBKEY} allowed-ips ${WG_CTRL_IP}/32 endpoint ${CONTROLLER_PHYSICAL_HOST}:${WG_CTRL_PORT} persistent-keepalive 25
 EOF_SCRIPT
 
   for j in "${!WORKER_HOSTS[@]}"; do
     [[ ${j} -eq ${i} ]] && continue
-    echo "wg set wg0 peer ${WORKER_PUBKEYS[$j]} allowed-ips ${WORKER_WG_IPS[$j]}/32 endpoint ${WORKER_HOSTS[$j]}:${WG_PORT} persistent-keepalive 25" >> "${SETUP_SCRIPT}"
+    echo "wg set wg0 peer ${WORKER_PUBKEYS[$j]} allowed-ips ${WORKER_WG_IPS[$j]}/32 endpoint ${WORKER_HOSTS[$j]}:${WG_WORKER_PORT} persistent-keepalive 25" >> "${SETUP_SCRIPT}"
   done
 
   cat >> "${SETUP_SCRIPT}" << EOF_SCRIPT

@@ -42,7 +42,7 @@ while IFS= read -r line; do
   [[ -z "$host" ]] && continue
 
   ssh $SSH_OPTS -l ubuntu "$host" \
-    'docker stop ubuntu-host-mapped 2>/dev/null || true; docker rm ubuntu-host-mapped 2>/dev/null || true' \
+    'docker stop ubuntu-host-mapped 2>/dev/null || true; docker rm ubuntu-host-mapped 2>/dev/null || true; pkill -f wireguard-go 2>/dev/null || true; ip link del wg0 2>/dev/null || true' \
     && echo "${host}: cleaned up" &
   pids+=("$!")
 done < "${WORKER_HOSTFILE}"
