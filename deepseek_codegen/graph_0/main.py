@@ -3608,7 +3608,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_typecast_37, False)
@@ -4029,7 +4029,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_concat_4, False)
@@ -4161,7 +4161,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn_reshape_31 = ttnn.reshape(
@@ -4371,7 +4371,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_concat_7, False)
@@ -4404,7 +4404,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_permute_28, False)
@@ -4595,7 +4595,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_rms_norm_0, False)
@@ -4645,7 +4645,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_43, False)
@@ -4803,7 +4803,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_49, False)
@@ -5110,7 +5110,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_permute_32, False)
@@ -6884,7 +6884,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_softmax_0, False)
@@ -6917,7 +6917,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_61, False)
@@ -6958,7 +6958,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_63, False)
@@ -7149,7 +7149,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn_reshape_67 = ttnn.reshape(
@@ -7225,7 +7225,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_all_gather_9, False)
@@ -7313,7 +7313,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_typecast_61, False)
@@ -7492,7 +7492,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_typecast_63, False)
@@ -7800,7 +7800,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_concat_13, False)
@@ -7921,7 +7921,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn_reshape_83 = ttnn.reshape(
@@ -8131,7 +8131,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_concat_16, False)
@@ -8164,7 +8164,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_permute_37, False)
@@ -8340,7 +8340,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_rms_norm_2, False)
@@ -8390,7 +8390,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_94, False)
@@ -8548,7 +8548,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_100, False)
@@ -8858,7 +8858,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_permute_41, False)
@@ -10633,7 +10633,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_softmax_1, False)
@@ -10666,7 +10666,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_112, False)
@@ -10707,7 +10707,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_114, False)
@@ -12164,7 +12164,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn_reshape_154 = ttnn.reshape(
@@ -12240,7 +12240,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_reshape_120, False)
@@ -12328,7 +12328,7 @@ def _main(activations, weights):
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=False
         ),
     )
     ttnn.deallocate(ttnn_typecast_104, False)
