@@ -69,8 +69,7 @@ def test_llama_lora_backward():
         f"{[n for n, p in non_lora_params if p.grad is not None]}"
     )
 
-    for _, p in lora_params:
-        p.grad = None
+    model.zero_grad()
 
     # Phase 2: verify gradient flow survives compile.
     model.compile(backend="tt", options={"tt_legacy_compile": True})
@@ -83,6 +82,7 @@ def test_llama_lora_backward():
         loss.requires_grad
     ), "Loss does not require grad after compile - TT backend breaks the gradient chain"
     loss.backward()
+    torch_xla.sync()
 
     loss_value = loss.item()
     assert math.isfinite(loss_value) and loss_value > 0, f"Loss should be finite and positive, got {loss_value}."
