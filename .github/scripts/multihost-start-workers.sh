@@ -159,39 +159,49 @@ for i in "${!WORKER_HOSTS[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
-# Step 4 – configure WireGuard inside each worker container via docker exec
-# Workers use --network=host so wg0 is created in the HOST network namespace;
-# the tunnel endpoints are the physical host IPs (DNS-resolvable hostnames).
+# Step 4 – configure WireGuard inside each worker container
+# Write per-worker setup scripts to the shared workspace (already bind-mounted
+# on workers at the same path), then run them via docker exec.  This avoids
+# all SSH/shell quoting problems with multi-line bash -c strings.
 # ---------------------------------------------------------------------------
 wg_pids=()
+WG_SCRIPT_DIR="${CONTAINER_WORKSPACE}/.wg_setup"
+mkdir -p "${WG_SCRIPT_DIR}"
 
 for i in "${!WORKER_HOSTS[@]}"; do
   host="${WORKER_HOSTS[$i]}"
   wg_ip="${WORKER_WG_IPS[$i]}"
   privkey="${WORKER_PRIVKEYS[$i]}"
 
-  # Build the peer lines for this worker: controller + all other workers.
-  peer_cmds=""
+  SETUP_SCRIPT="${WG_SCRIPT_DIR}/wg-setup-worker-${i}.sh"
 
-  # Peer: controller
-  peer_cmds+="wg set wg0 peer ${CTRL_PUBKEY} allowed-ips ${WG_CTRL_IP}/32 endpoint ${CONTROLLER_HOSTNAME}:${WG_PORT} persistent-keepalive 25; "
+  # Write the script with all controller-side variables already substituted.
+  # Heredoc without quoting → ${...} expand here; single-quoted strings inside
+  # are just literal chars in the generated script.
+  cat > "${SETUP_SCRIPT}" << EOF_SCRIPT
+#!/bin/bash
+set -euo pipefail
+wireguard-go wg0
+printf '%s' '${privkey}' | wg set wg0 private-key /dev/stdin listen-port ${WG_PORT}
+wg set wg0 peer ${CTRL_PUBKEY} allowed-ips ${WG_CTRL_IP}/32 endpoint ${CONTROLLER_HOSTNAME}:${WG_PORT} persistent-keepalive 25
+EOF_SCRIPT
 
-  # Peers: sibling workers (for direct worker-to-worker streams if needed)
+  # Sibling worker peers
   for j in "${!WORKER_HOSTS[@]}"; do
     [[ ${j} -eq ${i} ]] && continue
-    peer_cmds+="wg set wg0 peer ${WORKER_PUBKEYS[$j]} allowed-ips ${WORKER_WG_IPS[$j]}/32 endpoint ${WORKER_HOSTS[$j]}:${WG_PORT} persistent-keepalive 25; "
+    echo "wg set wg0 peer ${WORKER_PUBKEYS[$j]} allowed-ips ${WORKER_WG_IPS[$j]}/32 endpoint ${WORKER_HOSTS[$j]}:${WG_PORT} persistent-keepalive 25" >> "${SETUP_SCRIPT}"
   done
 
+  cat >> "${SETUP_SCRIPT}" << EOF_SCRIPT
+ip addr replace ${wg_ip}/24 dev wg0
+ip link set up dev wg0
+echo "\$(hostname): WireGuard wg0 = ${wg_ip}"
+EOF_SCRIPT
+
+  chmod +x "${SETUP_SCRIPT}"
+
   ssh ${SSH_OPTS} -l ubuntu "${host}" \
-    docker exec ubuntu-host-mapped bash -c "
-      set -euo pipefail
-      wireguard-go wg0
-      echo '${privkey}' | wg set wg0 private-key /dev/stdin listen-port ${WG_PORT}
-      ${peer_cmds}
-      ip addr replace ${wg_ip}/24 dev wg0
-      ip link set up dev wg0
-      echo \"\$(hostname): WireGuard wg0 = ${wg_ip}\"
-    " &
+    "docker exec ubuntu-host-mapped bash ${SETUP_SCRIPT}" &
   wg_pids+=("$!")
 done
 
@@ -222,5 +232,7 @@ for i in "${!WORKER_HOSTS[@]}"; do
 done
 
 ${all_ok} || echo "WARNING: some WireGuard peers are unreachable; tests may fail" >&2
+
+rm -rf "${WG_SCRIPT_DIR}"
 
 echo "WireGuard overlay network ready. Controller IP: ${WG_CTRL_IP}"
