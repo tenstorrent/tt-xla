@@ -37,6 +37,7 @@ class AscendScheduler(Scheduler):
         kv_cache_config: KVCacheConfig,
         structured_output_manager: StructuredOutputManager,
         block_size: int,
+        hash_block_size: int | None = None,
         mm_registry: MultiModalRegistry = MULTIMODAL_REGISTRY,
         include_finished_set: bool = False,
         log_stats: bool = False,
@@ -46,6 +47,7 @@ class AscendScheduler(Scheduler):
             kv_cache_config,
             structured_output_manager,
             block_size,
+            hash_block_size,
             mm_registry,
             include_finished_set,
             log_stats,
@@ -150,6 +152,15 @@ class AscendScheduler(Scheduler):
                 num_computed_tokens = (
                     num_new_local_computed_tokens + num_external_computed_tokens
                 )
+                assert num_computed_tokens <= request.num_tokens
+
+                if request.prefill_stats is not None:
+                    assert num_computed_tokens <= request.num_prompt_tokens
+                    request.prefill_stats.set(
+                        num_prompt_tokens=request.num_prompt_tokens,
+                        num_local_cached_tokens=num_new_local_computed_tokens,
+                        num_external_cached_tokens=num_external_computed_tokens,
+                    )
             else:
                 # P/D: skip checking prefix cache if loaded from remote kvs.
                 new_computed_blocks = self.kv_cache_manager.create_empty_block_list()
@@ -255,9 +266,6 @@ class AscendScheduler(Scheduler):
             token_budget -= num_new_tokens
             request.status = RequestStatus.RUNNING
             request.num_computed_tokens = num_computed_tokens
-            # Count the number of prefix cached tokens.
-            if request.num_cached_tokens < 0:
-                request.num_cached_tokens = num_computed_tokens
 
         # Put back any skipped requests at the head of the waiting queue
         if step_skipped_waiting:

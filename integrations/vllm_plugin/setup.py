@@ -51,7 +51,7 @@ setup(
     version="0.1",
     packages=find_packages(),
     install_requires=[
-        "vllm==0.20.2",
+        "vllm@git+https://github.com/mmanzoorTT/vllm.git@mmanzoor/no-output-testing",
         "transformers==5.5.1",
     ],
     python_requires=">=3.12, <3.13",

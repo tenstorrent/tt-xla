@@ -80,6 +80,7 @@ class TTAttentionMetadataBuilder:
 
 
 class TTAttentionBackend(AttentionBackend):
+    accept_output_buffer = False
     @staticmethod
     def get_name() -> str:
         return "CUSTOM"
@@ -326,66 +327,8 @@ class TTAttentionBackendImpl(AttentionImpl):
 
         orig_query_shape = query.shape
         orig_query_ndim = query.ndim
-        restore_output_to_orig_query_shape = False
 
-        query_in_explicit_head_layout = (
-            orig_query_ndim == 3
-            and query.shape[-1] != self.num_heads * self.head_size
-            and query.shape[1] == self.num_heads
-            and query.shape[2] == self.head_size
-        )
-
-        if query_in_explicit_head_layout:
-            batch_size = (
-                attn_metadata.batch_size
-                if attn_metadata is not None and attn_metadata.batch_size is not None
-                else num_users
-            )
-            total_query_tokens = query.shape[0]
-            if attn_metadata is not None and attn_metadata.num_tokens is not None:
-                query_num_tokens = attn_metadata.num_tokens
-            else:
-                assert total_query_tokens % batch_size == 0, (
-                    f"query total tokens ({total_query_tokens}) must be divisible by "
-                    f"batch_size ({batch_size})."
-                )
-                query_num_tokens = total_query_tokens // batch_size
-            assert batch_size * query_num_tokens == total_query_tokens, (
-                f"query shape mismatch: batch_size ({batch_size}) * num_tokens "
-                f"({query_num_tokens}) != total_query_tokens ({total_query_tokens})."
-            )
-
-            query = query.view(batch_size, query_num_tokens, self.num_heads, self.head_size)
-
-            assert key.ndim == 3 and value.ndim == 3, (
-                "Expected key/value to have shape [total_tokens, num_kv_heads, head_size] "
-                "when query uses explicit head layout."
-            )
-            assert key.shape[1] == self.num_kv_heads and key.shape[2] == self.head_size, (
-                f"Unexpected key shape {tuple(key.shape)} for num_kv_heads={self.num_kv_heads}, "
-                f"head_size={self.head_size}."
-            )
-            assert value.shape[1] == self.num_kv_heads and value.shape[2] == self.head_size, (
-                f"Unexpected value shape {tuple(value.shape)} for num_kv_heads={self.num_kv_heads}, "
-                f"head_size={self.head_size}."
-            )
-
-            total_k_tokens = key.shape[0]
-            total_v_tokens = value.shape[0]
-            assert total_k_tokens == total_v_tokens, "key/value token count mismatch."
-            assert total_k_tokens % batch_size == 0, (
-                f"key total tokens ({total_k_tokens}) must be divisible by batch_size "
-                f"({batch_size})."
-            )
-            kv_num_tokens = total_k_tokens // batch_size
-            key = key.view(batch_size, kv_num_tokens, self.num_kv_heads, self.head_size)
-            value = value.view(batch_size, kv_num_tokens, self.num_kv_heads, self.head_size)
-
-            users_kv = key.shape[0]
-            hidden_size = self.num_heads * self.head_size
-            num_users = batch_size
-            restore_output_to_orig_query_shape = True
-        elif orig_query_ndim == 3:
+        if orig_query_ndim == 3:
             assert query.shape[0] == num_users, (
                 f"query batch dim ({query.shape[0]}) and cache_position num_users "
                 f"({num_users}) mismatch."
@@ -411,17 +354,16 @@ class TTAttentionBackendImpl(AttentionImpl):
         is_prefill = query_num_tokens > 1
 
         # Reshape Q/K/V to [batch(users), tokens, num_heads, head_size]
-        if not query_in_explicit_head_layout:
-            query, key, value = self._reshape_to_attention_format(
-                query,
-                key,
-                value,
-                num_users,
-                users_kv,
-                query_num_tokens,
-                kv_num_tokens,
-                hidden_size,
-            )
+        query, key, value = self._reshape_to_attention_format(
+            query,
+            key,
+            value,
+            num_users,
+            users_kv,
+            query_num_tokens,
+            kv_num_tokens,
+            hidden_size,
+        )
 
         # Create named tuple for inputs
         AttentionInputs = namedtuple(
@@ -432,7 +374,6 @@ class TTAttentionBackendImpl(AttentionImpl):
                 "value",
                 "orig_query_shape",
                 "orig_query_ndim",
-                "restore_output_to_orig_query_shape",
                 "users",
                 "query_num_tokens",
                 "is_prefill",
@@ -447,7 +388,6 @@ class TTAttentionBackendImpl(AttentionImpl):
             value=value,
             orig_query_shape=orig_query_shape,
             orig_query_ndim=orig_query_ndim,
-            restore_output_to_orig_query_shape=restore_output_to_orig_query_shape,
             users=num_users,
             query_num_tokens=query_num_tokens,
             is_prefill=is_prefill,
@@ -625,9 +565,6 @@ class TTAttentionBackendImpl(AttentionImpl):
 
     def _finalize_output(self, output: torch.Tensor, inputs) -> torch.Tensor:
         """Finalize output shape to match original input dimensions."""
-        if inputs.restore_output_to_orig_query_shape:
-            return output.reshape(inputs.orig_query_shape)
-
         hidden_size = inputs.orig_query_shape[-1]
 
         # Output from both prefill and decode: [users, tokens, num_heads, head_size]

@@ -1600,6 +1600,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        compiled_model = self._get_compiled_language_model()
+        if compiled_model is not None and hasattr(compiled_model, "do_not_compile"):
+            compiled_model.do_not_compile = True
+
         if (
             self.enable_tensor_parallel
             and self.use_2d_mesh
@@ -2174,10 +2178,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # NOTE: We check `is_multimodal_model` instead of `supports_mm_inputs`
         # since the compiled model object of the language backbone of a
         # multimodal model needs to be extracted via `get_language_model`.
-        if self.model_config.is_multimodal_model:
-            compiled_model = self.model.get_language_model().model
-        else:
-            compiled_model = self.model.model
+        compiled_model = self._get_compiled_language_model()
         if isinstance(compiled_model, TorchCompileWithNoGuardsWrapper):
             logger.info("Clear dynamo cache and cached dynamo bytecode.")
             torch._dynamo.eval_frame.remove_from_cache(
@@ -2186,6 +2187,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Reset the wrapper to re-initialize.
             compiled_model.compiled = False
             TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
+            compiled_model.do_not_compile = True
+
+    def _get_compiled_language_model(self):
+        if self.model_config.is_multimodal_model:
+            return self.model.get_language_model().model
+        return self.model.model
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def select_hidden_states(self, hidden_states, indices_do_sample):
