@@ -24,8 +24,16 @@ CONTAINER_NAME="ubuntu-host-mapped"
 # LogLevel=ERROR: Suppress the "Warning: Permanently added..." message for a cleaner MPI output
 SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 
+# Forward PRTE MCA environment variables to the worker container so the
+# remote daemon (prted) uses the correct OOB/BTL interfaces even before it
+# receives the HNP's aggregated MCA parameters.
+PRTE_ENV_ARGS=""
+[[ -n "${PRTE_MCA_oob_tcp_if_include:-}" ]] && PRTE_ENV_ARGS+=" -e PRTE_MCA_oob_tcp_if_include=${PRTE_MCA_oob_tcp_if_include}"
+[[ -n "${PRTE_MCA_btl_tcp_if_include:-}" ]] && PRTE_ENV_ARGS+=" -e PRTE_MCA_btl_tcp_if_include=${PRTE_MCA_btl_tcp_if_include}"
+
 # Use bash -c inside docker exec to handle the complex MPI environment string
 ssh -A $SSH_OPTS -l $USERNAME "$HOST" docker exec \
   -u root \
   -e LD_LIBRARY_PATH=/opt/ttmlir-toolchain/lib:/lib/x86_64-linux-gnu \
+  $PRTE_ENV_ARGS \
   $CONTAINER_NAME bash -c "'$REMOTE_COMMAND'"

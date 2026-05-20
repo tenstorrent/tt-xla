@@ -260,6 +260,11 @@ jobs:
         # Tell PRTE/MPI to bind exclusively to the WireGuard interface so it
         # advertises 10.200.0.1 (not the Docker bridge IP) as the HNP address.
         echo "export TT_DISTRIBUTED_TCP_IF_INCLUDE=wg0" >> topology_exports.sh
+        # In OpenMPI 5, oob_tcp_if_include is a PRTE parameter.  The --mca flag
+        # used by client_instance.cc may only reach the MPI layer; set the PRTE
+        # env-var form so the HNP (and forwarded daemons) always get it.
+        echo "export PRTE_MCA_oob_tcp_if_include=wg0" >> topology_exports.sh
+        echo "export PRTE_MCA_btl_tcp_if_include=wg0" >> topology_exports.sh
         # Override the MPI hostfile to use WireGuard IPs instead of physical
         # hostnames.  The WireGuard hostfile only lists workers (no controller
         # entry), so PRTE won't try to launch a daemon on the controller's host.
