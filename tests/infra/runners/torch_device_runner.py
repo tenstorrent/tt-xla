@@ -129,9 +129,16 @@ class TorchDeviceRunner(DeviceRunner):
             if hasattr(workload.model, "tie_weights"):
                 workload.model.tie_weights()
 
+        is_multichip = (
+            hasattr(workload, "mesh")
+            and workload.mesh
+            and len(workload.mesh.device_ids) > 1
+        )
+
         shard_specs = None
         if (
-            device.type != "cpu"
+            is_multichip
+            and device.type != "cpu"
             and hasattr(workload, "shard_spec_fn")
             and workload.shard_spec_fn
         ):
@@ -162,13 +169,7 @@ class TorchDeviceRunner(DeviceRunner):
                 else:
                     shard_specs = workload.shard_spec_fn(workload.model)
 
-        is_multichip = (
-            hasattr(workload, "mesh")
-            and workload.mesh
-            and len(workload.mesh.device_ids) > 1
-        )
-
-        if shard_specs is not None and is_multichip and device.type != "cpu":
+        if shard_specs is not None:
             for tensor, shard_spec in shard_specs.items():
                 xs.mark_sharding(tensor, workload.mesh, shard_spec)
 
