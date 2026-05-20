@@ -2107,7 +2107,6 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
         arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
-        required_pcc=0.94,
     )
 
 
