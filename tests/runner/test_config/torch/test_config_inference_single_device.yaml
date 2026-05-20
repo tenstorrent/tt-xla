@@ -1471,7 +1471,6 @@ test_config:
   gemma/pytorch-1.1_7B_IT-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
-    assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
     optimization_level: 2
 
   stable_diffusion_xl/pytorch-Base_1.0-single_device-inference:
