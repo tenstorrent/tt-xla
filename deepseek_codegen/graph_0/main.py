@@ -8191,37 +8191,19 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_all_gather_22, False)
-    ttnn_slice_255 = ttnn.slice(
-        ttnn_reshape_128,
-        [0],
-        [256],
-        [1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn_slice_256 = ttnn.slice(
-        ttnn_reshape_130,
-        [0],
-        [256],
-        [1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
     ttnn_to_layout_245 = ttnn.to_layout(
         ttnn_reshape_129, ttnn.Layout.ROW_MAJOR, None, memory_config=None
     )
     ttnn.deallocate(ttnn_reshape_129, False)
     ttnn_to_layout_246 = ttnn.to_layout(
-        ttnn_slice_255, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+        ttnn_reshape_128, ttnn.Layout.ROW_MAJOR, None, memory_config=None
     )
-    ttnn.deallocate(ttnn_slice_255, False)
+    ttnn.deallocate(ttnn_reshape_128, False)
     ttnn_to_layout_247 = ttnn.to_layout(
-        ttnn_slice_256, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+        ttnn_reshape_130, ttnn.Layout.ROW_MAJOR, None, memory_config=None
     )
-    ttnn.deallocate(ttnn_slice_256, False)
-    ttnn_scatter_128 = ttnn.scatter(
+    ttnn.deallocate(ttnn_reshape_130, False)
+    ttnn_scatter_129 = ttnn.scatter(
         input=ttnn_to_layout_245,
         dim=0,
         index=ttnn_to_layout_246,
@@ -8233,46 +8215,6 @@ def _main(activations, weights):
     ttnn.deallocate(ttnn_to_layout_247, False)
     ttnn.deallocate(ttnn_to_layout_246, False)
     ttnn.deallocate(ttnn_to_layout_245, False)
-    ttnn_slice_257 = ttnn.slice(
-        ttnn_reshape_128,
-        [256],
-        [512],
-        [1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_reshape_128, False)
-    ttnn_slice_258 = ttnn.slice(
-        ttnn_reshape_130,
-        [256],
-        [512],
-        [1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_reshape_130, False)
-    ttnn_to_layout_248 = ttnn.to_layout(
-        ttnn_slice_257, ttnn.Layout.ROW_MAJOR, None, memory_config=None
-    )
-    ttnn.deallocate(ttnn_slice_257, False)
-    ttnn_to_layout_249 = ttnn.to_layout(
-        ttnn_slice_258, ttnn.Layout.ROW_MAJOR, None, memory_config=None
-    )
-    ttnn.deallocate(ttnn_slice_258, False)
-    ttnn_scatter_129 = ttnn.scatter(
-        input=ttnn_scatter_128,
-        dim=0,
-        index=ttnn_to_layout_248,
-        src=ttnn_to_layout_249,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_to_layout_249, False)
-    ttnn.deallocate(ttnn_to_layout_248, False)
-    ttnn.deallocate(ttnn_scatter_128, False)
     ttnn_to_layout_250 = ttnn.to_layout(
         ttnn_scatter_129, ttnn.Layout.TILE, None, memory_config=None
     )
