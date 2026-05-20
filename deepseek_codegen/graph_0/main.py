@@ -12004,27 +12004,10 @@ def _main(activations, weights):
     )
     ttnn.deallocate(ttnn_to_layout_263, False)
     ttnn.deallocate(ttnn_to_device_66, False)
-    ttnn_post_combine_tilized = ttnn.experimental.deepseek_moe_post_combine_tilize(
-        ttnn_all_to_all_combine_0,
-        output_memory_config=ttnn.MemoryConfig(
-            buffer_type=ttnn.BufferType.L1,
-            nd_shard_spec=ttnn.NdShardSpec(
-                shard_shape=ttnn.Shape([32, 3584]),
-                grid=ttnn.CoreRangeSet(
-                    [ttnn.CoreRange(ttnn.CoreCoord(0, 0), ttnn.CoreCoord(7, 7))]
-                ),
-                orientation=ttnn.ShardOrientation.ROW_MAJOR,
-            ),
-        ),
+    ttnn_to_layout_264 = ttnn.to_layout(
+        ttnn_all_to_all_combine_0, ttnn.Layout.TILE, None, memory_config=None
     )
     ttnn.deallocate(ttnn_all_to_all_combine_0, False)
-    ttnn_to_layout_264 = ttnn.sharded_to_interleaved(
-        ttnn_post_combine_tilized,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_post_combine_tilized, False)
     ttnn_reduce_scatter_10 = ttnn.reduce_scatter(
         input_tensor=ttnn_to_layout_264,
         dim=3,
