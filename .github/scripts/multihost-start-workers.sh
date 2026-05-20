@@ -160,8 +160,9 @@ done
 
 # ---------------------------------------------------------------------------
 # Step 4 – configure WireGuard inside each worker container
-# Write per-worker setup scripts locally, then pipe them over SSH into
-# `docker exec -i bash` (reads from stdin).  No file copying to remote hosts.
+# Write per-worker setup scripts locally, then stream them to the remote host
+# via SSH stdin.  The remote shell saves them to a host-side temp file and
+# feeds that file to `docker exec -i bash` (host-side redirect, reliable).
 # ---------------------------------------------------------------------------
 wg_pids=()
 WG_SCRIPT_DIR="$(mktemp -d)"
@@ -192,9 +193,12 @@ ip link set up dev wg0
 echo "\$(hostname): WireGuard wg0 = ${wg_ip}"
 EOF_SCRIPT
 
-  # Pipe the script into the container via stdin — no remote file copying needed.
+  # Stream the script to the remote host: save it to a host-side temp file,
+  # then feed that file to docker exec via a host-side redirect.
+  # Using a host-side `< /tmp/...` avoids stdin-forwarding issues through SSH.
   ssh ${SSH_OPTS} -l ubuntu "${host}" \
-    "docker exec -i ubuntu-host-mapped bash" < "${SETUP_SCRIPT}" &
+    "cat > /tmp/wg-setup-${i}.sh && docker exec -i ubuntu-host-mapped bash < /tmp/wg-setup-${i}.sh; rm -f /tmp/wg-setup-${i}.sh" \
+    < "${SETUP_SCRIPT}" &
   wg_pids+=("$!")
 done
 
