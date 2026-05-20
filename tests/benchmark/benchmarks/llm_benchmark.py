@@ -23,6 +23,7 @@ from llm_utils import (
     init_accuracy_testing,
     init_indexer_cache,
     init_mla_cache,
+    init_ssm_cache,
     init_static_cache,
 )
 from llm_utils.decode_utils import LLMSamplingWrapper
@@ -87,7 +88,7 @@ def construct_inputs(
     model_config,
     batch_size: int,
     max_cache_len: int,
-    past_key_values: Optional[Union[StaticCache, MLACache]] = None,
+    past_key_values=None,  # StaticCache | MLACache | SSM cache (e.g. FalconMambaCache) | None
     input_prompt: str = None,
     input_prompt_tokens: Optional[torch.Tensor] = None,
     use_mla_cache: bool = False,
@@ -136,7 +137,7 @@ def construct_inputs(
         )
 
     if past_key_values is None:
-        # Static cache should be initialized on CPU and separately transferred to device
+        # Cache should be initialized on CPU and separately transferred to device
         # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
         if use_mla_cache:
             static_cache = init_mla_cache(
@@ -154,10 +155,33 @@ def construct_inputs(
                 device="cpu",
                 dtype=torch.bfloat16,
             )
+            if static_cache is None:
+                # SSM/Mamba-style models (FalconMamba, Mamba) don't use
+                # attention-based KV caches.  Pre-allocate the SSM cache on
+                # CPU so that it can be moved to device before the first
+                # compiled forward pass (creating it inside a compiled graph
+                # would trigger a 'trace forbidden callable' error).
+                static_cache = init_ssm_cache(
+                    config=model_config,
+                    batch_size=batch_size,
+                    device="cpu",
+                    dtype=torch.bfloat16,
+                )
     else:
         static_cache = past_key_values
     input_ids = inputs["input_ids"] if isinstance(inputs, dict) else inputs.input_ids
-    cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
+
+    # SSM/Mamba models (FalconMamba, Mamba) use a special cache_position convention.
+    # Prefill is signalled by cache_position.shape[0] == conv_kernel_size (not seq_len).
+    # If we pass cache_position of length seq_len, the model silently falls into the
+    # decode path and produces wrong hidden_states shape => IndexError in slow_forward.
+    # See: FalconMambaMixer.slow_forward, line:
+    #   if cache_position is not None and cache_position.shape[0] == self.conv_kernel_size:
+    if static_cache is not None and hasattr(static_cache, "conv_states"):
+        conv_kernel = getattr(model_config, "conv_kernel", 4)
+        cache_position: torch.Tensor = torch.arange(0, conv_kernel)
+    else:
+        cache_position: torch.Tensor = torch.arange(0, input_ids.shape[1])
 
     input_args = {
         "input_ids": input_ids,
@@ -187,20 +211,36 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     Returns:
         input_args on device
     """
-    for layer in input_args["past_key_values"].layers:
-        if isinstance(layer, MLAStaticLayer):
-            layer.compressed_kv = layer.compressed_kv.to(device)
-            layer.k_pe = layer.k_pe.to(device)
-            layer.keys = layer.compressed_kv
-            layer.values = layer.k_pe
+    kv = input_args.get("past_key_values")
+    if kv is not None:
+        if hasattr(kv, "layers"):
+            # Attention-based cache (StaticCache / MLACache): transfer layer tensors.
+            for layer in kv.layers:
+                if isinstance(layer, MLAStaticLayer):
+                    layer.compressed_kv = layer.compressed_kv.to(device)
+                    layer.k_pe = layer.k_pe.to(device)
+                    layer.keys = layer.compressed_kv
+                    layer.values = layer.k_pe
+                    if not torch.compiler.is_compiling():
+                        torch._dynamo.mark_static_address(layer.compressed_kv)
+                        torch._dynamo.mark_static_address(layer.k_pe)
+                else:
+                    layer.keys = layer.keys.to(device)
+                    layer.values = layer.values.to(device)
+        elif hasattr(kv, "conv_states") and hasattr(kv, "ssm_states"):
+            # SSM cache (FalconMambaCache / MambaCache): transfer conv and ssm state tensors.
+            kv.conv_states = [s.to(device) for s in kv.conv_states]
+            kv.ssm_states = [s.to(device) for s in kv.ssm_states]
+            # Mark the device tensors as static so torch.compile doesn't
+            # re-guard on their addresses between decode steps.
             if not torch.compiler.is_compiling():
-                torch._dynamo.mark_static_address(layer.compressed_kv)
-                torch._dynamo.mark_static_address(layer.k_pe)
-        else:
-            layer.keys = layer.keys.to(device)
-            layer.values = layer.values.to(device)
+                for s in kv.conv_states:
+                    torch._dynamo.mark_static_address(s)
+                for s in kv.ssm_states:
+                    torch._dynamo.mark_static_address(s)
     input_args["input_ids"] = input_args["input_ids"].to(device)
-    input_args["cache_position"] = input_args["cache_position"].to(device)
+    if "cache_position" in input_args:
+        input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
 
 
@@ -414,8 +454,8 @@ def benchmark_llm_torch_xla(
 
         # Snapshot first-decode inputs before CPU iter 1 advances them.
         first_decode_input_ids = input_args["input_ids"].clone()
-        decode_only_cache_position = input_args["cache_position"].clone()
-        decode_only_cache = input_args["past_key_values"]
+        decode_only_cache_position = input_args.get("cache_position", torch.tensor([0])).clone()
+        decode_only_cache = input_args.get("past_key_values")
 
         # Iter 1: first decode. Provides the PCC reference for device first decode.
         cpu_decode_logits, _ = generate_and_benchmark(
@@ -475,7 +515,7 @@ def benchmark_llm_torch_xla(
     if weight_dtype_overrides:
         applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
+    elif hasattr(model_loader, "get_weight_dtype_config_path"):
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
         weight_dtype_config = model_loader.get_weight_dtype_config_path()
         if weight_dtype_config:
@@ -517,7 +557,9 @@ def benchmark_llm_torch_xla(
         )
         input_args = transfer_to_device(input_args, device)
         if is_multichip:
-            _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
+            kv = input_args.get("past_key_values")
+            if kv is not None:
+                _shard_kv_cache(kv, mesh, kv_cache_sharding_spec)
             if input_output_sharding_spec:
                 xs.mark_sharding(
                     input_args["input_ids"], mesh, input_output_sharding_spec
@@ -534,7 +576,19 @@ def benchmark_llm_torch_xla(
         )
         print("Warmup complete")
 
-        warmup_kv_cache = input_args["past_key_values"]
+        warmup_kv_cache = input_args.get("past_key_values")
+        # For SSM/Mamba models (FalconMambaCache, MambaCache) the warmup
+        # leaves the SSM state at a non-zero point that is specific to the
+        # warmup sequence.  We reset it in-place (preserving the tensor
+        # addresses, so no recompilation) rather than discarding it, so the
+        # perf run starts from a clean zero state.
+        if warmup_kv_cache is not None and not isinstance(
+            warmup_kv_cache, (StaticCache, MLACache)
+        ):
+            if hasattr(warmup_kv_cache, "reset"):
+                warmup_kv_cache.reset()
+            else:
+                warmup_kv_cache = None  # fallback: let construct_inputs make a fresh one
 
         tracy.signpost("warmup_complete")
 
@@ -553,11 +607,14 @@ def benchmark_llm_torch_xla(
     if decode_only:
         # Reset to post-prefill decode state (single token input)
         input_args["input_ids"] = first_decode_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
+        if "cache_position" in input_args:
+            input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
     if is_multichip and decode_only:
-        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
+        kv = input_args.get("past_key_values")
+        if kv is not None:
+            _shard_kv_cache(kv, mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
@@ -611,11 +668,14 @@ def benchmark_llm_torch_xla(
     if decode_only:
         # Reset to post-prefill decode state (single token input)
         input_args["input_ids"] = first_decode_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
+        if "cache_position" in input_args:
+            input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
     if is_multichip:
-        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
+        kv = input_args.get("past_key_values")
+        if kv is not None:
+            _shard_kv_cache(kv, mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 

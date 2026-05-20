@@ -28,11 +28,21 @@ class LLMSamplingWrapper(torch.nn.Module):
     graph, intermediate tensors stay on device between decode steps, eliminating
     costly device-to-host round-trips for input_ids and cache_position.
 
+    Supports both attention-based models (StaticCache / past_key_values) and
+    SSM/Mamba-style models (FalconMambaCache / cache_params).  The cache type
+    is detected once in __init__ from the inner model's forward signature.
+
     Args:
         model: The LLM to wrap.
         read_logits_fn: Function to extract logits from model output.
-        return_logits: If True, forward() returns (next_token_ids, next_cache_position, logits).
-            If False, returns (next_token_ids, next_cache_position) only.
+        return_logits: If True, forward() returns
+            (next_token_ids, next_token_ids_replicated, next_cache_position,
+             logits, updated_cache).
+            If False, returns
+            (next_token_ids, next_token_ids_replicated, next_cache_position,
+             updated_cache).
+            updated_cache is None for attention models (StaticCache is mutated
+            in-place); it is the new SSM state tensor for Mamba models.
         mesh: Optional SPMD mesh for sharding constraints.
         output_sharding_spec: Optional sharding spec for output token ids.
             When both mesh and output_sharding_spec are provided, applies a
@@ -54,13 +64,33 @@ class LLMSamplingWrapper(torch.nn.Module):
         self.mesh = mesh
         self.output_sharding_spec = output_sharding_spec
 
-    def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
-        output = self.model(
-            input_ids=input_ids,
-            past_key_values=past_key_values,
-            cache_position=cache_position,
-            use_cache=use_cache,
-        )
+        # Detect SSM-style models (FalconMamba, Mamba) that use cache_params
+        # instead of past_key_values.  Done once here so the forward() method
+        # can be a simple constant-dispatch (no Python introspection at
+        # trace/compile time).
+        import inspect
+
+        fwd_params = inspect.signature(model.forward).parameters
+        self._ssm_cache = "cache_params" in fwd_params
+
+    def forward(self, input_ids, past_key_values=None, cache_position=None, use_cache=True):
+        # Build keyword arguments for the underlying model.  The calling
+        # convention differs between attention models and SSM models:
+        #   - Attention models accept past_key_values (StaticCache, in-place).
+        #   - SSM models (FalconMamba, Mamba) accept cache_params (returned).
+        forward_kwargs: dict = {"input_ids": input_ids}
+        if cache_position is not None:
+            forward_kwargs["cache_position"] = cache_position
+        if self._ssm_cache:
+            # SSM model: past_key_values slot holds the SSM cache_params object.
+            forward_kwargs["cache_params"] = past_key_values
+            forward_kwargs["use_cache"] = use_cache
+        else:
+            if past_key_values is not None:
+                forward_kwargs["past_key_values"] = past_key_values
+            forward_kwargs["use_cache"] = use_cache
+
+        output = self.model(**forward_kwargs)
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.
         # This is a noop for decode.
@@ -77,7 +107,15 @@ class LLMSamplingWrapper(torch.nn.Module):
             next_token_ids_replicated = sharding_constraint_tensor(
                 next_token_ids, self.mesh, replicate_spec
             )
-        next_cache_position = cache_position[-1:] + 1
+        next_cache_position = (cache_position[-1:] + 1) if cache_position is not None else None
+
+        # Both attention (StaticCache) and SSM (FalconMambaCache, MambaCache)
+        # update their states in-place during the forward pass, so the caller
+        # does not need to receive an updated cache object.  We always return
+        # None here; generate_and_benchmark skips the cache update when it is
+        # None, which is the correct behaviour.
+        updated_cache = None
+
         if self.return_logits:
             logits_out = logits
             if self.mesh and self.output_sharding_spec:
@@ -93,8 +131,9 @@ class LLMSamplingWrapper(torch.nn.Module):
                 next_token_ids_replicated,
                 next_cache_position,
                 logits_out,
+                updated_cache,
             )
-        return next_token_ids, next_token_ids_replicated, next_cache_position
+        return next_token_ids, next_token_ids_replicated, next_cache_position, updated_cache
 
 
 def assert_eval_no_dropout(model: torch.nn.Module, *, verbose: bool = False) -> None:
@@ -117,12 +156,22 @@ def init_static_cache(
     max_cache_len: int,
     device: str = "cpu",
     dtype: torch.dtype = torch.bfloat16,
-) -> StaticCache:
-    """Initialize a transformers StaticCache consistently."""
+) -> Optional[StaticCache]:
+    """Initialize a transformers StaticCache consistently.
+
+    Returns None for SSM/Mamba-style models that don't use attention-based
+    KV caches (e.g. FalconMamba, Mamba).  These models use a separate
+    SSM state (cache_params) that is returned by the model and threaded
+    through the generation loop instead.
+    """
     if hasattr(config, "head_dim") and getattr(config, "head_dim"):
         head_dim = config.head_dim
-    else:
+    elif hasattr(config, "num_attention_heads"):
         head_dim = config.hidden_size // config.num_attention_heads
+    else:
+        # SSM/Mamba-style models (FalconMamba, Mamba) don't use
+        # attention-based KV caches — signal this to the caller.
+        return None
 
     num_key_value_heads = getattr(
         config, "num_key_value_heads", config.num_attention_heads
@@ -143,6 +192,36 @@ def init_static_cache(
         device=device,
     )
     return static_cache
+
+
+def init_ssm_cache(
+    *,
+    config,
+    batch_size: int,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.bfloat16,
+):
+    """Initialize an SSM state cache for Mamba-style models (FalconMamba, Mamba).
+
+    SSM caches are pre-allocated on CPU (just like StaticCache) so that
+    transfer_to_device can move them to the target device before the first
+    compiled forward pass.  This avoids creating the cache *inside* a
+    compiled graph, which would trigger a 'trace forbidden callable
+    mark_static_address' error.
+
+    Returns the cache object, or None if the model type is not recognised.
+    """
+    model_type = getattr(config, "model_type", "")
+    if model_type == "falcon_mamba":
+        from transformers.models.falcon_mamba.modeling_falcon_mamba import FalconMambaCache
+
+        return FalconMambaCache(config, batch_size, dtype=dtype, device=device)
+    elif model_type == "mamba":
+        from transformers.models.mamba.modeling_mamba import MambaCache
+
+        return MambaCache(config, batch_size, dtype=dtype, device=device)
+    # Unknown SSM model — the caller will fall back to no-cache inference.
+    return None
 
 
 def init_mla_cache(
@@ -327,17 +406,30 @@ def generate_and_benchmark(
                     next_token_ids_replicated,
                     next_cache_position,
                     logits,
+                    updated_cache,
                 ) = output
                 output_logits.append(logits.to("cpu"))
             else:
-                next_token_ids, next_token_ids_replicated, next_cache_position = output
+                (
+                    next_token_ids,
+                    next_token_ids_replicated,
+                    next_cache_position,
+                    updated_cache,
+                ) = output
 
             if ground_truth_tokens is not None:
                 input_args["input_ids"] = gt_cpu[step].to(device)
             else:
                 input_args["input_ids"] = next_token_ids
 
-            input_args["cache_position"] = next_cache_position
+            if next_cache_position is not None:
+                input_args["cache_position"] = next_cache_position
+
+            # For SSM/Mamba models the cache is returned from the model
+            # (not mutated in-place).  Thread it back into input_args so the
+            # next step sees the accumulated SSM state.
+            if updated_cache is not None:
+                input_args["past_key_values"] = updated_cache
 
             if tokenizer:
                 decoded = tokenizer.batch_decode(next_token_ids_replicated.to("cpu"))
