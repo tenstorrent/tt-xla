@@ -103,6 +103,7 @@ for i in "${!WORKER_HOSTS[@]}"; do
     --name "\${CONTAINER_NAME}" \\
     --pid=host --network=host \\
     --cap-add NET_ADMIN \\
+    --cap-add SYS_MODULE \\
     --device /dev/tenstorrent \\
     -v /dev/hugepages:/dev/hugepages \\
     -v /dev/hugepages-1G:/dev/hugepages-1G \\
@@ -136,6 +137,10 @@ echo "All worker containers started successfully"
 # ---------------------------------------------------------------------------
 
 echo "Setting up WireGuard overlay network…"
+
+# Load the WireGuard kernel module (requires CAP_SYS_MODULE on the container).
+# The module is already present on Ubuntu 24.04 kernels; modprobe just loads it.
+modprobe wireguard
 
 # Create the interface (ignore error if it already exists from a previous run).
 ip link add wg0 type wireguard 2>/dev/null || true
@@ -182,6 +187,7 @@ for i in "${!WORKER_HOSTS[@]}"; do
   ssh ${SSH_OPTS} -l ubuntu "${host}" \
     docker exec ubuntu-host-mapped bash -c "
       set -euo pipefail
+      modprobe wireguard
       ip link add wg0 type wireguard 2>/dev/null || true
       echo '${privkey}' | wg set wg0 private-key /dev/stdin listen-port ${WG_PORT}
       ${peer_cmds}
