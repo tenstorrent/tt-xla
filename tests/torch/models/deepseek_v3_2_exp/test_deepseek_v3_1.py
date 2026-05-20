@@ -29,23 +29,17 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from huggingface_hub import hf_hub_download
 from infra.testers.compiler_config import CompilerConfig
+from infra.weight_cache import ensure_cache, has_cache, load_cache_into
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from modified_model import precompute_freqs_cis
-from safetensors.torch import load_file as safetensors_load_file
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
 
-# Import shard-streaming + cache helpers from the builder script (single source of truth)
+# Per-model spec lives next to the builder script (single source of truth)
 sys.path.insert(0, os.path.dirname(__file__))
-from build_weight_cache import (
-    _dequant_cache_dir,
-    _has_cache,
-    _post_sparse_cache_dir,
-    build_cache,
-    build_post_sparse_cache,
-)
+from build_weight_cache import deepseek_weight_cache_spec
 
 DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
 
@@ -95,39 +89,20 @@ def load_deepseek_config(repo_id=DEEPSEEK_V3_1_REPO):
     )
 
 
-def _load_cache_chunked(cache_dir):
-    """Load all chunk files via mmap. Returns merged state_dict."""
-    state_dict = {}
-    for fname in sorted(os.listdir(cache_dir)):
-        if not fname.endswith(".safetensors"):
-            continue
-        chunk = safetensors_load_file(os.path.join(cache_dir, fname))
-        state_dict.update(chunk)
-    return state_dict
-
-
 def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=1):
     """Load the dequant cache into ``model``, self-healing it from FP8 shards if absent."""
-    cache_dir = _dequant_cache_dir(repo_id, n_layers)
-    if not _has_cache(cache_dir):
-        print(
-            f"[weights] no cache at {cache_dir} — dequantizing from FP8...", flush=True
-        )
-        build_cache(repo_id, n_layers, n_dense_layers)
+    spec = deepseek_weight_cache_spec(
+        repo_id, n_layers, n_dense_layers, post_sparse=False
+    )
+    ensure_cache(spec)
 
     t0 = time.perf_counter()
-    print(f"[weights] loading cached BF16 weights from {cache_dir}", flush=True)
-    state_dict = _load_cache_chunked(cache_dir)
+    print(f"[weights] loading cached BF16 weights from {spec.cache_dir}", flush=True)
+    missing, unexpected = load_cache_into(model, spec.cache_dir, strict=False)
     print(
         f"[timing] cache load (mmap): {time.perf_counter() - t0:.1f}s "
-        f"({len(state_dict)} tensors)",
+        f"(missing={len(missing)}, unexpected={len(unexpected)})",
         flush=True,
-    )
-
-    missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
-    print(
-        f"[weights] loaded {len(state_dict)} tensors. "
-        f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
     )
 
 
@@ -318,17 +293,18 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
     with torch.device("meta"):
         model = ModifiedTransformer(args)
     mesh_shape = (4, 8)
-    post_sparse_dir = _post_sparse_cache_dir(repo_id, args.n_layers)
-    dequant_dir = _dequant_cache_dir(repo_id, args.n_layers)
+    post_sparse_spec = deepseek_weight_cache_spec(
+        repo_id, args.n_layers, args.n_dense_layers, post_sparse=True
+    )
+    dequant_spec = deepseek_weight_cache_spec(
+        repo_id, args.n_layers, args.n_dense_layers, post_sparse=False
+    )
+    post_sparse_dir = post_sparse_spec.cache_dir
+    dequant_dir = dequant_spec.cache_dir
 
     def _load_post_sparse():
-        if not _has_cache(post_sparse_dir):
-            print(
-                f"[weights] post-sparse cache not found at {post_sparse_dir}, "
-                "building... (self-heals pre-sparse if absent)",
-                flush=True,
-            )
-            build_post_sparse_cache(repo_id, args.n_layers, args.n_dense_layers)
+        # ensure_cache walks next_stage, so a missing bf16 cache is built first.
+        ensure_cache(post_sparse_spec)
         print(f"[weights] loading post-sparse cache from {post_sparse_dir}", flush=True)
         enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
         for _, mod in model.named_modules():
@@ -336,8 +312,7 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
                 object.__setattr__(mod, "_original_mlp", None)
             if hasattr(mod, "original_experts"):
                 mod.original_experts = nn.ModuleList()
-        state_dict = _load_cache_chunked(post_sparse_dir)
-        model.load_state_dict(state_dict, strict=False, assign=True)
+        load_cache_into(model, post_sparse_dir, strict=False)
         _fix_meta_buffers(model, args)
         model.eval()
 
@@ -354,7 +329,7 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
         enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
 
     if prefer_cpu_capable:
-        if _has_cache(post_sparse_dir) and not _has_cache(dequant_dir):
+        if has_cache(post_sparse_dir) and not has_cache(dequant_dir):
             print(
                 "[weights] prefer_cpu_capable=True but dequant cache missing; "
                 "falling back to post-sparse cache (CPU forward will be broken)",
@@ -364,7 +339,7 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
         else:
             _load_dequant()
     else:
-        if _has_cache(dequant_dir) and not _has_cache(post_sparse_dir):
+        if has_cache(dequant_dir) and not has_cache(post_sparse_dir):
             print(
                 "[weights] post-sparse cache missing; falling back to "
                 "dequant cache (slower — runtime expert stacking)",

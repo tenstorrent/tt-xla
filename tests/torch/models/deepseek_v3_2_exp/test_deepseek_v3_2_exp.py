@@ -11,9 +11,9 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
+from infra.weight_cache import ensure_cache, load_cache_into
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
-from safetensors.torch import load_file as safetensors_load_file
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoTokenizer
 from tt_torch.sparse_mlp import enable_sparse_mlp
@@ -31,7 +31,7 @@ from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.src.modified
 )
 
 sys.path.insert(0, os.path.dirname(__file__))
-from build_weight_cache import _dequant_cache_dir, _has_cache, build_cache
+from build_weight_cache import deepseek_weight_cache_spec
 
 DEEPSEEK_V3_2_EXP_REPO = "deepseek-ai/DeepSeek-V3.2-Exp"
 
@@ -303,14 +303,11 @@ def test_deepseek_v3_2_moe_block(batch_size, seq_len):
     model = model.to(torch.bfloat16)
     _fix_layernorm_dtype(model)
 
-    cache_dir = _dequant_cache_dir(repo_id, args.n_layers)
-    if not _has_cache(cache_dir):
-        build_cache(repo_id, args.n_layers, args.n_dense_layers)
-    state_dict = {}
-    for fname in sorted(os.listdir(cache_dir)):
-        if fname.endswith(".safetensors"):
-            state_dict.update(safetensors_load_file(os.path.join(cache_dir, fname)))
-    model.load_state_dict(state_dict, strict=False)
+    spec = deepseek_weight_cache_spec(
+        repo_id, args.n_layers, args.n_dense_layers, post_sparse=False
+    )
+    ensure_cache(spec)
+    load_cache_into(model, spec.cache_dir, strict=False)
 
     block = model.layers[args.n_dense_layers]
 

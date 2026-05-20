@@ -1,0 +1,59 @@
+I'm planning a refactor of weight-cache builders and weight-loading code across
+the torch model tests. Don't write code — produce a plan.
+
+**Goal:** Maximize shared infrastructure for weight loading and caching across
+torch model tests, and ideally integrate it into the model tester base class so
+per-model test code doesn't have to wire up caches by hand. Functions that are custom to each model can be added to the loader in tt-forge-models.
+
+**Anchor files to study first:**
+- `tests/torch/models/glm4_moe/build_weight_cache_glm.py` — GLM-4.7, BF16 on HF,
+  single-pass HF → post-sparse build.
+- `tests/torch/models/deepseek_v3_2_exp/build_weight_cache.py` — DeepSeek V3.1,
+  FP8 with block-wise `weight_scale_inv`, two-pass HF → BF16 pre-sparse →
+  stacked post-sparse.
+- `tests/benchmark/test_llms.py` — currently open, likely loads weights.
+
+**Other weight-loading tests to also study:**
+[LINKS]
+
+**Also find** the torch model tester base class under `tests/torch/` and
+understand how existing tests load weights — both direct-from-HF and via cache.
+
+**What I already know from comparing the two cache builders:**
+- Identical or near-identical helpers in both: `_safe_open_hf`, `_has_cache`,
+  `_load_tensors`, `_group_by_shard`, the repo regex validator, cache-dir
+  naming.
+- Real differences: DeepSeek needs FP8 block-wise dequant (`_weight_dequant`)
+  and a pre-sparse staging cache; GLM is BF16 and single-pass. Each model has
+  its own rename table (DeepSeek's `_rename_hf_key` is large and model-
+  specific; GLM's renames are inline in `_process_moe_layer`). Expert-stacking
+  output differs (GLM stacked weights only; DeepSeek stacked weights + zero
+  biases).
+- FP8 dequant can be dtype-driven inside a shared loader (auto-apply when
+  dtype is FP8 and a matching `*_scale_inv` key exists), so callers don't
+  need a flag.
+
+**Deliverables:**
+1. Map of current state: every place weights are loaded or cached across the
+   torch tests, with file:line refs and a one-line "what it does."
+2. Proposed split: what moves to a shared utils module (path + rough API),
+   what stays per-model (rename tables, dtype policy, orchestrator). Show
+   concrete function signatures.
+3. Explicit answer to the utils-folder vs. model-tester-integration question
+   — or both, and where the boundary lies. If full integration with the model
+   tester is feasible, show how (e.g., a `cached_weights` hook on the tester
+   base, fed by a per-model `WeightCacheSpec`-like object).
+4. Migration order: which model gets refactored first to validate the design,
+   and what risks are model-specific vs. infra-level.
+5. Tradeoffs and open questions you want me to decide before any code lands.
+
+**Don't:**
+- Treat DeepSeek's FP8 / `weight_scale_inv` convention as universal — other
+  quantization schemes (per-row scales, per-tensor scales, different suffixes)
+  exist and a future model may use them.
+- Hoist per-model rename logic into a shared module; renames are inherently
+  per-model.
+- Propose backwards-compat shims; update callers directly.
+
+Be concrete: file paths, function signatures, class names. Read files as
+needed to answer sub-questions — don't guess.

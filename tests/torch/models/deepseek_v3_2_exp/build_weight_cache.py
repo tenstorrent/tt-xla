@@ -2,62 +2,59 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Build a chunked BF16 weight cache for DeepSeek V3.1, one layer at a time.
+"""DeepSeek V3.1 / V3.2-exp weight cache builder.
 
-Processes each layer independently so peak memory is ~23 GB (one MoE layer)
-instead of ~1.37 TB (all 61 layers). No swap needed on a 512 GB machine.
+Two-stage cache used by the DeepSeek test files:
 
-Usage:
-    python build_weight_cache.py                  # default: 61 layers
-    python build_weight_cache.py --n-layers 10
-    python build_weight_cache.py --n-layers 4 --repo deepseek-ai/DeepSeek-V3.1
+- `_bf16`: BF16 weights after FP8 block-wise dequant and the HF -> modified_model
+  key rename. Useful as a CPU reference (per-expert weights still live here).
+- `_stacked`: post-sparse cache where each MoE chunk has its per-expert
+  `w1/w2/w3` tensors stacked into the StackedExperts layout (with zero biases)
+  consumed by `A2aSparseMLP`.
+
+The chunked layout (one .safetensors per HF-layer plus `shared.safetensors`) and
+the build orchestration live in `tests/infra/weight_cache/`; this module declares
+the per-model spec:
+
+- `_iter_deepseek_bf16_groups` decides which HF keys go into which output chunk,
+  attaches the matching `*.weight_scale_inv` aux keys, and carries the
+  ckpt→model rename map in `GroupDef.metadata`.
+- `_transform_deepseek_bf16_group` dequantizes FP8, casts to BF16 (or FP32 for
+  `head.weight`), and writes each tensor under its model key.
+- `_transform_deepseek_post_sparse_chunk` detects MoE chunks by key shape and
+  applies `_stack_experts_for_chunk` (single-pass over the bf16 chunk).
+
+Run as a script to build either stage from the command line:
+
+    python build_weight_cache.py                   # default: 61 layers, _bf16 only
+    python build_weight_cache.py --n-layers 4      # smoke
+    python build_weight_cache.py --post-sparse     # also build _stacked
 """
 import argparse
 import json
-import os
 import re
-import time
 
 import torch
 from huggingface_hub import hf_hub_download
-from safetensors import safe_open
-from safetensors.torch import load_file as safetensors_load_file
-from safetensors.torch import save_file as safetensors_save_file
+from infra.weight_cache import (
+    GroupDef,
+    WeightCacheSpec,
+    cache_dir_for,
+    ensure_cache,
+    maybe_dequant,
+    safe_open_hf,
+)
 
 DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
-FP8_BLOCK_SIZE = 128
-
-
-def _safe_open_hf(path):
-    """Open a path only if it resolves within the HF cache directory."""
-    real = os.path.realpath(path)
-    base = os.path.realpath(
-        os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    )
-    if not real.startswith(base + os.sep):
-        raise ValueError(f"Path outside HF cache: {path}")
-    return open(real)
-
-
-def _dequant_cache_dir(repo_id, n_layers):
-    """Per-model BF16 safetensors cache directory."""
-    repo_slug = repo_id.replace("/", "--")
-    base = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    return os.path.join(base, "tt_xla_dequant_cache", f"{repo_slug}_{n_layers}layers")
-
-
-def _post_sparse_cache_dir(repo_id, n_layers):
-    return _dequant_cache_dir(repo_id, n_layers) + "_post_sparse"
-
-
-def _has_cache(cache_dir):
-    return os.path.isdir(cache_dir) and any(
-        f.endswith(".safetensors") for f in os.listdir(cache_dir)
-    )
 
 
 def _rename_hf_key(ckpt_key, n_dense_layers=1):
-    """Rename a HuggingFace checkpoint key to match modified_model.py naming."""
+    """Rename a HuggingFace checkpoint key to match `modified_model.py` naming.
+
+    Returns `None` if the key should be dropped: FP8 scale tensors are tracked
+    separately via aux keys, and `mlp.gate_proj/up_proj/down_proj` on layers
+    >= `n_dense_layers` are MoE-only and don't exist in the modified model.
+    """
     key = ckpt_key
     if key.startswith("model."):
         key = key[len("model.") :]
@@ -97,78 +94,18 @@ def _rename_hf_key(ckpt_key, n_dense_layers=1):
     return key
 
 
-def _weight_dequant(weight, scale_inv, block_size=FP8_BLOCK_SIZE):
-    """Dequantize FP8 weight: bf16 = fp8 * weight_scale_inv (block-wise)."""
-    orig_shape = weight.shape
-    assert weight.dim() == 2
-    rows, cols = orig_shape
-    pad_rows = (block_size - rows % block_size) % block_size
-    pad_cols = (block_size - cols % block_size) % block_size
-    if pad_rows or pad_cols:
-        weight = torch.nn.functional.pad(weight, (0, pad_cols, 0, pad_rows))
-    padded_rows, padded_cols = weight.shape
-    n_br = padded_rows // block_size
-    n_bc = padded_cols // block_size
-    weight = (
-        weight.view(n_br, block_size, n_bc, block_size)
-        .transpose(1, 2)
-        .contiguous()
-        .view(-1, block_size * block_size)
-    )
-    weight = (
-        (weight.float() * scale_inv.view(-1, 1).float())
-        .to(torch.bfloat16)
-        .view(n_br, n_bc, block_size, block_size)
-        .transpose(1, 2)
-        .contiguous()
-        .view(padded_rows, padded_cols)
-    )
-    return weight[:rows, :cols]
+def _build_deepseek_groups(weight_map, n_layers, n_dense_layers):
+    """Partition HF keys into output groups + scale-key sidetable.
 
+    Returns `(groups, scale_keys)` where:
+    - `groups`: ordered dict `{group_name: {ckpt_key: model_key}}`
+    - `scale_keys`: `{ckpt_weight_key: ckpt_scale_key}` for FP8 weights that
+      have a paired `*.weight_scale_inv` tensor on disk
+    """
+    groups: dict[str, dict[str, str]] = {}
+    scale_keys: dict[str, str] = {}
 
-def _group_by_shard(ckpt_keys, key_to_shard):
-    shard_to_keys = {}
-    for k in ckpt_keys:
-        shard_to_keys.setdefault(key_to_shard[k], []).append(k)
-    return shard_to_keys
-
-
-def _load_tensors(shard_to_keys, repo_id):
-    """Return {ckpt_key: tensor} for all requested keys, opening each shard once."""
-    out = {}
-    for shard_name, keys in shard_to_keys.items():
-        shard_path = hf_hub_download(repo_id, shard_name)
-        with safe_open(shard_path, framework="pt", device="cpu") as f:
-            for key in keys:
-                out[key] = f.get_tensor(key)
-    return out
-
-
-def build_cache(repo_id, n_layers, n_dense_layers=1):
-    cache_dir = _dequant_cache_dir(repo_id, n_layers)
-
-    if _has_cache(cache_dir):
-        print(f"Cache already exists at {cache_dir}, skipping.")
-        print(f"  Files: {sorted(os.listdir(cache_dir))}")
-        print("  Delete the directory to rebuild.")
-        return
-
-    t_total_start = time.perf_counter()
-
-    # Load index
-    index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
-    with _safe_open_hf(index_path) as f:
-        index = json.load(f)
-    weight_map = index["weight_map"]
-
-    # Build per-layer mapping: which ckpt keys (and their scales) belong to
-    # which layer/group.
-    # Groups: "shared" (embed, norm, head) and layer_0000..layer_NNNN
-    groups = {}  # group_name -> {ckpt_key: model_key}
-    scale_keys = {}  # ckpt_weight_key -> ckpt_scale_key
-    all_key_to_shard = {}  # ckpt_key -> shard_file (weights + scales)
-
-    for ckpt_key, shard_file in weight_map.items():
+    for ckpt_key in weight_map:
         layer_m = re.match(r"model\.layers\.(\d+)\.", ckpt_key)
         if layer_m and int(layer_m.group(1)) >= n_layers:
             continue
@@ -176,94 +113,66 @@ def build_cache(repo_id, n_layers, n_dense_layers=1):
         if "weight_scale_inv" in ckpt_key:
             w_key = ckpt_key.replace(".weight_scale_inv", ".weight")
             scale_keys[w_key] = ckpt_key
-            all_key_to_shard[ckpt_key] = shard_file
-        else:
-            model_key = _rename_hf_key(ckpt_key, n_dense_layers)
-            if model_key is None:
-                continue
-            all_key_to_shard[ckpt_key] = shard_file
+            continue
 
-            # Assign to group
-            lm = re.match(r"layers\.(\d+)\.", model_key)
-            group = f"layer_{int(lm.group(1)):04d}" if lm else "shared"
-            groups.setdefault(group, {})[ckpt_key] = model_key
+        model_key = _rename_hf_key(ckpt_key, n_dense_layers)
+        if model_key is None:
+            continue
 
-    os.makedirs(cache_dir, exist_ok=True)
-    total_bytes = 0
+        lm = re.match(r"layers\.(\d+)\.", model_key)
+        group_name = f"layer_{int(lm.group(1)):04d}" if lm else "shared"
+        groups.setdefault(group_name, {})[ckpt_key] = model_key
 
+    return groups, scale_keys
+
+
+def _iter_deepseek_bf16_groups(weight_map, *, n_layers, n_dense_layers):
+    groups, scale_keys = _build_deepseek_groups(weight_map, n_layers, n_dense_layers)
     for group_name in sorted(groups):
-        t_group_start = time.perf_counter()
         ckpt_to_model = groups[group_name]
-
-        needed_ckpt_keys = set(ckpt_to_model.keys())
-        needed_scale_keys = {scale_keys[k] for k in ckpt_to_model if k in scale_keys}
-        shard_to_keys = _group_by_shard(
-            needed_ckpt_keys | needed_scale_keys, all_key_to_shard
-        )
-        raw = _load_tensors(shard_to_keys, repo_id)
-
-        # Dequantize and rename
-        state_dict = {}
-        n_dequant = 0
-        for ckpt_key, model_key in ckpt_to_model.items():
-            tensor = raw.get(ckpt_key)
-            if tensor is None:
-                continue
-
-            if tensor.dtype == torch.float8_e4m3fn:
-                sk = scale_keys.get(ckpt_key)
-                scale_inv = raw.get(sk) if sk else None
-                if scale_inv is not None:
-                    tensor = _weight_dequant(tensor, scale_inv)
-                    n_dequant += 1
-                else:
-                    tensor = tensor.to(torch.bfloat16)
-
-            if model_key == "head.weight":
-                tensor = tensor.to(torch.float32)
-            elif tensor.dtype != torch.bfloat16:
-                tensor = tensor.to(torch.bfloat16)
-
-            state_dict[model_key] = tensor
-
-        del raw
-
-        # Save chunk
-        chunk_path = os.path.join(cache_dir, f"{group_name}.safetensors")
-        safetensors_save_file(state_dict, chunk_path)
-        chunk_size = os.path.getsize(chunk_path)
-        total_bytes += chunk_size
-        del state_dict
-
-        t_group_end = time.perf_counter()
-        print(
-            f"  {group_name}: {len(ckpt_to_model)} keys, "
-            f"{n_dequant} dequantized, "
-            f"{chunk_size / 1e9:.1f} GB, "
-            f"{t_group_end - t_group_start:.1f}s",
-            flush=True,
+        ckpt_keys = list(ckpt_to_model.keys())
+        aux_keys = [scale_keys[k] for k in ckpt_keys if k in scale_keys]
+        yield GroupDef(
+            name=group_name,
+            ckpt_keys=ckpt_keys,
+            aux_keys=aux_keys,
+            metadata={
+                "ckpt_to_model": ckpt_to_model,
+                "scale_keys": {k: scale_keys[k] for k in ckpt_keys if k in scale_keys},
+            },
         )
 
-    t_total_end = time.perf_counter()
-    print(
-        f"\nDone. {len(groups)} chunks, {total_bytes / 1e9:.1f} GB total, "
-        f"{t_total_end - t_total_start:.1f}s",
-        flush=True,
-    )
-    print(f"Cache dir: {cache_dir}")
+
+def _transform_deepseek_bf16_group(raw, group):
+    ckpt_to_model = group.metadata["ckpt_to_model"]
+    scale_keys = group.metadata["scale_keys"]
+
+    out: dict[str, torch.Tensor] = {}
+    for ckpt_key, model_key in ckpt_to_model.items():
+        tensor = raw.get(ckpt_key)
+        if tensor is None:
+            continue
+        scale_key = scale_keys.get(ckpt_key)
+        scale = raw.get(scale_key) if scale_key else None
+        tensor = maybe_dequant(tensor, scale)
+        if model_key == "head.weight":
+            tensor = tensor.to(torch.float32)
+        elif tensor.dtype != torch.bfloat16:
+            tensor = tensor.to(torch.bfloat16)
+        out[model_key] = tensor
+    return out
 
 
 def _stack_experts_for_chunk(chunk):
-    """Convert per-expert weights in a chunk to stacked StackedExperts format.
+    """Convert per-expert weights in one bf16 chunk to the StackedExperts layout.
 
-    Input keys like ``layers.N.ffn.experts.{idx}.{w1,w2,w3}.weight``
-    become ``layers.N.ffn.mlp.experts.{gate,up,down}_proj`` (transposed & stacked).
-    Router keys ``ffn.gate.*`` become ``ffn.mlp.router.gate.*``.
-    All other keys (attention, norms, shared_experts) pass through unchanged.
+    Input keys `layers.N.ffn.experts.{idx}.{w1,w2,w3}.weight` are stacked +
+    transposed into `layers.N.ffn.mlp.experts.{gate,up,down}_proj` plus zero
+    `*_proj_bias`. Router keys `ffn.gate.*` become `ffn.mlp.router.gate.*`.
+    Everything else (attention, norms, shared_experts) passes through.
     """
-    # Collect per-expert weights
-    expert_weights = {}  # idx -> {w1: tensor, w2: tensor, w3: tensor}
-    layer_prefix = None
+    expert_weights: dict[int, dict[str, torch.Tensor]] = {}
+    layer_prefix: str | None = None
 
     for key in chunk:
         m = re.match(r"(layers\.\d+\.ffn)\.experts\.(\d+)\.(w[123])\.weight", key)
@@ -276,9 +185,9 @@ def _stack_experts_for_chunk(chunk):
         return dict(chunk)
 
     n_experts = max(expert_weights.keys()) + 1
-    result = {}
+    result: dict[str, torch.Tensor] = {}
 
-    # Stack: w1=gate, w3=up, w2=down — with transpose to match StackedExperts
+    # w1=gate, w3=up, w2=down — transpose at stack time to get [E, in, out].
     gate_proj = torch.stack([expert_weights[i]["w1"].T for i in range(n_experts)])
     up_proj = torch.stack([expert_weights[i]["w3"].T for i in range(n_experts)])
     down_proj = torch.stack([expert_weights[i]["w2"].T for i in range(n_experts)])
@@ -295,80 +204,58 @@ def _stack_experts_for_chunk(chunk):
     result[f"{mlp_pfx}.up_proj_bias"] = torch.zeros(n_experts, inter, dtype=dtype)
     result[f"{mlp_pfx}.down_proj_bias"] = torch.zeros(n_experts, hidden, dtype=dtype)
 
-    # Non-expert keys: rename router, pass through rest
     for key in chunk:
         if ".ffn.experts." in key:
-            continue  # already handled
+            continue
         if ".ffn.gate." in key:
-            new_key = key.replace(".ffn.gate.", ".ffn.mlp.router.gate.")
-            result[new_key] = chunk[key]
+            result[key.replace(".ffn.gate.", ".ffn.mlp.router.gate.")] = chunk[key]
         else:
             result[key] = chunk[key]
 
     return result
 
 
-def build_post_sparse_cache(repo_id, n_layers, n_dense_layers):
-    """Build post-sparse cache from existing pre-sparse cache.
+def _transform_deepseek_post_sparse_chunk(chunk, chunk_name):
+    """Apply expert stacking iff the chunk has MoE expert keys."""
+    if any(".ffn.experts." in k for k in chunk):
+        return _stack_experts_for_chunk(chunk)
+    return dict(chunk)
 
-    Reads each layer's pre-sparse chunk via mmap, stacks expert weights
-    to match the StackedExperts layout, and saves. Peak memory is ~46 GB
-    (one layer of mmap'd per-expert weights + one layer of stacked tensors).
+
+def deepseek_weight_cache_spec(
+    repo_id: str,
+    n_layers: int,
+    n_dense_layers: int = 1,
+    *,
+    post_sparse: bool = False,
+) -> WeightCacheSpec:
+    """Build the WeightCacheSpec for DeepSeek V3.1 / V3.2-exp.
+
+    With `post_sparse=False`, returns the BF16 spec (HF-source, dequant +
+    rename). With `post_sparse=True`, returns a stacked spec whose
+    `next_stage` is the BF16 spec — `ensure_cache` will materialize both.
     """
-    pre_dir = _dequant_cache_dir(repo_id, n_layers)
-    post_dir = _post_sparse_cache_dir(repo_id, n_layers)
-
-    if not _has_cache(pre_dir):
-        print(
-            f"Pre-sparse cache not found at {pre_dir}, building it first...",
-            flush=True,
-        )
-        build_cache(repo_id, n_layers, n_dense_layers)
-
-    if _has_cache(post_dir):
-        print(f"Post-sparse cache already exists at {post_dir}, skipping.")
-        print(f"  Files: {sorted(os.listdir(post_dir))}")
-        print("  Delete the directory to rebuild.")
-        return
-
-    os.makedirs(post_dir, exist_ok=True)
-    total_bytes = 0
-    t_start = time.perf_counter()
-
-    for fname in sorted(os.listdir(pre_dir)):
-        if not fname.endswith(".safetensors"):
-            continue
-
-        t_chunk = time.perf_counter()
-        chunk = safetensors_load_file(os.path.join(pre_dir, fname))
-
-        is_moe = any(".ffn.experts." in k for k in chunk)
-        if is_moe:
-            out_dict = _stack_experts_for_chunk(chunk)
-        else:
-            out_dict = dict(chunk)
-
-        out_path = os.path.join(post_dir, fname)
-        safetensors_save_file(out_dict, out_path)
-        sz = os.path.getsize(out_path)
-        total_bytes += sz
-        del chunk, out_dict
-
-        dt = time.perf_counter() - t_chunk
-        tag = " (MoE stacked)" if is_moe else ""
-        print(f"  {fname}: {sz / 1e9:.1f} GB, {dt:.1f}s{tag}", flush=True)
-
-    dt_total = time.perf_counter() - t_start
-    print(
-        f"\nDone. {total_bytes / 1e9:.1f} GB total, {dt_total:.1f}s",
-        flush=True,
+    bf16 = WeightCacheSpec(
+        repo_id=repo_id,
+        cache_dir=cache_dir_for(repo_id, n_layers, variant="bf16"),
+        iter_groups=lambda weight_map: _iter_deepseek_bf16_groups(
+            weight_map, n_layers=n_layers, n_dense_layers=n_dense_layers
+        ),
+        transform_group=_transform_deepseek_bf16_group,
     )
-    print(f"Post-sparse cache dir: {post_dir}")
+    if not post_sparse:
+        return bf16
+    return WeightCacheSpec(
+        repo_id=repo_id,
+        cache_dir=cache_dir_for(repo_id, n_layers, variant="stacked"),
+        transform_chunk=_transform_deepseek_post_sparse_chunk,
+        next_stage=bf16,
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Build BF16 weight cache for DeepSeek V3.1"
+        description="Build weight cache for DeepSeek V3.1 / V3.2-exp"
     )
     parser.add_argument(
         "--repo", default=DEEPSEEK_V3_1_REPO, help="HuggingFace repo ID"
@@ -383,7 +270,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--post-sparse",
         action="store_true",
-        help="Build post-sparse cache (stacked experts). Requires pre-sparse cache.",
+        help="Also build the post-sparse (stacked-experts) stage",
     )
     args = parser.parse_args()
 
@@ -395,12 +282,15 @@ if __name__ == "__main__":
     n_dense_layers = args.n_dense_layers
     if n_dense_layers is None:
         config_path = hf_hub_download(args.repo, "config.json")
-        with _safe_open_hf(config_path) as f:
+        with safe_open_hf(config_path) as f:
             hf_cfg = json.load(f)
         n_dense_layers = hf_cfg["first_k_dense_replace"]
         print(f"Read n_dense_layers={n_dense_layers} from {args.repo} config")
 
-    if args.post_sparse:
-        build_post_sparse_cache(args.repo, args.n_layers, n_dense_layers)
-    else:
-        build_cache(args.repo, args.n_layers, n_dense_layers)
+    spec = deepseek_weight_cache_spec(
+        args.repo,
+        args.n_layers,
+        n_dense_layers,
+        post_sparse=args.post_sparse,
+    )
+    ensure_cache(spec)

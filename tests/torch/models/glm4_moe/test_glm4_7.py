@@ -21,7 +21,12 @@ import torch_xla
 import torch_xla.runtime as xr
 from huggingface_hub import hf_hub_download
 from infra.testers.compiler_config import CompilerConfig
-from safetensors.torch import load_file as safetensors_load_file
+from infra.weight_cache import (
+    ensure_cache,
+    group_keys_by_shard,
+    load_cache_into,
+    load_tensors_grouped,
+)
 from torch import nn
 from torch_xla.distributed.spmd import Mesh, mark_sharding
 from transformers import AutoTokenizer
@@ -33,15 +38,9 @@ from transformers.models.glm4_moe.modeling_glm4_moe import (
 )
 from tt_torch.sparse_mlp import A2aSparseMLP, build_expert_mapping, enable_sparse_mlp
 
-# Import shard-streaming + cache helpers from the builder script (single source of truth)
+# Per-model spec lives next to the builder script (single source of truth)
 sys.path.insert(0, os.path.dirname(__file__))
-from build_weight_cache_glm import (
-    _group_by_shard,
-    _has_cache,
-    _load_tensors,
-    _post_sparse_cache_dir,
-    build_post_sparse_cache,
-)
+from build_weight_cache_glm import glm_weight_cache_spec
 
 GLM_REPO = "zai-org/GLM-4.7"
 
@@ -69,15 +68,6 @@ def _patch_router_bf16():
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _load_cache_chunked(cache_dir):
-    state_dict = {}
-    for fname in sorted(os.listdir(cache_dir)):
-        if not fname.endswith(".safetensors"):
-            continue
-        state_dict.update(safetensors_load_file(os.path.join(cache_dir, fname)))
-    return state_dict
 
 
 def _restore_router_bias_fp32(model):
@@ -119,18 +109,13 @@ def _materialize_rope_buffer(model, config):
 
 def _build_and_load_model_post_sparse(config, repo_id, mesh_shape):
     """Meta-init + enable_sparse_mlp + load post-sparse cache. Fast, TT-only."""
-    cache_dir = _post_sparse_cache_dir(repo_id, config.num_hidden_layers)
-    if not _has_cache(cache_dir):
-        print(
-            f"[weights] post-sparse cache not found at {cache_dir}, building...",
-            flush=True,
-        )
-        build_post_sparse_cache(
-            repo_id,
-            config.num_hidden_layers,
-            config.first_k_dense_replace,
-            config.n_routed_experts,
-        )
+    spec = glm_weight_cache_spec(
+        repo_id,
+        config.num_hidden_layers,
+        config.first_k_dense_replace,
+        config.n_routed_experts,
+    )
+    ensure_cache(spec)
 
     print(
         f"[weights] meta-building Glm4MoeForCausalLM (n_layers={config.num_hidden_layers})",
@@ -152,13 +137,11 @@ def _build_and_load_model_post_sparse(config, repo_id, mesh_shape):
     print(f"[timing] enable_sparse_mlp: {time.perf_counter() - t0:.1f}s", flush=True)
 
     t0 = time.perf_counter()
-    print(f"[weights] loading post-sparse cache from {cache_dir}", flush=True)
-    state_dict = _load_cache_chunked(cache_dir)
-    missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
+    print(f"[weights] loading post-sparse cache from {spec.cache_dir}", flush=True)
+    missing, unexpected = load_cache_into(model, spec.cache_dir, strict=False)
     print(f"[timing] cache load: {time.perf_counter() - t0:.1f}s", flush=True)
     print(
-        f"[weights] loaded {len(state_dict)} tensors; "
-        f"missing={len(missing)}, unexpected={len(unexpected)}",
+        f"[weights] missing={len(missing)}, unexpected={len(unexpected)}",
         flush=True,
     )
     if missing:
@@ -207,8 +190,8 @@ def _load_cpu_state_dict_shard_on_demand(config, repo_id):
             continue
         wanted_keys.append(ckpt_key)
 
-    shard_to_keys = _group_by_shard(wanted_keys, weight_map)
-    raw = _load_tensors(shard_to_keys, repo_id)
+    shard_to_keys = group_keys_by_shard(wanted_keys, weight_map)
+    raw = load_tensors_grouped(shard_to_keys, repo_id)
 
     # Split into per-expert (for fusion below) vs. pass-through.
     expert_tensors = {}  # (layer_idx, expert_idx, name) -> tensor
