@@ -1,6 +1,6 @@
-## Troubleshooting
+# Troubleshooting
 
-### Code Generation Fails
+## Code Generation Fails
 
 **Symptom:**
 ```
@@ -101,5 +101,3 @@ options = {
 
 3. **Link against TT-NN library:**
    Ensure your build system links the TT-NN library correctly
-
----

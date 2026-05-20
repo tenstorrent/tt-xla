@@ -78,6 +78,7 @@ test_config:
   resnet/pytorch-ResNet50_HuggingFace-single_device-inference:
     required_pcc: 0.98
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   mamba/pytorch-790M_HF-single_device-inference:
     status: EXPECTED_PASSING
@@ -116,13 +117,16 @@ test_config:
   falcon/pytorch-3_1B_Base-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push]
+    optimization_level: 2
 
   falcon/pytorch-3_3B_Base-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   falcon/pytorch-3_7B_Base-single_device-inference:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   falcon/pytorch-3_10B_Base-single_device-inference:
     supported_archs: ["p150"]
@@ -157,6 +161,7 @@ test_config:
     # Set required_pcc here to verify in push that required_pcc set is safe (it wasn't always)
     required_pcc: 0.99
     markers: [push, nightly]
+    optimization_level: 2
 
   mnist/image_classification/pytorch-Cnn_Nodropout-single_device-inference:
     status: EXPECTED_PASSING
@@ -380,6 +385,11 @@ test_config:
 
   mobilenetv2/pytorch-Mobilenet_v2-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
+
+  motif_image_6B_preview/text_to_image/pytorch-Motif-Image-6B-Preview-single_device-inference:
+    status: KNOWN_FAILURE_XFAIL
+    reason: "DYNAMO_FAKE_TENSORS_FX_NODE: Dynamo failed to run FX node with fake tensors: aten.add.Tensor — two different devices xla:0, cpu"
 
   nanogpt/pytorch-Default-single_device-inference:
     status: EXPECTED_PASSING
@@ -491,8 +501,9 @@ test_config:
     status: EXPECTED_PASSING
     filechecks:
       - concatenate_heads.ttnn.mlir
-      # - split_query_key_value_and_split_heads.ttnn.mlir # now only appears with optimization level 1
+      - split_query_key_value_and_split_heads.ttnn.mlir
       - layer_norm.ttnn.mlir
+    optimization_level: 1
     markers: [push, nightly]
 
   vit/pytorch-Large-single_device-inference:
@@ -554,6 +565,7 @@ test_config:
 
   phi2/causal_lm/pytorch-Phi_2-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   phi2/causal_lm/pytorch-Phi_2_Pytdml-single_device-inference:
     status: EXPECTED_PASSING
@@ -674,6 +686,7 @@ test_config:
 
   segformer/semantic_segmentation/pytorch-B0_Finetuned_Ade_512_512-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   albert/token_classification/pytorch-Base_v1-single_device-inference:
     status: EXPECTED_PASSING
@@ -716,6 +729,7 @@ test_config:
 
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   yolos/pytorch-single_device-inference:
     required_pcc: 0.96 # https://github.com/tenstorrent/tt-xla/issues/1168 https://github.com/tenstorrent/tt-xla/issues/2759
@@ -885,12 +899,14 @@ test_config:
 
   qwen_3/causal_lm/pytorch-1_7B-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   qwen_2_5_coder/pytorch-3B-single_device-inference:
     status: EXPECTED_PASSING
 
   qwen_3/causal_lm/pytorch-0_6B-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   qwen_2_5/causal_lm/pytorch-3B-single_device-inference:
     status: EXPECTED_PASSING
@@ -898,6 +914,7 @@ test_config:
   qwen_2_5/causal_lm/pytorch-3B_Instruct-single_device-inference:
     assert_pcc: false
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   qwen_2_5_coder/pytorch-3B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -913,6 +930,7 @@ test_config:
     assert_pcc: false
     status: EXPECTED_PASSING
     markers: [push]
+    optimization_level: 1
 
   retinanet/pytorch-ResNet18_Backbone_with_FPN-single_device-inference:
     assert_pcc: false
@@ -1191,6 +1209,7 @@ test_config:
 
   unet_for_conditional_generation/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 1
 
   mlp_mixer/pytorch-Mixer_Github-single_device-inference:
     status: EXPECTED_PASSING
@@ -1211,6 +1230,7 @@ test_config:
 
   vovnet/pytorch-Ese_Vovnet19b_Dw.ra_In1k-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   resnext/pytorch-50_32x4d-single_device-inference:
     status: EXPECTED_PASSING
@@ -1279,6 +1299,7 @@ test_config:
 
   efficientnet/pytorch-Timm_B0-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   efficientnet/pytorch-Timm_B4-single_device-inference:
     status: EXPECTED_PASSING
@@ -1390,6 +1411,7 @@ test_config:
   gemma/pytorch-2_2B_IT-single_device-inference:
     status: EXPECTED_PASSING
     markers: ["extended", push]
+    optimization_level: 2
 
   wide_resnet/pytorch-50_2.timm-single_device-inference:
     status: EXPECTED_PASSING
@@ -1434,8 +1456,8 @@ test_config:
     status: EXPECTED_PASSING
 
   bi_lstm_crf/pytorch-Default-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+    status: EXPECTED_PASSING
+
 
   flux/pytorch-Schnell-single_device-inference:
     supported_archs: ["p150"]
@@ -1454,6 +1476,7 @@ test_config:
     supported_archs: ["p150"]
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    optimization_level: 2
 
   stable_diffusion_xl/pytorch-Base_1.0-single_device-inference:
     status: EXCLUDE_MODEL  # stable_diffusion variants have a hand written test, don't run via test_models.py. TODO(@ppadjinTT): when pipeline becomes supported through test infra, enable this model again.
@@ -1502,6 +1525,7 @@ test_config:
   phi3/causal_lm/pytorch-Mini_4K_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     markers: [push]
+    optimization_level: 2
 
   phi3/token_cls/pytorch-Mini_128K_Instruct-single_device-inference:
     status: EXPECTED_PASSING
@@ -1525,6 +1549,7 @@ test_config:
 
   qwen_3/embedding/pytorch-Embedding_8B-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 1
     arch_overrides:
       n150:
         enable_weight_bfp8_conversion: true
@@ -1582,6 +1607,7 @@ test_config:
   llama/causal_lm/pytorch-3.1_8B_Instruct-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false # ComputeConfig math_fidelity/fp32_dest_acc_en - https://github.com/tenstorrent/tt-xla/issues/2861
+    optimization_level: 2
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1674,6 +1700,7 @@ test_config:
 
   mistral/pytorch-7B_INSTRUCT_v03-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1681,6 +1708,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-Ministral_8B_Instruct-single_device-inference:
+    optimization_level: 2
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
@@ -1729,6 +1757,7 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   qwen_2_5/causal_lm/pytorch-7B_Instruct-single_device-inference:
+    optimization_level: 1
     arch_overrides:
       p150:
         assert_pcc: false
@@ -1795,6 +1824,7 @@ test_config:
 
   qwen_3/causal_lm/pytorch-8B-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
     arch_overrides:
       n150:
         status: NOT_SUPPORTED_SKIP
@@ -1832,29 +1862,49 @@ test_config:
         status: EXCLUDE_MODEL # This model is run as tensor_parallel already.
 
   d_fine/pytorch-Nano-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine nano hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.004327041538509983. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Small-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine small hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Medium-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine medium hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.20286665988748961. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Large-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine large hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.3777558992205605. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   d_fine/pytorch-Xlarge-single_device-inference:
-    status: NOT_SUPPORTED_SKIP
-    reason: "d_fine xlarge hangs forever, removing all of them."
-    bringup_status: FAILED_RUNTIME
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
+      p150:
+        status: KNOWN_FAILURE_XFAIL
+        reason: "AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4714"
 
   hrnet/pytorch-v2_W48_Osmr-single_device-inference:
     required_pcc: 0.985  # https://github.com/tenstorrent/tt-xla/issues/1491
@@ -2252,6 +2302,7 @@ test_config:
 
   ultra_fast_lane_detection_v2/pytorch-TuSimple_ResNet34_Backbone-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   faster_rcnn/pytorch-ResNet50_Backbone_with_FPN-single_device-inference:
     status: NOT_SUPPORTED_SKIP
@@ -2368,6 +2419,7 @@ test_config:
 
   ultra_fast_lane_detection/pytorch-TuSimple_ResNet34_Backbone-single_device-inference:
     status: EXPECTED_PASSING
+    optimization_level: 2
 
   dense_unet_3d/pytorch-Base-single_device-inference:
     status: NOT_SUPPORTED_SKIP
