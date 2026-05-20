@@ -100,8 +100,6 @@ def run(label, dtype):
         kw = {} if dtype is None else {"dtype_override": dtype}
         model = loader.load_model(**kw)
         model.train()
-        for p in model.parameters():
-            p.requires_grad_(True)
         inputs = loader.load_inputs(**kw)
         _dump_input_dtypes(label, inputs)
 
@@ -237,7 +235,7 @@ timeout 1200 pytest --force-run --runxfail \
 
 Read the XML with the Read tool. Use the `.log` companion only if the XML is missing detail. Then write the final YAML once per affected entry based on the JUnit outcome.
 
-#### Branch A - `flavor == "op_not_implemented"` OR (`flavor == "cross_dtype"` AND `loader_fix_attempted == False`)
+#### Branch A — op-not-implemented, or cross-dtype without a successful loader fix
 
 No loader change. The pytest verification above confirms the entry still hits the same CPU bfloat16 error before TT compilation: with `--runxfail` the imperative xfail is neutralized, so the JUnit XML shows `<failure>` whose `error_message` matches the `RuntimeError: …BFloat16…` captured in Step 4. Then write the YAML once with the canonical bfloat16 reason from the table below:
 
@@ -248,7 +246,7 @@ No loader change. The pytest verification above confirms the entry still hits th
   reason: "<canonical bfloat16 reason>"
 ```
 
-#### Branch B - `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == True`
+#### Branch B — cross-dtype, loader fix succeeded on CPU
 
 Loader fix succeeded at the CPU level. The pytest verification above runs against the existing YAML state (no flip needed, thanks to `--force-run --runxfail`); read the JUnit XML to decide the final YAML state per entry. For each `<testcase>`:
 
@@ -286,7 +284,7 @@ Loader fix succeeded at the CPU level. The pytest verification above runs agains
 
 - **`<skipped type="pytest.xfail" …/>` or `<skipped type="pytest.skip" …/>`** -> unexpected with `--force-run --runxfail`; means a different skip path triggered. Flag for human review.
 
-#### Branch C - `flavor == "cross_dtype"` AND `loader_fix_attempted == True` AND `loader_fix_works_cpu == False`
+#### Branch C — cross-dtype, loader fix applied but new CPU error appeared
 
 Loader fix is correct (it eliminated the dtype-mismatch) but a different CPU error appeared. Keep the loader edit. YAML stays `KNOWN_FAILURE_XFAIL` but with the new CPU error as the reason:
 
