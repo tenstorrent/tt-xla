@@ -102,6 +102,14 @@ def test_llm(
 
     ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
 
+    # Optional: emit codegen_py for the decode graph instead of running the
+    # full benchmark. Driven by the --codegen-py-export-path pytest flag and
+    # routed through benchmark_llm_torch_xla, which short-circuits after one
+    # decode compile. Requires --decode-only.
+    codegen_py_export_path = (
+        request.config.getoption("--codegen-py-export-path") if request else None
+    )
+
     print(f"Running LLM benchmark for variant: {variant}")
     print(
         f"""Configuration:
@@ -165,7 +173,13 @@ def test_llm(
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
+        codegen_py_export_path=codegen_py_export_path,
     )
+
+    # In codegen mode benchmark_llm_torch_xla returns None after emitting code
+    # and saving the CPU golden. Skip downstream result-file handling.
+    if codegen_py_export_path is not None:
+        return
 
     if output_file:
         results["project"] = "tt-forge/tt-xla"
@@ -2061,10 +2075,11 @@ def test_kimi_k2_tp_galaxy_2_layers(
         ModelLoader,
         variant,
         output_file,
-        num_layers=2,
+        num_layers=num_layers if num_layers is not None else 2,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        # Default 64: test hangs at 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=batch_size if batch_size is not None else 64,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,  # This test fails prefill + decode with low decode pcc = Issue: https://github.com/tenstorrent/tt-xla/issues/4614
         input_output_sharding_spec=("batch", None),
@@ -2095,10 +2110,10 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         ModelLoader,
         variant,
         output_file,
-        num_layers=2,
+        num_layers=num_layers if num_layers is not None else 2,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=128,
+        batch_size=batch_size if batch_size is not None else 128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),

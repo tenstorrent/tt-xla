@@ -104,6 +104,18 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--codegen-py-export-path",
+        action="store",
+        default=None,
+        help=(
+            "If set, emit codegen_py for the decode graph into this directory, "
+            "save the CPU decode logits as <dir>/golden_logits.pt, and exit "
+            "without running warmup, perf, or device PCC. Requires --decode-only. "
+            "Use scripts/verify_emitpy.py for iteration."
+        ),
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -149,3 +161,8 @@ def check_fusions(request):
 def seed_torch():
     """Seed torch before every benchmark test for reproducible PCC runs."""
     torch.manual_seed(0)
+
+
+@pytest.fixture
+def codegen_py_export_path(request):
+    return request.config.getoption("--codegen-py-export-path")

@@ -269,6 +269,7 @@ def benchmark_llm_torch_xla(
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
+    codegen_py_export_path: str = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -324,6 +325,18 @@ def benchmark_llm_torch_xla(
 
     if decode_only and accuracy_testing:
         raise ValueError("--decode-only cannot be combined with --accuracy-testing")
+
+    if codegen_py_export_path is not None:
+        if not decode_only:
+            raise ValueError(
+                "--codegen-py-export-path requires --decode-only "
+                "(codegen is scoped to a single decode graph)"
+            )
+        if accuracy_testing:
+            raise ValueError(
+                "--codegen-py-export-path cannot be combined with "
+                "--accuracy-testing (CPU decode logits are used as the PCC golden)"
+            )
 
     if task != "text-generation":
         raise ValueError(
@@ -483,6 +496,100 @@ def benchmark_llm_torch_xla(
             logger.info(
                 f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
             )
+
+    # ========================================================
+    # CODEGEN-PY MODE (short-circuit before benchmark / PCC)
+    # ========================================================
+    # When --codegen-py-export-path is set, emit codegen_py for the decode
+    # graph, save the CPU decode logits as the PCC golden, and return. The
+    # iteration driver (scripts/verify_emitpy.py) handles edit/PCC loops on
+    # the emitted main.py.
+    if codegen_py_export_path is not None:
+        os.makedirs(codegen_py_export_path, exist_ok=True)
+
+        # Persist CPU decode logits next to the codegen output for PCC.
+        # decode_only is enforced above, so cpu_decode_logits exists and
+        # holds the first-decode logits from the real model on CPU.
+        golden_path = os.path.join(codegen_py_export_path, "golden_logits.pt")
+        torch.save(cpu_decode_logits[0].cpu(), golden_path)
+        logger.info(f"Saved CPU decode golden logits to {golden_path}")
+
+        # Replace perf-oriented compile options with codegen ones. dry_run=True
+        # keeps PJRT from trying to execute the generated code via
+        # PythonModelRunner — the driver script executes main.py directly.
+        codegen_options = {
+            "optimization_level": optimization_level,
+            "export_path": codegen_py_export_path,
+            "experimental_weight_dtype": experimental_weight_dtype,
+            "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
+            "backend": "codegen_py",
+            "export_tensors": True,
+            "dry_run": True,
+        }
+        if fp32_dest_acc_en is not None:
+            codegen_options["fp32_dest_acc_en"] = fp32_dest_acc_en
+        if experimental_kv_cache_dtype is not None:
+            codegen_options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
+        torch_xla.set_custom_compile_options(codegen_options)
+
+        # tt_legacy_compile is required for the codegen backend today; see
+        # tt_torch.codegen.codegen_py and tt-xla#2139.
+        codegen_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=False,
+            mesh=mesh,
+            output_sharding_spec=input_output_sharding_spec,
+        )
+        codegen_wrapper.eval()
+        compiled_codegen_model = torch.compile(
+            codegen_wrapper, backend="tt", options={"tt_legacy_compile": True}
+        )
+
+        # Construct the same decode inputs the perf path uses in --decode-only
+        # mode: single-token input_ids, cache_position past the prompt,
+        # KV cache pre-filled by CPU prefill above.
+        input_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            past_key_values=decode_only_cache,
+            input_prompt=custom_input_prompt,
+            input_prompt_tokens=None,
+            use_mla_cache=use_mla_cache,
+        )
+        input_args["input_ids"] = first_decode_input_ids.clone()
+        input_args["cache_position"] = decode_only_cache_position.clone()
+        input_args = transfer_to_device(input_args, device)
+        if is_multichip:
+            _shard_kv_cache(
+                input_args["past_key_values"], mesh, kv_cache_sharding_spec
+            )
+        if input_output_sharding_spec:
+            xs.mark_sharding(
+                input_args["input_ids"], mesh, input_output_sharding_spec
+            )
+
+        # One decode step is enough to trigger codegen for the decode graph.
+        # Output is zero-filled (dry_run=True); we discard it.
+        print("\nTriggering codegen_py for decode graph...")
+        _, _ = generate_and_benchmark(
+            compiled_codegen_model,
+            input_args,
+            device,
+            1,
+            verbose=False,
+            collect_logits=False,
+        )
+        xm.wait_device_ops()
+        logger.info(
+            f"Codegen complete. main.py / tensors / irs in "
+            f"{codegen_py_export_path}. Iterate with "
+            f"`python tests/benchmark/scripts/verify_emitpy.py "
+            f"{codegen_py_export_path}`."
+        )
+        return None
 
     # ========================================================
     # PERFORMANCE BENCHMARK
