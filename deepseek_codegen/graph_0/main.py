@@ -8001,23 +8001,31 @@ def _main(activations, weights):
     ttnn.deallocate(ttnn_to_layout_247, False)
     ttnn.deallocate(ttnn_to_layout_246, False)
     ttnn.deallocate(ttnn_to_layout_245, False)
+    ttnn_to_layout_250 = ttnn.to_layout(
+        ttnn_scatter_129, ttnn.Layout.TILE, None, memory_config=None
+    )
+    ttnn.deallocate(ttnn_scatter_129, False)
     ttnn_reshape_131 = ttnn.reshape(
-        ttnn_scatter_129,
+        ttnn_to_layout_250,
         [128, 8],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(ttnn_scatter_129, False)
+    ttnn.deallocate(ttnn_to_layout_250, False)
+    ttnn_to_layout_251 = ttnn.to_layout(
+        ttnn_reshape_131, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+    )
+    ttnn.deallocate(ttnn_reshape_131, False)
     ttnn_mesh_partition_2 = ttnn.mesh_partition(
-        input_tensor=ttnn_reshape_131,
+        input_tensor=ttnn_to_layout_251,
         dim=0,
         cluster_axis=0,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(ttnn_reshape_131, False)
+    ttnn.deallocate(ttnn_to_layout_251, False)
     ttnn_to_layout_252 = ttnn.to_layout(
         ttnn_mesh_partition_2, ttnn.Layout.TILE, None, memory_config=None
     )
