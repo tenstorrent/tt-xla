@@ -1452,8 +1452,8 @@ test_config:
     status: EXPECTED_PASSING
 
   bi_lstm_crf/pytorch-Default-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "RuntimeError: The tensor has a non-zero number of elements, but its data is not allocated yet."
+    status: EXPECTED_PASSING
+
 
   flux/pytorch-Schnell-single_device-inference:
     supported_archs: ["p150"]
