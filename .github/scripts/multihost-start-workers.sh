@@ -177,6 +177,12 @@ for i in "${!WORKER_HOSTS[@]}"; do
   cat > "${SETUP_SCRIPT}" << EOF_SCRIPT
 #!/bin/bash
 set -euo pipefail
+
+# Map the controller's Docker hostname to its WireGuard IP so that PRTE's
+# remote daemons can resolve the HNP node name (which is the container ID,
+# e.g. "cde67301ec05") and connect back via the WireGuard tunnel.
+echo "${WG_CTRL_IP} ${CONTROLLER_HOSTNAME}" >> /etc/hosts
+
 wireguard-go wg0
 printf '%s' '${privkey}' | wg set wg0 private-key /dev/stdin listen-port ${WG_PORT}
 # No endpoint for the controller: the controller initiates the handshake from
