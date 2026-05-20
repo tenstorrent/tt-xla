@@ -123,7 +123,7 @@ SHELL ["/bin/bash", "-c"]
 # and /dev/net/tun — no kernel module or CAP_SYS_MODULE required.
 # kmod provides modprobe, needed to load the wireguard kernel module at runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends wireguard-tools wireguard-go \
+    && apt-get install -y --no-install-recommends wireguard-tools wireguard-go iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
 #============================================================================
