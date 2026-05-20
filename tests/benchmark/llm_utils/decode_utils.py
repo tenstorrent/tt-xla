@@ -276,7 +276,9 @@ def generate_and_benchmark(
         max_tokens_to_generate: Number of decode steps to run
         verbose: Print per-iteration timing
         ground_truth_tokens: 1D tensor of ground truth token IDs for teacher forcing.
-                           None = autoregressive mode.
+                           None = autoregressive mode. If shorter than
+                           max_tokens_to_generate, the loop teacher-forces while
+                           the gt window has tokens and autoregresses afterward.
         collect_logits: Whether to collect logits.
             True: Model must return (next_token_ids, next_cache_position, logits)
                   and logits are moved to CPU each step (for PCC/accuracy).
@@ -332,7 +334,7 @@ def generate_and_benchmark(
             else:
                 next_token_ids, next_token_ids_replicated, next_cache_position = output
 
-            if ground_truth_tokens is not None:
+            if gt_cpu is not None and step < gt_cpu.shape[0]:
                 input_args["input_ids"] = gt_cpu[step].to(device)
             else:
                 input_args["input_ids"] = next_token_ids
