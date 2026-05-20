@@ -5246,24 +5246,16 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_to_layout_175, False)
-    ttnn_add_9 = ttnn.add(
+    ttnn_typecast_56 = ttnn.add(
         ttnn_typecast_55,
         ttnn_reshape_60,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_reshape_60, False)
     ttnn.deallocate(ttnn_typecast_55, False)
-    ttnn_typecast_56 = ttnn.typecast(
-        ttnn_add_9,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_add_9, False)
     ttnn_softmax_0 = ttnn.softmax(
         ttnn_typecast_56,
         3,
@@ -7378,24 +7370,16 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_to_layout_242, False)
-    ttnn_add_21 = ttnn.add(
+    ttnn_typecast_76 = ttnn.add(
         ttnn_typecast_75,
         ttnn_reshape_111,
-        dtype=ttnn.DataType.FLOAT32,
+        dtype=ttnn.DataType.BFLOAT16,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_reshape_111, False)
     ttnn.deallocate(ttnn_typecast_75, False)
-    ttnn_typecast_76 = ttnn.typecast(
-        ttnn_add_21,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_add_21, False)
     ttnn_softmax_1 = ttnn.softmax(
         ttnn_typecast_76,
         3,
