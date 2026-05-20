@@ -91,7 +91,7 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       adv_filter: '[
         { "accuracy-testing": true },
-        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp","gpt_oss_120b_tp_dp_galaxy_accuracy"] },
+        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp"] },
         { "runs-on": "n300-llmbox", "filter": ["llama_3_1_8b_instruct_tp","llama_3_1_70b_tp"] } ]'
       sh-runner: false
       skip-device-perf: true

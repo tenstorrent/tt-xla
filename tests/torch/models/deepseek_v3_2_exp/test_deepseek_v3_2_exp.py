@@ -121,6 +121,7 @@ def test_deepseek_complex_rotary_emb():
     )
 
 
+@pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.lb_blackhole
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
@@ -193,6 +194,7 @@ def test_deepseek_attention_prefill(batch_size):
     )
 
 
+@pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.lb_blackhole
 @pytest.mark.parametrize("batch_size", [1, 4, 32, 64])
