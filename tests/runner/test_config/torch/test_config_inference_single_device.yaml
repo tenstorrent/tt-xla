@@ -1203,6 +1203,9 @@ test_config:
   stable_diffusion_unet/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
 
+  stable_diffusion_unet/pytorch-V1_5-single_device-inference:
+    status: EXPECTED_PASSING
+
   unet_for_conditional_generation/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
     optimization_level: 1
