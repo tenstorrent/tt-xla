@@ -32,11 +32,8 @@ from infra.utilities.torch_multichip_utils import enable_spmd
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
-    _disable_tt_torch_function_override,
     _patch_adaln_modulation_bf16,
-    _patch_apply_lora_scale,
     _patch_apply_rotary_emb_stack_form,
-    _patch_fuse_qkv_projections,
     _patch_patchify_ndhwc_aware,
 )
 from tt_torch.torch_overrides import torch_function_override_disabled
