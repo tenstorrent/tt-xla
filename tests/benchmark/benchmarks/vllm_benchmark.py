@@ -187,7 +187,14 @@ def benchmark_vllm(
         print("Warmup complete.")
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
+    import time as _t
+    _bench_start_ns = _t.monotonic_ns()
     outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+    _bench_end_ns = _t.monotonic_ns()
+    _decode_start_ns = int(min(o.metrics.first_token_ts for o in outputs) * 1e9)
+    _decode_end_ns = int(max(o.metrics.last_token_ts for o in outputs) * 1e9)
+    print(f"WINDOW_FULL_NS={_bench_start_ns},{_bench_end_ns}")
+    print(f"WINDOW_DECODE_NS={_decode_start_ns},{_decode_end_ns}")
 
     # Print generated text for output-quality inspection.
     for i, output in enumerate(outputs):
