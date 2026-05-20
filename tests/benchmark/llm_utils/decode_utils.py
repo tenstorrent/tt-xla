@@ -118,18 +118,28 @@ def init_static_cache(
     device: str = "cpu",
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
-    """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    """Initialize a transformers StaticCache consistently.
+
+    For multi-modal models (e.g. vision-language models) whose top-level config
+    wraps a nested ``text_config``, the cache attributes (``hidden_size``,
+    ``num_attention_heads``, etc.) live on ``config.text_config`` rather than
+    directly on ``config``.  We resolve this transparently so that any VL model
+    loader that places the model in a causal-LM benchmark context still works.
+    """
+    # Resolve to the text sub-config when the top-level config is a VL wrapper.
+    text_config = getattr(config, "text_config", config)
+
+    if hasattr(text_config, "head_dim") and getattr(text_config, "head_dim"):
+        head_dim = text_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = text_config.hidden_size // text_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        text_config, "num_key_value_heads", text_config.num_attention_heads
     )
 
     static_cache = StaticCache(
-        config=config,
+        config=text_config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device=device,
