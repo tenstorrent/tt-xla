@@ -1421,7 +1421,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         model_loader.load_weights(self.model, model_config=self.model_config)
 
     @torch.no_grad()
-    def _dummy_run(self, num_reqs: int, num_tokens: int, num_blocks: int) -> None:
+    def _dummy_run(self, num_reqs: int, num_tokens: int) -> None:
         torch._dynamo.config.dynamic_shapes = False
         if self.supports_mm_inputs:
             input_ids = None
@@ -1516,13 +1516,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self._dummy_run(
                     num_reqs,
                     num_tokens,
-                    self.max_num_blocks_per_req,
                 )
                 if self.most_model_len is not None:
                     self._dummy_run(
                         num_reqs,
                         num_tokens,
-                        self.num_blocks_per_most_len_req,
                     )
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1603,15 +1601,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Trigger compilation for general shape.
         torch._dynamo.config.dynamic_shapes = False
-        self._dummy_run(
-            self.num_reqs_max_model_len, num_tokens, self.max_num_blocks_per_req
-        )
+        self._dummy_run(self.max_num_reqs, self.num_reqs_max_model_len)
         if self.most_model_len is not None:
-            self._dummy_run(
-                self.num_reqs_most_model_len,
-                num_tokens,
-                self.num_blocks_per_most_len_req,
-            )
+            self._dummy_run(self.max_num_reqs, self.num_reqs_most_model_len)
 
         torch_xla.sync(wait=False)
         xm.wait_device_ops()
