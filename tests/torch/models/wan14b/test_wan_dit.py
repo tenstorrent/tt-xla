@@ -51,7 +51,7 @@ from .shared import (
 )
 
 # Set to 0 to run the full model, otherwise set to the number of blocks to run.
-MAX_BLOCKS = 1
+MAX_BLOCKS = 0
 N_RUNS = 5
 PERF_MODE = True
 
@@ -59,23 +59,13 @@ PERF_MODE = True
 # Monkey patches
 # ---------------------------------------------------------------------------
 
-_patch_apply_lora_scale()
+
 if PERF_MODE:
-    # Validated DiT perf patches. Measured on test_wan_dit_480p_sharded
-    # (BH 4-chip, MAX_BLOCKS=1):
-    #   baseline:                          1445 ms / PCC 0.99943
-    #   + adaln modulation in bf16:        ~1230 ms / PCC ~0.99947 (~-15 %)
-    # Conv3d patch_embedding perf is now handled by tt-mlir's (1,2,2)
-    # Conv3dConfig heuristic — see TTIRToTTNN.cpp.
+
     _patch_adaln_modulation_bf16()
-    # New reshape/permute reduction patches (May 2026), combined effect
-    # 1255 ms → 1031 ms (-17.9 %) at MAX_BLOCKS=1, PCC 0.99946:
-    #   + patchify NDHWC-aware (cancels post-conv3d permute pair, ~30ms)
-    #   + rotary_emb half-rotation form (eliminates aten__index chain,
-    #     ~190ms incremental)
     _patch_patchify_ndhwc_aware()
     _patch_apply_rotary_emb_stack_form()
-#_disable_tt_torch_function_override()
+
 
 
 
