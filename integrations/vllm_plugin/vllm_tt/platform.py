@@ -68,6 +68,10 @@ class TTConfig:
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
+    # Toggle the tt-mlir permute+matmul fusion optimization. Mirrors the PJRT
+    # compile option; defaults to True to match the PJRT default.
+    experimental_enable_permute_matmul_fusion: bool = True
+
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
 
@@ -93,7 +97,15 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    # Flatten model I/O to a flat token stream at the model-call boundary
+    # (needed by HF forwards like Gemma-4's PLE path).
+    flat_model_io: bool = False
+
     enable_trace: bool = False
+
+    # PJRT IR export — when set, MLIR is dumped to `export_path` keyed by `export_model_name`.
+    export_path: Optional[str] = None
+    export_model_name: Optional[str] = None
 
     def __post_init__(self):
         # tt::sampling + enable_trace + optimization_level >= 1 hits a
@@ -112,13 +124,22 @@ class TTConfig:
             )
 
     def get_pjrt_compile_config(self) -> dict:
-        return {
+        cfg = {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
             "enable_trace": "true" if self.enable_trace else "false",
+            "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
+        if self.export_path:
+            cfg["export_path"] = self.export_path
+        if self.export_model_name:
+            name = self.export_model_name
+            if self.enable_tensor_parallel:
+                name = f"{name}_g{xrt.global_ordinal()}"
+            cfg["export_model_name"] = name
+        return cfg
 
 
 class TTPlatform(Platform):
