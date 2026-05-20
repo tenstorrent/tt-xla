@@ -260,6 +260,10 @@ jobs:
         # Tell PRTE/MPI to bind exclusively to the WireGuard interface so it
         # advertises 10.200.0.1 (not the Docker bridge IP) as the HNP address.
         echo "export TT_DISTRIBUTED_TCP_IF_INCLUDE=wg0" >> topology_exports.sh
+        # Override the MPI hostfile to use WireGuard IPs instead of physical
+        # hostnames.  The WireGuard hostfile only lists workers (no controller
+        # entry), so PRTE won't try to launch a daemon on the controller's host.
+        echo "export TT_DISTRIBUTED_HOSTS_FILE=$(pwd)/wg_mpi_hostfile" >> topology_exports.sh
         # Forward the SSH agent socket so remote_docker.sh can authenticate.
         echo "export SSH_AUTH_SOCK=/var/run/mpirun/id_rsa_multihost_ssh_agent_sock" >> topology_exports.sh
 

@@ -273,4 +273,30 @@ done
 
 ${all_ok} || echo "WARNING: some WireGuard peers are unreachable; tests may fail" >&2
 
+# ---------------------------------------------------------------------------
+# Step 6 – generate WireGuard hostfile and update /etc/hosts
+# ---------------------------------------------------------------------------
+
+# Generate a hostfile using WireGuard IPs (workers only — no controller entry).
+# PRTE will use this instead of the physical hostfile.  Because the controller's
+# physical hostname (f10csXX) is NOT listed, PRTE won't try to launch a daemon
+# on the controller's host (where there's no "ubuntu-host-mapped" container).
+WG_HOSTFILE="${CONTAINER_WORKSPACE}/wg_mpi_hostfile"
+rm -f "${WG_HOSTFILE}"
+for i in "${!WORKER_HOSTS[@]}"; do
+  host="${WORKER_HOSTS[$i]}"
+  wg_ip="${WORKER_WG_IPS[$i]}"
+  # Preserve slots= and other fields from the original hostfile entry.
+  rest=$(grep "^${host}" "${HOSTFILE}" | head -1 | sed "s/^${host}//")
+  echo "${wg_ip}${rest}" >> "${WG_HOSTFILE}"
+done
+echo "Generated WireGuard hostfile: ${WG_HOSTFILE}"
+cat "${WG_HOSTFILE}"
+
+# Add /etc/hosts entries on the controller mapping worker hostnames → WireGuard IPs.
+# This lets PRTE (and SSH from remote_docker.sh) resolve worker names via wg0.
+for i in "${!WORKER_HOSTS[@]}"; do
+  echo "${WORKER_WG_IPS[$i]} ${WORKER_HOSTS[$i]}" >> /etc/hosts
+done
+
 echo "WireGuard overlay network ready. Controller IP: ${WG_CTRL_IP}"
