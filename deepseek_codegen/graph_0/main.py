@@ -8123,14 +8123,22 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
+    ttnn.deallocate(v_91, False)
+    ttnn_typecast_87 = ttnn.typecast(
+        ttnn_typecast_86,
+        ttnn.DataType.UINT32,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
     ttnn_reshape_134 = ttnn.reshape(
-        v_91,
+        ttnn_typecast_87,
         [32, 8, 1],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(v_91, False)
+    ttnn.deallocate(ttnn_typecast_87, False)
     ttnn_concat_21 = ttnn.concat(
         [ce_cache__main["main_const_eval_36"], ttnn_reshape_134],
         2,
