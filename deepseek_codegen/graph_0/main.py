@@ -3502,17 +3502,27 @@ def _main(activations, weights):
             math_fidelity=ttnn.MathFidelity.HiFi4, fp32_dest_acc_en=True
         ),
     )
-    ttnn_rms_stats_bf16 = ttnn.typecast(
+    ttnn_rms_sliced_0 = ttnn.slice(
         ttnn_rms_stats_4d_0,
-        ttnn.DataType.BFLOAT16,
+        [0, 0, 0, 0],
+        [1, 1, 32, 1],
+        [1, 1, 1, 1],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_rms_stats_4d_0, False)
+    ttnn_reshape_20 = ttnn.reshape(
+        ttnn_rms_sliced_0,
+        [1, 32, 1],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_rms_sliced_0, False)
     ttnn_all_gather_2 = ttnn.all_gather(
-        input_tensor=ttnn_rms_stats_bf16,
-        dim=3,
+        input_tensor=ttnn_reshape_20,
+        dim=0,
         cluster_axis=1,
         subdevice_id=None,
         memory_config=ttnn.MemoryConfig(
@@ -3521,18 +3531,11 @@ def _main(activations, weights):
         num_links=None,
         topology=ttnn.Topology.Ring,
     )
-    ttnn.deallocate(ttnn_rms_stats_bf16, False)
-    ttnn_rms_in_bf16_0 = ttnn.typecast(
-        ttnn_rms_in_4d_0,
-        ttnn.DataType.BFLOAT16,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn_rms_post_0 = ttnn.rms_norm_post_all_gather(
-        ttnn_rms_in_bf16_0,
+    ttnn.deallocate(ttnn_reshape_20, False)
+    ttnn_sum_1 = ttnn.sum(
         ttnn_all_gather_2,
-        epsilon=1e-6,
+        [0],
+        False,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -3540,17 +3543,59 @@ def _main(activations, weights):
             math_fidelity=ttnn.MathFidelity.HiFi4, fp32_dest_acc_en=True
         ),
     )
-    ttnn.deallocate(ttnn_rms_in_bf16_0, False)
     ttnn.deallocate(ttnn_all_gather_2, False)
-    ttnn_typecast_37 = ttnn.multiply(
-        ce_cache__main["main_const_eval_40"],
-        ttnn_rms_post_0,
-        dtype=ttnn.DataType.BFLOAT16,
+    ttnn_multiply_0 = ttnn.multiply(
+        ttnn_sum_1,
+        var_70,
+        dtype=ttnn.DataType.FLOAT32,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(ttnn_rms_post_0, False)
+    ttnn.deallocate(ttnn_sum_1, False)
+    ttnn_add_0 = ttnn.add(
+        ttnn_multiply_0,
+        var_67,
+        dtype=ttnn.DataType.FLOAT32,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_multiply_0, False)
+    ttnn_rsqrt_0 = ttnn.rsqrt(
+        ttnn_add_0,
+        fast_and_approximate_mode=False,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_add_0, False)
+    ttnn_multiply_1 = ttnn.multiply(
+        ttnn_typecast_36,
+        ttnn_rsqrt_0,
+        dtype=ttnn.DataType.FLOAT32,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_rsqrt_0, False)
+    ttnn_multiply_2 = ttnn.multiply(
+        ce_cache__main["main_const_eval_40"],
+        ttnn_multiply_1,
+        dtype=ttnn.DataType.FLOAT32,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_multiply_1, False)
+    ttnn_typecast_37 = ttnn.typecast(
+        ttnn_multiply_2,
+        ttnn.DataType.BFLOAT16,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_multiply_2, False)
     ttnn_matmul_0 = ttnn.matmul(
         ttnn_typecast_37,
         ce_cache__main["main_const_eval_32"],
