@@ -91,7 +91,7 @@ jobs:
       image: ${{ !matrix.build.shared-runners && (matrix.build.multihost && (inputs.docker_image_multihost || inputs.docker_image) || inputs.docker_image) || format('harbor.ci.tenstorrent.net/{0}', matrix.build.multihost && (inputs.docker_image_multihost || inputs.docker_image) || inputs.docker_image) }}
       options: >-
         --device /dev/tenstorrent
-        ${{ matrix.build.multihost && '--cap-add NET_ADMIN --device /dev/net/tun -p 51820:51820/udp' || '' }}
+        ${{ matrix.build.multihost && '--cap-add NET_ADMIN --device /dev/net/tun' || '' }}
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G

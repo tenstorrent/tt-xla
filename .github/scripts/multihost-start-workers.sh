@@ -179,7 +179,11 @@ for i in "${!WORKER_HOSTS[@]}"; do
 set -euo pipefail
 wireguard-go wg0
 printf '%s' '${privkey}' | wg set wg0 private-key /dev/stdin listen-port ${WG_PORT}
-wg set wg0 peer ${CTRL_PUBKEY} allowed-ips ${WG_CTRL_IP}/32 endpoint ${CONTROLLER_HOSTNAME}:${WG_PORT} persistent-keepalive 25
+# No endpoint for the controller: the controller initiates the handshake from
+# inside its Docker bridge network.  Docker MASQUERADE NAT translates the
+# source address; workers learn the NATed endpoint from the incoming handshake
+# and respond via the same conntrack entry.  No port publishing needed.
+wg set wg0 peer ${CTRL_PUBKEY} allowed-ips ${WG_CTRL_IP}/32
 EOF_SCRIPT
 
   for j in "${!WORKER_HOSTS[@]}"; do
