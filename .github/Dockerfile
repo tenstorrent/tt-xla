@@ -120,8 +120,9 @@ SHELL ["/bin/bash", "-c"]
 
 # wireguard-tools provides wg(8) and wg-quick(8); the kernel module ships with
 # Ubuntu 24.04 (linux 6.8+) so no extra DKMS package is required.
+# kmod provides modprobe, needed to load the wireguard kernel module at runtime.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends wireguard-tools \
+    && apt-get install -y --no-install-recommends wireguard-tools kmod \
     && rm -rf /var/lib/apt/lists/*
 
 #============================================================================
