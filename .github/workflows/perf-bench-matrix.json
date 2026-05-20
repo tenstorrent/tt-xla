@@ -601,6 +601,248 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n150"
+      },
+      {
+        "name": "vllm_llama_3_2_1b_instruct",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-1b]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_qwen2_5_0_5b_instruct",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-0.5b-instruct]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_qwen2_5_1_5b_instruct",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-1.5b-instruct]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_qwen2_5_3b_instruct",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-3b-instruct]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_qwen3_0_6b",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-0.6b]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_qwen3_1_7b",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-1.7b]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_phi_1",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-1]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_phi_1_5",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-1_5]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_phi_2",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-2]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_falcon3_1b_base",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-1b-base]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_falcon3_1b_base_opt1",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-1b-base-opt1]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_falcon3_3b_base",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-3b-base]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n150"
+      },
+      {
+        "name": "vllm_falcon3_7b_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-7b-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_falcon3_10b_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-10b-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_qwen3_8b_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-8b-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_qwen3_14b_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-14b-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_qwen3_32b_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-32b-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_qwen2_5_14b_instruct_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-14b-instruct-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_qwen2_5_coder_32b_instruct_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-coder-32b-instruct-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_ministral_8b_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[ministral-8b-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_mistral_nemo_instruct_2407_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-nemo-instruct-2407-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_mistral_small_24b_instruct_2501_tp",
+        "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-small-24b-instruct-2501-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
       }
     ]
   }
