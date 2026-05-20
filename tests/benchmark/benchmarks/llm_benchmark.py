@@ -461,9 +461,11 @@ def benchmark_llm_torch_xla(
         "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
-        "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
     }
+    # Only set experimental_weight_dtype when explicitly requested (None means "use default / no override").
+    if experimental_weight_dtype is not None:
+        options["experimental_weight_dtype"] = experimental_weight_dtype
     if fp32_dest_acc_en is not None:
         options["fp32_dest_acc_en"] = fp32_dest_acc_en
     if experimental_kv_cache_dtype is not None:
@@ -477,12 +479,14 @@ def benchmark_llm_torch_xla(
         logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
     else:
         # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
-        if weight_dtype_config:
-            applied = apply_weight_dtype_overrides(model, weight_dtype_config)
-            logger.info(
-                f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
-            )
+        # Guard with hasattr since not all loaders implement this method.
+        if hasattr(model_loader, "get_weight_dtype_config_path"):
+            weight_dtype_config = model_loader.get_weight_dtype_config_path()
+            if weight_dtype_config:
+                applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+                logger.info(
+                    f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+                )
 
     # ========================================================
     # PERFORMANCE BENCHMARK
