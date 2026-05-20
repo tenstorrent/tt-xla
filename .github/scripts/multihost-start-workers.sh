@@ -277,26 +277,23 @@ ${all_ok} || echo "WARNING: some WireGuard peers are unreachable; tests may fail
 # Step 6 – generate WireGuard hostfile and update /etc/hosts
 # ---------------------------------------------------------------------------
 
-# Generate a hostfile using WireGuard IPs (workers only — no controller entry).
-# PRTE will use this instead of the physical hostfile.  Because the controller's
-# physical hostname (f10csXX) is NOT listed, PRTE won't try to launch a daemon
-# on the controller's host (where there's no "ubuntu-host-mapped" container).
+# Generate a workers-only hostfile using PHYSICAL hostnames (not WireGuard IPs).
+# PRTE uses this hostfile for daemon launching via remote_docker.sh (SSH).
+# SSH must go through the physical network (Docker bridge), NOT through the
+# WireGuard tunnel — routing SSH via wg0 is fragile and slow.
+#
+# Once launched, daemons communicate with the HNP via wg0 (oob_tcp_if_include=wg0),
+# so the OOB/BTL data path uses WireGuard automatically.  The controller is
+# excluded so PRTE won't try to launch a daemon on the controller's own host
+# (where there's no "ubuntu-host-mapped" container).
 WG_HOSTFILE="${CONTAINER_WORKSPACE}/wg_mpi_hostfile"
 rm -f "${WG_HOSTFILE}"
 for i in "${!WORKER_HOSTS[@]}"; do
   host="${WORKER_HOSTS[$i]}"
-  wg_ip="${WORKER_WG_IPS[$i]}"
-  # Preserve slots= and other fields from the original hostfile entry.
-  rest=$(grep "^${host}" "${HOSTFILE}" | head -1 | sed "s/^${host}//")
-  echo "${wg_ip}${rest}" >> "${WG_HOSTFILE}"
+  # Copy the full original hostfile line (preserving slots= and other fields).
+  grep "^${host}" "${HOSTFILE}" | head -1 >> "${WG_HOSTFILE}"
 done
-echo "Generated WireGuard hostfile: ${WG_HOSTFILE}"
+echo "Generated workers-only hostfile: ${WG_HOSTFILE}"
 cat "${WG_HOSTFILE}"
-
-# Add /etc/hosts entries on the controller mapping worker hostnames → WireGuard IPs.
-# This lets PRTE (and SSH from remote_docker.sh) resolve worker names via wg0.
-for i in "${!WORKER_HOSTS[@]}"; do
-  echo "${WORKER_WG_IPS[$i]} ${WORKER_HOSTS[$i]}" >> /etc/hosts
-done
 
 echo "WireGuard overlay network ready. Controller IP: ${WG_CTRL_IP}"
