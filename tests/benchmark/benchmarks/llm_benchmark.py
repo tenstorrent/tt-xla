@@ -653,17 +653,19 @@ def benchmark_llm_torch_xla(
 
     # The prefill call above already consumed gt[0] as teacher-forced input for
     # the first decode step, so the decode call must start its ground-truth
-    # window at gt[1] to stay aligned.
+    # window at gt[1] to stay aligned. It also consumed one of the logits_steps
+    # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
     decode_ground_truth = (
         ground_truth_for_benchmark[1:]
         if ground_truth_for_benchmark is not None and not decode_only
         else ground_truth_for_benchmark
     )
+    decode_steps = logits_steps if decode_only else logits_steps - 1
     device_decode_logits, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
         device,
-        logits_steps,
+        decode_steps,
         verbose=False,
         ground_truth_tokens=decode_ground_truth,
         collect_logits=True,
