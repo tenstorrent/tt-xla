@@ -5,9 +5,10 @@
 import jax
 import jax.lax as lax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 from infra import ComparisonConfig, run_op_test, run_op_test_with_random_inputs
-from utils import Category, failed_ttmlir_compilation
+from utils import Category, failed_ttmlir_compilation, incorrect_result
 
 
 @pytest.mark.push
@@ -184,4 +185,49 @@ def test_scatter_4(data_shape, indices_shape, updates_shape):
         input_shapes=[data_shape, indices_shape, updates_shape],
         minval=0,
         maxval=data_shape[0],
+    )
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.xfail(
+    reason=incorrect_result(
+        "scatter_add produces anti-correlated output (pcc≈-0.03 to -0.13) "
+        "https://github.com/tenstorrent/tt-xla/issues/4825"
+    )
+)
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    jax_op_name="jax.lax.scatter_add",
+    shlo_op_name="stablehlo.scatter",
+)
+@pytest.mark.parametrize("data_type", ["random", "zeros"])
+def test_scatter_add(data_type):
+    def scatter(
+        data: jnp.ndarray, indices: jnp.ndarray, updates: jnp.ndarray
+    ) -> jnp.ndarray:
+        dnums = lax.ScatterDimensionNumbers(
+            update_window_dims=(1,),
+            inserted_window_dims=(0,),
+            scatter_dims_to_operand_dims=(0,),
+        )
+        return lax.scatter_add(
+            data,
+            indices.astype(jnp.int32),
+            updates,
+            dimension_numbers=dnums,
+        )
+
+    if data_type == "random":
+        data = np.arange(40 * 32, dtype=np.float32).reshape((40, 32)).astype(jnp.bfloat16)
+    else:
+        data = np.zeros((40, 32), dtype=np.float32).astype(jnp.bfloat16)
+
+    indices = np.arange(20, dtype=np.int32).reshape((20, 1))
+    updates = (np.arange(20 * 32, dtype=np.float32).reshape((20, 32)) + 1000).astype(
+        jnp.bfloat16
+    )
+
+    run_op_test(
+        scatter,
+        inputs=[data, indices, updates],
     )
