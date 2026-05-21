@@ -1255,7 +1255,7 @@ def test_ministral_8b_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1285,7 +1285,7 @@ def test_mistral_nemo_instruct_2407_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1315,7 +1315,7 @@ def test_mistral_small_24b_instruct_2501_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=2,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1345,7 +1345,7 @@ def test_qwen_2_5_14b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1409,7 +1409,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1507,7 +1507,7 @@ def test_qwen_3_8b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=2,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1537,7 +1537,7 @@ def test_qwen_3_14b_tp(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1707,7 +1707,7 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=2,  # flaky: occasionally hangs in CI with optimization_level=2
     )
 
 
@@ -1762,7 +1762,7 @@ def test_gpt_oss_20b_tp(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1794,7 +1794,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1825,7 +1825,7 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1858,7 +1858,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         arch="wormhole_galaxy",
-        optimization_level=1,
+        optimization_level=2,
     )
 
 
@@ -1931,7 +1931,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         decode_only=decode_only,
         batch_size=128,
         arch="wormhole_galaxy",
-        optimization_level=1,
+        optimization_level=2,
         mesh_config_fn=_galaxy_mesh_config_fn,
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
@@ -1967,7 +1967,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         decode_only=decode_only,
         batch_size=batch_size if batch_size is not None else 64,
         arch="wormhole_galaxy",
-        optimization_level=1,
+        optimization_level=2,
         mesh_config_fn=_galaxy_mesh_config_fn,
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
@@ -2026,7 +2026,7 @@ def test_gpt_oss_120b_tp_qb2(
         decode_only=decode_only,
         batch_size=batch_size if batch_size is not None else 8,
         arch="qb2-blackhole",
-        optimization_level=1,
+        optimization_level=2,
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
         weight_dtype_overrides={
@@ -2070,7 +2070,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         arch="wormhole_galaxy",
-        optimization_level=0,
+        optimization_level=2,
         trace_enabled=False,
     )
 
@@ -2105,7 +2105,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         use_mla_cache=True,
         use_indexer_cache=True,
         arch="wormhole_galaxy",
-        optimization_level=0,
+        optimization_level=2,
         trace_enabled=False,
         required_pcc=-0.92,
     )
