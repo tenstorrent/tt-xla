@@ -332,7 +332,6 @@ def test_llama_3_2_1b_base(
         ),
         experimental_kv_cache_dtype="bfp_bf4",
         weight_dtype_overrides={"default": "bfp_bf4"},
-        use_indexer_cache=True,
         expected_ops=[
             "ttnn.scaled_dot_product_attention",
             "ttnn.rms_norm",
