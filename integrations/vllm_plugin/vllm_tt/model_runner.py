@@ -1544,16 +1544,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hidden_states, hidden_state_shape
             )
 
-            # Save hidden states (before position selection) for prompt
-            # logprobs.  Only extract rows for requests that actually need
-            # them, keyed by batch index, so we never copy the full
-            # [max_num_reqs, padded_seq_len, H] tensor to CPU.
-            if self.num_prompt_logprobs:
-                for i in range(start_index, end_index):
-                    req_id = self.input_batch.req_ids[i]
-                    if req_id in self.num_prompt_logprobs:
-                        local_idx = i - start_index
-                        prompt_lp_hs[i] = hidden_states[local_idx].cpu()
+            # Keep a reference to the full backbone output before any reshape so
+            # we can extract prompt logprob hidden states after the compiled
+            # dispatch completes.  Doing the .cpu() here (before decode_postprocess)
+            # would force a mid-graph sync and prevent backbone+decode_postprocess
+            # from being fused into a single dispatch.
+            hidden_states_pre_select = hidden_states
 
             if self.tt_config.cpu_sampling:
                 # cpu_sampling path: select + compute on device, sample on CPU
@@ -1598,6 +1594,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     grammar_bitmask_padded,
                     bitmasks,
                 )
+            # Extract prompt logprob hidden states after the compiled dispatch so
+            # the .cpu() call does not create a mid-graph sync between backbone
+            # and decode_postprocess.  hidden_states_pre_select holds the full
+            # backbone output [max_num_reqs, seq_len, H] before any reshape.
+            if self.num_prompt_logprobs:
+                for i in range(start_index, end_index):
+                    req_id = self.input_batch.req_ids[i]
+                    if req_id in self.num_prompt_logprobs:
+                        local_idx = i - start_index
+                        prompt_lp_hs[i] = hidden_states_pre_select[local_idx].cpu()
+
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
