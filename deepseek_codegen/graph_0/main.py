@@ -2962,6 +2962,72 @@ def main_const_eval_47(arg_0, device=None):
     return [ttnn_to_device_59]
 
 
+def main_const_eval_gate_up(arg_gate, arg_up, device=None):
+    """E30: pre-packed [1, 8, 7168, 4096] BFP8_B weight = concat(gate_proj, up_proj) along N.
+
+    Lets the MoE FFN run a single fused sparse_matmul covering both gate (W0) and
+    up (W1) projections at once, with the same input + sparsity. Output is sliced
+    in main into two halves before SwiGLU."""
+    if device is None:
+        device = utils.DeviceGetter.get_device((4, 8))
+    g_dev = ttnn.to_device(
+        arg_gate[0],
+        device=device,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    g_tile = ttnn.to_layout(g_dev, ttnn.Layout.TILE, None, memory_config=None)
+    ttnn.deallocate(g_dev, False)
+    g_r = ttnn.reshape(
+        g_tile,
+        [1, 8, 7168, 2048],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(g_tile, False)
+    u_dev = ttnn.to_device(
+        arg_up[0],
+        device=device,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    u_tile = ttnn.to_layout(u_dev, ttnn.Layout.TILE, None, memory_config=None)
+    ttnn.deallocate(u_dev, False)
+    u_r = ttnn.reshape(
+        u_tile,
+        [1, 8, 7168, 2048],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(u_tile, False)
+    gu = ttnn.concat(
+        [g_r, u_r],
+        dim=-1,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(g_r, False)
+    ttnn.deallocate(u_r, False)
+    gu_host = ttnn.from_device(gu)
+    ttnn.deallocate(gu, False)
+    gu_bfp8 = ttnn.typecast(gu_host, ttnn.DataType.BFLOAT8_B, memory_config=None)
+    ttnn.deallocate(gu_host, False)
+    gu_out = ttnn.to_device(
+        gu_bfp8,
+        device=device,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(gu_bfp8, False)
+    return [gu_out]
+
+
 def main_const_eval_48(arg_0, device=None):
     if device is None:
         device = utils.DeviceGetter.get_device((4, 8))
@@ -8467,43 +8533,9 @@ def _main(activations, weights):
         ttnn_typecast_98, ttnn.Layout.ROW_MAJOR, None, memory_config=None
     )
     ttnn.deallocate(ttnn_typecast_98, False)
-    ttnn_sparse_matmul_0 = ttnn.sparse_matmul(
+    ttnn_sparse_matmul_gate_up = ttnn.sparse_matmul(
         input_tensor_a=ttnn_reshape_146,
-        input_tensor_b=ce_cache__main["main_const_eval_3"],
-        sparsity=ttnn_to_layout_262,
-        program_config=ttnn.MatmulMultiCoreReuseMultiCast1DProgramConfig(
-            compute_with_storage_grid_size=ttnn.CoreCoord(11, 10),
-            in0_block_w=1,
-            out_subblock_h=1,
-            out_subblock_w=1,
-            out_block_h=1,
-            out_block_w=1,
-            per_core_M=1,
-            per_core_N=6,
-            fuse_batch=False,
-            fused_activation=None,
-            mcast_in0=True,
-            gather_in0=False,
-            hop_cores=ttnn.CoreRangeSet([]),
-            num_global_cb_receivers=0,
-            untilize_out=False,
-        ),
-        is_input_a_sparse=False,
-        is_input_b_sparse=True,
-        memory_config=None,
-        dtype=None,
-    )
-    ttnn_reshape_148 = ttnn.reshape(
-        ttnn_sparse_matmul_0,
-        [16, 8, 32, 2048],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_sparse_matmul_0, False)
-    ttnn_sparse_matmul_1 = ttnn.sparse_matmul(
-        input_tensor_a=ttnn_reshape_146,
-        input_tensor_b=ce_cache__main["main_const_eval_47"],
+        input_tensor_b=ce_cache__main["main_const_eval_gate_up"],
         sparsity=ttnn_to_layout_262,
         program_config=ttnn.MatmulMultiCoreReuseMultiCast1DProgramConfig(
             compute_with_storage_grid_size=ttnn.CoreCoord(11, 10),
@@ -8529,14 +8561,31 @@ def _main(activations, weights):
     )
     ttnn.deallocate(ttnn_to_layout_262, False)
     ttnn.deallocate(ttnn_reshape_146, False)
-    ttnn_reshape_149 = ttnn.reshape(
-        ttnn_sparse_matmul_1,
+    ttnn_reshape_gate_up = ttnn.reshape(
+        ttnn_sparse_matmul_gate_up,
+        [16, 8, 32, 4096],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_sparse_matmul_gate_up, False)
+    ttnn_reshape_148 = ttnn.slice(
+        ttnn_reshape_gate_up,
+        [0, 0, 0, 0],
         [16, 8, 32, 2048],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(ttnn_sparse_matmul_1, False)
+    ttnn_reshape_149 = ttnn.slice(
+        ttnn_reshape_gate_up,
+        [0, 0, 0, 2048],
+        [16, 8, 32, 4096],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(ttnn_reshape_gate_up, False)
     ttnn_multiply_59 = ttnn.multiply(
         ttnn_reshape_148,
         ttnn_reshape_149,
@@ -9454,6 +9503,11 @@ def consteval__main(ce_cache, weights):
             [weights["model.transformer.layers.1.ffn.mlp.experts.up_proj"]]
         )
         ce_cache["main_const_eval_47"] = main_const_eval_47_0[0]
+        main_const_eval_gate_up_0 = main_const_eval_gate_up(
+            [weights["model.transformer.layers.1.ffn.mlp.experts.gate_proj"]],
+            [weights["model.transformer.layers.1.ffn.mlp.experts.up_proj"]],
+        )
+        ce_cache["main_const_eval_gate_up"] = main_const_eval_gate_up_0[0]
         main_const_eval_48_0 = main_const_eval_48(
             [weights["model.transformer.layers.1.attn.wkv_b.weight"]]
         )
