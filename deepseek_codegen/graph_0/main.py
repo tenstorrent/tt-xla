@@ -4340,20 +4340,11 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_matmul_3, False)
-    ttnn_permute_28 = ttnn.permute(
-        ttnn_reshape_35,
-        [0, 2, 1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        pad_value=0.0,
-    )
-    ttnn.deallocate(ttnn_reshape_35, False)
     ttnn_relu_0 = ttnn.matmul(
         ttnn_reshape_28,
-        ttnn_permute_28,
+        ttnn_reshape_35,
         transpose_a=False,
-        transpose_b=False,
+        transpose_b=True,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -4364,7 +4355,7 @@ def _main(activations, weights):
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
     )
-    ttnn.deallocate(ttnn_permute_28, False)
+    ttnn.deallocate(ttnn_reshape_35, False)
     ttnn.deallocate(ttnn_reshape_28, False)
     ttnn_reshape_36 = ttnn.reshape(
         ttnn_slice_69,
@@ -4725,15 +4716,6 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn_permute_31 = ttnn.permute(
-        ttnn_reshape_48,
-        [0, 2, 1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        pad_value=0.0,
-    )
-    ttnn.deallocate(ttnn_reshape_48, False)
     ttnn_reshape_49 = ttnn.reshape(
         ttnn_permute_30,
         [32, 16, 512],
@@ -4744,9 +4726,9 @@ def _main(activations, weights):
     ttnn.deallocate(ttnn_permute_30, False)
     ttnn_matmul_7 = ttnn.matmul(
         ttnn_reshape_49,
-        ttnn_permute_31,
+        ttnn_reshape_48,
         transpose_a=False,
-        transpose_b=False,
+        transpose_b=True,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -4758,7 +4740,7 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_reshape_49, False)
-    ttnn.deallocate(ttnn_permute_31, False)
+    ttnn.deallocate(ttnn_reshape_48, False)
     ttnn_slice_88 = ttnn.slice(
         ttnn_reshape_42,
         [0, 0, 0, 128],
@@ -5008,20 +4990,11 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn_permute_32 = ttnn.permute(
-        ttnn_reshape_54,
-        [0, 2, 1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        pad_value=0.0,
-    )
-    ttnn.deallocate(ttnn_reshape_54, False)
     ttnn_matmul_8 = ttnn.matmul(
         ttnn_reshape_51,
-        ttnn_permute_32,
+        ttnn_reshape_54,
         transpose_a=False,
-        transpose_b=False,
+        transpose_b=True,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -5032,7 +5005,7 @@ def _main(activations, weights):
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
     )
-    ttnn.deallocate(ttnn_permute_32, False)
+    ttnn.deallocate(ttnn_reshape_54, False)
     ttnn.deallocate(ttnn_reshape_51, False)
     ttnn_add_6 = ttnn.add(
         ttnn_matmul_7,
@@ -6462,20 +6435,11 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_matmul_18, False)
-    ttnn_permute_37 = ttnn.permute(
-        ttnn_reshape_87,
-        [0, 2, 1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        pad_value=0.0,
-    )
-    ttnn.deallocate(ttnn_reshape_87, False)
     ttnn_relu_1 = ttnn.matmul(
         ttnn_reshape_80,
-        ttnn_permute_37,
+        ttnn_reshape_87,
         transpose_a=False,
-        transpose_b=False,
+        transpose_b=True,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -6486,7 +6450,7 @@ def _main(activations, weights):
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
     )
-    ttnn.deallocate(ttnn_permute_37, False)
+    ttnn.deallocate(ttnn_reshape_87, False)
     ttnn.deallocate(ttnn_reshape_80, False)
     ttnn_reshape_88 = ttnn.reshape(
         ttnn_slice_162,
@@ -6832,15 +6796,6 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn_permute_40 = ttnn.permute(
-        ttnn_reshape_99,
-        [0, 2, 1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        pad_value=0.0,
-    )
-    ttnn.deallocate(ttnn_reshape_99, False)
     ttnn_reshape_100 = ttnn.reshape(
         ttnn_permute_39,
         [32, 16, 512],
@@ -6851,9 +6806,9 @@ def _main(activations, weights):
     ttnn.deallocate(ttnn_permute_39, False)
     ttnn_matmul_22 = ttnn.matmul(
         ttnn_reshape_100,
-        ttnn_permute_40,
+        ttnn_reshape_99,
         transpose_a=False,
-        transpose_b=False,
+        transpose_b=True,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -6865,7 +6820,7 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_reshape_100, False)
-    ttnn.deallocate(ttnn_permute_40, False)
+    ttnn.deallocate(ttnn_reshape_99, False)
     ttnn_slice_179 = ttnn.slice(
         ttnn_reshape_93,
         [0, 0, 0, 128],
@@ -7118,20 +7073,11 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn_permute_41 = ttnn.permute(
-        ttnn_reshape_105,
-        [0, 2, 1],
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        pad_value=0.0,
-    )
-    ttnn.deallocate(ttnn_reshape_105, False)
     ttnn_matmul_23 = ttnn.matmul(
         ttnn_reshape_102,
-        ttnn_permute_41,
+        ttnn_reshape_105,
         transpose_a=False,
-        transpose_b=False,
+        transpose_b=True,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -7142,7 +7088,7 @@ def _main(activations, weights):
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
     )
-    ttnn.deallocate(ttnn_permute_41, False)
+    ttnn.deallocate(ttnn_reshape_105, False)
     ttnn.deallocate(ttnn_reshape_102, False)
     ttnn_add_18 = ttnn.add(
         ttnn_matmul_22,
