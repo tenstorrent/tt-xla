@@ -66,6 +66,9 @@ CompileOptions CompileOptions::parse(
   options.codegen_split_files =
       internal::parseBoolOption(compile_options, "codegen_split_files")
           .value_or(options.codegen_split_files);
+  options.codegen_target_module =
+      internal::parseBoolOption(compile_options, "codegen_target_module")
+          .value_or(options.codegen_target_module);
   options.experimental_enable_dram_space_saving_optimization =
       internal::parseBoolOption(
           compile_options, "experimental-enable-dram-space-saving-optimization")
