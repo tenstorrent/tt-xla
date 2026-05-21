@@ -265,6 +265,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.num_xla_graphs = 0
         self._update_num_xla_graphs("init")
+        # Flag for the first inference step: XLA SPMD may compile one extra graph on
+        # the first prefill because the backbone sees real input tensors (from
+        # _prepare_inputs) instead of the torch.zeros used during precompile warm-up.
+        # We accept those graphs on the first step and enforce strict no-recompilation
+        # from the second step onwards.
+        self._first_inference_done = False
 
         self.pin_memory = is_pin_memory_available()
         self.dtype = self.model_config.dtype
@@ -606,6 +612,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _verify_num_xla_graphs(self, case_str):
         check_comp = self.check_recompilation and not self.enforce_eager
         if not check_comp:
+            return
+
+        if not self._first_inference_done:
+            # On the first inference step, XLA SPMD may compile extra graphs because
+            # the real input tensors (from _prepare_inputs) differ in XLA provenance
+            # from the torch.zeros dummies used during precompile warm-up. Accept any
+            # graphs compiled during this first step and lock the count for all
+            # subsequent steps where recompilation would indicate a real regression.
+            self._update_num_xla_graphs(f"{case_str} (first inference)")
+            self._first_inference_done = True
             return
 
         curr_cached_graph = xr.get_num_cached_compilation_graph()
@@ -2159,6 +2175,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         bitmasks = self.structured_decode_bitmasks.to(self.device)
         # decode always processes exactly 1 token per request, so only num_tokens=1
         # is needed here. Prefill batches (num_tokens > 1) use the cpu-sample fallback.
+        indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(self.device)
         for num_tokens in [1]:
             for all_greedy in [False, True]:
                 logger.info(
@@ -2168,9 +2185,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     (self.max_num_reqs, num_tokens, hsize),
                     dtype=self._hidden_states_dtype,
                 ).to(self.device)
-                indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
-                    self.device
-                )
                 if self.enable_tensor_parallel and self.use_2d_mesh:
                     xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
                 sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
@@ -2192,6 +2206,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         dummy_bitmask,
                         bitmasks,
                     )
+
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
