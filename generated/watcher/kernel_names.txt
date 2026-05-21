@@ -1,0 +1,15 @@
+0: blank
+1: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+2: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+3: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+4: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+5: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+6: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+7: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate.cpp
+8: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+9: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+10: tt_metal/fabric/impl/kernels/tt_fabric_mux.cpp
+11: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+12: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+13: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate.cpp
+14: tt_metal/fabric/impl/kernels/tt_fabric_mux.cpp

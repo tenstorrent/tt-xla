@@ -1,0 +1,164 @@
+- program_created:
+    id: 4
+    timestamp_ns: 1779383748478431270
+- program_created:
+    id: 5
+    timestamp_ns: 1779383748478495440
+- program_compile_started:
+    id: 5
+    timestamp_ns: 1779383748479147136
+- program_compile_started:
+    id: 4
+    timestamp_ns: 1779383748479193065
+- program_kernel_compile_finished:
+    id: 4
+    timestamp_ns: 1779383748480908715
+    duration_ns: 1715650
+    watcher_kernel_id: 2
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/1767329586527533020/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+- program_kernel_compile_finished:
+    id: 4
+    timestamp_ns: 1779383748481075784
+    duration_ns: 1882719
+    watcher_kernel_id: 4
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/15931602384150538614/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+- program_kernel_compile_finished:
+    id: 5
+    timestamp_ns: 1779383748481203643
+    duration_ns: 2056507
+    watcher_kernel_id: 3
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/16348228686626046635/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+- program_compile_finished:
+    id: 4
+    timestamp_ns: 1779383748481372262
+    duration_ns: 2179197
+- program_destroyed:
+    id: 0
+    timestamp_ns: 1779383748481403221
+- program_kernel_compile_finished:
+    id: 5
+    timestamp_ns: 1779383748481434931
+    duration_ns: 2287795
+    watcher_kernel_id: 1
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/321100723014544509/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+- program_compile_finished:
+    id: 5
+    timestamp_ns: 1779383748481653750
+    duration_ns: 2506614
+- program_destroyed:
+    id: 0
+    timestamp_ns: 1779383748481687000
+- program_created:
+    id: 6
+    timestamp_ns: 1779383748486056631
+- program_created:
+    id: 7
+    timestamp_ns: 1779383748486122751
+- program_compile_started:
+    id: 7
+    timestamp_ns: 1779383748486935366
+- program_compile_started:
+    id: 6
+    timestamp_ns: 1779383748486957176
+- program_kernel_compile_finished:
+    id: 7
+    timestamp_ns: 1779383748488603045
+    duration_ns: 1667679
+    watcher_kernel_id: 13
+    name: cq_dispatch_subordinate
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch_subordinate/10937576377055218817/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate.cpp
+- program_kernel_compile_finished:
+    id: 6
+    timestamp_ns: 1779383748488981662
+    duration_ns: 2024486
+    watcher_kernel_id: 9
+    name: cq_dispatch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/7448841870071009725/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+- program_kernel_compile_finished:
+    id: 7
+    timestamp_ns: 1779383748489160211
+    duration_ns: 2224845
+    watcher_kernel_id: 12
+    name: cq_dispatch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/7226766444782610014/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+- program_kernel_compile_finished:
+    id: 7
+    timestamp_ns: 1779383748489205121
+    duration_ns: 2269755
+    watcher_kernel_id: 14
+    name: tt_fabric_mux
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/tt_fabric_mux/15970591798901286288/
+    source: tt_metal/fabric/impl/kernels/tt_fabric_mux.cpp
+- program_kernel_compile_finished:
+    id: 6
+    timestamp_ns: 1779383748489239591
+    duration_ns: 2282415
+    watcher_kernel_id: 10
+    name: tt_fabric_mux
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/tt_fabric_mux/15970591798901286288/
+    source: tt_metal/fabric/impl/kernels/tt_fabric_mux.cpp
+- program_kernel_compile_finished:
+    id: 7
+    timestamp_ns: 1779383748489626668
+    duration_ns: 2691302
+    watcher_kernel_id: 11
+    name: cq_prefetch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/13727944095894619650/
+    source: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+- program_kernel_compile_finished:
+    id: 6
+    timestamp_ns: 1779383748490348473
+    duration_ns: 3391297
+    watcher_kernel_id: 8
+    name: cq_prefetch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/7180409479640716967/
+    source: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+- program_kernel_compile_finished:
+    id: 6
+    timestamp_ns: 1779383748491654385
+    duration_ns: 4697209
+    watcher_kernel_id: 7
+    name: cq_dispatch_subordinate
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch_subordinate/13362975063064936186/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate.cpp
+- program_kernel_compile_finished:
+    id: 6
+    timestamp_ns: 1779383748492053492
+    duration_ns: 5096316
+    watcher_kernel_id: 5
+    name: cq_prefetch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/9359360931987226704/
+    source: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+- program_compile_finished:
+    id: 7
+    timestamp_ns: 1779383748492102192
+    duration_ns: 5166826
+- program_kernel_compile_finished:
+    id: 6
+    timestamp_ns: 1779383748492250971
+    duration_ns: 5293795
+    watcher_kernel_id: 6
+    name: cq_dispatch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/15943468786807717405/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+- program_compile_finished:
+    id: 6
+    timestamp_ns: 1779383748494419407
+    duration_ns: 7462231
+- program_destroyed:
+    id: 7
+    timestamp_ns: 1779383752235915975
+- program_destroyed:
+    id: 6
+    timestamp_ns: 1779383752236238492

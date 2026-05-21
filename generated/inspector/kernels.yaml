@@ -1,0 +1,84 @@
+- kernel:
+    watcher_kernel_id: 2
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/1767329586527533020/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+    program_id: 4
+- kernel:
+    watcher_kernel_id: 4
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/15931602384150538614/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+    program_id: 4
+- kernel:
+    watcher_kernel_id: 3
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/16348228686626046635/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+    program_id: 5
+- kernel:
+    watcher_kernel_id: 1
+    name: fabric_erisc_router
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/321100723014544509/
+    source: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
+    program_id: 5
+- kernel:
+    watcher_kernel_id: 13
+    name: cq_dispatch_subordinate
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch_subordinate/10937576377055218817/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate.cpp
+    program_id: 7
+- kernel:
+    watcher_kernel_id: 9
+    name: cq_dispatch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/7448841870071009725/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 12
+    name: cq_dispatch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/7226766444782610014/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+    program_id: 7
+- kernel:
+    watcher_kernel_id: 14
+    name: tt_fabric_mux
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/tt_fabric_mux/15970591798901286288/
+    source: tt_metal/fabric/impl/kernels/tt_fabric_mux.cpp
+    program_id: 7
+- kernel:
+    watcher_kernel_id: 10
+    name: tt_fabric_mux
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/tt_fabric_mux/15970591798901286288/
+    source: tt_metal/fabric/impl/kernels/tt_fabric_mux.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 11
+    name: cq_prefetch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/13727944095894619650/
+    source: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+    program_id: 7
+- kernel:
+    watcher_kernel_id: 8
+    name: cq_prefetch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/7180409479640716967/
+    source: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 7
+    name: cq_dispatch_subordinate
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch_subordinate/13362975063064936186/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 5
+    name: cq_prefetch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/9359360931987226704/
+    source: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 6
+    name: cq_dispatch
+    path: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/15943468786807717405/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+    program_id: 6
