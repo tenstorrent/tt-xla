@@ -274,6 +274,63 @@ def test_qwen3_embedding_4b(output_file, num_layers, request):
     )
 
 
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3936)
+def test_qwen3_embedding_4b_batch1(output_file, num_layers, request):
+    from third_party.tt_forge_models.qwen_3.embedding.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    data_format = "bfloat16"
+    input_sequence_length = 128
+
+    variant = ModelVariant.QWEN_3_EMBEDDING_4B
+    loader = create_model_loader(ModelLoader, num_layers=num_layers, variant=variant)
+    if num_layers is not None and loader is None:
+        pytest.fail(
+            "num_layers override requested but ModelLoader does not support it."
+        )
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    load_inputs_fn = get_default_inputs
+
+    tokenizer = loader.tokenizer
+    preprocess_fn = lambda sentences, device: {
+        k: v.to(device)
+        for k, v in tokenizer(
+            sentences,
+            padding=True,
+            truncation=True,
+            max_length=input_sequence_length,
+            return_tensors="pt",
+        ).items()
+    }
+
+    output_processor_fn = lambda out, inputs: apply_last_token_pooling(
+        out.last_hidden_state, inputs["attention_mask"]
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name=variant.name,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        num_layers=num_layers,
+        batch_size=1,
+        input_sequence_length=input_sequence_length,
+        loop_count=32,
+        optimization_level=0,
+        trace_enabled=False,
+    )
+
+
 # [pytest.skip] Too large for single chip
 def test_qwen3_embedding_8b(output_file, num_layers, request):
     from third_party.tt_forge_models.qwen_3.embedding.pytorch.loader import (
@@ -335,11 +392,11 @@ def test_qwen3_embedding_8b(output_file, num_layers, request):
     )
 
 
-def test_bge_m3(output_file, request):
-    """Test BGE-M3 encoder model with custom postprocessing.
+def _run_bge_m3(output_file, request, batch_size: int):
+    """Shared BGE-M3 benchmark helper.
 
     BGE-M3 has a unique architecture that produces dense, sparse, and colbert embeddings.
-    This test includes all the necessary postprocessing but returns only dense_vecs for PCC calculation.
+    Returns only dense_vecs for PCC calculation.
     """
     from collections import defaultdict
 
@@ -490,12 +547,27 @@ def test_bge_m3(output_file, request):
         preprocess_fn=bge_m3_preprocess,
         output_processor_fn=bge_m3_output_processor,
         data_format=data_format,
-        batch_size=4,
+        batch_size=batch_size,
         input_sequence_length=input_sequence_length,
         loop_count=32,
         optimization_level=0,
         required_pcc=0.97,
     )
+
+
+def test_bge_m3(output_file, request):
+    """BGE-M3 encoder benchmark (batch_size=4)."""
+    _run_bge_m3(output_file=output_file, request=request, batch_size=4)
+
+
+def test_bge_m3_batch1(output_file, request):
+    """BGE-M3 encoder benchmark with batch_size=1."""
+    _run_bge_m3(output_file=output_file, request=request, batch_size=1)
+
+
+def test_bge_m3_batch32(output_file, request):
+    """BGE-M3 encoder benchmark with batch_size=32."""
+    _run_bge_m3(output_file=output_file, request=request, batch_size=32)
 
 
 # Trace disabled: output tensor not on device (https://github.com/tenstorrent/tt-xla/issues/3937)
