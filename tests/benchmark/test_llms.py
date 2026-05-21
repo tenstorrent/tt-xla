@@ -330,7 +330,7 @@ def test_llama_3_2_1b_base(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
-        experimental_kv_cache_dtype="bfp_bf8",
+        experimental_kv_cache_dtype="bfp_bf4",
         weight_dtype_overrides={"default": "bfp_bf4"},
         expected_ops=[
             "ttnn.scaled_dot_product_attention",
