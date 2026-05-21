@@ -317,3 +317,26 @@ def init_block_weights(
         f"for {type(module).__name__} (sub_prefix={sub_prefix!r}): "
         f"{still_missing[:8]}"
     )
+
+
+def load_transformer_state_dict(
+    model_name: str,
+    layer_ids: Iterable[int],
+    include_mtp: bool = False,
+) -> Dict[str, torch.Tensor]:
+    """Full Transformer state dict for the requested layer subset plus
+    top-level (embed, norm, head, hc_head_*). Load with strict=False —
+    non-persistent buffers (kv_cache, freqs_cis) aren't in the checkpoint.
+    """
+    # Uncomment if you want to use random weights (torch.zeros actually)
+    # if _RANDOM_WEIGHTS:
+    #    # Patched Transformer.__init__ already random-init'd everything;
+    #    # caller will do `model.load_state_dict({}, strict=False)` (no-op).
+    #    return {}
+    layer_ids = sorted(set(layer_ids))
+    prefixes: List[str] = ["embed.", "norm.", "head.", "hc_head_"]
+    prefixes.extend(f"layers.{L}." for L in layer_ids)
+    if include_mtp:
+        prefixes.append("mtp.")
+    raw = _load_raw_subset(model_name, prefixes)
+    return _dequant_paired(raw, "")
