@@ -8499,7 +8499,7 @@ def _main(activations, weights):
     )
     ttnn_typecast_97 = ttnn.typecast(
         ttnn_to_layout_261,
-        ttnn.DataType.BFLOAT16,
+        ttnn.DataType.FLOAT32,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -8521,10 +8521,18 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_typecast_97, False)
-    ttnn_to_layout_262 = ttnn.to_layout(
-        ttnn_reshape_147, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+    ttnn_typecast_98 = ttnn.typecast(
+        ttnn_reshape_147,
+        ttnn.DataType.BFLOAT16,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
     )
     ttnn.deallocate(ttnn_reshape_147, False)
+    ttnn_to_layout_262 = ttnn.to_layout(
+        ttnn_typecast_98, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+    )
+    ttnn.deallocate(ttnn_typecast_98, False)
     ttnn_sparse_matmul_0 = ttnn.sparse_matmul(
         input_tensor_a=ttnn_reshape_146,
         input_tensor_b=ce_cache__main["main_const_eval_3"],
