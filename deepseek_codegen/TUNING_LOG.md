@@ -332,6 +332,46 @@ These kernels live under `experimental/deepseek_prefill/*` and are written again
 4. **`rms_norm_post_all_gather`-style ops need BF16 input + BF16 stats AND a scaler-tile pattern in the stats** (E2 hypothesis 1). Before retrying any post-allgather fusion, dump `to_torch(stats)` at one site and confirm the per-row reduction over the gathered stats tile yields the right scalar.
 5. **Blackhole vs Wormhole**: many fused kernels above were authored on Wormhole TG. Most accept a `compute_kernel_config` — try `BlackholeComputeKernelConfig` if `WormholeComputeKernelConfig` is rejected. A genuine WH-only kernel will fail at program-factory dispatch and we should skip it. Test `@pytest.mark.requires_device(["TG"])` markers in the upstream test files for a quick sanity check.
 
+
+## Exit notes (after E38 keep) — router fusion landed
+
+E38 added a new lever beyond the SparseMatmul-grid tuning of E30–E34: routing-block kernel fusion. The full per-op router (sigmoid → bias → group sums → masked topk → normalize → scale) is collapsed into one `ttnn.experimental.deepseek_grouped_gate` call. The direct saving from removing the routing ops is small (~500-1,000 μs); the dominant effect is **second-order** — the kernel's cleanly-zeroed weights cause `moe_expert_token_remap → SparseMatmul` to see only the strictly necessary 8-experts-per-token sparsity, dropping `SparseMatmul` from 33,901 → 9,592 μs (−71.7%) on its own. Total decode_1 drops 80,602 → 54,665 μs (−32.2% / −25,935 μs). Cumulative branch delta vs E0 baseline (319,925 μs): **−265,260 μs / −82.9%**.
+
+### Remaining deepseek-specific ops surveyed and not landed
+
+After E38, the catalogue of deepseek-named ops in `tt-metal/ttnn/cpp/ttnn/operations/experimental/` has been fully walked. Status per op:
+
+| Op | Status | Reason |
+|---|---|---|
+| `experimental.deepseek_grouped_gate` | **landed (E38)** | router fusion, see above |
+| `experimental.deepseek_moe_post_combine_tilize` | already used 1× | post-combine RM→tile bridge at the existing call site |
+| `experimental.moe_expert_token_remap` | already used 1× | sparsity remap upstream of `SparseMatmul` |
+| `experimental.deepseek_moe_reduce_scatter` | **not applicable** | requires `[1,1,32,128]` L1 ND-sharded input on 7 cores + vector-of-tensors API; our post-combine site has DRAM-interleaved `[1,1,32,7168]` single tensor. Plus the upstream `tests/nightly/tg/ccl/test_deepseek_moe_reduce_scatter_6U.py` is decorated `@skip_for_blackhole("Requires wormhole_b0 to run")` — the op exists on BH but is not validated to land cleanly. Lands only with a sharding restructure. |
+| `experimental.deepseek_moe_fast_reduce_nc` | already used 6× (auto-routed by `ttnn.sum`) | the 8 remaining `ReduceDeviceOperation` sites total 40 μs — not worth a manual swap. |
+| `experimental.deepseek.mla.matmul_wo` | **infeasible without resharding** | the kernel implements column-parallel wo on the *replicated-across-12-DRAM-cores input + width-sharded-across-7-collectors output* layout. Our wo is row-parallel (`wo.weight = (None, "model")` in the loader → K split, reduce-after) and inputs are DRAM-interleaved. Switching would require either (a) re-emitting the codegen with `wo.weight = ("model", None)`, or (b) hand-inserting an all-gather + reshard before wo and dropping the post-wo reduce_scatter. Either is structural, not a knob. Per-matmul saving is ≈50 μs; ROI not worth the wiring at this size. |
+| `experimental.deepseek.moe.moe_gate_mm` | **infeasible** | hardcoded to Wormhole's 12-DRAM-core ring (`TT_FATAL(num_cores == 12, ...)` in `moe_gate_mm_program_factory.cpp`); our hardware is `tt-galaxy-…` (Blackhole) and the program factory has no BH path. |
+| `experimental.deepseek_prefill.{combine,dispatch,extract,insert,masked_bincount,moe_grouped_topk,offset_cumsum,post_combine_reduce,routed_expert_ffn}` | **parked** | prefill-only — designed against prefill batch shapes (`seq_len` in the hundreds-to-thousands). Our graph is `decode_only=True`. |
+| `experimental.moe_compute` / `experimental.moe_gpt` | topology-incompatible | tests gate on `mesh_shape=(1,8)` / `(1,16)` / `(16,8)` and `experts_per_device ∈ {2}`; our setup is `4×8` with `experts_per_device=8`. The `prepare_w0_w1_tensor_for_moe_compute` packer's shard maps assume the test topologies. |
+
+### Remaining non-deepseek fusions in the deepseek_v3 demo decode path
+
+| Op | Status | Reason |
+|---|---|---|
+| `transformer.flash_multi_latent_attention_decode` / `paged_flash_multi_latent_attention_decode` | **not landed** | replaces the MLA `softmax → @V (compressed_kv) → @wkv_b2` chain (`matmul_9`, `matmul_10` at lines 5295 / 5328 in pre-E38 indexing). Largest remaining single fusion. Wiring cost is high: the kernel needs (a) input_tensor_q in L1 height-sharded layout `[1, bsz_local, num_heads, qk_head_dim+rope]`, (b) a combined `kvpe_cache` (our caches are separate `compressed_kv` and `pe_cache`), (c) `cur_pos_tensor` (we have it in `var_77 = main_const_eval_38`), (d) a custom SDPA `program_config` (`SDPAProgramConfig`). Our cache layout would need to be re-emitted in `kvpe_cache` packed form to match. Per the demo's `mla1d.py:_fwd_decode_flash_mla` (line 2294), this is the canonical MLA decode kernel; expected saving ≈400-800 μs across the 2 layers, but it's a structural rewrite that needs to land alongside a paged-cache packing change. |
+| `experimental.rotary_embedding_llama` | **not landed** | replaces our 4-op RoPE pattern (`multiply + addcmul(value=-1) + multiply + addcmul(value=1)` per site, 8 sites since E11). The kernel requires (a) all inputs BFLOAT16 + TILE (ours are FP32 mid-chain), (b) decode-mode `RotaryEmbeddingLlamaMultiCoreSharded` factory needs HEIGHT_SHARDED inputs, (c) cos/sin caches reformatted into TTNN "doubled" layout, (d) a 32×32 `trans_mat` const_eval. Estimated saving ≈400 μs / 8 sites; cost is 4 new const_evals + sharded I/O wiring at every call site. Negative ROI at our current decode budget. |
+| `experimental.fast_reduce_nc` (non-deepseek variant) | already used implicitly | `FastReduceNCDeviceOperation` is auto-dispatched by `ttnn.sum` on N/C reductions, and we have 6 such ops. The 8 remaining `ReduceDeviceOperation` sites total 40 μs and are too small to be worth manual binding. |
+| `experimental.all_gather_async` / `all_to_all_async_generic` | **not landed** | async CCL variants the demo uses. Would overlap comm with compute but need persistent `GlobalSemaphore` plumbing in const_eval. Marginal at our op-to-op gap pattern. |
+
+### Stop condition
+
+The decode device-time floor is now dominated by **structural overhead that's not a fusion target**:
+- Tilize/Untilize/UntilizeWithUnpadding/TilizeWithValPadding = **19,338 μs** across 364 ops — generic layout conversion between FP32-mid-chain and BF16-edge dtypes. The lever here is reducing FP32 intermediate tensors, not fusing more ops.
+- AllGather + ReduceScatter = **5,507 μs** across 44 ops — comm pattern dictated by the loader's shard spec. Would require resharding to reduce.
+- ReshapeView = **3,090 μs** across 78 ops — should be ~free in theory; tt-metal's ReshapeView still pays a metadata round-trip on Blackhole.
+- SparseMatmul = **9,592 μs** — already optimised to ~45 GB/s / ~37 TFLOPs per core by E31–E34 + the E38 sparsity cleanup. Per-kernel ceiling.
+
+No remaining single fusion-op swap has expected ROI > 1k μs on this graph without a structural rework (paged-cache reformat for flash_mla, RP→CP flip for matmul_wo, or comm-pattern restructure for async CCL). Stop the per-experiment loop here. The branch lands E38 as its terminal commit; bigger work (`flash_multi_latent_attention_decode` integration, MLA wo CP flip) is scoped as a separate project, not a single ledger row.
+
 ## Stop condition
 
 When no patch in the queue moves the top op without dropping golden PCC below 0.9.
