@@ -2109,3 +2109,59 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         trace_enabled=False,
         required_pcc=-0.92,
     )
+
+
+# 8B Llama-architecture model (~16 GB bf16) doesn't fit on a single Wormhole chip,
+# so shard across the n300's two chips on a (1, num_devices) mesh.
+def _foundation_sec_8b_reasoning_mesh_config_fn(model_loader, num_devices):
+    return (1, num_devices), ("batch", "model")
+
+
+def _foundation_sec_8b_reasoning_shard_spec_fn(model_loader, model):
+    shard_specs = {}
+    for layer in model.model.layers:
+        shard_specs[layer.mlp.up_proj.weight] = ("model", None)
+        shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
+        shard_specs[layer.mlp.down_proj.weight] = (None, "model")
+
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+    return shard_specs
+
+
+def test_foundation_sec_8b_reasoning_tp(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.foundation_sec_reasoning.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.FOUNDATION_SEC_8B_REASONING
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        mesh_config_fn=_foundation_sec_8b_reasoning_mesh_config_fn,
+        shard_spec_fn=_foundation_sec_8b_reasoning_shard_spec_fn,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_TP_OPTIMIZATION_LEVEL
+        ),
+    )
