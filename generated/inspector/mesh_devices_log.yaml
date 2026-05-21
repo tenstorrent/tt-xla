@@ -1,32 +1,11 @@
 - mesh_device_created:
-    mesh_id: 1
-    timestamp_ns: 1779382492693937831
-    devices: [0, 1]
-    shape: [2, 1]
-- mesh_device_initialized:
-    mesh_id: 1
-    timestamp_ns: 1779382492694414238
-- mesh_device_created:
     mesh_id: 2
-    timestamp_ns: 1779382929936430733
-    parent_mesh_id: 1
-    devices: [0, 1]
-    shape: [2, 1]
+    timestamp_ns: 1779400325842944863
+    devices: [0]
+    shape: [1, 1]
 - mesh_device_initialized:
     mesh_id: 2
-    timestamp_ns: 1779382929945381463
+    timestamp_ns: 1779400325844388343
 - mesh_device_destroyed:
     mesh_id: 2
-    timestamp_ns: 1779383118524103090
-- mesh_device_created:
-    mesh_id: 3
-    timestamp_ns: 1779383239781535147
-    parent_mesh_id: 1
-    devices: [0, 1]
-    shape: [2, 1]
-- mesh_device_initialized:
-    mesh_id: 3
-    timestamp_ns: 1779383239782762719
-- mesh_device_destroyed:
-    mesh_id: 3
-    timestamp_ns: 1779383306424832165
+    timestamp_ns: 1779400837629112860

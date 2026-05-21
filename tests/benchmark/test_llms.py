@@ -2169,3 +2169,35 @@ def test_foundation_sec_8b_reasoning_tp(
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
     )
+
+
+def test_foundation_sec_8b_reasoning(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.foundation_sec_reasoning.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.FOUNDATION_SEC_8B_REASONING
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=0.90,
+    )
