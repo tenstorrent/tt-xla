@@ -8539,7 +8539,7 @@ def _main(activations, weights):
         sparsity=ttnn_to_layout_262,
         program_config=ttnn.MatmulMultiCoreReuseMultiCast1DProgramConfig(
             compute_with_storage_grid_size=ttnn.CoreCoord(8, 8),
-            in0_block_w=1,
+            in0_block_w=2,
             out_subblock_h=1,
             out_subblock_w=1,
             out_block_h=1,
@@ -8617,7 +8617,7 @@ def _main(activations, weights):
         sparsity=ttnn_to_device_67,
         program_config=ttnn.MatmulMultiCoreReuseMultiCast1DProgramConfig(
             compute_with_storage_grid_size=ttnn.CoreCoord(8, 7),
-            in0_block_w=1,
+            in0_block_w=2,
             out_subblock_h=1,
             out_subblock_w=1,
             out_block_h=1,
