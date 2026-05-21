@@ -8567,13 +8567,6 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_sparse_matmul_0, False)
-    ttnn_silu_1 = ttnn.silu(
-        ttnn_reshape_148,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_reshape_148, False)
     ttnn_sparse_matmul_1 = ttnn.sparse_matmul(
         input_tensor_a=ttnn_reshape_146,
         input_tensor_b=ce_cache__main["main_const_eval_47"],
@@ -8611,15 +8604,16 @@ def _main(activations, weights):
     )
     ttnn.deallocate(ttnn_sparse_matmul_1, False)
     ttnn_multiply_59 = ttnn.multiply(
-        ttnn_silu_1,
+        ttnn_reshape_148,
         ttnn_reshape_149,
         dtype=ttnn.DataType.BFLOAT16,
+        input_tensor_a_activations=[ttnn.UnaryOpType.SILU],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_reshape_149, False)
-    ttnn.deallocate(ttnn_silu_1, False)
+    ttnn.deallocate(ttnn_reshape_148, False)
     ttnn_from_device_29 = ttnn.from_device(v_95)
     ttnn.deallocate(v_95, False)
     ttnn_typecast_99 = ttnn.typecast(
