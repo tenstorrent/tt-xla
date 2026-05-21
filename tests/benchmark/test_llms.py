@@ -2167,8 +2167,8 @@ def test_foundation_sec_8b_reasoning_tp(
         weight_dtype_overrides={
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
-            "model.layers.*.self_attn.o_proj.weight": "bfp_bf4",
         },
+        experimental_enable_permute_matmul_fusion=True,
     )
 
 
