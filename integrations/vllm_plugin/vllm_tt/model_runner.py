@@ -1482,6 +1482,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ) = self._prepare_model_call_tensors(
                 input_ids, self.position_ids, inputs_embeds
             )
+
+            # Build sampling_metadata and grammar inputs before the backbone so
+            # there is no Python work between the backbone dispatch and the
+            # decode_postprocess dispatch.  Both only read from CPU state
+            # (input_batch, config) and do not depend on hidden_states.
+            sampling_device = (
+                torch.device("cpu") if self.tt_config.cpu_sampling else self.device
+            )
+            logger.warning_once(
+                "Sampling on %s (cpu_sampling=%s)",
+                sampling_device,
+                self.tt_config.cpu_sampling,
+            )
+            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+                self.input_batch,
+                self.max_num_reqs,
+                sampling_device,
+                vocab_size=self.vocab_size,
+            )
+            if not self.tt_config.cpu_sampling:
+                # Prepare grammar tensors for the fused path.  The function only
+                # needs the device and num_reqs, not actual logit values, so we
+                # pass a shape proxy instead of waiting for hidden_states.
+                if grammar_output is not None:
+                    _shape_proxy = torch.empty(
+                        self.max_num_reqs, self.vocab_size, device=self.device
+                    )
+                    require_struct_decoding, grammar_bitmask_padded, bitmasks = (
+                        self.prepare_structured_decoding_input(
+                            _shape_proxy, grammar_output
+                        )
+                    )
+                else:
+                    self.require_structured_out_cpu.zero_()
+                    require_struct_decoding = self.require_structured_out_cpu[
+                        : self.max_num_reqs
+                    ].to(self.device)
+                    grammar_bitmask_padded = self.grammar_bitmask_cpu[
+                        : self.max_num_reqs
+                    ].to(self.device)
+                    bitmasks = self.structured_decode_bitmasks.to(self.device)
             torch_xla.sync(wait=False)
             # Run the decoder
             with (
@@ -1514,20 +1555,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         local_idx = i - start_index
                         prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
-            sampling_device = (
-                torch.device("cpu") if self.tt_config.cpu_sampling else self.device
-            )
-            logger.warning_once(
-                "Sampling on %s (cpu_sampling=%s)",
-                sampling_device,
-                self.tt_config.cpu_sampling,
-            )
-            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
-                self.input_batch,
-                self.max_num_reqs,
-                sampling_device,
-                vocab_size=self.vocab_size,
-            )
             if self.tt_config.cpu_sampling:
                 # cpu_sampling path: select + compute on device, sample on CPU
                 hidden_states = self.select_hidden_states(hidden_states, logits_indices)
@@ -1563,25 +1590,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits_indices = torch.zeros(
                         self.max_num_reqs, dtype=torch.int32, device=self.device
                     )
-                if grammar_output is not None:
-                    # prepare_structured_decoding_input only uses logits for shape/device
-                    _shape_proxy = hidden_states.new_empty(
-                        self.max_num_reqs, self.vocab_size
-                    )
-                    require_struct_decoding, grammar_bitmask_padded, bitmasks = (
-                        self.prepare_structured_decoding_input(
-                            _shape_proxy, grammar_output
-                        )
-                    )
-                else:
-                    self.require_structured_out_cpu.zero_()
-                    require_struct_decoding = self.require_structured_out_cpu[
-                        : self.max_num_reqs
-                    ].to(self.device)
-                    grammar_bitmask_padded = self.grammar_bitmask_cpu[
-                        : self.max_num_reqs
-                    ].to(self.device)
-                    bitmasks = self.structured_decode_bitmasks.to(self.device)
                 selected_token_ids, logits = self.decode_postprocess(
                     hidden_states,
                     logits_indices,
