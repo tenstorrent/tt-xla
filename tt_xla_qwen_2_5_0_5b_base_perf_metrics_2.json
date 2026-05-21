@@ -1,0 +1,966 @@
+{
+  "operation_type_breakdown": {
+    "func.func": 1,
+    "func.return": 1,
+    "ttnn.add": 3,
+    "ttnn.argmax": 1,
+    "ttnn.concat": 1,
+    "ttnn.concatenate_heads": 1,
+    "ttnn.cos": 1,
+    "ttnn.deallocate": 133,
+    "ttnn.embedding": 1,
+    "ttnn.fill_cache": 64,
+    "ttnn.ge": 1,
+    "ttnn.linear": 1,
+    "ttnn.matmul": 6,
+    "ttnn.multiply": 1,
+    "ttnn.permute": 1,
+    "ttnn.reshape": 10,
+    "ttnn.rms_norm": 3,
+    "ttnn.rotary_embedding": 2,
+    "ttnn.scaled_dot_product_attention": 1,
+    "ttnn.sin": 1,
+    "ttnn.slice_static": 68,
+    "ttnn.split_query_key_value_and_split_heads": 1,
+    "ttnn.to_layout": 5,
+    "ttnn.to_memory_config": 19,
+    "ttnn.typecast": 5,
+    "ttnn.where": 1
+  },
+  "shardable_operations": [
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.56",
+      "operation": "ttnn.to_layout"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x1x!ttcore.tile<32x32, u32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.56",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, u32>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "convert.56",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<1x544xui32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "gather.57_workaround",
+      "operation": "ttnn.to_layout"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 544 + d1, d2), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "gather.57",
+      "operation": "ttnn.embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "custom-call.91",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x7, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "custom-call.91",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x5x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "add.98",
+      "operation": "ttnn.linear"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x18x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.98",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 448 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x14x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.98",
+      "operation": "ttnn.split_query_key_value_and_split_heads"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.9",
+      "operation": "ttnn.to_layout"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <1x1>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.9",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "convert.9",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1, virt_to_physical_map = (d0, d1) -> (0, d0 floordiv 8, d0 mod 8), physical_to_virt_map = (d0, d1, d2) -> (d1 * 8 + d2, 0)>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <height_sharded>>",
+      "location": "dot.20",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "transpose.21",
+      "operation": "ttnn.permute"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "concatenate.22",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x1>, memref<1x2x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "concatenate.22",
+      "operation": "ttnn.concat"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x2, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "cosine.109",
+      "operation": "ttnn.cos"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x2, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "convert.112",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x2, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<1x1x!ttcore.tile<32x32, f32>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "sine.23",
+      "operation": "ttnn.sin"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x2, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "convert.26",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.119",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.119",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.138",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 64 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "scatter.177",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1xsi32, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "slice.181",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": true,
+      "layout_info": "#ttnn.ttnn_layout<(d0) -> (0, d0), <1x1, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "add.184",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 448 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x14x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.309",
+      "operation": "ttnn.rotary_embedding"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 448 + d1 * 32 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x14x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "add.309",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 17 + d1 * 17 + d2, d3), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1xsi32, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "broadcast.259",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x4, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "compare.260",
+      "operation": "ttnn.ge"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": true,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 32 + d1 * 32 + d2, d3), <1x4, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<1x1x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "select.265",
+      "operation": "ttnn.where"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 448 + d1 * 32 + d2, d3), <1x1>, memref<448x2x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.373",
+      "operation": "ttnn.scaled_dot_product_attention"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<32x28x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reshape.378",
+      "operation": "ttnn.concatenate_heads"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x8x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "reshape.378",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x6, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x5x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "add.383_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 544 + d1, d2), <6x6, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x5x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "add.383_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x6, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x5x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "add.383",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x7, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "custom-call.416",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x51, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<17x3x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "dot.426",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x19x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "dot.418",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x51, virt_to_physical_map = (d0, d1) -> (0, d1 floordiv 8, d1 mod 8), physical_to_virt_map = (d0, d1, d2) -> (0, d1 * 8 + d2)>, memref<17x3x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <width_sharded>>",
+      "location": "multiply.432",
+      "operation": "ttnn.multiply"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x7, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "add.438_decomp_matmul",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x7, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "add.438_decomp_add",
+      "operation": "ttnn.add"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": true,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <6x7, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<3x4x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<l1>>, <block_sharded>>",
+      "location": "custom-call.471",
+      "operation": "ttnn.rms_norm"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<17x4748x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "dot.473",
+      "operation": "ttnn.matmul"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<32x4748x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reshape.474",
+      "operation": "ttnn.reshape"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<32x4748x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "slice.475",
+      "operation": "ttnn.slice_static"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<32x151936xbf16, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reduce.504",
+      "operation": "ttnn.to_layout"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 + d1, d2), <1x1>, memref<32x1xui32, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reduce.504",
+      "operation": "ttnn.argmax"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<32x1x!ttcore.tile<32x32, u32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reduce.504_revert_layout",
+      "operation": "ttnn.to_layout"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1, d2) -> (d0 * 32 + d1, d2), <1x1>, memref<32x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<dram>>, <interleaved>>",
+      "location": "reduce.504_revert_layout",
+      "operation": "ttnn.typecast"
+    },
+    {
+      "has_system_memory": false,
+      "is_sharded": false,
+      "is_spilled_to_dram": false,
+      "layout_info": "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <8x8, virt_to_physical_map = (d0, d1) -> (0, d0, d1), physical_to_virt_map = (d0, d1, d2) -> (d1, d2)>, memref<1x1x!ttcore.tile<32x32, si32>, #ttnn.buffer_type<l1>>, <interleaved>>",
+      "location": "reshape.476",
+      "operation": "ttnn.reshape"
+    }
+  ],
+  "summary": {
+    "dram_spilled_ops": 16,
+    "effectively_sharded_ops": 18,
+    "effectively_sharded_percentage": 15.65217391304348,
+    "sharded_and_spilled_ops": 2,
+    "sharded_ops": 20,
+    "sharded_percentage": 17.391304347826086,
+    "spilled_percentage": 13.913043478260869,
+    "system_memory_ops": 0,
+    "system_memory_percentage": 0,
+    "total_ops": 333,
+    "total_ops_with_output_tensor": 134,
+    "total_shardable_ops": 115
+  }
+}
