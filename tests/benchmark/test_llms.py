@@ -746,6 +746,41 @@ def test_qwen_2_5_1_5b(
     )
 
 
+def test_deepseek_r1_distill_qwen_1_5b_q8_0(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.deepseek_gguf.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_R1_DISTILL_QWEN_1_5B_Q8_0
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        # optimization_level=2 fails: ttnn.paged_update_cache requires sharded input at opt=2
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else 1
+        ),
+    )
+
+
 def test_qwen_2_5_3b(
     output_file,
     num_layers,
