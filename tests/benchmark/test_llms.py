@@ -330,6 +330,7 @@ def test_llama_3_2_1b_base(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_enable_permute_matmul_fusion=True,
         expected_ops=[
             "ttnn.scaled_dot_product_attention",
             "ttnn.rms_norm",
