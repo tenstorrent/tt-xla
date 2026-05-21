@@ -3394,6 +3394,7 @@ ce_cache__main = {}
 
 
 def _main(activations, weights):
+    import tracy as _tracy
     global ce_cache__main
     ce_cache__main = consteval__main(ce_cache__main, weights)
     args_0 = activations[0]
@@ -3563,6 +3564,7 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
+    _tracy.signpost("layer_0_start")
     ttnn_rms_stats_4d_0 = ttnn.rms_norm_pre_all_gather(
         ttnn_rms_in_4d_0,
         dtype=ttnn.DataType.FLOAT32,
@@ -5246,6 +5248,8 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
+    _tracy.signpost("attn_0_end")
+    _tracy.signpost("mlp_0_start")
     ttnn_rms_stats_4d_1 = ttnn.rms_norm_pre_all_gather(
         ttnn_rms_in_4d_1,
         dtype=ttnn.DataType.FLOAT32,
@@ -5579,6 +5583,8 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
+    _tracy.signpost("layer_0_end")
+    _tracy.signpost("layer_1_start")
     ttnn_rms_stats_4d_2 = ttnn.rms_norm_pre_all_gather(
         ttnn_rms_in_4d_2,
         dtype=ttnn.DataType.FLOAT32,
@@ -7141,6 +7147,8 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
+    _tracy.signpost("attn_1_end")
+    _tracy.signpost("moe_start")
     ttnn_rms_stats_4d_3 = ttnn.rms_norm_pre_all_gather(
         ttnn_rms_in_4d_3,
         dtype=ttnn.DataType.FLOAT32,
@@ -8171,6 +8179,9 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
+    _tracy.signpost("moe_end")
+    _tracy.signpost("layer_1_end")
+    _tracy.signpost("lm_head_start")
     ttnn_rms_stats_4d_4 = ttnn.rms_norm_pre_all_gather(
         ttnn_rms_in_4d_4,
         dtype=ttnn.DataType.FLOAT32,
@@ -8338,12 +8349,11 @@ def _main(activations, weights):
         topology=ttnn.Topology.Ring,
     )
     ttnn.deallocate(ttnn_reshape_162, False)
-    ttnn_to_layout_267 = ttnn.to_layout(
-        ttnn_all_gather_32, ttnn.Layout.ROW_MAJOR, None, memory_config=None
-    )
-    ttnn.deallocate(ttnn_all_gather_32, False)
-    ttnn_argmax_0 = ttnn.argmax(
-        ttnn_to_layout_267,
+    # E44: skip the Untilize→argmax→Tilize round-trip (the LM-head 1×1×129280×896
+    # BF16 Untilize at 1309 μs/iter); pass TILE directly into argmax. If argmax
+    # outputs ROW_MAJOR, the downstream to_layout(TILE) is kept as-is via rebinding.
+    ttnn_to_layout_268 = ttnn.argmax(
+        ttnn_all_gather_32,
         1,
         True,
         sub_core_grids=None,
@@ -8352,10 +8362,7 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn_to_layout_268 = ttnn.to_layout(
-        ttnn_argmax_0, ttnn.Layout.TILE, None, memory_config=None
-    )
-    ttnn.deallocate(ttnn_argmax_0, False)
+    ttnn.deallocate(ttnn_all_gather_32, False)
     ttnn_typecast_106 = ttnn.typecast(
         ttnn_to_layout_268,
         ttnn.DataType.INT32,
@@ -8384,6 +8391,7 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_to_layout_104, False)
+    _tracy.signpost("lm_head_end")
     return [
         model_transformer_layers_0_attn_indexer_k_cache,
         model_transformer_layers_1_attn_indexer_k_cache,
