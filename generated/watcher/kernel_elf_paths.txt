@@ -1,0 +1,15 @@
+0: blank
+2: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/16348228686626046635//erisc/erisc.elf
+1: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/321100723014544509//erisc/erisc.elf
+4: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/15931602384150538614//erisc/erisc.elf
+3: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/fabric_erisc_router/1767329586527533020//erisc/erisc.elf
+10: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/tt_fabric_mux/15970591798901286288//idle_erisc/idle_erisc.elf
+8: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/7180409479640716967//idle_erisc/idle_erisc.elf
+9: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/7448841870071009725//idle_erisc/idle_erisc.elf
+14: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/tt_fabric_mux/15970591798901286288//idle_erisc/idle_erisc.elf
+12: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/7226766444782610014//idle_erisc/idle_erisc.elf
+6: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch/15943468786807717405//idle_erisc/idle_erisc.elf
+13: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch_subordinate/10937576377055218817//idle_erisc/idle_erisc.elf
+7: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_dispatch_subordinate/13362975063064936186//idle_erisc/idle_erisc.elf
+11: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/13727944095894619650//idle_erisc/idle_erisc.elf
+5: /github/home/.cache/tt-metal-cache/6481459055998014514/kernels/cq_prefetch/9359360931987226704//idle_erisc/idle_erisc.elf
