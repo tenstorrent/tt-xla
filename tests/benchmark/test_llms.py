@@ -2164,4 +2164,8 @@ def test_foundation_sec_8b_reasoning_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        weight_dtype_overrides={
+            "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
+            "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
+        },
     )
