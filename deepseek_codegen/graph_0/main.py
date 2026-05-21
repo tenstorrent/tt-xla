@@ -4006,24 +4006,10 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_concat_4, False)
-    ttnn_reshape_27 = ttnn.reshape(
+    ttnn_to_memory_config_0 = ttnn.reshape(
         ttnn_matmul_1,
         [1, 32, 1, 128],
         memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_matmul_1, False)
-    ttnn_repeat_3 = ttnn.repeat(
-        ttnn_to_layout_104,
-        ttnn.Shape([32]),
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn_to_memory_config_0 = ttnn.to_memory_config(
-        ttnn_reshape_27,
-        ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             ttnn.BufferType.L1,
             ttnn.ShardSpec(
@@ -4038,7 +4024,14 @@ def _main(activations, weights):
             ),
         ),
     )
-    ttnn.deallocate(ttnn_reshape_27, False)
+    ttnn.deallocate(ttnn_matmul_1, False)
+    ttnn_repeat_3 = ttnn.repeat(
+        ttnn_to_layout_104,
+        ttnn.Shape([32]),
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
     ttnn_to_layout_108 = ttnn.to_layout(
         ttnn_repeat_3, ttnn.Layout.ROW_MAJOR, None, memory_config=None
     )
@@ -4675,17 +4668,10 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_reshape_46, False)
-    ttnn_reshape_47 = ttnn.reshape(
+    ttnn_to_memory_config_1 = ttnn.reshape(
         ttnn_rms_norm_1,
         [1, 32, 1, 512],
         memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_rms_norm_1, False)
-    ttnn_to_memory_config_1 = ttnn.to_memory_config(
-        ttnn_reshape_47,
-        ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             ttnn.BufferType.L1,
             ttnn.ShardSpec(
@@ -4700,7 +4686,7 @@ def _main(activations, weights):
             ),
         ),
     )
-    ttnn.deallocate(ttnn_reshape_47, False)
+    ttnn.deallocate(ttnn_rms_norm_1, False)
     ttnn.experimental.paged_update_cache(
         L__past_key_values___layers_0_compressed_kv,
         ttnn_to_memory_config_1,
@@ -4949,17 +4935,10 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_concat_9, False)
-    ttnn_reshape_53 = ttnn.reshape(
+    ttnn_to_memory_config_2 = ttnn.reshape(
         ttnn_typecast_54,
         [1, 32, 1, 64],
         memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_typecast_54, False)
-    ttnn_to_memory_config_2 = ttnn.to_memory_config(
-        ttnn_reshape_53,
-        ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             ttnn.BufferType.L1,
             ttnn.ShardSpec(
@@ -4974,7 +4953,7 @@ def _main(activations, weights):
             ),
         ),
     )
-    ttnn.deallocate(ttnn_reshape_53, False)
+    ttnn.deallocate(ttnn_typecast_54, False)
     ttnn.experimental.paged_update_cache(
         L__past_key_values___layers_0_k_pe,
         ttnn_to_memory_config_2,
@@ -6112,17 +6091,10 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_concat_13, False)
-    ttnn_reshape_79 = ttnn.reshape(
+    ttnn_to_memory_config_3 = ttnn.reshape(
         ttnn_matmul_16,
         [1, 32, 1, 128],
         memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_matmul_16, False)
-    ttnn_to_memory_config_3 = ttnn.to_memory_config(
-        ttnn_reshape_79,
-        ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             ttnn.BufferType.L1,
             ttnn.ShardSpec(
@@ -6137,7 +6109,7 @@ def _main(activations, weights):
             ),
         ),
     )
-    ttnn.deallocate(ttnn_reshape_79, False)
+    ttnn.deallocate(ttnn_matmul_16, False)
     ttnn.experimental.paged_update_cache(
         model_transformer_layers_1_attn_indexer_k_cache,
         ttnn_to_memory_config_3,
@@ -6755,17 +6727,10 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_reshape_97, False)
-    ttnn_reshape_98 = ttnn.reshape(
+    ttnn_to_memory_config_4 = ttnn.reshape(
         ttnn_rms_norm_3,
         [1, 32, 1, 512],
         memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_rms_norm_3, False)
-    ttnn_to_memory_config_4 = ttnn.to_memory_config(
-        ttnn_reshape_98,
-        ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             ttnn.BufferType.L1,
             ttnn.ShardSpec(
@@ -6780,7 +6745,7 @@ def _main(activations, weights):
             ),
         ),
     )
-    ttnn.deallocate(ttnn_reshape_98, False)
+    ttnn.deallocate(ttnn_rms_norm_3, False)
     ttnn.experimental.paged_update_cache(
         L__past_key_values___layers_1_compressed_kv,
         ttnn_to_memory_config_4,
@@ -7031,17 +6996,10 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_concat_18, False)
-    ttnn_reshape_104 = ttnn.reshape(
+    ttnn_to_memory_config_5 = ttnn.reshape(
         ttnn_typecast_74,
         [1, 32, 1, 64],
         memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_typecast_74, False)
-    ttnn_to_memory_config_5 = ttnn.to_memory_config(
-        ttnn_reshape_104,
-        ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.HEIGHT_SHARDED,
             ttnn.BufferType.L1,
             ttnn.ShardSpec(
@@ -7056,7 +7014,7 @@ def _main(activations, weights):
             ),
         ),
     )
-    ttnn.deallocate(ttnn_reshape_104, False)
+    ttnn.deallocate(ttnn_typecast_74, False)
     ttnn.experimental.paged_update_cache(
         L__past_key_values___layers_1_k_pe,
         ttnn_to_memory_config_5,
