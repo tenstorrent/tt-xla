@@ -158,6 +158,51 @@ Continue iterating. E30 demonstrates that **structural fusions hand-written in `
 2. Investigate whether the down matmul (`b={128} × 32 × 2048 × 7168`, 83,399 μs at 11 cores) admits the same core-utilisation re-tuning.
 3. Re-check `Tilize/UntilizeWithUnpadding` (5.3 % combined) — some sites may be removable now that the gate/up output path goes through `ttnn.slice` instead of two separate matmul reshapes.
 
+## Exit notes (after E37 stop) — sparse_matmul knob lever exhausted
+
+After E34 landed iblock=4 on both sparse_matmuls (cumulative −74.8 % vs E0 baseline 319,925 μs → 80,602 μs), three further sparse_matmul knob attempts all failed:
+
+- **E35** `in0_block_w=4 → 8` on stacked only: flat (+0.08 % decode, +0.5 % on target op). BW per-core stuck at 13 GB/s and FLOPs at 13.2 TFLOPs across iblock=4 and iblock=8 — the stacked matmul has flatlined just like down did at E34. **REVERT.**
+- **E36** `out_subblock_w=1 → 2` on both matmuls: HANG (44 min at 746 % CPU). Killed, reset, reverted.
+- **E37** `out_subblock_w=1 → 2` on stacked only (per_core_N=2 → exactly 1 sub-block per core, isolating away E36's multi-sub-block hypothesis): HANG (same signature). Killed, reset, reverted.
+
+The two `out_subblock_w` hangs together rule out the only knob the `tt-perf-report` SLOW hint was still surfacing. **The sparse_matmul kernel does not support `out_subblock_w > 1` regardless of `per_core_N`** — it's a tt-metal-side limitation of the sparse-mask reader path, not a Python-config issue.
+
+### Where the bottleneck sits after E34
+
+Stacked report shares (E34 = current branch tip):
+
+| op | DT | share | status |
+| --- | ---: | ---: | --- |
+| SparseMatmulDeviceOperation | 33.9k μs | 42.1 % | knob-tuning exhausted (E31–E37) |
+| Tilize family (Tilize + Untilize + …WithValPadding + …WithUnpadding) | 19.5k μs | 22.0 % | **untouched** (next-biggest lever) |
+| AllGather + AllToAllCombine + ReduceScatter | 8.0k μs | 9.0 % | parked (CCL fused ops are WH-TG-only on this graph) |
+| ReshapeView | 3.2k μs | 4.0 % | untouched |
+| Concat | 2.7k μs | 3.0 % | untouched |
+| Transpose | 2.5k μs | 3.0 % | partial (E28 folded 6 of 44 into matmul transpose_b) |
+| Matmul (dense) | 1.95k μs | 2.2 % | E12/E25 lesson: activation= no-op on DRAM-interleaved; needs sharded variant |
+| BinaryNg | 1.15k μs | 1.3 % | mostly fused (E11/E14/E17/E23/E24/E25/E27) |
+
+### What further attack lanes look like — all require *structural*, not knob-level, changes
+
+1. **L1-sharded sparse_matmul input** (the surviving SLOW hint: "currently in DEV_0_DRAM_INTERLEAVED → place in L1"). The matmul's input A is `[32, 7168]` BF16 ≈ 458 KB per device, comfortable for L1. Would require: pre-sharded upstream tilize to L1, `memory_config=L1_*` on the sparse_matmul, and a sharded→interleaved bridge before the downstream reshape if downstream ops can't take sharded input. Multi-iteration project — and only motivated if the kernel's bandwidth ceiling at 13 GB/s per core is *DRAM-bound and not internal*. Worth a pre-flight prototype on one sparse_matmul site only.
+2. **Tilize family audit (#2 op, 22 % of decode, never touched).** 41 standalone TilizeDeviceOperation ops at 248 μs avg + 129 TilizeWithValPadding at 38 μs avg are the biggest untapped category. Top individual ops (op IDs 33295, 10488, 10899, 8369, 10929 in the E34 report) each spend ~1.2–1.6k μs on 111-120 cores; folding even 3-5 of these into upstream producers (typecast/reshape `layout=TILE` cast-on-pack — same E14/E17 pattern but for layout) could save 1-2k μs. Requires per-site provenance audit; not a single-knob change.
+3. **MLA Q/K/V refactor via `ttnn.experimental.create_qkv_heads_from_separate_tensors`.** Listed in the original op-search but never tried. Replaces several slice + reshape + permute in the MLA attention path — bounded by ~1-2k μs total across the MLA. Moderate-effort multi-line patch.
+4. **Distributed RMSNorm `slice.cpp:35` workaround.** Still blocked by the assertion that hit E7 (`ttnn.rms_norm_post_all_gather`) and E13 (`ttnn.experimental.wan_fused_rmsnorm_post_allgather`). A working version requires either (a) a stats-reshape from rank-4 `[1,1,S,H]` to rank-2 `[S,H]` before the op + a metal-side rank-aware slice patch, or (b) moving to the sharded `ttnn.fused_rms_minimal` (`LayerNormShardedMultiCoreProgramConfig` + persistent `GlobalSemaphore` + sharded I/O conversions at all 5 RMS sites). Ceiling ~250-500 μs total. Wait for a tt-metal fix to slice.cpp.
+
+### Lessons from the E31–E37 run (matmul knob-tuning era)
+
+- **Size the grid to the work, not to the device max** (E31/E32). 8×8 = 64 cores beat 11×10 = 110 cores on the stacked matmul because 64 maps exactly to the N-stripe count.
+- **K-block widening wins until per-core DRAM bandwidth stops rising** (E33 → E34 → E35). Down matmul flatlined at iblock=2 (K=64 tiles), stacked flatlined at iblock=4 (K=224 tiles). Past the flatline, further widening is a no-op.
+- **The `tt-perf-report` SLOW/2GB/s hint is per-core, not aggregate** (E30 lesson — bears repeating because it's the single most consequential calibration in the whole branch).
+- **The `tt-perf-report` "output subblock ≥ 2" hint is a generic matmul hint that does not apply to `ttnn.sparse_matmul`** (E36/E37 — two consecutive hangs).
+
+### Recommended next step
+
+Stop the knob-tuning loop. Pick **one** of the structural lanes above (L1-sharded input or Tilize audit) as a separate scoped project. Both are multi-iteration and need a different cadence than the single-knob/single-commit loop this branch has been running.
+
+Cumulative branch delta vs E0 baseline (319,925 μs): **−239,323 μs / −74.8 %** at E34. E35–E37 added zero net DT improvement.
+
 ### E1 op-level delta (structural only)
 
 | role                       | op                          | count | ΔDT (μs) |
