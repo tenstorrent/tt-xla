@@ -8481,7 +8481,7 @@ def _main(activations, weights):
             per_core_M=1,
             per_core_N=6,
             fuse_batch=False,
-            fused_activation=ttnn.UnaryWithParam(op_type=ttnn.UnaryOpType.SILU),
+            fused_activation=None,
             mcast_in0=True,
             gather_in0=False,
             hop_cores=ttnn.CoreRangeSet([]),
@@ -8541,6 +8541,7 @@ def _main(activations, weights):
         ttnn_reshape_148,
         ttnn_reshape_149,
         dtype=ttnn.DataType.BFLOAT16,
+        input_tensor_a_activations=[ttnn.UnaryOpType.SILU],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
