@@ -304,6 +304,8 @@ python <skill-path>/scripts/compare_nightlies.py <CURRENT_RUN_ID> <PREVIOUS_RUN_
 ```
 Output: `comparison.json` with per-model diffs. Convention: positive % = faster (improvement), negative % = slower (regression). Use `--threshold 5` so the report can apply asymmetric thresholds (regressions ≤ -10%, improvements ≥ +5%) at filter time.
 
+Pass `--emit-csv` to additionally write one `perf_comparison_<RUN_ID>_<device_type>.csv` per device, sorted ascending by SPS delta (worst regressions first). Columns: `model, sps_current, sps_with_change, delta, pct_change` — same schema as the perf-compare skill. Rows with category `missing` or `new` are dropped so every row has a complete delta.
+
 ## Notes
 
 - The `gh` CLI must be authenticated with access to `tenstorrent/tt-xla` (and `tenstorrent/tt-mlir` for commit chain resolution).

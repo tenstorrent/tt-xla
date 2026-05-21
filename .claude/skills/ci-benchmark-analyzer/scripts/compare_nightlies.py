@@ -18,12 +18,14 @@ Perf diff convention:
 """
 
 import argparse
+import csv
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import zipfile
+from collections import defaultdict
 from pathlib import Path
 
 
@@ -111,6 +113,45 @@ def compute_diff(current: float, previous: float) -> float | None:
     return round(((current - previous) / previous) * 100, 2)
 
 
+def write_perf_csvs(
+    comparisons: list[dict], output_dir: Path, run_id: str
+) -> list[Path]:
+    """Emit per-device CSVs in compare_perf.py's output schema.
+
+    Drops 'missing' (no current SPS) and 'new' (no previous SPS) rows so every
+    output row has a complete delta — same behavior as compare_perf.py.
+    """
+    by_device = defaultdict(list)
+    for c in comparisons:
+        if c["category"] in ("missing", "new"):
+            continue
+        sps_curr = c.get("previous_samples_per_sec")
+        sps_new = c.get("samples_per_sec")
+        if sps_curr is None or sps_new is None:
+            continue
+        by_device[c["device_type"]].append(
+            {
+                "model": c["display_name"],
+                "sps_current": sps_curr,
+                "sps_with_change": sps_new,
+                "delta": round(sps_new - sps_curr, 4),
+                "pct_change": c["diff_percent"],
+            }
+        )
+
+    written = []
+    fields = ["model", "sps_current", "sps_with_change", "delta", "pct_change"]
+    for device, rows in by_device.items():
+        rows.sort(key=lambda r: r["delta"])
+        path = output_dir / f"perf_comparison_{run_id}_{device}.csv"
+        with path.open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=fields)
+            w.writeheader()
+            w.writerows(rows)
+        written.append(path)
+    return written
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compare perf between two CI runs")
     parser.add_argument("current_run_id", help="Current (newer) run ID")
@@ -122,6 +163,11 @@ def main():
         type=float,
         default=10.0,
         help="Percent threshold for flagging regressions/improvements (default: 10)",
+    )
+    parser.add_argument(
+        "--emit-csv",
+        action="store_true",
+        help="Also emit per-device CSVs matching compare_perf.py's schema",
     )
     args = parser.parse_args()
 
@@ -281,6 +327,11 @@ def main():
     summary_path = output_dir / "comparison.json"
     summary_path.write_text(json.dumps(summary, indent=2))
     print(f"\nComparison written to {summary_path}", file=sys.stderr)
+
+    if args.emit_csv:
+        csv_paths = write_perf_csvs(comparisons, output_dir, args.current_run_id)
+        for p in csv_paths:
+            print(f"CSV written to {p}", file=sys.stderr)
 
     # Print summary to stdout
     print(json.dumps(summary, indent=2))
