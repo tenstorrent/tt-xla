@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """Graph count validation for PR #4789 (reduce vLLM decode graphs 5→2).
 
 Runs 4 combinations:
@@ -82,7 +85,9 @@ def run_case(case: dict) -> None:
 
 if __name__ == "__main__":
     if not os.environ.get("VLLM_XLA_CHECK_RECOMPILATION"):
-        print("WARNING: VLLM_XLA_CHECK_RECOMPILATION not set — graph counts won't be logged.")
+        print(
+            "WARNING: VLLM_XLA_CHECK_RECOMPILATION not set — graph counts won't be logged."
+        )
         print("Run as: VLLM_XLA_CHECK_RECOMPILATION=1 python3 test_graph_counts.py\n")
 
     failures = []

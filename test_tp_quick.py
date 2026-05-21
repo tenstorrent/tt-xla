@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
 """Quick TP validation using opt-125m (no HuggingFace token needed).
 
 Tests both use_2d_mesh=True and use_2d_mesh=False to exercise the
@@ -26,7 +29,9 @@ def assert_output_coherent(text: str, label: str) -> None:
     assert words, f"[{label}] no word characters in output: {text!r}"
     if len(words) >= 5:
         sr = sum(1 for w in words if w in _STOPWORDS) / len(words)
-        assert sr >= 0.10, f"[{label}] token-soup output (stopword ratio {sr:.3f}): {text!r}"
+        assert (
+            sr >= 0.10
+        ), f"[{label}] token-soup output (stopword ratio {sr:.3f}): {text!r}"
     print(f"[{label}] OK — output: {text!r}")
 
 
@@ -72,7 +77,7 @@ if __name__ == "__main__":
             print(f"[use_2d_mesh={use_2d_mesh}] FAILED: {e}", file=sys.stderr)
             failures.append((use_2d_mesh, e))
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     if failures:
         print(f"FAILED: {len(failures)} case(s)")
         for mesh, err in failures:
