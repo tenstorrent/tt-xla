@@ -24,9 +24,9 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-
 # ── Log timestamp prefix ───────────────────────────────────────────────────────
 _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T[\d:.]+Z ")
+
 
 def strip_ts(line: str) -> str:
     """Remove GitHub Actions timestamp prefix from a log line."""
@@ -35,13 +35,13 @@ def strip_ts(line: str) -> str:
 
 # ── Log file filtering ─────────────────────────────────────────────────────────
 def is_perf_log(filename: str) -> bool:
-    """True for files like '8_run-perf-benchmarks _ ... _ perf bert (n150-perf).txt'"""
+    """True for paths whose parent directory contains 'run-perf-benchmarks'."""
     return "run-perf-benchmarks" in filename and filename.endswith(".txt")
 
 
 # ── Per-log parsing ────────────────────────────────────────────────────────────
 _PYTEST_CMD_RE = re.compile(r"pytest\s.*?::(\w+)\s")
-_SPS_RE        = re.compile(r"\|\s*Sample per second:\s*([\d.]+)")
+_SPS_RE = re.compile(r"\|\s*Sample per second:\s*([\d.]+)")
 
 
 def parse_log(path: Path) -> dict | None:
@@ -75,7 +75,7 @@ def parse_log(path: Path) -> dict | None:
         return None  # not a perf benchmark log we can use
 
     return {
-        "model":   model_name,
+        "model": model_name,
         "sps_new": sps,
     }
 
@@ -83,15 +83,20 @@ def parse_log(path: Path) -> dict | None:
 # ── Baseline CSV ───────────────────────────────────────────────────────────────
 _HTML_NUM_RE = re.compile(r">([\d.]+)<")
 
+
 def _extract_numeric(value: str) -> float | None:
     if not value or not value.strip():
         return None
     m = _HTML_NUM_RE.search(value)
     if m:
-        try: return float(m.group(1))
-        except ValueError: pass
-    try: return float(value.strip())
-    except ValueError: return None
+        try:
+            return float(m.group(1))
+        except ValueError:
+            pass
+    try:
+        return float(value.strip())
+    except ValueError:
+        return None
 
 
 def load_baseline(csv_path: str) -> dict[str, float]:
@@ -100,7 +105,7 @@ def load_baseline(csv_path: str) -> dict[str, float]:
     with open(csv_path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             model = row.get("model", "").strip()
-            sps   = _extract_numeric(row.get("samples per second", ""))
+            sps = _extract_numeric(row.get("samples per second", ""))
             if model and sps is not None:
                 baseline[model] = sps
     return baseline
@@ -129,8 +134,8 @@ def _get_token() -> str | None:
 
 def download_logs_zip(run_id: str, repo: str, dest_zip: str) -> None:
     """Download the run logs archive via GitHub REST API."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     token = _get_token()
     if not token:
@@ -140,10 +145,13 @@ def download_logs_zip(run_id: str, repo: str, dest_zip: str) -> None:
         )
 
     url = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/logs"
-    req = urllib.request.Request(url, headers={
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json",
-    })
+    req = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github+json",
+        },
+    )
     print(f"Downloading logs archive for run {run_id} ...")
     try:
         with urllib.request.urlopen(req) as resp:
@@ -157,10 +165,7 @@ def download_logs_zip(run_id: str, repo: str, dest_zip: str) -> None:
 def load_log_results(logs_dir: str) -> dict[str, dict]:
     """Walk logs_dir for perf log files and return model → result dict."""
     results: dict[str, dict] = {}
-    log_files = [
-        p for p in Path(logs_dir).rglob("*.txt")
-        if is_perf_log(p.name)
-    ]
+    log_files = [p for p in Path(logs_dir).rglob("*.txt") if is_perf_log(str(p))]
     print(f"  Found {len(log_files)} perf log file(s).")
     for path in log_files:
         r = parse_log(path)
@@ -186,22 +191,22 @@ def build_rows(
         if model not in log_results:
             continue
         matched += 1
-        r       = log_results[model]
+        r = log_results[model]
         new_sps = r["sps_new"]
 
         if new_sps is not None and current_sps > 0:
             delta = new_sps - current_sps
-            pct   = delta / current_sps * 100
+            pct = delta / current_sps * 100
         else:
             delta = None
-            pct   = None
+            pct = None
 
         row = {
-            "model":           model,
-            "sps_current":     round(current_sps, 4),
+            "model": model,
+            "sps_current": round(current_sps, 4),
             "sps_with_change": round(new_sps, 4) if new_sps is not None else "",
-            "delta":           round(delta, 4)    if delta is not None   else "",
-            "pct_change":      round(pct, 2)      if pct is not None     else "",
+            "delta": round(delta, 4) if delta is not None else "",
+            "pct_change": round(pct, 2) if pct is not None else "",
         }
 
         (tp_rows if "_tp" in model else non_tp_rows).append(row)
@@ -227,18 +232,22 @@ def write_csv(rows: list[dict], path: str) -> None:
 
 def print_summary(tp_rows: list[dict], non_tp_rows: list[dict]) -> None:
     all_rows = tp_rows + non_tp_rows
-    regressions  = [r for r in all_rows if r["delta"] != "" and r["delta"] < 0]
+    regressions = [r for r in all_rows if r["delta"] != "" and r["delta"] < 0]
     improvements = [r for r in all_rows if r["delta"] != "" and r["delta"] > 0]
 
     if regressions:
         print(f"\n⚠️  SPS regressions ({len(regressions)}):")
         for r in sorted(regressions, key=lambda x: x["pct_change"]):
-            print(f"  {r['model']:<45} {r['pct_change']:+6.1f}%  ({r['sps_current']} → {r['sps_with_change']} SPS)")
+            print(
+                f"  {r['model']:<45} {r['pct_change']:+6.1f}%  ({r['sps_current']} → {r['sps_with_change']} SPS)"
+            )
 
     if improvements:
         print(f"\n🚀 SPS improvements ({len(improvements)}):")
         for r in sorted(improvements, key=lambda x: x["pct_change"], reverse=True)[:10]:
-            print(f"  {r['model']:<45} {r['pct_change']:+6.1f}%  ({r['sps_current']} → {r['sps_with_change']} SPS)")
+            print(
+                f"  {r['model']:<45} {r['pct_change']:+6.1f}%  ({r['sps_current']} → {r['sps_with_change']} SPS)"
+            )
 
     if not regressions:
         print("\n✅ No regressions detected.")
@@ -249,14 +258,17 @@ def main() -> None:
         description="Compare SPS from GitHub run logs against latest_perf.csv"
     )
     src = parser.add_mutually_exclusive_group()
-    src.add_argument("--run-id",   help="GitHub Actions run ID (downloads logs)")
+    src.add_argument("--run-id", help="GitHub Actions run ID (downloads logs)")
     src.add_argument("--logs-zip", help="Pre-downloaded logs archive ZIP path")
     src.add_argument("--logs-dir", help="Pre-extracted logs directory path")
 
-    parser.add_argument("--baseline",      default="latest_perf.csv")
-    parser.add_argument("--repo",          default="tenstorrent/tt-xla")
-    parser.add_argument("--output-prefix", default=None,
-                        help="Output CSV filename prefix (default: perf_comparison_<run-id>)")
+    parser.add_argument("--baseline", default="latest_perf.csv")
+    parser.add_argument("--repo", default="tenstorrent/tt-xla")
+    parser.add_argument(
+        "--output-prefix",
+        default=None,
+        help="Output CSV filename prefix (default: perf_comparison_<run-id>)",
+    )
     args = parser.parse_args()
 
     if not (args.run_id or args.logs_zip or args.logs_dir):
@@ -295,7 +307,7 @@ def main() -> None:
     tp_rows, non_tp_rows = build_rows(baseline, log_results)
 
     # 5. Write CSVs (skip if empty)
-    tp_path     = f"{prefix}_tp.csv"
+    tp_path = f"{prefix}_tp.csv"
     non_tp_path = f"{prefix}_non_tp.csv"
     if tp_rows:
         write_csv(tp_rows, tp_path)
