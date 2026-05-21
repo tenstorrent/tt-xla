@@ -8,74 +8,80 @@ context: fork
 model: opus
 ---
 
-## Step 1 — Gather required inputs from the user
+## Step 1 — Verify `gh` authentication
 
-Before doing anything else, ask the user for the pieces of information this
-skill cannot proceed without. Use the `AskUserQuestion` tool to collect them
-(one question per item, so the user can answer each independently):
+Before asking the user anything, verify that they are already authenticated
+to `github.com` via the GitHub CLI. This skill reuses the user's existing
+`gh` credentials rather than asking for a Personal Access Token — pasting a
+PAT into `AskUserQuestion` is risky/unsafe and not the typical workflow.
 
-1. **GitHub token** — needed to authenticate `gh` so the skill can
-   download nightly/weekly run artifacts and logs from
-   `github.com/tenstorrent/tt-xla`. Ask the user to paste a Personal Access
-   Token (classic or fine-grained) with at least `repo` and `actions:read`
-   scope. Do not echo the token back in plain text in summaries; only use it
-   to authenticate `gh` for the current session.
+Run this check via the Bash tool from the repo root:
 
-2. **Run cadence** — ask whether the run to sync is from the **nightly** or
+```bash
+gh auth status -h github.com >/dev/null 2>&1 || {
+  echo "Run 'gh auth login' first; this skill reuses your gh credentials."
+  exit 1
+}
+```
+
+- If the check **succeeds** (exit code 0): proceed to Step 2 — the user is
+  authenticated and `gh` calls later in the skill will work transparently.
+- If the check **fails** (non-zero exit): stop the skill and tell the user
+  to run `gh auth login` first, then re-invoke the skill. Do **not** ask
+  for a token, do **not** prompt for any other input — the skill cannot
+  proceed without `gh` auth.
+
+## Step 2 — Gather required inputs from the user
+
+Only after Step 1 confirms `gh` is authenticated, ask the user for the
+remaining inputs this skill needs. Use the `AskUserQuestion` tool to collect
+them (one question per item, so the user can answer each independently):
+
+1. **Run cadence** — ask whether the run to sync is from the **nightly** or
    **weekly** CI pipeline. Present this as a single-select question with the
    two options `nightly` and `weekly`. This determines which workflow file
    (`schedule-nightly.yml` vs `schedule-weekly*.yml`) the skill will consult
    later to map jobs → architectures.
 
-3. **Run ID** — the GitHub Actions run id whose results the skill should sync
+2. **Run ID** — the GitHub Actions run id whose results the skill should sync
    into the YAMLs. Accept either a bare numeric id (e.g. `12345678901`) or a
    full run URL
    (`https://github.com/tenstorrent/tt-xla/actions/runs/12345678901`); if a
    URL is given, extract the trailing numeric id.
 
-4. **Type of model** *(optional)* — ask the user which model category to sync.
+3. **Type of model** *(optional)* — ask the user which model category to sync.
    Present as a single-select question with options like `language` or `vision`
    (model families grouped by domain, not individual model names). If the
    user leaves this blank or says "all", the skill should consider every
    model in the run. Use this only as a filter when matching model-ids in
    later steps.
 
-Do not assume defaults for any required value (token, cadence, run ID). The
-"type of model" question is the only optional one. If the user declines to
+4. **Framework** *(optional, default `torch`)* — ask the user which framework
+   the run targets. Present as a single-select question with the two options
+   `torch` and `jax`. If the user does not pick one, default to `torch`. This
+   value is forwarded to `download_artifacts.py` via `--framework <value>` in
+   Step 3, so the artifact set matches the framework being synced.
+
+Do not assume defaults for any required value (cadence, run ID). The
+"type of model" and "framework" questions are the only optional ones —
+framework defaults to `torch` when unanswered. If the user declines to
 provide a required answer, stop and tell them the skill cannot continue
 without it.
 
-## Step 2 — Export the GitHub token to the environment
-
-Once the user has provided their GitHub token in Step 1, export it so `gh`
-and any subsequent commands in this session can authenticate against
-`github.com/tenstorrent/tt-xla`:
-
-```bash
-export GITHUB_TOKEN=<token-from-step-1>
-```
-
-Notes:
-- Substitute `<token-from-step-1>` with the exact value the user provided.
-- Do **not** echo, print, or otherwise display the token value back to the
-  user or in any summary output — only use it to set the env var.
-- Run this `export` inside the Bash tool so it applies to subsequent `gh`
-  calls in the same shell session.
-
 ## Step 3 — Download the run's report artifacts
 
-Once the user has provided the run ID and run cadence in Step 1, download the
+Once the user has provided the run ID and run cadence in Step 2, download the
 report artifacts for that run using the project's helper script:
 
 ```bash
-python .github/scripts/download_artifacts.py --run-id <run-id> -o <cadence>_<monthday> --filter report
+python .github/scripts/download_artifacts.py --run-id <run-id> -o <cadence>_<monthday> --filter report --framework <framework>
 ```
 
 Substitutions:
-- `<run-id>` — replace with the numeric run ID the user provided in Step 1
-  (question 3). If the user gave a URL, use only the trailing numeric id.
+- `<run-id>` — replace with the numeric run ID the user provided in Step 2
+  (question 2). If the user gave a URL, use only the trailing numeric id.
 - `<cadence>` — replace with `nightly` or `weekly`, based on the user's
-  answer to the run-cadence question in Step 1 (question 2).
+  answer to the run-cadence question in Step 2 (question 1).
 - `<monthday>` — replace with the lowercase 3-letter month abbreviation
   followed by the day-of-month of the run, with no separator (e.g.
   `jan14`, `may19`, `dec03` — pad the day only if the user has been
@@ -83,14 +89,19 @@ Substitutions:
   example `weekly_jan14`). Determine the date from the run itself
   (`gh run view <run-id> --json createdAt`), not from "today's" date,
   so the directory name matches the run's actual day.
+- `<framework>` — replace with `torch` or `jax`, based on the user's answer
+  to the framework question in Step 2 (question 4). If the user did not
+  pick one, default to `torch`.
 
 Example invocations:
-- Nightly run from 14 Jan: `-o nightly_jan14`
-- Weekly run from 19 May: `-o weekly_may19`
+- Nightly run from 14 Jan, torch: `-o nightly_jan14 --framework torch`
+- Weekly run from 19 May, jax: `-o weekly_may19 --framework jax`
 
-Run the command from the repository root (`/home/tt-xla`) via the Bash tool.
-After it finishes, confirm the output directory exists and contains the
-downloaded report files before moving on.
+Run the command from the repository root via the Bash tool. Do not assume
+the checkout lives at any specific absolute path — resolve the root with
+`git rev-parse --show-toplevel` (or `cd "$(git rev-parse --show-toplevel)"`)
+so the skill works for any user. After it finishes, confirm the output
+directory exists and contains the downloaded report files before moving on.
 
 ## Step 4 — Summarize the downloaded JUnit XMLs
 
@@ -99,31 +110,31 @@ Step 3. The `--xml` argument must use the **same** directory name produced
 in Step 3 (e.g. `weekly_jan14`, `nightly_may19`) — do not hard-code
 `weekly_jan14`; carry the value forward from Step 3.
 
-The output log file name embeds **both** the run cadence (from Step 1,
-question 2) and the run's month-day (the same `<monthday>` derived from
+The output log file name embeds **both** the run cadence (from Step 2,
+question 1) and the run's month-day (the same `<monthday>` derived from
 the run's `createdAt` and used in Step 3):
-- If cadence is `nightly` → redirect to `../nightly_<monthday>.log`
-  (e.g. `../nightly_may19.log`)
-- If cadence is `weekly`  → redirect to `../weekly_<monthday>.log`
-  (e.g. `../weekly_may19.log`)
+- If cadence is `nightly` → redirect to `/tmp/nightly_<monthday>.log`
+  (e.g. `/tmp/nightly_may19.log`)
+- If cadence is `weekly`  → redirect to `/tmp/weekly_<monthday>.log`
+  (e.g. `/tmp/weekly_may19.log`)
 
 In other words, the log file name mirrors the artifact directory name from
 Step 3, just with a `.log` suffix instead of being a directory.
 
 Branch on whether the user provided an answer to the optional "type of
-model" question (Step 1, question 4):
+model" question (Step 2, question 3):
 
 - **If the user did NOT provide a type of model** (left blank / answered
   "all"):
 
   ```bash
-  python .github/scripts/summarize_junit_xmls.py --xml <cadence>_<monthday> &> ../<cadence>_<monthday>.log
+  python .github/scripts/summarize_junit_xmls.py --xml <cadence>_<monthday> &> /tmp/<cadence>_<monthday>.log
   ```
 
 - **If the user DID provide a type of model** (e.g. `language`, `vision`):
 
   ```bash
-  python .github/scripts/summarize_junit_xmls.py --xml <cadence>_<monthday> --model-type <model-type> &> ../<cadence>_<monthday>.log
+  python .github/scripts/summarize_junit_xmls.py --xml <cadence>_<monthday> --model-type <model-type> &> /tmp/<cadence>_<monthday>.log
   ```
 
   Where `<model-type>` is the exact value the user selected
@@ -132,18 +143,18 @@ model" question (Step 1, question 4):
 Notes:
 - `<cadence>_<monthday>` must match the `-o` value used in Step 3
   (e.g. if Step 3 used `-o weekly_jan14`, then Step 4 must pass
-  `--xml weekly_jan14` and write to `../weekly_jan14.log`).
-- A nightly run from 14 Jan writes to `../nightly_jan14.log`; a weekly
-  run from 19 May writes to `../weekly_may19.log`. Do not mix the
+  `--xml weekly_jan14` and write to `/tmp/weekly_jan14.log`).
+- A nightly run from 14 Jan writes to `/tmp/nightly_jan14.log`; a weekly
+  run from 19 May writes to `/tmp/weekly_may19.log`. Do not mix the
   cadence/date with another run's name.
 - Run from the repository root via the Bash tool. After it completes,
-  verify the chosen log file (`../<cadence>_<monthday>.log`) exists
+  verify the chosen log file (`/tmp/<cadence>_<monthday>.log`) exists
   before moving on.
 
 ## Step 5 — Filter the summary log by the `guidance` column
 
-Read the log file written in Step 4 (`../<cadence>_<monthday>.log`, e.g.
-`../nightly_may18.log` or `../weekly_may16.log`) and produce a filtered
+Read the log file written in Step 4 (`/tmp/<cadence>_<monthday>.log`, e.g.
+`/tmp/nightly_may18.log` or `/tmp/weekly_may16.log`) and produce a filtered
 version that contains only the rows where the **last column** (`guidance`)
 is **not** `N/A`.
 
@@ -168,12 +179,11 @@ token** on each row. Examples from `nightly_may18.log`:
 
 ### Output file
 
-Write the filtered output next to the input file (same directory — one
-level above the repo root). Name it by prefixing `changes_` to the input
-file's base name:
+Write the filtered output next to the input file (same `/tmp` directory).
+Name it by prefixing `changes_` to the input file's base name:
 
-- `../nightly_may18.log` → `../changes_nightly_may18.log`
-- `../weekly_may16.log` → `../changes_weekly_may16.log`
+- `/tmp/nightly_may18.log` → `/tmp/changes_nightly_may18.log`
+- `/tmp/weekly_may16.log` → `/tmp/changes_weekly_may16.log`
 
 ### Required behavior
 
@@ -196,16 +206,16 @@ Use a single `awk` invocation from the Bash tool so we don't need a
 temporary Python script:
 
 ```bash
-awk 'NR==1 {print; next} NF>0 && $NF != "N/A" {print}' ../<cadence>_<monthday>.log > ../changes_<cadence>_<monthday>.log
+awk 'NR==1 {print; next} NF>0 && $NF != "N/A" {print}' /tmp/<cadence>_<monthday>.log > /tmp/changes_<cadence>_<monthday>.log
 ```
 
 After writing, report the line count of the new file
-(`wc -l ../changes_<cadence>_<monthday>.log`) so the user knows how many
+(`wc -l /tmp/changes_<cadence>_<monthday>.log`) so the user knows how many
 rows survived the filter.
 
 ## Step 6 — Route each changes row to the correct test_config directory
 
-For every row in `../changes_<cadence>_<monthday>.log` (the file produced in
+For every row in `/tmp/changes_<cadence>_<monthday>.log` (the file produced in
 Step 5), determine **which test_config directory** the corresponding YAML
 lives in by looking at the test-function key prefix of the
 `specific_test_case` column (the first column of the row):
@@ -294,14 +304,14 @@ that test case.
 
 ### 7a — Output location and shape
 
-Create a new file (alongside the other logs — same directory as
-`../changes_<cadence>_<monthday>.log`):
+Create a new file in `/tmp/` (alongside the other logs — same directory as
+`/tmp/changes_<cadence>_<monthday>.log`):
 
 ```
-../final_report.log
+/tmp/final_report.log
 ```
 
-For every data row in `../changes_<cadence>_<monthday>.log`:
+For every data row in `/tmp/changes_<cadence>_<monthday>.log`:
 1. Copy the row **verbatim** into `final_report.log` (preserve spacing
    and column alignment).
 2. Immediately after the row, write **one summary line** describing the
@@ -351,11 +361,18 @@ Columns of interest in the row (from Step 4's summarizer):
 
 #### Step 7c.1 — Decide whether *this* row is passing
 
-Compare `pcc` against `pcc_thres`. If `pcc` is a numeric value `>= 0.99`
-(and `bringup_status` is not a hard failure like `FAILED_RUNTIME`), treat
-this row as **passing** in its arch. Otherwise treat it as **not passing**
-and let the summary reflect that directly (e.g. report `bringup_status` and
-the measured `pcc`).
+Compare `pcc` against the row's `pcc_thres`. `pcc_thres` already reflects
+the YAML's `required_pcc` override if present, else the default `0.99`.
+
+If `pcc` is a numeric value `>= pcc_thres` (and `bringup_status` is not a
+hard failure like `FAILED_RUNTIME`), treat this row as **passing** in its
+arch. Otherwise treat it as **not passing** and let the summary reflect
+that directly (e.g. report `bringup_status` and the measured `pcc`).
+
+Note: "passing this row's configured threshold" is enough to make the row
+a candidate for `status: true`. Step 7c.5 / Step 8 then decide whether to
+*remove* the `required_pcc` override (when `pcc >= 0.99`) or *update* it to
+the new measured pcc (when `pcc_thres <= pcc < 0.99`).
 
 #### Step 7c.2 — Identify the "other arch"
 
@@ -369,10 +386,10 @@ lookup — just describe the row itself.
 For the same `specific_test_case` (the first column) but with the other
 arch:
 
-1. First, look inside `../changes_<cadence>_<monthday>.log` itself —
+1. First, look inside `/tmp/changes_<cadence>_<monthday>.log` itself —
    the counterpart may already be in the filtered list.
 2. If not found there, look inside the full Step 4 log
-   (`../<cadence>_<monthday>.log`) — the counterpart may exist but had
+   (`/tmp/<cadence>_<monthday>.log`) — the counterpart may exist but had
    `guidance == N/A` and was filtered out at Step 5.
 
 Match strictly on the `specific_test_case` string. The arch column is
@@ -387,7 +404,7 @@ Use the lookup result to pick one of the following summary shapes
   `summary: passing in <this_arch>; no entry found for <other_arch>`
 - **Counterpart found with `bringup_status == FAILED_RUNTIME`:**
   `summary: passing in <this_arch>; model not supported in <other_arch> (FAILED_RUNTIME)`
-- **Counterpart found with `bringup_status == PASSED` and `pcc >= 0.99`:**
+- **Counterpart found with `bringup_status == PASSED` and `pcc >= pcc_thres`:**
   `summary: already passing in <other_arch>; now also passing in <this_arch>`
 - **Counterpart found with another status** (e.g. `INCORRECT_RESULT`,
   `XFAIL` with low pcc): describe the status and measured pcc, e.g.
@@ -413,10 +430,10 @@ determined by the row's run-mode and parallelism:
 - **Training rows** (any parallelism): `status: false` — training cases are
   not yet treated as passing by this skill.
 - **`single_device-inference` rows**: `status: true` if this row passes
-  (`bringup == PASSED` and `pcc >= 0.99`) **and** the counterpart row in
-  the other arch satisfies **any** of the following:
-    - the counterpart is also `PASSED` with `pcc >= 0.99` (model passes
-      on both archs), **or**
+  (`bringup == PASSED` and `pcc >= pcc_thres`) **and** the counterpart row
+  in the other arch satisfies **any** of the following:
+    - the counterpart is also `PASSED` with `pcc >= pcc_thres` (model
+      passes on both archs at the configured threshold), **or**
     - the counterpart's `bringup_status` indicates the model is **not
       supported** on that arch (e.g. `FAILED_RUNTIME`,
       `FAILED_FE_COMPILATION`) — model is passing on every arch where it
@@ -425,17 +442,43 @@ determined by the row's run-mode and parallelism:
       full Step 4 log (the test is simply not run on that arch). Treat
       "no entry" the same as "not applicable on that arch".
 
-  Otherwise → `status: false`. In particular: if either pcc is below
-  0.99, or the counterpart is `INCORRECT_RESULT` / any other functional
-  failure → `false`.
+  Otherwise → `status: false`. In particular: if either pcc is below the
+  configured `pcc_thres`, or the counterpart is `INCORRECT_RESULT` / any
+  other functional failure → `false`.
 - **`tensor_parallel-inference` rows** (e.g. on `n300-llmbox`,
-  `galaxy-wh-6u`): `status: true` if this row's `pcc >= 0.99`, else
+  `galaxy-wh-6u`): `status: true` if this row's `pcc >= pcc_thres`, else
   `status: false`. No cross-arch lookup.
 - **`data_parallel-inference` rows**: same rule as tensor parallel —
-  `status: true` if `pcc >= 0.99`, else `false`.
+  `status: true` if `pcc >= pcc_thres`, else `false`.
 - **Rows whose bringup status is a hard failure** (e.g. `FAILED_RUNTIME`,
   `FAILED_FE_COMPILATION`, `INCORRECT_RESULT`): `status: false`, regardless
   of pcc.
+
+##### `status: true` sub-cases (drives Step 8's YAML edit)
+
+For every `status: true` row, append a `pcc_action` token to the summary
+line so Step 8 knows what to do with the YAML's `required_pcc:` field:
+
+- **`pcc_action: drop_required_pcc`** — `pcc >= 0.99` (and for single_device
+  both archs meet this). The test now passes the default 0.99 bar, so
+  remove the `required_pcc:` override entirely in Step 8.
+- **`pcc_action: set_required_pcc=<value>`** — `pcc_thres <= pcc < 0.99`.
+  Keep the override but update it to a 2-decimal **floor** of the new
+  measured pcc.
+    - For `tensor_parallel-inference` / `data_parallel-inference`: use
+      this row's `pcc`.
+    - For `single_device-inference`: use the **min** of the n150 and
+      p150 measured pccs (since the YAML key is shared between archs).
+    - Floor to 2 decimals (e.g. `0.9865 → 0.98`, `0.9743 → 0.97`,
+      `0.9999 → 0.99` — though that last case would already have hit
+      `drop_required_pcc`). This gives a small safety margin below the
+      measurement.
+
+Worked example — llama 3.2_3B llm_decode single_device, `pcc_thres=0.97`,
+n150 `pcc=0.9943`, p150 `pcc=0.9865`:
+- both archs satisfy `pcc >= pcc_thres` → `status: true` on both rows
+- `min(0.9943, 0.9865) = 0.9865` → floor-to-2-decimals → `0.98`
+- both row blocks carry `pcc_action: set_required_pcc=0.98`
 
 Write the `status` token on its **own line** directly under the summary
 line (not appended inline with a separator).
@@ -466,7 +509,7 @@ status: false
 
 ### 7d — Final file structure
 
-`../final_report.log` should be readable as the same table from
+`/tmp/final_report.log` should be readable as the same table from
 Step 5 with summary + status lines interleaved, e.g.:
 
 ```
@@ -491,7 +534,7 @@ received a real summary vs. were skipped (training).
 
 ## Step 8 — Apply the updates to the test_config YAMLs
 
-For every block in `../final_report.log` (each block is: the data row, the
+For every block in `/tmp/final_report.log` (each block is: the data row, the
 `summary:` line, and the `status:` line):
 
 1. **If `status: false`** — skip the block. No YAML edits.
@@ -528,9 +571,21 @@ Apply these transformations to whatever the current entry contains:
   `KNOWN_FAILURE_XFAIL` (or any other non-passing value), overwrite it.
 - **Remove the `reason:` field**, if present. (It was only relevant while
   the test was failing.)
-- **Remove the `required_pcc:` override**, if present. Once the test passes
-  at the default threshold (0.99), the per-test override is no longer
-  needed.
+- **Handle the `required_pcc:` override** based on the block's
+  `pcc_action` token (from Step 7c.5):
+    - `pcc_action: drop_required_pcc` — remove the `required_pcc:` line
+      entirely. The test now passes the default 0.99 threshold, so the
+      per-test override is no longer needed.
+    - `pcc_action: set_required_pcc=<value>` — set (or insert)
+      `required_pcc: <value>` in the entry, where `<value>` is the
+      2-decimal floor computed in Step 7c.5. Use this when the test
+      passes its configured threshold but the measured pcc is still
+      below 0.99 — we update the override to the new measured pcc rather
+      than dropping it.
+
+  If the YAML entry has no `required_pcc:` line and the action is
+  `set_required_pcc=<value>`, insert it directly under the `status:` line
+  with two-space indentation, matching the file's existing style.
 - **Remove the `assert_pcc: false` line** (and any trailing inline comment
   on the same line) if the row's `guidance` column is `ENABLE_PCC_099` and
   the row is passing with `pcc >= 0.99`. This corresponds to the case where
@@ -571,7 +626,7 @@ bi_lstm_crf/pytorch-Default-single_device-inference:
   status: EXPECTED_PASSING
 ```
 
-Before:
+Before (`pcc_action: drop_required_pcc`, measured pcc ≥ 0.99):
 ```yaml
 qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
   status: EXPECTED_PASSING
@@ -582,6 +637,22 @@ After:
 ```yaml
 qwen_2_5/causal_lm/pytorch-1.5B_Instruct-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
   status: EXPECTED_PASSING
+```
+
+Before (`pcc_action: set_required_pcc=0.98`, single_device, n150 pcc=0.9943,
+p150 pcc=0.9865, configured `pcc_thres=0.97`):
+```yaml
+llama/causal_lm/pytorch-3.2_3B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
+  status: EXPECTED_PASSING
+  required_pcc: 0.97
+```
+
+After (update `required_pcc` from 0.97 → 0.98; entry now reflects the new
+measured floor):
+```yaml
+llama/causal_lm/pytorch-3.2_3B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
+  status: EXPECTED_PASSING
+  required_pcc: 0.98
 ```
 
 Before (guidance was `ENABLE_PCC_099`, pcc 0.9966 ≥ 0.99):
@@ -661,7 +732,7 @@ Sequence:
 Only include the test_config YAMLs in the commit — do not stage unrelated
 working-tree changes (e.g. local edits to `.claude/skills/...`,
 downloaded artifact dirs under `nightly_<monthday>/` / `weekly_<monthday>/`,
-`*.log` files in `/home`). Stash or otherwise exclude them before
+`*.log` files in `/tmp`). Stash or otherwise exclude them before
 committing.
 
 This section supersedes any prior confirmation-checkpoint behavior — do
@@ -677,7 +748,7 @@ Branch name template:
 <cadence>_maintance_<monthday>
 ```
 
-- `<cadence>` — `nightly` or `weekly` (from Step 1).
+- `<cadence>` — `nightly` or `weekly` (from Step 2).
 - `<monthday>` — same lowercase `<mon><day>` token used in Steps 3–5
   (e.g. `may19`, `jan14`). Derived from the run's `createdAt`, not
   today's date.
@@ -694,7 +765,7 @@ same run, reuse it; do not append timestamps.
 
 - Commit only the test_config YAMLs that Step 8 modified. Do **not**
   include unrelated changes (the skill files under `.claude/`, the
-  downloaded `nightly_may19/` artifact dir, the `*.log` files in `/home`,
+  downloaded `nightly_may19/` artifact dir, the `*.log` files in `/tmp`,
   etc.) — those are workspace artifacts, not part of the PR.
 - Commit message:
 
@@ -716,7 +787,7 @@ reviewers or running merge gates.
   (matches existing PRs in the project, e.g. PR #4739
   "Nightly Maintance may16").
 - **Body**: a bulleted list of the `status: true` rows from
-  `../final_report.log`. Each bullet should at minimum identify:
+  `/tmp/final_report.log`. Each bullet should at minimum identify:
   - the test key (the part inside `[...]` of the row's first column),
   - the target YAML path, and
   - the action taken (e.g. "removed XFAIL", "removed required_pcc
