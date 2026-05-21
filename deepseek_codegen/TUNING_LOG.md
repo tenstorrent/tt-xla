@@ -111,6 +111,45 @@ The remaining non-MoE inefficiency on decode is concentrated in:
 
 Recommendation: stop the per-experiment loop here, keep the E1+E3+E6 deltas, and treat MoE compute fusion as a separate scoped project.
 
+## Exit notes (after E30 keep) — MoE compute fusion landed
+
+E30 invalidates the "MoE matmul is unreachable" stance of the previous exit notes. The 84%-of-decode SparseMatmul bottleneck was attacked successfully by **stacking the two same-input matmuls (gate W0 and up W1) into one wider sparse_matmul** on a pre-concatenated `[1, 8, 7168, 4096]` BFP8_B weight, then slicing the output. Total decode DT dropped **309,584 → 238,025 μs (−71,559 μs / −23.13%)** in a single experiment — larger than E1–E29 combined (which delivered ~10.3k μs / -3.2%). Cumulative branch delta vs the original E0 baseline (319,925 μs) is now **−81,900 μs / −25.6%**.
+
+### Why the canonical "big" fused MoE ops were not used
+
+The "Tier 1" candidates the earlier exit-note pointed at (`ttnn.experimental.moe_compute`, `selective_reduce_combine`, `deepseek_moe_reduce_scatter`) were investigated and **all three are topology-incompatible with our 4×8 BH galaxy + 8-experts/device + cluster_axis=0 setup**:
+
+- `ttnn.experimental.moe_compute` (`experimental/ccl/moe_compute/`): the nightly test (`tests/nightly/tg/ccl/moe/test_moe_compute_6U.py`) only runs on `1x8` or `1x16` single-galaxy meshes (gated by `TT_MESH_GRAPH_DESC_PATH` to one of two specific torus graph descriptors), and the DeepSeek variant `test_moe_compute_deepseek` is parameterised at `mesh_shape=(1,16)` with `experts_per_device=2` — i.e. **32 total experts on 16 devices**, not 256 experts on 32 devices. The `validate_matmul` code path is hardcoded around an "experts in double buffer" assumption that breaks for `experts_per_device > 2`. The model-level `test_optimized_moe_decode_block.py` covers the full 256 experts but at `mesh_shape=(16,8)` = 128 devices with 2 experts/device — also not our box. Probing `prepare_w0_w1_tensor_for_moe_compute` confirmed the packer's shard maps assume the test topologies.
+- `ttnn.experimental.deepseek_moe_reduce_scatter` (`experimental/ccl/deepseek_moe_reduce_scatter/`): its test is decorated `@skip_for_blackhole("Requires wormhole_b0 to run")` — the kernel only registers a WH program factory.
+- `ttnn.experimental.selective_reduce_combine` (`experimental/ccl/moe/selective_reduce_combine/`): same `single_galaxy_1x{8,16}_torus_graph_descriptor` gating as moe_compute.
+
+The fused MoE family is **wormhole-TG-tuned** with hardcoded `experts_per_device ∈ {1, 2}`. Trying to wire any of them into our 4×8 BH + 8-experts/device setup would not just fail validation — the kernel itself would either reject the mesh descriptor or take a slow fallback that's strictly worse than the existing `sparse_matmul`. **Park all three until tt-metal lands a BH 4×8 program factory or supports `experts_per_device=8`.**
+
+### What worked instead — and the lesson
+
+The unblocker was abandoning the "one giant tt-metal kernel that swallows the whole MoE block" path and instead asking *which existing pieces of our graph share an input and therefore admit a manual structural fusion*. The two same-input matmuls (`sparse_matmul_0` gate and `sparse_matmul_1` up, both consuming `ttnn_reshape_146` + `ttnn_to_layout_262`) were the obvious target — `sparse_matmul(input, [W_gate; W_up])` + 2 slices is the classic SwiGLU gate-up fusion that every modern LLM kernel does, and we can land it with one new `main_const_eval_*` plus a 50-line patch in `_main`, no semaphores, no sub-devices, no kernel writes.
+
+The non-obvious tuning lesson the experiment surfaced:
+
+> **`tt-perf-report`'s `SLOW`/`2 GB/s` hint refers to *per-core* bandwidth, not aggregate.** A sparse_matmul that "looks DRAM-bound" by that hint is often actually **core-bound** when it uses far fewer cores than the grid allows. Our `b={128} × 32 × 7168 × 2048` matmul ran at `per_core_N=6` on a `(11,10)` grid, occupying only 11 of 110 cores; doubling N to 4096 and **keeping** `per_core_N=6` brings 21 cores online instead of 11, and the new `b={128} × 32 × 7168 × 4096` matmul ran in **107,961 μs** — *less* than the sum of the two `b={128} × 32 × 7168 × 2048` matmuls it replaced (89k + 89k = 178k μs at 11 cores each). The first attempt with `per_core_N=12` (the "obviously matched" doubling) regressed +4.8k μs precisely because per_core_N=12 still uses 11 cores. **Always check core utilisation before trusting the bandwidth-bound diagnosis.**
+
+### Updated decode DT picture after E30
+
+`SparseMatmulDeviceOperation` is still the top op (80.4 % of decode, was 84 %), but the absolute ceiling for further matmul-side wins has dropped:
+
+- 2 sparse_matmuls remain (down + stacked gate+up), DT sum 191,359 μs. The stacked gate+up at 107,961 μs / 21 cores still leaves ~89 cores idle on the (11,10) grid; a further `per_core_N=3` (→ 43 cores) is worth exploring next iteration if its DST-register budget allows, with diminishing returns.
+- `TilizeDeviceOperation` is now the #2 op (10,196 μs, 3.24 %). Some of the tilize cost is the new `ttnn.concat` weight-pack in const_eval being charged at decode-time on first invocation — re-check after a second decode step to confirm it amortises.
+- `AllGatherDeviceOperation` (4,072 μs, 1.30 %), `AllToAllCombineDeviceOperation` (2,333 μs), `ReduceScatterDeviceOperation` (1,536 μs) — the CCL surface is the next-biggest category that admits a fused-op attack, but per the topology incompatibility above, the model-specific fused CCLs are not available on BH 4×8.
+- Distributed RMSNorm chain ceiling unchanged at ~250-500 μs (held back by the E7/E13 `slice.cpp:35` assertion).
+
+### Recommendation
+
+Continue iterating. E30 demonstrates that **structural fusions hand-written in `main.py` against the existing sparse_matmul kernel** are a fully open lane on this hardware, independent of whether tt-metal ever ships a BH-compatible MoE megakernel. Next likely targets in roughly decreasing expected ROI:
+
+1. Sweep `per_core_N ∈ {3, 4, 6}` × `grid ∈ {(11,10), (12,10), (12,9)}` on the stacked gate+up matmul to push the 107,961 μs further (open lane: ~89 cores still idle).
+2. Investigate whether the down matmul (`b={128} × 32 × 2048 × 7168`, 83,399 μs at 11 cores) admits the same core-utilisation re-tuning.
+3. Re-check `Tilize/UntilizeWithUnpadding` (5.3 % combined) — some sites may be removable now that the gate/up output path goes through `ttnn.slice` instead of two separate matmul reshapes.
+
 ### E1 op-level delta (structural only)
 
 | role                       | op                          | count | ΔDT (μs) |
