@@ -1,0 +1,18 @@
+{
+  "operation_type_breakdown": {},
+  "shardable_operations": [],
+  "summary": {
+    "dram_spilled_ops": 0,
+    "effectively_sharded_ops": 0,
+    "effectively_sharded_percentage": 0,
+    "sharded_and_spilled_ops": 0,
+    "sharded_ops": 0,
+    "sharded_percentage": 0,
+    "spilled_percentage": 0,
+    "system_memory_ops": 0,
+    "system_memory_percentage": 0,
+    "total_ops": 0,
+    "total_ops_with_output_tensor": 0,
+    "total_shardable_ops": 0
+  }
+}

@@ -1,11 +1,71 @@
 - mesh_device_created:
-    mesh_id: 1
-    timestamp_ns: 1779382216765280603
-    devices: [0, 1]
-    shape: [2, 1]
+    mesh_id: 2
+    timestamp_ns: 1779398395007402955
+    devices: [0]
+    shape: [1, 1]
 - mesh_device_initialized:
-    mesh_id: 1
-    timestamp_ns: 1779382216765582061
+    mesh_id: 2
+    timestamp_ns: 1779398395007745663
+- mesh_device_created:
+    mesh_id: 3
+    timestamp_ns: 1779398396750059689
+    parent_mesh_id: 2
+    devices: [0]
+    shape: [1, 1]
+- mesh_device_initialized:
+    mesh_id: 3
+    timestamp_ns: 1779398396750565065
 - mesh_device_destroyed:
-    mesh_id: 1
-    timestamp_ns: 1779382220857678169
+    mesh_id: 3
+    timestamp_ns: 1779398396779770314
+- mesh_device_created:
+    mesh_id: 4
+    timestamp_ns: 1779398410792747045
+    parent_mesh_id: 2
+    devices: [0]
+    shape: [1, 1]
+- mesh_device_initialized:
+    mesh_id: 4
+    timestamp_ns: 1779398410793283421
+- mesh_device_destroyed:
+    mesh_id: 4
+    timestamp_ns: 1779398593756774521
+- mesh_device_created:
+    mesh_id: 5
+    timestamp_ns: 1779398724407552825
+    parent_mesh_id: 2
+    devices: [0]
+    shape: [1, 1]
+- mesh_device_initialized:
+    mesh_id: 5
+    timestamp_ns: 1779398724408001841
+- mesh_device_destroyed:
+    mesh_id: 5
+    timestamp_ns: 1779398787300822921
+- mesh_device_created:
+    mesh_id: 6
+    timestamp_ns: 1779398895735554086
+    parent_mesh_id: 2
+    devices: [0]
+    shape: [1, 1]
+- mesh_device_initialized:
+    mesh_id: 6
+    timestamp_ns: 1779398895736093107
+- mesh_device_destroyed:
+    mesh_id: 6
+    timestamp_ns: 1779399071374325656
+- mesh_device_created:
+    mesh_id: 7
+    timestamp_ns: 1779399117035018765
+    parent_mesh_id: 2
+    devices: [0]
+    shape: [1, 1]
+- mesh_device_initialized:
+    mesh_id: 7
+    timestamp_ns: 1779399117035949696
+- mesh_device_destroyed:
+    mesh_id: 7
+    timestamp_ns: 1779399180272174399
+- mesh_device_destroyed:
+    mesh_id: 2
+    timestamp_ns: 1779399199518394704
