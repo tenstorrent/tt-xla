@@ -255,8 +255,8 @@ private:
                           const std::string &stage_name,
                           const std::string &model_name = "");
 
-  // Enables IR printing between passes with VERBOSE or higher logger level.
-  static void enableVerboseIRPrinting(mlir::PassManager &pm);
+  // Enables MLIR pass timing when requested by environment.
+  static void enableMlirPassTiming(mlir::PassManager &pm);
 
   // Checks if a particular type is scalar.
   static bool isScalarType(mlir::Type type);

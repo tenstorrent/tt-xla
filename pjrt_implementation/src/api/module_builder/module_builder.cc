@@ -474,7 +474,7 @@ tt_pjrt_status ModuleBuilder::convertFromVHLOToSHLO(
 
   mlir::stablehlo::createStablehloDeserializePipeline(vhlo_to_shlo_pm);
 
-  enableVerboseIRPrinting(vhlo_to_shlo_pm);
+  enableMlirPassTiming(vhlo_to_shlo_pm);
 
   if (mlir::failed(vhlo_to_shlo_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to convert from VHLO to SHLO module");
@@ -872,7 +872,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
 
-  enableVerboseIRPrinting(stablehlo_pipeline_pm);
+  enableMlirPassTiming(stablehlo_pipeline_pm);
 
   if (mlir::failed(stablehlo_pipeline_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to run stablehlo pipeline");
@@ -907,7 +907,7 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
 
-  enableVerboseIRPrinting(shlo_to_ttir_pm);
+  enableMlirPassTiming(shlo_to_ttir_pm);
 
   if (mlir::failed(shlo_to_ttir_pm.run(mlir_module.get()))) {
     LOG_F(ERROR, "Failed to convert from SHLO to TTIR module");
@@ -1160,7 +1160,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
-  enableVerboseIRPrinting(ttir_to_ttnn_pm);
+  enableMlirPassTiming(ttir_to_ttnn_pm);
 
   // Run the pass manager.
   mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
@@ -1305,15 +1305,14 @@ void ModuleBuilder::printModule(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
   out_stream.close();
 }
 
-void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
-  if (loguru::g_stderr_verbosity < LOG_VERBOSE) {
+void ModuleBuilder::enableMlirPassTiming(mlir::PassManager &pm) {
+  const char *enable_pass_timing = std::getenv("TTXLA_MLIR_PASS_TIMING");
+  if (enable_pass_timing == nullptr || enable_pass_timing[0] == '\0' ||
+      (enable_pass_timing[0] == '0' && enable_pass_timing[1] == '\0')) {
     return;
   }
 
-  // Multithreading must be disabled when printing at module scope
-  // to avoid interleaved output.
-  pm.getContext()->disableMultithreading();
-  pm.enableIRPrinting();
+  pm.enableTiming();
 }
 
 bool ModuleBuilder::isUsingShardy(
@@ -1386,7 +1385,7 @@ ModuleBuilder::buildModuleForTTNNRuntime(
   mlir::tt::ttnn::TTNNCommonToRuntimePipelineOptions runtime_options;
   mlir::tt::ttnn::createTTNNCommonToRuntimePipeline(runtime_pm,
                                                     runtime_options);
-  enableVerboseIRPrinting(runtime_pm);
+  enableMlirPassTiming(runtime_pm);
 
   mlir::LogicalResult mlir_result = runtime_pm.run(mlir_module.get());
   if (mlir::failed(mlir_result)) {
