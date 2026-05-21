@@ -74,6 +74,7 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
+#include "api/module_builder/tt_lang_bridge.h"
 #include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
@@ -408,6 +409,19 @@ ModuleBuilder::buildModule(
   status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
                                  compile_options, client_instance, mesh_shape,
                                  ttnn_mlir);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  // Resolve any deferred tt-lang kernels embedded in the post-TTNN module.
+  // This is the compile-time hook for `stablehlo.custom_call @tt.tt_lang_op`:
+  // tt-mlir lowers the custom call to a TTNN op carrying a `tt_lang_kernel_id`
+  // attribute with the kernels region left deferred; this call walks those
+  // ops, asks the tt-lang bridge to compile each kernel against its now-final
+  // (post-Shardy, post-TTIR-to-TTNN) operand signature, and attaches the
+  // resolved artifact bytes back as an attribute. A no-op when no such ops
+  // are present.
+  status = resolveTtLangKernels(mlir_module, mesh_shape);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -1181,6 +1195,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
               compile_options.export_model_name);
 
   return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status ModuleBuilder::resolveTtLangKernels(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const std::vector<std::uint32_t> &mesh_shape) {
+  // Delegated to tt_lang_bridge.cc so that this translation unit can keep
+  // building with -fno-rtti. The bridge is compiled with -frtti to satisfy
+  // pybind11.
+  return tt_lang_bridge::resolveKernels(mlir_module.get(), mesh_shape);
 }
 
 tt_pjrt_status ModuleBuilder::createFlatbufferBinary(

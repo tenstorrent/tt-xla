@@ -223,6 +223,16 @@ private:
       const CompileOptions &compile_options, ClientInstance *client_instance,
       std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code);
 
+  // Walks the post-TTNN module for `ttnn.tt_lang_op` ops (set by tt-mlir's
+  // TTIR -> TTNN legalization of `stablehlo.custom_call @tt.tt_lang_op`),
+  // resolves each deferred kernel by directly calling
+  // `tt_torch.tt_lang.resolve_kernel` through the embedded Python interpreter,
+  // and attaches the resolved artifact bytes as a `kernel_artifact` attribute
+  // on the same op. A no-op when no such ops are present.
+  tt_pjrt_status
+  resolveTtLangKernels(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                       const std::vector<std::uint32_t> &mesh_shape);
+
   // Creates flatbuffer binary from the built TTNN module.
   tt_pjrt_status createFlatbufferBinary(
       const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
