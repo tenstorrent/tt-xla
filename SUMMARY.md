@@ -1,80 +1,68 @@
-loader_path: third_party.tt_forge_models.gemma3_4b_it_qat_gguf.causal_lm.pytorch.loader
-variant_id: 4B_IT_QAT_Q4_0
+loader_path: third_party.tt_forge_models.gemma3_orthogonal_reflection_gguf.causal_lm.pytorch.loader
+variant_id: 12B_IT_Orthogonal_Reflection_GGUF
 arch: p150
-status: DONE_PASS
-test_function: test_gemma3_4b_it_qat_gguf
-samples_per_second: 12.523948094598357
-ttft_ms: 792.724338
-prefill_pcc: 0.989221
-first_decode_pcc: 0.985549
-top_perf_samples_per_sec: 79.4603
-pct_of_target: 15.8
-roofline_bound: dram
+status: DONE_FAIL
+test_function: test_gemma3_orthogonal_reflection_12b
+samples_per_second: null
+ttft_ms: null
+prefill_pcc: null
+first_decode_pcc: null
+top_perf_samples_per_sec: null
+pct_of_target: null
+roofline_bound: null
 optimization_level: 2
 trace_enabled: true
 experimental_weight_dtype: bfp_bf8
-failure_reason: null
+failure_reason: "KeyError: 'sliding_attention' in transformers/models/gemma3/modeling_gemma3.py — GGUF model incompatibility with installed transformers version"
 
-# Benchmark Summary: test_gemma3_4b_it_qat_gguf (p150)
+# Benchmark added: test_gemma3_orthogonal_reflection_12b
+
+## Test
+tests/benchmark/test_llms.py::test_gemma3_orthogonal_reflection_12b
 
 ## Model
+- HF name:    mradermacher/gemma-3-12b-it-orthogonal-reflection-bounded-ablation-v3-12B-i1-GGUF
+- Loader:     third_party.tt_forge_models.gemma3_orthogonal_reflection_gguf.causal_lm.pytorch.loader
+- Variant:    ModelVariant.GEMMA_3_12B_IT_ORTHOGONAL_REFLECTION_GGUF
 
-- **Loader**: `third_party.tt_forge_models.gemma3_4b_it_qat_gguf.causal_lm.pytorch.loader`
-- **Variant**: `4B_IT_QAT_Q4_0`
-- **HuggingFace model**: `ggml-org/gemma-3-4b-it-qat-GGUF` (gemma-3-4b-it-qat-Q4_0.gguf)
-- **Architecture**: Gemma 3 4B (mixed sliding + full attention, 34 layers)
-- **Hardware**: p150 (Blackhole, single-chip)
+## Test config landed
+- optimization_level:        2
+- trace_enabled:             true
+- experimental_weight_dtype: "bfp_bf8"
+- batch_size:                32
+- input_sequence_length:     128
+- required_pcc:              0.94
 
-## Results
+## Measured (full model, defaults)
+- Sample per second:  N/A
+- TTFT (ms):          N/A
+- Prefill PCC:        N/A
+- First decode PCC:   N/A
+- Wall clock:         N/A
+- Hardware:           p150
 
-| Metric | Value |
-|---|---|
-| Sample per second | 12.52 |
-| TTFT (ms) | 792.72 |
-| Prefill PCC | 0.989221 ✅ |
-| First decode PCC | 0.985549 ✅ |
-| % of roofline target | 15.8% |
+## Failure
+The test failed during the bring-up run (--num-layers 1, --max-output-tokens 3) with:
 
-## Roofline Analysis (first decode graph)
+    KeyError: 'sliding_attention'
 
-- **Bound**: DRAM
-- **Top perf**: 79.4603 samples/sec
-- **Top perf time**: 12.5849 ms
-- **Params**: 4.55B total (3.88B effective)
-- **Model DRAM footprint**: 5.09 GB (3.84 GB effective)
-- **KV cache**: 0.53 GB
+occurring in `transformers/models/gemma3/modeling_gemma3.py:589`:
 
-## Configuration
+    position_embeddings=position_embeddings[decoder_layer.attention_type]
 
-- `optimization_level`: 2
-- `trace_enabled`: True (default)
-- `experimental_weight_dtype`: `"bfp_bf8"` (default)
-- `batch_size`: 32
+The model's decoder layer reports `attention_type='sliding_attention'` but the position_embeddings dict
+computed by the GGUF-loaded Gemma 3 model does not include that key. This is a compatibility issue
+between the GGUF model file and the installed `transformers` version in the venv. The error is in
+the model's forward pass, not in the benchmark harness, and cannot be fixed at the test level.
 
-## Notes
+The test function has been added to `tests/benchmark/test_llms.py` with a `# FAILED:` comment
+following the established pattern (see `test_gemma_1_1_7b`, `test_phi3_mini`).
 
-Gemma 3 uses alternating **sliding-window** and **full-attention** KV cache layers
-(`StaticSlidingWindowLayer` from `transformers.cache_utils`). Its `update()` method
-accesses `self.cumulative_length` (a Python int) inside the compiled region, creating
-per-decode-step recompile guards. After 8 recompiles torch._dynamo hit its
-`recompile_limit`, fell back to dynamic shapes, and generated `ttir.paged_update_cache`
-in tt-mlir — which lacks a `TTIRToTTNNCommon` lowering → `RuntimeError: Error code: 13`.
+## Decode roofline (first decode graph, single-chip)
+N/A — test did not reach the compilation/execution stage
 
-**Fix**: `llm_benchmark.py` monkey-patches `StaticSlidingWindowLayer.update` and
-`get_mask_sizes` at module load time to remove all `cumulative_length` accesses:
-- `update()` uses `cache_position` (tensor) for `index_copy_` directly
-- `get_mask_sizes()` returns constant `(max_cache_len, 0)`
+## Files changed
+- tests/benchmark/test_llms.py
 
-This eliminates the per-step guards, keeping the compiled graph static for all decode
-steps. Correctness is preserved because:
-1. KV positions are managed by `cache_position` (externally provided tensor)
-2. Gemma 3 forward only calls `get_seq_length()` when `cache_position is None`
-   (never in this benchmark)
-3. `get_mask_sizes` returns `(128, 0)` which matches the original for all normal
-   decode steps (cumulative_length < max_cache_len)
-
-## Test run details
-
-- Full run time: ~59 min 49 s
-- pytest: `1 passed, 23 warnings`
-- Both PCC thresholds exceeded ≥ 0.94 requirement
+## tt-forge-models submodule
+no change
