@@ -3567,23 +3567,16 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_multiply_0, False)
-    ttnn_rsqrt_0 = ttnn.rsqrt(
+    ttnn_multiply_1 = ttnn.multiply(
+        ttnn_typecast_36,
         ttnn_add_0,
-        fast_and_approximate_mode=False,
+        dtype=ttnn.DataType.FLOAT32,
+        input_tensor_b_activations=[ttnn.UnaryOpType.RSQRT],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_add_0, False)
-    ttnn_multiply_1 = ttnn.multiply(
-        ttnn_typecast_36,
-        ttnn_rsqrt_0,
-        dtype=ttnn.DataType.FLOAT32,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_rsqrt_0, False)
     ttnn_typecast_37 = ttnn.multiply(
         ce_cache__main["main_const_eval_40"],
         ttnn_multiply_1,
@@ -5480,23 +5473,16 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_multiply_25, False)
-    ttnn_rsqrt_1 = ttnn.rsqrt(
+    ttnn_multiply_26 = ttnn.multiply(
+        ttnn_add_10,
         ttnn_add_11,
-        fast_and_approximate_mode=False,
+        dtype=ttnn.DataType.FLOAT32,
+        input_tensor_b_activations=[ttnn.UnaryOpType.RSQRT],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_add_11, False)
-    ttnn_multiply_26 = ttnn.multiply(
-        ttnn_add_10,
-        ttnn_rsqrt_1,
-        dtype=ttnn.DataType.FLOAT32,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_rsqrt_1, False)
     ttnn_typecast_58 = ttnn.multiply(
         ce_cache__main["main_const_eval_41"],
         ttnn_multiply_26,
@@ -5813,23 +5799,16 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_multiply_29, False)
-    ttnn_rsqrt_2 = ttnn.rsqrt(
+    ttnn_multiply_30 = ttnn.multiply(
+        ttnn_add_12,
         ttnn_add_13,
-        fast_and_approximate_mode=False,
+        dtype=ttnn.DataType.FLOAT32,
+        input_tensor_b_activations=[ttnn.UnaryOpType.RSQRT],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_add_13, False)
-    ttnn_multiply_30 = ttnn.multiply(
-        ttnn_add_12,
-        ttnn_rsqrt_2,
-        dtype=ttnn.DataType.FLOAT32,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_rsqrt_2, False)
     ttnn_typecast_63 = ttnn.multiply(
         ce_cache__main["main_const_eval_34"],
         ttnn_multiply_30,
@@ -9127,14 +9106,6 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_multiply_62, False)
-    ttnn_rsqrt_4 = ttnn.rsqrt(
-        ttnn_add_28,
-        fast_and_approximate_mode=False,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_add_28, False)
     ttnn_reshape_160 = ttnn.reshape(
         ttnn_add_27,
         [32, 896],
@@ -9145,14 +9116,15 @@ def _main(activations, weights):
     ttnn.deallocate(ttnn_add_27, False)
     ttnn_multiply_63 = ttnn.multiply(
         ttnn_reshape_160,
-        ttnn_rsqrt_4,
+        ttnn_add_28,
         dtype=ttnn.DataType.FLOAT32,
+        input_tensor_b_activations=[ttnn.UnaryOpType.RSQRT],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(ttnn_reshape_160, False)
-    ttnn.deallocate(ttnn_rsqrt_4, False)
+    ttnn.deallocate(ttnn_add_28, False)
     ttnn_multiply_64 = ttnn.multiply(
         ce_cache__main["main_const_eval_31"],
         ttnn_multiply_63,
