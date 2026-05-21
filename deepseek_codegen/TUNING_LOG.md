@@ -247,17 +247,17 @@ The original queue note ("`ttnn.experimental.create_qkv_heads_from_separate_tens
 
 Surveyed every `ttnn.permute` call inside `_main` (8 explicit calls after E28's fold of permute_28/31/32/37/40/41 into `matmul(transpose_b=True)`):
 
-| permute    | perm        | consumer                            | foldable?                                                                                                                       |
-| ---------- | ----------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| permute_29 | `[2,0,1,3]` | reshape → matmul_6                  | no — head-axis-move, not last-two transpose                                                                                     |
-| permute_30 | `[1,2,0,3]` | reshape → matmul_7 (gap)            | no — head-axis-move; symmetric to permute_29, structurally inverse around matmul_6                                              |
-| permute_33 | `[2,0,1,3]` | reshape → matmul_10                 | no — head-axis-move                                                                                                             |
-| permute_34 | `[1,2,0,3]` | reshape → matmul_11                 | no — head-axis-move                                                                                                             |
-| permute_38 | `[2,0,1,3]` | reshape → matmul_21                 | no — head-axis-move                                                                                                             |
-| permute_39 | `[1,2,0,3]` | reshape → matmul_22 (gap)           | no — head-axis-move                                                                                                             |
-| permute_42 | `[2,0,1,3]` | reshape → matmul_25                 | no — head-axis-move                                                                                                             |
-| permute_43 | `[1,2,0,3]` | reshape → matmul_26                 | no — head-axis-move                                                                                                             |
-| permute_45 | `[1,0]`     | reshape → **multiply** (not matmul) | no — consumer is a per-batch scaling multiply, not a matmul; the 2D transpose is required by the downstream reshape view layout |
+| permute | perm | consumer | foldable? |
+| --- | --- | --- | --- |
+| permute_29 | `[2,0,1,3]` | reshape → matmul_6 | no — head-axis-move, not last-two transpose |
+| permute_30 | `[1,2,0,3]` | reshape → matmul_7 (gap) | no — head-axis-move; symmetric to permute_29, structurally inverse around matmul_6 |
+| permute_33 | `[2,0,1,3]` | reshape → matmul_10 | no — head-axis-move |
+| permute_34 | `[1,2,0,3]` | reshape → matmul_11 | no — head-axis-move |
+| permute_38 | `[2,0,1,3]` | reshape → matmul_21 | no — head-axis-move |
+| permute_39 | `[1,2,0,3]` | reshape → matmul_22 (gap) | no — head-axis-move |
+| permute_42 | `[2,0,1,3]` | reshape → matmul_25 | no — head-axis-move |
+| permute_43 | `[1,2,0,3]` | reshape → matmul_26 | no — head-axis-move |
+| permute_45 | `[1,0]` | reshape → **multiply** (not matmul) | no — consumer feeds a per-batch scaling multiply, not a matmul; the 2D transpose is required by the downstream reshape view layout |
 
 The biggest individual `PermuteDeviceOperation` in the E34 report is 373 μs (op 28657), then 93 μs and 68 μs — combined ~534 μs. But none of these correspond to a foldable explicit `ttnn.permute` call: the high-DT permutes are coming from **TTNN-internal** lowering of other ops (E28 already documented that `ttnn.permute([0,2,1])` internally executes as a `TransposeDeviceOperation`, but the **inverse** mapping also holds — many other ops emit a `PermuteDeviceOperation` invisible at the Python level). Total decode-permute headroom across all 8 explicit calls = ~240 μs, with zero clean fold candidates.
 
