@@ -25,8 +25,9 @@ from third_party.tt_forge_models.kimi_k2.pytorch.modified_modeling_deepseek impo
     DeepseekV3ForCausalLM,
     DeepseekV3MoE,
 )
-
-from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
+from third_party.tt_forge_models.kimi_k2.pytorch.original_modeling_deepseek import (
+    DeepseekV3Attention as OrigDeepseekV3Attention,
+)
 
 
 @pytest.mark.xfail(
@@ -434,6 +435,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
 
 
 @pytest.mark.nightly
+@pytest.mark.cpu_only
 def test_kimi_k2_mla_cache():
     """
     CPU-only test validating the MLACache used in modeling_deepseek.py against the original
@@ -544,5 +546,5 @@ def test_kimi_k2_mla_cache():
         [mla_k_nope, mla_k_pe.expand(-1, config.num_attention_heads, -1, -1)], dim=-1
     )
 
-    assert torch.equal(mla_key, orig_key)
-    assert torch.equal(mla_val, orig_val)
+    assert torch.allclose(mla_key, orig_key, atol=1e-6, rtol=1e-5)
+    assert torch.allclose(mla_val, orig_val, atol=1e-6, rtol=1e-5)

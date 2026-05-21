@@ -26,6 +26,9 @@ def map_runner_name(entry):
         "n300-llmbox": "tt-ubuntu-2204-n300-llmbox-stable",
     }
 
+    # Generic GitHub-hosted runners that do not require remapping (used for cpu-only jobs).
+    passthrough_runners = {"ubuntu-latest"}
+
     if entry.get("shared-runners") == "true" or entry.get("shared-runners") is True:
         runs_on = entry.get("runs-on")
         if runs_on in shared_runner_mapping:
@@ -33,6 +36,8 @@ def map_runner_name(entry):
             # (e.g. --arch for test_models.py) can access non mapped arch.
             entry["runs-on-original"] = runs_on
             entry["runs-on"] = shared_runner_mapping[runs_on]
+        elif runs_on in passthrough_runners:
+            entry["runs-on-original"] = runs_on
         else:
             raise TypeError(
                 "Expected runs-on attribute to be one of the predefined values"

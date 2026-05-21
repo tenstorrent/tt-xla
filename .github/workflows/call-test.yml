@@ -84,14 +84,10 @@ jobs:
 
     container:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
-      options: --device /dev/tenstorrent
-      volumes:
-        - /dev/hugepages:/dev/hugepages
-        - /dev/hugepages-1G:/dev/hugepages-1G
-        - /etc/udev/rules.d:/etc/udev/rules.d
-        - /lib/modules:/lib/modules
-        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
-        - /mnt/dockercache:/mnt/dockercache
+      # cpu-only jobs run on generic runners that have neither /dev/tenstorrent nor the TT-specific host paths,
+      # so we drop the device flag and the TT volume mounts for those entries.
+      options: ${{ matrix.build.cpu-only && '' || '--device /dev/tenstorrent' }}
+      volumes: ${{ fromJson(matrix.build.cpu-only && '[]' || '["/dev/hugepages:/dev/hugepages","/dev/hugepages-1G:/dev/hugepages-1G","/etc/udev/rules.d:/etc/udev/rules.d","/lib/modules:/lib/modules","/opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env","/mnt/dockercache:/mnt/dockercache"]') }}
 
     steps:
 
