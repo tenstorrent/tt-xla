@@ -187,6 +187,7 @@ def test_scatter_4(data_shape, indices_shape, updates_shape):
         maxval=data_shape[0],
     )
 
+
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.xfail(
@@ -218,7 +219,9 @@ def test_scatter_add(data_type):
         )
 
     if data_type == "random":
-        data = np.arange(40 * 32, dtype=np.float32).reshape((40, 32)).astype(jnp.bfloat16)
+        data = (
+            np.arange(40 * 32, dtype=np.float32).reshape((40, 32)).astype(jnp.bfloat16)
+        )
     else:
         data = np.zeros((40, 32), dtype=np.float32).astype(jnp.bfloat16)
 
