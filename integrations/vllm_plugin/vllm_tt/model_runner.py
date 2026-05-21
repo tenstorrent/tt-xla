@@ -2229,6 +2229,70 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("decode_postprocess")
 
+    def _precompile_decode_combined(self) -> None:
+        """Precompile backbone (num_tokens=1) + decode_postprocess as one XLA program.
+
+        Traces both in a single lazy-execution window (no wait_device_ops between
+        them) so XLA compiles them into one cached program.  During inference,
+        backbone and decode_postprocess accumulate in the same lazy graph (Task 1
+        ensures no Python between them), which should match this cached program and
+        dispatch as a single chip operation instead of two.
+        """
+        torch._dynamo.config.dynamic_shapes = False
+        logger.info("Compiling backbone + decode_postprocess combined (decode path).")
+        start = time.perf_counter()
+
+        indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(self.device)
+        dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
+            self.device
+        )
+        dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(self.device)
+        bitmasks = self.structured_decode_bitmasks.to(self.device)
+
+        for all_greedy in [False, True]:
+            logger.info("  -- all_greedy: %s", all_greedy)
+            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+                self.input_batch,
+                self.max_num_reqs,
+                self.device,
+                not all_greedy,
+                vocab_size=self.vocab_size,
+            )
+            sampling_metadata.all_greedy = all_greedy
+
+            # Trace backbone with num_tokens=1 (decode shape).  This populates
+            # the lazy graph with backbone ops.  _dummy_run sets
+            # self._hidden_states_dtype as a side-effect.
+            with self.maybe_select_dummy_loras(
+                self.lora_config, np.array([1], dtype=np.int32)
+            ):
+                self._dummy_run(
+                    1, self.num_reqs_max_model_len, self.max_num_blocks_per_req
+                )
+                # Immediately trace decode_postprocess using the backbone output
+                # shape — no wait_device_ops between them so they stay in the
+                # same lazy graph.
+                dummy_hidden = torch.zeros(
+                    (self.max_num_reqs, 1, self.model_config.get_hidden_size()),
+                    dtype=self._hidden_states_dtype,
+                ).to(self.device)
+                if self.enable_tensor_parallel and self.use_2d_mesh:
+                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+                self.decode_postprocess(
+                    dummy_hidden,
+                    indices,
+                    sampling_metadata,
+                    dummy_require,
+                    dummy_bitmask,
+                    bitmasks,
+                )
+            # No wait here — continue accumulating the next variant
+
+        xm.wait_device_ops()  # single compile for both variants
+        end = time.perf_counter()
+        logger.info("Combined decode compilation finished in %.2f [secs].", end - start)
+        self._update_num_xla_graphs("decode_combined")
+
     def capture_model(self) -> None:
         """
         Precompile all the subgraphs with possible input shapes.
@@ -2243,6 +2307,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # decode_postprocess handles both decode (num_tokens=1) and
                 # prefill (last token pre-selected eagerly before the call).
                 self._precompile_decode_postprocess()
+                # Also precompile backbone+decode_postprocess as a single combined
+                # program for the decode step.  If XLA matches the combined cached
+                # program during inference (backbone and decode_postprocess
+                # accumulate together with no Python between them after Task 1),
+                # the decode step dispatches as one chip operation instead of two.
+                self._precompile_decode_combined()
             else:
                 # cpu_sampling: fused decode_postprocess skipped (sampling on CPU);
                 # precompile the device-side graphs separately instead.
