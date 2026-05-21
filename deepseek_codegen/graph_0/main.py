@@ -5578,21 +5578,14 @@ def _main(activations, weights):
         topology=ttnn.Topology.Ring,
     )
     ttnn.deallocate(ttnn_reshape_68, False)
-    ttnn_silu_0 = ttnn.silu(
-        ttnn_all_gather_10,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_all_gather_10, False)
     ttnn_typecast_59 = ttnn.typecast(
-        ttnn_silu_0,
+        ttnn_all_gather_10,
         ttnn.DataType.FLOAT32,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(ttnn_silu_0, False)
+    ttnn.deallocate(ttnn_all_gather_10, False)
     ttnn_matmul_13 = ttnn.matmul(
         ttnn_all_gather_9,
         ce_cache__main["main_const_eval_2"],
@@ -5667,6 +5660,7 @@ def _main(activations, weights):
         ttnn_typecast_59,
         ttnn_typecast_60,
         dtype=ttnn.DataType.BFLOAT16,
+        input_tensor_a_activations=[ttnn.UnaryOpType.SILU],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -8913,21 +8907,14 @@ def _main(activations, weights):
         topology=ttnn.Topology.Ring,
     )
     ttnn.deallocate(ttnn_reshape_155, False)
-    ttnn_silu_2 = ttnn.silu(
-        ttnn_all_gather_29,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_all_gather_29, False)
     ttnn_typecast_102 = ttnn.typecast(
-        ttnn_silu_2,
+        ttnn_all_gather_29,
         ttnn.DataType.FLOAT32,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(ttnn_silu_2, False)
+    ttnn.deallocate(ttnn_all_gather_29, False)
     ttnn_matmul_32 = ttnn.matmul(
         ttnn_reshape_120,
         ce_cache__main["main_const_eval_29"],
@@ -9002,6 +8989,7 @@ def _main(activations, weights):
         ttnn_typecast_102,
         ttnn_typecast_103,
         dtype=ttnn.DataType.BFLOAT16,
+        input_tensor_a_activations=[ttnn.UnaryOpType.SILU],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
