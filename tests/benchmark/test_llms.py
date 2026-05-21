@@ -640,7 +640,7 @@ def test_qwen_2_5_0_5b_base(
         decode_only=decode_only,
         optimization_level=2,
         trace_enabled=True,
-        weight_dtype_overrides={"default": "bfp_bf4"},
+        weight_dtype_overrides={"default": "bfp_bf8"},
     )
 
 
