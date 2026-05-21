@@ -14,11 +14,11 @@ from third_party.tt_forge_models.playground_v2_5.pytorch import (
     ModelLoader,
     ModelVariant,
 )
+from loguru import logger
 
-
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 4294967296 B DRAM buffer across 12 banks, where each bank needs to store 357916672 B, but bank size is 1071821792 B — https://github.com/tenstorrent/tt-xla/issues/4710"
-)
+# @pytest.mark.xfail(
+#     reason="Out of Memory: Not enough space to allocate 4294967296 B DRAM buffer across 12 banks, where each bank needs to store 357916672 B, but bank size is 1071821792 B — https://github.com/tenstorrent/tt-xla/issues/4710"
+# )
 @pytest.mark.nightly
 @pytest.mark.model_test
 def test_vae_decoder():
@@ -28,6 +28,7 @@ def test_vae_decoder():
     loader = ModelLoader(ModelVariant.VAE)
     model = loader.load_model(dtype_override=torch.float32)
     inputs = loader.load_inputs(dtype_override=torch.float32)
+    logger.info("model={}",model)
 
     run_graph_test(
         model,
