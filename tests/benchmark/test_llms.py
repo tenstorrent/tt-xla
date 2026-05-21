@@ -432,7 +432,7 @@ def test_gemma_2_2b_base(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         trace_enabled=True,
-        weight_dtype_overrides={"default": "bfp_bf8"},
+        experimental_enable_permute_matmul_fusion=True,
     )
 
 
