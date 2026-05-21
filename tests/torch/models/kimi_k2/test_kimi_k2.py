@@ -434,6 +434,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     )
 
 
+@pytest.mark.testing
 @pytest.mark.nightly
 @pytest.mark.single_device
 def test_kimi_k2_mla_cache():
