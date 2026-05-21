@@ -161,10 +161,12 @@ def transformer_shard_spec(model: mdo.Transformer):
 
 
 @pytest.mark.nightly
+@pytest.mark.bh_galaxy
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("num_layers", [10, 15, 20, 30, 43])
 @pytest.mark.parametrize("num_iterations", [1, 2, 5, 10])
 @pytest.mark.parametrize("use_cpu_decode_inputs", [True, False])
+@torch.inference_mode()
 def test_prefill_and_decode_pcc_e2e(
     model_name, num_layers, num_iterations, use_cpu_decode_inputs
 ):
