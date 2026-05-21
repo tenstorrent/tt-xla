@@ -203,6 +203,49 @@ Stop the knob-tuning loop. Pick **one** of the structural lanes above (L1-sharde
 
 Cumulative branch delta vs E0 baseline (319,925 μs): **−239,323 μs / −74.8 %** at E34. E35–E37 added zero net DT improvement.
 
+## Exit notes (after MLA-QKV survey) — Tier-2 fused-op lane also confirmed infeasible
+
+Re-attacked the queue's Tier-2 "MLA Q/K/V refactor via `ttnn.experimental.create_qkv_heads_from_separate_tensors` / `ttnn.experimental.nlp_create_qkv_heads_decode`" candidate after the post-E37 stop. Result: **lane is infeasible on this graph**, branch tip stays at E34 / −74.8 %.
+
+### Why the fused QKV-heads ops don't fit DeepSeek MLA as emitted
+
+`ttnn.experimental.create_qkv_heads_from_separate_tensors` requires two inputs: Q + a **concatenated K|V** packed on the last dim (`kv_input_shape[3] = 2*num_kv_heads*head_dim`), both **TILE + BLOCK_SHARDED**, with `q_input_shape[0] == num_h_cores` (batch must equal the grid height). Our MLA produces K and V on **separate** chains (K comes from `matmul_6` on the Q-up-projected latent; V comes from `slice_68(matmul_0) → all_gather → sum → slice → rms_norm_1` — they never live in one tensor), our inputs are DRAM_INTERLEAVED, and our decode batch is 32 — adding the L1 BLOCK_SHARDED bridge + a 32-row grid commitment is a structural rewrite, not a single-op swap.
+
+`ttnn.experimental.nlp_create_qkv_heads_decode` is even stricter: it takes a **single** input with QKV packed on the last dim and emits 3 head tensors. Our Q comes from one matmul (`matmul_2`) and K from a separate matmul (`matmul_6`) on a *different* input (the rms-normed Q-latent vs the rms-normed KV-latent) — they are not packed and cannot be concatenated without re-emitting the upstream chain.
+
+The original queue note ("`ttnn.experimental.create_qkv_heads_from_separate_tensors`: maybe — needs Q+K+V interleaved on hidden dim. DeepSeek MLA splits Q vs kv_a separately so this likely only fits the wq_b path; verify shapes first") turned out to be the right caveat. After inspecting `matmul_0` (the indexer/kv-latent/q-latent fused projection at `main.py:3662`), `matmul_2` (Q-up at `main.py:4191`), `matmul_5/6` (the 16-head Q-up + K-from-latent at `main.py:4594, 4644`), and the V chain (`slice_68 → all_gather_6 → sum_5 → slice_87 → rms_norm_1` at `main.py:4685-4742`), **none** of these are a QKV-pack pattern.
+
+### Remaining `ttnn.permute()` calls in `_main` — also exhausted of E28-style folds
+
+Surveyed every `ttnn.permute` call inside `_main` (8 explicit calls after E28's fold of permute_28/31/32/37/40/41 into `matmul(transpose_b=True)`):
+
+| permute  | perm        | consumer                       | foldable?                                                                                       |
+| -------- | ----------- | ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| permute_29 | `[2,0,1,3]` | reshape → matmul_6           | no — head-axis-move, not last-two transpose                                                     |
+| permute_30 | `[1,2,0,3]` | reshape → matmul_7 (gap)     | no — head-axis-move; symmetric to permute_29, structurally inverse around matmul_6              |
+| permute_33 | `[2,0,1,3]` | reshape → matmul_10          | no — head-axis-move                                                                             |
+| permute_34 | `[1,2,0,3]` | reshape → matmul_11          | no — head-axis-move                                                                             |
+| permute_38 | `[2,0,1,3]` | reshape → matmul_21          | no — head-axis-move                                                                             |
+| permute_39 | `[1,2,0,3]` | reshape → matmul_22 (gap)    | no — head-axis-move                                                                             |
+| permute_42 | `[2,0,1,3]` | reshape → matmul_25          | no — head-axis-move                                                                             |
+| permute_43 | `[1,2,0,3]` | reshape → matmul_26          | no — head-axis-move                                                                             |
+| permute_45 | `[1,0]`     | reshape → **multiply** (not matmul) | no — consumer is a per-batch scaling multiply, not a matmul; the 2D transpose is required by the downstream reshape view layout |
+
+The biggest individual `PermuteDeviceOperation` in the E34 report is 373 μs (op 28657), then 93 μs and 68 μs — combined ~534 μs. But none of these correspond to a foldable explicit `ttnn.permute` call: the high-DT permutes are coming from **TTNN-internal** lowering of other ops (E28 already documented that `ttnn.permute([0,2,1])` internally executes as a `TransposeDeviceOperation`, but the **inverse** mapping also holds — many other ops emit a `PermuteDeviceOperation` invisible at the Python level). Total decode-permute headroom across all 8 explicit calls = ~240 μs, with zero clean fold candidates.
+
+### Final converged state
+
+After E34 (last KEEP) the per-experiment lane is genuinely exhausted at the single-commit cadence this branch has run:
+
+- **SparseMatmulDeviceOperation** (42 % of decode): all 4 knobs the kernel exposes (`grid`, `per_core_N`, `in0_block_w`, `out_subblock_w`) have been swept; the first 3 saturated at E31–E34, the 4th hangs the kernel (E36/E37). Further gains require either an L1-sharded prototype or a metal-side `out_subblock_w>1` fix for sparse_matmul.
+- **Tilize family** (24 % of decode): mostly TTNN-auto-inserted (only 0 explicit `ttnn.tilize` and ~30 `ttnn.to_layout` calls in `_main`, but 41 + 129 + 26 + 189 = 385 tilize/untilize ops in the decode scope) — needs an IR-side attack, not a Python-level patch.
+- **CCL family** (8 % of decode): parked because all DeepSeek-specific fused CCLs are WH-TG-only on this graph.
+- **MLA Q/K/V refactor** (~3 % of decode in slice/permute/reshape): the canonical fused ops don't fit (see above); the remaining explicit permutes are all structurally necessary head-axis moves.
+- **Distributed RMSNorm `slice.cpp:35`**: blocked by tt-metal bug (E7/E13).
+- **BinaryNg / Unary / Typecast / matmul dtype** (combined <6 % of decode): the dtype= cast-on-pack lever was swept in E14/E17/E27/E23/E24/E25; further sites returned <30 μs (E26) or regressed (E15/E18).
+
+**Branch tip stays at E34**: decode device time 80,602 μs vs E0 baseline 319,925 μs, **−239,323 μs / −74.8 %** cumulative. Further gains require opening a new branch with a different cadence (multi-iteration L1-sharded prototype, or wait for tt-metal fixes to `slice.cpp:35` and sparse_matmul `out_subblock_w`).
+
 ### E1 op-level delta (structural only)
 
 | role                       | op                          | count | ΔDT (μs) |
