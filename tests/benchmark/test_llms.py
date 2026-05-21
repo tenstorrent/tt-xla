@@ -641,6 +641,7 @@ def test_qwen_2_5_0_5b_base(
         optimization_level=2,
         trace_enabled=True,
         weight_dtype_overrides={"default": "bfp_bf8"},
+        experimental_enable_permute_matmul_fusion=True,
     )
 
 
