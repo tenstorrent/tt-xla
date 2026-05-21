@@ -331,7 +331,7 @@ def test_llama_3_2_1b_base(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         experimental_kv_cache_dtype="bfp_bf8",
-        fp32_dest_acc_en=False,
+        use_indexer_cache=True,
         expected_ops=[
             "ttnn.scaled_dot_product_attention",
             "ttnn.rms_norm",
