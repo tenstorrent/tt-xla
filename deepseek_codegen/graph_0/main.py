@@ -8545,7 +8545,7 @@ def _main(activations, weights):
             out_block_h=1,
             out_block_w=1,
             per_core_M=1,
-            per_core_N=6,
+            per_core_N=3,
             fuse_batch=False,
             fused_activation=None,
             mcast_in0=True,
