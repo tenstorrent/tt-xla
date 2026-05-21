@@ -4367,7 +4367,7 @@ def _main(activations, weights):
         ),
         dtype=ttnn.DataType.BFLOAT16,
         program_config=None,
-        activation="relu",
+        activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
@@ -4438,6 +4438,7 @@ def _main(activations, weights):
         ttnn_relu_0,
         ttnn_reshape_38,
         dtype=ttnn.DataType.BFLOAT16,
+        input_tensor_a_activations=[ttnn.UnaryOpType.RELU],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -6488,7 +6489,7 @@ def _main(activations, weights):
         ),
         dtype=ttnn.DataType.BFLOAT16,
         program_config=None,
-        activation="relu",
+        activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
             math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
         ),
@@ -6559,6 +6560,7 @@ def _main(activations, weights):
         ttnn_relu_1,
         ttnn_reshape_90,
         dtype=ttnn.DataType.BFLOAT16,
+        input_tensor_a_activations=[ttnn.UnaryOpType.RELU],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
