@@ -638,11 +638,9 @@ def test_qwen_2_5_0_5b_base(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
-        ),
+        optimization_level=2,
+        trace_enabled=True,
+        weight_dtype_overrides={"default": "bfp_bf8"},
     )
 
 
