@@ -5,7 +5,15 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "c5f398432a61100da79b7b9f2941130496092287")
+    # Tip of tenstorrent/tt-mlir jackzhang/tt_lang_integration. Adds
+    # ttir.tt_lang_op / ttnn.tt_lang_op definitions, StableHLO -> TTIR
+    # and TTIR -> TTNN conversions, and the TtLangOp -> GenericOp
+    # flatbuffer emitter that consumes the `kernel_artifact` attribute
+    # populated by tt-xla's embedded-Python tt-lang bridge. Built on
+    # current tt-mlir main (post-uplift); requires SFPI 7.47+ on the
+    # host -- install via
+    #   sudo $TTPJRT/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/install_dependencies.sh --sfpi
+    set(TT_MLIR_VERSION "f21f06985fbea9cb2c06e5a0196bef6cfac4ede5")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
