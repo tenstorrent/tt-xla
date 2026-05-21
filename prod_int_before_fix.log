@@ -1,0 +1,304 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /localdev/ctr-sbaskaran/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-153-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'metadata': '3.1.1', 'jaxtyping': '0.3.9', 'anyio': '4.13.0', 'forked': '1.6.0', 'split': '0.11.0', 'json-report': '1.5.0'}}
+rootdir: /localdev/ctr-sbaskaran/tt-xla
+configfile: pytest.ini
+plugins: metadata-3.1.1, jaxtyping-0.3.9, anyio-4.13.0, forked-1.6.0, split-0.11.0, json-report-1.5.0
+collecting ... 2026-05-21 17:14:47.988 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+collected 1 item
+
+prod.py::test_prod_int_bf16_qwen_repro 2026-05-21 17:14:49.072 | info     |             UMD | Creating TopologyDiscovery for architecture: wormhole_b0 (topology_discovery.cpp:73)
+2026-05-21 17:14:49.073 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.074 | info     |             UMD | Established firmware bundle version: 19.5.0 (topology_discovery.cpp:537)
+2026-05-21 17:14:49.074 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.075 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.076 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.124 | info     |          Device | Opening user mode device driver (tt_cluster.cpp:225)
+2026-05-21 17:14:49.124 | info     |             UMD | Creating TopologyDiscovery for architecture: wormhole_b0 (topology_discovery.cpp:73)
+2026-05-21 17:14:49.125 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.125 | info     |             UMD | Established firmware bundle version: 19.5.0 (topology_discovery.cpp:537)
+2026-05-21 17:14:49.126 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.126 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.127 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.174 | info     |             UMD | Harvesting masks for Chip 0: Tensix: 0x300 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.197 | info     |             UMD | Harvesting masks for Chip 2: Tensix: 0x204 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.197 | info     |             UMD | Harvesting masks for Chip 3: Tensix: 0x240 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.198 | info     |             UMD | Harvesting masks for Chip 1: Tensix: 0x204 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.198 | info     |             UMD | Harvesting masks for Chip 7: Tensix: 0x202 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.204 | info     |             UMD | Harvesting masks for Chip 6: Tensix: 0x300 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.211 | info     |             UMD | Harvesting masks for Chip 5: Tensix: 0x300 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.217 | info     |             UMD | Harvesting masks for Chip 4: Tensix: 0x204 DRAM: 0x0 ETH: 0x0 PCIe: 0x0 L2CPU: 0x0 (cluster.cpp:270)
+2026-05-21 17:14:49.223 | info     |             UMD | Opening local chip ids/PCIe ids: {0, 1, 2, 3}/[0, 1, 2, 3] and remote chip ids {4, 5, 6, 7} (cluster.cpp:159)
+2026-05-21 17:14:49.223 | info     |             UMD | IOMMU: disabled (cluster.cpp:133)
+2026-05-21 17:14:49.223 | info     |             UMD | KMD version: 2.4.1 (cluster.cpp:136)
+2026-05-21 17:14:49.229 | info     |             UMD | Starting devices in cluster (cluster.cpp:1042)
+2026-05-21 17:14:49.229 | info     |             UMD | Mapped hugepage 0x2c0000000 to NOC address 0x800000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.230 | info     |             UMD | Mapped hugepage 0x280000000 to NOC address 0x840000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.231 | info     |             UMD | Mapped hugepage 0x340000000 to NOC address 0x800000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.232 | info     |             UMD | Mapped hugepage 0x300000000 to NOC address 0x840000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.233 | info     |             UMD | Mapped hugepage 0x4200000000 to NOC address 0x800000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.233 | info     |             UMD | Mapped hugepage 0x41c0000000 to NOC address 0x840000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.234 | info     |             UMD | Mapped hugepage 0x4280000000 to NOC address 0x800000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.235 | info     |             UMD | Mapped hugepage 0x4240000000 to NOC address 0x840000000 (silicon_sysmem_manager.cpp:277)
+2026-05-21 17:14:49.284 | info     |     Distributed | Using auto discovery to generate mesh graph. (metal_env.cpp:332)
+2026-05-21 17:14:49.284 | info     |     Distributed | Constructing control plane using auto-discovery (no mesh graph descriptor). (metal_env.cpp:394)
+2026-05-21 17:14:49.284 | info     |             UMD | Creating TopologyDiscovery for architecture: wormhole_b0 (topology_discovery.cpp:73)
+2026-05-21 17:14:49.284 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.285 | info     |             UMD | Established firmware bundle version: 19.5.0 (topology_discovery.cpp:537)
+2026-05-21 17:14:49.285 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.286 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.287 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.322 | info     |          Fabric | TopologyMapper: Logical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1474)
+2026-05-21 17:14:49.322 | info     |          Fabric | 
+=== Logical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.322 | info     |          Fabric | 
+=== Logical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.322 | info     |          Fabric | TopologyMapper: Physical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1485)
+2026-05-21 17:14:49.322 | info     |          Fabric | 
+=== Physical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.322 | info     |          Fabric | 
+=== Physical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.322 | info     |          Fabric | Starting multi-mesh mapping: 1 logical mesh(es) to 1 physical mesh(es) (topology_mapper_utils.cpp:1469)
+2026-05-21 17:14:49.322 | info     |          Fabric | Multi-mesh mapping attempt 1/2: Trying inter-mesh mapping (topology_mapper_utils.cpp:1510)
+2026-05-21 17:14:49.322 | info     |          Fabric | Attempt 1: Inter-mesh mapping succeeded, found 1 mesh pair(s) (topology_mapper_utils.cpp:1539)
+2026-05-21 17:14:49.322 | info     |          Fabric | Attempt 1: Mapping 1 mesh pair(s) (topology_mapper_utils.cpp:1547)
+2026-05-21 17:14:49.322 | info     |          Fabric | Attempt 1: Mapping mesh 0 -> 0 (topology_mapper_utils.cpp:1554)
+2026-05-21 17:14:49.322 | info     |          Fabric | Multi-mesh mapping succeeded after 1 attempt(s): 1 mesh pair(s) mapped (topology_mapper_utils.cpp:1686)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.338 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.599 | info     |           Metal | Fabric config changed from FabricConfig::DISABLED to FabricConfig::FABRIC_1D, reinitializing control plane (metal_env.cpp:257)
+2026-05-21 17:14:49.599 | info     |     Distributed | Using auto discovery to generate mesh graph. (metal_env.cpp:332)
+2026-05-21 17:14:49.599 | info     |     Distributed | Constructing control plane using auto-discovery (no mesh graph descriptor). (metal_env.cpp:394)
+2026-05-21 17:14:49.600 | info     |             UMD | Creating TopologyDiscovery for architecture: wormhole_b0 (topology_discovery.cpp:73)
+2026-05-21 17:14:49.600 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.601 | info     |             UMD | Established firmware bundle version: 19.5.0 (topology_discovery.cpp:537)
+2026-05-21 17:14:49.601 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.602 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.603 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.638 | info     |          Fabric | TopologyMapper: Logical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1474)
+2026-05-21 17:14:49.638 | info     |          Fabric | 
+=== Logical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.638 | info     |          Fabric | 
+=== Logical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.638 | info     |          Fabric | TopologyMapper: Physical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1485)
+2026-05-21 17:14:49.638 | info     |          Fabric | 
+=== Physical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.638 | info     |          Fabric | 
+=== Physical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.638 | info     |          Fabric | Starting multi-mesh mapping: 1 logical mesh(es) to 1 physical mesh(es) (topology_mapper_utils.cpp:1469)
+2026-05-21 17:14:49.638 | info     |          Fabric | Multi-mesh mapping attempt 1/2: Trying inter-mesh mapping (topology_mapper_utils.cpp:1510)
+2026-05-21 17:14:49.638 | info     |          Fabric | Attempt 1: Inter-mesh mapping succeeded, found 1 mesh pair(s) (topology_mapper_utils.cpp:1539)
+2026-05-21 17:14:49.638 | info     |          Fabric | Attempt 1: Mapping 1 mesh pair(s) (topology_mapper_utils.cpp:1547)
+2026-05-21 17:14:49.638 | info     |          Fabric | Attempt 1: Mapping mesh 0 -> 0 (topology_mapper_utils.cpp:1554)
+2026-05-21 17:14:49.638 | info     |          Fabric | Multi-mesh mapping succeeded after 1 attempt(s): 1 mesh pair(s) mapped (topology_mapper_utils.cpp:1686)
+2026-05-21 17:14:49.639 | info     |           Metal | Enabling FabricConfig::FABRIC_1D only for dispatch. If your workload requires fabric, please set the fabric config accordingly. (device_manager.cpp:288)
+2026-05-21 17:14:49.639 | info     |           Metal | Dispatch on FabricConfig::FABRIC_1D with 1 Command Queues
+ (device_manager.cpp:296)
+2026-05-21 17:14:49.662 | info     |           Metal | Initializing Fabric (fabric_firmware_initializer.cpp:287)
+2026-05-21 17:14:49.720 | info     |           Metal | Fabric initialized on Device 0 (device.cpp:413)
+2026-05-21 17:14:49.721 | info     |           Metal | Fabric initialized on Device 1 (device.cpp:413)
+2026-05-21 17:14:49.721 | info     |           Metal | Fabric initialized on Device 2 (device.cpp:413)
+2026-05-21 17:14:49.721 | info     |           Metal | Fabric initialized on Device 3 (device.cpp:413)
+2026-05-21 17:14:49.723 | info     |           Metal | Fabric initialized on Device 4 (device.cpp:413)
+2026-05-21 17:14:49.724 | info     |           Metal | Fabric initialized on Device 5 (device.cpp:413)
+2026-05-21 17:14:49.725 | info     |           Metal | Fabric initialized on Device 6 (device.cpp:413)
+2026-05-21 17:14:49.726 | info     |           Metal | Fabric initialized on Device 7 (device.cpp:413)
+2026-05-21 17:14:49.726 | info     |           Metal | Fabric initialized on 8 devices (fabric_firmware_initializer.cpp:415)
+2026-05-21 17:14:49.726 | info     |           Metal | Fabric Initialized with config FabricConfig::FABRIC_1D (fabric_firmware_initializer.cpp:290)
+2026-05-21 17:14:49.782 | info     |           Metal | Fabric config changed from FabricConfig::FABRIC_1D to FabricConfig::FABRIC_1D_RING, reinitializing control plane (metal_env.cpp:257)
+2026-05-21 17:14:49.782 | info     |     Distributed | Using auto discovery to generate mesh graph. (metal_env.cpp:332)
+2026-05-21 17:14:49.782 | info     |     Distributed | Constructing control plane using auto-discovery (no mesh graph descriptor). (metal_env.cpp:394)
+2026-05-21 17:14:49.782 | info     |             UMD | Creating TopologyDiscovery for architecture: wormhole_b0 (topology_discovery.cpp:73)
+2026-05-21 17:14:49.783 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.783 | info     |             UMD | Established firmware bundle version: 19.5.0 (topology_discovery.cpp:537)
+2026-05-21 17:14:49.783 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.784 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.785 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:49.820 | info     |          Fabric | TopologyMapper: Logical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1474)
+2026-05-21 17:14:49.820 | info     |          Fabric | 
+=== Logical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.820 | info     |          Fabric | 
+=== Logical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.820 | info     |          Fabric | TopologyMapper: Physical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1485)
+2026-05-21 17:14:49.820 | info     |          Fabric | 
+=== Physical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.820 | info     |          Fabric | 
+=== Physical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:49.820 | info     |          Fabric | Starting multi-mesh mapping: 1 logical mesh(es) to 1 physical mesh(es) (topology_mapper_utils.cpp:1469)
+2026-05-21 17:14:49.820 | info     |          Fabric | Multi-mesh mapping attempt 1/2: Trying inter-mesh mapping (topology_mapper_utils.cpp:1510)
+2026-05-21 17:14:49.820 | info     |          Fabric | Attempt 1: Inter-mesh mapping succeeded, found 1 mesh pair(s) (topology_mapper_utils.cpp:1539)
+2026-05-21 17:14:49.820 | info     |          Fabric | Attempt 1: Mapping 1 mesh pair(s) (topology_mapper_utils.cpp:1547)
+2026-05-21 17:14:49.820 | info     |          Fabric | Attempt 1: Mapping mesh 0 -> 0 (topology_mapper_utils.cpp:1554)
+2026-05-21 17:14:49.820 | info     |          Fabric | Multi-mesh mapping succeeded after 1 attempt(s): 1 mesh pair(s) mapped (topology_mapper_utils.cpp:1686)
+2026-05-21 17:14:49.837 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.839 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.841 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.843 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.844 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.850 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.850 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:49.850 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.108 | warning  |           Metal | Got num_routing_planes: 1, which is less than current value: 255, ignoring the override (metal_env.cpp:232)
+2026-05-21 17:14:50.108 | info     |           Metal | Dispatch on FabricConfig::FABRIC_1D_RING with 1 Command Queues
+ (device_manager.cpp:296)
+2026-05-21 17:14:50.117 | info     |           Metal | Initializing Fabric (fabric_firmware_initializer.cpp:287)
+2026-05-21 17:14:50.178 | info     |           Metal | Fabric initialized on Device 0 (device.cpp:413)
+2026-05-21 17:14:50.181 | info     |           Metal | Fabric initialized on Device 1 (device.cpp:413)
+2026-05-21 17:14:50.181 | info     |           Metal | Fabric initialized on Device 2 (device.cpp:413)
+2026-05-21 17:14:50.181 | info     |           Metal | Fabric initialized on Device 3 (device.cpp:413)
+2026-05-21 17:14:50.185 | info     |           Metal | Fabric initialized on Device 4 (device.cpp:413)
+2026-05-21 17:14:50.193 | info     |           Metal | Fabric initialized on Device 5 (device.cpp:413)
+2026-05-21 17:14:50.201 | info     |           Metal | Fabric initialized on Device 6 (device.cpp:413)
+2026-05-21 17:14:50.204 | info     |           Metal | Fabric initialized on Device 7 (device.cpp:413)
+2026-05-21 17:14:50.204 | info     |           Metal | Fabric initialized on 8 devices (fabric_firmware_initializer.cpp:415)
+2026-05-21 17:14:50.204 | info     |           Metal | Fabric Initialized with config FabricConfig::FABRIC_1D_RING (fabric_firmware_initializer.cpp:290)
+2026-05-21 17:14:50.245 | info     |           Metal | Enabling program cache on MeshDevice 1 (mesh_device.cpp:998)
+2026-05-21 17:14:50.246044: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-05-21 17:14:50.858 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.860 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.863 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.866 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.868 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.870 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.870 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:50.870 | info     |    BuildKernels | Using pre-compiled firmware from: /localdev/ctr-sbaskaran/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/11635316016787283032/ (build_env_manager.cpp:260)
+2026-05-21 17:14:51.127 | info     |           Metal | Fabric config changed from FabricConfig::FABRIC_1D_RING to FabricConfig::FABRIC_1D, reinitializing control plane (metal_env.cpp:257)
+2026-05-21 17:14:51.127 | info     |     Distributed | Using auto discovery to generate mesh graph. (metal_env.cpp:332)
+2026-05-21 17:14:51.127 | info     |     Distributed | Constructing control plane using auto-discovery (no mesh graph descriptor). (metal_env.cpp:394)
+2026-05-21 17:14:51.127 | info     |             UMD | Creating TopologyDiscovery for architecture: wormhole_b0 (topology_discovery.cpp:73)
+2026-05-21 17:14:51.127 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:51.128 | info     |             UMD | Established firmware bundle version: 19.5.0 (topology_discovery.cpp:537)
+2026-05-21 17:14:51.129 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:51.129 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:51.130 | warning  |             UMD | Low power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed. (topology_discovery.cpp:141)
+2026-05-21 17:14:51.165 | info     |          Fabric | TopologyMapper: Logical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1474)
+2026-05-21 17:14:51.165 | info     |          Fabric | 
+=== Logical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:51.165 | info     |          Fabric | 
+=== Logical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:51.165 | info     |          Fabric | TopologyMapper: Physical Multi-Mesh Adjacency Map: (topology_mapper.cpp:1485)
+2026-05-21 17:14:51.165 | info     |          Fabric | 
+=== Physical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:51.165 | info     |          Fabric | 
+=== Physical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 8
+Degree histogram: {2:4, 3:4}
+ (topology_solver.tpp:94)
+2026-05-21 17:14:51.165 | info     |          Fabric | Starting multi-mesh mapping: 1 logical mesh(es) to 1 physical mesh(es) (topology_mapper_utils.cpp:1469)
+2026-05-21 17:14:51.165 | info     |          Fabric | Multi-mesh mapping attempt 1/2: Trying inter-mesh mapping (topology_mapper_utils.cpp:1510)
+2026-05-21 17:14:51.165 | info     |          Fabric | Attempt 1: Inter-mesh mapping succeeded, found 1 mesh pair(s) (topology_mapper_utils.cpp:1539)
+2026-05-21 17:14:51.165 | info     |          Fabric | Attempt 1: Mapping 1 mesh pair(s) (topology_mapper_utils.cpp:1547)
+2026-05-21 17:14:51.165 | info     |          Fabric | Attempt 1: Mapping mesh 0 -> 0 (topology_mapper_utils.cpp:1554)
+2026-05-21 17:14:51.165 | info     |          Fabric | Multi-mesh mapping succeeded after 1 attempt(s): 1 mesh pair(s) mapped (topology_mapper_utils.cpp:1686)
+2026-05-21 17:14:51.166 | info     |           Metal | Enabling FabricConfig::FABRIC_1D only for dispatch. If your workload requires fabric, please set the fabric config accordingly. (device_manager.cpp:288)
+2026-05-21 17:14:51.166 | info     |           Metal | Dispatch on FabricConfig::FABRIC_1D with 1 Command Queues
+ (device_manager.cpp:296)
+2026-05-21 17:14:51.168 | info     |           Metal | Initializing Fabric (fabric_firmware_initializer.cpp:287)
+2026-05-21 17:14:51.222 | info     |           Metal | Fabric initialized on Device 0 (device.cpp:413)
+2026-05-21 17:14:51.223 | info     |           Metal | Fabric initialized on Device 1 (device.cpp:413)
+2026-05-21 17:14:51.223 | info     |           Metal | Fabric initialized on Device 2 (device.cpp:413)
+2026-05-21 17:14:51.223 | info     |           Metal | Fabric initialized on Device 3 (device.cpp:413)
+2026-05-21 17:14:51.224 | info     |           Metal | Fabric initialized on Device 4 (device.cpp:413)
+2026-05-21 17:14:51.225 | info     |           Metal | Fabric initialized on Device 5 (device.cpp:413)
+2026-05-21 17:14:51.227 | info     |           Metal | Fabric initialized on Device 6 (device.cpp:413)
+2026-05-21 17:14:51.229 | info     |           Metal | Fabric initialized on Device 7 (device.cpp:413)
+2026-05-21 17:14:51.229 | info     |           Metal | Fabric initialized on 8 devices (fabric_firmware_initializer.cpp:415)
+2026-05-21 17:14:51.229 | info     |           Metal | Fabric Initialized with config FabricConfig::FABRIC_1D (fabric_firmware_initializer.cpp:290)
+2026-05-21 17:14:51.261 | info     |           Metal | Enabling program cache on MeshDevice 2 (mesh_device.cpp:998)
+prod: tensor([2204])
+prod: tensor([2208], device='xla:0')
+FAILED
+
+=================================== FAILURES ===================================
+________________________ test_prod_int_bf16_qwen_repro _________________________
+prod.py:43: in test_prod_int_bf16_qwen_repro
+    run_graph_test(
+tests/infra/testers/single_chip/graph/graph_tester.py:74: in run_graph_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:73: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: Equal comparison failed.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /localdev/ctr-sbaskaran/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+prod.py::test_prod_int_bf16_qwen_repro
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED prod.py::test_prod_int_bf16_qwen_repro - AssertionError: Evaluation result 0 failed: Equal comparison failed.
+======================= 1 failed, 17 warnings in 12.81s ========================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+2026-05-21 17:14:57.391 | info     |    BuildKernels | JIT cache stats: 65/82 hits (79.3%) [65 cached, 140 build-once dedup, 0 merged artifacts, 0 merged genfiles] (build_cache_telemetry.cpp:207)
+2026-05-21 17:14:57.391 | info     |    BuildKernels | JIT telemetry: 3 registered TelemetryTokens (build_cache_telemetry.cpp:230)
+2026-05-21 17:14:57.391 | info     |    BuildKernels | JIT telemetry [dependencies_up_to_date]: count=130, total=202.512ms, min=0.024ms, max=5.966ms, mean=1.558ms (build_cache_telemetry.cpp:246)
+2026-05-21 17:14:57.391 | info     |    BuildKernels | JIT telemetry [JitBuildState::build]: count=82, total=7442.127ms, min=0.946ms, max=515.621ms, mean=90.758ms (build_cache_telemetry.cpp:246)
+2026-05-21 17:14:57.391 | info     |    BuildKernels | JIT telemetry [jit_build]: count=61, total=7409.409ms, min=0.946ms, max=515.622ms, mean=121.466ms (build_cache_telemetry.cpp:246)
+2026-05-21 17:14:57.406 | info     |          Device | Closing user mode device drivers (tt_cluster.cpp:496)
+2026-05-21 17:14:57.406 | info     |             UMD | Closing devices in cluster (cluster.cpp:1054)

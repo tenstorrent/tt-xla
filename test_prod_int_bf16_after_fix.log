@@ -1,0 +1,41 @@
+2026-05-21 16:41:20.221 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /home/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.4.0-216-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'forked': '1.6.0', 'metadata': '3.1.1', 'split': '0.11.0', 'json-report': '1.5.0', 'jaxtyping': '0.3.9', 'anyio': '4.13.0'}}
+rootdir: /home/tt-xla
+configfile: pytest.ini
+plugins: forked-1.6.0, metadata-3.1.1, split-0.11.0, json-report-1.5.0, jaxtyping-0.3.9, anyio-4.13.0
+collecting ... collected 1 item
+
+tests/torch/ops/test_prod_int_bf16_qwen_repro.py::test_prod_int_bf16_qwen_repro 2026-05-21 16:51:14.078721: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+prod: tensor([2204])
+prod: tensor([2204], device='xla:0')
+PASSED
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /home/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/ops/test_prod_int_bf16_qwen_repro.py::test_prod_int_bf16_qwen_repro
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/ops/test_prod_int_bf16_qwen_repro.py::test_prod_int_bf16_qwen_repro
+  /home/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/ops/test_prod_int_bf16_qwen_repro.py::test_prod_int_bf16_qwen_repro
+  /home/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 1 passed, 19 warnings in 594.23s (0:09:54) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
