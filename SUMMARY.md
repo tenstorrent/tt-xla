@@ -1,29 +1,29 @@
-loader_path: third_party.tt_forge_models.deepseek_r1_distill_llama_8b_4bit.causal_lm.pytorch.loader
-variant_id: DeepSeek_R1_Distill_Llama_8B_4bit
+loader_path: third_party.tt_forge_models.deepseek_r1_distill_llama_8b_q4f16_1_mlc.causal_lm.pytorch.loader
+variant_id: Distill_Llama_8B_Q4F16_1_MLC
 arch: p150
 status: DONE_PASS
-test_function: test_deepseek_r1_distill_llama_8b_4bit
-samples_per_second: 4.596345565314676
-ttft_ms: 808.893583
-prefill_pcc: 0.995775
-first_decode_pcc: 0.995577
+test_function: test_deepseek_r1_distill_llama_8b_q4f16_1_mlc
+samples_per_second: 4.587737714655149
+ttft_ms: 810.166048
+prefill_pcc: 0.997771
+first_decode_pcc: 0.997063
 top_perf_samples_per_sec: 42.5800
 pct_of_target: 10.8
 roofline_bound: dram
 optimization_level: 2
 trace_enabled: true
-experimental_weight_dtype: bfp_bf8
+experimental_weight_dtype: "bfp_bf8"
 failure_reason: null
 
-# Benchmark added: test_deepseek_r1_distill_llama_8b_4bit
+# Benchmark added: test_deepseek_r1_distill_llama_8b_q4f16_1_mlc
 
 ## Test
-tests/benchmark/test_llms.py::test_deepseek_r1_distill_llama_8b_4bit
+tests/benchmark/test_llms.py::test_deepseek_r1_distill_llama_8b_q4f16_1_mlc
 
 ## Model
-- HF name:    mlx-community/DeepSeek-R1-Distill-Llama-8B-4bit
-- Loader:     third_party.tt_forge_models.deepseek_r1_distill_llama_8b_4bit.causal_lm.pytorch.loader
-- Variant:    DeepSeek_R1_Distill_Llama_8B_4bit
+- HF name:    deepseek-ai/DeepSeek-R1-Distill-Llama-8B
+- Loader:     third_party.tt_forge_models.deepseek_r1_distill_llama_8b_q4f16_1_mlc.causal_lm.pytorch.loader
+- Variant:    Distill_Llama_8B_Q4F16_1_MLC
 
 ## Test config landed
 - optimization_level:        2
@@ -34,16 +34,16 @@ tests/benchmark/test_llms.py::test_deepseek_r1_distill_llama_8b_4bit
 - required_pcc:              0.94
 
 ## Measured (full model, defaults)
-- Sample per second:  4.596345565314676
-- TTFT (ms):          808.893583
-- Prefill PCC:        0.995775
-- First decode PCC:   0.995577
-- Wall clock:         0:47:08
+- Sample per second:  4.587737714655149
+- TTFT (ms):          810.166048
+- Prefill PCC:        0.997771
+- First decode PCC:   0.997063
+- Wall clock:         0:43:43
 - Hardware:           p150
 
 ## Decode roofline (first decode graph, single-chip)
-Source JSON: tt_xla_deepseek_r1_distill_llama_8b_4bit_perf_metrics_1.json
-Achieved vs top_perf_samples_per_sec: 10.8% (4.60 / 42.58)
+Source JSON: tt_xla_deepseek_r1_distill_llama_8b_q4f16_1_mlc_perf_metrics_1.json
+Achieved vs top_perf_samples_per_sec: 10.8%
 
 ### System
 - arch:                        blackhole
@@ -96,7 +96,7 @@ Achieved vs top_perf_samples_per_sec: 10.8% (4.60 / 42.58)
 
 ## Files changed
 - tests/benchmark/test_llms.py
-- tests/benchmark/benchmarks/llm_benchmark.py
+- .github/workflows/perf-bench-matrix.json
 
 ## tt-forge-models submodule
 no change
