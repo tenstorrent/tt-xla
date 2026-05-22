@@ -382,3 +382,33 @@ No remaining single fusion-op swap has expected ROI > 1k μs on this graph witho
 ## Stop condition
 
 When no patch in the queue moves the top op without dropping golden PCC below 0.9.
+
+## Exit notes (after E45 keep) — branch at ~92% reduction, remaining levers structural
+
+The post-E45 per-step decode is **24,038 μs**, down from the **~298,000 μs** baseline (~−91.9 %, where the baseline here is the in-loop apples-to-apples per-step number — the original E0 figure 319,925 μs includes the one-shot prologue which was largely absorbed/eliminated by E40+E43). The branch has run E0..E45 with **two major wins** (E30/E31 sparse_matmul grid + E38 router fusion + E41 SDPA fusion + E42/E43 dead-code elimination) and **several small dtype-fold consolidations** (E14/E17/E27/E45).
+
+### Remaining lever inventory (after E45)
+
+| Lever | Status | Estimated saving | Why not in-loop |
+| --- | --- | ---: | --- |
+| `ttnn.experimental.rotary_embedding_llama` swap (8 RoPE sites) | **parked** | ~400-800 μs | 1-day rewrite — needs 3 new const_evals (trans_mat + doubled cos/sin caches), 32-shard L1 I/O wiring per call site, decode-mode shard config. See `ROPE_FUSION_PLAN.md`. |
+| AllGather output_layout=TILE on post-AG hidden broadcast | **parked** | ~1,600 μs | Requires custom CCL config tweaks and per-op verification on Blackhole; not a single-line knob. |
+| LM-head `Untilize → argmax → Tilize` ring removal | **parked** | ~150-300 μs | `ttnn.argmax(use_multicore=True)` requires ROW_MAJOR; single-core TILE argmax is slower than multicore RM argmax + the Untilize/Tilize pair. E44 attempt confirmed. |
+| Sparse_matmul weight tilize audit (Class A in TM_REDUCTION_PLAN) | **needs diagnostic** | unknown (0-4,902 μs ceiling) | The top-1 Tilize entry `1×8×7168×2048 BF16` at 4,902 μs is a perf-reporting mystery — it could be a real re-tilize per call or a fast-path no-op accounted under the parent kernel's time. A one-shot `print(weight.layout())` probe at the sparse_matmul call site would resolve it but requires a fresh build with a debug hook. |
+| `matmul_30/multiply_60/sum_18` BF16 fold (extends E45) | **risky** | ~50-100 μs | Would propagate the BF16 fold through the SECOND consumer of the routing-weight chain. Higher precision risk (sum_18 is a reduction; FP32 → BF16 reductions accumulate error). Marginal yield. |
+
+### Why stop here
+
+1. **The MoE block (15,519 μs / 78% of full-model decode) is structurally bottlenecked** by the `sparse_matmul ×2 + all_to_all_dispatch/combine + reduce_scatter + all_gather` pattern. Each of those individual ops is at or near its kernel ceiling. Cutting the MoE block by another 10-20% requires either re-emitting the codegen with a different sharding (matmul_wo CP flip, paged-cache reformat) or substituting a fused MoE op (`moe_compute` family — confirmed topology-incompatible with our 4×8 mesh).
+
+2. **The MLA attention blocks (2,687 / 2,738 μs each) are at floor.** E41 SDPA + E42/E43 DCE already collapsed 30 ops per layer into ~6 ops. Further structural improvement (e.g. paged-cache packed `kvpe`, async CCL overlap) is a separate project.
+
+3. **TM ops are bandwidth-bound, not fusion-bound.** Five separate experiments (E5/E19/E20/E21/E22/E29/E44) tried reordering or removing Tilize/Untilize/to_layout flips; only E5/E19 produced clean wins. The pattern is consistent: a TM op's cost depends on the *shape* of the data being converted (E44's lesson), so swapping op order doesn't help unless the new producer also outputs the cheaper shape.
+
+4. **Compute density is already high** on every major op (matmuls at 4-22 TFLOPs, sparse_matmul at 22+ TFLOPs/peak hint, SDPA fused). No idle math units to recapture.
+
+### Branch terminal commit
+
+`ff3b10708` (E45 keep). Cumulative per-step decode: **24,038 μs** vs theoretical floor estimate of ~20,000-21,000 μs (the floor is set by aggregate `SparseMatmul + AllGather + ReduceScatter + AllToAllCombine` device time which together total ~14,000 μs — they can't compress further without async overlap). The remaining ~3,000 μs gap to floor is mostly small TM/typecast/reshape ops that individually cost <50 μs and aren't fusion targets.
+
+Bigger wins (`flash_multi_latent_attention_decode` paged-cache reformat, `matmul_wo` CP flip, `rotary_embedding_llama` swap, async CCL with persistent semaphores) are documented in their respective `_PLAN.md` files and scoped as separate projects.
