@@ -1,5 +1,5 @@
 # Getting Started
-This document walks you through how to set up TT-XLA. TT-XLA is a front end for TT-Forge that ingests JAX models via jit compile and PyTorch models through [torch-xla](https://github.com/pytorch/xla), providing StableHLO (SHLO) graphs to the TT-MLIR compiler. TT-XLA leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt---uniform-device-api) to integrate JAX, [TT-MLIR](https://github.com/tenstorrent/tt-mlir) and Tenstorrent hardware. Please see [this](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) blog post for more information about the PJRT project.
+This document walks you through how to set up TT-XLA. TT-XLA is a front end for TT-Forge that ingests JAX models via jit compile and PyTorch models through [torch-xla](https://github.com/pytorch/xla), providing StableHLO (SHLO) graphs to the TT-MLIR compiler. TT-XLA leverages [PJRT](https://github.com/openxla/xla/tree/main/xla/pjrt/c#pjrt---uniform-device-api) to integrate JAX, [TT-MLIR](https://github.com/tenstorrent/tt-mlir) and Tenstorrent hardware. See the [PJRT blog post](https://opensource.googleblog.com/2023/05/pjrt-simplifying-ml-hardware-and-framework-integration.html) for more information about the PJRT project.
 
 > **NOTE:** If you encounter issues, please request assistance on the
 >[TT-XLA Issues](https://github.com/tenstorrent/tt-xla/issues) page.
@@ -12,7 +12,7 @@ This document walks you through how to set up TT-XLA. TT-XLA is a front end for 
 ### 2. Install Software (choose one)
 - **Option 1: Quick path:** Use TT-Installer using: [Software Installation](https://docs.tenstorrent.com/getting-started/README.html#software-installation)
 
-- **Option 2: Manual path:** For more control, follow the [manual software dependencies installation guide.](https://docs.tenstorrent.com/getting-started/manual-software-install.html)
+- **Option 2: Manual path:** For more control, follow the [manual software dependencies installation guide](https://docs.tenstorrent.com/getting-started/manual-software-install.html).
 
 ## TT-XLA Installation Options
 
@@ -42,7 +42,7 @@ pip install pjrt-plugin-tt --extra-index-url https://pypi.eng.aws.tenstorrent.co
 ```
 
 Run the tt-forge-install script to install missing system dependencies.
-```
+```bash
 tt-forge-install
 ```
 
@@ -72,7 +72,7 @@ python tiny_llama_demo.py
 ```
 
 You should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead, for example:
-```
+```text
 Prompt: `The capital of France is`
 Top prediction: `Paris`
 
@@ -135,7 +135,7 @@ python tiny_llama_demo.py
 ```
 
 You should see the prompt "The capital of France is", the predicted next token, the probability it will occur, and a list of other ranked options that could follow instead, for example:
-```
+```text
 Prompt: `The capital of France is`
 Top prediction: `Paris`
 
@@ -224,7 +224,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    python -c "import jax; print(jax.devices('tt'))"
    ```
 
-   The command should output all available TT devices, e.g. `[TTDevice(id=0, arch=Wormhole_b0)]`
+   The command should output all available TT devices, for example `[TTDevice(id=0, arch=Wormhole_b0)]`
 
 6. (optional) If you want to build the TT-XLA wheel, run the following command:
 
@@ -259,7 +259,7 @@ The TT-XLA repo contains various tests in the **tests** directory. To run an ind
 
 ## Common Build Errors
 - Building TT-XLA requires `clang-20`. Please make sure that `clang-20` is installed on the system and `clang/clang++` links to the correct version of the respective tools.
-- Please also see the TT-MLIR [docs](https://github.com/tenstorrent/tt-mlir/blob/main/docs/src/getting-started.md#common-build-errors) for common build errors.
+- See the TT-MLIR [common build errors documentation](https://github.com/tenstorrent/tt-mlir/blob/main/docs/src/getting-started.md#common-build-errors).
 
 ## Pre-commit
 Pre-commit applies a git hook to the local repository such that linting is checked and applied on every `git commit` action. Install it from the root of the repository using:

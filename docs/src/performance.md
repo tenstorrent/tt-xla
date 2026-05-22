@@ -13,7 +13,7 @@ TODO(odjuricic) sections to be added:
 
 # Improving Model Performance
 
-This guide covers best practices and techniques for optimizing the performance of PyTorch models running on single chip Tenstorrent hardware using the tt-xla frontend of the forge compiler.
+This guide covers best practices and techniques for optimizing the performance of PyTorch models running on single-chip Tenstorrent hardware using the TT-XLA frontend of the Forge compiler.
 
 ## Overview
 
@@ -24,7 +24,7 @@ This guide covers best practices and techniques for optimizing the performance o
 5. **[Batch Size Tuning](#5-batch-size-tuning)** - Find the optimal batch size to maximize throughput for your model
 
 For a complete working example, see the code below from `examples/pytorch/mnist_performant.py`, which demonstrates all these optimizations together.
-### Mnist performant example:
+### MNIST performant example
 ```python
 {{#include ../../examples/pytorch/mnist_performant.py}}
 ```
@@ -35,7 +35,7 @@ Let's break down each performance optimization in detail.
 
 ## 1. Optimization Levels
 
-The `optimization_level` compiler option controls multiple optimization passes from tt-mlir in a coordinated way. tt-xla offers three levels (0, 1, 2).
+The `optimization_level` compiler option controls multiple optimization passes from TT-MLIR in a coordinated way. TT-XLA offers three levels (0, 1, 2).
 
 To set the optimization level, use:
 ```python
@@ -82,23 +82,23 @@ with torch.no_grad():
 
 ### Why Warmup is Necessary
 
-The first iteration is extremely slow due to it running:
+The first iteration is extremely slow because it runs:
 * Model compilation and optimization
 * Op kernel compilation
-* Transferring of model weights to device
-* Const-eval of model weight and constants
-* Caching of op kernels on device
+* Transferring model weights to the device
+* Const-eval of model weights and constants
+* Caching of op kernels on the device
 
 The second iteration is needed for:
 * Capturing runtime trace to reduce op dispatch overhead (Section 4)
 
-All of the above is a one time fixed cost and all subsequent iterations of the model will be orders of magnitude faster.
+All of the above is a one-time fixed cost; all subsequent iterations of the model are orders of magnitude faster.
 
 ---
 
 ## 3. Data Formats
 
-TT Hardware supports multiple lower precision data formats ([docs](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/tensor.html#data-type)). For use through tt-xla try the following:
+TT hardware supports multiple lower-precision data formats (see the [TT-NN data type documentation](https://docs.tenstorrent.com/tt-metal/latest/ttnn/ttnn/tensor.html#data-type)). For use through TT-XLA, try the following:
 * bfloat16
 * bfloat8_b
 
@@ -124,7 +124,7 @@ bfloat16 (Brain Floating Point 16-bit) provides:
 
 ### bfloat8_b
 
-Enable bfp_bf8 weight conversion using compile options. The model **MUST** be cast to bfloat16 before compilation.
+Enable bfp_bf8 weight conversion using compile options. The model **must** be cast to bfloat16 before compilation.
 ```python
 torch_xla.set_custom_compile_options({
     "experimental_weight_dtype": "bfp_bf8",  # Cast matmul weights to bfloat8_b

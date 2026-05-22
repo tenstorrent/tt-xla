@@ -13,7 +13,7 @@ This guide covers building PyTorch and PyTorch-XLA (Tenstorrent fork) from sourc
 
 ## Build
 
-The [`scripts/build_torch_xla.sh`](../../scripts/build_torch_xla.sh) script automates the entire process — installing dependencies, cloning repos, building, and integrating into the tt-xla venv. Each step is documented with comments in the script itself.
+The [`scripts/build_torch_xla.sh`](../../scripts/build_torch_xla.sh) script automates the entire process — installing dependencies, cloning repos, building, and integrating into the TT-XLA venv. Each step is documented with comments in the script itself.
 
 ```bash
 ./scripts/build_torch_xla.sh            # Release build (default)
@@ -44,7 +44,7 @@ For Python-only changes, no rebuild is needed (development mode).
 ### `_XLAC_cuda_functions` Python version mismatch
 
 If you see:
-```
+```text
 ImportError: Python version mismatch: module was compiled for Python 3.10
 ```
 
