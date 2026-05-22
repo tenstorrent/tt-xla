@@ -610,6 +610,7 @@ def test_qwen_2_5_0_5b(
         ),
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
+        fp32_dest_acc_en=True,
         experimental_kv_cache_dtype="bfp_bf8",
     )
 
