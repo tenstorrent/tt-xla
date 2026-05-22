@@ -431,8 +431,6 @@ def test_gemma_2_2b_base(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
-        trace_enabled=True,
-        experimental_weight_dtype="bfp_bf4",
     )
 
 
