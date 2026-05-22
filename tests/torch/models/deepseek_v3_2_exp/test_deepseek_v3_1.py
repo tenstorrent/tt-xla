@@ -18,6 +18,7 @@ below.
 """
 import json
 import os
+import re
 import sys
 import time
 
@@ -32,6 +33,7 @@ from infra.testers.compiler_config import CompilerConfig
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from modified_model import precompute_freqs_cis
+from safetensors import safe_open
 from safetensors.torch import load_file as safetensors_load_file
 from torch import nn
 from torch_xla.distributed.spmd import Mesh
@@ -43,11 +45,14 @@ from build_weight_cache import (
     _dequant_cache_dir,
     _has_cache,
     _post_sparse_cache_dir,
+    _rename_hf_key,
     build_cache,
     build_post_sparse_cache,
 )
 
-DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
+DEEPSEEK_V3_1_FP8_REPO = "deepseek-ai/DeepSeek-V3.1"
+DEEPSEEK_V3_1_BF16_REPO = "bullerwins/DeepSeek-V3.1-BF16"  # "DevQuasar-2/deepseek-ai.DeepSeek-V3.1-BF16" #"unsloth/DeepSeek-V3.1-BF16"
+DEEPSEEK_V3_1_REPO = DEEPSEEK_V3_1_FP8_REPO
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +125,56 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
     state_dict = _load_cache_chunked(cache_dir)
     print(
         f"[timing] cache load (mmap): {time.perf_counter() - t0:.1f}s "
+        f"({len(state_dict)} tensors)",
+        flush=True,
+    )
+
+    missing, unexpected = model.load_state_dict(state_dict, strict=False, assign=True)
+    print(
+        f"[weights] loaded {len(state_dict)} tensors. "
+        f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
+    )
+
+
+def _load_bf16_direct_from_hf(model, repo_id, n_layers, n_dense_layers=1):
+    """Load BF16 weights straight from an HF repo's safetensors shards.
+
+    Debug-only path for repos that already ship BF16 (e.g.
+    ``unsloth/DeepSeek-V3.1-BF16``). Skips the FP8 dequant + on-disk cache
+    step entirely, so it's only useful as a CPU-only A/B against the
+    cache-based path. No sparse cache.
+    """
+    t0 = time.perf_counter()
+    print(f"[weights] loading BF16 directly from HF {repo_id} (no cache)", flush=True)
+
+    index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
+    with open(index_path) as f:
+        weight_map = json.load(f)["weight_map"]
+
+    shard_to_pairs = {}  # shard_file -> [(ckpt_key, model_key), ...]
+    for ckpt_key, shard_file in weight_map.items():
+        layer_m = re.match(r"model\.layers\.(\d+)\.", ckpt_key)
+        if layer_m and int(layer_m.group(1)) >= n_layers:
+            continue
+        model_key = _rename_hf_key(ckpt_key, n_dense_layers)
+        if model_key is None:
+            continue
+        shard_to_pairs.setdefault(shard_file, []).append((ckpt_key, model_key))
+
+    state_dict = {}
+    for shard_file, pairs in shard_to_pairs.items():
+        shard_path = hf_hub_download(repo_id, shard_file)
+        with safe_open(shard_path, framework="pt", device="cpu") as f:
+            for ckpt_key, model_key in pairs:
+                tensor = f.get_tensor(ckpt_key)
+                if model_key == "head.weight":
+                    tensor = tensor.to(torch.float32)
+                elif tensor.dtype != torch.bfloat16:
+                    tensor = tensor.to(torch.bfloat16)
+                state_dict[model_key] = tensor
+
+    print(
+        f"[timing] direct HF load: {time.perf_counter() - t0:.1f}s "
         f"({len(state_dict)} tensors)",
         flush=True,
     )
@@ -318,6 +373,18 @@ def _build_and_load_model(args, repo_id, prefer_cpu_capable=False):
     with torch.device("meta"):
         model = ModifiedTransformer(args)
     mesh_shape = (4, 8)
+
+    # Debug A/B path: if the repo already ships BF16 weights and we want CPU
+    # forward, skip the dequant + cache step entirely and stream BF16 shards
+    # straight from HF. Lets us time-and-output compare against the
+    # FP8-dequant-then-cache path on the same model.
+    if prefer_cpu_capable and repo_id == DEEPSEEK_V3_1_BF16_REPO:
+        _load_bf16_direct_from_hf(model, repo_id, args.n_layers, args.n_dense_layers)
+        _fix_meta_buffers(model, args)
+        model.eval()
+        enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+        return model, mesh_shape
+
     post_sparse_dir = _post_sparse_cache_dir(repo_id, args.n_layers)
     dequant_dir = _dequant_cache_dir(repo_id, args.n_layers)
 
@@ -386,13 +453,18 @@ def _reset_caches(model):
             layer.attn.indexer.k_cache.zero_()
 
 
-def _pcc(a, b):
-    x = a.to(torch.float64).flatten().numpy()
-    y = b.to(torch.float64).flatten().numpy()
-    vx = x - x.mean()
-    vy = y - y.mean()
-    denom = float(np.linalg.norm(vx) * np.linalg.norm(vy))
-    return float("nan") if denom == 0 else float(np.dot(vx, vy) / denom)
+def _topk_compare(tt_logits, cpu_logits, k=5):
+    """Top-1 match + top-k overlap between two (vocab,) logit tensors.
+
+    Returns ``(top1_match: bool, topk_overlap: int, tt_topk: list, cpu_topk: list)``.
+    ``topk_overlap`` is the size of the intersection of the two top-k index
+    sets (so 0..k).
+    """
+    tt_topk = torch.topk(tt_logits, k).indices.tolist()
+    cpu_topk = torch.topk(cpu_logits, k).indices.tolist()
+    top1_match = tt_topk[0] == cpu_topk[0]
+    overlap = len(set(tt_topk) & set(cpu_topk))
+    return top1_match, overlap, tt_topk, cpu_topk
 
 
 # ---------------------------------------------------------------------------
@@ -402,6 +474,13 @@ def _pcc(a, b):
 
 @pytest.mark.galaxy
 @pytest.mark.parametrize(
+    "repo_id",
+    [
+        pytest.param(DEEPSEEK_V3_1_FP8_REPO, id="fp8"),
+        pytest.param(DEEPSEEK_V3_1_BF16_REPO, id="bf16"),
+    ],
+)
+@pytest.mark.parametrize(
     "cpu_reference",
     [
         pytest.param(True, marks=pytest.mark.nightly, id="cpu_reference"),
@@ -409,7 +488,7 @@ def _pcc(a, b):
     ],
 )
 @pytest.mark.parametrize("n_layers", [4])
-def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
+def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers, repo_id):
     """Autoregressive greedy decode on TT using the MLACache path.
 
     Two compiles: prefill (prompt_seq_len), decode (seq_len=1, reused).
@@ -428,7 +507,6 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
     prompt_seq_len = 32
     n_decode = 10
 
-    repo_id = DEEPSEEK_V3_1_REPO
     args = load_deepseek_config(repo_id)
     args.n_layers = n_layers
     args.max_batch_size = batch_size
@@ -614,28 +692,46 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
     )
 
     if cpu_logits_list:
-        print("\n[pcc] per-step logits PCC (TT vs CPU):", flush=True)
-        step_pccs = []
+        print(
+            "\n[topk] per-step top-1 / top-5 logits agreement (TT vs CPU):",
+            flush=True,
+        )
+        top1_hits = 0
+        top5_overlaps = []
+        top1_in_top5_tt = 0  # cpu top-1 within tt top-5
+        top1_in_top5_cpu = 0  # tt top-1 within cpu top-5
         for step, (tt_l, cpu_l) in enumerate(zip(tt_logits_list, cpu_logits_list)):
-            pcc = _pcc(tt_l, cpu_l)
-            step_pccs.append(pcc)
+            top1, overlap, tt_top, cpu_top = _topk_compare(tt_l, cpu_l, k=5)
+            top1_hits += int(top1)
+            top5_overlaps.append(overlap)
+            if cpu_top[0] in tt_top:
+                top1_in_top5_tt += 1
+            if tt_top[0] in cpu_top:
+                top1_in_top5_cpu += 1
             tt_tok = tt_token_ids[step]
             cpu_tok = cpu_token_ids[step]
-            match = "OK" if tt_tok == cpu_tok else "MISMATCH"
+            match = "OK" if top1 else "MISMATCH"
+            tt_top_dec = [tokenizer.decode([t]) for t in tt_top]
+            cpu_top_dec = [tokenizer.decode([t]) for t in cpu_top]
             print(
-                f"  step {step}: pcc={pcc:.4f}  "
+                f"  step {step}: top1={'Y' if top1 else 'N'} "
+                f"top5_overlap={overlap}/5  "
                 f"tt_tok={tt_tok!r:>10} cpu_tok={cpu_tok!r:>10}  [{match}]",
                 flush=True,
             )
+            print(f"    tt_top5 ={tt_top_dec}", flush=True)
+            print(f"    cpu_top5={cpu_top_dec}", flush=True)
+        n = len(tt_logits_list)
         print(
-            f"\n[pcc] min={min(step_pccs):.4f}, max={max(step_pccs):.4f}, "
-            f"avg={sum(step_pccs) / len(step_pccs):.4f}",
+            f"\n[topk] top1 match: {top1_hits}/{n}  "
+            f"top5 overlap avg={sum(top5_overlaps) / n:.2f}/5 "
+            f"(min={min(top5_overlaps)}, max={max(top5_overlaps)})",
             flush=True,
         )
-        matches = sum(1 for a, b in zip(tt_token_ids, cpu_token_ids) if a == b)
         print(
-            f"[tokens] TT==CPU match: {matches}/{len(tt_token_ids)}",
+            f"[topk] cpu_top1 in tt_top5: {top1_in_top5_tt}/{n}  "
+            f"tt_top1 in cpu_top5: {top1_in_top5_cpu}/{n}",
             flush=True,
         )
     else:
-        print("\n[pcc] SKIPPED — no CPU reference", flush=True)
+        print("\n[topk] SKIPPED — no CPU reference", flush=True)
