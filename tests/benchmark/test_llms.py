@@ -403,8 +403,6 @@ def test_gemma_2_2b(
             "*gate_proj*": "bfp_bf4",
             "*up_proj*": "bfp_bf4",
             "*down_proj*": "bfp_bf4",
-            "*o_proj*": "bfp_bf4",
-            "*v_proj*": "bfp_bf4",
         },
     )
 
