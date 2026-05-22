@@ -80,6 +80,15 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
 
+  fail-inspector:
+    needs: [ nightly_tests, test_full_model, test_forge_models_passing, test_forge_models_xfail ]
+    if: always() && !cancelled() && !success()
+    uses: ./.github/workflows/call-fail-inspector.yml
+    secrets: inherit
+    with:
+      inspect_run_id: ${{ github.run_id }}
+      inspect_attempt: ${{ github.run_attempt }}
+
   perf-benchmark:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     needs: [ build-image, build-ttxla ]
