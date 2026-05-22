@@ -1,0 +1,425 @@
+2026-05-22 08:47:34.616 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-136-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'forked': '1.6.0', 'jaxtyping': '0.3.9', 'split': '0.11.0', 'anyio': '4.13.0', 'json-report': '1.5.0', 'metadata': '3.1.1'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla
+configfile: pytest.ini
+plugins: forked-1.6.0, jaxtyping-0.3.9, split-0.11.0, anyio-4.13.0, json-report-1.5.0, metadata-3.1.1
+collecting ... collected 10 items
+
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_real_inputs Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+Requirement already satisfied: addict>=2.4.0 in ./venv/lib/python3.12/site-packages (from -r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 1)) (2.4.0)
+Requirement already satisfied: easydict==1.13 in ./venv/lib/python3.12/site-packages (from -r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 2)) (1.13)
+Collecting transformers==4.46.3 (from -r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3))
+  Using cached transformers-4.46.3-py3-none-any.whl.metadata (44 kB)
+Requirement already satisfied: filelock in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (3.29.0)
+Collecting huggingface-hub<1.0,>=0.23.2 (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3))
+  Using cached huggingface_hub-0.36.2-py3-none-any.whl.metadata (15 kB)
+Requirement already satisfied: numpy>=1.17 in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (2.1.2)
+Requirement already satisfied: packaging>=20.0 in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (26.2)
+Requirement already satisfied: pyyaml>=5.1 in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (6.0.1)
+Requirement already satisfied: regex!=2019.12.17 in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (2026.5.9)
+Requirement already satisfied: requests in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (2.34.2)
+Collecting tokenizers<0.21,>=0.20 (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3))
+  Using cached tokenizers-0.20.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.7 kB)
+Requirement already satisfied: safetensors>=0.4.1 in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (0.7.0)
+Requirement already satisfied: tqdm>=4.27 in ./venv/lib/python3.12/site-packages (from transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (4.67.3)
+Requirement already satisfied: fsspec>=2023.5.0 in ./venv/lib/python3.12/site-packages (from huggingface-hub<1.0,>=0.23.2->transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (2025.10.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.1.3 in ./venv/lib/python3.12/site-packages (from huggingface-hub<1.0,>=0.23.2->transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (1.5.0)
+Requirement already satisfied: typing-extensions>=3.7.4.3 in ./venv/lib/python3.12/site-packages (from huggingface-hub<1.0,>=0.23.2->transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (4.15.0)
+Requirement already satisfied: charset_normalizer<4,>=2 in ./venv/lib/python3.12/site-packages (from requests->transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (3.4.7)
+Requirement already satisfied: idna<4,>=2.5 in ./venv/lib/python3.12/site-packages (from requests->transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (3.15)
+Requirement already satisfied: urllib3<3,>=1.26 in ./venv/lib/python3.12/site-packages (from requests->transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (2.7.0)
+Requirement already satisfied: certifi>=2023.5.7 in ./venv/lib/python3.12/site-packages (from requests->transformers==4.46.3->-r /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/requirements.txt (line 3)) (2026.4.22)
+Using cached transformers-4.46.3-py3-none-any.whl (10.0 MB)
+Using cached huggingface_hub-0.36.2-py3-none-any.whl (566 kB)
+Using cached tokenizers-0.20.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.0 MB)
+Installing collected packages: huggingface-hub, tokenizers, transformers
+  Attempting uninstall: huggingface-hub
+    Found existing installation: huggingface_hub 1.16.1
+    Uninstalling huggingface_hub-1.16.1:
+      Successfully uninstalled huggingface_hub-1.16.1
+  Attempting uninstall: tokenizers
+    Found existing installation: tokenizers 0.22.2
+    Uninstalling tokenizers-0.22.2:
+      Successfully uninstalled tokenizers-0.22.2
+  WARNING: Failed to remove contents in a temporary directory '/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/~-1enizers'.
+  You can safely remove it manually.
+  Attempting uninstall: transformers
+    Found existing installation: transformers 5.2.0
+    Uninstalling transformers-5.2.0:
+      Successfully uninstalled transformers-5.2.0
+
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+surya-ocr 0.17.1 requires transformers>=4.56.1, but you have transformers 4.46.3 which is incompatible.
+Successfully installed huggingface-hub-0.36.2 tokenizers-0.20.3 transformers-4.46.3
+You are using a model of type deepseek_vl_v2 to instantiate a model of type DeepseekOCR. This is not supported for all configurations of models and can yield errors.
+You are using a model of type deepseek_vl_v2 to instantiate a model of type DeepseekOCR. This is not supported for all configurations of models and can yield errors.
+The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is ignored.
+The argument `trust_remote_code` is to be used with Auto classes. It has no effect here and is ignored.
+Some weights of DeepseekOCRForCausalLM were not initialized from the model checkpoint at /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/DeepSeek_OCR_hub and are newly initialized: ['model.vision_model.embeddings.position_ids']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+Some weights of DeepseekOCRForCausalLM were not initialized from the model checkpoint at /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/third_party/tt_forge_models/deepseek/deepseek_ocr/pytorch/DeepSeek_OCR_hub and are newly initialized: ['model.vision_model.embeddings.position_ids']
+You should probably TRAIN this model on a down-stream task to be able to use it for predictions and inference.
+You are using a model of type deepseek_vl_v2 to instantiate a model of type DeepseekOCR. This is not supported for all configurations of models and can yield errors.
+You are using a model of type deepseek_vl_v2 to instantiate a model of type DeepseekOCR. This is not supported for all configurations of models and can yield errors.
+The attention layers in this model are transitioning from computing the RoPE embeddings internally through `position_ids` (2D tensor with the indexes of the tokens), to using externally computed `position_embeddings` (Tuple of tensors, containing cos and sin). In v4.46 `position_ids` will be removed and `position_embeddings` will be mandatory.
+The attention layers in this model are transitioning from computing the RoPE embeddings internally through `position_ids` (2D tensor with the indexes of the tokens), to using externally computed `position_embeddings` (Tuple of tensors, containing cos and sin). In v4.46 `position_ids` will be removed and `position_embeddings` will be mandatory.
+--- Logging error ---
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/logging/__init__.py", line 1160, in emit
+    msg = self.format(record)
+          ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/logging/__init__.py", line 999, in format
+    return fmt.format(record)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/logging/__init__.py", line 703, in format
+    record.message = record.getMessage()
+                     ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/logging/__init__.py", line 392, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: not all arguments converted during string formatting
+Call stack:
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 131, in runtestprotocol
+    rep = call_and_report(item, "setup", log)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 165, in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 523, in setup
+    col.setup()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/python.py", line 1723, in setup
+    self._request._fillfixtures()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 707, in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 539, in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 627, in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 1110, in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 1202, in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 915, in call_fixture_func
+    fixture_result = fixturefunc(**kwargs)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py", line 270, in ocr_decoder_real_inputs
+    stack, args, meta = _build_decoder_stack_args(model, inputs)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py", line 222, in _build_decoder_stack_args
+    attention_mask, position_ids = _build_decoder_attention_inputs(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py", line 176, in _build_decoder_attention_inputs
+    mask_4d = _prepare_4d_causal_attention_mask(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/transformers/modeling_attn_mask_utils.py", line 350, in _prepare_4d_causal_attention_mask
+    # Adapted from _prepare_4d_causal_attention_mask
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/transformers/modeling_attn_mask_utils.py", line 74, in __init__
+    """
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/transformers/utils/logging.py", line 328, in warning_once
+    self.warning(*args, **kwargs)
+Message: 'The attention mask API under `transformers.modeling_attn_mask_utils` (`AttentionMaskConverter`) is deprecated and will be removed in Transformers v5.10. Please use the new API in `transformers.masking_utils`.'
+Arguments: (<class 'FutureWarning'>,)
+--- Logging error ---
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/logging/__init__.py", line 1160, in emit
+    msg = self.format(record)
+          ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/logging/__init__.py", line 999, in format
+    return fmt.format(record)
+           ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/logging/__init__.py", line 703, in format
+    record.message = record.getMessage()
+                     ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/logging/__init__.py", line 392, in getMessage
+    msg = msg % self.args
+          ~~~~^~~~~~~~~~~
+TypeError: not all arguments converted during string formatting
+Call stack:
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pytest/__main__.py", line 9, in <module>
+    raise SystemExit(pytest.console_main())
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 223, in console_main
+    code = main()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 199, in main
+    ret: ExitCode | int = config.hook.pytest_cmdline_main(config=config)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 365, in pytest_cmdline_main
+    return wrap_session(config, _main)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 318, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 372, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 396, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 118, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 131, in runtestprotocol
+    rep = call_and_report(item, "setup", log)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 244, in call_and_report
+    call = CallInfo.from_call(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 353, in from_call
+    result: TResult | None = func()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 245, in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 165, in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 523, in setup
+    col.setup()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/python.py", line 1723, in setup
+    self._request._fillfixtures()
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 707, in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 539, in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 627, in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 1110, in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 1202, in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/fixtures.py", line 915, in call_fixture_func
+    fixture_result = fixturefunc(**kwargs)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py", line 270, in ocr_decoder_real_inputs
+    stack, args, meta = _build_decoder_stack_args(model, inputs)
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py", line 222, in _build_decoder_stack_args
+    attention_mask, position_ids = _build_decoder_attention_inputs(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py", line 176, in _build_decoder_attention_inputs
+    mask_4d = _prepare_4d_causal_attention_mask(
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/transformers/modeling_attn_mask_utils.py", line 350, in _prepare_4d_causal_attention_mask
+    # Adapted from _prepare_4d_causal_attention_mask
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/transformers/modeling_attn_mask_utils.py", line 74, in __init__
+    """
+  File "/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/transformers/utils/logging.py", line 328, in warning_once
+    self.warning(*args, **kwargs)
+Message: 'The attention mask API under `transformers.modeling_attn_mask_utils` (`AttentionMaskConverter`) is deprecated and will be removed in Transformers v5.10. Please use the new API in `transformers.masking_utils`.'
+Arguments: (<class 'FutureWarning'>,)
+=====================
+BASE:  torch.Size([1, 256, 1280])
+PATCHES:  torch.Size([6, 100, 1280])
+=====================
+[deepseek_ocr_decoder_stack] real inputs: batch=1 seq_len=913 hidden=1280 mask=(1, 1, 913, 913) dtype=torch.bfloat16
+2026-05-22 08:48:51.298154: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+filtered_pccs are  [tensor(0.9513, dtype=torch.float64)]
+FAILED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_with_lm_head [deepseek_ocr_decoder_stack+lm_head] seq_len=913 vocab via lm_head out=(1, 913, vocab)
+filtered_pccs are  [tensor(0.9437, dtype=torch.float64)]
+FAILED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_random_inputs [deepseek_ocr_decoder_stack] random inputs: (1, 913, 1280) mask=(1, 1, 913, 913) dtype=torch.bfloat16
+filtered_pccs are  [tensor(0.9988, dtype=torch.float64)]
+PASSED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_layer_accumulation[1] [deepseek_ocr_decoder_stack] num_layers=1/12 seq_len=913
+filtered_pccs are  [tensor(0.9998, dtype=torch.float64)]
+PASSED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_layer_accumulation[2] [deepseek_ocr_decoder_stack] num_layers=2/12 seq_len=913
+filtered_pccs are  [tensor(0.9958, dtype=torch.float64)]
+PASSED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_layer_accumulation[4] [deepseek_ocr_decoder_stack] num_layers=4/12 seq_len=913
+filtered_pccs are  [tensor(0.9895, dtype=torch.float64)]
+PASSED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_layer_accumulation[6] [deepseek_ocr_decoder_stack] num_layers=6/12 seq_len=913
+filtered_pccs are  [tensor(0.9839, dtype=torch.float64)]
+PASSED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_layer_accumulation[8] [deepseek_ocr_decoder_stack] num_layers=8/12 seq_len=913
+filtered_pccs are  [tensor(0.9726, dtype=torch.float64)]
+PASSED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_layer_accumulation[10] [deepseek_ocr_decoder_stack] num_layers=10/12 seq_len=913
+filtered_pccs are  [tensor(0.9647, dtype=torch.float64)]
+PASSED
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_layer_accumulation[12] [deepseek_ocr_decoder_stack] num_layers=12/12 seq_len=913
+filtered_pccs are  [tensor(0.9513, dtype=torch.float64)]
+PASSEDLooking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+Collecting huggingface_hub==1.16.1 (from -r /tmp/tt_xla_restore_plruptvx.txt (line 1))
+  Using cached huggingface_hub-1.16.1-py3-none-any.whl.metadata (14 kB)
+Collecting tokenizers==0.22.2 (from -r /tmp/tt_xla_restore_plruptvx.txt (line 2))
+  Using cached tokenizers-0.22.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.3 kB)
+Collecting transformers==5.2.0 (from -r /tmp/tt_xla_restore_plruptvx.txt (line 3))
+  Using cached transformers-5.2.0-py3-none-any.whl.metadata (32 kB)
+Requirement already satisfied: filelock>=3.10.0 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (3.29.0)
+Requirement already satisfied: fsspec>=2023.5.0 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (2025.10.0)
+Requirement already satisfied: hf-xet<2.0.0,>=1.4.3 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (1.5.0)
+Requirement already satisfied: httpx<1,>=0.23.0 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (0.28.1)
+Requirement already satisfied: packaging>=20.9 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (26.2)
+Requirement already satisfied: pyyaml>=5.1 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (6.0.1)
+Requirement already satisfied: tqdm>=4.42.1 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (4.67.3)
+Requirement already satisfied: typer>=0.20.0 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (0.25.1)
+Requirement already satisfied: typing-extensions>=4.1.0 in ./venv/lib/python3.12/site-packages (from huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (4.15.0)
+Requirement already satisfied: numpy>=1.17 in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_plruptvx.txt (line 3)) (2.1.2)
+Requirement already satisfied: regex!=2019.12.17 in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_plruptvx.txt (line 3)) (2026.5.9)
+Requirement already satisfied: typer-slim in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_plruptvx.txt (line 3)) (0.24.0)
+Requirement already satisfied: safetensors>=0.4.3 in ./venv/lib/python3.12/site-packages (from transformers==5.2.0->-r /tmp/tt_xla_restore_plruptvx.txt (line 3)) (0.7.0)
+Requirement already satisfied: anyio in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (4.13.0)
+Requirement already satisfied: certifi in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (2026.4.22)
+Requirement already satisfied: httpcore==1.* in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (1.0.9)
+Requirement already satisfied: idna in ./venv/lib/python3.12/site-packages (from httpx<1,>=0.23.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (3.15)
+Requirement already satisfied: h11>=0.16 in ./venv/lib/python3.12/site-packages (from httpcore==1.*->httpx<1,>=0.23.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (0.16.0)
+Requirement already satisfied: click>=8.2.1 in ./venv/lib/python3.12/site-packages (from typer>=0.20.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (8.3.1)
+Requirement already satisfied: shellingham>=1.3.0 in ./venv/lib/python3.12/site-packages (from typer>=0.20.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (1.5.4)
+Requirement already satisfied: rich>=13.8.0 in ./venv/lib/python3.12/site-packages (from typer>=0.20.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (15.0.0)
+Requirement already satisfied: annotated-doc>=0.0.2 in ./venv/lib/python3.12/site-packages (from typer>=0.20.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (0.0.4)
+Requirement already satisfied: markdown-it-py>=2.2.0 in ./venv/lib/python3.12/site-packages (from rich>=13.8.0->typer>=0.20.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (4.2.0)
+Requirement already satisfied: pygments<3.0.0,>=2.13.0 in ./venv/lib/python3.12/site-packages (from rich>=13.8.0->typer>=0.20.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (2.20.0)
+Requirement already satisfied: mdurl~=0.1 in ./venv/lib/python3.12/site-packages (from markdown-it-py>=2.2.0->rich>=13.8.0->typer>=0.20.0->huggingface_hub==1.16.1->-r /tmp/tt_xla_restore_plruptvx.txt (line 1)) (0.1.2)
+Using cached huggingface_hub-1.16.1-py3-none-any.whl (668 kB)
+Using cached tokenizers-0.22.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.3 MB)
+Using cached transformers-5.2.0-py3-none-any.whl (10.4 MB)
+Installing collected packages: huggingface_hub, tokenizers, transformers
+  Attempting uninstall: huggingface_hub
+    Found existing installation: huggingface_hub 0.36.2
+    Uninstalling huggingface_hub-0.36.2:
+      Successfully uninstalled huggingface_hub-0.36.2
+  Attempting uninstall: tokenizers
+    Found existing installation: tokenizers 0.20.3
+    Uninstalling tokenizers-0.20.3:
+      Successfully uninstalled tokenizers-0.20.3
+  WARNING: Failed to remove contents in a temporary directory '/proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/~-2enizers'.
+  You can safely remove it manually.
+  Attempting uninstall: transformers
+    Found existing installation: transformers 4.46.3
+    Uninstalling transformers-4.46.3:
+      Successfully uninstalled transformers-4.46.3
+
+Successfully installed huggingface_hub-1.16.1 tokenizers-0.22.2 transformers-5.2.0
+
+
+=================================== FAILURES ===================================
+_________________ test_deepseek_ocr_decoder_stack_real_inputs __________________
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py:293: in test_deepseek_ocr_decoder_stack_real_inputs
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:73: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9512761541055577. Required: pcc=0.99.
+_________________ test_deepseek_ocr_decoder_stack_with_lm_head _________________
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py:321: in test_deepseek_ocr_decoder_stack_with_lm_head
+    run_op_test(
+tests/infra/testers/single_chip/op/op_tester.py:212: in run_op_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:73: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9436905723678986. Required: pcc=0.99.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_real_inputs
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_real_inputs
+  /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:1480: DeprecationWarning: `torch.jit.script` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py: 612 warnings
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py: 10 warnings
+  /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py: 10 warnings
+  /proj_sw/user_dev/ctr-akannan/20_may_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_real_inputs - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9512761541055577. Required: pcc=0.99.
+FAILED tests/torch/models/deepseek_ocr/test_deepseek_v2_decoder_stack.py::test_deepseek_ocr_decoder_stack_with_lm_head - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9436905723678986. Required: pcc=0.99.
+============ 2 failed, 8 passed, 650 warnings in 1254.33s (0:20:54) ============
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
