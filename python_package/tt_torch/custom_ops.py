@@ -76,6 +76,23 @@ def _(ctx, grad_output):
     return grad_output, None, None
 
 
+def _xla_mark_tensor_setup_context(ctx, inputs, output):
+    pass
+
+
+def _xla_mark_tensor_backward(ctx, grad_output):
+    # xla::mark_tensor(Tensor x, str name, int pos, str id, bool is_input, Any? attr)
+    # Only ``x`` is a differentiable Tensor, the rest are metadata so we return None for them.
+    return grad_output, None, None, None, None, None
+
+
+torch.library.register_autograd(
+    "xla::mark_tensor",
+    _xla_mark_tensor_backward,
+    setup_context=_xla_mark_tensor_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::sharding_constraint", mutates_args=[], device_types=["cpu", "xla"]
 )

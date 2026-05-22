@@ -171,18 +171,17 @@ def test_embedding_nightly(
     ],
 )
 @pytest.mark.parametrize(
-    "batch_size, max_num_seqs, max_num_batched_tokens",
+    "max_num_reqs, max_num_batched_tokens",
     [
-        (2, 2, 64),
-        (4, 4, 128),
+        (2, 64),
+        (4, 128),
     ],
 )
 def test_batched_inference(
     model_name: str,
     baseline_path: str,
     optimization_level: int,
-    batch_size: int,
-    max_num_seqs: int,
+    max_num_reqs: int,
     max_num_batched_tokens: int,
 ):
     """
@@ -190,12 +189,12 @@ def test_batched_inference(
     - BGE-m3: Model with encoder-only attention layers.
     - Qwen3-Embedding-0.6B: Model with decoder-only attention layers.
     Note:
-      - max_model_len * max_num_seqs <= max_num_batched_tokens
+      - max_model_len * max_num_reqs <= max_num_batched_tokens
       - max_num_reqs == batch_size
 
     - Baseline embeddings are computed using vLLM on CPU backend.
     """
-    if model_name == "Qwen/Qwen3-Embedding-0.6B" and batch_size == 2:
+    if model_name == "Qwen/Qwen3-Embedding-0.6B" and max_num_reqs == 2:
         pytest.skip(
             "Skipping due to non-deterministic failure in CI. Issue: https://github.com/tenstorrent/tt-xla/issues/3094"
         )
@@ -204,8 +203,7 @@ def test_batched_inference(
         model_name,
         baseline_path,
         max_model_len=64,
-        batch_size=batch_size,
-        max_num_reqs=batch_size,
+        max_num_reqs=max_num_reqs,
         max_num_batched_tokens=max_num_batched_tokens,
         optimization_level=optimization_level,
     )

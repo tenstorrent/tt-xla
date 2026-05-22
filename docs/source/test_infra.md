@@ -151,4 +151,4 @@ def test_my_op(request):
 
 FileCheck automatically serializes artifacts, runs pattern matching, and fails on mismatches.
 
-**For pattern file syntax and conventions**, see [tests/filecheck/filecheck.md](../../tests/filecheck/filecheck.md).
+**For pattern file syntax and conventions**, see [tests/filecheck/filecheck.md](https://github.com/tenstorrent/tt-xla/blob/main/tests/filecheck/filecheck.md).

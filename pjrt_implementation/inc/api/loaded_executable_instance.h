@@ -47,8 +47,7 @@ public:
   static void bindApi(PJRT_Api *api);
 
   // Virtual destructor for proper cleanup of derived classes
-  // Clears program cache on instance destroy.
-  virtual ~LoadedExecutableInstance();
+  virtual ~LoadedExecutableInstance() = default;
 
   // Casts this loaded executable instance to PJRT_LoadedExecutable pointer.
   operator PJRT_LoadedExecutable *() {

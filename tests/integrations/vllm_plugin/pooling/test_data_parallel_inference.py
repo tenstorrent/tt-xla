@@ -22,15 +22,14 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
     ],
 )
 @pytest.mark.parametrize(
-    "batch_size, max_num_reqs, max_num_batched_tokens",
+    "max_num_reqs, max_num_batched_tokens",
     [
-        (2, 2, 64),
+        (2, 64),
     ],
 )
 def test_data_parallel_inference_push(
     model_name: str,
     baseline_path: str,
-    batch_size: int,
     max_num_reqs: int,
     max_num_batched_tokens: int,
 ):
@@ -42,7 +41,6 @@ def test_data_parallel_inference_push(
         baseline_path,
         max_model_len=64,
         enable_data_parallel=True,
-        batch_size=batch_size,
         max_num_reqs=max_num_reqs,
         max_num_batched_tokens=max_num_batched_tokens,
     )
@@ -64,16 +62,15 @@ def test_data_parallel_inference_push(
     ],
 )
 @pytest.mark.parametrize(
-    "batch_size, max_num_reqs, max_num_batched_tokens",
+    "max_num_reqs, max_num_batched_tokens",
     [
-        (2, 2, 64),
-        (4, 4, 128),
+        (2, 64),
+        (4, 128),
     ],
 )
 def test_data_parallel_inference_nightly(
     model_name: str,
     baseline_path: str,
-    batch_size: int,
     max_num_reqs: int,
     max_num_batched_tokens: int,
 ):
@@ -86,7 +83,6 @@ def test_data_parallel_inference_nightly(
         baseline_path,
         max_model_len=64,
         enable_data_parallel=True,
-        batch_size=batch_size,
         max_num_reqs=max_num_reqs,
         max_num_batched_tokens=max_num_batched_tokens,
     )

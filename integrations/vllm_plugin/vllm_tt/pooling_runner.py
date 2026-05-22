@@ -112,7 +112,7 @@ MIN_NUM_SEQS = 1
 def generate_attn_mask(
     context_lens: torch.Tensor,
     num_query_tokens: int,
-    batch_size: int,
+    num_reqs: int,
     is_decoder_only: bool,
     dtype: torch.dtype,
     device: torch.device,
@@ -135,19 +135,19 @@ def generate_attn_mask(
         context_lens: 1D tensor of sequence lengths, e.g. [37, 6, 6] or [40, 0, 0].
                       Sum of non-zero lengths = total valid tokens.
         num_query_tokens: Total padded sequence length (e.g. 64).
-        batch_size: Batch size of the input.
+        num_reqs: Number of requests in the input.
         is_decoder_only: Whether the attention layers are decoder-only or encoder-only.
         dtype: torch.dtype (usually torch.float32)
         device: torch.device
 
     Returns:
-        attn_mask: Tensor of shape [batch_size, 1, num_query_tokens, num_query_tokens]
+        attn_mask: Tensor of shape [num_reqs, 1, num_query_tokens, num_query_tokens]
                    - -inf where attention should be blocked
                    - 0 where attention is allowed (within same segment)
     """
 
     attn_mask = torch.full(
-        (batch_size, 1, num_query_tokens, num_query_tokens), float("-inf"), dtype=dtype
+        (num_reqs, 1, num_query_tokens, num_query_tokens), float("-inf"), dtype=dtype
     )
     valid_pos = 0
     batch_idx = 0
@@ -170,7 +170,7 @@ def generate_attn_mask(
             segment_mask, torch.zeros((), dtype=dtype), float("-inf")
         )
 
-        if batch_size > 1:
+        if num_reqs > 1:
             # Move to the next batch entry after processing current input sequence
             # and reset the valid position for the next segment in case
             # of multiple batches.
@@ -241,24 +241,24 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.speculative_config = vllm_config.speculative_config
         self.observability_config = vllm_config.observability_config
         self.device_config = vllm_config.device_config
-        self.batch_size = self.tt_config.batch_size
         self.enable_precompile_all = self.tt_config.enable_precompile_all
-        assert (
-            self.batch_size > 0
-        ), f"Positive batch_size allowed, received: batch_size: {self.batch_size}"
-        assert not (
-            self.batch_size > 1
-            and self.batch_size != self.scheduler_config.max_num_seqs
-        ), f"batch_size ({self.batch_size}) must equal max_num_seqs ({self.scheduler_config.max_num_seqs}) when batch_size > 1"
+        # InputBatch needs to work with sampling tensors greater than padding
+        # to avoid dynamic shapes. Also, avoid suboptimal alignment.
+        self.max_num_reqs = max(self.scheduler_config.max_num_seqs, MIN_NUM_SEQS)
+        if "batch_size" in (vllm_config.additional_config or {}):
+            logger.warning(
+                "Ignoring additional_config['batch_size'] for pooling runner; "
+                "pooling always uses batched request inputs shaped [num_reqs, tokens]."
+            )
 
         self.num_devices = xr.global_runtime_device_count()
         # Model loader try to parallelize everything for SPMD mode. So we are
         # processing data parallel separately.
         self.enable_data_parallel = self.tt_config.enable_data_parallel
         if self.enable_data_parallel:
-            if self.batch_size == 1:
+            if self.max_num_reqs <= 1:
                 logger.warning(
-                    "Data parallel execution is possible for 'batch_size > 1' but got 'batch_size = 1'. Disabling multi device execution and proceeding with single device execution."
+                    f"Data parallel execution requires max_num_reqs > 1 but got {self.max_num_reqs}. Disabling multi device execution and proceeding with single device execution."
                 )
                 self.enable_data_parallel = False
 
@@ -318,25 +318,10 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else None
         )
 
-        # InputBatch needs to work with sampling tensors greater than padding
-        # to avoid dynamic shapes. Also, avoid suboptimal alignment.
-        self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
-
-        # Determine the maximum allowed token size for padding:
-        # - If batch_size == 1, all inputs are concatenated into a single
-        #   sequence of shape [1 x total_input_length], so we use
-        #   scheduler_config.max_num_batched_tokens to cap the total combined length.
-        # - Otherwise, inputs are batched separately with shape [batch_size x single_input_length],
-        #   so we use self.max_model_len to cap each individual input.
-
-        # [TODO] (mmanzoor) Check if scheduler_config.max_num_batched_tokens can
-        # be replaced with self.max_num_reqs * self.max_model_len. This will
-        # reduce number of precompilation steps/graphs.
-        max_token_size = (
-            scheduler_config.max_num_batched_tokens
-            if self.batch_size == 1
-            else self.max_model_len
-        )
+        # Pooling runner always prepares request-wise batched inputs with shape
+        # [num_reqs, padded_request_len]. Pad lengths are therefore bounded by
+        # the maximum per-request model length.
+        max_token_size = self.max_model_len
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
             max_token_size=max_token_size,
@@ -423,14 +408,13 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Cached torch/numpy tensor
         # The pytorch tensor and numpy array share the same buffer.
         # Sometimes the numpy op is faster so we create both.
-        # Keep a 2D CPU buffer [batch_size, max_num_tokens] for the pooling runner.
-        # `_prepare_inputs` uses batched indexing even when batch_size == 1.
+        # Keep a 2D CPU buffer [max_num_reqs, max_num_tokens] for pooling.
         self.input_ids_cpu = torch.zeros(
-            (self.batch_size, self.max_num_tokens), dtype=torch.int32, device="cpu"
+            (self.max_num_reqs, self.max_num_tokens), dtype=torch.int32, device="cpu"
         )
 
         self.positions_cpu = torch.zeros(
-            (self.batch_size, self.max_num_tokens), dtype=torch.int32, device="cpu"
+            (self.max_num_reqs, self.max_num_tokens), dtype=torch.int32, device="cpu"
         )
         self.positions_np = self.positions_cpu.numpy()
         # adjust num_reqs to avoid SMEM OOM.
@@ -891,136 +875,63 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         num_reqs = len(num_scheduled_tokens_per_req)
 
-        num_scheduled_tokens_padding = (
-            max_num_scheduled_tokens_all_reqs
-            if self.batch_size > 1
-            else total_num_scheduled_tokens
-        )
+        num_scheduled_tokens_padding = max_num_scheduled_tokens_all_reqs
 
         # Compute the required padded length.
         padded_total_num_scheduled_tokens = _get_padded_token_len(
             self.num_tokens_paddings, num_scheduled_tokens_padding
         )
 
-        if self.batch_size == 1:
-            # Get request indices.
-            # E.g., [2, 5, 3] -> [[0, 0, 1, 1, 1, 1, 1, 2, 2, 2]]
-            # For each scheduled token, what are the corresponding req index.
-            req_indices = np.repeat(
-                self.arange_np[:num_reqs], num_scheduled_tokens_per_req
-            )[None, :]
+        # Create zero tensor of shape [num_reqs x max_token_len] for position tensor.
+        arange = np.zeros((num_reqs, max_num_scheduled_tokens_all_reqs), dtype=np.int32)
 
-            # Get batched arange.
-            # E.g., [2, 5, 3] -> [[0, 1, 0, 1, 2, 3, 4, 0, 1, 2]]
-            # For each scheduled token, what is its position in corresponding req.
-            arange = np.concatenate(
-                [self.arange_np[:n] for n in num_scheduled_tokens_per_req]
-            )[None, :]
+        # Get batched arange; padded with zero.
+        # E.g., [2, 5, 3] -> [[0, 1, 0, 0, 0],
+        #                     [0, 1, 2, 3, 4],
+        #                     [0, 1, 2, 0, 0]]
+        # For each scheduled token, what is its position in corresponding req.
+        for i, n in enumerate(num_scheduled_tokens_per_req):
+            arange[i, :n] = np.arange(n, dtype=np.int32)
+        arange = torch.from_numpy(arange)
 
-            # Get positions. Numpy slice returns a view so self.positions_np is
-            # updated in place.
-            positions_np = self.positions_np[
-                : self.batch_size, :total_num_scheduled_tokens
-            ]
-            np.add(
-                self.input_batch.num_computed_tokens_cpu[req_indices],
-                arange,
-                out=positions_np,
+        self.input_ids_cpu = self.input_batch.token_ids_cpu_tensor[
+            :num_reqs, :max_num_scheduled_tokens_all_reqs
+        ]
+        attn_mask_batch_size = num_reqs
+
+        # Apply token padding to each request row.
+        if padded_total_num_scheduled_tokens > 0:
+            pad_len = (
+                padded_total_num_scheduled_tokens - max_num_scheduled_tokens_all_reqs
             )
-            # Get token indices.
-            # E.g., [[0, 1, 0, 1, 2, 3, 4, 0, 1, 2]]
-            # -> [[0, 1, M, M + 1, M + 2, M + 3, M + 4, 2 * M, 2 * M + 1, 2 * M + 2]]
-            # where M is the max_model_len.
-            # Fused Inputs
-            token_indices = (
-                positions_np + req_indices * self.input_batch.token_ids_cpu.shape[1]
+            padding = torch.zeros(
+                (self.input_ids_cpu.shape[0], pad_len),
+                dtype=self.input_ids_cpu.dtype,
             )
+            self.input_ids_cpu = torch.cat([self.input_ids_cpu, padding], dim=1)
+            arange = torch.cat([arange, padding], dim=1)
 
-            # NOTE(woosuk): We use torch.index_select instead of np.take here
-            # because torch.index_select is much faster than np.take for large
-            # tensors.
-            # Fused inputs
-            torch.index_select(
-                self.input_batch.token_ids_cpu_tensor.flatten(),
-                0,
-                torch.from_numpy(token_indices[0]),
-                out=self.input_ids_cpu[0, :total_num_scheduled_tokens],
-            )
-
-            # Zero out to avoid spurious values from prev iteration (last cp chunk)
-            self.input_ids_cpu[
-                :, total_num_scheduled_tokens:padded_total_num_scheduled_tokens
-            ] = 0
-            self.positions_cpu[
-                :, total_num_scheduled_tokens:padded_total_num_scheduled_tokens
-            ] = 0
-            self.input_ids = self.input_ids_cpu[
-                :, :padded_total_num_scheduled_tokens
-            ].to(self.device)
-            self.position_ids = self.positions_cpu[
-                :, :padded_total_num_scheduled_tokens
-            ].to(self.device)
-            attn_mask_batch_size = 1
-        else:
-            # Create zero tensor of shape [num_reqs x max_token_len] for position tensor.
-            arange = np.zeros(
-                (num_reqs, max_num_scheduled_tokens_all_reqs), dtype=np.int32
-            )
-
-            # Get batched arange; padded with zero.
-            # E.g., [2, 5, 3] -> [[0, 1, 0, 0, 0],
-            #                     [0, 1, 2, 3, 4],
-            #                     [0, 1, 2, 0, 0]]
-            # For each scheduled token, what is its position in corresponding req.
-            for i, n in enumerate(num_scheduled_tokens_per_req):
-                arange[i, :n] = np.arange(n, dtype=np.int32)
-            arange = torch.from_numpy(arange)
-
-            self.input_ids_cpu = self.input_batch.token_ids_cpu_tensor[
-                :, :max_num_scheduled_tokens_all_reqs
-            ]
-
-            # Remove additional rows/request if received inputs are less than batch_size.
-            if num_reqs < self.batch_size:
-                self.input_ids_cpu = self.input_ids_cpu[:num_reqs, :]
-            attn_mask_batch_size = num_reqs
-
-            # Apply padding.
-            if padded_total_num_scheduled_tokens > 0:
-                pad_len = (
-                    padded_total_num_scheduled_tokens
-                    - max_num_scheduled_tokens_all_reqs
-                )
-                padding = torch.zeros(
-                    (self.input_ids_cpu.shape[0], pad_len),
+        # Add additional rows to make batch divisible by num_devices so inputs
+        # can be divided equally between devices for data parallel execution.
+        if self.enable_data_parallel:
+            # Compute how many extra rows are needed to make batch divisible by num_devices.
+            remainder = self.input_ids_cpu.shape[0] % self.num_devices
+            if remainder > 0:
+                self.num_additional_inputs = (
+                    self.num_devices - remainder
+                )  # number of zero rows to add
+                # Create zero rows with same number of columns as input_ids_cpu
+                zero_rows = torch.zeros(
+                    (self.num_additional_inputs, self.input_ids_cpu.shape[1]),
                     dtype=self.input_ids_cpu.dtype,
                 )
-                self.input_ids_cpu = torch.cat([self.input_ids_cpu, padding], dim=1)
-                arange = torch.cat([arange, padding], dim=1)
+                # Append zero rows to inputs.
+                self.input_ids_cpu = torch.cat([self.input_ids_cpu, zero_rows], dim=0)
+                arange = torch.cat([arange, zero_rows], dim=0)
+                attn_mask_batch_size += self.num_additional_inputs
 
-            # Add additional rows to make batch divisible by num_devices so inputs
-            # can be divided equally between devices for data parallel execution.
-            if self.enable_data_parallel:
-                # Compute how many extra rows are needed to make batch divisible by num_devices.
-                remainder = self.input_ids_cpu.shape[0] % self.num_devices
-                if remainder > 0:
-                    self.num_additional_inputs = (
-                        self.num_devices - remainder
-                    )  # number of zero rows to add
-                    # Create zero rows with same number of columns as input_ids_cpu
-                    zero_rows = torch.zeros(
-                        (self.num_additional_inputs, self.input_ids_cpu.shape[1]),
-                        dtype=self.input_ids_cpu.dtype,
-                    )
-                    # Append zero rows to inputs.
-                    self.input_ids_cpu = torch.cat(
-                        [self.input_ids_cpu, zero_rows], dim=0
-                    )
-                    arange = torch.cat([arange, zero_rows], dim=0)
-                    attn_mask_batch_size += self.num_additional_inputs
-
-            self.input_ids = self.input_ids_cpu.to(self.device)
-            self.position_ids = arange.to(self.device)
+        self.input_ids = self.input_ids_cpu.to(self.device)
+        self.position_ids = arange.to(self.device)
 
         # Prepare the attention metadata.
         self.query_start_loc_np[0] = 0
@@ -1056,11 +967,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         is_causal = True
 
         # Encoder-only models always require custom attention mask.
-        # Decoder-only models require custom attention mask only when number of
-        # request per batch can exceed one; only supported for batch-1.
-        if (
-            self.batch_size == 1 and self.max_num_reqs > 1
-        ) or not self.is_decoder_only_attn_layers:
+        # Decoder-only models use standard causal attention in this layout.
+        if not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 seq_lens,
                 self.input_ids.shape[-1],
@@ -1339,15 +1247,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.enable_data_parallel and self.num_additional_inputs > 0:
                 hidden_states_list = hidden_states_list[: -self.num_additional_inputs]
 
-            if self.batch_size > 1:
-                # Truncate each tensor according to number of input tokens per request.
-                hidden_states_list = [
-                    hidden_states_list[i][: num_scheduled_tokens_per_req[i]]
-                    for i in range(len(hidden_states_list))
-                ]
-            else:
-                # Truncate the output according to total lenght of fused input(s).
-                hidden_states_list = hidden_states_list[0][:num_scheduled_tokens]
+            # Truncate each tensor according to number of input tokens per request.
+            hidden_states_list = [
+                hidden_states_list[i][: num_scheduled_tokens_per_req[i]]
+                for i in range(len(hidden_states_list))
+            ]
 
             # Pooling
             if hasattr(self.model, "pooler") and callable(
@@ -1366,18 +1270,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
 
                 # Pooler expects a single [sum(tokens_i), hidden] tensor.
-                if self.batch_size > 1:
-                    # hidden_states: [batch, padded_tokens, hidden]
-                    pieces = [
-                        hidden_states[i, : int(num_scheduled_tokens_per_req[i]), :]
-                        for i in range(len(num_scheduled_tokens_per_req))
-                    ]
-                    hidden_states_for_pooler = (
-                        torch.cat(pieces, dim=0) if pieces else hidden_states[:0, :]
-                    )
-                else:
-                    chunk_num_tokens = int(sum(num_scheduled_tokens_per_req))
-                    hidden_states_for_pooler = hidden_states[0, :chunk_num_tokens, :]
+                # hidden_states shape: [num_reqs, padded_tokens, hidden]
+                pieces = [
+                    hidden_states[i, : int(num_scheduled_tokens_per_req[i]), :]
+                    for i in range(len(num_scheduled_tokens_per_req))
+                ]
+                hidden_states_for_pooler = (
+                    torch.cat(pieces, dim=0) if pieces else hidden_states[:0, :]
+                )
 
                 # Upstream GPUModelRunner uses:
                 #   model = cast(VllmModelForPooling, self.model)
@@ -1521,9 +1421,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         model_loader.load_weights(self.model, model_config=self.model_config)
 
     @torch.no_grad()
-    def _dummy_run(
-        self, batch_size: int, num_tokens: int, num_reqs: int, num_blocks: int
-    ) -> None:
+    def _dummy_run(self, num_reqs: int, num_tokens: int) -> None:
         torch._dynamo.config.dynamic_shapes = False
         if self.supports_mm_inputs:
             input_ids = None
@@ -1531,14 +1429,14 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (num_tokens, self.hidden_size), dtype=self.dtype, device=self.device
             )
         else:
-            input_ids = torch.zeros((batch_size, num_tokens), dtype=torch.int32).to(
+            input_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
                 self.device
             )
             inputs_embeds = None
-        position_ids = torch.zeros((batch_size, num_tokens), dtype=torch.int32).to(
+        position_ids = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
             self.device
         )
-        context_lens = torch.ones((batch_size,), dtype=torch.int32)
+        context_lens = torch.ones((num_reqs,), dtype=torch.int32)
 
         # Mark inputs for data parallel sharding.
         if self.enable_data_parallel:
@@ -1550,15 +1448,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         is_causal = True
 
         # Encoder-only models always require custom attention mask.
-        # Decoder-only models require custom attention mask only when number of
-        # request per batch can exceed one; only supported for batch-1.
-        if (
-            self.batch_size == 1 and self.max_num_reqs > 1
-        ) or not self.is_decoder_only_attn_layers:
+        # Decoder-only models use standard causal attention in this layout.
+        if not self.is_decoder_only_attn_layers:
             attn_mask = generate_attn_mask(
                 context_lens,
                 input_ids.shape[-1],
-                batch_size,
+                num_reqs,
                 self.is_decoder_only_attn_layers,
                 self.dtype,
                 self.device,
@@ -1602,34 +1497,30 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _precompile_backbone(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
         logger.info("Compiling the model with different input shapes.")
-        batch_variants = (
-            list(range(1, self.batch_size + 1))
+        num_req_variants = (
+            list(range(1, self.max_num_reqs + 1))
             if self.enable_precompile_all
-            else [self.batch_size]
+            else [self.max_num_reqs]
         )
         # Keep only batch sizes divisible by num_devices for data-parallel model
         # execution.
         if self.enable_data_parallel:
-            batch_variants = [
-                batch for batch in batch_variants if batch % self.num_devices == 0
+            num_req_variants = [
+                reqs for reqs in num_req_variants if reqs % self.num_devices == 0
             ]
 
         start = time.perf_counter()
-        for batch in batch_variants:
+        for num_reqs in num_req_variants:
             for num_tokens in self.num_tokens_paddings:
-                logger.info(f"Compiling for: input shape=[{batch} x {num_tokens}]")
+                logger.info(f"Compiling for: input shape=[{num_reqs} x {num_tokens}]")
                 self._dummy_run(
-                    batch,
+                    num_reqs,
                     num_tokens,
-                    self.num_reqs_max_model_len,
-                    self.max_num_blocks_per_req,
                 )
                 if self.most_model_len is not None:
                     self._dummy_run(
-                        batch,
+                        num_reqs,
                         num_tokens,
-                        self.num_reqs_most_model_len,
-                        self.num_blocks_per_most_len_req,
                     )
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1710,15 +1601,9 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Trigger compilation for general shape.
         torch._dynamo.config.dynamic_shapes = False
-        self._dummy_run(
-            num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
-        )
+        self._dummy_run(self.max_num_reqs, self.num_reqs_max_model_len)
         if self.most_model_len is not None:
-            self._dummy_run(
-                num_tokens,
-                self.num_reqs_most_model_len,
-                self.num_blocks_per_most_len_req,
-            )
+            self._dummy_run(self.max_num_reqs, self.num_reqs_most_model_len)
 
         torch_xla.sync(wait=False)
         xm.wait_device_ops()
