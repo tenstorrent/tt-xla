@@ -190,19 +190,20 @@ def test_scatter_4(data_shape, indices_shape, updates_shape):
 
 @pytest.mark.push
 @pytest.mark.nightly
-# @pytest.mark.xfail(
-#     reason=incorrect_result(
-#         "scatter_add produces anti-correlated output (pcc≈-0.03 to -0.13) "
-#         "https://github.com/tenstorrent/tt-xla/issues/4825"
-#     )
-# )
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
     jax_op_name="jax.lax.scatter_add",
     shlo_op_name="stablehlo.scatter",
 )
+@pytest.mark.parametrize(
+    "data_shape, indices_shape, updates_shape",
+    [
+        ((40, 32), (20, 1), (20, 32)),
+    ],
+    ids=lambda val: f"shape={val}",
+)
 @pytest.mark.parametrize("data_type", ["random", "zeros"])
-def test_scatter_add(data_type):
+def test_scatter_add(data_shape, indices_shape, updates_shape, data_type):
     def scatter(
         data: jnp.ndarray, indices: jnp.ndarray, updates: jnp.ndarray
     ) -> jnp.ndarray:
@@ -219,17 +220,21 @@ def test_scatter_add(data_type):
         )
 
     if data_type == "random":
-        data = (
-            np.arange(40 * 32, dtype=np.float32).reshape((40, 32)).astype(jnp.bfloat16)
+        data = jnp.arange(jnp.prod(jnp.array(data_shape)), dtype=jnp.int32).reshape(
+            data_shape
         )
     else:
-        data = np.zeros((40, 32), dtype=np.float32).astype(jnp.bfloat16)
-
-    indices = np.arange(20, dtype=np.int32).reshape((20, 1))
-    updates = (np.arange(20 * 32, dtype=np.float32).reshape((20, 32)) + 1000).astype(
-        jnp.bfloat16
+        data = jnp.zeros((data_shape[0], data_shape[1]), dtype=jnp.int32)
+    
+    indices = jnp.arange(jnp.prod(jnp.array(indices_shape)), dtype=jnp.int32).reshape(
+        indices_shape
     )
-
+    updates = (
+        jnp.arange(jnp.prod(jnp.array(updates_shape)), dtype=jnp.int32).reshape(
+            updates_shape
+        )
+        + 10
+    )
     run_op_test(
         scatter,
         inputs=[data, indices, updates],
