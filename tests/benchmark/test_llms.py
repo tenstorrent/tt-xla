@@ -402,6 +402,7 @@ def test_gemma_2_2b(
         weight_dtype_overrides={
             "*gate_proj*": "bfp_bf4",
             "*up_proj*": "bfp_bf4",
+            "*down_proj*": "bfp_bf4",
         },
     )
 
