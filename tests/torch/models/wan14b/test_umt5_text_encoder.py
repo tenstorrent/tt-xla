@@ -59,6 +59,10 @@ def _run(resolution: str, sharded: bool):
     _ = RESOLUTIONS[resolution]  # resolution is a no-op for UMT5 shapes
 
     wrapper = UMT5Wrapper(load_umt5()).eval().bfloat16()
+    # Independent CPU copy for the PCC reference forward. Round-tripping the
+    # sharded device wrapper back to CPU would force torch_xla to compile one
+    # all-gather HLO per sharded weight (~168 for UMT5-XXL on a 4-way mesh).
+    wrapper_cpu = UMT5Wrapper(load_umt5()).eval().bfloat16()
 
     vocab_size = wrapper.encoder.config.vocab_size
     input_ids = torch.randint(0, vocab_size, (1, 512), dtype=torch.long)
@@ -97,9 +101,6 @@ def _run(resolution: str, sharded: bool):
             warm_end = time.perf_counter_ns()
             warm_times.append(warm_end - warm_start)
 
-    wrapper_cpu = wrapper_on_device.to("cpu")
-    if hasattr(wrapper_cpu, "tie_weights"):
-        wrapper_cpu.tie_weights()
     with torch.no_grad():
         cpu_out = wrapper_cpu(input_ids, attention_mask)
 
