@@ -225,7 +225,7 @@ def test_scatter_add(data_shape, indices_shape, updates_shape, data_type):
         )
     else:
         data = jnp.zeros((data_shape[0], data_shape[1]), dtype=jnp.int32)
-    
+
     indices = jnp.arange(jnp.prod(jnp.array(indices_shape)), dtype=jnp.int32).reshape(
         indices_shape
     )
