@@ -4674,10 +4674,9 @@ def _main(activations, weights):
     )
     ttnn.deallocate(_sdpa0_q, False)
     ttnn.deallocate(_sdpa0_k, False)
-    # E46: fold permute([1,0,2,3]) → permute([2,0,1,3]) into single permute([2,1,0,3])
-    ttnn_permute_33 = ttnn.permute(
+    ttnn_matmul_9 = ttnn.permute(
         _sdpa0_out,
-        [2, 1, 0, 3],
+        [1, 0, 2, 3],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -4685,6 +4684,15 @@ def _main(activations, weights):
     )
     ttnn.deallocate(_sdpa0_out, False)
     # === END E_sdpa_layer0 ===
+    ttnn_permute_33 = ttnn.permute(
+        ttnn_matmul_9,
+        [2, 0, 1, 3],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+        pad_value=0.0,
+    )
+    ttnn.deallocate(ttnn_matmul_9, False)
     ttnn_reshape_61 = ttnn.reshape(
         ttnn_permute_33,
         [16, 32, 512],
@@ -6154,10 +6162,9 @@ def _main(activations, weights):
     ttnn.deallocate(_sdpa1_q, False)
     ttnn.deallocate(_sdpa1_k, False)
     ttnn.deallocate(ttnn_to_layout_108, False)
-    # E46: fold permute([1,0,2,3]) → permute([2,0,1,3]) into single permute([2,1,0,3])
-    ttnn_permute_42 = ttnn.permute(
+    ttnn_matmul_24 = ttnn.permute(
         _sdpa1_out,
-        [2, 1, 0, 3],
+        [1, 0, 2, 3],
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
@@ -6165,6 +6172,15 @@ def _main(activations, weights):
     )
     ttnn.deallocate(_sdpa1_out, False)
     # === END E_sdpa_layer1 ===
+    ttnn_permute_42 = ttnn.permute(
+        ttnn_matmul_24,
+        [2, 0, 1, 3],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+        pad_value=0.0,
+    )
+    ttnn.deallocate(ttnn_matmul_24, False)
     ttnn_reshape_112 = ttnn.reshape(
         ttnn_permute_42,
         [16, 32, 512],
