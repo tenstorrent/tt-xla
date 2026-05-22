@@ -2169,7 +2169,6 @@ def test_foundation_sec_8b_reasoning_tp(
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
         fp32_dest_acc_en=True,
-        experimental_kv_cache_dtype="bfp_bf8",
     )
 
 
