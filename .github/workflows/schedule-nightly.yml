@@ -81,13 +81,14 @@ jobs:
       wheel_build: manylinux
 
   fail-inspector:
-    needs: [ nightly_tests, test_full_model, test_forge_models_passing, test_forge_models_xfail ]
+    needs: [ build-image, nightly_tests, test_full_model, test_forge_models_passing, test_forge_models_xfail ]
     if: always() && !cancelled() && !success()
     uses: ./.github/workflows/call-fail-inspector.yml
     secrets: inherit
     with:
-      inspect_run_id: ${{ github.run_id }}
-      inspect_attempt: ${{ github.run_attempt }}
+      workflow_run_id: ${{ github.run_id }}
+      workflow_run_attempt: ${{ github.run_attempt }}
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
 
   perf-benchmark:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
