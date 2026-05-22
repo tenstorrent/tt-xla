@@ -1,0 +1,7 @@
+Total % [%],Op Code,Device Time Sum [μs],Op Count,Op Category,Min FLOPs [%],Max FLOPs [%],Mean FLOPs [%],Std FLOPs [%],Weighted Mean FLOPs [%]
+32.26,EmbeddingsDeviceOperation (in0:dram_interleaved),6.32,1,Compute,,,,,
+20.08,ReshapeViewDeviceOperation (in0:dram_interleaved),3.94,1,Other,,,,,
+15.57,TilizeWithValPaddingDeviceOperation (in0:dram_interleaved),3.05,1,TM,,,,,
+13.91,TypecastDeviceOperation (in0:dram_interleaved),2.73,2,TM,,,,,
+10.97,BinaryNgDeviceOperation (in0:dram_interleaved),2.15,1,Compute,,,,,
+7.21,UntilizeWithUnpaddingDeviceOperation (in0:dram_interleaved),1.41,1,TM,,,,,
