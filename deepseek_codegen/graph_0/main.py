@@ -45,6 +45,37 @@ def main_const_eval_rope_cos_sin_doubled(arg_0, device=None):
     return [cos_t, sin_t]
 
 
+def main_const_eval_all_reduce_semaphores(device=None):
+    """E49: persistent GlobalSemaphore POOLs for ttnn.experimental.all_reduce_async.
+
+    Mirrors the rotating-pool pattern from
+    `models/demos/deepseek_v3/tt/ccl.py` — 2 slots per type, rotated per call
+    so consecutive CCL calls use different semaphores and don't contend.
+
+    Per call signature: barrier=2 sems, rs=3 sems, ag=2 sems (each list).
+    Total allocated: 2 slots × (2+3+2) = 14 semaphores.
+    """
+    if device is None:
+        device = utils.DeviceGetter.get_device((4, 8))
+    cores = ttnn.CoreRangeSet([ttnn.CoreRange(ttnn.CoreCoord(0, 0), ttnn.CoreCoord(7, 7))])
+    SLOTS = 2
+    pool_barrier = [[ttnn.create_global_semaphore(device, cores, 0) for _ in range(2)] for _ in range(SLOTS)]
+    pool_rs = [[ttnn.create_global_semaphore(device, cores, 0) for _ in range(3)] for _ in range(SLOTS)]
+    pool_ag = [[ttnn.create_global_semaphore(device, cores, 0) for _ in range(2)] for _ in range(SLOTS)]
+    return [pool_barrier, pool_rs, pool_ag]
+
+
+# E49: rotating counter for the all_reduce_async semaphore pool. Module-level
+# state, incremented per call site, modulo SLOTS=2.
+_ccl_pool_slot_counter = [0]
+
+
+def _ccl_next_slot():
+    slot = _ccl_pool_slot_counter[0]
+    _ccl_pool_slot_counter[0] = (slot + 1) % 2
+    return slot
+
+
 def main_const_eval_rope_trans_mat(device=None):
     """E47: Build the 32x32 half-rotate transformation matrix for
     `ttnn.experimental.rotary_embedding_llama`. This matrix has -1 on the
@@ -6679,40 +6710,26 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_post_combine_tilized, False)
-    ttnn_reduce_scatter_10 = ttnn.reduce_scatter(
-        input_tensor=ttnn_to_layout_264,
-        dim=3,
+    # E49: fuse the post-MoE reduce_scatter_10 + all_gather_28 (both cluster_axis=1, dim=3)
+    # into one ttnn.experimental.all_reduce_async using the rotating semaphore pool.
+    _ar0_slot = _ccl_next_slot()
+    ttnn_all_reduce_0 = ttnn.experimental.all_reduce_async(
+        ttnn_to_layout_264,
         cluster_axis=1,
-        subdevice_id=None,
+        mesh_device=utils.DeviceGetter.get_device((4, 8)),
+        barrier_semaphores=ce_cache__main["main_const_eval_all_reduce_pool_barrier"][_ar0_slot],
+        rs_global_semaphores=ce_cache__main["main_const_eval_all_reduce_pool_rs"][_ar0_slot],
+        ag_global_semaphores=ce_cache__main["main_const_eval_all_reduce_pool_ag"][_ar0_slot],
+        math_op=ttnn.ReduceType.Sum,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        num_links=None,
-        topology=ttnn.Topology.Ring,
-        compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi4,
-            math_approx_mode=False,
-            fp32_dest_acc_en=True,
-            packer_l1_acc=False,
         ),
     )
     ttnn.deallocate(ttnn_to_layout_264, False)
-    ttnn_all_gather_28 = ttnn.all_gather(
-        input_tensor=ttnn_reduce_scatter_10,
-        dim=3,
-        cluster_axis=1,
-        subdevice_id=None,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        num_links=None,
-        topology=ttnn.Topology.Ring,
-    )
-    ttnn.deallocate(ttnn_reduce_scatter_10, False)
     ttnn_to_layout_265 = ttnn.to_layout(
-        ttnn_all_gather_28, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+        ttnn_all_reduce_0, ttnn.Layout.ROW_MAJOR, None, memory_config=None
     )
-    ttnn.deallocate(ttnn_all_gather_28, False)
+    ttnn.deallocate(ttnn_all_reduce_0, False)
     ttnn_mesh_partition_3 = ttnn.mesh_partition(
         input_tensor=ttnn_to_layout_265,
         dim=2,
@@ -7268,6 +7285,11 @@ def _main(activations, weights):
 
 def consteval__main(ce_cache, weights):
     if not ce_cache:
+        # E49: rotating semaphore pool for all_reduce_async (deepseek_v3 pattern)
+        main_const_eval_all_reduce_semaphores_0 = main_const_eval_all_reduce_semaphores()
+        ce_cache["main_const_eval_all_reduce_pool_barrier"] = main_const_eval_all_reduce_semaphores_0[0]
+        ce_cache["main_const_eval_all_reduce_pool_rs"] = main_const_eval_all_reduce_semaphores_0[1]
+        ce_cache["main_const_eval_all_reduce_pool_ag"] = main_const_eval_all_reduce_semaphores_0[2]
         # E47: rotary_embedding_llama trans_mat (32x32 BF16 TILE half-rotate)
         main_const_eval_rope_trans_mat_0 = main_const_eval_rope_trans_mat()
         ce_cache["main_const_eval_rope_trans_mat"] = main_const_eval_rope_trans_mat_0[0]
