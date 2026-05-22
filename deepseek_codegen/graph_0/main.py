@@ -2,6 +2,49 @@ import ttnn
 import utils
 
 
+def main_const_eval_rope_cos_sin_doubled(arg_0, device=None):
+    """E47 iter2: precompute doubled cos/sin tables for `ttnn.experimental.rotary_embedding_llama`.
+
+    Input: arg_0[0] = `model.transformer.freqs_cis`, BF16 ROW_MAJOR replicated, shape [16384, 32, 2].
+           Trailing dim is (cos_k, sin_k) per freq k.
+    Output: [cos_doubled, sin_doubled] each BF16 TILE [16384, 64] replicated across mesh.
+           cos_doubled[p] = [c_0, c_0, c_1, c_1, ..., c_31, c_31].
+    """
+    import torch
+    if device is None:
+        device = utils.DeviceGetter.get_device((4, 8))
+    composer = ttnn.ConcatMeshToTensor(device, dim=0)
+    freqs = ttnn.to_torch(arg_0[0], mesh_composer=composer)
+    # tensor is mesh-replicated; ConcatMeshToTensor(dim=0) gives 32 stacked copies — slice one
+    freqs = freqs[:16384].to(torch.float32)
+    cos = freqs[..., 0]
+    sin = freqs[..., 1]
+    cos_doubled = cos.repeat_interleave(2, dim=-1)
+    sin_doubled = sin.repeat_interleave(2, dim=-1)
+    mesh_mapper = ttnn.ReplicateTensorToMesh(device) if hasattr(ttnn, "ReplicateTensorToMesh") else None
+    cos_t = ttnn.from_torch(
+        cos_doubled.unsqueeze(0).unsqueeze(0),  # [1, 1, 16384, 64]
+        dtype=ttnn.bfloat16,
+        layout=ttnn.TILE_LAYOUT,
+        device=device,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+        mesh_mapper=mesh_mapper,
+    )
+    sin_t = ttnn.from_torch(
+        sin_doubled.unsqueeze(0).unsqueeze(0),
+        dtype=ttnn.bfloat16,
+        layout=ttnn.TILE_LAYOUT,
+        device=device,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+        mesh_mapper=mesh_mapper,
+    )
+    return [cos_t, sin_t]
+
+
 def main_const_eval_rope_trans_mat(device=None):
     """E47: Build the 32x32 half-rotate transformation matrix for
     `ttnn.experimental.rotary_embedding_llama`. This matrix has -1 on the
@@ -7594,6 +7637,12 @@ def consteval__main(ce_cache, weights):
         # E47: rotary_embedding_llama trans_mat (32x32 BF16 TILE half-rotate)
         main_const_eval_rope_trans_mat_0 = main_const_eval_rope_trans_mat()
         ce_cache["main_const_eval_rope_trans_mat"] = main_const_eval_rope_trans_mat_0[0]
+        # E47 iter2: doubled cos/sin tables for rotary_embedding_llama
+        main_const_eval_rope_cos_sin_doubled_0 = main_const_eval_rope_cos_sin_doubled(
+            [weights["model.transformer.freqs_cis"]]
+        )
+        ce_cache["main_const_eval_rope_cos_doubled"] = main_const_eval_rope_cos_sin_doubled_0[0]
+        ce_cache["main_const_eval_rope_sin_doubled"] = main_const_eval_rope_cos_sin_doubled_0[1]
         main_const_eval_0_0 = main_const_eval_0()
         ce_cache["main_const_eval_0"] = main_const_eval_0_0[0]
         main_const_eval_1_0 = main_const_eval_1()
