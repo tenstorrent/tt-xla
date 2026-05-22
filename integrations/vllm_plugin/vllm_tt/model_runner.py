@@ -1999,6 +1999,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
+            if num_tokens == 1 and not self.tt_config.cpu_sampling:
+                # Decode shape (num_tokens=1) is compiled inside
+                # _precompile_decode_combined so backbone+decode_postprocess
+                # fuse into one XLA program.  Compiling backbone(n=1) alone
+                # here would cause XLA to split the combined lazy graph at
+                # the cached backbone boundary, giving 2 dispatches instead
+                # of 1.  For cpu_sampling=True backbone(n=1) must be compiled
+                # standalone because decode_postprocess doesn't run on device.
+                continue
             logger.info("  -- num_tokens: %d", num_tokens)
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
@@ -2293,9 +2302,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     dummy_bitmask,
                     bitmasks,
                 )
-            # No wait here — continue accumulating the next variant
-
-        xm.wait_device_ops()  # single compile for both variants
+            # Compile this variant as one combined program before tracing the next.
+            # Without this sync the two variants would merge into one double-sized
+            # lazy graph that never matches the single backbone+dp graph used during
+            # inference.
+            xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Combined decode compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("decode_combined")
@@ -2311,15 +2322,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 return
             self._precompile_mm_encoder()
             if not self.tt_config.cpu_sampling:
-                # decode_postprocess handles both decode (num_tokens=1) and
-                # prefill (last token pre-selected eagerly before the call).
-                self._precompile_decode_postprocess()
-                # Also precompile backbone+decode_postprocess as a single combined
-                # program for the decode step.  If XLA matches the combined cached
-                # program during inference (backbone and decode_postprocess
-                # accumulate together with no Python between them after Task 1),
-                # the decode step dispatches as one chip operation instead of two.
+                # Combined must run before decode_postprocess so that neither
+                # backbone(n=1) nor decode_postprocess is cached separately when
+                # the combined trace runs.  If either is already cached XLA will
+                # dispatch the combined lazy graph using the two existing programs
+                # (2 dispatches) rather than compiling a new single fused program.
                 self._precompile_decode_combined()
+                # decode_postprocess standalone: needed for the prefill path where
+                # backbone runs with n>1 tokens and decode_postprocess is called
+                # separately on the last hidden state.
+                self._precompile_decode_postprocess()
             else:
                 # cpu_sampling: fused decode_postprocess skipped (sampling on CPU);
                 # precompile the device-side graphs separately instead.
