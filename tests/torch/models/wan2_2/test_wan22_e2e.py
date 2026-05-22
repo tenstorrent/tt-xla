@@ -212,7 +212,6 @@ def _output_path(mode: str) -> Path:
 # Monkey patches
 # ---------------------------------------------------------------------------
 
-_patch_apply_lora_scale()
 _patch_wan_resample_rep_sentinel()
 _patch_wan_resample_avoid_4d_fold()
 #_disable_tt_torch_function_override()
