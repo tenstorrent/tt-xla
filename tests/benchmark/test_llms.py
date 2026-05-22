@@ -2198,7 +2198,8 @@ def test_foundation_sec_8b_reasoning(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=0,
-        trace_enabled=False,
+        optimization_level=2,
+        trace_enabled=True,
+        weight_dtype_overrides={"default": "bfp_bf8"},
         required_pcc=0.90,
     )
