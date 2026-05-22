@@ -2,8 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
-import vllm
 from conftest import assert_output_coherent, check_host_memory
+
+import vllm
 
 
 @pytest.mark.push
@@ -25,6 +26,37 @@ def test_tensor_parallel_generation_n300(model_name: str):
             "enable_const_eval": False,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    print(f"prompt: {prompts[0]}, output: {output_text}")
+    assert_output_coherent(output_text)
+
+
+@pytest.mark.push
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize("model_name", ["meta-llama/Llama-3.2-3B", "Qwen/Qwen2.5-7B"])
+def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
+    prompts = [
+        "Continue in English: I like taking walks in the",
+    ]
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.002,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "use_2d_mesh": False,
+            "num_hidden_layers": 1,
+            "pad_attention_heads": True,
         },
     }
     llm = vllm.LLM(**llm_args)
