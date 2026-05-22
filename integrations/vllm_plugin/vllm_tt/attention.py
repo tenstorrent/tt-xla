@@ -475,27 +475,29 @@ class TTAttentionBackendImpl(AttentionImpl):
                 attn_metadata.page_table,
             )
         else:
-            # Prefill: fill multiple tokens at once
+            # Prefill: fill multiple tokens at once, batched across users.
+            # The TTNN paged_fill_cache kernel now accepts an N-element
+            # batch_idx_tensor (N == input batch dim), so we issue a single
+            # call per K/V per layer rather than a Python loop that unrolls
+            # into N device ops at trace time.
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
-            for batch_idx in range(inputs.users):
-                k_cache = torch.ops.tt.paged_fill_cache(
-                    k_cache,
-                    key_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=k_cache.device
-                    ),
-                )
-                v_cache = torch.ops.tt.paged_fill_cache(
-                    v_cache,
-                    value_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=v_cache.device
-                    ),
-                )
+            batch_idxs = torch.arange(
+                inputs.users, dtype=torch.int32, device=k_cache.device
+            )
+            k_cache = torch.ops.tt.paged_fill_cache(
+                k_cache,
+                key_for_update,
+                attn_metadata.fill_page_table,
+                batch_idx=batch_idxs,
+            )
+            v_cache = torch.ops.tt.paged_fill_cache(
+                v_cache,
+                value_for_update,
+                attn_metadata.fill_page_table,
+                batch_idx=batch_idxs,
+            )
 
         # Preserve tensor identity so XLA reuses the traced graph.
         kv_cache[0].copy_(k_cache)
