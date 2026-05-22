@@ -398,6 +398,7 @@ def test_gemma_2_2b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         experimental_kv_cache_dtype="bfp_bf4",
+        fp32_dest_acc_en=False,
     )
 
 
