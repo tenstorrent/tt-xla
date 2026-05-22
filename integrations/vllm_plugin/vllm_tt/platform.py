@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Tuple, Union, cast
 
 import torch
+
 from vllm.platforms.interface import Platform, PlatformEnum
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
@@ -123,6 +124,28 @@ class TTConfig:
     # `export_path` with filenames keyed by `export_model_name`.
     export_path: Optional[str] = None
     export_model_name: Optional[str] = None
+
+    # Pad num_attention_heads / num_key_value_heads up to the next multiple of
+    # the "batch" mesh axis size, so models with awkward head counts can be
+    # sharded cleanly. GQA ratio is preserved; padded heads are zero-projected
+    # and contribute nothing to the output.
+    pad_attention_heads: bool = False
+
+    def __post_init__(self):
+        # tt::sampling + enable_trace + optimization_level >= 1 hits a
+        # tt-mlir compile bug: TTNNGreedyMemoryLayoutPropagation falls
+        # back to system_memory on the sampling op's output, breaking
+        # ttnn.capture_or_execute_trace. Tracked in tt-xla #4570.
+        # Workarounds: optimization_level=0, cpu_sampling=True, or
+        # enable_trace=False.
+        if self.enable_trace and self.optimization_level >= 1 and not self.cpu_sampling:
+            raise ValueError(
+                "tt::sampling + enable_trace=True + optimization_level>=1 "
+                "triggers a tt-mlir compile-time bug (tt-xla #4570). Set "
+                "additional_config={'cpu_sampling': True}, or "
+                "{'optimization_level': 0}, or {'enable_trace': False}. "
+                "Remove this guard once the kernel-side OpModel fix lands."
+            )
 
     def get_pjrt_compile_config(self) -> dict:
         cfg = {
