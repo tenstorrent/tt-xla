@@ -2167,9 +2167,9 @@ def test_foundation_sec_8b_reasoning_tp(
         weight_dtype_overrides={
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
-            "model.layers.*.self_attn.o_proj.weight": "bfp_bf4",
         },
         fp32_dest_acc_en=True,
+        experimental_kv_cache_dtype="bfp_bf8",
     )
 
 
