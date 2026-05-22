@@ -3397,6 +3397,7 @@ def _main(activations, weights):
     import tracy as _tracy
     global ce_cache__main
     ce_cache__main = consteval__main(ce_cache__main, weights)
+    _tracy.signpost("prologue_start")
     args_0 = activations[0]
     args_1 = activations[1]
     model_transformer_layers_0_attn_indexer_k_cache = activations[2]
