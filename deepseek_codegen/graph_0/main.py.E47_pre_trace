@@ -8097,31 +8097,10 @@ def load_weights_for__main():
 
 
 def main():
-    import os
     import tracy as _tracy
-    use_trace = os.environ.get("TTXLA_USE_TRACE", "") == "1"
+    load_activations_for__main_0 = load_activations_for__main()
     load_weights_for__main_0 = load_weights_for__main()
-    if use_trace:
-        # E48: program-trace path — capture _main into a device-side trace
-        # so the measured run replays without host launch overhead between ops.
-        device = utils.DeviceGetter.get_device((4, 8))
-        # 1) Warmup — cold compile + populate ce_cache. _main deallocates args_0/args_1.
-        warm_act = load_activations_for__main()
-        _main(warm_act, load_weights_for__main_0)
-        ttnn.synchronize_device(device)
-        # 2) Re-load activations (warmup freed args_0/args_1).
-        trace_act = load_activations_for__main()
-        # 3) Capture trace.
-        tid = ttnn.begin_trace_capture(device, cq_id=0)
-        _main(trace_act, load_weights_for__main_0)
-        ttnn.end_trace_capture(device, tid, cq_id=0)
-        ttnn.synchronize_device(device)
-        # 4) Execute trace — this is the tracy-measured run.
-        ttnn.execute_trace(device, tid, cq_id=0, blocking=True)
-        ttnn.release_trace(device, tid)
-    else:
-        load_activations_for__main_0 = load_activations_for__main()
-        _main_0 = _main(load_activations_for__main_0, load_weights_for__main_0)
+    _main_0 = _main(load_activations_for__main_0, load_weights_for__main_0)
     if utils.DeviceGetter._instance is not None:
         ttnn.close_mesh_device(utils.DeviceGetter._instance)
         utils.DeviceGetter._instance = None
