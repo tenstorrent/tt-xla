@@ -399,7 +399,10 @@ def test_gemma_2_2b(
         ),
         experimental_kv_cache_dtype="bfp_bf4",
         fp32_dest_acc_en=False,
-        weight_dtype_overrides={"default": "bfp_bf4", "*lm_head*": "bfp_bf8"},
+        weight_dtype_overrides={
+            "*gate_proj*": "bfp_bf4",
+            "*up_proj*": "bfp_bf4",
+        },
     )
 
 
