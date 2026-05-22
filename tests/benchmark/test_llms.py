@@ -609,7 +609,7 @@ def test_qwen_2_5_0_5b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         trace_enabled=True,
-        experimental_weight_dtype="bfp_bf8",
+        experimental_weight_dtype="bfp_bf4",
         fp32_dest_acc_en=True,
     )
 
