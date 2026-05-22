@@ -190,12 +190,12 @@ def test_scatter_4(data_shape, indices_shape, updates_shape):
 
 @pytest.mark.push
 @pytest.mark.nightly
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "scatter_add produces anti-correlated output (pcc≈-0.03 to -0.13) "
-        "https://github.com/tenstorrent/tt-xla/issues/4825"
-    )
-)
+# @pytest.mark.xfail(
+#     reason=incorrect_result(
+#         "scatter_add produces anti-correlated output (pcc≈-0.03 to -0.13) "
+#         "https://github.com/tenstorrent/tt-xla/issues/4825"
+#     )
+# )
 @pytest.mark.record_test_properties(
     category=Category.OP_TEST,
     jax_op_name="jax.lax.scatter_add",
