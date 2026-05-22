@@ -2,38 +2,6 @@ import ttnn
 import utils
 
 
-def main_const_eval_rope_trans_mat(device=None):
-    """E47: Build the 32x32 half-rotate transformation matrix for
-    `ttnn.experimental.rotary_embedding_llama`. This matrix has -1 on the
-    super-diagonal of each 2-row block and +1 on the sub-diagonal:
-        M[i,   i+1] = -1   (i even)
-        M[i+1, i  ] = +1   (i even)
-    Matrix-multiplying [a0 b0 a1 b1 ...] @ M produces [-b0 a0 -b1 a1 ...],
-    i.e. the half-rotate that the kernel needs internally. Single fixed
-    32x32 tensor, BF16 TILE, INTERLEAVED DRAM. Replicated to mesh.
-    """
-    import torch
-    if device is None:
-        device = utils.DeviceGetter.get_device((4, 8))
-    dhead = 32
-    M = torch.zeros(1, 1, dhead, dhead, dtype=torch.float32)
-    for i in range(0, dhead, 2):
-        M[..., i, i + 1] = -1.0
-        M[..., i + 1, i] = 1.0
-    mesh_mapper = ttnn.ReplicateTensorToMesh(device) if hasattr(ttnn, "ReplicateTensorToMesh") else None
-    t = ttnn.from_torch(
-        M,
-        dtype=ttnn.bfloat16,
-        layout=ttnn.TILE_LAYOUT,
-        device=device,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-        mesh_mapper=mesh_mapper,
-    )
-    return [t]
-
-
 def main_const_eval_0(device=None):
     if device is None:
         device = utils.DeviceGetter.get_device((4, 8))
@@ -7591,9 +7559,6 @@ def _main(activations, weights):
 
 def consteval__main(ce_cache, weights):
     if not ce_cache:
-        # E47: rotary_embedding_llama trans_mat (32x32 BF16 TILE half-rotate)
-        main_const_eval_rope_trans_mat_0 = main_const_eval_rope_trans_mat()
-        ce_cache["main_const_eval_rope_trans_mat"] = main_const_eval_rope_trans_mat_0[0]
         main_const_eval_0_0 = main_const_eval_0()
         ce_cache["main_const_eval_0"] = main_const_eval_0_0[0]
         main_const_eval_1_0 = main_const_eval_1()
