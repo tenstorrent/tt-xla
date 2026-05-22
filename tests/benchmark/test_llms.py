@@ -610,7 +610,7 @@ def test_qwen_2_5_0_5b(
         ),
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
-        experimental_enable_permute_matmul_fusion=True,
+        fp32_dest_acc_en=True,
     )
 
 
