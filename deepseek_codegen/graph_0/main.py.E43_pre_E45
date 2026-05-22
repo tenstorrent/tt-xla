@@ -6553,15 +6553,22 @@ def _main(activations, weights):
     )
     ttnn.deallocate(_dgg_scores_4d, False)
     ttnn.deallocate(_dgg_bias_bcast, False)
-    # E45: drop the BF16→FP32 typecast on _dgg_weights — feed BF16 weights to matmul_29
-    ttnn_multiply_58 = ttnn.reshape(
+    _dgg_weights_fp32 = ttnn.typecast(
         _dgg_weights_bf16,
-        [32, 1, 8],
+        ttnn.DataType.FLOAT32,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
     ttnn.deallocate(_dgg_weights_bf16, False)
+    ttnn_multiply_58 = ttnn.reshape(
+        _dgg_weights_fp32,
+        [32, 1, 8],
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
+    )
+    ttnn.deallocate(_dgg_weights_fp32, False)
     _dgg_indices_i32 = ttnn.typecast(
         _dgg_indices_u16,
         ttnn.DataType.INT32,
@@ -6602,23 +6609,22 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    # E45: matmul_29 in BF16 — input A (weights) is now BF16, input B (eq mask) skips typecast
+    ttnn.deallocate(ttnn_eq_0, False)
     ttnn_matmul_29 = ttnn.matmul(
         ttnn_multiply_58,
-        ttnn_eq_0,
+        ttnn_typecast_92,
         transpose_a=False,
         transpose_b=False,
         memory_config=ttnn.MemoryConfig(
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
-        dtype=ttnn.DataType.BFLOAT16,
+        dtype=ttnn.DataType.FLOAT32,
         program_config=None,
         activation=None,
         compute_kernel_config=ttnn.WormholeComputeKernelConfig(
-            math_fidelity=ttnn.MathFidelity.HiFi2, fp32_dest_acc_en=True
+            math_fidelity=ttnn.MathFidelity.HiFi4, fp32_dest_acc_en=True
         ),
     )
-    ttnn.deallocate(ttnn_eq_0, False)
     ttnn.deallocate(ttnn_multiply_58, False)
     ttnn_reshape_141 = ttnn.reshape(
         ttnn_matmul_29,
@@ -6762,11 +6768,18 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_typecast_94, False)
-    # E45: typecast_95 (FP32→BF16) eliminated — reshape_142 is already BF16 after matmul_29 fold
-    ttnn_to_layout_259 = ttnn.to_layout(
-        ttnn_reshape_142, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+    ttnn_typecast_95 = ttnn.typecast(
+        ttnn_reshape_142,
+        ttnn.DataType.BFLOAT16,
+        memory_config=ttnn.MemoryConfig(
+            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
+        ),
     )
     ttnn.deallocate(ttnn_reshape_142, False)
+    ttnn_to_layout_259 = ttnn.to_layout(
+        ttnn_typecast_95, ttnn.Layout.ROW_MAJOR, None, memory_config=None
+    )
+    ttnn.deallocate(ttnn_typecast_95, False)
     ttnn_typecast_96 = ttnn.typecast(
         ttnn_reshape_145,
         ttnn.DataType.UINT16,
@@ -7058,18 +7071,9 @@ def _main(activations, weights):
         ),
     )
     ttnn.deallocate(ttnn_matmul_29, False)
-    # E45: matmul_30 still wants FP32 inputs — cast the BF16 matmul_29 result back to FP32
-    ttnn_reshape_151_fp32 = ttnn.typecast(
-        ttnn_reshape_151,
-        ttnn.DataType.FLOAT32,
-        memory_config=ttnn.MemoryConfig(
-            ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
-        ),
-    )
-    ttnn.deallocate(ttnn_reshape_151, False)
     ttnn_matmul_30 = ttnn.matmul(
         ttnn_typecast_92,
-        ttnn_reshape_151_fp32,
+        ttnn_reshape_151,
         transpose_a=False,
         transpose_b=False,
         memory_config=ttnn.MemoryConfig(
@@ -7082,7 +7086,7 @@ def _main(activations, weights):
             math_fidelity=ttnn.MathFidelity.HiFi4, fp32_dest_acc_en=True
         ),
     )
-    ttnn.deallocate(ttnn_reshape_151_fp32, False)
+    ttnn.deallocate(ttnn_reshape_151, False)
     ttnn.deallocate(ttnn_typecast_92, False)
     ttnn_reshape_152 = ttnn.reshape(
         ttnn_matmul_30,
