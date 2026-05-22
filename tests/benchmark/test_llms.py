@@ -397,6 +397,7 @@ def test_gemma_2_2b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype="bfp_bf8",
     )
 
 
