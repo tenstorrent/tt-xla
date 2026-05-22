@@ -251,6 +251,22 @@ def test_prefill_and_decode_pcc_e2e(
     for tensor, spec in transformer_shard_spec(model).items():
         xs.mark_sharding(tensor, mesh, spec)
 
+    # --- Apply weight dtype overrides ------------------------------------
+    # MoE routed experts + router: bfp4
+    expert_dtype = "bfp_bf4"
+    weight_dtype_overrides = {
+        # MoE routed experts (compound stacked across the 256 experts).
+        "layers.*.ffn.mlp.experts.gate_proj": expert_dtype,
+        "layers.*.ffn.mlp.experts.up_proj": expert_dtype,
+        "layers.*.ffn.mlp.experts.down_proj": expert_dtype,
+        # Router gate: keep at bf16 (quantizing to bfp4/8 flips topk choices).
+        "layers.*.ffn.mlp.router.gate.weight": "bf16",
+    }
+    applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
+    print(f"[wdtype] applied {len(applied)} weight dtype overrides", flush=True)
+    for path, dtype_str in applied:
+        print(f"[wdtype]   {path} -> {dtype_str}", flush=True)
+
     hook = sharding_constraint_hook(model.head, mesh, (None, None))
     model.head.register_forward_hook(hook)
 
