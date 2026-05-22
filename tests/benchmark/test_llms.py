@@ -333,7 +333,7 @@ def test_llama_3_2_1b_base(
         experimental_kv_cache_dtype="bfp_bf4",
         weight_dtype_overrides={"default": "bfp_bf4"},
         fp32_dest_acc_en=False,
-        experimental_enable_permute_matmul_fusion=True,
+        use_indexer_cache=True,
         expected_ops=[
             "ttnn.scaled_dot_product_attention",
             "ttnn.rms_norm",
