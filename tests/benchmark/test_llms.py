@@ -609,7 +609,8 @@ def test_qwen_2_5_0_5b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         trace_enabled=True,
-        experimental_weight_dtype="bfp_bf4",
+        experimental_weight_dtype="bfp_bf8",
+        experimental_enable_permute_matmul_fusion=True,
     )
 
 
