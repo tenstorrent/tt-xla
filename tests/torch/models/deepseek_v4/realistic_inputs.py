@@ -17,8 +17,8 @@ covers `embed -> hc_expand -> layers[0..2] (hash MoE) -> layers[LAYER_ID]
 (hc_pre + attn_norm + attn + hc_post + hc_pre + ffn_norm)`.
 
 First-run cost: ~12-15 GB HF download + several minutes of CPU forward.
-The result is cached as a single `.pt` checked into the repo so subsequent
-runs (and other contributors) just `torch.load` a ~16 MB file.
+The result is cached as a single `.pt` file so subsequent runs
+just `torch.load` a ~16 MB file.
 """
 from __future__ import annotations
 
@@ -32,7 +32,11 @@ from . import weight_loader
 
 # Cache file lives next to the tests so it ships with the repo. Versioned
 # field in the saved dict lets us invalidate when generation logic changes.
-_CACHE_DIR = os.path.join(os.path.dirname(__file__), "_cached_inputs")
+_CACHE_DIR = (
+    os.path.join(os.environ["HF_HOME"], "_cached_inputs")
+    if os.environ.get("HF_HOME")
+    else os.path.join(os.path.dirname(__file__), "_cached_inputs")
+)
 _CACHE_VERSION = 2  # bumped: now generated from modified_model (no QAT sim).
 
 # Largest shape we materialize. Tests with smaller (batch, seq) slice this.

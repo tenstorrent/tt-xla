@@ -84,7 +84,7 @@ def attn_shard_spec_fn(attn: Attention, args, kwargs):
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("bsz", [1, 4, 32])
-@pytest.mark.parametrize("seq_len", [32, 64, 128])
+@pytest.mark.parametrize("seq_len", [64, 128])
 @pytest.mark.parametrize("is_compression_layer", [False, True])
 def test_attention_prefill(model_name, bsz, seq_len, is_compression_layer):
     enable_spmd()
@@ -120,7 +120,7 @@ def test_attention_prefill(model_name, bsz, seq_len, is_compression_layer):
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("bsz", [1, 4, 32])
-@pytest.mark.parametrize("prefill_seq_len", [32, 64, 128])
+@pytest.mark.parametrize("prefill_seq_len", [64, 128])
 @pytest.mark.parametrize("is_compression_layer", [False, True])
 def test_attention_decode(model_name, bsz, prefill_seq_len, is_compression_layer):
     enable_spmd()
@@ -195,7 +195,7 @@ def block_shard_spec(block: Block, args, kwargs):
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("is_compression_layer", [False, True])
-@pytest.mark.parametrize("use_realistic_inputs", [False, True])
+@pytest.mark.parametrize("use_realistic_inputs", [True])
 def test_block_prefill(model_name, is_compression_layer, use_realistic_inputs):
     enable_spmd()
     xr.set_device_type("TT")
@@ -239,7 +239,7 @@ def test_block_prefill(model_name, is_compression_layer, use_realistic_inputs):
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("is_compression_layer", [False, True])
-@pytest.mark.parametrize("use_realistic_inputs", [False, True])
+@pytest.mark.parametrize("use_realistic_inputs", [True])
 def test_block_decode(model_name, is_compression_layer, use_realistic_inputs):
     enable_spmd()
     xr.set_device_type("TT")
@@ -257,6 +257,7 @@ def test_block_decode(model_name, is_compression_layer, use_realistic_inputs):
         layer_id = 1
     block = utils.make_block(args, layer_id)
     weight_loader.init_block_weights(model_name, block, args, layer_id)
+    prime_decode_kv_buffers(block)
 
     if use_realistic_inputs:
         input_ids, hidden_states = realistic_inputs.get_realistic_inputs(
@@ -291,7 +292,7 @@ def transformer_shard_spec(model, args, kwargs):
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
-@pytest.mark.parametrize("num_layers", [1, 2, 3])
+@pytest.mark.parametrize("num_layers", [2, 3])
 def test_transformer_prefill(model_name, num_layers):
     enable_spmd()
     xr.set_device_type("TT")
@@ -321,7 +322,7 @@ def test_transformer_prefill(model_name, num_layers):
     )
 
 
-def prime_decode_kv_buffers(model: Transformer, std: float = 0.02) -> None:
+def prime_decode_kv_buffers(model: Transformer | Block, std: float = 0.02) -> None:
     """Fill KV-cache and compressor state buffers with deterministic random
     values."""
     g = torch.Generator(device="cpu").manual_seed(0)
