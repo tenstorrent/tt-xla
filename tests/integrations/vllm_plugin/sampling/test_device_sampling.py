@@ -82,7 +82,9 @@ _DEVICE_OPTS = {
     "enable_const_eval": False,
     "min_context_len": 32,
     "cpu_sampling": False,
-    "enable_trace": True,
+    # "Trace is causing tests to fail after tt-mlir uplift on May 20. "
+    # "Issue: https://github.com/tenstorrent/tt-xla/issues/4878"
+    "enable_trace": False,
 }
 
 

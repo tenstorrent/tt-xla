@@ -32,7 +32,8 @@ def _config(
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
         optimization_level = int(_BENCH_OPTIMIZATION_LEVEL)
-    additional = {"enable_trace": True}
+    # Disable trace. Issue: https://github.com/tenstorrent/tt-xla/issues/4878
+    additional = {"enable_trace": False}
     if optimization_level > 0:
         additional["optimization_level"] = optimization_level
         # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False

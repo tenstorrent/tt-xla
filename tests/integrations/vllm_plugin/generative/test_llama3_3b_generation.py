@@ -70,6 +70,13 @@ def test_llama3_3b_generation_trace():
 
 @pytest.mark.nightly
 @pytest.mark.single_device
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Test is failing after tt-mlir uplift on May 20. "
+        "Issue: https://github.com/tenstorrent/tt-xla/issues/4878"
+    ),
+)
 def test_llama3_3b_generation_trace_opt0():
     """opt_level=0 workaround variant: preserves 3B trace coverage until #4570 fix lands."""
     prompts = [
