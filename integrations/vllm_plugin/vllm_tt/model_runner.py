@@ -604,8 +604,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return
 
         hf_config = vllm_config.model_config.hf_config
-        orig_q = hf_config.num_attention_heads
-        orig_kv = getattr(hf_config, "num_key_value_heads", None) or orig_q
+        # Multimodal models (e.g. Gemma 4) nest text-side attention attrs
+        # under `text_config`. Use that when the top-level is missing.
+        head_config = hf_config
+        if not hasattr(head_config, "num_attention_heads") and hasattr(
+            head_config, "text_config"
+        ):
+            head_config = head_config.text_config
+        orig_q = head_config.num_attention_heads
+        orig_kv = getattr(head_config, "num_key_value_heads", None) or orig_q
 
         assert orig_q % orig_kv == 0, (
             f"GQA ratio must be an integer: num_attention_heads={orig_q}, "
@@ -647,8 +654,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # (Qwen3, Llama); leaving num_heads at orig means every derivation is
         # correct and we don't need per-model patches. The padding is applied
         # post-construction via _surgery_pad_attention_modules.
-        head_dim = getattr(hf_config, "head_dim", None) or (
-            hf_config.hidden_size // orig_q
+        head_dim = getattr(head_config, "head_dim", None) or (
+            head_config.hidden_size // orig_q
         )
 
         hf_config._tt_head_pad = {
