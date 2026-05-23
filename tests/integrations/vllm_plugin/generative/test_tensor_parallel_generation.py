@@ -56,7 +56,6 @@ def test_attention_pad(model_name: str):
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": False,
-            "num_hidden_layers": 1,
             "pad_attention_heads": True,
         },
     }
