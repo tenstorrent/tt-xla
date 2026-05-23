@@ -68,6 +68,31 @@ def test_fail_atol_triggers_assertion_by_default(framework_setup):
 
 
 @pytest.mark.push
+def test_evaluate_does_not_invoke_debugger(framework_setup, monkeypatch):
+    """Guard against accidentally committed breakpoint() calls in evaluator code."""
+    create_tensor = framework_setup["create_tensor"]
+    comparator_class = framework_setup["comparator_class"]
+
+    config = ComparisonConfig(
+        atol=AtolConfig(enabled=True, required_atol=1e-6),
+        pcc=PccConfig(enabled=False),
+    )
+    comparator = comparator_class(config)
+
+    def fail_on_breakpoint(*args, **kwargs):
+        pytest.fail("Unexpected breakpoint() invocation during evaluator execution")
+
+    monkeypatch.setattr("builtins.breakpoint", fail_on_breakpoint)
+
+    # Should pass without ever invoking Python's debugger.
+    result = comparator.evaluate(
+        create_tensor([1.0, 2.0, 3.0]),
+        create_tensor([1.0, 2.0, 3.0]),
+    )
+    assert result.passed is True
+
+
+@pytest.mark.push
 def test_fail_pcc_triggers_assertion_by_default(framework_setup):
     """Test that failing PCC check triggers an assertion by default."""
     create_tensor = framework_setup["create_tensor"]
