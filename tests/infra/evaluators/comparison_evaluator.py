@@ -56,7 +56,6 @@ class ComparisonEvaluator(Evaluator):
             rel_l2=None,
             error_message=None,
         )
-        breakpoint()
 
         _comparison_result.equal = self._compare_equal(device_output, golden_output)
         _comparison_result.atol = self._compare_atol(
