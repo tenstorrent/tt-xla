@@ -40,7 +40,7 @@ def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["meta-llama/Llama-3.2-3B", "Qwen/Qwen2.5-7B"])
-def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
+def test_attention_pad(model_name: str):
     prompts = [
         "Continue in English: I like taking walks in the",
     ]
