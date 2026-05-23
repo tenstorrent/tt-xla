@@ -32,14 +32,14 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
     """
     import torch
     import torch.nn.functional as F
+    from diffusers.models.attention_dispatch import dispatch_attention_fn
     from diffusers.models.modeling_outputs import Transformer2DModelOutput
     from diffusers.models.transformers.transformer_wan import (
-        WanTransformer3DModel,
         WanAttnProcessor,
-        _get_qkv_projections,
+        WanTransformer3DModel,
         _get_added_kv_projections,
+        _get_qkv_projections,
     )
-    from diffusers.models.attention_dispatch import dispatch_attention_fn
 
     def patched_model_forward(
         self,
@@ -85,8 +85,13 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
         else:
             ts_seq_len = None
 
-        temb, timestep_proj, encoder_hidden_states, encoder_hidden_states_image = self.condition_embedder(
-            timestep, encoder_hidden_states, encoder_hidden_states_image, timestep_seq_len=ts_seq_len
+        temb, timestep_proj, encoder_hidden_states, encoder_hidden_states_image = (
+            self.condition_embedder(
+                timestep,
+                encoder_hidden_states,
+                encoder_hidden_states_image,
+                timestep_seq_len=ts_seq_len,
+            )
         )
         if ts_seq_len is not None:
             timestep_proj = timestep_proj.unflatten(2, (6, -1))
@@ -94,22 +99,32 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
             timestep_proj = timestep_proj.unflatten(1, (6, -1))
 
         if encoder_hidden_states_image is not None:
-            encoder_hidden_states = torch.concat([encoder_hidden_states_image, encoder_hidden_states], dim=1)
+            encoder_hidden_states = torch.concat(
+                [encoder_hidden_states_image, encoder_hidden_states], dim=1
+            )
 
         for block in self.blocks:
-            hidden_states = block(hidden_states, encoder_hidden_states, timestep_proj, rotary_emb)
+            hidden_states = block(
+                hidden_states, encoder_hidden_states, timestep_proj, rotary_emb
+            )
 
         if temb.ndim == 3:
-            shift, scale = (self.scale_shift_table.unsqueeze(0).to(temb.device) + temb.unsqueeze(2)).chunk(2, dim=2)
+            shift, scale = (
+                self.scale_shift_table.unsqueeze(0).to(temb.device) + temb.unsqueeze(2)
+            ).chunk(2, dim=2)
             shift = shift.squeeze(2)
             scale = scale.squeeze(2)
         else:
-            shift, scale = (self.scale_shift_table.to(temb.device) + temb.unsqueeze(1)).chunk(2, dim=1)
+            shift, scale = (
+                self.scale_shift_table.to(temb.device) + temb.unsqueeze(1)
+            ).chunk(2, dim=1)
 
         shift = shift.to(hidden_states.device)
         scale = scale.to(hidden_states.device)
 
-        hidden_states = (self.norm_out(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)
+        hidden_states = (
+            self.norm_out(hidden_states.float()) * (1 + scale) + shift
+        ).type_as(hidden_states)
         hidden_states = self.proj_out(hidden_states)
 
         # Slice back to the unpadded seq_len before the unpatchify reshape, which
@@ -118,7 +133,14 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
             hidden_states = hidden_states[:, :unpadded_seq_len, :]
 
         hidden_states = hidden_states.reshape(
-            batch_size, post_patch_num_frames, post_patch_height, post_patch_width, p_t, p_h, p_w, -1
+            batch_size,
+            post_patch_num_frames,
+            post_patch_height,
+            post_patch_width,
+            p_t,
+            p_h,
+            p_w,
+            -1,
         )
         hidden_states = hidden_states.permute(0, 7, 1, 4, 2, 5, 3, 6)
         output = hidden_states.flatten(6, 7).flatten(4, 5).flatten(2, 3)
@@ -146,7 +168,9 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
             encoder_hidden_states_img = encoder_hidden_states[:, :image_context_length]
             encoder_hidden_states = encoder_hidden_states[:, image_context_length:]
 
-        query, key, value = _get_qkv_projections(attn, hidden_states, encoder_hidden_states)
+        query, key, value = _get_qkv_projections(
+            attn, hidden_states, encoder_hidden_states
+        )
 
         query = attn.norm_q(query)
         key = attn.norm_k(key)
@@ -186,7 +210,9 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
 
         hidden_states_img = None
         if encoder_hidden_states_img is not None:
-            key_img, value_img = _get_added_kv_projections(attn, encoder_hidden_states_img)
+            key_img, value_img = _get_added_kv_projections(
+                attn, encoder_hidden_states_img
+            )
             key_img = attn.norm_added_k(key_img)
             key_img = key_img.unflatten(2, (attn.heads, -1))
             value_img = value_img.unflatten(2, (attn.heads, -1))
@@ -211,7 +237,9 @@ def _patch_pad_seq_len_to_tile_aligned(tile: int = 32) -> None:
             dropout_p=0.0,
             is_causal=False,
             backend=self._attention_backend,
-            parallel_config=(self._parallel_config if encoder_hidden_states is None else None),
+            parallel_config=(
+                self._parallel_config if encoder_hidden_states is None else None
+            ),
         )
         hidden_states = hidden_states.flatten(2, 3)
         hidden_states = hidden_states.type_as(query)
@@ -361,12 +389,12 @@ def _patch_apply_rotary_emb_stack_form() -> None:
     ``__call__`` method with a copy that uses the new form.
     """
     import torch
+    from diffusers.models.attention_dispatch import dispatch_attention_fn
     from diffusers.models.transformers.transformer_wan import (
         WanAttnProcessor,
-        _get_qkv_projections,
         _get_added_kv_projections,
+        _get_qkv_projections,
     )
-    from diffusers.models.attention_dispatch import dispatch_attention_fn
 
     def apply_rotary_emb(hidden_states, freqs_cos, freqs_sin):
         # Half-rotation form: reorganize h into [evens | odds] halves so the
@@ -381,7 +409,7 @@ def _patch_apply_rotary_emb_stack_form() -> None:
         sin = freqs_sin[..., 1::2]
         cos_full = torch.cat([cos, cos], dim=-1)
         sin_full = torch.cat([sin, sin], dim=-1)
-        first, second = h_p[..., : D // 2], h_p[..., D // 2:]
+        first, second = h_p[..., : D // 2], h_p[..., D // 2 :]
         rotated = torch.cat([-second, first], dim=-1)
         out = h_p * cos_full + rotated * sin_full
         out = out.reshape(B, S, H, 2, D // 2).transpose(-1, -2).reshape(B, S, H, D)
@@ -401,7 +429,9 @@ def _patch_apply_rotary_emb_stack_form() -> None:
             encoder_hidden_states_img = encoder_hidden_states[:, :image_context_length]
             encoder_hidden_states = encoder_hidden_states[:, image_context_length:]
 
-        query, key, value = _get_qkv_projections(attn, hidden_states, encoder_hidden_states)
+        query, key, value = _get_qkv_projections(
+            attn, hidden_states, encoder_hidden_states
+        )
 
         query = attn.norm_q(query)
         key = attn.norm_k(key)
@@ -416,7 +446,9 @@ def _patch_apply_rotary_emb_stack_form() -> None:
 
         hidden_states_img = None
         if encoder_hidden_states_img is not None:
-            key_img, value_img = _get_added_kv_projections(attn, encoder_hidden_states_img)
+            key_img, value_img = _get_added_kv_projections(
+                attn, encoder_hidden_states_img
+            )
             key_img = attn.norm_added_k(key_img)
             key_img = key_img.unflatten(2, (attn.heads, -1))
             value_img = value_img.unflatten(2, (attn.heads, -1))
@@ -441,7 +473,9 @@ def _patch_apply_rotary_emb_stack_form() -> None:
             dropout_p=0.0,
             is_causal=False,
             backend=self._attention_backend,
-            parallel_config=(self._parallel_config if encoder_hidden_states is None else None),
+            parallel_config=(
+                self._parallel_config if encoder_hidden_states is None else None
+            ),
         )
         hidden_states = hidden_states.flatten(2, 3)
         hidden_states = hidden_states.type_as(query)
@@ -513,8 +547,13 @@ def _patch_patchify_ndhwc_aware() -> None:
         else:
             ts_seq_len = None
 
-        temb, timestep_proj, encoder_hidden_states, encoder_hidden_states_image = self.condition_embedder(
-            timestep, encoder_hidden_states, encoder_hidden_states_image, timestep_seq_len=ts_seq_len
+        temb, timestep_proj, encoder_hidden_states, encoder_hidden_states_image = (
+            self.condition_embedder(
+                timestep,
+                encoder_hidden_states,
+                encoder_hidden_states_image,
+                timestep_seq_len=ts_seq_len,
+            )
         )
         if ts_seq_len is not None:
             timestep_proj = timestep_proj.unflatten(2, (6, -1))
@@ -522,26 +561,43 @@ def _patch_patchify_ndhwc_aware() -> None:
             timestep_proj = timestep_proj.unflatten(1, (6, -1))
 
         if encoder_hidden_states_image is not None:
-            encoder_hidden_states = torch.concat([encoder_hidden_states_image, encoder_hidden_states], dim=1)
+            encoder_hidden_states = torch.concat(
+                [encoder_hidden_states_image, encoder_hidden_states], dim=1
+            )
 
         for block in self.blocks:
-            hidden_states = block(hidden_states, encoder_hidden_states, timestep_proj, rotary_emb)
+            hidden_states = block(
+                hidden_states, encoder_hidden_states, timestep_proj, rotary_emb
+            )
 
         if temb.ndim == 3:
-            shift, scale = (self.scale_shift_table.unsqueeze(0).to(temb.device) + temb.unsqueeze(2)).chunk(2, dim=2)
+            shift, scale = (
+                self.scale_shift_table.unsqueeze(0).to(temb.device) + temb.unsqueeze(2)
+            ).chunk(2, dim=2)
             shift = shift.squeeze(2)
             scale = scale.squeeze(2)
         else:
-            shift, scale = (self.scale_shift_table.to(temb.device) + temb.unsqueeze(1)).chunk(2, dim=1)
+            shift, scale = (
+                self.scale_shift_table.to(temb.device) + temb.unsqueeze(1)
+            ).chunk(2, dim=1)
 
         shift = shift.to(hidden_states.device)
         scale = scale.to(hidden_states.device)
 
-        hidden_states = (self.norm_out(hidden_states.float()) * (1 + scale) + shift).type_as(hidden_states)
+        hidden_states = (
+            self.norm_out(hidden_states.float()) * (1 + scale) + shift
+        ).type_as(hidden_states)
         hidden_states = self.proj_out(hidden_states)
 
         hidden_states = hidden_states.reshape(
-            batch_size, post_patch_num_frames, post_patch_height, post_patch_width, p_t, p_h, p_w, -1
+            batch_size,
+            post_patch_num_frames,
+            post_patch_height,
+            post_patch_width,
+            p_t,
+            p_h,
+            p_w,
+            -1,
         )
         hidden_states = hidden_states.permute(0, 7, 1, 4, 2, 5, 3, 6)
         output = hidden_states.flatten(6, 7).flatten(4, 5).flatten(2, 3)
@@ -605,38 +661,15 @@ def _patch_apply_lora_scale() -> None:
         WanTransformer3DModel.forward = underlying
 
 
-def _disable_tt_torch_function_override() -> None:
-    """Pop `TorchFunctionOverride` off the global TorchFunctionMode stack.
-
-    `tt_torch/torch_overrides.py` enters a `TorchFunctionMode` at import
-    time. Its body is gated by `torch.compiler.is_compiling()` and does
-    nothing on the compile path, but the mode still sits on dynamo's
-    function-mode stack and forces a `__torch_function__` trace for every
-    matmul / linear encountered during tracing.
-    """
-    try:
-        import tt_torch.torch_overrides as overrides
-    except ImportError:
-        return
-
-    mode = getattr(overrides, "torch_function_override", None)
-    if mode is None:
-        return
-
-    try:
-        mode.__exit__(None, None, None)
-    except Exception:
-        # Mode wasn't on the stack or was already popped – ignore.
-        pass
-
-    
 # ---------------------------------------------------------------------------
 # VAE Decoder monkey patches
 # ---------------------------------------------------------------------------
 
-    
-import torch
+
 from contextlib import contextmanager
+
+import torch
+
 _ORIG_GETITEM = torch.Tensor.__getitem__
 
 
@@ -695,8 +728,7 @@ def _normalize_index(idx, shape):
     for item in idx:
         if item is Ellipsis:
             remaining_explicit = sum(
-                x is not Ellipsis and x is not None
-                for x in idx[idx.index(item) + 1:]
+                x is not Ellipsis and x is not None for x in idx[idx.index(item) + 1 :]
             )
             fill = len(shape) - dim - remaining_explicit
             out.extend([slice(None)] * fill)
@@ -956,9 +988,7 @@ def _patch_wan_resample_avoid_4d_fold() -> None:
             t_now = x.shape[2]
             x = x.permute(0, 2, 1, 3, 4).reshape(b * t_now, c, h, w)
             x = self.resample(x)
-            x = x.view(b, t_now, x.size(1), x.size(2), x.size(3)).permute(
-                0, 2, 1, 3, 4
-            )
+            x = x.view(b, t_now, x.size(1), x.size(2), x.size(3)).permute(0, 2, 1, 3, 4)
 
         if self.mode == "downsample3d":
             if feat_cache is not None:

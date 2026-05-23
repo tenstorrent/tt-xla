@@ -23,7 +23,6 @@ from infra.utilities.torch_multichip_utils import enable_spmd
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
-    _disable_tt_torch_function_override,
     _patch_wan_resample_avoid_4d_fold,
     _patch_wan_resample_rep_sentinel,
     safe_xla_slicing,
@@ -44,7 +43,6 @@ from .shared import (
 
 _patch_wan_resample_rep_sentinel()
 _patch_wan_resample_avoid_4d_fold()
-_disable_tt_torch_function_override()
 
 N_RUNS = 3
 
