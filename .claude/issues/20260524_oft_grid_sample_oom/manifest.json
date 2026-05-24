@@ -1,0 +1,21 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "oom",
+  "arch": "n150",
+  "model_key": "oft/pytorch-single_device-inference",
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "related_issues": ["tenstorrent/tt-xla#3419"],
+  "log_paths": [
+    "/tmp/oft4244_model.log"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker",
+    "Type field (Bug) in tt-xla UI"
+  ]
+}

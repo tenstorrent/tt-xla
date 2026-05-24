@@ -1,0 +1,18 @@
+{
+  "repo": "tenstorrent/tt-mlir",
+  "type": "investigated",
+  "category": "compile",
+  "arch": "n150",
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "log_paths": [],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker",
+    "verify still-reproducible before filing (historical bug)"
+  ],
+  "notes": "Historical bug, not reproducible on current main. Drafted for skill template validation per user instruction; GitHub issue #1667 was NOT looked up."
+}

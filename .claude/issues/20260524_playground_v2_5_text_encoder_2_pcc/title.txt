@@ -1,0 +1,1 @@
+Playground v2.5 text_encoder_2: whole-model PCC ~0.971 from cumulative error across 32 CLIPTextModelWithProjection encoder blocks

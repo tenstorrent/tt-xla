@@ -1,0 +1,18 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "pcc",
+  "arch": "n150",
+  "model_key": "playground_v2_5/text_encoder_2",
+  "branch": "kkannan/may21_playground_v2_5_encoder_2_pcc_drop",
+  "test_path": "tests/torch/models/playground_v2_5/test_text_encoder_2.py::test_text_encoder_2",
+  "pcc_observed": 0.9711294738181017,
+  "pcc_required": 0.99,
+  "atol_observed": 2.083254814147949,
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "log_paths": ["/tmp/playground_te2_pcc4709.log"],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "dev_adds_manually": ["milestone", "assignee", "parent_tracker", "Type: Bug (UI field)"]
+}
