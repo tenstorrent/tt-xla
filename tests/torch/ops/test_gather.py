@@ -94,13 +94,15 @@ def _build_shard_spec(rank, strategy):
 @pytest.mark.parametrize(
     "input_shape,index_shape,dim",
     [
+        ((32,), (16,), 0),
         ((8, 32), (8, 16), 1),
         ((32, 64), (16, 64), 0),
         ((4, 32, 64), (4, 8, 64), 1),
         ((4, 16, 64), (4, 16, 32), 2),
         ((2, 4, 32, 64), (2, 4, 16, 64), 2),
+        ((2, 2, 4, 16, 32), (2, 2, 4, 8, 32), 3),
     ],
-    ids=["2d_dim1", "2d_dim0", "3d_dim1", "3d_dim2", "4d_dim2"],
+    ids=["1d_dim0", "2d_dim1", "2d_dim0", "3d_dim1", "3d_dim2", "4d_dim2", "5d_dim3"],
 )
 @pytest.mark.parametrize("input_shard", ["replicated", "shard_batch", "shard_model"])
 @pytest.mark.parametrize("index_shard", ["replicated", "shard_batch", "shard_model"])
