@@ -32,6 +32,8 @@ Log initial pcc and device time. Every iteration must have a commit and a log en
 Make a branch where you will add each iteration as one commit. 
 Revert with clean `git revert`.
 
+Const eval functions are constant evaluation, they don't affect perf.
+
 ## Loop
 
 One op, one knob per iteration. Each iteration starts from the previous
@@ -47,14 +49,16 @@ output otherwise).
    - `tt-perf-report` advice columns.
    - Changing op knobs (block sizes, sharded variant, compute kernel
      config, math fidelity) - focus on ops that show higher impact in the perf report.
-2. **Commit.** `git commit` the patch on the tuning branch before testing,
+   - Leaving tensors in l1 memory
+1. **Commit.** `git commit` the patch on the tuning branch before testing,
    so `git revert` is the clean undo path if PCC or DT regresses.
-3. **PCC.** Revert immediately if it drops below baseline.
-4. **Profile.** tracy → `tt-perf-report` scoped to the signposts. Keep if
+2. **PCC.** Revert immediately if it drops below baseline.
+3. **Profile.** tracy → `tt-perf-report` scoped to the signposts. Keep if
    `Device Time Sum` dropped, revert otherwise. The new `summary.txt` is
    the input for the next iteration's step 1.
-5. **Log.** Append one row to the `TUNING_LOG.md` ledger:
+4. **Log.** Append one row to the `TUNING_LOG.md` ledger:
    `| # | patch | scope | tracy DT delta | PCC delta | decision | why |`.
+   If there were some important discoveries, log them too. Commit log changes and summary png.
 
 ## Hang discipline
 
@@ -65,8 +69,23 @@ must be kill-able:
 - Budget ≈ 3× the last good run; on timeout `kill -KILL`.
 - After **any** kill, `tt-smi -glx_reset_auto` (or `-r` for non-galaxy)
   before the next attempt.
-- Mark the experiment **failed**, revert the patch, move on. Don't retry
-  the same knob without changing something else.
+- Rerun once after reset, and if it hangs again mark the experiment **failed**,
+  revert the patch, move on. 
+
+## Multi-step inputs + honest tracy measurement
+     
+Trace replays on whatever sits at the captured buffer addresses, so reusing capture-data as replay-data leaks artificially
+warm caches into the number. For honest decode-step-K device time:
+
+1. **Capture per-step inputs once.** Dump CPU snapshots from the benchmark for steps 2..N and materialize them as
+   `tensors_step{K}/` (direct `ttnn.from_torch` + `ttnn.dump_tensor`). The codegen+dry_run path can't capture step-K naturally.
+2. **Replay with disjoint data.** Warmup + trace-capture from step-1 tensors, replay from `tensors_step{K}`. Keep activation
+   buffers alive across `end_trace_capture` so `ttnn.copy_host_to_device_tensor` can refill them in place. Wrap
+   `ttnn.execute_trace` in dedicated `REPLAY_START`/`REPLAY_END` signposts.
+3. **Scope the report to the replay.** A single run emits the inner decode signposts 3× (warmup, capture, replay); use the
+   `REPLAY_*` markers to pick only the last one.
+4. **Validate against multiple steps.** Re-check PCC against step-2 and step-3 goldens, not just step-1, so the patch isn't
+   overfit to the capture data.
 
 ## Stop
 

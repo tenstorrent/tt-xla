@@ -3622,7 +3622,10 @@ def _main(activations, weights):
             ttnn.TensorMemoryLayout.INTERLEAVED, ttnn.BufferType.DRAM, None
         ),
     )
-    ttnn.deallocate(args_0, False)
+    # Path B: args_0 (input_ids) must survive _main so pcc.py --trace can
+    # ttnn.copy_host_to_device_tensor a fresh replay value into the same
+    # buffer between begin/end_trace_capture and execute_trace.
+    # ttnn.deallocate(args_0, False)
     ttnn_reshape_19 = ttnn.reshape(
         ttnn_typecast_35,
         [32],
@@ -3925,7 +3928,9 @@ def _main(activations, weights):
     ttnn_to_layout_106 = ttnn.to_layout(
         args_1, ttnn.Layout.TILE, None, memory_config=None
     )
-    ttnn.deallocate(args_1, False)
+    # Path B: args_1 (cache_position) must survive _main so pcc.py --trace can
+    # refill it via ttnn.copy_host_to_device_tensor before execute_trace.
+    # ttnn.deallocate(args_1, False)
     ttnn_typecast_43 = ttnn.typecast(
         ttnn_to_layout_106,
         ttnn.DataType.FLOAT32,
@@ -7569,10 +7574,10 @@ def consteval__main(ce_cache, weights):
     return ce_cache
 
 
-def load_activations_for__main():
+def load_activations_for__main(tensors_dir="./tensors"):
     utils_DeviceGetter_get_device_1 = utils.DeviceGetter.get_device((4, 8))
     utils_load_tensor_0 = utils.load_tensor(
-        "./tensors/arg4.tensorbin",
+        f"{tensors_dir}/arg4.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.INT32,
         utils_DeviceGetter_get_device_1,
@@ -7581,7 +7586,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_1 = utils.load_tensor(
-        "./tensors/arg7.tensorbin",
+        f"{tensors_dir}/arg7.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.INT32,
         utils_DeviceGetter_get_device_1,
@@ -7590,7 +7595,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_2 = utils.load_tensor(
-        "./tensors/arg9.tensorbin",
+        f"{tensors_dir}/arg9.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7599,7 +7604,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_3 = utils.load_tensor(
-        "./tensors/arg18.tensorbin",
+        f"{tensors_dir}/arg18.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7608,7 +7613,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_4 = utils.load_tensor(
-        "./tensors/arg23.tensorbin",
+        f"{tensors_dir}/arg23.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7617,7 +7622,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_5 = utils.load_tensor(
-        "./tensors/arg30.tensorbin",
+        f"{tensors_dir}/arg30.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7626,7 +7631,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_6 = utils.load_tensor(
-        "./tensors/arg33.tensorbin",
+        f"{tensors_dir}/arg33.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7635,7 +7640,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_7 = utils.load_tensor(
-        "./tensors/arg34.tensorbin",
+        f"{tensors_dir}/arg34.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7644,7 +7649,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_8 = utils.load_tensor(
-        "./tensors/arg49.tensorbin",
+        f"{tensors_dir}/arg49.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7653,7 +7658,7 @@ def load_activations_for__main():
         ),
     )
     utils_load_tensor_9 = utils.load_tensor(
-        "./tensors/arg50.tensorbin",
+        f"{tensors_dir}/arg50.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_1,
@@ -7678,11 +7683,11 @@ def load_activations_for__main():
 _main_weights = {}
 
 
-def load_weights_for__main():
+def load_weights_for__main(tensors_dir="./tensors"):
     utils_DeviceGetter_get_device_2 = utils.DeviceGetter.get_device((4, 8))
     global _main_weights
     utils_load_tensor_10 = utils.load_tensor(
-        "./tensors/arg0.tensorbin",
+        f"{tensors_dir}/arg0.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7692,7 +7697,7 @@ def load_weights_for__main():
         utils_load_tensor_10
     )
     utils_load_tensor_11 = utils.load_tensor(
-        "./tensors/arg1.tensorbin",
+        f"{tensors_dir}/arg1.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -7704,7 +7709,7 @@ def load_weights_for__main():
         utils_load_tensor_11
     )
     utils_load_tensor_12 = utils.load_tensor(
-        "./tensors/arg2.tensorbin",
+        f"{tensors_dir}/arg2.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -7716,7 +7721,7 @@ def load_weights_for__main():
         utils_load_tensor_12
     )
     utils_load_tensor_13 = utils.load_tensor(
-        "./tensors/arg3.tensorbin",
+        f"{tensors_dir}/arg3.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7726,7 +7731,7 @@ def load_weights_for__main():
         utils_load_tensor_13
     )
     utils_load_tensor_14 = utils.load_tensor(
-        "./tensors/arg5.tensorbin",
+        f"{tensors_dir}/arg5.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7734,7 +7739,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.embed.weight"] = utils_load_tensor_14
     utils_load_tensor_15 = utils.load_tensor(
-        "./tensors/arg6.tensorbin",
+        f"{tensors_dir}/arg6.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7742,7 +7747,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.attn_norm.weight"] = utils_load_tensor_15
     utils_load_tensor_16 = utils.load_tensor(
-        "./tensors/arg8.tensorbin",
+        f"{tensors_dir}/arg8.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7750,7 +7755,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.freqs_cis"] = utils_load_tensor_16
     utils_load_tensor_17 = utils.load_tensor(
-        "./tensors/arg10.tensorbin",
+        f"{tensors_dir}/arg10.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7760,7 +7765,7 @@ def load_weights_for__main():
         utils_load_tensor_17
     )
     utils_load_tensor_18 = utils.load_tensor(
-        "./tensors/arg11.tensorbin",
+        f"{tensors_dir}/arg11.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -7772,7 +7777,7 @@ def load_weights_for__main():
         utils_load_tensor_18
     )
     utils_load_tensor_19 = utils.load_tensor(
-        "./tensors/arg12.tensorbin",
+        f"{tensors_dir}/arg12.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -7784,7 +7789,7 @@ def load_weights_for__main():
         utils_load_tensor_19
     )
     utils_load_tensor_20 = utils.load_tensor(
-        "./tensors/arg13.tensorbin",
+        f"{tensors_dir}/arg13.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7794,7 +7799,7 @@ def load_weights_for__main():
         utils_load_tensor_20
     )
     utils_load_tensor_21 = utils.load_tensor(
-        "./tensors/arg14.tensorbin",
+        f"{tensors_dir}/arg14.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7802,7 +7807,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.attn.wo.weight"] = utils_load_tensor_21
     utils_load_tensor_22 = utils.load_tensor(
-        "./tensors/arg15.tensorbin",
+        f"{tensors_dir}/arg15.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7810,7 +7815,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.attn.wkv_b.weight"] = utils_load_tensor_22
     utils_load_tensor_23 = utils.load_tensor(
-        "./tensors/arg16.tensorbin",
+        f"{tensors_dir}/arg16.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7818,7 +7823,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.attn.wkv_a.weight"] = utils_load_tensor_23
     utils_load_tensor_24 = utils.load_tensor(
-        "./tensors/arg17.tensorbin",
+        f"{tensors_dir}/arg17.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -7830,7 +7835,7 @@ def load_weights_for__main():
         utils_load_tensor_24
     )
     utils_load_tensor_25 = utils.load_tensor(
-        "./tensors/arg19.tensorbin",
+        f"{tensors_dir}/arg19.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7840,7 +7845,7 @@ def load_weights_for__main():
         utils_load_tensor_25
     )
     utils_load_tensor_26 = utils.load_tensor(
-        "./tensors/arg20.tensorbin",
+        f"{tensors_dir}/arg20.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7850,7 +7855,7 @@ def load_weights_for__main():
         utils_load_tensor_26
     )
     utils_load_tensor_27 = utils.load_tensor(
-        "./tensors/arg21.tensorbin",
+        f"{tensors_dir}/arg21.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7858,7 +7863,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.attn.wq_a.weight"] = utils_load_tensor_27
     utils_load_tensor_28 = utils.load_tensor(
-        "./tensors/arg22.tensorbin",
+        f"{tensors_dir}/arg22.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -7870,7 +7875,7 @@ def load_weights_for__main():
         utils_load_tensor_28
     )
     utils_load_tensor_29 = utils.load_tensor(
-        "./tensors/arg24.tensorbin",
+        f"{tensors_dir}/arg24.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7878,7 +7883,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.attn.wq_b.weight"] = utils_load_tensor_29
     utils_load_tensor_30 = utils.load_tensor(
-        "./tensors/arg25.tensorbin",
+        f"{tensors_dir}/arg25.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7886,7 +7891,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.ffn.w2.weight"] = utils_load_tensor_30
     utils_load_tensor_31 = utils.load_tensor(
-        "./tensors/arg26.tensorbin",
+        f"{tensors_dir}/arg26.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7894,7 +7899,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.ffn.w3.weight"] = utils_load_tensor_31
     utils_load_tensor_32 = utils.load_tensor(
-        "./tensors/arg27.tensorbin",
+        f"{tensors_dir}/arg27.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7902,7 +7907,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.ffn_norm.weight"] = utils_load_tensor_32
     utils_load_tensor_33 = utils.load_tensor(
-        "./tensors/arg28.tensorbin",
+        f"{tensors_dir}/arg28.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7910,7 +7915,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.0.ffn.w1.weight"] = utils_load_tensor_33
     utils_load_tensor_34 = utils.load_tensor(
-        "./tensors/arg29.tensorbin",
+        f"{tensors_dir}/arg29.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7918,7 +7923,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.1.attn_norm.weight"] = utils_load_tensor_34
     utils_load_tensor_35 = utils.load_tensor(
-        "./tensors/arg31.tensorbin",
+        f"{tensors_dir}/arg31.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7926,7 +7931,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.1.attn.wkv_a.weight"] = utils_load_tensor_35
     utils_load_tensor_36 = utils.load_tensor(
-        "./tensors/arg32.tensorbin",
+        f"{tensors_dir}/arg32.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -7938,7 +7943,7 @@ def load_weights_for__main():
         utils_load_tensor_36
     )
     utils_load_tensor_37 = utils.load_tensor(
-        "./tensors/arg35.tensorbin",
+        f"{tensors_dir}/arg35.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7946,7 +7951,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.head.weight"] = utils_load_tensor_37
     utils_load_tensor_38 = utils.load_tensor(
-        "./tensors/arg36.tensorbin",
+        f"{tensors_dir}/arg36.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7954,7 +7959,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.1.attn.wo.weight"] = utils_load_tensor_38
     utils_load_tensor_39 = utils.load_tensor(
-        "./tensors/arg37.tensorbin",
+        f"{tensors_dir}/arg37.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7962,7 +7967,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.1.attn.wkv_b.weight"] = utils_load_tensor_39
     utils_load_tensor_40 = utils.load_tensor(
-        "./tensors/arg38.tensorbin",
+        f"{tensors_dir}/arg38.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7972,7 +7977,7 @@ def load_weights_for__main():
         utils_load_tensor_40
     )
     utils_load_tensor_41 = utils.load_tensor(
-        "./tensors/arg39.tensorbin",
+        f"{tensors_dir}/arg39.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7982,7 +7987,7 @@ def load_weights_for__main():
         utils_load_tensor_41
     )
     utils_load_tensor_42 = utils.load_tensor(
-        "./tensors/arg40.tensorbin",
+        f"{tensors_dir}/arg40.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -7990,7 +7995,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.1.attn.wq_a.weight"] = utils_load_tensor_42
     utils_load_tensor_43 = utils.load_tensor(
-        "./tensors/arg41.tensorbin",
+        f"{tensors_dir}/arg41.tensorbin",
         ttnn.Layout.TILE,
         ttnn.DataType.BFLOAT16,
         utils_DeviceGetter_get_device_2,
@@ -8002,7 +8007,7 @@ def load_weights_for__main():
         utils_load_tensor_43
     )
     utils_load_tensor_44 = utils.load_tensor(
-        "./tensors/arg42.tensorbin",
+        f"{tensors_dir}/arg42.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8010,7 +8015,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.1.attn.wq_b.weight"] = utils_load_tensor_44
     utils_load_tensor_45 = utils.load_tensor(
-        "./tensors/arg43.tensorbin",
+        f"{tensors_dir}/arg43.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8020,7 +8025,7 @@ def load_weights_for__main():
         utils_load_tensor_45
     )
     utils_load_tensor_46 = utils.load_tensor(
-        "./tensors/arg44.tensorbin",
+        f"{tensors_dir}/arg44.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8030,7 +8035,7 @@ def load_weights_for__main():
         utils_load_tensor_46
     )
     utils_load_tensor_47 = utils.load_tensor(
-        "./tensors/arg45.tensorbin",
+        f"{tensors_dir}/arg45.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8038,7 +8043,7 @@ def load_weights_for__main():
     )
     _main_weights["model.transformer.layers.1.ffn_norm.weight"] = utils_load_tensor_47
     utils_load_tensor_48 = utils.load_tensor(
-        "./tensors/arg46.tensorbin",
+        f"{tensors_dir}/arg46.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8048,7 +8053,7 @@ def load_weights_for__main():
         utils_load_tensor_48
     )
     utils_load_tensor_49 = utils.load_tensor(
-        "./tensors/arg47.tensorbin",
+        f"{tensors_dir}/arg47.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8058,7 +8063,7 @@ def load_weights_for__main():
         utils_load_tensor_49
     )
     utils_load_tensor_50 = utils.load_tensor(
-        "./tensors/arg48.tensorbin",
+        f"{tensors_dir}/arg48.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8068,7 +8073,7 @@ def load_weights_for__main():
         utils_load_tensor_50
     )
     utils_load_tensor_51 = utils.load_tensor(
-        "./tensors/arg51.tensorbin",
+        f"{tensors_dir}/arg51.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.INT32,
         None,
@@ -8078,7 +8083,7 @@ def load_weights_for__main():
         utils_load_tensor_51
     )
     utils_load_tensor_52 = utils.load_tensor(
-        "./tensors/arg52.tensorbin",
+        f"{tensors_dir}/arg52.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8088,7 +8093,7 @@ def load_weights_for__main():
         utils_load_tensor_52
     )
     utils_load_tensor_53 = utils.load_tensor(
-        "./tensors/arg53.tensorbin",
+        f"{tensors_dir}/arg53.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8098,7 +8103,7 @@ def load_weights_for__main():
         utils_load_tensor_53
     )
     utils_load_tensor_54 = utils.load_tensor(
-        "./tensors/arg54.tensorbin",
+        f"{tensors_dir}/arg54.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8108,7 +8113,7 @@ def load_weights_for__main():
         utils_load_tensor_54
     )
     utils_load_tensor_55 = utils.load_tensor(
-        "./tensors/arg55.tensorbin",
+        f"{tensors_dir}/arg55.tensorbin",
         ttnn.Layout.ROW_MAJOR,
         ttnn.DataType.BFLOAT16,
         None,
@@ -8122,17 +8127,20 @@ def main():
     import os
     import tracy as _tracy
     use_trace = os.environ.get("TTXLA_USE_TRACE", "") == "1"
+    # TTXLA_TENSORS_DIR overrides the default activations dir. Useful for
+    # measuring decode-step-K perf via tracy: point it at tensors_step{K}/.
+    tensors_dir = os.environ.get("TTXLA_TENSORS_DIR", "./tensors")
     load_weights_for__main_0 = load_weights_for__main()
     if use_trace:
         # E48: program-trace path — capture _main into a device-side trace
         # so the measured run replays without host launch overhead between ops.
         device = utils.DeviceGetter.get_device((4, 8))
         # 1) Warmup — cold compile + populate ce_cache. _main deallocates args_0/args_1.
-        warm_act = load_activations_for__main()
+        warm_act = load_activations_for__main(tensors_dir=tensors_dir)
         _main(warm_act, load_weights_for__main_0)
         ttnn.synchronize_device(device)
         # 2) Re-load activations (warmup freed args_0/args_1).
-        trace_act = load_activations_for__main()
+        trace_act = load_activations_for__main(tensors_dir=tensors_dir)
         # 3) Capture trace.
         tid = ttnn.begin_trace_capture(device, cq_id=0)
         _main(trace_act, load_weights_for__main_0)
@@ -8142,7 +8150,7 @@ def main():
         ttnn.execute_trace(device, tid, cq_id=0, blocking=True)
         ttnn.release_trace(device, tid)
     else:
-        load_activations_for__main_0 = load_activations_for__main()
+        load_activations_for__main_0 = load_activations_for__main(tensors_dir=tensors_dir)
         _main_0 = _main(load_activations_for__main_0, load_weights_for__main_0)
     if utils.DeviceGetter._instance is not None:
         ttnn.close_mesh_device(utils.DeviceGetter._instance)

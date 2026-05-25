@@ -107,9 +107,11 @@ def _canonical_logits_row(logits_stack: torch.Tensor) -> tuple[torch.Tensor, str
     return chip0_row0, f"chip[0].row[0] from stack {tuple(logits_stack.shape)}"
 
 
-def _golden_pcc(logits_stack: torch.Tensor) -> tuple[float, float, str, tuple]:
+def _golden_pcc(
+    logits_stack: torch.Tensor, golden_path: Path = GOLDEN_PATH
+) -> tuple[float, float, str, tuple]:
     """Compute logits-vs-golden PCC. Returns (pcc, max_diff, mode, shape)."""
-    golden = torch.load(GOLDEN_PATH, map_location="cpu", weights_only=False).float()
+    golden = torch.load(golden_path, map_location="cpu", weights_only=False).float()
     if golden.dim() == 3 and golden.shape[1] == 1:
         golden = golden.squeeze(1)  # (batch, vocab)
     # All golden rows are identical for this test; pick row 0.
@@ -125,29 +127,165 @@ def _golden_pcc(logits_stack: torch.Tensor) -> tuple[float, float, str, tuple]:
     return pcc, max_diff, mode, tuple(cand_row.shape)
 
 
+def _parse_kv_arg(name: str, default=None):
+    """Parse `--name value` or `--name=value` from sys.argv. Returns default if not present."""
+    for i, a in enumerate(sys.argv):
+        if a == name and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+        if a.startswith(name + "="):
+            return a[len(name) + 1:]
+    return default
+
+
 def main() -> int:
     save = "--save-baseline" in sys.argv
     use_trace = "--trace" in sys.argv
+    # Optional separate Set B for trace warmup. When set, the warmup decode
+    # step runs on inputs loaded from <warmup_from>/, then trace
+    # capture+execute run on the default ./tensors/ — so the measured run
+    # still matches the existing PCC golden, but kernel cache + DRAM
+    # allocator state are seeded by a different input vector first.
+    warmup_from = _parse_kv_arg("--warmup-from")
+    # Optional override for the trace capture+execute input directory.
+    # When set, the trace records and replays on this directory's
+    # activations (default: ./tensors). Use together with --warmup-from
+    # pointing at the same dir to do a "tracy-on-step-K-only" run.
+    trace_from = _parse_kv_arg("--trace-from")
+    # Optional one-shot Set B verifier: load activations from this dir, run
+    # _main once (no trace), and PCC-check against golden_logits_step{N}.pt
+    # where N is inferred from the directory name (e.g. tensors_step2 → 2).
+    verify_set_b = _parse_kv_arg("--verify-set-b")
 
     weights = gen_main.load_weights_for__main()
-    if use_trace:
+    if verify_set_b is not None:
+        activations = gen_main.load_activations_for__main(tensors_dir=verify_set_b)
+        outputs = gen_main._main(activations, weights)
+    elif use_trace:
         device = gen_utils.DeviceGetter.get_device((4, 8))
-        # 1) WARMUP — cold compile + populate ce_cache. _main deallocates args_0/args_1.
-        activations_warmup = gen_main.load_activations_for__main()
+        # tt-metal trace pattern (models/tt_transformers/tt/generator.py:240-273
+        # + _prefill_forward_trace at 424-449):
+        #
+        #   1) WARMUP   — compile + populate const/cache state. Fresh device
+        #                 buffers, run model once. (matches their "Done
+        #                 Compiling Model" pass.)
+        #   2) CAPTURE  — load fresh device buffers, run model inside
+        #                 begin_trace_capture/end_trace_capture. Buffers
+        #                 persist after the capture closes.
+        #   3) REFILL   — write replay-step host data INTO THE SAME persistent
+        #                 buffers via ttnn.copy_host_to_device_tensor. No new
+        #                 allocations; same buffer addresses the trace's
+        #                 recorded ops will read from.
+        #   4) EXECUTE  — replay the recorded ops on the refilled data.
+        #
+        # Replay data should be different from trace-capture data so the
+        # device caches aren't artificially warm for the capture's exact
+        # buffer contents.
+        warmup_dir = warmup_from if warmup_from is not None else "./tensors"
+        trace_dir = trace_from if trace_from is not None else "./tensors"
+        replay_from = _parse_kv_arg("--replay-from")
+        replay_dir = replay_from if replay_from is not None else trace_dir
+        print(f"warmup activations: {warmup_dir}")
+        print(f"trace capture:      {trace_dir}")
+        print(f"replay refill:      {replay_dir}")
+        if warmup_dir == trace_dir == replay_dir:
+            print(
+                "WARNING: warmup / trace / replay all use the same dir — "
+                "perf numbers may be optimistic (no realistic data refill). "
+                "Recommended: --warmup-from ./tensors --trace-from ./tensors "
+                "--replay-from ./tensors_step2"
+            )
+
+        # 1) WARMUP — cold compile + populate ce_cache.
+        # main.py now keeps args_0/args_1 alive after _main (the
+        # ttnn.deallocate(args_0/args_1) calls are commented out, see the
+        # Path B note inside _main) so all 10 activation buffers survive
+        # for in-place refill at step 3 below.
+        activations_warmup = gen_main.load_activations_for__main(tensors_dir=warmup_dir)
         gen_main._main(activations_warmup, weights)
         ttnn.synchronize_device(device)
         print("warmup done")
-        # 2) Re-load activations (the warmup call freed them).
-        activations_trace = gen_main.load_activations_for__main()
-        # 3) Capture trace — _main records all decode ops into the trace.
+
+        # 2) TRACE CAPTURE — fresh persistent buffers, recorded ops.
+        activations_trace = gen_main.load_activations_for__main(tensors_dir=trace_dir)
         tid = ttnn.begin_trace_capture(device, cq_id=0)
         outputs = gen_main._main(activations_trace, weights)
         ttnn.end_trace_capture(device, tid, cq_id=0)
         ttnn.synchronize_device(device)
         print("trace captured")
-        # 4) Execute trace — replays the captured device program; outputs are refilled in place.
+
+        # 3) REFILL — if replay_dir != trace_dir, write replay step's host
+        # data into the captured trace's input buffers. Matches the tt-metal
+        # `copy_host_to_device(host_inputs, device_tensors=device_inputs)`
+        # pattern (common.py:565-570).
+        if replay_dir != trace_dir:
+            from pathlib import Path as _P
+            # The 10 activation arg files match the order in
+            # load_activations_for__main (main.py:7572). Keep them in lockstep.
+            arg_filenames = [
+                "arg4.tensorbin",   # input_ids       INT32 TILE
+                "arg7.tensorbin",   # cache_position  INT32 ROW_MAJOR
+                "arg9.tensorbin",   # indexer K       BF16  TILE
+                "arg18.tensorbin",  # compressed_kv   BF16  TILE
+                "arg23.tensorbin",  # k_pe            BF16  TILE
+                "arg30.tensorbin",  # indexer K (L1)  BF16  TILE
+                "arg33.tensorbin",  # compressed_kv L1 BF16 TILE
+                "arg34.tensorbin",  # k_pe L1         BF16  TILE
+                "arg49.tensorbin",  # mask/scale 0    BF16  ROW_MAJOR
+                "arg50.tensorbin",  # mask/scale 1    BF16  ROW_MAJOR
+            ]
+            for i, fname in enumerate(arg_filenames):
+                src_path = str(_P(replay_dir) / fname)
+                host_t = ttnn.load_tensor(src_path)
+                target = activations_trace[i]
+                # Match the persistent buffer's layout/dtype before copying.
+                if host_t.layout != target.layout:
+                    host_t = ttnn.to_layout(host_t, target.layout)
+                if host_t.dtype != target.dtype:
+                    host_t = ttnn.to_dtype(host_t, target.dtype)
+                ttnn.copy_host_to_device_tensor(host_t, target)
+            ttnn.synchronize_device(device)
+            print(f"buffers refilled from {replay_dir}")
+
+        # 4) EXECUTE TRACE — replays recorded ops on the (possibly refilled)
+        # buffers. Outputs in `outputs` are overwritten with the replay's
+        # values. We measure the replay two ways:
+        #   - wall-clock around the blocking execute_trace call (host-side)
+        #   - ttnn.ReadDeviceProfiler + ttnn.get_latest_programs_perf_data
+        #     (programmatic device-side, like the matmul tuner
+        #     `sweep_deepseek_v3_matmul_tune.py` uses). Requires env vars
+        #     TT_METAL_DEVICE_PROFILER=1, TT_METAL_PROFILER_MID_RUN_DUMP=1,
+        #     TT_METAL_PROFILER_CPP_POST_PROCESS=1; returns {} otherwise.
+        import time as _time
+        import tracy as _tracy
+        _tracy.signpost("REPLAY_START")
+        _t0 = _time.perf_counter_ns()
         ttnn.execute_trace(device, tid, cq_id=0, blocking=True)
-        print("trace executed")
+        _t1 = _time.perf_counter_ns()
+        _tracy.signpost("REPLAY_END")
+        print(f"trace executed; wall-clock = {(_t1 - _t0) / 1000:.1f} μs")
+
+        # Programmatic device-perf read for the replay only (tt-metal pattern).
+        try:
+            ttnn.ReadDeviceProfiler(device)
+            _latest = ttnn.get_latest_programs_perf_data() or {}
+            _dev_id = next(iter(_latest), None)
+            if _dev_id is not None and _latest[_dev_id]:
+                _total_ns = 0
+                for _p in _latest[_dev_id]:
+                    for _k in ("DEVICE KERNEL DURATION [ns]", "DEVICE FW DURATION [ns]"):
+                        if _k in _p.program_analyses_results:
+                            _d = _p.program_analyses_results[_k].duration
+                            if _d is not None:
+                                _total_ns += _d
+                                break
+                print(f"replay per-op device time sum (chip 0): {_total_ns / 1000:.1f} μs "
+                      f"across {len(_latest[_dev_id])} programs")
+            else:
+                print("ttnn.ReadDeviceProfiler returned no programs; set "
+                      "TT_METAL_DEVICE_PROFILER=1 TT_METAL_PROFILER_MID_RUN_DUMP=1 "
+                      "TT_METAL_PROFILER_CPP_POST_PROCESS=1")
+        except Exception as _e:
+            print(f"ReadDeviceProfiler unavailable: {_e}")
     else:
         activations = gen_main.load_activations_for__main()
         outputs = gen_main._main(activations, weights)
@@ -219,15 +357,42 @@ def main() -> int:
     print(f"worst_bootstrap_pcc={worst_bootstrap:.6f} (informational)")
 
     # --- compare logits against golden (the real correctness signal) ---
+    # Infer which golden file to use based on which input dir produced the
+    # MEASURED outputs:
+    #   * --verify-set-b <dir>           → <dir>'s step
+    #   * --trace + --replay-from <dir>  → <dir>'s step
+    #   * --trace alone                  → trace_dir's step (default ./tensors → step 1)
+    #   * neither                        → default ./tensors → step 1
+    # Directories named tensors_step{N} map to golden_logits_step{N}.pt.
+    # Everything else (including "./tensors") maps to golden_logits.pt.
+    import re
+    _golden_source = None
+    if verify_set_b is not None:
+        _golden_source = verify_set_b
+    elif use_trace:
+        _golden_source = replay_dir if replay_dir is not None else trace_dir
+    if _golden_source is not None:
+        _m = re.search(r"tensors_step(\d+)", str(_golden_source))
+        if _m and int(_m.group(1)) > 1:
+            golden_for_check = THIS_DIR / f"golden_logits_step{_m.group(1)}.pt"
+        else:
+            golden_for_check = GOLDEN_PATH
+    else:
+        golden_for_check = GOLDEN_PATH
     print()
-    print(f"=== vs golden_logits.pt (correctness check, floor={GOLDEN_PCC_FLOOR}) ===")
+    print(
+        f"=== vs {golden_for_check.name} "
+        f"(correctness check, floor={GOLDEN_PCC_FLOOR}) ==="
+    )
     if logits_idx is None:
         print("no logits output found; skipping golden check")
         return 1
-    if not GOLDEN_PATH.is_file():
-        print(f"no golden file at {GOLDEN_PATH}; skipping golden check")
+    if not golden_for_check.is_file():
+        print(f"no golden file at {golden_for_check}; skipping golden check")
         return 1
-    pcc, max_diff, mode, shape = _golden_pcc(candidates[logits_idx])
+    pcc, max_diff, mode, shape = _golden_pcc(
+        candidates[logits_idx], golden_path=golden_for_check
+    )
     print(f"mode='{mode}'")
     print(f"logits (out[{logits_idx}]) flat-shape={shape}: PCC={pcc:.6f} max|Δ|={max_diff:.3e}")
 
