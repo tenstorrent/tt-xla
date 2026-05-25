@@ -18,6 +18,7 @@ below.
 """
 import json
 import os
+import re
 import sys
 import time
 
@@ -29,6 +30,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from huggingface_hub import hf_hub_download
 from infra.testers.compiler_config import CompilerConfig
+from infra.utilities import load_meta_model_from_checkpoint
 from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from modified_model import precompute_freqs_cis
@@ -43,11 +45,13 @@ from build_weight_cache import (
     _dequant_cache_dir,
     _has_cache,
     _post_sparse_cache_dir,
+    _rename_hf_key,
     build_cache,
     build_post_sparse_cache,
 )
 
 DEEPSEEK_V3_1_REPO = "deepseek-ai/DeepSeek-V3.1"
+DEEPSEEK_V3_1_BF16_REPO = "DevQuasar-2/deepseek-ai.DeepSeek-V3.1-BF16"
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +133,26 @@ def _load_modified_dequantized_weights(model, repo_id, n_layers, n_dense_layers=
         f"[weights] loaded {len(state_dict)} tensors. "
         f"Missing: {len(missing)}, Unexpected: {len(unexpected)}"
     )
+
+
+def _resolve_bf16_shard_paths(repo_id, n_layers):
+    """Return local paths of safetensors shards holding the first ``n_layers``
+    decoder layers from ``repo_id``. Only the shards we actually need are
+    fetched — HF caches them, but no tt_xla-side cache is built."""
+    index_path = hf_hub_download(repo_id, "model.safetensors.index.json")
+    with open(index_path) as f:
+        weight_map = json.load(f)["weight_map"]
+    needed_shards = set()
+    for ckpt_key, shard_name in weight_map.items():
+        m = re.match(r"(?:model\.)?layers\.(\d+)\.", ckpt_key)
+        if m and int(m.group(1)) >= n_layers:
+            continue
+        # Multi-token-prediction heads — present in some DeepSeek checkpoints,
+        # not part of the base transformer we instantiate here.
+        if ckpt_key.startswith("mtp.") or ".mtp." in ckpt_key:
+            continue
+        needed_shards.add(shard_name)
+    return [hf_hub_download(repo_id, s) for s in sorted(needed_shards)]
 
 
 def _fix_meta_buffers(model, args):
@@ -395,6 +419,13 @@ def _pcc(a, b):
     return float("nan") if denom == 0 else float(np.dot(vx, vy) / denom)
 
 
+def _topk_overlap(a, b, k=5):
+    """Number of token ids appearing in both ``a`` and ``b``'s top-``k`` set."""
+    a_top = set(a.topk(k).indices.tolist())
+    b_top = set(b.topk(k).indices.tolist())
+    return len(a_top & b_top)
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -639,3 +670,237 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
         )
     else:
         print("\n[pcc] SKIPPED — no CPU reference", flush=True)
+
+
+@pytest.mark.galaxy
+@pytest.mark.parametrize("n_layers", [4])
+def test_deepseek_v3_1_direct_bf16_cpu_then_device(n_layers):
+    """Direct-load BF16 weights from HF, run CPU prefill then Galaxy TT prefill.
+
+    Loads from ``DevQuasar-2/deepseek-ai.DeepSeek-V3.1-BF16`` (already BF16 — no
+    FP8 dequant), pulling only the safetensors shards holding the first
+    ``n_layers`` decoder layers. No tt_xla weight cache — the HF download cache
+    is the only persistence. ``enable_sparse_mlp`` is still applied as part of
+    the standard CPU-capable flow so the Galaxy shard specs can target stacked
+    expert tensors; ``apply_sparse_transforms`` on the util itself is left off
+    since the test wires that step in directly.
+    """
+    import torch._dynamo  # noqa: F401
+
+    t_start = time.perf_counter()
+
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
+
+    from transformers import AutoTokenizer
+
+    batch_size = 32
+    prompt_seq_len = 32
+    n_decode = 10
+    topk_k = 5
+
+    # Config + tokenizer from the canonical repo; weights from the BF16 mirror.
+    args = load_deepseek_config(DEEPSEEK_V3_1_REPO)
+    args.n_layers = n_layers
+    args.max_batch_size = batch_size
+    args.max_seq_len = args.original_seq_len + 1  # activates YaRN
+    mesh_shape = (4, 8)
+
+    # ---- Load weights directly from BF16 repo via the shared util ----
+    t0 = time.perf_counter()
+    shard_paths = _resolve_bf16_shard_paths(DEEPSEEK_V3_1_BF16_REPO, n_layers)
+    print(
+        f"[weights] {len(shard_paths)} shards for first {n_layers} layers "
+        f"from {DEEPSEEK_V3_1_BF16_REPO}",
+        flush=True,
+    )
+    model = load_meta_model_from_checkpoint(
+        lambda: ModifiedTransformer(args),
+        shard_paths,
+        n_layers=n_layers,
+        dequant=None,
+        apply_sparse_transforms=False,
+        rename_key=lambda k: _rename_hf_key(k, n_dense_layers=args.n_dense_layers),
+    )
+    # ModifiedTransformer declares ``self.head`` as float32 and forward upcasts
+    # the input via ``.float()`` before the head linear. DevQuasar-2 stores
+    # ``head.weight`` as bf16, so ``assign=True`` lands a bf16 tensor on top of
+    # the fp32 parameter and the linear hits a dtype mismatch. Match the
+    # cache-builder's behavior and restore fp32.
+    model.head.weight = nn.Parameter(model.head.weight.to(torch.float32))
+    _fix_meta_buffers(model, args)
+    model.eval()
+    enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=args)
+    print(
+        f"[timing] load + meta-buffer fix + sparse-mlp: "
+        f"{time.perf_counter() - t0:.1f}s",
+        flush=True,
+    )
+
+    # ---- Tokenize ----
+    tokenizer = AutoTokenizer.from_pretrained(
+        DEEPSEEK_V3_1_REPO,
+        trust_remote_code=True,
+        add_bos_token=True,
+        padding_side="left",
+    )
+    prompt_text = "Tell me a short story."
+    encoded = tokenizer(
+        prompt_text,
+        return_tensors="pt",
+        max_length=prompt_seq_len,
+        truncation=True,
+        padding="max_length",
+    )
+    tokens_single = encoded["input_ids"][:, :prompt_seq_len]
+    prompt_len = tokens_single.shape[1]
+    tokens_cpu = tokens_single.repeat(batch_size, 1)
+    token_attn_mask_cpu = encoded["attention_mask"][:, :prompt_seq_len].repeat(
+        batch_size, 1
+    )
+
+    # ---- CPU prefill + decode ----
+    print("[cpu] running prefill + decode eagerly...", flush=True)
+    t_cpu = time.perf_counter()
+    cpu_logits_list = []
+    cpu_token_ids = []
+    with torch.no_grad():
+        logits = model(tokens_cpu, start_pos=0)
+        cpu_logits_list.append(logits[0].detach().clone())
+        next_id = int(logits[0].argmax(dim=-1).item())
+        cpu_token_ids.append(next_id)
+        for step in range(n_decode - 1):
+            next_tokens = torch.full((batch_size, 1), next_id, dtype=tokens_cpu.dtype)
+            logits = model(next_tokens, start_pos=prompt_len + step)
+            cpu_logits_list.append(logits[0].detach().clone())
+            next_id = int(logits[0].argmax(dim=-1).item())
+            cpu_token_ids.append(next_id)
+    print(
+        f"[timing] CPU prefill+decode: {time.perf_counter() - t_cpu:.1f}s",
+        flush=True,
+    )
+    print(
+        f"[CPU tokens] {[tokenizer.decode([t]) for t in cpu_token_ids]}",
+        flush=True,
+    )
+    _reset_caches(model)
+
+    # ---- TT prefill + decode ----
+    torch._dynamo.reset()
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+    device = torch_xla.device()
+
+    torch_xla.set_custom_compile_options(
+        CompilerConfig(experimental_weight_dtype="bfp_bf8").to_torch_compile_options()
+    )
+    compiled_model = torch.compile(model, backend="tt")
+
+    t_mv = time.perf_counter()
+    model = model.to(device)
+    tokens_device = tokens_cpu.to(device)
+    cache_position_prefill = torch.arange(prompt_len, dtype=torch.long).to(device)
+    attn_mask_prefill = _build_prefill_attention_mask(
+        batch_size,
+        prompt_len,
+        args.max_seq_len,
+        token_attention_mask=token_attn_mask_cpu,
+        dtype=torch.bfloat16,
+    ).to(device)
+    print(f"[timing] move to device: {time.perf_counter() - t_mv:.1f}s", flush=True)
+
+    _apply_shard_specs(model, mesh, args, batch_size, tokens_device)
+
+    print("[tt] running prefill (compile #1)...", flush=True)
+    t_tt = time.perf_counter()
+    with torch.no_grad():
+        tt_logits_prefill = compiled_model(
+            tokens_device,
+            cache_position=cache_position_prefill,
+            attention_mask=attn_mask_prefill,
+        )
+    tt_logits_prefill_cpu = tt_logits_prefill.to("cpu").detach()
+    print(f"[timing] TT prefill: {time.perf_counter() - t_tt:.1f}s", flush=True)
+    tt_logits_list = [tt_logits_prefill_cpu[0].clone()]
+    tt_token_ids = [int(tt_logits_prefill_cpu[0].argmax(dim=-1).item())]
+    print(
+        f"[tt] prefill top-1: {tokenizer.decode([tt_token_ids[0]])!r}",
+        flush=True,
+    )
+
+    for step in range(n_decode - 1):
+        pos = prompt_len + step
+        next_tokens = torch.full(
+            (batch_size, 1), tt_token_ids[-1], dtype=tokens_cpu.dtype
+        ).to(device)
+        cache_position_decode = torch.tensor([pos], dtype=torch.long).to(device)
+        attn_mask_decode = _build_decode_attention_mask(
+            batch_size,
+            pos + 1,
+            args.max_seq_len,
+            token_attention_mask=token_attn_mask_cpu,
+            prompt_len=prompt_len,
+            dtype=torch.bfloat16,
+        ).to(device)
+        t_dec = time.perf_counter()
+        with torch.no_grad():
+            tt_logits = compiled_model(
+                next_tokens,
+                cache_position=cache_position_decode,
+                attention_mask=attn_mask_decode,
+            )
+        tt_logits_cpu = tt_logits.to("cpu").detach()
+        tt_logits_list.append(tt_logits_cpu[0].clone())
+        tt_token_ids.append(int(tt_logits_cpu[0].argmax(dim=-1).item()))
+        print(
+            f"[tt] decode step {step + 1}/{n_decode - 1}: "
+            f"time={time.perf_counter() - t_dec:.2f}s "
+            f"tok={tokenizer.decode([tt_token_ids[-1]])!r}",
+            flush=True,
+        )
+
+    print(
+        f"[TT tokens]  {[tokenizer.decode([t]) for t in tt_token_ids]}",
+        flush=True,
+    )
+
+    # ---- Per-step PCC + top-5 token comparison ----
+    print(f"\n[pcc] per-step logits PCC (TT vs CPU), top-{topk_k}:", flush=True)
+    step_pccs = []
+    step_topk_overlaps = []
+    for step, (tt_l, cpu_l) in enumerate(zip(tt_logits_list, cpu_logits_list)):
+        pcc = _pcc(tt_l, cpu_l)
+        step_pccs.append(pcc)
+        tt_tok = tt_token_ids[step]
+        cpu_tok = cpu_token_ids[step]
+        match = "OK" if tt_tok == cpu_tok else "MISMATCH"
+        overlap = _topk_overlap(tt_l, cpu_l, k=topk_k)
+        step_topk_overlaps.append(overlap)
+        tt_top = [tokenizer.decode([t]) for t in tt_l.topk(topk_k).indices.tolist()]
+        cpu_top = [tokenizer.decode([t]) for t in cpu_l.topk(topk_k).indices.tolist()]
+        print(
+            f"  step {step}: pcc={pcc:.4f}  "
+            f"tt_tok={tt_tok!r:>10} cpu_tok={cpu_tok!r:>10}  [{match}]  "
+            f"top{topk_k}_overlap={overlap}/{topk_k}",
+            flush=True,
+        )
+        print(f"    tt_top{topk_k}={tt_top}", flush=True)
+        print(f"    cpu_top{topk_k}={cpu_top}", flush=True)
+    print(
+        f"\n[pcc] min={min(step_pccs):.4f}, max={max(step_pccs):.4f}, "
+        f"avg={sum(step_pccs) / len(step_pccs):.4f}",
+        flush=True,
+    )
+    matches = sum(1 for a, b in zip(tt_token_ids, cpu_token_ids) if a == b)
+    print(
+        f"[tokens] TT==CPU match: {matches}/{len(tt_token_ids)}",
+        flush=True,
+    )
+    avg_overlap = sum(step_topk_overlaps) / len(step_topk_overlaps)
+    print(
+        f"[topk]   avg top-{topk_k} overlap: {avg_overlap:.2f}/{topk_k}",
+        flush=True,
+    )
+    print(f"[timing] total: {time.perf_counter() - t_start:.1f}s", flush=True)

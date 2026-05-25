@@ -10,6 +10,7 @@ from .jax_multichip_utils import (
     make_flax_linen_parameters_partition_specs_on_cpu,
     make_partition_spec,
 )
+from .torch_meta_model_loading import load_meta_model_from_checkpoint
 from .torch_mla_cache import MLACache, MLAStaticLayer
 from .types import Device, Framework, Mesh, Model, PyTree, ShardSpec, Tensor
 from .utils import (
