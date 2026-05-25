@@ -209,7 +209,11 @@ class TTWorker:
 
         # `max_num_tokens >= max_num_batched_tokens` due to padding.
         with self.model_runner.maybe_setup_dummy_loras(self.lora_config):
-            self.model_runner.profile_run(self.model_runner.max_num_tokens)
+            # TTXLA: skip until #1414 lands — profile_run()'s peak_bytes_used
+            # is discarded by the hardcoded `current_mem = 0` path below, so
+            # the forward pass is ~30-40 s of engine-init waste per server start.
+            # self.model_runner.profile_run(self.model_runner.max_num_tokens)
+            pass
 
         # Synchronize before measuring the memory usage.
         xm.wait_device_ops()
