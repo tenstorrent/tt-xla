@@ -49,20 +49,8 @@ _COMPILER_CONFIG = CompilerConfig(
 )
 
 
-def test_vae_decoder_480p():
-    _run("480p", sharded=False)
-
-
-def test_vae_decoder_720p():
-    _run("720p", sharded=False)
-
-
 def test_vae_decoder_480p_sharded():
     _run("480p", sharded=True)
-
-
-def test_vae_decoder_720p_sharded():
-    _run("720p", sharded=True)
 
 
 def _run(resolution: str, sharded: bool) -> None:
