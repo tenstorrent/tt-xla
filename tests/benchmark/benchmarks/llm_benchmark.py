@@ -72,6 +72,20 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+        # Some modeling code (e.g. Gemma3) caches per-layer attention metadata
+        # at __init__ time. Rewrite those caches so they match the overridden
+        # config, otherwise the forward path (which keys structures like
+        # position_embeddings by config.layer_types) sees a stale
+        # "sliding_attention" on a layer and raises KeyError.
+        for module in model.modules():
+            if hasattr(module, "attention_type"):
+                module.attention_type = "full_attention"
+            if hasattr(module, "layer_type"):
+                module.layer_type = "full_attention"
+            if hasattr(module, "is_sliding"):
+                module.is_sliding = False
+            if hasattr(module, "sliding_window"):
+                module.sliding_window = None
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):

@@ -301,6 +301,11 @@
         "pytest": "tests/benchmark/test_encoders.py::test_unet_for_conditional_generation"
       },
       {
+        "name": "gemma_3_1b_it_gguf",
+        "pyreq": "datasets gguf loguru pytest requests tabulate timm torch==2.10.0 tqdm transformers==5.2.0",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_3_1b_it_gguf"
+      },
+      {
         "name": "deepseek_v3_2_exp_tp_galaxy_2_layers",
         "pyreq": "datasets loguru pytest requests tabulate timm torch==2.9.0 tqdm transformers==5.2.0",
         "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_2_exp_tp_galaxy_2_layers",
