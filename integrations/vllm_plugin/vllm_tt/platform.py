@@ -54,7 +54,6 @@ class TTConfig:
     enable_precompile_all: bool = True
 
     # Flag to enable data parallel execution of a model. It will require
-    # - batch_size > 1
     # - max_num_seqs > 1
     # Only supported for pooling/embedding models.
     enable_data_parallel: bool = False
@@ -233,6 +232,13 @@ class TTPlatform(Platform):
     @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
+
+        additional_config = vllm_config.additional_config or {}
+        if "batch_size" in additional_config:
+            logger.warning(
+                "additional_config['batch_size'] is deprecated and will be removed "
+                "in a future release. Use max_num_seqs instead."
+            )
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.

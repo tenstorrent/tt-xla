@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
             source venv/activate
-            cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON
+            cmake -G Ninja -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON -DTT_USE_SYSTEM_SFPI=ON
             cmake --build ${{ steps.strings.outputs.build-output-dir }}
 
       - name: Run unit tests with ctest

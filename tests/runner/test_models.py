@@ -112,10 +112,21 @@ def _run_model_test_impl(
 
         if compiler_config is None:
             compiler_config = CompilerConfig()
+
         weights_dtype = None
         if test_metadata.enable_weight_bfp8_conversion:
             compiler_config.experimental_weight_dtype = "bfp_bf8"
             weights_dtype = "bfp_bf8"
+
+        # Optimization level precedence:
+        #   CLI option > YAML config value > default value
+        cli_optimization_level = request.config.getoption(
+            "--optimization-level", default=None
+        )
+        if cli_optimization_level is not None:
+            compiler_config.optimization_level = cli_optimization_level
+        elif test_metadata.optimization_level is not None:
+            compiler_config.optimization_level = test_metadata.optimization_level
 
         if ir_dump_path:
             compiler_config.export_path = ir_dump_path

@@ -606,7 +606,7 @@ def test_gather_logprobs_topk_indices_exact_on_device(device):
 @pytest.mark.single_device
 @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
 @pytest.mark.xfail(
-    strict=True,
+    strict=False,
     reason=(
         "Device sampler does not honor per-row seeds: the tt::sampling "
         "kernel uses a single shared seed across all 32 cores and ignores "

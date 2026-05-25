@@ -13,10 +13,10 @@
           "CMAKE_C_COMPILER_LAUNCHER": "ccache",
           "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
           "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
+          "TTMLIR_ENABLE_BINDINGS_PYTHON": "ON",
           "TT_RUNTIME_DEBUG": "ON",
           "TTMLIR_BUILD_TYPE": "Debug"
-        },
-        "cmakeExecutable": "sea_cmake"
+        }
       },
       {
         "name": "release",
@@ -32,8 +32,7 @@
           "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
           "TTMLIR_BUILD_TYPE": "Release",
           "TT_RUNTIME_DEBUG": "OFF"
-        },
-        "cmakeExecutable": "sea_cmake"
+        }
       }
     ]
 }
