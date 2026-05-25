@@ -2,6 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from importlib.util import find_spec as _find_spec
+
 # Apply XLA Dynamo guard repr patch and TorchDynamo compatibility patches globally to fix TorchDynamo errors
 from .utils import apply_dynamo_compatibility_patches, apply_xla_dynamo_guard_repr_patch
 
@@ -17,6 +19,18 @@ import tt_torch.custom_ops
 
 # Import torch overrides so they are registered
 import tt_torch.torch_overrides
+
+try:
+    _moe_spec = _find_spec("transformers.integrations.moe")
+except (ImportError, ValueError):
+    # ImportError covers ModuleNotFoundError plus broken parent packages.
+    # ValueError fires on malformed package metadata.
+    _moe_spec = None
+
+if _moe_spec is not None:
+    # Register the HF MoE backend when the optional Transformers hook exists.
+    import tt_torch.moe_backend  # noqa: F401
+
 from ttxla_tools import save_system_descriptor_to_disk
 
 from .codegen import codegen_cpp, codegen_py
@@ -34,3 +48,27 @@ from .weight_dtype import (
     dump_weight_names,
     remove_weight_dtype_overrides,
 )
+
+_HF_BACKEND_EXPORTS = {
+    "TT_ATTENTION_BACKEND_NAME": "attention_backend",
+    "register_tt_attention_backend": "attention_backend",
+    "tt_sdpa_attention_forward": "attention_backend",
+    "TT_MOE_BACKEND_NAME": "moe_backend",
+    "TT_DENSE_EXPERTS_BACKEND_NAME": "moe_backend",
+    "get_tt_moe_shard_specs": "moe_backend",
+    "register_tt_moe_backend": "moe_backend",
+    "tt_experts_forward": "moe_backend",
+    "tt_dense_experts_forward": "moe_backend",
+}
+
+
+def __getattr__(name):
+    module_name = _HF_BACKEND_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from importlib import import_module
+
+    value = getattr(import_module(f"{__name__}.{module_name}"), name)
+    globals()[name] = value
+    return value

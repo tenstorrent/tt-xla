@@ -201,7 +201,7 @@ class ModelTestConfig:
             "enable_weight_bfp8_conversion", default=False
         )
 
-        # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
+        # Whether to inject a custom MoE implementation in the test.
         self.inject_custom_moe = self._resolve("inject_custom_moe", default=False)
         # EmitPy verification: assert exact match (default True).
         # Set to false in YAML config for models with known minor differences.

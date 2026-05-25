@@ -45,6 +45,7 @@ from utils import (
 xr.set_device_type("TT")
 
 MIN_STEPS = 16
+DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
 
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
@@ -55,7 +56,7 @@ MODULE_EXPORT_PATH = "modules"
 
 
 def setup_model_and_tokenizer(
-    model_loader, model_variant
+    model_loader, model_variant, experts_implementation: Optional[str] = None
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
     """
     Instantiate model and tokenizer.
@@ -69,13 +70,18 @@ def setup_model_and_tokenizer(
     """
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
-    model = model_loader.load_model(dtype_override=torch.bfloat16)
+    model_kwargs = {}
+    if experts_implementation is not None:
+        model_kwargs["experts_implementation"] = experts_implementation
+    model = model_loader.load_model(dtype_override=torch.bfloat16, **model_kwargs)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
-        model.config._experts_implementation = "dense"
+        model.config._experts_implementation = (
+            experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
+        )
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -173,7 +179,9 @@ def get_mesh(model_loader, mesh_config_fn):
     num_devices = xr.global_runtime_device_count()
     mesh_shape, mesh_name = mesh_config_fn(model_loader, num_devices)
     device_ids = np.array(range(num_devices))
-    return Mesh(device_ids, mesh_shape, mesh_name)
+    mesh = Mesh(device_ids, mesh_shape, mesh_name)
+    xs.set_global_mesh(mesh)
+    return mesh
 
 
 def transfer_to_device(input_args: dict, device: torch.device) -> dict:
@@ -269,6 +277,8 @@ def benchmark_llm_torch_xla(
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
+    experts_implementation: Optional[str] = None,
+    cpu_experts_implementation: Optional[str] = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -355,7 +365,11 @@ def benchmark_llm_torch_xla(
     device: torch.device = torch_xla.device()
 
     # Instantiate model and tokenizer
-    model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    model, tokenizer = setup_model_and_tokenizer(
+        model_loader,
+        model_variant,
+        experts_implementation=experts_implementation,
+    )
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
     # Initialize accuracy testing if enabled
@@ -380,6 +394,16 @@ def benchmark_llm_torch_xla(
         use_mla_cache=use_mla_cache,
     )
 
+    device_experts_implementation = getattr(
+        model.config, "_experts_implementation", None
+    )
+    if (
+        cpu_experts_implementation is None
+        and experts_implementation is not None
+        and experts_implementation not in {"eager", "batched_mm", "grouped_mm"}
+    ):
+        cpu_experts_implementation = DEFAULT_EXPERTS_IMPLEMENTATION
+
     # Initialize indexer cache if enabled (needs to be done before model.to(device))
     # Models using this cache are expected to handle stale values since it cannot be
     # reset once the model is transferred to device.
@@ -398,36 +422,52 @@ def benchmark_llm_torch_xla(
 
     # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
     if not accuracy_testing:
-        cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
-        cpu_wrapper.eval()
-
-        # Iter 0: prefill. After this, input_args holds the post-prefill decode
-        # state (input_ids=next_token_0, cache_position=[prompt_len]).
-        cpu_prefill_logits, _ = generate_and_benchmark(
-            cpu_wrapper,
-            input_args,
-            torch.device("cpu"),
-            1,
-            verbose=False,
-            collect_logits=True,
+        # Swap to the CPU-friendly backend for the golden run, then restore the
+        # device backend even if generate_and_benchmark raises so subsequent
+        # device-side compile sees the intended `_experts_implementation`.
+        config_overridden = cpu_experts_implementation is not None and hasattr(
+            model.config, "_experts_implementation"
         )
+        if config_overridden:
+            model.config._experts_implementation = cpu_experts_implementation
+        try:
+            cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+            cpu_wrapper.eval()
 
-        # Snapshot first-decode inputs before CPU iter 1 advances them.
-        first_decode_input_ids = input_args["input_ids"].clone()
-        decode_only_cache_position = input_args["cache_position"].clone()
-        decode_only_cache = input_args["past_key_values"]
+            # Iter 0: prefill. After this, input_args holds the post-prefill decode
+            # state (input_ids=next_token_0, cache_position=[prompt_len]).
+            cpu_prefill_logits, _ = generate_and_benchmark(
+                cpu_wrapper,
+                input_args,
+                torch.device("cpu"),
+                1,
+                verbose=False,
+                collect_logits=True,
+            )
 
-        # Iter 1: first decode. Provides the PCC reference for device first decode.
-        cpu_decode_logits, _ = generate_and_benchmark(
-            cpu_wrapper,
-            input_args,
-            torch.device("cpu"),
-            1,
-            verbose=False,
-            collect_logits=True,
-        )
+            # Snapshot first-decode inputs before CPU iter 1 advances them.
+            first_decode_input_ids = input_args["input_ids"].clone()
+            decode_only_cache_position = input_args["cache_position"].clone()
+            decode_only_cache = input_args["past_key_values"]
 
-        cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
+            # Iter 1: first decode. Provides the PCC reference for device first decode.
+            cpu_decode_logits, _ = generate_and_benchmark(
+                cpu_wrapper,
+                input_args,
+                torch.device("cpu"),
+                1,
+                verbose=False,
+                collect_logits=True,
+            )
+
+            cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
+        finally:
+            if config_overridden:
+                model.config._experts_implementation = device_experts_implementation
+    elif hasattr(model.config, "_experts_implementation"):
+        # Accuracy path skips the CPU golden, so just make sure the device
+        # backend selection is the active one before transfer.
+        model.config._experts_implementation = device_experts_implementation
 
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)

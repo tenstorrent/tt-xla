@@ -512,6 +512,29 @@ def cleanup_cache_fixture():
     cleanup_cache()
 
 
+@pytest.fixture(autouse=True)
+def _restore_global_spmd_mesh():
+    """Save/restore the torch_xla global SPMD mesh around each test.
+
+    Several test paths (`get_mesh` in llm_benchmark, `_create_mesh` in
+    DynamicTorchModelTester, `test_gpt_oss_mlp`) call `xs.set_global_mesh(...)`
+    to satisfy backends that read the mesh from process-wide state (e.g.
+    `tt_moe`). Without this fixture the mesh leaks into subsequent tests in
+    the same pytest process.
+    """
+    try:
+        from torch_xla.distributed.spmd import get_global_mesh, set_global_mesh
+    except ImportError:
+        yield
+        return
+
+    prev_mesh = get_global_mesh()
+    try:
+        yield
+    finally:
+        set_global_mesh(prev_mesh)
+
+
 def _release_dynamo_bridge_tensors():
     """Workaround for torch_xla leak: after torch._dynamo.reset(), GraphInputMatcher
     objects and their parent caches survive, holding all model-weight XLA tensors

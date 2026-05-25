@@ -8,6 +8,7 @@ Loads real BF16 weights via a post-sparse cache built by
 ``Glm4MoeForCausalLM`` with ``A2aSparseMLP`` MoE layers, and prints the
 top-k next-token predictions. CPU reference can be run by setting ``cpu_reference`` to True.
 """
+
 import json
 import os
 import re

@@ -40,7 +40,7 @@ ALLOWED_FIELDS = {
     "filechecks",
     # Compiler config options
     "enable_weight_bfp8_conversion",
-    # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
+    # Whether to inject a custom MoE implementation in the test.
     "inject_custom_moe",
     # EmitPy verification: assert exact match between emitpy and flatbuffer results
     "emitpy_assert_exact",

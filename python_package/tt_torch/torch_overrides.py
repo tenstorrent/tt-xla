@@ -122,19 +122,7 @@ def _sparse_mlp_forward(self, hidden_states):
     return routed_out, router_scores
 
 
-# Monkey patch to restore 4.57.1 interfaces:
-# - Router returns full [T, E] sparse routing weights
-# - Experts has CPU per-expert loop + device dense bmm
-# - Bypasses @use_experts_implementation decorator dispatch
-try:
-    from transformers.models.gpt_oss.modeling_gpt_oss import (
-        GptOssExperts,
-        GptOssMLP,
-        GptOssTopKRouter,
-    )
-
-    GptOssTopKRouter.forward = _router_forward
-    GptOssExperts.forward = _experts_forward
-    GptOssMLP.forward = _sparse_mlp_forward
-except ImportError:
-    pass
+# Keep the GPT-OSS compatibility implementations above for reference, but do
+# not install them globally. Overwriting `GptOssExperts.forward` bypasses HF's
+# `@use_experts_implementation` dispatcher and prevents the `tt_moe` backend
+# from taking effect.

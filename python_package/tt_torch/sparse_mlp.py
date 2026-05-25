@@ -1155,13 +1155,14 @@ def enable_sparse_mlp(
                 cluster_axis=cluster_axis,
                 dispatch_devices=dispatch_devices,
             )
-            setattr(parent, name, sparse_mlp)
+            if name:
+                setattr(parent, name, sparse_mlp)
             replaced_count += 1
             if verbose:
                 print(
                     f"[SparseMLP] Replaced {name}: {type(module).__name__} -> DeepseekV3MoEToA2AAdapter"
                 )
-            return True
+            return sparse_mlp
 
         moe_config = _get_moe_config(module)
         if moe_config is None and config is not None:
@@ -1201,7 +1202,8 @@ def enable_sparse_mlp(
             use_dense_matmul=use_dense_matmul,
         )
 
-        setattr(parent, name, sparse_mlp)
+        if name:
+            setattr(parent, name, sparse_mlp)
         replaced_count += 1
 
         if verbose:
@@ -1209,7 +1211,7 @@ def enable_sparse_mlp(
                 f"[SparseMLP] Replaced {name}: {type(module).__name__} -> A2aSparseMLP "
                 f"(experts={num_experts}, num_devices={num_devices})"
             )
-        return True
+        return sparse_mlp
 
     # Traverse and replace. Track replaced prefixes to skip their children.
     replaced_prefixes = set()
@@ -1229,8 +1231,11 @@ def enable_sparse_mlp(
             parent = model
             child_name = name
 
-        if replace_mlp(parent, child_name, module):
+        replacement = replace_mlp(parent, child_name, module)
+        if replacement:
             replaced_prefixes.add(name)
+            if name == "":
+                model = replacement
 
     if verbose:
         print(f"[SparseMLP] Total layers replaced: {replaced_count}")
