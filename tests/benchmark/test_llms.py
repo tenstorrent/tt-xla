@@ -4,6 +4,7 @@
 
 import json
 import os
+from typing import Optional
 
 import numpy as np
 import pytest
@@ -66,6 +67,7 @@ def test_llm(
     check_fusions: bool = False,
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
+    experts_implementation: Optional[str] = None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -165,6 +167,7 @@ def test_llm(
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
         enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
+        experts_implementation=experts_implementation,
     )
 
     if output_file:
@@ -1741,6 +1744,8 @@ def test_gpt_oss_20b_tp(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1761,6 +1766,8 @@ def test_gpt_oss_20b_tp(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
         optimization_level=1,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+        required_pcc=0.94,
     )
 
 
@@ -1809,6 +1816,8 @@ def test_gpt_oss_20b_tp_batch_size_1(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1828,6 +1837,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
         optimization_level=1,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -1871,6 +1881,8 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1890,6 +1902,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         optimization_level=1,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -1945,6 +1958,8 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1967,6 +1982,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -1980,6 +1996,8 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -2002,6 +2020,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -2038,6 +2057,8 @@ def test_gpt_oss_120b_tp_qb2(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -2065,6 +2086,7 @@ def test_gpt_oss_120b_tp_qb2(
         required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
         mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
         # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
