@@ -980,7 +980,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal = False
 
         if self.enable_data_parallel and attn_mask is not None:
-            xs.mark_sharding(attn_mask, self.mesh, ("batch", None, None, None))
+            xs.mark_sharding(attn_mask, self.mesh, ("model", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
@@ -1221,8 +1221,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             # Mark inputs for data parallel sharding.
             if self.enable_data_parallel:
-                xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-                xs.mark_sharding(self.position_ids, self.mesh, ("batch", None))
+                xs.mark_sharding(input_ids, self.mesh, ("model", None))
+                xs.mark_sharding(self.position_ids, self.mesh, ("model", None))
 
             # Run the decoder
             with set_forward_context(
@@ -1440,8 +1440,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Mark inputs for data parallel sharding.
         if self.enable_data_parallel:
-            xs.mark_sharding(input_ids, self.mesh, ("batch", None))
-            xs.mark_sharding(position_ids, self.mesh, ("batch", None))
+            xs.mark_sharding(input_ids, self.mesh, ("model", None))
+            xs.mark_sharding(position_ids, self.mesh, ("model", None))
 
         # Default Configurations: valid for single input per batch.
         attn_mask = None
@@ -1462,7 +1462,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Mark attention mask for data parallel sharding.
         if self.enable_data_parallel and attn_mask is not None:
-            xs.mark_sharding(attn_mask, self.mesh, ("batch", None, None, None))
+            xs.mark_sharding(attn_mask, self.mesh, ("model", None, None, None))
 
         attn_metadata = TTMetadata(
             attn_mask=attn_mask,
