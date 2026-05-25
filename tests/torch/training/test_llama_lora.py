@@ -85,7 +85,9 @@ def test_llama_lora_backward():
     torch_xla.sync()
 
     loss_value = loss.item()
-    assert math.isfinite(loss_value) and loss_value > 0, f"Loss should be finite and positive, got {loss_value}."
+    assert (
+        math.isfinite(loss_value) and loss_value > 0
+    ), f"Loss should be finite and positive, got {loss_value}."
 
     assert all(p.grad is not None for _, p in lora_params), (
         f"LoRA parameters missing gradients (post-compile): "
