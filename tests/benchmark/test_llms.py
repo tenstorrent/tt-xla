@@ -2075,6 +2075,36 @@ def test_kimi_k2_tp_galaxy_2_layers(
     )
 
 
+def test_nanbeige_4_1_3b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.nanbeige.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.NANBEIGE_4_1_3B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,
+        trace_enabled=False,
+    )
+
+
 # This test only runs 2 layers so we expect to see incoherent output
 def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     output_file,
