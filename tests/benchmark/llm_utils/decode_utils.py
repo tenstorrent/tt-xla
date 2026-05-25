@@ -266,7 +266,7 @@ def generate_and_benchmark(
     ground_truth_tokens: Optional[torch.Tensor] = None,
     collect_logits: bool = True,
     tokenizer=None,
-) -> tuple[list[torch.Tensor], list[int]]:
+) -> tuple[list[torch.Tensor], list[torch.Tensor], list[int]]:
     """On-device decode loop for benchmarks and accuracy testing.
 
     Args:
@@ -287,8 +287,10 @@ def generate_and_benchmark(
         tokenizer: Optional tokenizer for decoding generated token IDs to text.
 
     Returns:
-        (output_logits, iteration_times)
+        (output_logits, output_tokens, iteration_times)
         - output_logits: List of logit tensors per step (empty if collect_logits=False)
+        - output_tokens: List of per-step next_token_ids tensors (shape [batch_size, 1])
+                         moved to CPU.
         - iteration_times: List of iteration times in nanoseconds
     """
 
@@ -302,6 +304,7 @@ def generate_and_benchmark(
     batch_size = input_args["input_ids"].shape[0]
 
     output_logits: list[torch.Tensor] = []
+    output_tokens: list[torch.Tensor] = []
     iteration_times: list[int] = []
     generated_texts: list[str] = [""] * batch_size
 
@@ -331,6 +334,7 @@ def generate_and_benchmark(
                     logits,
                 ) = output
                 output_logits.append(logits.to("cpu"))
+                output_tokens.append(next_token_ids_replicated.to("cpu"))
             else:
                 next_token_ids, next_token_ids_replicated, next_cache_position = output
 
@@ -359,7 +363,7 @@ def generate_and_benchmark(
         for i in range(batch_size):
             print(f"User {i}: {generated_texts[i]}")
 
-    return output_logits, iteration_times
+    return output_logits, output_tokens, iteration_times
 
 
 def init_accuracy_testing(

@@ -411,7 +411,7 @@ def benchmark_llm_torch_xla(
 
         # Iter 0: prefill. After this, input_args holds the post-prefill decode
         # state (input_ids=next_token_0, cache_position=[prompt_len]).
-        cpu_prefill_logits, _ = generate_and_benchmark(
+        cpu_prefill_logits, cpu_prefill_tokens, _ = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
@@ -425,27 +425,22 @@ def benchmark_llm_torch_xla(
         decode_only_cache_position = input_args["cache_position"].clone()
         decode_only_cache = input_args["past_key_values"]
 
-        # Run NUM_PCC_DECODE_STEPS decode steps.
-        cpu_decode_logits: list = []
-        if NUM_PCC_DECODE_STEPS > 0:
-            cpu_decode_logits, _ = generate_and_benchmark(
-                cpu_wrapper,
-                input_args,
-                torch.device("cpu"),
-                NUM_PCC_DECODE_STEPS,
-                verbose=False,
-                collect_logits=True,
-            )
+        cpu_decode_logits, cpu_decode_tokens, _ = generate_and_benchmark(
+            cpu_wrapper,
+            input_args,
+            torch.device("cpu"),
+            NUM_PCC_DECODE_STEPS,
+            verbose=False,
+            collect_logits=True,
+        )
 
         cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
-        # CPU output tokens, used to teacher-force the device PCC run
-        # for the first len(cpu_output_logits) steps.
+        # CPU output tokens, used to teacher-force the device PCC run for the
+        # first len(cpu_output_logits) steps.
+        cpu_output_token_tensors = cpu_prefill_tokens + cpu_decode_tokens
         cpu_output_tokens = torch.tensor(
-            [
-                int(logits[0, -1, :].argmax(dim=-1).item())
-                for logits in cpu_output_logits
-            ],
+            [int(t[0, 0]) for t in cpu_output_token_tensors],
             dtype=torch.long,
         )
 
@@ -544,7 +539,7 @@ def benchmark_llm_torch_xla(
                 )
         print("Warming up...")
         warmup_tokens = min(MIN_STEPS, max_output_tokens)
-        _, _ = generate_and_benchmark(
+        _, _, _ = generate_and_benchmark(
             compiled_perf_model,
             input_args,
             device,
@@ -587,7 +582,7 @@ def benchmark_llm_torch_xla(
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
-    _, iteration_times = generate_and_benchmark(
+    _, _, iteration_times = generate_and_benchmark(
         compiled_perf_model,
         input_args,
         device,
@@ -653,7 +648,7 @@ def benchmark_llm_torch_xla(
     # logits_steps counts prefill (when present) as one of the total iterations,
     # so the unified call runs exactly logits_steps iters in both decode_only
     # and prefill+decode modes.
-    output_logits, _ = generate_and_benchmark(
+    output_logits, _, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
         device,
