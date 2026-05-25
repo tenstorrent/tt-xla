@@ -19,7 +19,12 @@ from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
-from tt_torch.sparse_mlp import A2aSparseMLP, enable_sparse_mlp
+from tt_torch.sparse_mlp import (
+    ACTIVATION_DEEPSEEK,
+    A2aSparseMLP,
+    _moe_activation,
+    enable_sparse_mlp,
+)
 
 from tests.utils import parametrize_arch
 from third_party.tt_forge_models.falcon.pytorch.loader import (
@@ -675,3 +680,33 @@ def test_a2a_sparse_mlp_cpu_parity():
 
     assert pcc_out > 0.99, f"Output PCC too low: {pcc_out:.6f}"
     assert pcc_scores > 0.99, f"Router scores PCC too low: {pcc_scores:.6f}"
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+def test_moe_activation_swiglu_limit():
+    """Compile ``_moe_activation`` with the DeepSeek-V4 swiglu_limit clamp on
+    TT and compare against the CPU reference. Inputs are scaled so a
+    meaningful fraction of values lies outside ``[-swiglu_limit, swiglu_limit]``
+    and exercises the clamp."""
+
+    class _DeepseekSwigluActivation(torch.nn.Module):
+        """Wraps ``_moe_activation`` in the DeepSeek path so the graph tester can
+        compile it on TT and compare against CPU."""
+
+        def __init__(self, swiglu_limit: float):
+            super().__init__()
+            self.swiglu_limit = swiglu_limit
+
+        def forward(self, gate_up):
+            return _moe_activation(
+                gate_up, ACTIVATION_DEEPSEEK, swiglu_limit=self.swiglu_limit
+            )
+
+    xr.set_device_type("TT")
+
+    model = _DeepseekSwigluActivation(swiglu_limit=2.0).to(torch.bfloat16)
+    # Scale * 5 so most values exceed the clamp bound.
+    gate_up = torch.randn(1, 64, 256, dtype=torch.bfloat16) * 5.0
+
+    run_graph_test(model, [gate_up], framework=Framework.TORCH)

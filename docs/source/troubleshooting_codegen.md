@@ -101,5 +101,3 @@ options = {
 
 3. **Link against TT-NN library:**
    Ensure your build system links the TT-NN library correctly
-
----

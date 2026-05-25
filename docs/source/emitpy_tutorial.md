@@ -218,8 +218,8 @@ codegen_cpp(
 The generated C++ code is **fully standalone** and can be integrated into existing C++ projects.
 
 ### Generate ResNet TTNN code using the following example
-- [PyTorch ResNet example](../../examples/pytorch/codegen/resnet.py)
-- [JAX ResNet example](../../examples/jax/codegen/resnet.py)
+- [PyTorch ResNet example](../../examples/pytorch/codegen/python/resnet.py)
+- [JAX ResNet example](../../examples/jax/codegen/python/resnet.py)
 
 ### Learn More
 

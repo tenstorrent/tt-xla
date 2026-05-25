@@ -92,6 +92,22 @@ struct CompileOptions {
   // precision for all operations, which can improve accuracy for some models.
   bool enable_const_eval_on_cpu = true;
 
+  // Forces const-eval function inputs to be annotated as system memory in
+  // the executable's expected layout.
+  //
+  // ON  (default): consteval inputs stay on host RAM, cached outputs on
+  //                device DRAM. The host-side staging is held for the
+  //                BufferInstance's full lifetime (ensure_layout sees the
+  //                source already on host and skips migration).
+  //
+  // OFF:           consteval inputs migrate to device DRAM on first use,
+  //                so the host-side staging can be released between
+  //                stages. Useful for staged-load workloads (e.g. layer-
+  //                by-layer ship) where host data must be freed between
+  //                stages, at the cost of holding both inputs and cached
+  //                outputs on device DRAM.
+  bool enable_const_eval_inputs_to_system_memory = true;
+
   // Enables transpose + matmul and transpose + linear ops fusion.
   // This controls fusing of transpose + matmul and transpose + linear ops.
   // When disabled, transpose is kept as a separate op which can be constevaled,

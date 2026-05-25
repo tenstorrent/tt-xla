@@ -256,7 +256,6 @@ You can also invoke code generation by hooking into the serialization infrastruc
 
 - **[Python Code Generation Tutorial](./emitpy_tutorial.md)** - Step-by-step hands-on tutorial
 - **[Getting Started Guide](./getting_started.md)** - Main TT-XLA setup
-- **[Building from Source](./getting_started_build_from_source.md)** - Development setup
 
 ---
 

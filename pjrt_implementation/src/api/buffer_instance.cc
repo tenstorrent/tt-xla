@@ -171,6 +171,35 @@ void BufferInstance::deleteData() {
   }
 }
 
+void BufferInstance::fireDoneWithHostBufferEvent() {
+  std::lock_guard<std::mutex> deleted_lock(m_data_deleted_mutex);
+  if (m_done_with_host_buffer_event == nullptr) {
+    return;
+  }
+  if (m_done_with_host_buffer_event->isReady()) {
+    m_done_with_host_buffer_event = nullptr;
+    return;
+  }
+  TT_FATAL(m_done_with_host_buffer_event->isIndestructible(),
+           "Expected done_with_host_buffer_event to be indestructible");
+
+  // Same cleanup-on-callback hack used by deleteData(): the callback
+  // deletes the EventInstance after the framework callback chain runs
+  // on a separate thread (see comment in deleteData).
+  m_done_with_host_buffer_event->onReady(
+      [](PJRT_Error *error, void *user_arg) {
+        delete reinterpret_cast<EventInstance *>(user_arg);
+      },
+      m_done_with_host_buffer_event);
+
+  EventInstance::markAsReadyAndCallback(m_done_with_host_buffer_event,
+                                        tt_pjrt_status::kSuccess);
+
+  // Null out so a later deleteData() does not try to fire it again
+  // (which would assert on isReady()).
+  m_done_with_host_buffer_event = nullptr;
+}
+
 // Constructing buffer instance for the first time.
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,

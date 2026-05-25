@@ -240,7 +240,7 @@ Install from source if you are a developer who wants to develop for TT-XLA.
    ```
 
    The wheel has the following structure:
-   ```plaintext
+   ```text
    pjrt_plugin_tt/                     # PJRT plugin package
       |-- __init__.py
       |-- pjrt_plugin_tt.so               # PJRT plugin binary
