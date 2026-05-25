@@ -104,6 +104,19 @@ def pytest_addoption(parser):
         ),
     )
 
+    parser.addoption(
+        "--save-cpu-snapshots-to",
+        action="store",
+        default=None,
+        help=(
+            "If set, run the CPU decode loop step-by-step and save a snapshot "
+            "(input_args + indexer_k_caches + per-step golden logits) per "
+            "step into this directory. Used downstream by "
+            "deepseek_codegen/capture_step_n_inputs.py to dump valid "
+            "tensors_step{k}/ files via direct ttnn writes. Requires --decode-only."
+        ),
+    )
+
 
 @pytest.fixture
 def output_file(request):
@@ -149,3 +162,8 @@ def check_fusions(request):
 def seed_torch():
     """Seed torch before every benchmark test for reproducible PCC runs."""
     torch.manual_seed(0)
+
+
+@pytest.fixture
+def save_cpu_snapshots_to(request):
+    return request.config.getoption("--save-cpu-snapshots-to")

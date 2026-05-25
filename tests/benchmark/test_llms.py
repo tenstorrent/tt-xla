@@ -165,6 +165,9 @@ def test_llm(
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
+        save_cpu_snapshots_to=(
+            request.config.getoption("--save-cpu-snapshots-to") if request else None
+        ),
     )
 
     if output_file:

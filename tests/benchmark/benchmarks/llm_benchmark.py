@@ -269,6 +269,7 @@ def benchmark_llm_torch_xla(
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
+    save_cpu_snapshots_to: str = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -417,15 +418,69 @@ def benchmark_llm_torch_xla(
         decode_only_cache_position = input_args["cache_position"].clone()
         decode_only_cache = input_args["past_key_values"]
 
-        # Iter 1: first decode. Provides the PCC reference for device first decode.
-        cpu_decode_logits, _ = generate_and_benchmark(
-            cpu_wrapper,
-            input_args,
-            torch.device("cpu"),
-            1,
-            verbose=False,
-            collect_logits=True,
-        )
+        # Iter 1..max_output_tokens: each decode step. Provides the PCC reference
+        # for the corresponding device decode step. Running max_output_tokens CPU
+        # steps lets us PCC-validate every decode step against CPU truth, not
+        # only the first token.
+        cpu_decode_steps = max_output_tokens if max_output_tokens else 1
+
+        if save_cpu_snapshots_to is not None:
+            # Step-by-step CPU loop with a snapshot of input_args + indexer
+            # k_caches taken BEFORE each decode step (i.e. the realistic state
+            # the device would see at the start of decode_k). Snapshots are
+            # dumped to disk for the downstream
+            # `deepseek_codegen/capture_step_n_inputs.py` post-processor which
+            # converts them into TTNN tensorbins for step-k codegen iteration.
+            import copy as _copy
+            os.makedirs(save_cpu_snapshots_to, exist_ok=True)
+            cpu_decode_logits = []
+            transformer = getattr(cpu_wrapper.model, "transformer", cpu_wrapper.model)
+            for _cpu_step_idx in range(cpu_decode_steps):
+                _step_num = _cpu_step_idx + 1
+                # Snapshot model's per-layer indexer k_cache (it's mutated in
+                # place by the CPU forward, just like past_key_values).
+                _indexer_kcaches = []
+                for _layer in getattr(transformer, "layers", []):
+                    _attn = getattr(_layer, "attn", None)
+                    _indexer = getattr(_attn, "indexer", None) if _attn is not None else None
+                    _kc = getattr(_indexer, "k_cache", None) if _indexer is not None else None
+                    _indexer_kcaches.append(_kc.detach().clone() if _kc is not None else None)
+                _snap = {
+                    "step": _step_num,
+                    "input_ids": input_args["input_ids"].detach().clone(),
+                    "cache_position": input_args["cache_position"].detach().clone(),
+                    "past_key_values": _copy.deepcopy(input_args["past_key_values"]),
+                    "indexer_k_caches": _indexer_kcaches,
+                }
+                torch.save(
+                    _snap,
+                    os.path.join(save_cpu_snapshots_to, f"snapshot_step{_step_num}.pt"),
+                )
+
+                _step_logits, _ = generate_and_benchmark(
+                    cpu_wrapper, input_args, torch.device("cpu"),
+                    1, verbose=False, collect_logits=True,
+                )
+                cpu_decode_logits.extend(_step_logits)
+
+                # Persist this step's CPU golden alongside snapshots.
+                _golden_name = (
+                    "golden_logits.pt" if _step_num == 1
+                    else f"golden_logits_step{_step_num}.pt"
+                )
+                torch.save(
+                    _step_logits[0].cpu(),
+                    os.path.join(save_cpu_snapshots_to, _golden_name),
+                )
+                logger.info(
+                    f"Saved CPU snapshot + golden for step {_step_num} to "
+                    f"{save_cpu_snapshots_to}"
+                )
+        else:
+            cpu_decode_logits, _ = generate_and_benchmark(
+                cpu_wrapper, input_args, torch.device("cpu"),
+                cpu_decode_steps, verbose=False, collect_logits=True,
+            )
 
         cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
@@ -793,6 +848,11 @@ def benchmark_llm_torch_xla(
             ]
         )
     elif decode_only:
+        # decode-only: output_logits[k] is device decode step (k+1).
+        # cpu_output_logits[0] is CPU prefill; cpu_output_logits[k+1] is CPU
+        # decode step (k+1). Assert the first decode (existing required_pcc
+        # gate), then report every subsequent decode step's PCC informationally
+        # so we can see device-vs-CPU drift across the sequence.
         decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
         assert (
             decode_pcc_value >= required_pcc
@@ -802,6 +862,10 @@ def benchmark_llm_torch_xla(
                 decode_pcc_value
             )
         )
+        n_decode = min(len(output_logits), len(cpu_output_logits) - 1)
+        for k in range(1, n_decode):
+            step_pcc = compute_pcc(output_logits[k][0], cpu_output_logits[k + 1][0])
+            print(f"Decode step {k + 1} PCC = {step_pcc:.6f}  (required={required_pcc})")
     else:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
@@ -822,6 +886,11 @@ def benchmark_llm_torch_xla(
                 decode_pcc_value
             )
         )
+        # Report PCC for every subsequent decode step informationally.
+        n_total = min(len(output_logits), len(cpu_output_logits))
+        for k in range(2, n_total):
+            step_pcc = compute_pcc(output_logits[k][0], cpu_output_logits[k][0])
+            print(f"Decode step {k} PCC = {step_pcc:.6f}  (required={required_pcc})")
 
     # Get device count and mesh info for metrics
     device_count = xr.global_runtime_device_count()
