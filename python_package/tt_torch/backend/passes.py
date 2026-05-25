@@ -1,7 +1,6 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-import math
 import operator
 import re
 
@@ -131,6 +130,68 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
     return gm
 
 
+_VIEW_OPS = (
+    torch.ops.aten.view.default,
+    torch.ops.aten._unsafe_view.default,
+    torch.ops.aten.reshape.default,
+)
+_TRANSPOSE_OPS = (
+    torch.ops.aten.transpose.int,
+    torch.ops.aten.permute.default,
+)
+
+
+def _fx_node_shape(n):
+    """Static shape from an FX node's val meta, or None if unavailable."""
+    if not isinstance(n, torch.fx.Node):
+        return None
+    val = n.meta.get("val")
+    return tuple(int(d) for d in val.shape) if val is not None else None
+
+
+def _swaps_last_two_only(node):
+    """True iff `node` is a transpose/permute that swaps exactly the last two dims."""
+    src_shape = _fx_node_shape(node.args[0])
+    if src_shape is None or len(src_shape) < 2:
+        return False
+    rank = len(src_shape)
+    if node.target is torch.ops.aten.transpose.int:
+        d0 = node.args[1] % rank
+        d1 = node.args[2] % rank
+        return {d0, d1} == {rank - 2, rank - 1}
+    # permute
+    perm = list(node.args[1])
+    expected = list(range(rank))
+    expected[-2], expected[-1] = expected[-1], expected[-2]
+    return perm == expected
+
+
+def _trace_to_rank_n_source(operand, target_batch_prefix):
+    """Walk back from a bmm operand through view/reshape and last-two-dim
+    transpose nodes until we land on a tensor whose shape's batch prefix
+    matches `target_batch_prefix`.  Returns `(node, transposed_last_two)`
+    on success, or `None` on failure."""
+    target_rank = len(target_batch_prefix) + 2
+    cur = operand
+    transposed = False
+
+    while isinstance(cur, torch.fx.Node):
+        shp = _fx_node_shape(cur)
+        if shp is None:
+            return None
+        if len(shp) == target_rank and shp[:-2] == target_batch_prefix:
+            return cur, transposed
+        if cur.target in _VIEW_OPS:
+            cur = cur.args[0]
+            continue
+        if cur.target in _TRANSPOSE_OPS and _swaps_last_two_only(cur):
+            transposed = not transposed
+            cur = cur.args[0]
+            continue
+        return None
+    return None
+
+
 def fold_view_bmm_view_to_einsum(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """Recover rank-preserving matmul from the post-AOTA view->bmm->view sandwich.
 
@@ -144,69 +205,75 @@ def fold_view_bmm_view_to_einsum(gm: torch.fx.GraphModule) -> torch.fx.GraphModu
     torch-xla lowers to a 4-D stablehlo.dot_general with head sharding intact.
     aten.einsum.default is opaque (we pop its decomp in populate_decompositions),
     so it survives to torch-xla unchanged.
+
+    Walks each bmm operand backwards through any chain of view/reshape and
+    last-two-dim transpose/permute ops (the latter absorbed into the einsum
+    equation, which handles the typical K^T in Q*K^T).  Anything else
+    (expand, repeat_interleave, convert_element_type, clone, ...) stops the
+    walk and the bmm is left alone.
     """
     graph = gm.graph
-    views = (
-        torch.ops.aten.view.default,
-        torch.ops.aten._unsafe_view.default,
-        torch.ops.aten.reshape.default,
-    )
-    modified = False
-
-    def shape(n):
-        val = n.meta.get("val") if isinstance(n, torch.fx.Node) else None
-        return tuple(int(d) for d in val.shape) if val is not None else None
+    rewritten = 0
 
     for bmm in list(graph.nodes):
-        if (
-            bmm.op != "call_function"
-            or bmm.target is not torch.ops.aten.bmm.default
-            or len(bmm.users) != 1
-        ):
+        if bmm.op != "call_function" or bmm.target is not torch.ops.aten.bmm.default:
             continue
-        lhs_v, rhs_v = bmm.args[:2]
-        out_v = next(iter(bmm.users))
-        if not all(
-            isinstance(n, torch.fx.Node) and n.target in views
-            for n in (lhs_v, rhs_v, out_v)
-        ):
-            continue
+        if _try_rewrite_bmm_to_einsum(graph, bmm):
+            rewritten += 1
 
-        lhs_src, rhs_src = lhs_v.args[0], rhs_v.args[0]
-        ls, rs, lc, rc, os = (shape(x) for x in (lhs_src, rhs_src, lhs_v, rhs_v, out_v))
-        if any(s is None for s in (ls, rs, lc, rc, os)):
-            continue
-
-        # Sandwich invariants: LHS/RHS sources are rank-4+ with identical
-        # batch prefix; collapsed views fuse all batch dims into dim 0;
-        # bmm M/K/N agree with sources' trailing two dims; out view
-        # restores the LHS source's batch prefix + (M, N).
-        if (
-            len(ls) < 4
-            or ls[:-2] != rs[:-2]
-            or os[:-2] != ls[:-2]
-            or lc != (math.prod(ls[:-2]), ls[-2], ls[-1])
-            or rc != (math.prod(rs[:-2]), rs[-2], rs[-1])
-            or ls[-1] != rs[-2]
-            or os[-2:] != (ls[-2], rs[-1])
-        ):
-            continue
-
-        with graph.inserting_before(bmm):
-            einsum = graph.call_function(
-                torch.ops.aten.einsum.default,
-                args=("...mk,...kn->...mn", [lhs_src, rhs_src]),
-            )
-        einsum.meta.update(out_v.meta)
-        out_v.replace_all_uses_with(einsum)
-        modified = True
-
-    if modified:
+    if rewritten:
         graph.eliminate_dead_code()
         graph.lint()
         gm.recompile()
 
     return gm
+
+
+def _try_rewrite_bmm_to_einsum(graph, bmm):
+    """Try to rewrite one bmm site.  Returns True iff rewritten."""
+    if len(bmm.users) != 1:
+        return False
+    out_v = next(iter(bmm.users))
+    if not (isinstance(out_v, torch.fx.Node) and out_v.target in _VIEW_OPS):
+        return False
+    out_shape = _fx_node_shape(out_v)
+    if out_shape is None or len(out_shape) < 4:
+        return False
+
+    batch_prefix = out_shape[:-2]
+    M_out, N_out = out_shape[-2], out_shape[-1]
+
+    lhs_res = _trace_to_rank_n_source(bmm.args[0], batch_prefix)
+    if lhs_res is None:
+        return False
+    rhs_res = _trace_to_rank_n_source(bmm.args[1], batch_prefix)
+    if rhs_res is None:
+        return False
+
+    lhs_4d, lhs_T = lhs_res
+    rhs_4d, rhs_T = rhs_res
+    lshp = _fx_node_shape(lhs_4d)
+    rshp = _fx_node_shape(rhs_4d)
+
+    # Resolve logical (M, K) / (K, N) given the recorded transpose flags.
+    M_lhs, K_lhs = (lshp[-1], lshp[-2]) if lhs_T else (lshp[-2], lshp[-1])
+    K_rhs, N_rhs = (rshp[-1], rshp[-2]) if rhs_T else (rshp[-2], rshp[-1])
+
+    if (M_lhs, N_rhs) != (M_out, N_out) or K_lhs != K_rhs:
+        return False
+
+    lhs_eq = "...km" if lhs_T else "...mk"
+    rhs_eq = "...nk" if rhs_T else "...kn"
+    equation = f"{lhs_eq},{rhs_eq}->...mn"
+
+    with graph.inserting_before(bmm):
+        einsum = graph.call_function(
+            torch.ops.aten.einsum.default,
+            args=(equation, [lhs_4d, rhs_4d]),
+        )
+    einsum.meta.update(out_v.meta)
+    out_v.replace_all_uses_with(einsum)
+    return True
 
 
 def run_fusion_passes(gm: torch.fx.GraphModule) -> None:

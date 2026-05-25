@@ -235,6 +235,15 @@ def torch_pass_pipeline(
         compiled_graph = gm
         graph_signature = aot_graph_signature
         params_and_consts = ()
+
+        # AOTAutograd's matmul lowering reshapes (..., M, K) @ (..., K, N) to
+        # (B*H, M, K) @ (B*H, K, N) via a view->bmm->view sandwich.  Under TP
+        # with the head dim sharded, the collapsed bmm form destroys head
+        # sharding and forces SPMD to insert f32 all_gathers on the 4-D
+        # Q/K/V.  Re-expand to a rank-preserving einsum here, after AOTA
+        # has produced the sandwich.
+        fold_view_bmm_view_to_einsum(compiled_graph)
+
         # Build a mapping from placeholder arg names (e.g. "primals_0") to
         # clean FQNs (e.g. "layers.0.weight") so that _demangle_name in
         # insert_argument_type_markers can resolve AOT placeholder names.
@@ -464,13 +473,6 @@ def aot_backend(
     # There is a Torch/TorchXLA bug where fakified XLA tensors fault in AdaptiveAveragePool, because of an as_strided_ call
     # THIS IS A HACK https://github.com/tenstorrent/tt-xla/issues/3549
     gm = rewrite_adaptive_avgpool_to_mean(gm)
-
-    # There is a known bug in our stack where if two axes get squashed to
-    # one, and one is sharded, that can induce extra all_gathers to appear.
-    # We worked around that with a TorchDispatch mode, but with AOTAutograd,
-    # that is no longer enough. This pass matches view->bmm->view patterns
-    # and re expands back to 4D via an einsum.
-    fold_view_bmm_view_to_einsum(gm)
 
     # Rewrite F.interpolate(bilinear/nearest) to matmul-based implementation.
     # AOTAutograd seems to force decompose F.interpolate no matter what, and that op doesn't reach our decomposition table.
