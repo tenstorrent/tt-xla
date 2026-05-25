@@ -167,21 +167,17 @@ jobs:
           PROMPT
           )" < /dev/null
 
-      - name: Locate report
-        id: locate
+      - name: Append report to job summary
         run: |
           REPORT=$(ls nightly-reports/nightly_${{ github.run_id }}_*.md 2>/dev/null | head -1)
           if [ -z "$REPORT" ]; then
             echo "::error::No nightly report was produced"
             exit 1
           fi
-          echo "report=$REPORT" >> $GITHUB_OUTPUT
-
-      - name: Append report to job summary
-        run: cat "${{ steps.locate.outputs.report }}" >> $GITHUB_STEP_SUMMARY
+          cat "$REPORT" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload report artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: nightly-report-${{ github.run_id }}
           path: nightly-reports/
