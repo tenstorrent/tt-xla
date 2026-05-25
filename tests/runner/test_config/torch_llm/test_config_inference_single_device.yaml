@@ -110,8 +110,7 @@ test_config:
 
   llama/causal_lm/pytorch-3.2_3B-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
-    assert_pcc: false
-    required_pcc: 0.97
+    required_pcc: 0.98
 
   llama/causal_lm/pytorch-Tinyllama_v1.1-llm_decode-seq_1-batch_1-single_device-mesh_default-inference:
     status: EXPECTED_PASSING
