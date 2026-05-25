@@ -650,12 +650,14 @@ def benchmark_llm_torch_xla(
     else:
         device_gt = cpu_output_tokens
 
-    total_steps = logits_steps if decode_only else 1 + logits_steps
+    # logits_steps counts prefill (when present) as one of the total iterations,
+    # so the unified call runs exactly logits_steps iters in both decode_only
+    # and prefill+decode modes.
     output_logits, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
         device,
-        total_steps,
+        logits_steps,
         verbose=False,
         ground_truth_tokens=device_gt,
         collect_logits=True,
