@@ -35,7 +35,20 @@ PJRT_NamedValue createStringAttribute(const std::string &name,
   return attr;
 }
 
-DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
+PJRT_NamedValue createInt64Attribute(const std::string &name, int64_t value) {
+  PJRT_NamedValue attr;
+  attr.struct_size = PJRT_NamedValue_STRUCT_SIZE;
+  attr.extension_start = nullptr;
+  attr.name = name.c_str();
+  attr.name_size = name.size();
+  attr.type = PJRT_NamedValue_kInt64;
+  attr.int64_value = value;
+  attr.value_size = 1;
+  return attr;
+}
+
+DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch,
+                                     uint64_t dram_size_bytes)
     : m_device_id(device_id), m_process_index(0),
       m_device_kind(tt::target::EnumNameArch(arch)) {
   std::stringstream ss;
@@ -46,6 +59,11 @@ DeviceDescription::DeviceDescription(int32_t device_id, tt::target::Arch arch)
   m_attributes.push_back(createStringAttribute(
       m_arch_attr_name,
       m_device_kind)); // device arch attribute (e.g. "wormhole_b0")
+  // Total on-device DRAM in bytes, summed across all DRAM channels.  0 means
+  // "unknown" (e.g. when DeviceDescription is constructed outside of the
+  // client_instance flow, such as in unit tests).
+  m_attributes.push_back(createInt64Attribute(
+      m_dram_size_attr_name, static_cast<int64_t>(dram_size_bytes)));
 }
 
 void DeviceDescription::bindApi(PJRT_Api *api) {
