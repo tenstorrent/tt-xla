@@ -84,7 +84,7 @@ jobs:
 
     container:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
-      options: --device /dev/tenstorrent --network=host
+      options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
@@ -138,6 +138,7 @@ jobs:
           tests/
           venv/
           examples/
+          scripts/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
@@ -238,6 +239,7 @@ jobs:
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
       run: |
         .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+        source venv/activate
         python scripts/multihost_topology.py \
           --topology "${{ matrix.build.topology }}" \
           --script-dir tests/torch/multi_host/experimental > topology_exports.sh
