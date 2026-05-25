@@ -37,7 +37,6 @@ static constexpr uint32_t kWireTypeVarint = 0;
 // Protobuf field for length
 static constexpr uint32_t kWireTypeLengthDelimited = 2;
 
-
 // Helper to encode a varint field into wire-format bytes.
 static std::string encodeVarint(int field_number, uint64_t value) {
   std::string output;
@@ -52,8 +51,7 @@ static std::string encodeVarint(int field_number, uint64_t value) {
 }
 
 // Helper to encode a length field wrapping inner bytes.
-static std::string encodeLength(int field_number,
-                                              const std::string &data) {
+static std::string encodeLength(int field_number, const std::string &data) {
   std::string output;
   google::protobuf::io::StringOutputStream sos(&output);
   google::protobuf::io::CodedOutputStream cos(&sos);
@@ -88,9 +86,8 @@ TEST(CompileOptionsParserUnitTests,
   ASSERT_TRUE(parseToFieldSet(data, fields));
 
   std::unordered_map<std::string, std::string> compile_options;
-  tt_pjrt_status status =
-      CompileOptionsParser::extractCustomProtobufFields(fields,
-                                                        compile_options);
+  tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
+      fields, compile_options);
   ASSERT_TRUE(tt_pjrt_status_is_ok(status));
   ASSERT_NE(compile_options.find("optimization_level"), compile_options.end());
   EXPECT_EQ(compile_options["optimization_level"], "0");
@@ -104,9 +101,8 @@ TEST(CompileOptionsParserUnitTests,
   ASSERT_TRUE(parseToFieldSet(data, fields));
 
   std::unordered_map<std::string, std::string> compile_options;
-  tt_pjrt_status status =
-      CompileOptionsParser::extractCustomProtobufFields(fields,
-                                                        compile_options);
+  tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
+      fields, compile_options);
   ASSERT_TRUE(tt_pjrt_status_is_ok(status));
   ASSERT_NE(compile_options.find("optimization_level"), compile_options.end());
   EXPECT_EQ(compile_options["optimization_level"], "1");
@@ -120,9 +116,8 @@ TEST(CompileOptionsParserUnitTests,
   ASSERT_TRUE(parseToFieldSet(data, fields));
 
   std::unordered_map<std::string, std::string> compile_options;
-  tt_pjrt_status status =
-      CompileOptionsParser::extractCustomProtobufFields(fields,
-                                                        compile_options);
+  tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
+      fields, compile_options);
   ASSERT_TRUE(tt_pjrt_status_is_ok(status));
   ASSERT_NE(compile_options.find("optimization_level"), compile_options.end());
   EXPECT_EQ(compile_options["optimization_level"], "2");
@@ -133,9 +128,8 @@ TEST(CompileOptionsParserUnitTests,
   google::protobuf::UnknownFieldSet fields;
 
   std::unordered_map<std::string, std::string> compile_options;
-  tt_pjrt_status status =
-      CompileOptionsParser::extractCustomProtobufFields(fields,
-                                                        compile_options);
+  tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
+      fields, compile_options);
   ASSERT_TRUE(tt_pjrt_status_is_ok(status));
   EXPECT_EQ(compile_options.find("optimization_level"), compile_options.end());
 }
@@ -150,9 +144,8 @@ TEST(CompileOptionsParserUnitTests,
   ASSERT_TRUE(parseToFieldSet(unrelated, fields));
 
   std::unordered_map<std::string, std::string> compile_options;
-  tt_pjrt_status status =
-      CompileOptionsParser::extractCustomProtobufFields(fields,
-                                                        compile_options);
+  tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
+      fields, compile_options);
   ASSERT_TRUE(tt_pjrt_status_is_ok(status));
   EXPECT_TRUE(compile_options.empty());
 }
