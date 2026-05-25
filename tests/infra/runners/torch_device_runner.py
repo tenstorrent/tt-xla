@@ -75,32 +75,34 @@ def to_device(x, device, depth=5, moved=None):
         if isinstance(x, type):
             return x
         result = x.to(device)
-        # If .to() returned the same object (already on target device), clone it so
-        # in-place mutations on the result don't affect the original (e.g. StaticCache
-        # cumulative_length.add_() would otherwise corrupt the workload's source state).
+        # nn.Module.to() is in-place (returns self). Clone tensors that didn't move
+        # so mutations in one run don't corrupt the workload's source state.
         if result is x and isinstance(x, torch.Tensor):
             result = result.clone()
         moved[obj_id] = result
         return result
-    # Handle objects with attributes by recursively processing all fields.
-    # Use copy.copy to avoid mutating the original object (e.g. StaticCache.cumulative_length
-    # would otherwise accumulate across multiple runs of the same workload).
     elif hasattr(x, "__dict__"):
-        new_obj = copy.copy(x)
-        for attr_name in list(x.__dict__):
-            setattr(
-                new_obj,
-                attr_name,
-                to_device(getattr(x, attr_name), device, depth - 1, moved),
-            )
-        # Sync the 'device' attribute (str or torch.device) to the target device
-        # so it stays consistent with any tensors that were just moved.
-        if "device" in new_obj.__dict__ and isinstance(
-            new_obj.__dict__["device"], (str, torch.device)
-        ):
-            new_obj.device = device
-        moved[obj_id] = new_obj
-        return new_obj
+        if callable(x):
+            # Compiled torch functions are callable and may have circular refs in
+            # __dict__ (dynamo internals), so copy.copy is unsafe. Mutate in-place.
+            moved[obj_id] = x  # guard before recursion to break circular refs
+            for attr_name in list(x.__dict__):
+                setattr(x, attr_name, to_device(getattr(x, attr_name), device, depth - 1, moved))
+            if "device" in x.__dict__ and isinstance(x.__dict__["device"], (str, torch.device)):
+                x.device = device
+            return x
+        else:
+            # Non-callable plain objects (e.g. transformers StaticCache/StaticLayer)
+            # are NOT nn.Modules — they have no .to() and get mutated in-place without
+            # a copy. Use copy.copy so each run gets a fresh object, preventing
+            # accumulated cache state from corrupting subsequent forward passes.
+            new_obj = copy.copy(x)
+            moved[obj_id] = new_obj  # guard before recursion to break circular refs
+            for attr_name in list(x.__dict__):
+                setattr(new_obj, attr_name, to_device(getattr(x, attr_name), device, depth - 1, moved))
+            if "device" in new_obj.__dict__ and isinstance(new_obj.__dict__["device"], (str, torch.device)):
+                new_obj.device = device
+            return new_obj
     else:
         return x
 
