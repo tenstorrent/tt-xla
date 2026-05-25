@@ -14,12 +14,27 @@ Exposes:
     functions returning dict[Tensor, partition_spec] for run_graph_test.
 """
 
+import html
+from pathlib import Path
+from typing import Callable, Optional
+
+import numpy as np
+import regex as re
 import torch
 import torch.nn as nn
+from PIL import Image
+
 from infra.utilities import Mesh
-from infra.utilities.torch_multichip_utils import get_mesh
+from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
+from tests.infra.testers.compiler_config import CompilerConfig
 
 MODEL_ID = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
+
+# Matches WanTransformer3DModel.config.in_channels for TI2V-5B
+# (= VAE z_dim = 48). Named here so the denoise loop avoids a magic number.
+LATENT_CHANNELS = 48
+# Wan 2.2 TI2V-5B VAE scale factor
+VAE_SCALE_FACTOR = 16
 
 # Pixel and latent shapes per resolution. Latent dims are:
 #   latent_frames = (num_frames - 1) // 4 + 1   (VAE temporal stride 4)
@@ -42,6 +57,63 @@ RESOLUTIONS = {
         "latent_w": 80,
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# First-frame image loader (i2v conditioning input)
+# ---------------------------------------------------------------------------
+
+
+def load_first_frame_image(
+    image_path: Path, height: int, width: int
+) -> torch.Tensor:
+    """Load image at ``image_path``, scale-to-cover the target then center
+    crop, and return a (1, 3, 1, H, W) bf16 tensor in [-1, 1] — the format
+    the Wan VAE encoder expects for a single-frame image.
+
+    Cover-style fit (vs. shorter-side fit) guarantees both target dims are
+    reachable for any source aspect ratio.
+    """
+    img = Image.open(image_path).convert("RGB")
+    src_w, src_h = img.size
+
+    scale = max(width / src_w, height / src_h)
+    new_w = max(width, round(src_w * scale))
+    new_h = max(height, round(src_h * scale))
+    img = img.resize((new_w, new_h), Image.LANCZOS)
+
+    left = (new_w - width) // 2
+    top = (new_h - height) // 2
+    img = img.crop((left, top, left + width, top + height))
+
+    arr = np.asarray(img, dtype=np.float32) / 255.0  # (H, W, 3) in [0, 1]
+    tensor = torch.from_numpy(arr).permute(2, 0, 1)  # (3, H, W)
+    tensor = tensor * 2.0 - 1.0  # [-1, 1]
+    return tensor.unsqueeze(0).unsqueeze(2).to(torch.bfloat16)  # (1, 3, 1, H, W)
+
+
+# ---------------------------------------------------------------------------
+# Prompt cleaning — matches diffusers/pipeline_wan.py:78-93 and Wan repo.
+# ---------------------------------------------------------------------------
+
+
+def _basic_clean(text: str) -> str:
+    try:
+        import ftfy
+
+        text = ftfy.fix_text(text)
+    except ImportError:
+        pass
+    return html.unescape(html.unescape(text)).strip()
+
+
+def _whitespace_clean(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def prompt_clean(text: str) -> str:
+    """Normalize prompt text the same way diffusers.WanPipeline does."""
+    return _whitespace_clean(_basic_clean(text))
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +172,69 @@ def load_dit(max_blocks: int = 0):
     if max_blocks > 0 and len(dit.blocks) > max_blocks:
         dit.blocks = nn.ModuleList(list(dit.blocks[:max_blocks]))
     return dit.eval()
+
+
+def load_tokenizer():
+    """Load the UMT5 tokenizer used by Wan 2.2 TI2V-5B."""
+    from transformers import AutoTokenizer
+
+    return AutoTokenizer.from_pretrained(MODEL_ID, subfolder="tokenizer")
+
+
+# ---------------------------------------------------------------------------
+# Component wrappers (reused by component tests and the e2e test)
+# ---------------------------------------------------------------------------
+
+
+class UMT5Wrapper(nn.Module):
+    """Return last_hidden_state as a plain tensor (not a model output object)."""
+
+    def __init__(self, encoder):
+        super().__init__()
+        self.encoder = encoder
+
+    def forward(self, input_ids, attention_mask):
+        return self.encoder(
+            input_ids=input_ids, attention_mask=attention_mask
+        ).last_hidden_state
+
+
+class VAEEncoderWrapper(nn.Module):
+    """Run encoder and return the deterministic mean latent."""
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+
+    def forward(self, x):
+        return self.vae.encode(x).latent_dist.mean
+
+
+class VAEDecoderWrapper(nn.Module):
+    """Run decoder and return the reconstructed sample tensor."""
+
+    def __init__(self, vae):
+        super().__init__()
+        self.vae = vae
+
+    def forward(self, z):
+        return self.vae.decode(z, return_dict=False)[0]
+
+
+class WanDiTWrapper(nn.Module):
+    """Return the velocity tensor from the diffusers output tuple."""
+
+    def __init__(self, dit):
+        super().__init__()
+        self.dit = dit
+
+    def forward(self, hidden_states, timestep, encoder_hidden_states):
+        return self.dit(
+            hidden_states=hidden_states,
+            timestep=timestep,
+            encoder_hidden_states=encoder_hidden_states,
+            return_dict=False,
+        )[0]
 
 
 # ---------------------------------------------------------------------------
@@ -254,3 +389,114 @@ def shard_dit_specs(dit) -> dict:
         specs[block.ffn.net[2].bias] = ("batch",)
 
     return specs
+
+
+# ---------------------------------------------------------------------------
+# Component runner (CPU or TT)
+# ---------------------------------------------------------------------------
+
+
+# Process-level cache: keep one ``torch.compile``-wrapped OptimizedModule per
+# (model instance id, input-shape signature). Without this, every call to
+# ``run_component`` builds a fresh OptimizedModule whose private dynamo cache
+# is empty — so calling ``run_component(wrapper, ...)`` twice on the same
+# wrapper triggers two full traces + two backend compiles. Strong refs on the
+# wrappers keep ``id()`` stable for the cache's lifetime.
+#
+# Caller invariant: keep the wrapper alive across calls. If you ``del`` the
+# wrapper and create a new one, ``id()`` may be reused for a *different*
+# object — a silent cache hit returning the wrong compiled graph. For this
+# test suite the ``_Components`` container in ``test_wan22_e2e.py`` keeps
+# wrappers alive for the duration of each test.
+_RUN_COMPONENT_COMPILE_CACHE: dict = {}
+
+
+def run_component(
+    wrapper: nn.Module,
+    inputs: list,
+    on_tt: bool,
+    *,
+    mesh: Optional[Mesh] = None,
+    shard_module: Optional[nn.Module] = None,
+    shard_fn: Optional[Callable[[nn.Module], dict]] = None,
+) -> torch.Tensor:
+    """Run a component wrapper on CPU or TT and return the CPU output tensor.
+
+    CPU path (`on_tt=False`): calls ``wrapper(*inputs)`` under ``torch.no_grad()``.
+
+    TT path (`on_tt=True`): moves ``wrapper`` and ``inputs`` onto the XLA
+    device, optionally applies ``xs.mark_sharding`` using
+    ``shard_fn(shard_module)`` and ``mesh``, then ``torch.compile(..., backend="tt")``
+    and runs. Returns ``.to("cpu")`` of the result.
+
+    Sharding is applied iff ``shard_fn`` is provided and ``mesh`` has more than
+    one device. For a single-device mesh the shard branch is a silent no-op so
+    the same call site works on 1-device and N-device setups. When
+    ``shard_fn`` is provided, ``shard_module`` is required — it is the
+    submodule whose device-resident parameters get sharded (e.g. ``wrapper.dit``).
+    """
+    if not on_tt:
+        with torch.no_grad():
+            return wrapper(*inputs)
+
+    import torch_xla
+    import torch_xla.core.xla_model as xm
+    import torch_xla.distributed.spmd as xs
+    import torch_xla.runtime as xr
+
+    use_sharding = (
+        shard_fn is not None and mesh is not None and len(mesh.device_ids) > 1
+    )
+
+    if use_sharding:
+        # Must run before any XLA op: sets CONVERT_SHLO_TO_SHARDY=1 and
+        # xr.use_spmd(). Both are idempotent across calls.
+        enable_spmd()
+
+    xr.set_device_type("TT")
+    device = xm.xla_device()
+
+    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True, enable_trace=True)
+    torch_xla.set_custom_compile_options(compiler_config.to_torch_compile_options())
+
+    # Move the raw wrapper and inputs to device first. shard_fn needs to see
+    # XLA tensors, so sharding must happen *after* this move.
+    wrapper_on_device = wrapper.to(device)
+    if hasattr(wrapper_on_device, "tie_weights"):
+        wrapper_on_device.tie_weights()
+    inputs_on_device = [t.to(device) for t in inputs]
+
+    if use_sharding:
+        assert shard_module is not None, "shard_fn requires shard_module"
+        specs = shard_fn(shard_module)
+        # Re-applying mark_sharding with identical specs on already-sharded
+        # tensors is a no-op in torch_xla — safe to run on every call,
+        # including the cached path below.
+        for tensor, spec in specs.items():
+            xs.mark_sharding(tensor, mesh, spec)
+
+    # Compile after the move + annotations so torch.compile traces the
+    # on-device, already-sharded module on its first call. Cache the
+    # OptimizedModule on (id(wrapper_on_device), input shape+dtype) so repeat
+    # calls don't re-trace and re-compile.
+    shape_key = tuple((tuple(t.shape), t.dtype) for t in inputs_on_device)
+    cache_key = (id(wrapper_on_device), shape_key)
+    compiled = _RUN_COMPONENT_COMPILE_CACHE.get(cache_key)
+    if compiled is None:
+        compiled = torch.compile(wrapper_on_device, backend="tt")
+        _RUN_COMPONENT_COMPILE_CACHE[cache_key] = compiled
+
+    with torch.no_grad():
+        out = compiled(*inputs_on_device)
+    return out.to("cpu")
+
+
+def compute_pcc(x: torch.Tensor, y: torch.Tensor) -> float:
+    """Pearson correlation between two tensors, flattened and cast to float32."""
+    x = x.detach().to("cpu").to(torch.float32).flatten()
+    y = y.detach().to("cpu").to(torch.float32).flatten()
+    vx, vy = x - x.mean(), y - y.mean()
+    denom = vx.norm() * vy.norm()
+    if denom == 0:
+        return float("nan")
+    return float((vx @ vy) / denom)
