@@ -16,7 +16,7 @@ jobs:
   open-version-bump-pr:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.TT_FORGE_RELEASER }}
+      GH_TOKEN: ${{ secrets.TT_INFERENCE_SERVER_RELEASE }}
       TARGET_REPO: tenstorrent/tt-inference-server
       REQ_FILE: tt-media-server/tt_model_runners/forge_runners/requirements.txt
     steps:
@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: ${{ env.TARGET_REPO }}
-          token: ${{ secrets.TT_FORGE_RELEASER }}
+          token: ${{ secrets.TT_INFERENCE_SERVER_RELEASE }}
 
       - name: Bump tt-forge version and open PR
         id: bump
