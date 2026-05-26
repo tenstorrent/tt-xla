@@ -249,7 +249,6 @@ def test_prefill_and_decode_pcc_e2e(
     print("[device] moving model to TT (this releases CPU storage) ...", flush=True)
     device = torch_xla.device()
     model = model.to(device)
-    gc.collect()
     for tensor, spec in transformer_shard_spec(model).items():
         xs.mark_sharding(tensor, mesh, spec)
 
