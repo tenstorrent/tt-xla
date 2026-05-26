@@ -2066,7 +2066,42 @@ def test_kimi_k2_tp_galaxy_2_layers(
         accuracy_testing=accuracy_testing,
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         max_output_tokens=max_output_tokens,
-        decode_only=decode_only,  # This test fails prefill + decode with low decode pcc = Issue: https://github.com/tenstorrent/tt-xla/issues/4614
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+    )
+
+
+# Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
+# This test only runs 2 layers so we expect to see incoherent output
+def test_kimi_k2_5_tp_galaxy_2_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.kimi_k2.k2_5.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.KIMI_K2_5_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=2,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         arch="wormhole_galaxy",
