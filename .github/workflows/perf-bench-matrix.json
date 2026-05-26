@@ -78,7 +78,7 @@
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
       },
       {
-        "name": "bge_m3_encode_batch1",
+        "name": "vllm_bge_m3_encode_batch1",
         "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_bge_m3_batch1",
         "vllm": true,
@@ -89,7 +89,7 @@
         "runs-on": "n150"
       },
       {
-        "name": "bge_m3_encode_batch32",
+        "name": "vllm_bge_m3_encode_batch32",
         "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_bge_m3_batch32",
         "vllm": true,
@@ -313,7 +313,7 @@
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
       {
-        "name": "qwen_3_4b_embedding_batch1",
+        "name": "vllm_qwen_3_4b_embedding_batch1",
         "pyreq": "loguru pytest torch==2.10.0 transformers==5.5.1 vllm==0.19.1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_qwen3_embedding_4b_batch1",
         "vllm": true,
