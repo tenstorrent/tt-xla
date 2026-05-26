@@ -60,6 +60,7 @@ class LLMSamplingWrapper(torch.nn.Module):
             input_ids=input_ids,
             past_key_values=past_key_values,
             position_ids=position_ids,
+            cache_position=cache_position,
             use_cache=use_cache,
         )
         logits = self.read_logits_fn(output)
