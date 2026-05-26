@@ -499,6 +499,7 @@ def _run_bge_m3(output_file, request, batch_size: int):
 
 
 def test_bge_m3(output_file, request):
+    """BGE-M3 encoder benchmark (batch_size=4)."""
     _run_bge_m3(output_file=output_file, request=request, batch_size=4)
 
 
