@@ -72,6 +72,11 @@ def setup_model_and_tokenizer(
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
+        # Decoder layers may cache attention_type at construction time (e.g. Gemma3);
+        # keep per-layer attention_type consistent with the mutated config.
+        for module in model.modules():
+            if getattr(module, "attention_type", None) is not None:
+                module.attention_type = "full_attention"
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
