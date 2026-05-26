@@ -8,71 +8,105 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
-  actions: write
-  id-token: write
-  packages: write
-  checks: write
+  issues: write
+  pull-requests: write
 
 jobs:
-  # build-image:
-  #   uses: ./.github/workflows/call-build-docker.yml
-  #   secrets: inherit
-  #   with:
-  #     xla_sha_override: ${{ inputs.xla_sha_override }}
+  update_test_durations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # ref: main
+      - uses: actions/setup-python@v6
+      - name: Process test durations from latest workflows
+        id: get-test-durations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo="tenstorrent/tt-xla"
 
-  # build-ttxla:
-  #   uses: ./.github/workflows/call-build.yml
-  #   name: "Build tt-xla"
-  #   secrets: inherit
-  #   needs: build-image
-  #   with:
-  #     docker_image: ${{ needs.build-image.outputs.docker-image }}
-  #     docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-  #     build_types: release,manylinux
-  #     xla_sha_override: ${{ inputs.xla_sha_override }}
+          get_test_results_from_wf() {
+            local wf_name="$1"
+            local conclusions="$2"
+            local num=5
 
-  # release:
-  #   uses: ./.github/workflows/call-release.yml
-  #   needs: [ build-ttxla ]
-  #   secrets: inherit
-  #   with:
-  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-  #     wheel_release_artifact_name: xla-whl-manylinux${{ needs.build-ttxla.outputs.artifact_suffix }}
-  #     wheel_release_vllm_tt_artifact_name: vllm-tt-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
-  #     is_nightly_release: false
-  #     xla_sha_override: ${{ inputs.xla_sha_override }}
-  #     should_overwrite_release: ${{ inputs.should_overwrite_release }}
+            # get json of the last $num workflow runs
+            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
 
-  # release-forge:
-  #   uses: ./.github/workflows/call-forge-release.yml
-  #   needs: [ release ]
-  #   secrets: inherit
-  #   with:
-  #     release_tag: ${{ needs.release.outputs.release_tag }}
-  #     xla_sha_override: ${{ inputs.xla_sha_override }}
-  #     should_overwrite_release: ${{ inputs.should_overwrite_release }}
+            counter=0
+            while true; do
+              # Check the status of 'conclusion'
+              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
 
-  # update-release-notes-tt-xla:
-  #   needs: [ release-forge, release ]
-  #   uses: ./.github/workflows/manual-update-release-notes.yml
-  #   secrets: inherit
-  #   with:
-  #     tag_name: ${{ needs.release.outputs.release_tag }}
-  #     is_nightly: false
-  #     target_repo: tenstorrent/tt-xla
+              if echo "$conclusions" | grep -q -w "$conclusion"; then
+                break
+              else
+                ((++counter))
 
-  # update-release-notes-tt-forge:
-  #   needs: [ release-forge, release ]
-  #   uses: ./.github/workflows/manual-update-release-notes.yml
-  #   secrets: inherit
-  #   with:
-  #     tag_name: ${{ needs.release.outputs.release_tag }}
-  #     is_nightly: false
-  #     target_repo: tenstorrent/tt-forge
+                # Exit if the counter reaches $num
+                if [ $counter -ge $num ]; then
+                  echo "ERROR: Did not found good workflow within last $num. Exiting."
+                  exit 1
+                fi
+              fi
+            done
+            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
+            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
+            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
+            rm -f runs.json
 
-  update-version-in-inference-server:
-    uses: ./.github/workflows/call-update-inference-server-version.yml
-    secrets: inherit
-    with:
-      release_tag: "1.2.0.dev20260526002843"
+            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
+          }
+
+          # get test results from the last nightly that was success or failure
+          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
+
+          # get test results from the last successful push
+          get_test_results_from_wf "push-main.yml" "success" "push"
+
+          # get test results from the last weekly that was success or failure
+          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
+
+          # get test results from the last weekly training that was success or failure
+          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
+
+          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
+          echo "" >> .test_durations
+          echo "----- NEW DURATIONS"
+          cat .test_durations
+
+          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v8
+        id: create-pr
+        with:
+          branch: test-durations-update
+          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          base: main
+          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+          labels: tooling
+          delete-branch: true
+          token: ${{ github.token }}
+
+      - name: Enable Pull Request Automerge
+        if: ${{ steps.create-pr.outputs.pull-request-number }}
+        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Generate Summary
+        run: |
+          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
+          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
+          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
