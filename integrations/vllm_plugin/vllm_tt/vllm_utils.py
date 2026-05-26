@@ -7,12 +7,14 @@ logger = tt_init_logger(__name__)
 
 
 def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]:
+    print("determine_mesh_shape", num_devices, use_2d_mesh)
     if use_2d_mesh:
         # Use predefined mesh shapes based on number of devices
         mesh_shapes = {
             2: (1, 2),
+            
             4: (2, 2),
-            8: (2, 4),
+            8: (1, 8),
             16: (4, 4),
             32: (4, 8),
         }
@@ -21,6 +23,7 @@ def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]
             logger.info(
                 f"Using predefined mesh shape for {num_devices} devices: {mesh_shape}"
             )
+            print("coming to if case mesh_shape", mesh_shape)
             return mesh_shape
         else:
             # Fallback to computation for unsupported device counts
@@ -33,6 +36,7 @@ def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]
             mesh_dim2 = num_devices // mesh_dim1
             mesh_shape = (mesh_dim1, mesh_dim2)
             logger.info(f"Computed mesh shape: {mesh_shape}")
+            print("coming to else case mesh_shape", mesh_shape)
             return mesh_shape
     else:
         # For 1D mesh, all devices are in one dimension.

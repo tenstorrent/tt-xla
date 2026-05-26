@@ -142,6 +142,74 @@ class TTRotaryEmbedding(nn.Module):
         return query, key
 
 
+# Alignment requirement for TT hardware matmuls with BFP8 weight dtype.
+# BFP8 packs elements in groups of 8; TT tiles are 32×32.
+# We use 32 so it satisfies both constraints.
+_TT_MATMUL_ALIGN = 32
+
+
+def _pad_to_align(x: torch.Tensor, align: int) -> tuple[torch.Tensor, int]:
+    """Pad dim-0 of x to the next multiple of align. Returns (padded_x, original_N)."""
+    N = x.shape[0]
+    pad_to = (N + align - 1) // align * align
+    if pad_to > N:
+        padding = x.new_zeros(pad_to - N, *x.shape[1:])
+        x = torch.cat([x, padding], dim=0)
+    return x, N
+
+
+class TTPatchMerger(nn.Module):
+    """Wraps pixtral PatchMerger to pad merged token count to a TT-aligned multiple.
+
+    The BFP8 weight dtype constraint requires the activation (M) dimension of
+    every matmul to be a multiple of 8 (and of the 32-element tile size).
+    For a 1540×1540 Pixtral image the 2×2 spatial merge produces 55×55=3025
+    tokens; 3025 % 8 = 1, violating the constraint. This wrapper pads to the
+    next multiple of 32 before the Linear, then strips the padding rows after.
+    """
+
+    def __init__(self, layer: nn.Module):
+        super().__init__()
+        self.spatial_merge_size = layer.spatial_merge_size
+        self.mlp_input_dim = layer.mlp_input_dim
+        self.merging_layer = layer.merging_layer
+
+    def _permute(self, x: torch.Tensor, image_sizes: list) -> torch.Tensor:
+        from vllm.model_executor.models.pixtral import get_sub_grids
+
+        sub_grids = get_sub_grids(x, image_sizes, self.spatial_merge_size)
+        permuted = []
+        for grid in sub_grids:
+            n_patches = grid.shape[-1]
+            permuted.append(grid.view(-1, n_patches).t())
+        return torch.cat(permuted, dim=0)
+
+    def forward(self, x: torch.Tensor, image_sizes: list) -> torch.Tensor:
+        x = self._permute(x, image_sizes)  # (N_merged, D * spatial_merge_size^2)
+        x, N = _pad_to_align(x, _TT_MATMUL_ALIGN)
+        x = self.merging_layer(x)  # (pad_to, D)
+        return x[:N]
+
+
+class TTVisionLanguageAdapter(nn.Module):
+    """Wraps pixtral VisionLanguageAdapter to pad token count to a TT-aligned multiple.
+
+    Same BFP8 constraint as TTPatchMerger — pads around both Linear projections
+    and strips padding before returning so downstream split sizes remain correct.
+    """
+
+    def __init__(self, layer: nn.Module):
+        super().__init__()
+        self.w_in = layer.w_in
+        self.gelu = layer.gelu
+        self.w_out = layer.w_out
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x, N = _pad_to_align(x, _TT_MATMUL_ALIGN)
+        x = self.w_out(self.gelu(self.w_in(x)))  # (pad_to, out_dim)
+        return x[:N]
+
+
 def get_fqn(module):
     return module.__class__.__qualname__
 
@@ -156,9 +224,36 @@ def tt_rotary_embedding_module(layer: torch.nn.Module) -> torch.nn.Module:
     return TTRotaryEmbedding(layer)
 
 
+def tt_patch_merger_module(layer: torch.nn.Module) -> torch.nn.Module:
+    try:
+        from vllm.model_executor.models.pixtral import PatchMerger
+    except ImportError:
+        return layer
+    if not isinstance(layer, PatchMerger):
+        logger.warning("PatchMerger override skipped: unexpected type %s", type(layer).__name__)
+        return layer
+    return TTPatchMerger(layer)
+
+
+def tt_vision_language_adapter_module(layer: torch.nn.Module) -> torch.nn.Module:
+    try:
+        from vllm.model_executor.models.pixtral import VisionLanguageAdapter
+    except ImportError:
+        return layer
+    if not isinstance(layer, VisionLanguageAdapter):
+        logger.warning(
+            "VisionLanguageAdapter override skipped: unexpected type %s",
+            type(layer).__name__,
+        )
+        return layer
+    return TTVisionLanguageAdapter(layer)
+
+
 MODULE_TYPE_TO_TT_OVERRIDE = OrderedDict(
     [
         ("RMSNorm", tt_rmsnorm_module),
+        ("PatchMerger", tt_patch_merger_module),
+        ("VisionLanguageAdapter", tt_vision_language_adapter_module),
     ]
 )
 

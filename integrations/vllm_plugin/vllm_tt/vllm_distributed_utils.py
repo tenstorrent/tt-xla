@@ -22,6 +22,11 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
 )
+from vllm.model_executor.models.pixtral import (
+    PatchMerger,
+    TransformerBlock,
+    VisionLanguageAdapter,
+)
 
 from .logger import tt_init_logger
 
@@ -229,7 +234,7 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    xs.mark_sharding(layer.weight, mesh, ("model", None))
+    xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -248,7 +253,7 @@ def partition_parallel_lm_head(
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, ("model", None))
+    xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
     return layer
 
 
@@ -257,10 +262,49 @@ def partition_vocab_parallel_embedding(
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, (None, "model"))
+    xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
     # Apply sharding constraint to the output of the layer.
-    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
+    hook_forward = sharding_constraint_hook(layer, mesh, ("model", "batch"))
     layer.register_forward_hook(hook_forward)
+    return layer
+
+
+def partition_transformer_block(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    assert isinstance(layer, TransformerBlock)
+    logger.debug("Applied parallel sharding to %s", layer)
+    # Attention: column parallel for q/k/v projections, row parallel for output
+    xs.mark_sharding(layer.attention.wq.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(layer.attention.wk.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(layer.attention.wv.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(layer.attention.wo.weight, mesh, ("model", "batch"))
+    # MLP: column parallel for gate (w1) and up (w3), row parallel for down (w2)
+    xs.mark_sharding(layer.feed_forward.w1.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(layer.feed_forward.w3.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(layer.feed_forward.w2.weight, mesh, ("model", "batch"))
+    return layer
+
+
+def partition_patch_merger(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    assert isinstance(layer, PatchMerger)
+    logger.debug("Applied parallel sharding to %s", layer)
+    xs.mark_sharding(layer.merging_layer.weight, mesh, ("model", "batch"))
+    # All-gather the sharded output before passing to VisionLanguageAdapter.
+    hook_forward = sharding_constraint_hook(layer, mesh, ("model", "batch"))
+    layer.register_forward_hook(hook_forward)
+    return layer
+
+
+def partition_vision_language_adapter(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    assert isinstance(layer, VisionLanguageAdapter)
+    logger.debug("Applied parallel sharding to %s", layer)
+    xs.mark_sharding(layer.w_in.weight, mesh, ("model", "batch"))
+    xs.mark_sharding(layer.w_out.weight, mesh, ("model", "batch"))
     return layer
 
 
@@ -272,6 +316,9 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        ("TransformerBlock", partition_transformer_block),
+        ("PatchMerger", partition_patch_merger),
+        ("VisionLanguageAdapter", partition_vision_language_adapter),
     ]
 )
 

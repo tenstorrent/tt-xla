@@ -98,7 +98,7 @@ from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
-from .platform import TTConfig
+from .platform import TTConfig, resolve_hf_decoder_layer_config
 from .sampler import Sampler
 from .vllm_distributed_utils import shard_model
 from .vllm_utils import determine_mesh_shape, prev_power_of_2
@@ -235,12 +235,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         parallel_config = self.parallel_config
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
+        # print("self.vllm_config",self.vllm_config)
+        # print("self.model_config",self.model_config)
+        print("coming into TTModelRunner")
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
         self.is_sharded_compute_logits = False
-
+        print("self.enable_tensor_parallel",self.enable_tensor_parallel)
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
             mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
@@ -323,9 +326,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY
         self.uses_mrope = model_config.uses_mrope
-        # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
-        #     model_config)
-        self.supports_mm_inputs = False
+        self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
+            model_config)
+        print(f"supports_mm_inputs: {self.supports_mm_inputs}",flush=True)
+        # self.supports_mm_inputs = False
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
         assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
@@ -364,6 +368,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kernel_block_sizes=[self.block_size],
             is_pooling_model=False,
         )
+        print("input batch created")
 
         # Cached torch/numpy tensor
         # The pytorch tensor and numpy array share the same buffer.
@@ -450,8 +455,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.mm_budget = (
             MultiModalBudget(
-                self.model_config,
-                self.scheduler_config,
+                self.vllm_config,
                 self.mm_registry,
             )
             if self.supports_mm_inputs
@@ -473,16 +477,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
+        # original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
 
-        if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
-            logger.info(
-                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
-            )
-            # Store original layer count for weight filtering
-            self._original_num_layers = original_num_layers
-            self._target_num_layers = target_num_layers
+        # if target_num_layers > 0 and target_num_layers < original_num_layers:
+        #     vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
+        #     logger.info(
+        #         f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+        #     )
+        #     # Store original layer count for weight filtering
+        #     self._original_num_layers = original_num_layers
+        #     self._target_num_layers = target_num_layers
+
+        if target_num_layers > 0:
+            hf_cfg = vllm_config.model_config.hf_config
+            original_num_layers, layer_cfg = resolve_hf_decoder_layer_config(hf_cfg)
+            if target_num_layers < original_num_layers:
+                layer_cfg.num_hidden_layers = target_num_layers
+                logger.info(
+                    f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+                )
+                # Store original layer count for weight filtering
+                self._original_num_layers = original_num_layers
+                self._target_num_layers = target_num_layers
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -1278,6 +1294,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         scheduler_output: "SchedulerOutput",
         intermediate_tensors: Optional[IntermediateTensors] = None,
     ) -> ModelRunnerOutput | None:
+        print("coming into execute_model/model_runner",flush=True)
         if self.scheduler_output is not None:
             raise RuntimeError(
                 "State error: sample_tokens() must be called "
@@ -1597,10 +1614,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        lm_head = getattr(self.model, "lm_head", None)
         if (
             self.enable_tensor_parallel
-            and self.model.lm_head is not None
-            and isinstance(self.model.lm_head, ParallelLMHead)
+            and self.use_2d_mesh
+            and lm_head is not None
+            and isinstance(lm_head, ParallelLMHead)
         ):
             self.is_sharded_compute_logits = True
 
@@ -1673,6 +1692,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch_xla.sync(wait=False)  # Captures metadata updates
 
     def _precompile_mm_encoder(self) -> None:
+        print("coming into precompile_mm_encoder/model_runner.py",flush=True)
         torch._dynamo.config.dynamic_shapes = False
         if not self.supports_mm_inputs:
             return
@@ -1684,8 +1704,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         assert mm_budget is not None
 
         max_items_per_seq_by_modality = (
-            mm_budget.max_items_per_batch_by_modality
+            mm_budget.mm_max_items_per_batch
         )  # noqa: E501
+        logger.info("max_items_per_seq_by_modality: %s", max_items_per_seq_by_modality)
 
         for mode, max_items_per_seq in max_items_per_seq_by_modality.items():
             logger.info(
@@ -1705,6 +1726,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 torch_xla.sync(wait=False)
                 num_patches = mm_embeds[0].shape[0]
                 items_size = num_patches * num_items
+                print(f"items_size: {items_size}",flush=True)
+                print(f"num_tokens: {self.num_tokens_paddings}",flush=True)
+                # print(f" num_tokens value: {num_tokens}",flush=True)
 
                 # NOTE (NickLucche) pre-compile `embed_input_ids` when mm
                 # embeddings are present. We assume `--disable-mm-chunked`,
@@ -1797,7 +1821,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Mark dummy inputs to match the generated hidden_states shardings
             # (during execution) to avoid re-compilation of select_hidden_states
             # graph later.
-            if self.enable_tensor_parallel:
+            if self.enable_tensor_parallel and self.use_2d_mesh:
                 xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
 
             self.select_hidden_states(dummy_hidden, indices)
@@ -1817,8 +1841,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.max_num_reqs, hsize), dtype=self._hidden_states_dtype
         )
         dummy_hidden = dummy_hidden.to(self.device)
-        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
-            xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
 
         self.compute_logits(dummy_hidden)
 
@@ -1962,6 +1984,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ) -> None:
         if self.tt_config.decode_only:
             return
+        print("coming into profile_run/model_runner.py")
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
@@ -1982,7 +2005,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # modality with the max possible input tokens even when
                     # it supports multiple.
                     dummy_modality = mm_budget.get_modality_with_max_tokens()
-                    max_mm_items_per_batch = mm_budget.max_items_per_batch_by_modality[
+                    max_mm_items_per_batch = mm_budget.mm_max_items_per_batch[
                         dummy_modality
                     ]
 
@@ -2006,9 +2029,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # impact of recompilation until it's fixed.
                     start = time.perf_counter()
                     torch_xla.sync(wait=False)
+                    print("coming into model embed multimodal function", flush=True)
                     dummy_encoder_outputs = self.model.embed_multimodal(
                         **batched_dummy_mm_inputs
                     )
+                    print("completed the model embed multimodal function", flush=True)
                     torch_xla.sync(wait=False)
                     xm.wait_device_ops()
                     end = time.perf_counter()
@@ -2185,7 +2210,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        if self.enable_tensor_parallel:
+        if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
@@ -2196,7 +2221,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # (quant_method.apply bypasses __call__) and all_gather is a
         # no-op (world_size=1). Must be inside the compiled graph —
         # external sharding_constraint between compiled functions breaks.
-        if self.enable_tensor_parallel and self.is_sharded_compute_logits:
+        if self.enable_tensor_parallel and (
+            not self.use_2d_mesh or self.is_sharded_compute_logits
+        ):
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
@@ -2534,22 +2561,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Dummy data for profiling and precompiling multimodal models."""
         assert self.mm_budget is not None
 
-        dummy_decoder_data = self.mm_registry.get_decoder_dummy_data(
-            model_config=self.model_config,
-            seq_len=self.max_num_tokens,
+        dummy_mm_inputs = self.mm_registry.get_dummy_mm_inputs(
+            self.model_config,
             mm_counts={modality: 1},
             cache=self.mm_budget.cache,
         )
-        dummy_mm_data = dummy_decoder_data.multi_modal_data
-
-        # Result in the maximum GPU consumption of the model
-        dummy_mm_item = dummy_mm_data[modality][0]
-        dummy_mm_items = [dummy_mm_item] * max_items_per_batch
+        dummy_mm_item = dummy_mm_inputs["mm_kwargs"][modality][0]
 
         return next(
             grouped_mm_kwargs
             for _, _, grouped_mm_kwargs in group_mm_kwargs_by_modality(
-                dummy_mm_items,
+                [(modality, dummy_mm_item)] * max_items_per_batch,
                 device=self.device,
                 pin_memory=self.pin_memory,
             )
