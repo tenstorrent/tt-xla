@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import socket
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -38,6 +39,19 @@ class VLLMBenchmarkConfig:
 
     # Sampling params (temperature=0.0 -> greedy)
     temperature: float = 0.0
+
+
+@dataclass
+class VLLMEmbeddingBenchmarkConfig:
+    """Configuration for a vLLM embedding benchmark run."""
+
+    model: str = "BAAI/bge-m3"
+    max_model_len: int = 512
+    gpu_memory_utilization: float = 0.05
+    additional_config: Dict[str, Any] = field(default_factory=dict)
+    batch_size: int = 1
+    warmup_iterations: int = 1
+    loop_count: int = 32
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
@@ -267,5 +281,91 @@ def benchmark_vllm(
         input_sequence_length=config.max_model_len,
         device_count=device_count,
         mesh_shape=mesh_shape,
+        vllm=True,
+    )
+
+
+def benchmark_vllm_embedding(
+    config: VLLMEmbeddingBenchmarkConfig,
+    display_name: str,
+) -> Dict[str, Any]:
+    """Run a vLLM embedding benchmark and return a standardised result dict."""
+    prompts = [DEFAULT_PROMPT] * config.batch_size
+
+    llm_args: Dict[str, Any] = {
+        "model": config.model,
+        "task": "embed",
+        "max_model_len": config.max_model_len,
+        "max_num_seqs": config.batch_size,
+        "max_num_batched_tokens": config.batch_size * config.max_model_len,
+        "gpu_memory_utilization": config.gpu_memory_utilization,
+        "disable_log_stats": False,
+        "additional_config": dict(config.additional_config),
+    }
+    print(f"Creating vLLM embedding engine for {config.model} ...")
+    print(f"  LLM args: {llm_args}")
+    llm = vllm.LLM(**llm_args)
+
+    if config.warmup_iterations > 0:
+        print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
+        for _ in range(config.warmup_iterations):
+            llm.encode(prompts)
+        print("Warmup complete.")
+
+    print(f"\nStarting benchmark ({config.loop_count} iterations) ...")
+    total_time = 0.0
+    for _ in range(config.loop_count):
+        t0 = time.perf_counter()
+        llm.encode(prompts)
+        total_time += time.perf_counter() - t0
+
+    avg_time = total_time / config.loop_count
+    samples_per_sec = config.batch_size / avg_time
+
+    metadata = get_benchmark_metadata()
+    full_model_name = config.model
+    model_type = "text-embedding"
+    dataset_name = "Random Data"
+    evaluation_score = 0.0
+
+    print_benchmark_results(
+        model_title=full_model_name,
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        date=metadata["date"],
+        machine_name=metadata["machine_name"],
+        total_time=avg_time,
+        total_samples=config.batch_size,
+        samples_per_sec=samples_per_sec,
+        evaluation_score=evaluation_score,
+        batch_size=config.batch_size,
+        input_sequence_length=config.max_model_len,
+    )
+
+    return create_benchmark_result(
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        num_layers=-1,
+        batch_size=config.batch_size,
+        input_size=(config.max_model_len,),
+        loop_count=config.loop_count,
+        data_format="bfloat16",
+        total_time=avg_time,
+        total_samples=config.batch_size,
+        evaluation_score=evaluation_score,
+        optimization_level=config.additional_config.get("optimization_level", 0),
+        program_cache_enabled=True,
+        trace_enabled=config.additional_config.get("enable_trace", True),
+        model_info=full_model_name,
+        display_name=display_name,
+        torch_xla_enabled=True,
+        backend="tt",
+        device_name=socket.gethostname(),
+        arch="wormhole",
+        input_is_image=False,
+        input_sequence_length=config.max_model_len,
+        device_count=1,
         vllm=True,
     )
