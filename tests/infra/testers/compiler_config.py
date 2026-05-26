@@ -119,6 +119,11 @@ class CompilerConfig:
             options["codegen_try_recover_structure"] = "true"
 
         if self.enable_create_d2m_subgraphs:
+            if self.optimization_level < 1:
+                raise ValueError(
+                    f"optimization_level must be >= 1 when enable_create_d2m_subgraphs "
+                    f"is enabled, got optimization_level={self.optimization_level}"
+                )
             options["enable_create_d2m_subgraphs"] = "true"
 
         return options

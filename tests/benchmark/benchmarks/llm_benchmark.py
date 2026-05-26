@@ -332,6 +332,12 @@ def benchmark_llm_torch_xla(
             "Please use -t text-generation"
         )
 
+    if enable_create_d2m_subgraphs and optimization_level < 1:
+        raise ValueError(
+            f"optimization_level must be >= 1 when enable_create_d2m_subgraphs "
+            f"is enabled, got optimization_level={optimization_level}"
+        )
+
     # Check transformers version
     check_transformers_version()
 
