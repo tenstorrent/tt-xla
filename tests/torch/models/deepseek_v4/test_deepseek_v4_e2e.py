@@ -99,6 +99,8 @@ def _load_full_model(model_name: str, args: mdo.ModelArgs, mesh_shape: Tuple[int
     )
     missing, unexpected = model.load_state_dict(sd, strict=False)
     print(f"[load] missing={len(missing)} unexpected={len(unexpected)}", flush=True)
+    del sd
+    gc.collect()
 
     print(f"[swap] enable_sparse_mlp on all {args.n_layers} blocks ...", flush=True)
     enable_sparse_mlp(
@@ -247,13 +249,13 @@ def test_prefill_and_decode_pcc_e2e(
     print("[device] moving model to TT (this releases CPU storage) ...", flush=True)
     device = torch_xla.device()
     model = model.to(device)
-    # gc.collect()
+    gc.collect()
     for tensor, spec in transformer_shard_spec(model).items():
         xs.mark_sharding(tensor, mesh, spec)
 
     # --- Apply weight dtype overrides ------------------------------------
     # MoE routed experts + router: bfp4
-    expert_dtype = "bfp_bf4"
+    expert_dtype = "bfp_bf8"
     weight_dtype_overrides = {
         # MoE routed experts (compound stacked across the 256 experts).
         "layers.*.ffn.mlp.experts.gate_proj": expert_dtype,
