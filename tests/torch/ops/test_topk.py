@@ -282,6 +282,7 @@ def test_topk_vllm_sampling_shapes(input_shape: tuple, k: int):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.dual_chip
 @pytest.mark.record_test_properties(
