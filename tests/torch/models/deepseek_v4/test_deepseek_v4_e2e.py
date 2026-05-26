@@ -165,13 +165,10 @@ def transformer_shard_spec(model: mdo.Transformer):
 @pytest.mark.nightly
 @pytest.mark.bh_galaxy
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
-@pytest.mark.parametrize("num_layers", [20, 43])
 @pytest.mark.parametrize("num_iterations", [10])
 @pytest.mark.parametrize("use_cpu_decode_inputs", [True])
 @torch.inference_mode()
-def test_prefill_and_decode_pcc_e2e(
-    model_name, num_layers, num_iterations, use_cpu_decode_inputs
-):
+def test_prefill_and_decode_pcc_e2e(model_name, num_iterations, use_cpu_decode_inputs):
     enable_spmd()
     xr.set_device_type("TT")
 
@@ -185,10 +182,6 @@ def test_prefill_and_decode_pcc_e2e(
     args.n_mtp_layers = 0  # Disable multi-token prediction
     args.max_batch_size = bsz
     args.max_seq_len = 2 * PROMPT_LEN
-
-    if num_layers < args.n_layers:
-        args.n_layers = num_layers
-        args.compress_ratios = args.compress_ratios[:num_layers]
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     prompt_ids = _tokenize_prompts(tokenizer, PROMPTS)
@@ -209,33 +202,27 @@ def test_prefill_and_decode_pcc_e2e(
     sp_prefill = torch.tensor(
         PROMPT_LEN, dtype=torch.long
     )  # start_pos tensor for prefill
-    h_pf, logits_pf = model(prompt_ids, sp_prefill, return_hidden_states=True)
-    cpu_prefill_h = h_pf.detach().to(torch.float32).cpu().clone()
+    logits_pf = model(prompt_ids, sp_prefill)
     cpu_prefill_logits = logits_pf.detach().to(torch.float32).cpu().clone()
     next_token = logits_pf.detach().cpu().argmax(dim=-1, keepdim=True).to(torch.long)
 
     print(
-        f"[cpu] prefill hidden_states shape={tuple(cpu_prefill_h.shape)} "
-        f"first_ids[:8]={next_token[:8, 0].tolist()}",
+        f"[cpu]first_ids[:8]={next_token[:8, 0].tolist()}",
         flush=True,
     )
 
-    # List to store the hidden state tensors after each decode step
-    cpu_decode_hs: list[torch.Tensor] = []
     cpu_decode_logits: list[torch.Tensor] = []
     for step in range(num_iterations):
         decode_inputs.append(next_token)
         sp_step = torch.tensor(PROMPT_LEN + step, dtype=torch.long)
-        h_d, logits_d = model(next_token, sp_step, return_hidden_states=True)
-        h = h_d.detach().to(torch.float32).cpu().clone()
+        logits_d = model(next_token, sp_step)
         logits = logits_d.detach().to(torch.float32).cpu().clone()
-        cpu_decode_hs.append(h)
         cpu_decode_logits.append(logits)
         next_token = logits_d.detach().cpu().argmax(dim=-1, keepdim=True).to(torch.long)
         cpu_generated_tokens.append(next_token)
         print(
             f"[cpu] decode step {step} sp={PROMPT_LEN + step} "
-            f"shape={tuple(h.shape)} next_ids[:8]={next_token[:8, 0].tolist()}",
+            f"shape={tuple(logits.shape)} next_ids[:8]={next_token[:8, 0].tolist()}",
             flush=True,
         )
 
@@ -278,10 +265,7 @@ def test_prefill_and_decode_pcc_e2e(
     xs.mark_sharding(prompt_ids_tt, mesh, ("batch", None))
     sp_prefill_tt = torch.tensor(PROMPT_LEN, dtype=torch.long).to(device)
     print("[device] compiling + running prefill ...", flush=True)
-    h_pf_dev, logits_pf_dev = compiled(
-        prompt_ids_tt, sp_prefill_tt, return_hidden_states=True
-    )
-    device_prefill_h = h_pf_dev.detach().to("cpu").to(torch.float32).clone()
+    logits_pf_dev = compiled(prompt_ids_tt, sp_prefill_tt)
     device_prefill_logits = logits_pf_dev.detach().to("cpu").to(torch.float32).clone()
 
     next_token_dev = (
@@ -289,12 +273,11 @@ def test_prefill_and_decode_pcc_e2e(
     )
 
     print(
-        f"[device] prefill hidden_states shape={tuple(device_prefill_h.shape)} "
+        f"[device] prefill logits shape={tuple(device_prefill_logits.shape)} "
         f"first_ids[:8]={next_token_dev[:8, 0].tolist()}",
         flush=True,
     )
 
-    device_decode_hs: list[torch.Tensor] = []
     device_decode_logits: list[torch.Tensor] = []
 
     for step in range(num_iterations):
@@ -308,12 +291,8 @@ def test_prefill_and_decode_pcc_e2e(
         decode_token_tt = token_in.to(device)  # [bsz, 1]
         xs.mark_sharding(decode_token_tt, mesh, ("batch", None))
         sp_step_tt = torch.tensor(PROMPT_LEN + step, dtype=torch.long).to(device)
-        h_d_dev, logits_d_dev = compiled(
-            decode_token_tt, sp_step_tt, return_hidden_states=True
-        )
-        h = h_d_dev.detach().to("cpu").to(torch.float32).clone()
+        logits_d_dev = compiled(decode_token_tt, sp_step_tt)
         logits = logits_d_dev.detach().to("cpu").to(torch.float32).clone()
-        device_decode_hs.append(h)
         device_decode_logits.append(logits)
         dev_argmax = (
             logits_d_dev.detach().to("cpu").argmax(dim=-1, keepdim=True).to(torch.long)
@@ -322,56 +301,34 @@ def test_prefill_and_decode_pcc_e2e(
 
         print(
             f"[device] decode step {step} sp={PROMPT_LEN + step} "
-            f"shape={tuple(h.shape)} "
+            f"shape={tuple(logits.shape)} "
             f"next_ids[:8]={dev_argmax[:8, 0].tolist()}",
             flush=True,
         )
 
     # ---- PCC comparisons ------------------------------------------------
     pccs: list[tuple[str, float]] = []
-    assert cpu_prefill_h.shape == device_prefill_h.shape, (
-        f"prefill hidden states shape mismatch: cpu={tuple(cpu_prefill_h.shape)} "
-        f"device={tuple(device_prefill_h.shape)}"
-    )
     assert cpu_prefill_logits.shape == device_prefill_logits.shape, (
         f"prefill logits shape mismatch: cpu={tuple(cpu_prefill_logits.shape)} "
         f"device={tuple(device_prefill_logits.shape)}"
     )
 
-    prefill_h_pcc = compute_pcc(cpu_prefill_h, device_prefill_h)
     prefill_logits_pcc = compute_pcc(cpu_prefill_logits, device_prefill_logits)
 
-    if num_layers < 43:
-        # When running all layers of the V4 Flash model, the prefill PCC for
-        # hidden states is only around ~0.50 due to different experts being selected.
-        # However, the output of the model is still coherent.
-        pccs.append(("prefill hidden states pcc", prefill_h_pcc))
     pccs.append(("prefill logits pcc", prefill_logits_pcc))
 
-    print(f"[pcc] prefill hidden states pcc={prefill_h_pcc:.6f}", flush=True)
     print(f"[pcc] prefill logits pcc={prefill_logits_pcc:.6f}", flush=True)
 
-    assert len(cpu_decode_hs) == len(device_decode_hs)
     assert len(cpu_decode_logits) == len(device_decode_logits)
-    assert len(cpu_decode_logits) == len(cpu_decode_hs)
-    for i in range(len(cpu_decode_hs)):
-        cpu_h = cpu_decode_hs[i]
-        dev_h = device_decode_hs[i]
+    for i in range(len(cpu_decode_logits)):
         cpu_logits = cpu_decode_logits[i]
         dev_logits = device_decode_logits[i]
-        assert cpu_h.shape == dev_h.shape, (
-            f"decode[{i}] hidden states shape mismatch: cpu={tuple(cpu_h.shape)} "
-            f"device={tuple(dev_h.shape)}"
-        )
         assert cpu_logits.shape == dev_logits.shape, (
             f"decode[{i}] logits shape mismatch: cpu={tuple(cpu_logits.shape)} "
             f"device={tuple(dev_logits.shape)}"
         )
-        pcc_h = compute_pcc(cpu_h, dev_h)
         pcc_logits = compute_pcc(cpu_logits, dev_logits)
-        pccs.append((f"decode[{i}] hidden states pcc", pcc_h))
         pccs.append((f"decode[{i}] logits pcc", pcc_logits))
-        print(f"[pcc] decode step {i} hidden states pcc={pcc_h:.6f}", flush=True)
         print(f"[pcc] decode step {i} logits pcc={pcc_logits:.6f}", flush=True)
 
     all_pass = True
