@@ -109,7 +109,12 @@ def extract_metrics(report: dict) -> dict:
 
     total_samples = measurements.get("total_samples", 0)
     total_time = measurements.get("total_time", 0)
-    samples_per_sec = total_samples / total_time if total_time > 0 else None
+    if "samples_per_sec" in measurements:
+        samples_per_sec = measurements["samples_per_sec"]
+    elif total_time > 0:
+        samples_per_sec = total_samples / total_time
+    else:
+        samples_per_sec = None
 
     return {
         "model": report.get("model", "unknown"),
@@ -121,6 +126,11 @@ def extract_metrics(report: dict) -> dict:
         "input_sequence_length": report.get("input_sequence_length"),
         "samples_per_sec": round(samples_per_sec, 2) if samples_per_sec else None,
         "ttft_ms": round(measurements["ttft"], 2) if "ttft" in measurements else None,
+        "avg_decode_time_s": (
+            round(measurements["avg_decode_time_s"], 4)
+            if "avg_decode_time_s" in measurements
+            else None
+        ),
         "device_fw_duration_s": (
             round(measurements["device_fw_duration"], 4)
             if "device_fw_duration" in measurements

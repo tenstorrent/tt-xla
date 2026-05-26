@@ -295,7 +295,7 @@ def print_benchmark_results(
     print(f"| Machine name: {machine_name}")
     print(f"| Total execution time: {total_time}")
     print(f"| Total samples: {total_samples}")
-    print(f"| Sample per second: {samples_per_sec}")
+    print(f"| Avg. Sample per second: {samples_per_sec}")
 
     if cpu_samples_per_sec is not None:
         print(f"| CPU samples per second: {cpu_samples_per_sec}")
