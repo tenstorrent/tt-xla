@@ -108,17 +108,11 @@ jobs:
       run: |
         git submodule update --init --recursive third_party/tt_forge_models
 
-    - name: Fetch job id
-      id: fetch-job-id
-      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
-      with:
-        job_name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on }})"
-
     - name: Set reusable strings
       id: strings
       shell: bash
       env:
-        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+        JOB_ID: ${{ job.check_run_id }}
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
@@ -204,7 +198,7 @@ jobs:
       run: |
         echo "Dump stablehlo to report"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/stablehlo
-        stablehlo_artifact_name="stablehlo-mlir-${{ steps.fetch-job-id.outputs.job_id }}"
+        stablehlo_artifact_name="stablehlo-mlir-${{ job.check_run_id }}"
         if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
           cp ./modules/${{ matrix.build.name }}_stablehlo.mlir ${{ steps.strings.outputs.perf_report_path }}/stablehlo/stablehlo.mlir 2>/dev/null || true
         else
@@ -237,7 +231,7 @@ jobs:
       run: |
         echo "Dump ttir to report"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttir
-        ttir_artifact_name="ttir-mlir-${{ steps.fetch-job-id.outputs.job_id }}"
+        ttir_artifact_name="ttir-mlir-${{ job.check_run_id }}"
         if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
           cp ./modules/${{ matrix.build.name }}_ttir.mlir ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir.mlir
         else
@@ -270,7 +264,7 @@ jobs:
       run: |
         echo "Dump ttnn to report"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttnn
-        ttnn_artifact_name="ttnn-mlir-${{ steps.fetch-job-id.outputs.job_id }}"
+        ttnn_artifact_name="ttnn-mlir-${{ job.check_run_id }}"
         if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
           cp ./modules/${{ matrix.build.name }}_ttnn.mlir ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn.mlir
         else
