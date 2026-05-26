@@ -1,3 +1,3 @@
 [
-  { "runs-on": "galaxy-bh",           "name": "run_torch_bh_galaxy",    "dir": "./tests/torch/models/deepseek_v4/test_deepseek_v4_e2e.py::test_prefill_and_decode_pcc_e2e", "test-mark": "bh_galaxy" }
+  { "runs-on": "galaxy-bh",           "name": "run_torch_bh_galaxy",    "dir": "./tests/torch", "test-mark": "nightly and bh_galaxy" }
 ]
