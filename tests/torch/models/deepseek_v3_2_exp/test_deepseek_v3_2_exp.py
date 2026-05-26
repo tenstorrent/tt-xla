@@ -15,7 +15,7 @@ from modified_model import ModelArgs
 from modified_model import Transformer as ModifiedTransformer
 from safetensors.torch import load_file as safetensors_load_file
 from torch_xla.distributed.spmd import Mesh
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizerFast
 from tt_torch.sparse_mlp import enable_sparse_mlp
 
 from tests.utils import failed_ttmlir_compilation
@@ -320,9 +320,11 @@ def test_deepseek_v3_2_moe_block(batch_size, seq_len):
     ffn = block.ffn
     ffn.eval()
 
-    tokenizer = AutoTokenizer.from_pretrained(
-        repo_id, trust_remote_code=True, padding_side="right"
-    )
+    # AutoTokenizer.from_pretrained internally loads model config to determine tokenizer
+    # class, which triggers a transformers 5.5 rope_scaling/max_position_embeddings bug
+    # for unregistered model types (deepseek_v32). PreTrainedTokenizerFast loads only
+    # tokenizer.json without touching model config.
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(repo_id, padding_side="right")
     encoded = tokenizer(
         "Tell me a short story.",
         return_tensors="pt",
