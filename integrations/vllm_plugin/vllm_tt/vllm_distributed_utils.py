@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2026 Tenstorrent AI ULC
 
 from collections import OrderedDict
+from enum import Enum
 from typing import List, Optional
 
 import torch
@@ -56,6 +57,14 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
         else:
             safe_spec.append(axis)
     xs.mark_sharding(tensor, mesh, tuple(safe_spec))
+
+
+class ParallelismMode(Enum):
+    DISABLED = "disabled"
+    DATA_PARALLEL_ONLY = "data_parallel_only"
+    TENSOR_PARALLEL_ONLY_1D = "tensor_parallel_only_1D"
+    TENSOR_PARALLEL_ONLY_2D = "tensor_parallel_only_2d"
+    DATA_TENSOR_PRALLEL = "data_tensor_prallel"
 
 
 class XlaMergedColumnParallelLinear(nn.Module):

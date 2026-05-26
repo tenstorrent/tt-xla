@@ -102,7 +102,7 @@ from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
-from .vllm_distributed_utils import safe_mark_sharding, shard_model
+from .vllm_distributed_utils import ParallelismMode, safe_mark_sharding, shard_model
 from .vllm_utils import determine_mesh_shape, prev_power_of_2
 
 
@@ -248,14 +248,60 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.use_flat_model_io = self.tt_config.flat_model_io
 
         # SPMD Related
+        self.num_devices = xr.global_runtime_device_count()
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
         self.is_sharded_compute_logits = False
+        self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
+        if self.enable_tensor_parallel and self.num_devices == 1:
+            logger.warning(
+                "Tensor parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
+            )
+            self.enable_tensor_parallel = False
 
-        if self.enable_tensor_parallel:
-            num_devices = xr.global_runtime_device_count()
-            mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
-            device_ids = np.array(range(num_devices))
+        # Data parallel
+        self.enable_data_parallel = self.tt_config.enable_data_parallel
+        if self.enable_data_parallel:
+            if self.max_num_reqs <= 1:
+                logger.warning(
+                    f"Data parallel execution requires max_num_reqs > 1 but got {self.max_num_reqs}. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.enable_data_parallel = False
+
+            if self.num_devices == 1:
+                logger.warning(
+                    "Data parallel execution is possible with multiple devices but found single device. Disabling multi device execution and proceeding with single device execution."
+                )
+                self.enable_data_parallel = False
+
+            remainder = self.max_num_reqs % self.num_devices
+            if remainder != 0:
+                adjusted_max_num_reqs = (
+                    self.max_num_reqs + self.num_devices - remainder
+                )
+                logger.warning(
+                    "Data parallel requires max_num_reqs divisible by num_devices. "
+                    "Adjusting max_num_reqs from %d to %d.",
+                    self.max_num_reqs,
+                    adjusted_max_num_reqs,
+                )
+                self.max_num_reqs = adjusted_max_num_reqs
+
+        if self.enable_data_parallel and self.enable_tensor_parallel:
+            self.parallel_mode = ParallelismMode.DATA_TENSOR_PRALLEL
+        elif self.enable_data_parallel:
+            self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
+        elif self.enable_tensor_parallel:
+            if self.use_2d_mesh:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_2D
+            else:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_1D
+        else:
+            self.parallel_mode = ParallelismMode.DISABLED
+
+        if self.parallel_mode != ParallelismMode.DISABLED:
+            mesh_shape = determine_mesh_shape(self.num_devices, self.parallel_mode)
+            device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
             # Updating the config to reflect the actual mesh shape used.
             if self.use_2d_mesh and 1 in mesh_shape:
@@ -300,7 +346,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         # InputBatch needs to work with sampling tensors greater than padding
         # to avoid dynamic shapes. Also, avoid suboptimal alignment.
-        self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -1509,6 +1554,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 input_ids, self.position_ids, inputs_embeds
             )
             torch_xla.sync(wait=False)
+
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PRALLEL,
+            ):
+                if input_ids is not None:
+                    xs.mark_sharding(input_ids, self.mesh, ("batch", None))
+                xs.mark_sharding(self.position_ids, self.mesh, ("batch", None))
+
             # Run the decoder
             with (
                 set_forward_context(
@@ -1857,6 +1911,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         position_ids = torch.zeros(
             (self.max_num_reqs, num_tokens), dtype=torch.int32
         ).to(self.device)
+
+        if self.parallel_mode in (
+            ParallelismMode.DATA_PARALLEL_ONLY,
+            ParallelismMode.DATA_TENSOR_PRALLEL,
+        ):
+            if input_ids is not None:
+                xs.mark_sharding(input_ids, self.mesh, ("batch", None))
+            xs.mark_sharding(position_ids, self.mesh, ("batch", None))
+
         page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
             self.device
         )
