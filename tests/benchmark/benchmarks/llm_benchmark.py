@@ -485,28 +485,28 @@ def benchmark_llm_torch_xla(
         "export_model_name": export_model_name,
         "ttnn_perf_metrics_enabled": True,
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
-        "experimental_weight_dtype": experimental_weight_dtype,
+        # "experimental_weight_dtype": experimental_weight_dtype,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
     }
     if fp32_dest_acc_en is not None:
-        options["fp32_dest_acc_en"] = fp32_dest_acc_en
+        options["fp32_dest_acc_en"] = "false"
     if experimental_kv_cache_dtype is not None:
         options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
 
     torch_xla.set_custom_compile_options(options)
 
     # Apply per-tensor weight dtype overrides from explicit dict (takes priority).
-    if weight_dtype_overrides:
-        applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
-        logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
-    else:
-        # Fall back to model's weight_dtype_configs JSON (auto-discovery).
-        weight_dtype_config = model_loader.get_weight_dtype_config_path()
-        if weight_dtype_config:
-            applied = apply_weight_dtype_overrides(model, weight_dtype_config)
-            logger.info(
-                f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
-            )
+    # if weight_dtype_overrides:
+    #     applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
+    #     logger.info(f"Applied {len(applied)} weight dtype overrides from explicit dict")
+    # else:
+    #     # Fall back to model's weight_dtype_configs JSON (auto-discovery).
+    #     weight_dtype_config = model_loader.get_weight_dtype_config_path()
+    #     if weight_dtype_config:
+    #         applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+    #         logger.info(
+    #             f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+    #         )
 
     # ========================================================
     # PERFORMANCE BENCHMARK
@@ -610,55 +610,57 @@ def benchmark_llm_torch_xla(
     # PCC/TOPK BENCHMARK
     # ========================================================
 
-    # Return logits to calculate PCC/TOPK
-    logits_wrapper = LLMSamplingWrapper(
-        model,
-        read_logits_fn,
-        return_logits=True,
-        mesh=mesh,
-        output_sharding_spec=input_output_sharding_spec,
-    )
-    logits_wrapper.train() if prefill_only else logits_wrapper.eval()
-    compiled_logits = torch.compile(logits_wrapper, backend="tt")
+    if not prefill_only:
+        # Return logits to calculate PCC/TOPK
+        logits_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=True,
+            mesh=mesh,
+            output_sharding_spec=input_output_sharding_spec,
+        )
+        logits_wrapper.eval()
+        compiled_logits = torch.compile(logits_wrapper, backend="tt")
 
-    logits_steps = 1 if prefill_only else max_output_tokens
+        logits_steps = max_output_tokens
 
-    # Reconstruct inputs for PCC/TOPK run
-    input_args = construct_inputs(
-        tokenizer,
-        model.config,
-        batch_size,
-        max_cache_len,
-        past_key_values=decode_only_cache if decode_only else None,
-        input_prompt=custom_input_prompt,
-        input_prompt_tokens=_input_prompt_tokens(),
-        use_mla_cache=use_mla_cache,
-        prefill_only=prefill_only,
-    )
+        # Reconstruct inputs for PCC/TOPK run
+        input_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            past_key_values=decode_only_cache if decode_only else None,
+            input_prompt=custom_input_prompt,
+            input_prompt_tokens=_input_prompt_tokens(),
+            use_mla_cache=use_mla_cache,
+            prefill_only=prefill_only,
+        )
 
-    if decode_only:
-        # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids.clone()
-        input_args["cache_position"] = decode_only_cache_position.clone()
+        if decode_only:
+            input_args["input_ids"] = decode_only_input_ids.clone()
+            input_args["cache_position"] = decode_only_cache_position.clone()
 
-    input_args = transfer_to_device(input_args, device)
-    if is_multichip:
-        _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
-    if input_output_sharding_spec:
-        xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+        input_args = transfer_to_device(input_args, device)
+        if is_multichip:
+            _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
+        if input_output_sharding_spec:
+            xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
-    print("\nStarting PCC/TOPK benchmark...")
-    output_logits, _ = generate_and_benchmark(
-        compiled_logits,
-        input_args,
-        device,
-        logits_steps,
-        verbose=False,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=True,
-        train_mode=prefill_only,
-    )
-    print("\nPCC/TOPK benchmark complete")
+        print("\nStarting PCC/TOPK benchmark...")
+        output_logits, _ = generate_and_benchmark(
+            compiled_logits,
+            input_args,
+            device,
+            logits_steps,
+            verbose=False,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=True,
+            train_mode=prefill_only,
+        )
+        print("\nPCC/TOPK benchmark complete")
+    else:
+        output_logits = []
 
     # Post-processing: derive predicted tokens for accuracy testing (all users)
     if accuracy_testing:
@@ -788,7 +790,7 @@ def benchmark_llm_torch_xla(
                 decode_pcc_value
             )
         )
-    else:
+    elif not prefill_only:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
         assert (

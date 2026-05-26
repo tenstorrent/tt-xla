@@ -288,6 +288,7 @@ def test_llama_3_2_1b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
+        fp32_dest_acc_en=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None
@@ -362,6 +363,7 @@ def test_gemma_1_1_2b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
+        fp32_dest_acc_en=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None
@@ -431,6 +433,7 @@ def test_phi1(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
+        fp32_dest_acc_en=False,
         optimization_level=(
             optimization_level
             if optimization_level is not None
@@ -815,6 +818,7 @@ def test_qwen_3_8b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         trace_enabled=False,
+        fp32_dest_acc_en=False,
         optimization_level=0,
         prefill_only=prefill_only,
         **(
