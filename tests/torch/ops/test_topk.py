@@ -4,8 +4,10 @@
 
 import pytest
 import torch
+import torch_xla.runtime as xr
 from benchmark.utils import compute_pcc
-from infra import Framework, run_op_test, run_op_test_with_random_inputs
+from infra import Framework, run_graph_test, run_op_test, run_op_test_with_random_inputs
+from torch_xla.distributed.spmd import Mesh
 from utils import Category
 
 
@@ -262,5 +264,58 @@ def test_topk_vllm_sampling_shapes(input_shape: tuple, k: int):
         TopKBoth(k),
         [torch.randn(*input_shape, dtype=torch.float32)],
         framework=Framework.TORCH,
+        custom_comparator=_topk_vllm_comparator,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sharded topk: verify composite op survives shardy reoutlining
+#
+# The composite op path works by: flatten composite decomp into main graph →
+# propagate shardings through each op → reoutline back to the original
+# composite. If shardy inserts a CCL in the middle of the flattened decomp,
+# reoutlining fails. This test checks whether that happens with sharded vocab.
+#
+# Run with TTXLA_LOGGER_LEVEL=VERBOSE and inspect the dump after the
+# reoutlining pass — if tenstorrent.topk is still present, composite survived
+# and no custom op is needed.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.nightly
+@pytest.mark.multi_device
+@pytest.mark.record_test_properties(
+    category=Category.OP_TEST,
+    torch_op_name="torch.topk",
+)
+def test_topk_sharded_vocab():
+    """Verify composite topk works end-to-end with vocab-sharded input (TP).
+
+    Each device holds vocab_per_shard logits. Shardy should propagate the
+    shard annotation through the composite topk decomp and reoutline back
+    to the original composite op without inserting an unneeded CCL.
+    """
+    num_devices = xr.global_runtime_device_count()
+    device_ids = list(range(num_devices))
+    mesh = Mesh(device_ids, (1, num_devices), ("batch", "model"))
+
+    k = 32
+    vocab_per_shard = 32768
+    batch = 1
+
+    class ShardedTopK(torch.nn.Module):
+        def forward(self, x):
+            return torch.topk(x, k, dim=-1)
+
+    def get_shard_spec(model, args, kwargs):
+        # input is sharded along vocab dim across model axis
+        return {args[0]: (None, "model")}
+
+    run_graph_test(
+        ShardedTopK(),
+        [torch.randn(batch, vocab_per_shard * num_devices, dtype=torch.float32)],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
         custom_comparator=_topk_vllm_comparator,
     )
