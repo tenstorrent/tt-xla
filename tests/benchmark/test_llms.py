@@ -819,7 +819,11 @@ def test_qwen_3_8b(
         decode_only=decode_only,
         trace_enabled=False,
         fp32_dest_acc_en=False,
-        optimization_level=0,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
         prefill_only=prefill_only,
         **(
             {"input_sequence_length": input_sequence_length}
@@ -1102,8 +1106,9 @@ def test_llama_3_1_8b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            # Deliberate set to 0
-            0
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
         ),
         trace_enabled=False,
         required_pcc=0.90,
@@ -1734,7 +1739,7 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.gate_proj.weight": "bfp_bf4",
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
-        optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        optimization_level=optimization_level,  # flaky: occasionally hangs in CI with optimization_level=2
         prefill_only=prefill_only,
         **(
             {"input_sequence_length": input_sequence_length}
