@@ -97,6 +97,57 @@ def test_scaled_dot_product_attention(
 
 @pytest.mark.single_device
 @pytest.mark.parametrize(
+    "batch_size, num_heads, seq_len, head_size, num_kv_heads, head_dim_v, has_value, is_causal, scale",
+    [
+        # MLA-from-latent (value=None, head_dim_v < head_size, d_rope=64)
+        (1, 16, 64, 192, 1, 128, False, True, 1.0),
+        (1, 16, 64, 192, 1, 128, False, False, 1.0),
+        (2, 16, 128, 192, 1, 128, False, True, 1.0),
+        (2, 16, 128, 192, 1, 128, False, False, 1.0),
+        # MLA-from-latent with d_rope=0 (head_dim_v == head_size)
+        (1, 32, 64, 128, 1, 128, False, True, 1.0),
+        (1, 32, 64, 128, 1, 128, False, False, 1.0),
+        # Explicit value tensor path
+        (1, 16, 64, 128, 1, 64, True, True, 1.0),
+        (2, 16, 128, 128, 1, 64, True, False, 1.0),
+    ],
+)
+def test_flash_mla_prefill(
+    batch_size,
+    num_heads,
+    seq_len,
+    head_size,
+    num_kv_heads,
+    head_dim_v,
+    has_value,
+    is_causal,
+    scale,
+):
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_size, dtype=torch.bfloat16)
+    key = torch.randn(
+        batch_size, num_kv_heads, seq_len, head_size, dtype=torch.bfloat16
+    )
+    value = (
+        torch.randn(batch_size, num_kv_heads, seq_len, head_dim_v, dtype=torch.bfloat16)
+        if has_value
+        else None
+    )
+    attn_mask = (
+        torch.randn(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+        if not is_causal
+        else None
+    )
+
+    run_op_test(
+        torch.ops.tt.flash_mla_prefill,
+        [query, key, head_dim_v, value, attn_mask, is_causal, scale],
+        framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(
     "batch_size, num_heads, head_size, num_kv_heads, max_seq_len, is_causal, scale",
     [
         (1, 12, 128, 12, 32, True, 1.0),
