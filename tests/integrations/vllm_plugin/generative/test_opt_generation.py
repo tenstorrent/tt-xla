@@ -79,6 +79,8 @@ def test_opt_generation_multibatch():
         "additional_config": {
             "enable_const_eval": False,
             "min_context_len": 32,
+            "enable_data_parallel": True,
+            "num_hidden_layers": 1,
         },
     }
 

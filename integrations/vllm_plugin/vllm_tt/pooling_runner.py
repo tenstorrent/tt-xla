@@ -96,7 +96,7 @@ from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .overrides import replace_modules
 from .platform import TTConfig
-from .vllm_distributed_utils import shard_model
+from .vllm_distributed_utils import ParallelismMode, shard_model
 from .vllm_utils import determine_mesh_shape, prev_power_of_2
 
 if TYPE_CHECKING:
@@ -271,6 +271,18 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
         self.use_2d_mesh = self.tt_config.use_2d_mesh
 
+        if self.enable_data_parallel and self.enable_tensor_parallel:
+            self.parallel_mode = ParallelismMode.DATA_TENSOR_PRALLEL
+        elif self.enable_data_parallel:
+            self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
+        elif self.enable_tensor_parallel:
+            if self.use_2d_mesh:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_2D
+            else:
+                self.parallel_mode = ParallelismMode.TENSOR_PARALLEL_ONLY_1D
+        else:
+            self.parallel_mode = ParallelismMode.DISABLED
+
         model_config = self.model_config
         cache_config = self.cache_config
         scheduler_config = self.scheduler_config
@@ -283,10 +295,8 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         # Setup for parallel execution.
-        if self.enable_tensor_parallel or self.enable_data_parallel:
-            mesh_shape = determine_mesh_shape(
-                self.num_devices, use_2d_mesh=self.use_2d_mesh
-            )
+        if self.parallel_mode != ParallelismMode.DISABLED:
+            mesh_shape = determine_mesh_shape(self.num_devices, self.parallel_mode)
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
 
