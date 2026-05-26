@@ -6,23 +6,96 @@
 set -euo pipefail
 
 MODELS=(
-    #"test_llama_3_1_8b:llama_3_1_8b"
-    #"test_qwen_3_8b:qwen_3_8b"
+    "test_llama_3_1_8b:llama_3_1_8b"
+    "test_qwen_3_8b:qwen_3_8b"
     "test_llama_3_2_1b:llama_3_2_1b"
-    #"test_gemma_1_1_2b:gemma_1_1_2b"
-    #"test_phi1:phi1"
+    "test_gemma_1_1_2b:gemma_1_1_2b"
+    "test_phi1:phi1"
     # "test_llama_3_1_70b_tp:llama_3_1_70b"
 )
+
+RESULTS_DIR="results_pavle"
+REPORT="${RESULTS_DIR}/perf_report.md"
+mkdir -p "$RESULTS_DIR"
+
+printf "| model | bs | seq | opt | ttft_ms | device_ms | host_ms |\n" > "$REPORT"
+printf "|-------|----|-----|-----|---------|-----------|----------|\n" >> "$REPORT"
+
+# Parses ops_perf_results.csv for a single run dir.
+# Outputs: ttft_ms device_ms host_ms
+parse_metrics() {
+    local ops_csv="$1"
+    python3 - "$ops_csv" <<'EOF'
+import sys, csv
+
+ops_csv = sys.argv[1]
+
+signposts = []
+ops = []
+with open(ops_csv) as f:
+    reader = csv.reader(f)
+    next(reader)  # skip header
+    for row in reader:
+        if not row or not row[10]:
+            continue
+        try:
+            ts = int(row[10])
+        except ValueError:
+            continue
+        if row[1] == 'signpost':
+            signposts.append((row[0], ts))
+        else:
+            try:
+                dev_kern = int(row[18]) if row[18] else 0
+            except ValueError:
+                dev_kern = 0
+            ops.append((ts, dev_kern))
+
+# Build prefill windows from signposts; last pair = perf benchmark
+start_ts = None
+last_window = None
+for name, ts in signposts:
+    if 'prefill_start' in name:
+        start_ts = ts
+    elif 'prefill_end' in name and start_ts is not None:
+        last_window = (start_ts, ts)
+        start_ts = None
+
+if last_window is None:
+    print("0 0 0")
+    sys.exit(0)
+
+s, e = last_window
+ttft_ns = e - s
+device_ns = sum(d for t, d in ops if s <= t <= e)
+host_ns = max(ttft_ns - device_ns, 0)
+
+print(f"{ttft_ns/1e6:.1f} {device_ns/1e6:.1f} {host_ns/1e6:.1f}")
+EOF
+}
 
 for model_entry in "${MODELS[@]}"; do
     test_fn="${model_entry%%:*}"
     model_name="${model_entry##*:}"
     for opt in 0 1; do
         for bs in 1 8 16 32; do
-            for seq in 128 512 1024; do
-                out_dir="results_llama3_2_1b/${model_name}_bs${bs}_seq${seq}_opt${opt}"
+            for seq in 1024 128 512; do
+                tt-smi -r || true
+                out_dir="${RESULTS_DIR}/${model_name}_bs${bs}_seq${seq}_opt${opt}"
                 mkdir -p "$out_dir"
-                TT_METAL_DEVICE_PROFILER=1 python3 -m tracy -v -r -p \
+
+                # Skip if already completed (ops_perf_results*.csv already present)
+                existing_csv=$(find "${out_dir}/tracy/reports" -name "ops_perf_results*.csv" 2>/dev/null | head -1)
+                if [[ -n "$existing_csv" ]]; then
+                    echo "Skipping ${model_name} bs=${bs} seq=${seq} opt=${opt} (already done)"
+                    read ttft_ms device_ms host_ms < <(parse_metrics "$existing_csv")
+                    printf "| %s | %s | %s | %s | %s | %s | %s |\n" \
+                        "$model_name" "$bs" "$seq" "$opt" \
+                        "$ttft_ms" "$device_ms" "$host_ms" >> "$REPORT"
+                    continue
+                fi
+
+                if TT_METAL_DEVICE_PROFILER=1 python3 -m tracy -v -r -p \
                     -o "${out_dir}/tracy" \
                     --tracy-tools-folder "$(pwd)/third_party/tt-mlir/install/bin" \
                     -m "pytest tests/benchmark/test_llms.py::${test_fn} \
@@ -30,8 +103,21 @@ for model_entry in "${MODELS[@]}"; do
                         --batch-size $bs \
                         --input-sequence-length $seq \
                         --output-file ${out_dir}/metrics.json \
-                        --optimization-level ${opt}"
+                        --optimization-level ${opt} -svv"; then
+
+                    ops_csv=$(find "${out_dir}/tracy/reports" -name "ops_perf_results*.csv" | head -1)
+                    read ttft_ms device_ms host_ms < <(parse_metrics "$ops_csv")
+                    printf "| %s | %s | %s | %s | %s | %s | %s |\n" \
+                        "$model_name" "$bs" "$seq" "$opt" \
+                        "$ttft_ms" "$device_ms" "$host_ms" >> "$REPORT"
+                else
+                    echo "WARNING: Tracy failed for ${model_name} bs=${bs} seq=${seq} opt=${opt} — writing ERROR row"
+                    printf "| %s | %s | %s | %s | ERROR | ERROR | ERROR |\n" \
+                        "$model_name" "$bs" "$seq" "$opt" >> "$REPORT"
+                fi
             done
         done
     done
 done
+
+echo "Report written to $REPORT"
