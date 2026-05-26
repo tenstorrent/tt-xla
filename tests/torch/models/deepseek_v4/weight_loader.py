@@ -328,11 +328,6 @@ def load_transformer_state_dict(
     top-level (embed, norm, head, hc_head_*). Load with strict=False —
     non-persistent buffers (kv_cache, freqs_cis) aren't in the checkpoint.
     """
-    # Uncomment if you want to use random weights (torch.zeros actually)
-    # if _RANDOM_WEIGHTS:
-    #    # Patched Transformer.__init__ already random-init'd everything;
-    #    # caller will do `model.load_state_dict({}, strict=False)` (no-op).
-    #    return {}
     layer_ids = sorted(set(layer_ids))
     prefixes: List[str] = ["embed.", "norm.", "head.", "hc_head_"]
     prefixes.extend(f"layers.{L}." for L in layer_ids)
