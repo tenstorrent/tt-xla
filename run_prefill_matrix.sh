@@ -84,18 +84,7 @@ for model_entry in "${MODELS[@]}"; do
                 out_dir="${RESULTS_DIR}/${model_name}_bs${bs}_seq${seq}_opt${opt}"
                 mkdir -p "$out_dir"
 
-                # Skip if already completed (ops_perf_results*.csv already present)
-                existing_csv=$(find "${out_dir}/tracy/reports" -name "ops_perf_results*.csv" 2>/dev/null | head -1)
-                if [[ -n "$existing_csv" ]]; then
-                    echo "Skipping ${model_name} bs=${bs} seq=${seq} opt=${opt} (already done)"
-                    read ttft_ms device_ms host_ms < <(parse_metrics "$existing_csv")
-                    printf "| %s | %s | %s | %s | %s | %s | %s |\n" \
-                        "$model_name" "$bs" "$seq" "$opt" \
-                        "$ttft_ms" "$device_ms" "$host_ms" >> "$REPORT"
-                    continue
-                fi
-
-                if TT_METAL_DEVICE_PROFILER=1 python3 -m tracy -v -r -p \
+                TT_METAL_DEVICE_PROFILER=1 python3 -m tracy -v -r -p \
                     -o "${out_dir}/tracy" \
                     --tracy-tools-folder "$(pwd)/third_party/tt-mlir/install/bin" \
                     -m "pytest tests/benchmark/test_llms.py::${test_fn} \
@@ -103,18 +92,14 @@ for model_entry in "${MODELS[@]}"; do
                         --batch-size $bs \
                         --input-sequence-length $seq \
                         --output-file ${out_dir}/metrics.json \
-                        --optimization-level ${opt} -svv"; then
+                        --optimization-level ${opt} -svv"
 
-                    ops_csv=$(find "${out_dir}/tracy/reports" -name "ops_perf_results*.csv" | head -1)
-                    read ttft_ms device_ms host_ms < <(parse_metrics "$ops_csv")
-                    printf "| %s | %s | %s | %s | %s | %s | %s |\n" \
-                        "$model_name" "$bs" "$seq" "$opt" \
-                        "$ttft_ms" "$device_ms" "$host_ms" >> "$REPORT"
-                else
-                    echo "WARNING: Tracy failed for ${model_name} bs=${bs} seq=${seq} opt=${opt} — writing ERROR row"
-                    printf "| %s | %s | %s | %s | ERROR | ERROR | ERROR |\n" \
-                        "$model_name" "$bs" "$seq" "$opt" >> "$REPORT"
-                fi
+                ops_csv=$(find "${out_dir}/tracy/reports" -name "ops_perf_results*.csv" | head -1)
+
+                read ttft_ms device_ms host_ms < <(parse_metrics "$ops_csv")
+                printf "| %s | %s | %s | %s | %s | %s | %s |\n" \
+                    "$model_name" "$bs" "$seq" "$opt" \
+                    "$ttft_ms" "$device_ms" "$host_ms" >> "$REPORT"
             done
         done
     done
