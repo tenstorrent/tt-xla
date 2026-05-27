@@ -7,6 +7,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 import torch
+
+# TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
+# We would like to use the OpTester/GraphTester infra instead of manually
+# calculating and comparing golden vs device results.
+import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
@@ -20,10 +25,6 @@ from ttxla_tools.serialization import save_system_descriptor_to_disk
 from tests.infra import ComparisonConfig
 from tests.infra.evaluators.evaluation_config import AtolConfig, ComparisonConfig
 from tests.infra.testers.single_chip.op.op_tester import OpTester
-
-# TODO(@LPanosTT): https://github.com/tenstorrent/tt-xla/issues/1137
-# We would like to use the OpTester/GraphTester infra instead of manually
-# calculating and comparing golden vs device results.
 
 
 @pytest.mark.push
@@ -327,9 +328,29 @@ def test_eltwise_binary_eager(op):
     comparator.evaluate(output, golden)
 
 
+def _get_rss_mb():
+    """Get current RSS in MB."""
+    import resource
+
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+
+
+def _malloc_trim():
+    """Force glibc to release free memory back to OS."""
+    import ctypes
+
+    try:
+        libc = ctypes.CDLL("libc.so.6")
+        libc.malloc_trim(0)
+    except Exception:
+        pass
+
+
 @pytest.mark.single_device
 @pytest.mark.parametrize("spmd_mode", [True, False])
 def test_fully_replicated_graph(spmd_mode):
+    import gc
+
     if spmd_mode:
         xr.use_spmd()
     else:
@@ -338,6 +359,8 @@ def test_fully_replicated_graph(spmd_mode):
         if os.environ.get("XLA_USE_SPMD") is not None:
             del os.environ["XLA_USE_SPMD"]
 
+    print(f"\n[MEM] Start: {_get_rss_mb():.1f} MB")
+
     class MM(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -345,16 +368,34 @@ def test_fully_replicated_graph(spmd_mode):
         def forward(self, x, y):
             return x @ y
 
-    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-    input_y = torch.randn(32, 32, dtype=torch.bfloat16)
+    input_x = torch.randn(8192, 8192, dtype=torch.bfloat16)
+    input_y = torch.randn(8192, 8192, dtype=torch.bfloat16)
     model = MM()
     golden = model(input_x, input_y)
 
-    device = xm.xla_device()
+    print(f"[MEM] After CPU tensors: {_get_rss_mb():.1f} MB")
+
+    device = torch_xla.device()
     model = model.to(device)
-    input_x = input_x.to(device)
-    input_y = input_y.to(device)
-    output = model(input_x, input_y).to("cpu")
+    input_x_device = input_x.to(device)
+    input_y_device = input_y.to(device)
+
+    print(f"[MEM] After .to(device): {_get_rss_mb():.1f} MB")
+
+    # Sync to ensure transfer is complete
+    torch_xla.sync()
+    print(f"[MEM] After sync: {_get_rss_mb():.1f} MB")
+
+    # Delete CPU tensors and collect garbage
+    del input_x, input_y
+    gc.collect()
+    print(f"[MEM] After del + gc.collect(): {_get_rss_mb():.1f} MB")
+
+    # Force allocator to release memory
+    _malloc_trim()
+    print(f"[MEM] After malloc_trim(): {_get_rss_mb():.1f} MB")
+
+    output = model(input_x_device, input_y_device).to("cpu")
     comparator = TorchComparisonEvaluator(
         ComparisonConfig(
             atol=AtolConfig(enabled=False, required_atol=0.02),
