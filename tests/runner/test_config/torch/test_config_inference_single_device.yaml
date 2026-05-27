@@ -1241,7 +1241,7 @@ test_config:
   deepseek/deepseek_ocr/pytorch-Ocr-single_device-inference:
     status: EXPECTED_PASSING
     assert_pcc: false
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4703"
+    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.94. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4849"
 
   deepseek/pytorch-single_device-inference:
     status: NOT_SUPPORTED_SKIP  # Exposed by "Remove host-side consteval" change
