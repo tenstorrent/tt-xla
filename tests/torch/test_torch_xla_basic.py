@@ -385,6 +385,14 @@ def test_fully_replicated_graph(spmd_mode):
 
     mem_logger.info(f"[MEM] After CPU tensors: {_get_rss_mb():.1f} MB")
 
+    # Disable const eval inputs to system memory - forces layout conversion
+    # which triggers fireDoneWithHostBufferEvent and releases host memory
+    torch_xla.set_custom_compile_options(
+        {
+            "enable_const_eval_inputs_to_system_memory": False,
+        }
+    )
+
     device = torch_xla.device()
     model = model.to(device)
     input_x_device = input_x.to(device)
