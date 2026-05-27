@@ -327,7 +327,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #     model_config)
         self.supports_mm_inputs = False
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
-        assert not self.uses_mrope, "TPU does not support M-RoPE yet."
+        # assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
         self._num_slices_per_kv_cache_update_block = (
             _get_num_slices_per_kv_cache_update_block(
@@ -473,16 +473,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
 
-        if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
-            logger.info(
-                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
-            )
-            # Store original layer count for weight filtering
-            self._original_num_layers = original_num_layers
-            self._target_num_layers = target_num_layers
+        if target_num_layers > 0:
+            # Plain causal LM configs expose num_hidden_layers at the top level;
+            # multimodal "Conditional Generation" configs (Qwen-VL family, etc.)
+            # nest it under text_config.
+            hf_config = vllm_config.model_config.hf_config
+            text_cfg = getattr(hf_config, "text_config", hf_config)
+            original_num_layers = getattr(text_cfg, "num_hidden_layers", 0)
+
+            if target_num_layers < original_num_layers:
+                text_cfg.num_hidden_layers = target_num_layers
+                logger.info(
+                    f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+                )
+                # Store original layer count for weight filtering
+                self._original_num_layers = original_num_layers
+                self._target_num_layers = target_num_layers
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -1597,11 +1604,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        # Plain causal LMs expose lm_head at the top level (model.lm_head);
+        # multimodal "ConditionalGeneration" wrappers (Qwen-VL family) keep the
+        # text-decoder lm_head under self.language_model. Look in both places.
+        lm_head = getattr(self.model, "lm_head", None)
+        if lm_head is None:
+            language_model = getattr(self.model, "language_model", None)
+            if language_model is not None:
+                lm_head = getattr(language_model, "lm_head", None)
+
         if (
             self.enable_tensor_parallel
             and self.use_2d_mesh
-            and self.model.lm_head is not None
-            and isinstance(self.model.lm_head, ParallelLMHead)
+            and lm_head is not None
+            and isinstance(lm_head, ParallelLMHead)
         ):
             self.is_sharded_compute_logits = True
 

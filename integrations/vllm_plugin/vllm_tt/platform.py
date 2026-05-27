@@ -177,6 +177,19 @@ class TTPlatform(Platform):
         return f"xla:{device_id}"
 
     @classmethod
+    def current_device(cls) -> torch.device:
+        # vLLM's GatedDeltaNetAttention (and other Mamba-style layers) read
+        # current_platform.current_device() in __init__ to pick where to allocate
+        # working buffers. Without this override, the base Platform.current_device
+        # is None and None() raises TypeError. We return an xla device so
+        # construction can proceed; downstream Triton kernels still won't lower
+        # through the "tt" backend.
+        device = getattr(cls, "device", None)
+        if device is None:
+            device = torch.device("xla:0")
+        return device
+
+    @classmethod
     def get_device_total_memory(cls, device_id: int = 0) -> int:
         raise NotImplementedError
 

@@ -229,6 +229,17 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
+    # Some DeltaNet/Mamba layers reuse the ColumnParallelLinear class name with
+    # non-rank-2 weights (e.g. conv1d-style fused projections of shape
+    # (out, in, k)). Our spec is 2-D; xs.mark_sharding asserts when ranks
+    # differ. Skip with a warning rather than crashing the whole load.
+    if layer.weight.ndim != 2:
+        logger.warning(
+            "Skipping shard of ColumnParallelLinear %s: weight rank %d != 2 "
+            "(shape %s).",
+            layer, layer.weight.ndim, tuple(layer.weight.shape),
+        )
+        return layer
     xs.mark_sharding(layer.weight, mesh, ("batch", None))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
@@ -238,6 +249,13 @@ def partition_row_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
+    if layer.weight.ndim != 2:
+        logger.warning(
+            "Skipping shard of RowParallelLinear %s: weight rank %d != 2 "
+            "(shape %s).",
+            layer, layer.weight.ndim, tuple(layer.weight.shape),
+        )
+        return layer
     xs.mark_sharding(layer.weight, mesh, ("model", "batch"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
