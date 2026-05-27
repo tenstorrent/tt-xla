@@ -2247,7 +2247,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     ) -> None:
         if self.tt_config.decode_only:
             return
-        return  # TODO(#4468): profile_run adds no value currently; remove once confirmed
         logger.info(f"Profiling run with num_tokens={num_tokens}.")
         torch._dynamo.config.dynamic_shapes = False
         # Profile with multimodal encoder & encoder cache.
@@ -2523,7 +2522,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         grammar_bitmask: torch.Tensor,
         bitmasks: torch.Tensor,
     ) -> torch.Tensor:
-        """Fused select_hidden_states → compute_logits → structured_decode → sample."""
+        """Fused select_hidden_states → compute_logits → structured_decode → sample.
+
+        NOTE: This method inlines the logic of select_hidden_states, compute_logits,
+        structured_decode (via apply_grammar_bitmask), and sample_from_logits.
+        The cpu_sampling=True path calls those methods separately. If you fix a bug
+        in any of them, mirror the change here too.
+        """
         # select_hidden_states
         batch_indices = torch.arange(logits_indices.shape[0], dtype=torch.int32)
         hidden = hidden_states[batch_indices, logits_indices, :]
