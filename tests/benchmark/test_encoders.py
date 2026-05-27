@@ -335,11 +335,11 @@ def test_qwen3_embedding_8b(output_file, num_layers, request):
     )
 
 
-def _run_bge_m3(output_file, request, batch_size: int):
-    """Shared BGE-M3 benchmark helper.
+def test_bge_m3(output_file, request):
+    """Test BGE-M3 encoder model with custom postprocessing.
 
     BGE-M3 has a unique architecture that produces dense, sparse, and colbert embeddings.
-    Returns only dense_vecs for PCC calculation.
+    This test includes all the necessary postprocessing but returns only dense_vecs for PCC calculation.
     """
     from collections import defaultdict
 
@@ -490,17 +490,12 @@ def _run_bge_m3(output_file, request, batch_size: int):
         preprocess_fn=bge_m3_preprocess,
         output_processor_fn=bge_m3_output_processor,
         data_format=data_format,
-        batch_size=batch_size,
+        batch_size=4,
         input_sequence_length=input_sequence_length,
         loop_count=32,
         optimization_level=0,
         required_pcc=0.97,
     )
-
-
-def test_bge_m3(output_file, request):
-    """BGE-M3 encoder benchmark (batch_size=4)."""
-    _run_bge_m3(output_file=output_file, request=request, batch_size=4)
 
 
 # Trace disabled: output tensor not on device (https://github.com/tenstorrent/tt-xla/issues/3937)
