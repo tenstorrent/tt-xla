@@ -328,6 +328,9 @@ def test_eltwise_binary_eager(op):
     comparator.evaluate(output, golden)
 
 
+from loguru import logger as mem_logger
+
+
 def _get_rss_mb():
     """Get current RSS in MB (not peak)."""
     try:
@@ -367,7 +370,7 @@ def test_fully_replicated_graph(spmd_mode):
         if os.environ.get("XLA_USE_SPMD") is not None:
             del os.environ["XLA_USE_SPMD"]
 
-    print(f"\n[MEM] Start: {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] Start: {_get_rss_mb():.1f} MB")
 
     class MM(torch.nn.Module):
         def __init__(self):
@@ -376,42 +379,42 @@ def test_fully_replicated_graph(spmd_mode):
         def forward(self, x, y):
             return x @ y
 
-    input_x = torch.randn(8192, 8192, dtype=torch.bfloat16)
-    input_y = torch.randn(8192, 8192, dtype=torch.bfloat16)
+    input_x = torch.randn(30000, 30000, dtype=torch.bfloat16)
+    input_y = torch.randn(30000, 30000, dtype=torch.bfloat16)
     model = MM()
 
-    print(f"[MEM] After CPU tensors: {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] After CPU tensors: {_get_rss_mb():.1f} MB")
 
     device = torch_xla.device()
     model = model.to(device)
     input_x_device = input_x.to(device)
     input_y_device = input_y.to(device)
 
-    print(f"[MEM] After .to(device): {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] After .to(device): {_get_rss_mb():.1f} MB")
 
     # Delete CPU tensors BEFORE sync
     del input_x, input_y
     gc.collect()
-    print(f"[MEM] After del (before sync): {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] After del (before sync): {_get_rss_mb():.1f} MB")
 
     # Sync to ensure transfer is complete
     torch_xla.sync()
-    print(f"[MEM] After sync: {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] After sync: {_get_rss_mb():.1f} MB")
 
     # GC + malloc_trim after sync
     gc.collect()
     _malloc_trim()
-    print(f"[MEM] After sync + gc + malloc_trim: {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] After sync + gc + malloc_trim: {_get_rss_mb():.1f} MB")
 
     output = model(input_x_device, input_y_device).to("cpu")
-    print(f"[MEM] After forward pass: {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] After forward pass: {_get_rss_mb():.1f} MB")
 
     # Clean up device tensors
     del input_x_device, input_y_device, output, model
     torch_xla.sync()
     gc.collect()
     _malloc_trim()
-    print(f"[MEM] After cleanup all: {_get_rss_mb():.1f} MB")
+    mem_logger.info(f"[MEM] After cleanup all: {_get_rss_mb():.1f} MB")
 
 
 @pytest.mark.nightly
