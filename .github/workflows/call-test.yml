@@ -95,6 +95,9 @@ jobs:
         # Multihost: MPI hostfile and SSH agent socket for controller→worker SSH.
         - /etc/mpirun:/etc/mpirun
         - /var/run/mpirun:/var/run/mpirun
+        - /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+      env:
+        SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
 
     steps:
 
