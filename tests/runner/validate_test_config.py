@@ -442,12 +442,12 @@ class TestConfigValidator:
 
                 for method_name, phase_str in LLM_PHASES.items():
                     if phase_str == "llm_prefill":
-                        if prefill_class_name and _has_method(
-                            tree, prefill_class_name, method_name
-                        ):
-                            target_variants = prefill_variants
-                        else:
+                        # Any ForgePrefillModel subclass owns the prefill phase
+                        # via inherited load_inputs_prefill — mirrors the runtime
+                        # check in test_models.py (_is_prefill_loader).
+                        if not prefill_class_name:
                             continue
+                        target_variants = prefill_variants
                     else:
                         if not _has_method(tree, "ModelLoader", method_name):
                             continue
