@@ -550,23 +550,47 @@ def _drive_ttl_compile(entry: "KernelEntry", mock_args: Sequence[Any]):
         captured.append(compiled)
         return compiled
 
-    # DEMO HACK: ``is_ttnn_tensor`` is re-exported from
-    # ``ttl.dtype_utils`` into multiple modules via ``from ... import``,
-    # so each rebind has its own copy. Patch every site that already
-    # defines the attribute so our ``_StubTtnnTensor`` instances pass
-    # tt-lang's gate; restore on exit. New rebind sites added upstream
-    # surface as ``"No device found: no ttnn tensor arguments were
-    # provided"`` from ``_require_device`` -- add the module here.
-    _PATCH_MODULES = ("ttl.dtype_utils", "ttl.ttl_api", "ttl._src.ttl_ast")
+    # DEMO HACK: tt-lang inspects real ttnn objects in a couple of
+    # spots on the compile path. On the stub path we intercept those
+    # before they reach the ttnn C++ bindings (which dispatch by
+    # concrete type and won't accept our duck types):
+    #
+    #   * ``is_ttnn_tensor`` is re-exported from ``ttl.dtype_utils``
+    #     into multiple modules via ``from ... import`` (each rebind
+    #     has its own copy), so every site has to be patched. Missing
+    #     a site surfaces as ``"No device found: no ttnn tensor
+    #     arguments were provided"`` from ``_require_device`` -- add
+    #     the module to ``_IS_TTNN_TENSOR_SITES``.
+    #   * ``get_min_remaining_l1_for_device`` (added in ttl 1.1.x)
+    #     calls into ``ttnn._ttnn.reports`` with the device pointer,
+    #     which traps on our ``_StubTtnnDevice``. We short-circuit it
+    #     to ``0`` so ``_compile_kernel`` keeps its default L1 budget
+    #     (consumed only when ``> 0`` at the ttl-validate-cb-budget
+    #     pass).
     using_stubs = any(isinstance(a, _StubTtnnTensor) for a in mock_args)
     patch_sites: List[Tuple[Any, str, Any, bool]] = []
+
+    def _patch(module_name: str, attr: str, replacement: Any) -> None:
+        try:
+            module = __import__(module_name, fromlist=[attr])
+        except ImportError:
+            return
+        had_attr = hasattr(module, attr)
+        original = getattr(module, attr, None)
+        patch_sites.append((module, attr, original, had_attr))
+        setattr(module, attr, replacement)
+
     if using_stubs:
-        for module_name in _PATCH_MODULES:
+        _IS_TTNN_TENSOR_SITES = (
+            "ttl.dtype_utils",
+            "ttl.ttl_api",
+            "ttl._src.ttl_ast",
+        )
+        for module_name in _IS_TTNN_TENSOR_SITES:
             try:
                 module = __import__(module_name, fromlist=["is_ttnn_tensor"])
             except ImportError:
                 continue
-            had_attr = hasattr(module, "is_ttnn_tensor")
             original = getattr(module, "is_ttnn_tensor", None)
 
             def _accept_stub(t: Any, _orig=original) -> bool:
@@ -574,8 +598,9 @@ def _drive_ttl_compile(entry: "KernelEntry", mock_args: Sequence[Any]):
                     return True
                 return bool(_orig(t)) if _orig is not None else False
 
-            patch_sites.append((module, "is_ttnn_tensor", original, had_attr))
-            setattr(module, "is_ttnn_tensor", _accept_stub)
+            _patch(module_name, "is_ttnn_tensor", _accept_stub)
+
+        _patch("ttl.ttl_api", "get_min_remaining_l1_for_device", lambda _device: 0)
 
     prev_env = os.environ.get("TTLANG_COMPILE_ONLY")
     with _DRIVE_LOCK:
