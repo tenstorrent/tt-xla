@@ -47,9 +47,9 @@ echo "Starting worker containers on:"
 cat "${WORKER_HOSTFILE}"
 
 
-Shell fragment executed on each worker host via mpirun+SSH.
-Uses single-quotes inside the outer double-quoted heredoc deliberately:
-the variables are expanded HERE (on the controller) before being sent.
+# Shell fragment executed on each worker host via mpirun+SSH.
+# Uses single-quotes inside the outer double-quoted heredoc deliberately:
+# the variables are expanded HERE (on the controller) before being sent.
 DOCKER_RUN_CMD="
   CONTAINER_NAME=ubuntu-host-mapped
   if docker ps --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
