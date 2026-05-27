@@ -71,4 +71,4 @@ jobs:
     uses: ./.github/workflows/call-update-inference-server-version.yml
     secrets: inherit
     with:
-      release_tag: "1.2.0.dev20260524002812"
+      release_tag: "1.2.0.dev20260525002812"
