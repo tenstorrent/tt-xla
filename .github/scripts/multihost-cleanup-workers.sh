@@ -34,12 +34,27 @@ fi
 echo "Stopping worker containers on:"
 cat "${WORKER_HOSTFILE}"
 
+DOCKER_CLEANUP_CMD="
+  set -euo pipefail
+  CONTAINER_NAME=ubuntu-host-mapped
+  if ! command -v docker >/dev/null 2>&1; then
+    echo \"\$(hostname): docker not found in PATH, skipping cleanup\" >&2
+    exit 0
+  fi
+  if docker ps -a --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
+     | grep -q \"\${CONTAINER_NAME}\"; then
+    docker rm -f \"\${CONTAINER_NAME}\" >/dev/null
+    echo \"\$(hostname): removed \${CONTAINER_NAME}\"
+  else
+    echo \"\$(hostname): no \${CONTAINER_NAME} container found\"
+  fi
+"
+
 mpirun --allow-run-as-root \
   --hostfile "${WORKER_HOSTFILE}" \
   --mca btl_tcp_if_exclude docker0,lo \
   --mca plm_rsh_agent "ssh -A -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -l ubuntu" \
   --tag-output \
-  bash -c "docker stop ubuntu-host-mapped 2>/dev/null || true; docker rm ubuntu-host-mapped 2>/dev/null || true; echo \"\$(hostname): cleaned up\"" \
-  || true
+  bash -c "${DOCKER_CLEANUP_CMD}"
 
 echo "Worker container cleanup complete"

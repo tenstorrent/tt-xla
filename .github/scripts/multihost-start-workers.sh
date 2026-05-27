@@ -19,12 +19,12 @@
 
 set -euo pipefail
 
-curl -fsSL https://get.docker.com | sh
-
 readonly WORKER_IMAGE="${1:?Usage: $0 <worker-image> [hostfile]}"
 readonly HOSTFILE="${2:-/etc/mpirun/hostfile}"
 readonly CONTAINER_WORKSPACE="${CONTAINER_WORKSPACE:-$(pwd)}"
 readonly HOST_WORKSPACE_PATH="${HOST_WORKSPACE_PATH:?HOST_WORKSPACE_PATH must be set to the host-side workspace path}"
+readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+readonly REMOTE_DOCKER_SH="${REPO_ROOT}/tests/torch/multi_host/experimental/remote_docker.sh"
 
 WORKER_HOSTFILE="/tmp/mpirun-workers-hostfile"
 CONTROLLER_HOSTNAME=$(hostname -s)
@@ -53,11 +53,21 @@ cat "${WORKER_HOSTFILE}"
 # Uses single-quotes inside the outer double-quoted heredoc deliberately:
 # the variables are expanded HERE (on the controller) before being sent.
 DOCKER_RUN_CMD="
+  set -euo pipefail
   CONTAINER_NAME=ubuntu-host-mapped
+  if ! command -v docker >/dev/null 2>&1; then
+    echo \"\$(hostname): docker not found in PATH\" >&2
+    exit 127
+  fi
   if docker ps --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
      | grep -q \"\${CONTAINER_NAME}\"; then
     echo \"\$(hostname): container \${CONTAINER_NAME} already running, skipping\"
     exit 0
+  fi
+  if docker ps -a --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
+     | grep -q \"\${CONTAINER_NAME}\"; then
+    echo \"\$(hostname): removing stale container \${CONTAINER_NAME}\"
+    docker rm -f \"\${CONTAINER_NAME}\" >/dev/null
   fi
   docker run --rm -d \\
     --name \"\${CONTAINER_NAME}\" \\
@@ -72,7 +82,7 @@ DOCKER_RUN_CMD="
     -v /etc/mpirun:/etc/mpirun:ro \\
     -v '${HOST_WORKSPACE_PATH}:${CONTAINER_WORKSPACE}' \\
     -w '${CONTAINER_WORKSPACE}' \\
-    '${WORKER_IMAGE}' sleep infinity
+    '${WORKER_IMAGE}' sleep infinity >/dev/null
   echo \"\$(hostname): container \${CONTAINER_NAME} started\"
 "
 
@@ -85,11 +95,16 @@ mpirun --allow-run-as-root \
 
 echo "All worker containers started successfully"
 
+if [[ ! -x "${REMOTE_DOCKER_SH}" ]]; then
+  echo "remote_docker.sh not found or not executable at ${REMOTE_DOCKER_SH}" >&2
+  exit 1
+fi
+
 
 echo "=== SSH connectivity check (via remote_docker.sh) ==="
 mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
   --mca btl_tcp_if_exclude docker0,lo \
-  --mca plm_rsh_agent ${CONTAINER_WORKSPACE}/tests/torch/multi_host/experimental/remote_docker.sh \
+  --mca plm_rsh_agent "${REMOTE_DOCKER_SH}" \
   --tag-output \
   bash -c "
     echo \"\$(hostname): hostname OK\"
