@@ -17,6 +17,7 @@ OUT: velocity (1, 48, latent_frames, latent_h, latent_w)
 
 from typing import Optional
 
+import pytest
 import torch
 from infra import Framework, run_graph_test
 from infra.utilities import Mesh
@@ -51,6 +52,9 @@ _COMPILER_CONFIG = CompilerConfig(
 )
 
 
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.llmbox
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 

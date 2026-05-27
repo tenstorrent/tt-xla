@@ -11,6 +11,7 @@ OUT: last_hidden_state (1, 512, 4096) float
 
 from typing import Optional
 
+import pytest
 import torch
 from infra import ComparisonConfig, Framework, run_graph_test
 from infra.evaluators import PccConfig
@@ -32,6 +33,9 @@ _COMPILER_CONFIG = CompilerConfig(
 )
 
 
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.llmbox
 def test_umt5_480p_sharded():
     _run(sharded=True)
 

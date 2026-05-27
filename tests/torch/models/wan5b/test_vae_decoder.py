@@ -13,6 +13,7 @@ OUT: sample (1, 3, num_frames, video_h, video_w)
 
 from typing import Optional
 
+import pytest
 import torch
 from infra import ComparisonConfig, Framework, run_graph_test
 from infra.evaluators import PccConfig
@@ -49,6 +50,9 @@ _COMPILER_CONFIG = CompilerConfig(
 )
 
 
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.llmbox
 def test_vae_decoder_480p_sharded():
     _run("480p", sharded=True)
 
