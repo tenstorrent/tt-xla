@@ -20,8 +20,8 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
 @pytest.mark.model_test
 @pytest.mark.xfail(
     reason=(
-        "TT SHLO→TTIR RoPE complex legalization — "
-        "https://github.com/tenstorrent/tt-xla/issues/4756"
+        "Full Z-Image transformer may still hit mlir Error 13 beyond complex gather; "
+        "see https://github.com/tenstorrent/tt-xla/issues/4756"
     ),
     strict=False,
 )
@@ -30,6 +30,13 @@ def test_transformer():
 
 
 @pytest.mark.model_test
+@pytest.mark.xfail(
+    reason=(
+        "Full Z-Image transformer may still hit mlir Error 13 beyond complex gather; "
+        "see https://github.com/tenstorrent/tt-xla/issues/4756"
+    ),
+    strict=False,
+)
 def test_transformer_sharded():
     _run(sharded=True)
 

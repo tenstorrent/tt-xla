@@ -4,23 +4,18 @@
 """
 Per-op RoPE embedder sanities (issue #4756) — no HF weights.
 
+Requires tt-mlir branch ``akannan/zimage_shlo_bug`` (complex gather legalization).
+Without it, these tests fail at TT compile with Error code 13.
+
   source venv/activate
   python -m pytest -svv tests/torch/models/z_image/test_rope_embedder_op_sanity.py
-
-``rope_embedder_op_sanity.py`` splits ``precompute_freqs_cis`` into steps 1–4,
-then whole precompute (5), gather (6–7), and cat (8).
 """
 
 import pytest
 import torch_xla.runtime as xr
 from infra import Framework, run_op_test
 
-from .rope_embedder_op_sanity import (
-    COMPILE_REPRO_CASES,
-    RUN_ON_TT_CASES,
-    _COMPILE_ERROR,
-    build_op_sanity_case,
-)
+from .rope_embedder_op_sanity import ALL_OP_SANITY_CASES, build_op_sanity_case
 
 
 def _run_case(case_name: str) -> None:
@@ -30,25 +25,7 @@ def _run_case(case_name: str) -> None:
 
 
 @pytest.mark.model_test
-@pytest.mark.parametrize("case_name", sorted(RUN_ON_TT_CASES))
+@pytest.mark.parametrize("case_name", ALL_OP_SANITY_CASES)
 def test_rope_embedder_op_sanity_runs_on_tt(case_name: str):
-    """Steps 1–5 (precompute / polar chain) should compile and match CPU."""
+    """Precompute, gather, and cat steps should compile and match CPU with tt-mlir fix."""
     _run_case(case_name)
-
-
-@pytest.mark.model_test
-def test_gather_complex_polar_table_only_compile_fails():
-    """``[512, 24]`` complex64 polar buffer + gather only (confirms #4756 = complex gather)."""
-    with pytest.raises((ValueError, RuntimeError), match=_COMPILE_ERROR):
-        _run_case("gather_complex_polar_table_only")
-
-
-@pytest.mark.model_test
-@pytest.mark.parametrize(
-    "case_name",
-    sorted(COMPILE_REPRO_CASES - {"gather_complex_polar_table_only"}),
-)
-def test_rope_embedder_op_sanity_compile_fails(case_name: str):
-    """Steps 6–8 (complex gather / cat) should fail TT compile with Error 13."""
-    with pytest.raises((ValueError, RuntimeError), match=_COMPILE_ERROR):
-        _run_case(case_name)

@@ -35,9 +35,6 @@ from .standalone_rope_repro import (
 # Default bisect axis: matches ``512x24`` table in mlir logs (axes_dims[1]=48, axes_lens[1]=512).
 DEFAULT_AXIS_IDX = 1
 
-_COMPILE_ERROR = r"Error code: 13"
-
-
 def _axis_params(axis_idx: int) -> tuple[float, int, int]:
     return ROPE_THETA, AXES_DIMS[axis_idx], AXES_LENS[axis_idx]
 
@@ -242,7 +239,7 @@ def build_op_sanity_case(name: str) -> tuple[nn.Module, list[torch.Tensor]]:
     return builders[name]
 
 
-# Precompute chain (steps 1–5): expected to compile on TT.
+# All steps: pass on TT when tt-mlir is on branch akannan/zimage_shlo_bug.
 RUN_ON_TT_CASES = frozenset(
     {
         "op01_inv_freq",
@@ -250,12 +247,6 @@ RUN_ON_TT_CASES = frozenset(
         "op03_outer",
         "op04_polar",
         "op05_precompute_all_axes",
-    }
-)
-
-# Index / cat (steps 6–8): expected SHLO→TTIR failure (#4756).
-COMPILE_REPRO_CASES = frozenset(
-    {
         "op06_gather_axis1",
         "gather_complex_polar_table_only",
         "op07_gather_loop_no_cat",
@@ -263,4 +254,4 @@ COMPILE_REPRO_CASES = frozenset(
     }
 )
 
-ALL_OP_SANITY_CASES = tuple(sorted(RUN_ON_TT_CASES | COMPILE_REPRO_CASES))
+ALL_OP_SANITY_CASES = tuple(sorted(RUN_ON_TT_CASES))

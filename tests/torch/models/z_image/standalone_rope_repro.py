@@ -4,6 +4,8 @@
 """
 Minimal Z-Image RoPE reproducers with synthetic inputs — no checkpoint / transformer load.
 
+Requires tt-mlir branch ``akannan/zimage_shlo_bug`` for gather/index on complex tables.
+
 Matches ``ZImageTransformer2DModel`` defaults (``transformer_z_image.py``):
   axes_dims=[32, 48, 48], axes_lens=[1024, 512, 512], rope_theta=256.0
 
@@ -24,9 +26,6 @@ AXES_LENS = (1024, 512, 512)
 # Synthetic sequence lengths (same order of magnitude as patchify+pad capture).
 SYNTH_IMAGE_NUM_TOKENS = 3616
 SYNTH_CAP_NUM_TOKENS = 512
-
-_COMPILE_ERROR = r"Error code: 13"
-
 
 def make_synthetic_pos_ids(
     num_tokens: int,
@@ -189,7 +188,7 @@ def build_standalone_case(name: str) -> tuple[nn.Module, list[torch.Tensor]]:
     raise ValueError(f"unknown standalone case: {name}")
 
 
-COMPILE_REPRO_CASES = frozenset(
+RUN_ON_TT_CASES = frozenset(
     {
         "rope_embedder_image",
         "rope_embedder_cap",
@@ -202,4 +201,4 @@ COMPILE_REPRO_CASES = frozenset(
     }
 )
 
-RUN_ON_TT_CASES: frozenset[str] = frozenset()
+ALL_STANDALONE_CASES = tuple(sorted(RUN_ON_TT_CASES))

@@ -4,14 +4,10 @@
 """
 Bisect Z-Image transformer SHLO→TTIR RoPE / complex legalization (issue #4756).
 
-Run from tt-xla repo root:
+Requires tt-mlir branch ``akannan/zimage_shlo_bug`` for gather/index/cat slices.
 
   source venv/activate
   python -m pytest -svv tests/torch/models/z_image/test_transformer_slice.py -k single_chip
-
-Two test kinds:
-  - ``compile_reproduces`` — TT compile must fail with Error code 13 (mlir repro; test PASSES)
-  - ``runs_on_tt`` — full run_op_test CPU vs TT (test PASSES only if compile+run succeed)
 """
 
 import pytest
@@ -39,29 +35,22 @@ from .slice_helpers import (
     shard_spec_for_block,
 )
 
-# Slices where TT compile is expected to fail (same class of bug as full transformer).
-# pytest.raises(ValueError) => test outcome PASS when mlir fails.
-COMPILE_REPRO_SLICES = frozenset(
+# RoPE / gather slices: pass with tt-mlir akannan/zimage_shlo_bug.
+RUN_ON_TT_SLICES = frozenset(
     {
+        "rope_precompute_all_axes",
         "rope_index_axis0_precomputed",
         "rope_index_axis1_precomputed",
         "rope_index_axis2_precomputed",
         "rope_index_and_cat_precomputed",
         "rope_polar_then_index_axis1",
+        "rope_polar_axis0",
+        "rope_polar_axis1",
+        "rope_polar_axis2",
         "rope_embedder_x",
         "rope_embedder_cap",
         "prepare_sequence_rope_x",
         "apply_rotary_emb",
-    }
-)
-
-# Slices that should compile and match CPU (negative controls + blocks).
-RUN_ON_TT_SLICES = frozenset(
-    {
-        "rope_precompute_all_axes",
-        "rope_polar_axis0",
-        "rope_polar_axis1",
-        "rope_polar_axis2",
         "attention_x",
         "noise_refiner_0",
         "context_refiner_0",
@@ -69,21 +58,25 @@ RUN_ON_TT_SLICES = frozenset(
     }
 )
 
-ALL_SLICES = tuple(sorted(COMPILE_REPRO_SLICES | RUN_ON_TT_SLICES))
+ALL_SLICES = tuple(sorted(RUN_ON_TT_SLICES))
 
 _ROPE_NO_SHARD = frozenset(
-    COMPILE_REPRO_SLICES
-    | {
+    {
         "rope_precompute_all_axes",
+        "rope_index_axis0_precomputed",
+        "rope_index_axis1_precomputed",
+        "rope_index_axis2_precomputed",
+        "rope_index_and_cat_precomputed",
+        "rope_polar_then_index_axis1",
         "rope_polar_axis0",
         "rope_polar_axis1",
         "rope_polar_axis2",
+        "rope_embedder_x",
+        "rope_embedder_cap",
+        "prepare_sequence_rope_x",
         "apply_rotary_emb",
     }
 )
-
-# Full-model image-path error (prepare_sequence / rope_embedder on x pos_ids):
-_FULL_MODEL_X_MLIR_SNIPPET = "512x24x2xf32>') to ('tensor<512x24xcomplex<f32>>"
 
 
 @pytest.fixture(scope="module")
@@ -209,31 +202,12 @@ def _run_op(slice_name: str, bundle, *, sharded: bool):
 
 
 @pytest.mark.model_test
-@pytest.mark.parametrize("slice_name", sorted(COMPILE_REPRO_SLICES))
-def test_transformer_slice_compile_reproduces_single_chip(slice_name, bundle):
-    """TT compile must fail (Error 13) — reproduces #4756 mlir legalization."""
-    with pytest.raises(
-        (ValueError, RuntimeError), match=r"Error code: 13|indices should be"
-    ):
-        _run_op(slice_name, bundle, sharded=False)
-
-
-@pytest.mark.model_test
-@pytest.mark.parametrize("slice_name", sorted(RUN_ON_TT_SLICES))
+@pytest.mark.parametrize("slice_name", ALL_SLICES)
 def test_transformer_slice_runs_single_chip(slice_name, bundle):
     _run_op(slice_name, bundle, sharded=False)
 
 
 @pytest.mark.model_test
-@pytest.mark.parametrize("slice_name", sorted(COMPILE_REPRO_SLICES))
-def test_transformer_slice_compile_reproduces_sharded(slice_name, bundle):
-    with pytest.raises(
-        (ValueError, RuntimeError), match=r"Error code: 13|indices should be"
-    ):
-        _run_op(slice_name, bundle, sharded=True)
-
-
-@pytest.mark.model_test
-@pytest.mark.parametrize("slice_name", sorted(RUN_ON_TT_SLICES))
+@pytest.mark.parametrize("slice_name", ALL_SLICES)
 def test_transformer_slice_runs_sharded(slice_name, bundle):
     _run_op(slice_name, bundle, sharded=True)
