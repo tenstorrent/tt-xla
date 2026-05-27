@@ -25,20 +25,17 @@ readonly CONTAINER_WORKSPACE="${CONTAINER_WORKSPACE:-$(pwd)}"
 readonly HOST_WORKSPACE_PATH="${HOST_WORKSPACE_PATH:?HOST_WORKSPACE_PATH must be set to the host-side workspace path}"
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 readonly REMOTE_DOCKER_SH="${REPO_ROOT}/tests/torch/multi_host/experimental/remote_docker.sh"
+readonly BUILD_WORKER_HOSTFILE_SH="${REPO_ROOT}/.github/scripts/multihost-build-worker-hostfile.sh"
 
 WORKER_HOSTFILE="/tmp/mpirun-workers-hostfile"
 CONTROLLER_HOSTNAME=$(hostname -s)
 
-# Build the filtered worker-only hostfile (exclude the controller)
-awk -v controller="${CONTROLLER_HOSTNAME}" '
-  /^[[:space:]]*#/ {next}
-  NF == 0 {next}
-  {
-    host=$1; short=host
-    sub(/\..*$/, "", short)
-    if (host != controller && short != controller) print
-  }
-' "${HOSTFILE}" > "${WORKER_HOSTFILE}"
+if [[ ! -f "${BUILD_WORKER_HOSTFILE_SH}" ]]; then
+  echo "worker hostfile builder script not found at ${BUILD_WORKER_HOSTFILE_SH}" >&2
+  exit 1
+fi
+
+"${BUILD_WORKER_HOSTFILE_SH}" "${HOSTFILE}" "${WORKER_HOSTFILE}"
 
 if [[ ! -s "${WORKER_HOSTFILE}" ]]; then
   echo "No worker hosts found after filtering controller (${CONTROLLER_HOSTNAME}), skipping"
