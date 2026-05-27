@@ -1691,7 +1691,8 @@ class DeepseekV3ForCausalLM(DeepseekV3PreTrainedModel):
 
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
-        logits = logits.float()
+        # Modified: keep logits in bf16 to keep these tensors small.
+        # logits = logits.float()
 
         loss = None
         if labels is not None:

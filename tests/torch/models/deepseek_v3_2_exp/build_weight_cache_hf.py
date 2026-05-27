@@ -203,9 +203,7 @@ def build_cache_hf(repo_id, n_layers):
                 else:
                     tensor = tensor.to(torch.bfloat16)
 
-            if model_key == "lm_head.weight":
-                tensor = tensor.to(torch.float32)
-            elif tensor.dtype != torch.bfloat16:
+            if tensor.dtype != torch.bfloat16:
                 tensor = tensor.to(torch.bfloat16)
 
             state_dict[model_key] = tensor

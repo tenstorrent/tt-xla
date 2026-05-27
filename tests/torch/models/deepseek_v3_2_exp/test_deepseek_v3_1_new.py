@@ -102,6 +102,30 @@ def _load_hf_dequantized_weights(model, repo_id, n_layers):
     )
 
 
+def _fix_meta_buffers_hf(model, max_seq_len):
+    """Re-materialize non-persistent rotary buffers on CPU after meta init.
+
+    ``DeepseekV3RotaryEmbedding`` registers ``inv_freq``, ``cos_cached``,
+    ``sin_cached`` with ``persistent=False`` (modeling_deepseek.py:117,136,137).
+    Meta-building the model leaves them meta, and ``load_state_dict`` does not
+    restore non-persistent buffers. The class is designed to lazily recompute
+    on the first forward (``max_seq_len_cached = None``), but if
+    ``enable_sparse_mlp`` perturbs the module tree the lazy path can route
+    through stale meta caches and NaN-flood downstream logits. Force the
+    recompute here, on CPU, with a seq_len at least as large as anything the
+    test will pass at forward time, and pin ``max_seq_len_cached`` so the
+    lazy branch never fires.
+    """
+    for layer in model.model.layers:
+        ra = layer.self_attn.rotary_emb
+        ra._set_cos_sin_cache(
+            seq_len=max_seq_len,
+            device=torch.device("cpu"),
+            dtype=torch.bfloat16,
+        )
+        ra.max_seq_len_cached = max_seq_len
+
+
 def _init_mla_cache(config, batch_size, max_cache_len, device=None):
     """Construct an MLACache and eagerly allocate its backing tensors."""
     cache = MLACache(config=config, max_cache_len=max_cache_len)
@@ -140,6 +164,11 @@ def _build_prefill_attention_mask(
     given, also masks out padding slots in the key dimension so queries don't
     attend to left-pad tokens. The tokenizer runs with ``padding_side="left"``,
     so those slots are at the front of the sequence.
+
+    A padding query whose causal window contains only padding keys would
+    otherwise have an all-``-inf`` row, producing NaN from softmax. We force
+    the diagonal ``(q_pos, q_pos)`` to 0 so every row has at least one finite
+    entry; outputs for pad queries are discarded downstream anyway.
     """
     mask = torch.full(
         (batch_size, 1, prompt_len, max_cache_len), float("-inf"), dtype=dtype
@@ -156,6 +185,8 @@ def _build_prefill_attention_mask(
         mask[:, :, :, :prompt_len] = (
             mask[:, :, :, :prompt_len] + pad_k[:, None, None, :]
         )
+    diag_idx = torch.arange(prompt_len)
+    mask[:, :, diag_idx, diag_idx] = 0.0
     return mask
 
 
@@ -242,7 +273,9 @@ def _apply_shard_specs(model, mesh, batch_size, tokens_device, cache):
                 xs.mark_sharding(shared.down_proj.weight, mesh, ("_axis_0", None))
 
 
-def _build_and_load_model(config, repo_id, n_layers, prefer_cpu_capable=False):
+def _build_and_load_model(
+    config, repo_id, n_layers, max_seq_len, prefer_cpu_capable=False
+):
     """Build a meta-device ``DeepseekV3ForCausalLM`` and populate real weights.
 
     Two weight-load paths:
@@ -283,11 +316,13 @@ def _build_and_load_model(config, repo_id, n_layers, prefer_cpu_capable=False):
                 mod.original_experts = nn.ModuleList()
         state_dict = _load_cache_chunked(post_sparse_dir)
         model.load_state_dict(state_dict, strict=False, assign=True)
+        _fix_meta_buffers_hf(model, max_seq_len)
         model.eval()
 
     def _load_dequant():
         print(f"[weights] loading dequant HF cache from {dequant_dir}", flush=True)
         _load_hf_dequantized_weights(model, repo_id=repo_id, n_layers=n_layers)
+        _fix_meta_buffers_hf(model, max_seq_len)
         model.eval()
         enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=config)
 
@@ -381,7 +416,11 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
     run_cpu_reference = cpu_reference
 
     model, mesh_shape = _build_and_load_model(
-        config, repo_id, n_layers, prefer_cpu_capable=run_cpu_reference
+        config,
+        repo_id,
+        n_layers,
+        max_seq_len,
+        prefer_cpu_capable=run_cpu_reference,
     )
 
     t1 = time.perf_counter()
@@ -414,6 +453,31 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
     cpu_logits_list = []
     cpu_token_ids = []
     if run_cpu_reference:
+        # ---- Diagnostics: meta-state + rotary sanity right before CPU forward ----
+        meta_params = [n for n, p in model.named_parameters() if p.is_meta]
+        meta_buffers = [n for n, b in model.named_buffers() if b.is_meta]
+        print(
+            f"[diag] meta params={len(meta_params)}, meta buffers={len(meta_buffers)}",
+            flush=True,
+        )
+        if meta_params:
+            print(f"[diag] first meta params: {meta_params[:5]}", flush=True)
+        if meta_buffers:
+            print(f"[diag] first meta buffers: {meta_buffers[:5]}", flush=True)
+        ra0 = model.model.layers[0].self_attn.rotary_emb
+        print(
+            f"[diag] rotary[0]: inv_freq.device={ra0.inv_freq.device} "
+            f"dtype={ra0.inv_freq.dtype} max_seq_len_cached={ra0.max_seq_len_cached} "
+            f"cos_cached.device={ra0.cos_cached.device}",
+            flush=True,
+        )
+        emb_w = model.model.embed_tokens.weight
+        print(
+            f"[diag] embed_tokens: device={emb_w.device} dtype={emb_w.dtype} "
+            f"is_meta={emb_w.is_meta}",
+            flush=True,
+        )
+
         print("[cpu] running prefill + decode eagerly...", flush=True)
         cpu_cache = _init_mla_cache(config, batch_size, max_seq_len)
         t_cpu_start = time.perf_counter()
@@ -431,6 +495,16 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
                 cache_position=torch.arange(prompt_len, dtype=torch.long),
                 use_cache=True,
                 return_dict=True,
+            )
+            _l = out.logits.float()
+            print(
+                f"[diag] prefill logits: shape={tuple(out.logits.shape)} "
+                f"dtype={out.logits.dtype} "
+                f"mean={_l.mean().item():.4f} std={_l.std().item():.4f} "
+                f"absmax={_l.abs().max().item():.4f} "
+                f"nan%={torch.isnan(out.logits).float().mean().item():.4f} "
+                f"inf%={torch.isinf(out.logits).float().mean().item():.4f}",
+                flush=True,
             )
             cpu_logits_list.append(out.logits[0].detach().clone())
             next_id = int(out.logits[0, -1].argmax(dim=-1).item())
