@@ -114,6 +114,8 @@ def apply_sharding(model, model_loader, mesh, replicate_unsharded: bool = True):
         replicate_unsharded: If True, mark unsharded tensors with replicated
             sharding (all None) to ensure they are transferred to device.
     """
+    import gc
+
     shard_specs = model_loader.load_shard_spec(model)
 
     # Track which tensors get sharded
@@ -152,6 +154,17 @@ def apply_sharding(model, model_loader, mesh, replicate_unsharded: bool = True):
     print(
         f"\nSharding summary: {len(all_tensors)} total, " f"{len(sharded_ids)} sharded"
     )
+
+    # Clear CPU tensor storage after sharding to allow GC
+    # The XLA device now holds the data via mark_sharding
+    print("\nClearing CPU tensor storage to free memory...")
+    for tid, (kind, name, tensor) in all_tensors.items():
+        tensor.data = torch.empty(0, device="cpu", dtype=tensor.dtype)
+
+    # Clear local references and run GC
+    del all_tensors, unsharded, shard_specs
+    gc.collect()
+    print("CPU tensor storage cleared and GC completed.")
 
 
 def init_mla_cache(config, batch_size: int, max_cache_len: int):
