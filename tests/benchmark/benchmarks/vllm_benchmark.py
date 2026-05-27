@@ -308,14 +308,14 @@ def benchmark_vllm_embedding(
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
         for _ in range(config.warmup_iterations):
-            llm.encode(prompts)
+            llm.embed(prompts)
         print("Warmup complete.")
 
     print(f"\nStarting benchmark ({config.loop_count} iterations) ...")
     total_time = 0.0
     for _ in range(config.loop_count):
         t0 = time.perf_counter()
-        llm.encode(prompts)
+        llm.embed(prompts)
         total_time += time.perf_counter() - t0
 
     avg_time = total_time / config.loop_count
