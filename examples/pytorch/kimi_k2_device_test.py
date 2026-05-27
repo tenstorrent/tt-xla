@@ -8,7 +8,7 @@ Runs prefill or decode on TT device without CPU comparison.
 Usage:
     pytest kimi_k2_device_test.py -k prefill -s
     pytest kimi_k2_device_test.py -k decode -s
-    pytest kimi_k2_device_test.py --num-layers=2 --batch-size=64 -s
+    NUM_LAYERS=2 BATCH_SIZE=64 pytest kimi_k2_device_test.py -k prefill -s
 """
 
 import os
@@ -22,6 +22,8 @@ import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 
 # ============== CONFIGURATION ==============
+# Configure via environment variables:
+#   NUM_LAYERS=2 BATCH_SIZE=64 pytest kimi_k2_device_test.py -k prefill -s
 
 DEFAULT_NUM_LAYERS = 2
 DEFAULT_BATCH_SIZE = 64
@@ -32,31 +34,24 @@ DEFAULT_MAX_OUTPUT_TOKENS = 1
 # ============== PYTEST FIXTURES ==============
 
 
-def pytest_addoption(parser):
-    parser.addoption("--num-layers", type=int, default=DEFAULT_NUM_LAYERS)
-    parser.addoption("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
-    parser.addoption("--input-seq-len", type=int, default=DEFAULT_INPUT_SEQ_LEN)
-    parser.addoption("--max-output-tokens", type=int, default=DEFAULT_MAX_OUTPUT_TOKENS)
+@pytest.fixture
+def num_layers():
+    return int(os.environ.get("NUM_LAYERS", DEFAULT_NUM_LAYERS))
 
 
 @pytest.fixture
-def num_layers(request):
-    return request.config.getoption("--num-layers")
+def batch_size():
+    return int(os.environ.get("BATCH_SIZE", DEFAULT_BATCH_SIZE))
 
 
 @pytest.fixture
-def batch_size(request):
-    return request.config.getoption("--batch-size")
+def input_seq_len():
+    return int(os.environ.get("INPUT_SEQ_LEN", DEFAULT_INPUT_SEQ_LEN))
 
 
 @pytest.fixture
-def input_seq_len(request):
-    return request.config.getoption("--input-seq-len")
-
-
-@pytest.fixture
-def max_output_tokens(request):
-    return request.config.getoption("--max-output-tokens")
+def max_output_tokens():
+    return int(os.environ.get("MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS))
 
 
 # ============== SETUP FUNCTIONS ==============
