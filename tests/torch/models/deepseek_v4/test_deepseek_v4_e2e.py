@@ -164,6 +164,9 @@ def transformer_shard_spec(model: mdo.Transformer):
 
 @pytest.mark.nightly
 @pytest.mark.bh_galaxy
+@pytest.mark.skip(
+    reason="Known galaxy-bh infrastructure instability: Fabric Router Sync timeout during device initialization."
+)
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("num_iterations", [10])
 @pytest.mark.parametrize("use_cpu_decode_inputs", [True])
