@@ -155,11 +155,21 @@ def apply_sharding(model, model_loader, mesh, replicate_unsharded: bool = True):
         f"\nSharding summary: {len(all_tensors)} total, " f"{len(sharded_ids)} sharded"
     )
 
-    # Clear CPU tensor storage after sharding to allow GC
-    # The XLA device now holds the data via mark_sharding
+    # Clear CPU tensor storage after sharding to allow GC.
+    # XLA takes ownership via shared_ptr, so it's safe to release Python references.
+    # We use untyped_storage().resize_(0) to deallocate storage while preserving
+    # tensor shape/dtype metadata needed for Dynamo tracing.
     print("\nClearing CPU tensor storage to free memory...")
-    for tid, (kind, name, tensor) in all_tensors.items():
-        tensor.data = torch.empty(0, device="cpu", dtype=tensor.dtype)
+    cleared, skipped = 0, 0
+    for _, (kind, name, tensor) in all_tensors.items():
+        try:
+            # Resize storage to 0 bytes - preserves tensor metadata but frees memory
+            tensor.untyped_storage().resize_(0)
+            cleared += 1
+        except (RuntimeError, TypeError, AttributeError):
+            # Some tensors may not support storage resize (e.g., XLA tensors, views)
+            skipped += 1
+    print(f"  Cleared {cleared} tensors, skipped {skipped}")
 
     # Clear local references and run GC
     del all_tensors, unsharded, shard_specs
