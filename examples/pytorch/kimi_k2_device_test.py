@@ -104,37 +104,53 @@ def create_mesh(model_loader) -> Mesh:
     return Mesh(device_ids, mesh_shape, mesh_names)
 
 
-def apply_sharding(model, model_loader, mesh):
-    """Apply sharding specs to model weights."""
+def apply_sharding(model, model_loader, mesh, replicate_unsharded: bool = True):
+    """Apply sharding specs to model weights.
+
+    Args:
+        model: The model to shard.
+        model_loader: Model loader with load_shard_spec method.
+        mesh: The device mesh.
+        replicate_unsharded: If True, mark unsharded tensors with replicated
+            sharding (all None) to ensure they are transferred to device.
+    """
     shard_specs = model_loader.load_shard_spec(model)
 
     # Track which tensors get sharded
     all_tensors = {}
     for name, p in model.named_parameters():
-        all_tensors[id(p)] = ("param", name)
+        all_tensors[id(p)] = ("param", name, p)
     for name, b in model.named_buffers():
-        all_tensors[id(b)] = ("buffer", name)
+        all_tensors[id(b)] = ("buffer", name, b)
 
     sharded_ids = set()
     for tensor, spec in shard_specs.items():
         xs.mark_sharding(tensor, mesh, spec)
         sharded_ids.add(id(tensor))
 
-    # Report unsharded tensors
+    # Find unsharded tensors
     unsharded = [
-        (kind, name)
-        for tid, (kind, name) in all_tensors.items()
+        (kind, name, tensor)
+        for tid, (kind, name, tensor) in all_tensors.items()
         if tid not in sharded_ids
     ]
 
-    if unsharded:
+    # Apply replicated sharding to unsharded tensors
+    if replicate_unsharded and unsharded:
+        print(f"\nApplying replicated sharding to {len(unsharded)} unsharded tensors:")
+        for kind, name, tensor in sorted(unsharded, key=lambda x: x[1]):
+            # Replicated sharding: all None for each dimension
+            replicated_spec = tuple(None for _ in tensor.shape)
+            xs.mark_sharding(tensor, mesh, replicated_spec)
+            print(f"  [{kind}] {name} -> {replicated_spec}")
+        sharded_ids.update(id(t) for _, _, t in unsharded)
+    elif unsharded:
         print(f"\nUnsharded tensors ({len(unsharded)}):")
-        for kind, name in sorted(unsharded, key=lambda x: x[1]):
+        for kind, name, _ in sorted(unsharded, key=lambda x: x[1]):
             print(f"  [{kind}] {name}")
 
     print(
-        f"\nSharding summary: {len(all_tensors)} total, "
-        f"{len(sharded_ids)} sharded, {len(unsharded)} unsharded"
+        f"\nSharding summary: {len(all_tensors)} total, " f"{len(sharded_ids)} sharded"
     )
 
 
