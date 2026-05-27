@@ -17,27 +17,21 @@ CONTROLLER_HOSTNAME=$(hostname -s)
 CONTROLLER_FQDN=$(hostname -f 2>/dev/null || true)
 CONTROLLER_IPS=$(hostname -I 2>/dev/null | tr ' ' '\n' | sed '/^$/d' | paste -sd, -)
 
+echo "Controller hostname: ${CONTROLLER_HOSTNAME}, FQDN: ${CONTROLLER_FQDN}, IPs: ${CONTROLLER_IPS}"
+
 awk -v controller="${CONTROLLER_HOSTNAME}" \
     -v controller_fqdn="${CONTROLLER_FQDN}" \
     -v controller_ips="${CONTROLLER_IPS}" '
   BEGIN {
-    n = split(controller_ips, ip_arr, ",")
-    for (i = 1; i <= n; i++) {
-      if (ip_arr[i] != "") {
-        controller_ip_map[ip_arr[i]] = 1
-      }
-    }
+    # Wrap in commas so we can check exact IP tokens via index().
+    controller_ips_csv = "," controller_ips ","
   }
   /^[[:space:]]*#/ {next}
   NF == 0 {next}
   {
     host=$1; short=host
     sub(/\..*$/, "", short)
-    if (
-      host != controller &&
-      short != controller &&
-      host != controller_fqdn &&
-      !(host in controller_ip_map)
-    ) print
+    is_controller_ip = index(controller_ips_csv, "," host ",") > 0
+    if (host != controller && short != controller && host != controller_fqdn && !is_controller_ip) print
   }
 ' "${INPUT_HOSTFILE}" > "${OUTPUT_HOSTFILE}"
