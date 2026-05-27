@@ -62,14 +62,16 @@ def _disable_tt_torch_function_override() -> None:
         # Mode wasn't on the stack or was already popped – ignore.
         pass
 
-    
+
 # ---------------------------------------------------------------------------
 # VAE Decoder monkey patches
 # ---------------------------------------------------------------------------
 
-    
-import torch
+
 from contextlib import contextmanager
+
+import torch
+
 _ORIG_GETITEM = torch.Tensor.__getitem__
 
 
@@ -128,8 +130,7 @@ def _normalize_index(idx, shape):
     for item in idx:
         if item is Ellipsis:
             remaining_explicit = sum(
-                x is not Ellipsis and x is not None
-                for x in idx[idx.index(item) + 1:]
+                x is not Ellipsis and x is not None for x in idx[idx.index(item) + 1 :]
             )
             fill = len(shape) - dim - remaining_explicit
             out.extend([slice(None)] * fill)
@@ -389,9 +390,7 @@ def _patch_wan_resample_avoid_4d_fold() -> None:
             t_now = x.shape[2]
             x = x.permute(0, 2, 1, 3, 4).reshape(b * t_now, c, h, w)
             x = self.resample(x)
-            x = x.view(b, t_now, x.size(1), x.size(2), x.size(3)).permute(
-                0, 2, 1, 3, 4
-            )
+            x = x.view(b, t_now, x.size(1), x.size(2), x.size(3)).permute(0, 2, 1, 3, 4)
 
         if self.mode == "downsample3d":
             if feat_cache is not None:

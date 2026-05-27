@@ -22,10 +22,10 @@ import numpy as np
 import regex as re
 import torch
 import torch.nn as nn
-from PIL import Image
-
 from infra.utilities import Mesh
 from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
+from PIL import Image
+
 from tests.infra.testers.compiler_config import CompilerConfig
 
 MODEL_ID = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
@@ -64,9 +64,7 @@ RESOLUTIONS = {
 # ---------------------------------------------------------------------------
 
 
-def load_first_frame_image(
-    image_path: Path, height: int, width: int
-) -> torch.Tensor:
+def load_first_frame_image(image_path: Path, height: int, width: int) -> torch.Tensor:
     """Load image at ``image_path``, scale-to-cover the target then center
     crop, and return a (1, 3, 1, H, W) bf16 tensor in [-1, 1] — the format
     the Wan VAE encoder expects for a single-frame image.
@@ -456,7 +454,11 @@ def run_component(
     xr.set_device_type("TT")
     device = xm.xla_device()
 
-    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True, enable_trace=True)
+    compiler_config = CompilerConfig(
+        optimization_level=1,
+        experimental_enable_dram_space_saving_optimization=True,
+        enable_trace=True,
+    )
     torch_xla.set_custom_compile_options(compiler_config.to_torch_compile_options())
 
     # Move the raw wrapper and inputs to device first. shard_fn needs to see

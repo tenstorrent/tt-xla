@@ -29,7 +29,6 @@ from .shared import (
     wan22_mesh,
 )
 
-
 _COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     enable_trace=True,
@@ -58,9 +57,7 @@ def _run(resolution: str, sharded: bool) -> None:
     model = VAEEncoderWrapper(load_vae()).eval().bfloat16()
 
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
-    shard_spec_fn = (
-        (lambda m: shard_vae_encoder_specs(m.vae)) if sharded else None
-    )
+    shard_spec_fn = (lambda m: shard_vae_encoder_specs(m.vae)) if sharded else None
 
     run_graph_test(
         graph=model,

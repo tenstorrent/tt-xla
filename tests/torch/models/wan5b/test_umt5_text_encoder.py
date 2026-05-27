@@ -19,13 +19,7 @@ from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .shared import (
-    UMT5Wrapper,
-    load_umt5,
-    shard_umt5_specs,
-    wan22_mesh,
-)
-
+from .shared import UMT5Wrapper, load_umt5, shard_umt5_specs, wan22_mesh
 
 _COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
@@ -49,9 +43,7 @@ def _run(sharded: bool) -> None:
     attention_mask = torch.ones(1, 512, dtype=torch.long)
 
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
-    shard_spec_fn = (
-        (lambda m: shard_umt5_specs(m.encoder)) if sharded else None
-    )
+    shard_spec_fn = (lambda m: shard_umt5_specs(m.encoder)) if sharded else None
 
     run_graph_test(
         graph=wrapper,

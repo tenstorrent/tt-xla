@@ -24,17 +24,8 @@ from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .monkey_patch import (
-    _disable_tt_torch_function_override,
-    _patch_apply_lora_scale,
-)
-from .shared import (
-    RESOLUTIONS,
-    WanDiTWrapper,
-    load_dit,
-    shard_dit_specs,
-    wan22_mesh,
-)
+from .monkey_patch import _disable_tt_torch_function_override, _patch_apply_lora_scale
+from .shared import RESOLUTIONS, WanDiTWrapper, load_dit, shard_dit_specs, wan22_mesh
 
 # Module-load patches — must run before model load and torch.compile.
 _patch_apply_lora_scale()
@@ -72,9 +63,7 @@ def _run(resolution: str, sharded: bool) -> None:
     model = WanDiTWrapper(load_dit(max_blocks=MAX_BLOCKS)).eval().bfloat16()
 
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
-    shard_spec_fn = (
-        (lambda m: shard_dit_specs(m.dit)) if sharded else None
-    )
+    shard_spec_fn = (lambda m: shard_dit_specs(m.dit)) if sharded else None
 
     run_graph_test(
         graph=model,
