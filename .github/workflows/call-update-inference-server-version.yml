@@ -1,0 +1,159 @@
+name: Update tt-forge version in tt-inference-server (call)
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: "tt-forge release version to pin in tt-inference-server"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  open-version-bump-pr:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.TT_INFERENCE_SERVER_RELEASE }}
+      TARGET_REPO: tenstorrent/tt-inference-server
+      REQ_FILE: tt-media-server/tt_model_runners/forge_runners/requirements.txt
+    steps:
+      - name: Checkout tt-inference-server
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.TARGET_REPO }}
+          token: ${{ secrets.TT_INFERENCE_SERVER_RELEASE }}
+
+      - name: Bump tt-forge version and open PR
+        id: bump
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          new_version="${{ inputs.release_tag }}"
+          branch="bump-tt-forge-${new_version}"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$branch"
+
+          sed -i -E "s/^tt-forge==.*/tt-forge==${new_version}/" "$REQ_FILE"
+
+          if git diff --quiet -- "$REQ_FILE"; then
+            echo "tt-forge already pinned to ${new_version} in ${REQ_FILE}; nothing to push."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git add "$REQ_FILE"
+          git commit -m "Bump tt-forge to ${new_version}"
+          git push -u origin "$branch" --force
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+          # Persist the base PR body; the dispatch step will append a checklist.
+          cat > "$RUNNER_TEMP/pr_body.md" <<EOF
+          Automated version bump of \`tt-forge\` to \`${new_version}\` in \`tt-media-server/Dockerfile.forge\`.
+          EOF
+
+          existing_pr="$(gh pr list \
+            --repo "$TARGET_REPO" \
+            --head "$branch" \
+            --base main \
+            --state open \
+            --json number -q '.[0].number' || true)"
+
+          if [ -z "$existing_pr" ]; then
+            gh pr create \
+              --repo "$TARGET_REPO" \
+              --head "$branch" \
+              --base main \
+              --title "Bump tt-forge to ${new_version}" \
+              --body-file "$RUNNER_TEMP/pr_body.md"
+            existing_pr="$(gh pr list \
+              --repo "$TARGET_REPO" \
+              --head "$branch" \
+              --base main \
+              --state open \
+              --json number -q '.[0].number')"
+          else
+            echo "PR already open: #$existing_pr"
+          fi
+
+          echo "pr_number=$existing_pr" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch tt-shield on-dispatch.yml for each model and update PR checklist
+        if: steps.bump.outputs.pushed == 'true'
+        shell: bash
+        env:
+          BRANCH: ${{ steps.bump.outputs.branch }}
+          PR_NUMBER: ${{ steps.bump.outputs.pr_number }}
+          SHIELD_REPO: tenstorrent/tt-shield
+        run: |
+          set -euo pipefail
+
+          models=(efficientnet mobilenetv2 resnet-50 segformer vit vovnet)
+
+          checklist="$RUNNER_TEMP/checklist.md"
+          : > "$checklist"
+
+          for model in "${models[@]}"; do
+            prev_id="$(gh run list \
+              --repo "$SHIELD_REPO" \
+              --workflow on-dispatch.yml \
+              --event workflow_dispatch \
+              --limit 1 \
+              --json databaseId -q '.[0].databaseId' 2>/dev/null || echo '')"
+
+            echo "Dispatching ${SHIELD_REPO} on-dispatch.yml for model=${model} inference-server-git-ref=${BRANCH}"
+            gh workflow run on-dispatch.yml \
+              --repo "$SHIELD_REPO" \
+              --ref main \
+              -f model="${model}" \
+              -f runner-label=n150 \
+              -f device-type=n150 \
+              -f tt-metal-git-ref=main \
+              -f inference-server-git-ref="${BRANCH}" \
+              -f vllm-git-ref=dev \
+              -f workflow=release \
+              -f throttle-perf=0 \
+              -f impl-of-model=default \
+              -f run-full-evals=false \
+              -f run-ai-summary=false
+
+            # Poll for the newly-registered run by watching for a databaseId change.
+            run_url=""
+            for attempt in $(seq 1 20); do
+              sleep 3
+              new_id="$(gh run list \
+                --repo "$SHIELD_REPO" \
+                --workflow on-dispatch.yml \
+                --event workflow_dispatch \
+                --limit 1 \
+                --json databaseId -q '.[0].databaseId' 2>/dev/null || echo '')"
+              if [ -n "$new_id" ] && [ "$new_id" != "$prev_id" ]; then
+                run_url="$(gh run view "$new_id" --repo "$SHIELD_REPO" --json url -q '.url')"
+                break
+              fi
+            done
+
+            if [ -n "$run_url" ]; then
+              echo "- [ ] \`${model}\`: ${run_url}" >> "$checklist"
+            else
+              echo "- [ ] \`${model}\`: (dispatch succeeded but run URL was not resolved in time)" >> "$checklist"
+            fi
+          done
+
+          # Rebuild PR body = original body + checklist section, then update.
+          full_body="$RUNNER_TEMP/pr_body_full.md"
+          {
+            cat "$RUNNER_TEMP/pr_body.md"
+            printf '\n### Checklist\n\n'
+            cat "$checklist"
+          } > "$full_body"
+
+          gh pr edit "$PR_NUMBER" --repo "$TARGET_REPO" --body-file "$full_body"
