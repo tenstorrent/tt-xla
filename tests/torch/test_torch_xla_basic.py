@@ -384,6 +384,12 @@ def test_fully_replicated_graph(spmd_mode):
     model = MM()
 
     mem_logger.info(f"[MEM] After CPU tensors: {_get_rss_mb():.1f} MB")
+    mem_logger.info(
+        f"[PTR] input_x data_ptr: {input_x.data_ptr():x}, storage_offset: {input_x.storage_offset()}, nbytes: {input_x.nbytes}"
+    )
+    mem_logger.info(
+        f"[PTR] input_y data_ptr: {input_y.data_ptr():x}, storage_offset: {input_y.storage_offset()}, nbytes: {input_y.nbytes}"
+    )
 
     # Disable const eval inputs to system memory - forces layout conversion
     # which triggers fireDoneWithHostBufferEvent and releases host memory
@@ -413,6 +419,23 @@ def test_fully_replicated_graph(spmd_mode):
     gc.collect()
     _malloc_trim()
     mem_logger.info(f"[MEM] After sync + gc + malloc_trim: {_get_rss_mb():.1f} MB")
+
+    # Check /proc/self/maps to see what's holding memory
+    mem_logger.info("[MEM] Checking large anonymous mappings:")
+    try:
+        with open("/proc/self/maps", "r") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 1:
+                    addr_range = parts[0]
+                    start, end = addr_range.split("-")
+                    size_bytes = int(end, 16) - int(start, 16)
+                    size_mb = size_bytes / (1024 * 1024)
+                    # Log mappings > 500MB
+                    if size_mb > 500:
+                        mem_logger.info(f"  {line.strip()} ({size_mb:.1f} MB)")
+    except Exception as e:
+        mem_logger.info(f"  Failed to read maps: {e}")
 
     output = model(input_x_device, input_y_device).to("cpu")
     mem_logger.info(f"[MEM] After forward pass: {_get_rss_mb():.1f} MB")
