@@ -329,10 +329,18 @@ def test_eltwise_binary_eager(op):
 
 
 def _get_rss_mb():
-    """Get current RSS in MB."""
-    import resource
+    """Get current RSS in MB (not peak)."""
+    try:
+        with open("/proc/self/statm", "r") as f:
+            # statm: size resident shared text lib data dt (in pages)
+            # resident is the 2nd field
+            resident_pages = int(f.read().split()[1])
+            page_size_kb = 4  # typically 4KB pages
+            return resident_pages * page_size_kb / 1024
+    except Exception:
+        import resource
 
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
 
 def _malloc_trim():
@@ -382,18 +390,25 @@ def test_fully_replicated_graph(spmd_mode):
 
     print(f"[MEM] After .to(device): {_get_rss_mb():.1f} MB")
 
+    # Delete CPU tensors BEFORE sync
+    del input_x, input_y
+    gc.collect()
+    print(f"[MEM] After del (before sync): {_get_rss_mb():.1f} MB")
+
     # Sync to ensure transfer is complete
     torch_xla.sync()
     print(f"[MEM] After sync: {_get_rss_mb():.1f} MB")
 
-    # Delete CPU tensors and collect garbage
-    del input_x, input_y
+    # Another GC + malloc_trim after sync
     gc.collect()
-    print(f"[MEM] After del + gc.collect(): {_get_rss_mb():.1f} MB")
-
-    # Force allocator to release memory
     _malloc_trim()
-    print(f"[MEM] After malloc_trim(): {_get_rss_mb():.1f} MB")
+    print(f"[MEM] After sync + gc + malloc_trim: {_get_rss_mb():.1f} MB")
+
+    # Check if clearing XLA's tensor arena helps
+    # This forces XLA to release any cached host tensors
+    import torch_xla.debug.metrics as met
+
+    print(f"[XLA] Metrics: {met.short_metrics_report()}")
 
     output = model(input_x_device, input_y_device).to("cpu")
     comparator = TorchComparisonEvaluator(
