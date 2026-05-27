@@ -56,16 +56,8 @@ DOCKER_RUN_CMD="
     echo \"\$(hostname): docker not found in PATH\" >&2
     exit 127
   fi
-  if docker ps --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
-     | grep -q \"\${CONTAINER_NAME}\"; then
-    echo \"\$(hostname): container \${CONTAINER_NAME} already running, skipping\"
-    exit 0
-  fi
-  if docker ps -a --filter 'name=^\${CONTAINER_NAME}\$' --format '{{.Names}}' \
-     | grep -q \"\${CONTAINER_NAME}\"; then
-    echo \"\$(hostname): removing stale container \${CONTAINER_NAME}\"
-    docker rm -f \"\${CONTAINER_NAME}\" >/dev/null
-  fi
+  # Ensure deterministic startup across reruns by replacing any prior container.
+  docker rm -f \"\${CONTAINER_NAME}\" >/dev/null 2>&1 || true
   docker run --rm -d \\
     --name \"\${CONTAINER_NAME}\" \\
     --pid=host --network=host \\
