@@ -16,7 +16,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
-from transformers import AutoTokenizer
+from transformers import PreTrainedTokenizerFast
 from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.sparse_mlp import enable_sparse_mlp
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
@@ -183,7 +183,7 @@ def test_prefill_and_decode_pcc_e2e(model_name, num_iterations, use_cpu_decode_i
     args.max_batch_size = bsz
     args.max_seq_len = 2 * PROMPT_LEN
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(model_name)
     prompt_ids = _tokenize_prompts(tokenizer, PROMPTS)
     assert prompt_ids.shape == (bsz, PROMPT_LEN)
 
