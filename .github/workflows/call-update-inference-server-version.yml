@@ -57,7 +57,7 @@ jobs:
 
           # Persist the base PR body; the dispatch step will append a checklist.
           cat > "$RUNNER_TEMP/pr_body.md" <<EOF
-          Automated version bump of \`tt-forge\` to \`${new_version}\` in \`${REQ_FILE}\`, triggered by the tt-xla \`Stable version release\` workflow.
+          Automated version bump of \`tt-forge\` to \`${new_version}\` \`tt-media-server/Dockerfile.forge\`.
           EOF
 
           existing_pr="$(gh pr list \
@@ -98,7 +98,7 @@ jobs:
           set -euo pipefail
 
           models=(efficientnet mobilenetv2 resnet-50 segformer vit vovnet)
-          models=(resnet-50)
+          models=(resnet-50 segformer)
 
           checklist="$RUNNER_TEMP/checklist.md"
           : > "$checklist"
