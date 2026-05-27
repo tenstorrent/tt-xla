@@ -458,7 +458,9 @@ jobs:
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
         arch=""
-        if [[ "${{ matrix.build.runs-on }}" == *"n150"* ]]; then
+        if [[ "${{ matrix.build.runs-on }}" == *"qb2"* ]]; then
+          arch="qb2-blackhole"
+        elif [[ "${{ matrix.build.runs-on }}" == *"n150"* ]]; then
           arch="wormhole"
         elif [[ "${{ matrix.build.runs-on }}" == *"p150"* ]]; then
           arch="blackhole"
