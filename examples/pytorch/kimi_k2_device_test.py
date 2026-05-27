@@ -107,8 +107,35 @@ def create_mesh(model_loader) -> Mesh:
 def apply_sharding(model, model_loader, mesh):
     """Apply sharding specs to model weights."""
     shard_specs = model_loader.load_shard_spec(model)
+
+    # Track which tensors get sharded
+    all_tensors = {}
+    for name, p in model.named_parameters():
+        all_tensors[id(p)] = ("param", name)
+    for name, b in model.named_buffers():
+        all_tensors[id(b)] = ("buffer", name)
+
+    sharded_ids = set()
     for tensor, spec in shard_specs.items():
         xs.mark_sharding(tensor, mesh, spec)
+        sharded_ids.add(id(tensor))
+
+    # Report unsharded tensors
+    unsharded = [
+        (kind, name)
+        for tid, (kind, name) in all_tensors.items()
+        if tid not in sharded_ids
+    ]
+
+    if unsharded:
+        print(f"\nUnsharded tensors ({len(unsharded)}):")
+        for kind, name in sorted(unsharded, key=lambda x: x[1]):
+            print(f"  [{kind}] {name}")
+
+    print(
+        f"\nSharding summary: {len(all_tensors)} total, "
+        f"{len(sharded_ids)} sharded, {len(unsharded)} unsharded"
+    )
 
 
 def init_mla_cache(config, batch_size: int, max_cache_len: int):
