@@ -294,7 +294,6 @@ def benchmark_vllm_embedding(
 
     llm_args: Dict[str, Any] = {
         "model": config.model,
-        "task": "embed",
         "max_model_len": config.max_model_len,
         "max_num_seqs": config.batch_size,
         "max_num_batched_tokens": config.batch_size * config.max_model_len,
