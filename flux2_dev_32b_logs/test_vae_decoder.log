@@ -1,0 +1,117 @@
+2026-05-27 11:31:21.264 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/26_may_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'forked': '1.6.0', 'anyio': '4.13.0', 'json-report': '1.5.0', 'jaxtyping': '0.3.10', 'metadata': '3.1.1', 'split': '0.11.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/26_may_yyz/tt-xla
+configfile: pytest.ini
+plugins: forked-1.6.0, anyio-4.13.0, json-report-1.5.0, jaxtyping-0.3.10, metadata-3.1.1, split-0.11.0
+collecting ... collected 1 item
+
+tests/torch/models/flux2/test_vae_decoder.py::test_vae_decoder Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+2026-05-27 11:32:02.416420: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-05-27 11:32:15.702183: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-05-27 11:32:15.743 (  54.479s) [        DBFFF6C0]flatbuffer_loaded_execu:110    ERR| Device count mismatch: 1 vs 8
+FAILED
+
+=================================== FAILURES ===================================
+_______________________________ test_vae_decoder _______________________________
+tests/torch/models/flux2/test_vae_decoder.py:24: in test_vae_decoder
+    run_graph_test(
+tests/infra/testers/single_chip/graph/graph_tester.py:74: in run_graph_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:73: in test
+    tt_res = self._device_runner.run_on_tt_device(tt_workload)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:30: in run_on_tt_device
+    return self.run_on_device(workload, DeviceType.TT, device_num)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:40: in run_on_device
+    return self._run_on_device(device_workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:105: in _run_on_device
+    return workload.execute()
+           ^^^^^^^^^^^^^^^^^^
+tests/infra/workloads/workload.py:71: in execute
+    return self.compiled_executable(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:465: in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:953: in compile_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+third_party/tt_forge_models/flux2/pytorch/src/model_utils.py:184: in forward
+    def forward(self, latents: torch.Tensor) -> torch.Tensor:
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:1181: in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:226: in __call__
+    return self._call_experimental_compile(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:201: in _call_experimental_compile
+    self.compiled_graph = bridge.extract_compiled_graph(
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:737: in extract_compiled_graph
+    return extract_compiled_graph_helper(xla_model, xla_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:859: in extract_compiled_graph_helper
+    return partition_fx_graph_for_cpu_fallback(xla_model, xla_args,
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:804: in partition_fx_graph_for_cpu_fallback
+    extract_internal(fused_module), node.args, None)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:539: in extract_internal
+    xla_args_need_update) = extract_graph_helper(xla_model,
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:346: in extract_graph_helper
+    torch_xla.sync(reset_scope=False)
+venv/lib/python3.12/site-packages/torch_xla/torch_xla.py:87: in sync
+    torch_xla._XLAC._xla_step_marker(
+E   RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/26_may_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/flux2/test_vae_decoder.py::test_vae_decoder
+  /proj_sw/user_dev/ctr-akannan/26_may_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+    warnings.warn(
+
+tests/torch/models/flux2/test_vae_decoder.py::test_vae_decoder
+  /proj_sw/user_dev/ctr-akannan/26_may_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:2056: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+    torch._dynamo.utils.warn_once(msg)
+
+tests/torch/models/flux2/test_vae_decoder.py::test_vae_decoder
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/flux2/test_vae_decoder.py::test_vae_decoder
+  /proj_sw/user_dev/ctr-akannan/26_may_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/flux2/test_vae_decoder.py::test_vae_decoder
+  /proj_sw/user_dev/ctr-akannan/26_may_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/flux2/test_vae_decoder.py::test_vae_decoder - RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+======================= 1 failed, 21 warnings in 49.98s ========================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
