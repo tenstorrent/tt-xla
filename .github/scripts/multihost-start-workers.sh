@@ -19,6 +19,8 @@
 
 set -euo pipefail
 
+curl -fsSL https://get.docker.com | sh
+
 readonly WORKER_IMAGE="${1:?Usage: $0 <worker-image> [hostfile]}"
 readonly HOSTFILE="${2:-/etc/mpirun/hostfile}"
 readonly CONTAINER_WORKSPACE="${CONTAINER_WORKSPACE:-$(pwd)}"
