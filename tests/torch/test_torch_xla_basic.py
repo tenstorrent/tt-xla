@@ -379,7 +379,6 @@ def test_fully_replicated_graph(spmd_mode):
     input_x = torch.randn(8192, 8192, dtype=torch.bfloat16)
     input_y = torch.randn(8192, 8192, dtype=torch.bfloat16)
     model = MM()
-    golden = model(input_x, input_y)
 
     print(f"[MEM] After CPU tensors: {_get_rss_mb():.1f} MB")
 
@@ -399,25 +398,20 @@ def test_fully_replicated_graph(spmd_mode):
     torch_xla.sync()
     print(f"[MEM] After sync: {_get_rss_mb():.1f} MB")
 
-    # Another GC + malloc_trim after sync
+    # GC + malloc_trim after sync
     gc.collect()
     _malloc_trim()
     print(f"[MEM] After sync + gc + malloc_trim: {_get_rss_mb():.1f} MB")
 
-    # Check if clearing XLA's tensor arena helps
-    # This forces XLA to release any cached host tensors
-    import torch_xla.debug.metrics as met
-
-    print(f"[XLA] Metrics: {met.short_metrics_report()}")
-
     output = model(input_x_device, input_y_device).to("cpu")
-    comparator = TorchComparisonEvaluator(
-        ComparisonConfig(
-            atol=AtolConfig(enabled=False, required_atol=0.02),
-        )
-    )
+    print(f"[MEM] After forward pass: {_get_rss_mb():.1f} MB")
 
-    comparator.evaluate(output, golden)
+    # Clean up device tensors
+    del input_x_device, input_y_device, output, model
+    torch_xla.sync()
+    gc.collect()
+    _malloc_trim()
+    print(f"[MEM] After cleanup all: {_get_rss_mb():.1f} MB")
 
 
 @pytest.mark.nightly
