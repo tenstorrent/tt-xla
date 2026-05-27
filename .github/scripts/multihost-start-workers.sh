@@ -87,7 +87,7 @@ echo "All worker containers started successfully"
 echo "=== SSH connectivity check (via remote_docker.sh) ==="
 mpirun --allow-run-as-root --hostfile /etc/mpirun/hostfile \
   --mca btl_tcp_if_exclude docker0,lo \
-  --mca plm_rsh_agent ${{ steps.strings.outputs.work-dir }}/tests/torch/multi_host/experimental/remote_docker.sh \
+  --mca plm_rsh_agent ${CONTAINER_WORKSPACE}/tests/torch/multi_host/experimental/remote_docker.sh \
   --tag-output \
   bash -c "
     echo \"\$(hostname): hostname OK\"
