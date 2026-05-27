@@ -69,7 +69,7 @@ DOCKER_RUN_CMD="
     -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \\
     -v /mnt/dockercache:/mnt/dockercache \\
     -v /etc/mpirun:/etc/mpirun:ro \\
-    -v '${HOST_WORKSPACE_PATH}:${CONTAINER_WORKSPACE}' \\
+    -v /home/ubuntu/actions-runner/_work:/__w \\
     -w '${CONTAINER_WORKSPACE}' \\
     '${WORKER_IMAGE}' sleep infinity >/dev/null
   echo \"\$(hostname): container \${CONTAINER_NAME} started\"
