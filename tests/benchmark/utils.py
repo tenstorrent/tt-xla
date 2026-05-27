@@ -374,7 +374,6 @@ def create_benchmark_result(
     torch_xla_enabled: bool = True,
     backend: str = "tt",
     device_name: str = "",
-    galaxy: bool = False,
     arch: str = "",
     input_is_image: bool = True,
     input_sequence_length: Optional[int] = -1,
@@ -474,7 +473,6 @@ def create_benchmark_result(
         "measurements": measurements,
         "device_info": {
             "device_name": device_name,
-            "galaxy": galaxy,
             "arch": arch,
             "device_count": device_count,
             "mesh_shape": mesh_shape,
