@@ -12,7 +12,8 @@ OUT: last_hidden_state (1, 512, 4096) float
 from typing import Optional
 
 import torch
-from infra import Framework, run_graph_test
+from infra import ComparisonConfig, Framework, run_graph_test
+from infra.evaluators import PccConfig
 from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
@@ -55,4 +56,5 @@ def _run(sharded: bool) -> None:
         compiler_config=_COMPILER_CONFIG,
         mesh=mesh,
         shard_spec_fn=shard_spec_fn,
+        comparison_config=ComparisonConfig(pcc=PccConfig(required_pcc=0.98)),
     )
