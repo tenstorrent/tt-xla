@@ -269,6 +269,7 @@ def benchmark_llm_torch_xla(
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
+    enable_create_d2m_subgraphs: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -329,6 +330,12 @@ def benchmark_llm_torch_xla(
         raise ValueError(
             f"Only 'text-generation' task is supported for llm benchmark. Got: {task}. "
             "Please use -t text-generation"
+        )
+
+    if enable_create_d2m_subgraphs and optimization_level < 1:
+        raise ValueError(
+            f"optimization_level must be >= 1 when enable_create_d2m_subgraphs "
+            f"is enabled, got optimization_level={optimization_level}"
         )
 
     # Check transformers version
@@ -468,6 +475,8 @@ def benchmark_llm_torch_xla(
         options["fp32_dest_acc_en"] = fp32_dest_acc_en
     if experimental_kv_cache_dtype is not None:
         options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
+    if enable_create_d2m_subgraphs:
+        options["enable_create_d2m_subgraphs"] = enable_create_d2m_subgraphs
 
     torch_xla.set_custom_compile_options(options)
 
