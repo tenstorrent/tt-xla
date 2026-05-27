@@ -9,5 +9,6 @@
   {"runs-on": "p150", "name": "run_forge_models_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "p150 and training and weekly and expected_passing and not large", "parallel-groups": 1, "forge-models": true},
   {"runs-on": "n300-llmbox", "name": "run_forge_models_multichip_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n300-llmbox and weekly and tensor_parallel and expected_passing", "parallel-groups": 1, "forge-models": true},
   {"runs-on": "n300", "name": "run_forge_models_multichip_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n300 and weekly and data_parallel and expected_passing", "parallel-groups": 8, "forge-models": true},
-  {"runs-on": "n300-llmbox", "name": "run_forge_models_multichip_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n300-llmbox and weekly and tensor_parallel and expected_passing", "parallel-groups": 1, "forge-models": true}
+  {"runs-on": "n300-llmbox", "name": "run_forge_models_multichip_jax", "dir": "./tests/runner/test_models.py::test_all_models_jax", "test-mark": "n300-llmbox and weekly and tensor_parallel and expected_passing", "parallel-groups": 1, "forge-models": true},
+  {"runs-on": "qb2-blackhole", "name": "run_forge_models_multichip_torch", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "qb2-blackhole and weekly and tensor_parallel and expected_passing", "parallel-groups": 2, "forge-models": true}
 ]
