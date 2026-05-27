@@ -15,6 +15,7 @@ Usage:
     model = enable_sparse_mlp(model)  # Replace MLP layers with SparseMLP
 """
 
+import logging
 import math
 from typing import Any, Dict, List, Optional, Type
 
@@ -820,7 +821,7 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
         Also keeps reference to original experts module for CPU golden path.
         """
 
-        def __init__(self, experts):
+        def __init__(self, experts, cleanup_original: bool = True):
             super().__init__()
             self.original_experts = experts
             # gate_up_proj: [E, 2*inter, H] -> transpose -> [E, H, 2*inter] -> split
@@ -834,6 +835,9 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 experts.down_proj.data.transpose(1, 2).contiguous()
             )
 
+            if cleanup_original:
+                self._cleanup_original_experts()
+
         # No bias for pre-stacked fused experts
         gate_proj_bias = None
         up_proj_bias = None
@@ -846,6 +850,20 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
         w2_bias = None
         w3 = property(lambda self: self.up_proj)
         w3_bias = None
+
+        def _cleanup_original_experts(self):
+            """Release original expert weights to allow GC after stacking."""
+            if self.original_experts is not None:
+                logging.warning(
+                    "PreStackedFusedExperts: Cleaning up original expert weights after stacking. "
+                    "CPU golden path will not be available."
+                )
+                # Clear the original parameter data
+                if hasattr(self.original_experts, "gate_up_proj"):
+                    self.original_experts.gate_up_proj.data = torch.empty(0)
+                if hasattr(self.original_experts, "down_proj"):
+                    self.original_experts.down_proj.data = torch.empty(0)
+                self.original_experts = None
 
     class StackedExperts(_SparseForwardMixin, nn.Module):
         """Stacks expert weights into w1 (gate), w2 (down), w3 (up) format.
@@ -870,7 +888,7 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                     "nor w1/w3/w2 attributes."
                 )
 
-        def __init__(self, expert_list):
+        def __init__(self, expert_list, cleanup_original: bool = True):
             super().__init__()
             experts_list = [e for e in expert_list if e is not None]
             if not experts_list:
@@ -909,6 +927,9 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
                 self.up_proj_bias = None
                 self.down_proj_bias = None
 
+            if cleanup_original:
+                self._cleanup_original_experts()
+
         # Aliases for unified _sparse_expert_forward (w1=gate, w2=down, w3=up)
         w1 = property(lambda self: self.gate_proj)
         w1_bias = property(lambda self: self.gate_proj_bias)
@@ -916,6 +937,20 @@ class DeepseekV3MoEToA2AAdapter(nn.Module):
         w2_bias = property(lambda self: self.down_proj_bias)
         w3 = property(lambda self: self.up_proj)
         w3_bias = property(lambda self: self.up_proj_bias)
+
+        def _cleanup_original_experts(self):
+            """Release original expert weights to allow GC after stacking."""
+            if self.original_experts is not None:
+                logging.warning(
+                    "StackedExperts: Cleaning up original expert weights after stacking. "
+                    "CPU golden path will not be available."
+                )
+                # Clear each expert's weight data
+                for exp in self.original_experts:
+                    if exp is not None:
+                        for param in exp.parameters():
+                            param.data = torch.empty(0)
+                self.original_experts = None
 
     def __init__(self, moe_module):
         super().__init__()
