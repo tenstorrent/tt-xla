@@ -30,6 +30,7 @@ from infra import MLACache
 from infra.testers.compiler_config import CompilerConfig
 from safetensors import safe_open
 from torch_xla.distributed.spmd import Mesh
+from tt_torch.sparse_mlp import enable_sparse_mlp
 
 sys.path.insert(0, os.path.dirname(__file__))
 from configuration_deepseek import DeepseekV3Config
@@ -137,12 +138,10 @@ def _move_cache_to_device(cache, device):
 
 
 def _apply_shard_specs(model, mesh, batch_size, tokens_device, cache):
-    """Apply mark_sharding to weights / MLA cache / input tokens.
+    """Apply mark_sharding to all weights, MLA cache, and input tokens.
 
-    Targets the unwrapped HF attribute layout (no ``enable_sparse_mlp``).
-    Plain ``DeepseekV3MLP`` layers are sharded across both mesh axes; the
-    unwrapped ``DeepseekV3MoE`` layers are left unsharded (sparse stacking
-    isn't applied in this test).
+    Targets the HF attribute layout produced by
+    ``DeepseekV3ForCausalLM(config)`` after ``enable_sparse_mlp`` runs.
     """
     xs.mark_sharding(tokens_device, mesh, ("_axis_1", None))
     xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, "_axis_0"))
@@ -169,7 +168,32 @@ def _apply_shard_specs(model, mesh, batch_size, tokens_device, cache):
             xs.mark_sharding(mlp.gate_proj.weight, mesh, ("_axis_1", "_axis_0"))
             xs.mark_sharding(mlp.up_proj.weight, mesh, ("_axis_1", "_axis_0"))
             xs.mark_sharding(mlp.down_proj.weight, mesh, ("_axis_0", "_axis_1"))
-        # DeepseekV3MoE layers are left unsharded (no sparse wrapper here).
+        else:
+            # A2aSparseMLP* wrapper. Inner stacked params live at
+            # mlp.experts.{gate_proj,up_proj,down_proj}; router at
+            # mlp.router.gate.weight; shared experts (if present) at
+            # mlp.shared_experts.{gate_proj,up_proj,down_proj}.
+            inner = mlp.mlp if hasattr(mlp, "mlp") else mlp
+            xs.mark_sharding(inner.router.gate.weight, mesh, (None, "_axis_0"))
+            xs.mark_sharding(
+                inner.experts.gate_proj, mesh, (("_axis_0", "_axis_1"), None, None)
+            )
+            xs.mark_sharding(
+                inner.experts.up_proj, mesh, (("_axis_0", "_axis_1"), None, None)
+            )
+            xs.mark_sharding(
+                inner.experts.down_proj, mesh, (("_axis_0", "_axis_1"), None, None)
+            )
+            for bias_name in ("gate_proj_bias", "up_proj_bias", "down_proj_bias"):
+                b = getattr(inner.experts, bias_name, None)
+                if b is not None:
+                    xs.mark_sharding(b, mesh, (("_axis_0", "_axis_1"), None))
+
+            shared = getattr(mlp, "shared_experts", None)
+            if shared is not None:
+                xs.mark_sharding(shared.gate_proj.weight, mesh, (None, "_axis_0"))
+                xs.mark_sharding(shared.up_proj.weight, mesh, (None, "_axis_0"))
+                xs.mark_sharding(shared.down_proj.weight, mesh, ("_axis_0", None))
 
 
 def _pcc(a, b):
@@ -291,11 +315,14 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
     t0 = time.perf_counter()
     print(f"[timing] config + init: {t0 - t_start:.1f}s", flush=True)
 
+    mesh_shape = (4, 8)
+
     with torch.device("meta"):
         model = DeepseekV3ForCausalLM(config)
     _load_bf16_weights_direct(model, repo_id, n_layers)
     _fix_meta_buffers_hf(model, max_seq_len)
     model.eval()
+    enable_sparse_mlp(model, mesh=mesh_shape, cluster_axis=0, config=config)
 
     t1 = time.perf_counter()
     print(f"[timing] model build + weight load: {t1 - t0:.1f}s", flush=True)
@@ -426,7 +453,6 @@ def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
     # ===== TT path =====
     torch._dynamo.reset()
 
-    mesh_shape = (4, 8)
     num_devices = xr.global_runtime_device_count()
     device_ids = np.array(range(num_devices))
     mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
