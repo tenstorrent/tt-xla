@@ -9,14 +9,24 @@ import torch
 import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
+from infra.testers.single_chip.model.torch_model_tester import _mask_jax_accelerator
+from infra.utilities.torch_multichip_utils import get_mesh
 
 from third_party.tt_forge_models.cog_videox.pytorch import ModelLoader, ModelVariant
 
 
-@pytest.mark.xfail(
-    reason="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=-0.7399767808716264 - https://github.com/tenstorrent/tt-xla/issues/4791"
-)
+@pytest.mark.skip()
 def test_vae_decoder():
+    _run(sharded=False)
+
+
+@pytest.mark.nightly
+@pytest.mark.model_test
+def test_vae_decoder_sharded():
+    _run(sharded=True)
+
+
+def _run(sharded: bool):
     xr.set_device_type("TT")
     torch.manual_seed(42)
 
@@ -24,8 +34,20 @@ def test_vae_decoder():
     model = loader.load_model(dtype_override=torch.bfloat16)
     inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
-    run_graph_test(
-        model,
-        inputs,
-        framework=Framework.TORCH,
-    )
+    mesh = None
+    shard_spec_fn = None
+    if sharded:
+        mesh_shape, mesh_names = loader.get_mesh_config(
+            xr.global_runtime_device_count()
+        )
+        mesh = get_mesh(mesh_shape, mesh_names)
+        shard_spec_fn = loader.load_shard_spec
+
+    with _mask_jax_accelerator():
+        run_graph_test(
+            model,
+            inputs,
+            framework=Framework.TORCH,
+            mesh=mesh,
+            shard_spec_fn=shard_spec_fn,
+        )
