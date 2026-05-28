@@ -99,9 +99,10 @@ TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_ProcessIndex) {
 }
 
 // Tests PJRT API for getting device attributes.
-// Currently there's one attribute: "device_arch" (e.g. "Wormhole_b0")
+// Exposed attributes: "device_arch" (string) and "dram_size_bytes" (int64).
 TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_Attributes) {
-  DeviceDescription description(TT_DEVICE_HOST, TT_ARCH_WH);
+  constexpr uint64_t kFakeDramBytes = 32ULL * 1024 * 1024 * 1024;
+  DeviceDescription description(TT_DEVICE_HOST, TT_ARCH_WH, kFakeDramBytes);
 
   PJRT_DeviceDescription_Attributes_Args args;
   args.struct_size = PJRT_DeviceDescription_Attributes_Args_STRUCT_SIZE;
@@ -110,16 +111,31 @@ TEST(DeviceDescriptionUnitTests, API_PJRT_DeviceDescription_Attributes) {
   PJRT_Error *result = internal::onDeviceDescriptionAttributes(&args);
   ASSERT_EQ(result, nullptr);
 
-  EXPECT_EQ(args.num_attributes, 1);
+  EXPECT_EQ(args.num_attributes, 2);
   EXPECT_NE(args.attributes, nullptr);
 
-  // Ensure the attribute is "device_arch" (e.g. "Wormhole_b0")
-  const PJRT_NamedValue &attr = args.attributes[0];
-  EXPECT_EQ(attr.type, PJRT_NamedValue_kString);
-  EXPECT_EQ(std::string(attr.name, attr.name_size), "device_arch");
-  // Ensure the value is non-empty.
-  EXPECT_GT(attr.value_size, 0);
-  EXPECT_NE(attr.string_value, nullptr);
+  // Locate attributes by name; ordering is an implementation detail.
+  const PJRT_NamedValue *arch_attr = nullptr;
+  const PJRT_NamedValue *dram_attr = nullptr;
+  for (size_t i = 0; i < args.num_attributes; ++i) {
+    const std::string name(args.attributes[i].name,
+                           args.attributes[i].name_size);
+    if (name == "device_arch") {
+      arch_attr = &args.attributes[i];
+    } else if (name == "dram_size_bytes") {
+      dram_attr = &args.attributes[i];
+    }
+  }
+  ASSERT_NE(arch_attr, nullptr);
+  ASSERT_NE(dram_attr, nullptr);
+
+  EXPECT_EQ(arch_attr->type, PJRT_NamedValue_kString);
+  EXPECT_GT(arch_attr->value_size, 0);
+  EXPECT_NE(arch_attr->string_value, nullptr);
+
+  EXPECT_EQ(dram_attr->type, PJRT_NamedValue_kInt64);
+  EXPECT_EQ(dram_attr->value_size, 1);
+  EXPECT_EQ(static_cast<uint64_t>(dram_attr->int64_value), kFakeDramBytes);
 }
 
 // Tests PJRT API for getting the device kind.

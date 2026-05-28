@@ -376,10 +376,18 @@ tt_pjrt_status ClientInstance::populateDevices() {
     // For now, just make all devices addressable.
     bool is_addressable = true;
 
+    const auto *chip_desc = m_system_descriptor->chip_descs()->Get(i);
+    // Total on-device DRAM = num_dram_channels * dram_channel_size.  Used
+    // by clients (e.g. vLLM) to size the KV cache without hardcoding a
+    // per-board number.
+    const uint64_t dram_size_bytes =
+        static_cast<uint64_t>(chip_desc->num_dram_channels()) *
+        chip_desc->dram_channel_size();
+
     std::unique_ptr<DeviceInstance> device_instance =
-        DeviceInstance::createInstance(
-            this, global_device_id, is_addressable, local_device_id,
-            m_system_descriptor->chip_descs()->Get(i)->arch());
+        DeviceInstance::createInstance(this, global_device_id, is_addressable,
+                                       local_device_id, chip_desc->arch(),
+                                       dram_size_bytes);
 
     m_devices_raw.push_back(device_instance.get());
     if (is_addressable) {
