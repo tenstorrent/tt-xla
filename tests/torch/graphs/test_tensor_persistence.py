@@ -18,6 +18,7 @@ import os
 import threading
 
 import numpy as np
+import psutil
 import pytest
 import torch
 import torch_xla
@@ -806,3 +807,114 @@ def test_output_sharding_simple_propagation():
     assert input_e_shard_spec == output_e_shard_spec
     assert input_f_shard_spec == output_f_shard_spec
     assert input_g_shard_spec == output_g_shard_spec
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "dim,iters",
+    [
+        (512, 15),
+        (1024, 15),
+        (2048, 15),
+    ],
+)
+def test_no_rss_leak_across_executions(dim: int, iters: int, record_property):
+    """
+    Run the same matmul `iters` times, drop the first WARMUP_ITERS samples,
+    and assert that post-warmup RSS is stable.
+
+    Asserts both steady drift (slope) and step jumps (absolute growth).
+    """
+
+    # Threshold values for assertion
+    MAX_RSS_SLOPE_MIB_PER_ITER = 1.0
+    MAX_RSS_GROWTH_MIB = 50.0
+    WARMUP_ITERS = 3
+
+    assert iters > WARMUP_ITERS + 3, "need a few samples after warmup to fit a slope"
+
+    class MatMulModel(torch.nn.Module):
+        def __init__(self, dim: int):
+            super().__init__()
+            self.linear = torch.nn.Linear(dim, dim, bias=False, dtype=torch.bfloat16)
+
+        def forward(self, x):
+            return self.linear(x)
+
+    def get_rss_mib() -> float:
+        """
+        Helper to get this process's current resident set size, in MiB.
+        """
+        return psutil.Process().memory_info().rss / (1024 * 1024)
+
+    def get_vmhwm_mib() -> float:
+        """
+        Helper to get this process's lifetime peak RSS, in MiB.
+        """
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmHWM:"):
+                    return int(line.split()[1]) / 1024
+        return float("nan")
+
+    def linear_slope(xs: list[int], ys: list[float]) -> float:
+        n = len(xs)
+        if n < 2:
+            return 0.0
+        mean_x = sum(xs) / n
+        mean_y = sum(ys) / n
+        num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+        den = sum((x - mean_x) ** 2 for x in xs)
+        return num / den if den else 0.0
+
+    xr.set_device_type("TT")
+
+    torch.manual_seed(42)
+    model = MatMulModel(dim).to(dtype=torch.bfloat16).eval()
+    model.compile(backend="tt")
+    x = torch.ones((dim, dim), dtype=torch.bfloat16)
+    device = xm.xla_device()
+    model = model.to(device)
+    x = x.to(device)
+
+    samples: list[tuple[int, float, float]] = []
+    checksum = torch.zeros((), dtype=torch.float64)
+
+    for i in range(iters):
+        with torch.no_grad():
+            out = model(x).cpu()
+        checksum += out.to(torch.float64).sum()
+        samples.append((i, get_rss_mib(), get_vmhwm_mib()))
+
+    measured = samples[WARMUP_ITERS:]
+    xs_pts = [it for it, _, _ in measured]
+    ys_pts = [rss for _, rss, _ in measured]
+    slope = linear_slope(xs_pts, ys_pts)
+    growth = ys_pts[-1] - ys_pts[0]
+
+    record_property("rss_slope_mib_per_iter", round(slope, 4))
+    record_property("rss_growth_mib", round(growth, 3))
+    record_property("rss_first_post_warmup_mib", round(ys_pts[0], 3))
+    record_property("rss_last_post_warmup_mib", round(ys_pts[-1], 3))
+    record_property("vmhwm_final_mib", round(samples[-1][2], 3))
+
+    print(f"\nRSS trajectory (dim={dim}, iters={iters}):")
+    for it, rss, vmhwm in samples:
+        tag = "W " if it < WARMUP_ITERS else "  "
+        print(f"  {tag}iter {it:3d}: rss={rss:8.1f} MiB  vmhwm={vmhwm:8.1f} MiB")
+    print(
+        f"  post-warmup slope:  {slope:+.3f} MiB/iter (threshold {MAX_RSS_SLOPE_MIB_PER_ITER})"
+    )
+    print(
+        f"  post-warmup growth: {growth:+.2f} MiB     (threshold {MAX_RSS_GROWTH_MIB})"
+    )
+    print(f"  checksum:  {checksum.item():.4f}")
+
+    assert (
+        slope <= MAX_RSS_SLOPE_MIB_PER_ITER
+    ), f"RSS slope {slope:+.3f} MiB/iter exceeds {MAX_RSS_SLOPE_MIB_PER_ITER}"
+    assert growth <= MAX_RSS_GROWTH_MIB, (
+        f"RSS grew {growth:+.2f} MiB over {len(measured)} post-warmup iters, "
+        f"exceeds {MAX_RSS_GROWTH_MIB}"
+    )
