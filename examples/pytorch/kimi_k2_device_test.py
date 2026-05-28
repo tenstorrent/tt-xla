@@ -392,6 +392,11 @@ def test_kimi_k2_prefill(num_layers, batch_size, input_seq_len):
             "optimization_level": 0,  # Minimal optimization for stability
             "enable_trace": False,  # Disabled due to topk indices issue
             "experimental_weight_dtype": "bfp_bf8",
+            # Migrate const-eval inputs (the weights) to device DRAM on first
+            # use instead of pinning them in host system memory for the buffer's
+            # lifetime. Releases the ~38 GB host staging at the cost of more
+            # device DRAM pressure.
+            "enable_const_eval_inputs_to_system_memory": False,
         }
     )
 
@@ -466,6 +471,11 @@ def test_kimi_k2_decode(num_layers, batch_size, input_seq_len, max_output_tokens
             "optimization_level": 0,  # Minimal optimization for stability
             "enable_trace": False,  # Disabled due to topk indices issue
             "experimental_weight_dtype": "bfp_bf8",
+            # Migrate const-eval inputs (the weights) to device DRAM on first
+            # use instead of pinning them in host system memory for the buffer's
+            # lifetime. Releases the ~38 GB host staging at the cost of more
+            # device DRAM pressure.
+            "enable_const_eval_inputs_to_system_memory": False,
         }
     )
 
