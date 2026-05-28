@@ -802,8 +802,8 @@
         "runs-on": "qb2-blackhole"
       },
       {
-        "name": "vllm_devstral_123b_tp_batch32_qb2",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[devstral-123b-tp-batch32-qb2]",
+        "name": "vllm_devstral_123b_tp_batch32_bfp4_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[devstral-123b-tp-batch32-bfp4-qb2]",
         "vllm": true,
         "skip-stablehlo-dump": true,
         "skip-ttir-dump": true,

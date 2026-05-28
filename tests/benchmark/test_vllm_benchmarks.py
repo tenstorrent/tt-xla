@@ -170,8 +170,9 @@ TP_CONFIGS = [
             "mistralai/Devstral-2-123B-Instruct-2512",
             32,
             gpu_memory_utilization=0.01,
+            experimental_weight_dtype="bfp_bf4",
         ),
-        id="devstral-123b-tp-batch32-qb2",
+        id="devstral-123b-tp-batch32-bfp4-qb2",
     ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
