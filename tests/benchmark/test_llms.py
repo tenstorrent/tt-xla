@@ -2147,6 +2147,75 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
     )
 
 
+# GLM-4.7 has first_k_dense_replace=3, so 4 layers gives 3 dense + 1 MoE layer.
+# This test only runs 4 layers so we expect to see incoherent output.
+def test_glm_4_7_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GLM_4_7
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+    )
+
+
+# Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
+# This test only runs 2 layers so we expect to see incoherent output
+def test_deepseek_v3_1_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.deepseek.deepseek_v3_1.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_V3_1_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+    )
+
+
 # This test only runs 2 layers so we expect to see incoherent output
 def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     output_file,
