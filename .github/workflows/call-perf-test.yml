@@ -169,10 +169,9 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        pip install ${{ matrix.build.pyreq }}
-        # Install correct torch-xla version from requirements.txt
-        pip install $(grep "torch-xla@" python_package/requirements.txt)
-        pip install torchvision==0.25.0+cpu --index-url https://download.pytorch.org/whl/cpu
+        if [ -n "${{ matrix.build.pyreq }}" ]; then
+          pip install ${{ matrix.build.pyreq }}
+        fi
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
