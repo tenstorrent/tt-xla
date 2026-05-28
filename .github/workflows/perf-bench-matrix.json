@@ -291,11 +291,13 @@
       },
       {
         "name": "kimi_k2_tp_galaxy_2_layers",
+        "pyreq": "tiktoken",
         "pytest": "tests/benchmark/test_llms.py::test_kimi_k2_tp_galaxy_2_layers",
         "runs-on": "galaxy-wh-6u"
       },
       {
         "name": "kimi_k2_5_tp_galaxy_2_layers",
+        "pyreq": "tiktoken",
         "pytest": "tests/benchmark/test_llms.py::test_kimi_k2_5_tp_galaxy_2_layers",
         "runs-on": "galaxy-wh-6u"
       },
