@@ -479,8 +479,7 @@ replacements = {
     torch.nn.functional.rms_norm: composite_rms_norm,
     torch.nn.functional.layer_norm: composite_layer_norm,
     torch.nn.functional.scaled_dot_product_attention: composite_scaled_dot_product_attention,
-    # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
-    # torch.nn.functional.group_norm: composite_group_norm,
+    torch.nn.functional.group_norm: composite_group_norm,
     torch.topk: {
         frozenset({0, 1}): composite_topk,
         frozenset({0}): composite_topk_values,
@@ -489,8 +488,7 @@ replacements = {
     torch.gather: composite_gather,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
-    # TODO: uncomment once https://github.com/tenstorrent/tt-metal/issues/40916 is fixed
-    # torch.nn.GroupNorm: replace_group_norm_module,
+    torch.nn.GroupNorm: replace_group_norm_module,
 }
 
 """

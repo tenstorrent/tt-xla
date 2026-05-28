@@ -6,7 +6,12 @@ import json
 import os
 
 import pytest
-from benchmarks.vllm_benchmark import VLLMBenchmarkConfig, benchmark_vllm
+from benchmarks.vllm_benchmark import (
+    VLLMBenchmarkConfig,
+    VLLMEmbeddingBenchmarkConfig,
+    benchmark_vllm,
+    benchmark_vllm_embedding,
+)
 from utils import resolve_display_name
 
 # Sampling overrides — keep SINGLE_DEVICE_CONFIGS focused on (model,
@@ -170,6 +175,65 @@ def _run_vllm_benchmark(config, output_file, request):
         with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
         print(f"Results written to {output_file}")
+
+
+def _embedding_config(
+    model: str,
+    batch_size: int,
+    *,
+    max_model_len: int = 512,
+    gpu_memory_utilization: float = 0.05,
+    **additional_config_extra,
+):
+    additional = {"enable_trace": True}
+    additional.update(additional_config_extra)
+    return VLLMEmbeddingBenchmarkConfig(
+        model=model,
+        batch_size=batch_size,
+        max_model_len=max_model_len,
+        gpu_memory_utilization=gpu_memory_utilization,
+        additional_config=additional,
+    )
+
+
+def _run_vllm_embedding_benchmark(config, output_file, request):
+    display_name = "vllm_" + resolve_display_name(
+        request=request, fallback=config.model
+    )
+    results = benchmark_vllm_embedding(config, display_name)
+    if output_file:
+        results["project"] = "tt-xla"
+        results["model_rawname"] = config.model
+        with open(output_file, "w") as f:
+            json.dump(results, f, indent=2)
+        print(f"Results written to {output_file}")
+
+
+# Trace disabled: host/device tensor shape mismatch (https://github.com/tenstorrent/tt-xla/issues/3936)
+def test_vllm_qwen3_embedding_4b_batch1(output_file, request):
+    _run_vllm_embedding_benchmark(
+        _embedding_config(
+            "Qwen/Qwen3-Embedding-4B", 1, max_model_len=128, enable_trace=False
+        ),
+        output_file,
+        request,
+    )
+
+
+def test_vllm_bge_m3_batch1(output_file, request):
+    _run_vllm_embedding_benchmark(
+        _embedding_config("BAAI/bge-m3", 1),
+        output_file,
+        request,
+    )
+
+
+def test_vllm_bge_m3_batch32(output_file, request):
+    _run_vllm_embedding_benchmark(
+        _embedding_config("BAAI/bge-m3", 32),
+        output_file,
+        request,
+    )
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)

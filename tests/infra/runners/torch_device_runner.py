@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 import inspect
 
 import torch
@@ -74,16 +75,46 @@ def to_device(x, device, depth=5, moved=None):
         if isinstance(x, type):
             return x
         result = x.to(device)
+        # nn.Module.to() is in-place (returns self). Clone tensors that didn't move
+        # so mutations in one run don't corrupt the workload's source state.
+        if result is x and isinstance(x, torch.Tensor):
+            result = result.clone()
         moved[obj_id] = result
         return result
-    # Handle objects with attributes by recursively processing all fields.
-    # This is done in-place.
     elif hasattr(x, "__dict__"):
-        for attr_name in x.__dict__:
-            attr_value = getattr(x, attr_name)
-            setattr(x, attr_name, to_device(attr_value, device, depth - 1, moved))
-        moved[obj_id] = x
-        return x
+        if callable(x):
+            # Compiled torch functions are callable and may have circular refs in
+            # __dict__ (dynamo internals), so copy.copy is unsafe. Mutate in-place.
+            moved[obj_id] = x  # guard before recursion to break circular refs
+            for attr_name in list(x.__dict__):
+                setattr(
+                    x,
+                    attr_name,
+                    to_device(getattr(x, attr_name), device, depth - 1, moved),
+                )
+            if "device" in x.__dict__ and isinstance(
+                x.__dict__["device"], (str, torch.device)
+            ):
+                x.device = device
+            return x
+        else:
+            # Non-callable plain objects (e.g. transformers StaticCache/StaticLayer)
+            # are NOT nn.Modules — they have no .to() and get mutated in-place without
+            # a copy. Use copy.copy so each run gets a fresh object, preventing
+            # accumulated cache state from corrupting subsequent forward passes.
+            new_obj = copy.copy(x)
+            moved[obj_id] = new_obj  # guard before recursion to break circular refs
+            for attr_name in list(x.__dict__):
+                setattr(
+                    new_obj,
+                    attr_name,
+                    to_device(getattr(x, attr_name), device, depth - 1, moved),
+                )
+            if "device" in new_obj.__dict__ and isinstance(
+                new_obj.__dict__["device"], (str, torch.device)
+            ):
+                new_obj.device = device
+            return new_obj
     else:
         return x
 

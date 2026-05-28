@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""HiDream-I1-Fast — T5-XXL encoder (text_encoder_3) component test. Params: ~4.6 B."""
+"""HunyuanVideo — HunyuanVideoTransformer3DModel (DiT) component test."""
 
 import pytest
 import torch
@@ -11,22 +11,18 @@ import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.utilities.torch_multichip_utils import get_mesh
 
-from third_party.tt_forge_models.hidream_i1.pytorch import ModelLoader, ModelVariant
+from third_party.tt_forge_models.hunyuan_video.pytorch import ModelLoader, ModelVariant
 
 
-@pytest.mark.skip(
-    reason="OOM on single device - https://github.com/tenstorrent/tt-xla/issues/4760 , sharded variant runs"
-)
-def test_text_encoder_3():
+@pytest.mark.skip
+def test_transformer():
     _run(sharded=False)
 
 
 @pytest.mark.xfail(
-    reason="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9873067700897922. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4847"
+    reason="Out of Memory: Not enough space to allocate 75497472 B DRAM buffer across 12 banks - https://github.com/tenstorrent/tt-xla/issues/4790"
 )
-@pytest.mark.nightly
-@pytest.mark.model_test
-def test_text_encoder_3_sharded():
+def test_transformer_sharded():
     _run(sharded=True)
 
 
@@ -34,9 +30,9 @@ def _run(sharded: bool):
     xr.set_device_type("TT")
     torch.manual_seed(42)
 
-    loader = ModelLoader(ModelVariant.TEXT_ENCODER_3)
-    model = loader.load_model(dtype_override=torch.float32)
-    inputs = loader.load_inputs(dtype_override=torch.float32)
+    loader = ModelLoader(ModelVariant.TRANSFORMER)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     mesh = None
     shard_spec_fn = None
