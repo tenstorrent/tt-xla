@@ -456,6 +456,36 @@ def test_fully_replicated_graph(spmd_mode):
     output = model(input_x_device, input_y_device).to("cpu")
     mem_logger.info(f"[MEM] After forward pass: {_get_rss_mb():.1f} MB")
 
+    # Decisive experiment: at this point all 128 AtenSources have already been
+    # destroyed during Execute (fireDoneWithHostBufferEvent fired in
+    # ensure_layout), yet the device input tensors are still alive. Force the
+    # allocator to release any cached-but-freed pages WITHOUT deleting the
+    # device tensors. This disambiguates the two competing hypotheses:
+    #   - If RSS drops here: the host buffers were already freed and merely
+    #     cached by the allocator (a malloc_trim/arena issue, not a leak).
+    #   - If RSS stays high: the host buffers are still genuinely referenced
+    #     and only released when the device tensors are deleted (true leak,
+    #     reference held downstream of the AtenSource).
+    gc.collect()
+    _malloc_trim()
+    mem_logger.info(
+        f"[MEM] After forward + gc + malloc_trim (device tensors STILL alive): "
+        f"{_get_rss_mb():.1f} MB"
+    )
+
+    mem_logger.info("[MEM] Large mappings while device tensors still alive:")
+    try:
+        with open("/proc/self/maps", "r") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 1:
+                    start, end = parts[0].split("-")
+                    size_mb = (int(end, 16) - int(start, 16)) / (1024 * 1024)
+                    if size_mb > 500:
+                        mem_logger.info(f"  {line.strip()} ({size_mb:.1f} MB)")
+    except Exception as e:
+        mem_logger.info(f"  Failed to read maps: {e}")
+
     # Clean up device tensors
     del input_x_device, input_y_device, output, model
     torch_xla.sync()
