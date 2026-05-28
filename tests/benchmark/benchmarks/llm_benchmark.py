@@ -15,7 +15,6 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
-import transformers
 from fusion_check import check_fusions
 from infra import MLACache, MLAStaticLayer
 from llm_utils import (
@@ -226,23 +225,6 @@ def _shard_kv_cache(past_key_values, mesh, kv_cache_sharding_spec):
             xs.mark_sharding(layer.values, mesh, kv_spec)
 
 
-def check_transformers_version():
-    """
-    Check that transformers version is = 5.5.1.
-    Raises RuntimeError if version is incompatible.
-    """
-    import packaging.version
-
-    current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("5.5.1")
-
-    if current_version != max_version:
-        raise RuntimeError(
-            f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version 5.5.1"
-        )
-
-
 def benchmark_llm_torch_xla(
     model_loader,
     model_variant,
@@ -344,9 +326,6 @@ def benchmark_llm_torch_xla(
             f"optimization_level must be >= 1 when enable_create_d2m_subgraphs "
             f"is enabled, got optimization_level={optimization_level}"
         )
-
-    # Check transformers version
-    check_transformers_version()
 
     xr.set_device_type("TT")
 
