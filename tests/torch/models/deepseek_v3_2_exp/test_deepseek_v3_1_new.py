@@ -1,16 +1,17 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""DeepSeek v3.1 CPU test, HF-style model.
+"""DeepSeek v3.1 tests on TT (Galaxy 4x8), HF-style model.
 
 Drives the canonical HuggingFace-style ``DeepseekV3ForCausalLM`` from
-``modeling_deepseek.py``. Loads BF16 weights directly from
-``DevQuasar-2/deepseek-ai.DeepSeek-V3.1-BF16`` — no local cache, no FP8
-dequant, no ``enable_sparse_mlp`` wrapping (the test runs on CPU).
+``modeling_deepseek.py``. Weights load directly from
+``DevQuasar-2/deepseek-ai.DeepSeek-V3.1-BF16`` — no local dequant/post-sparse
+cache, no FP8 dequant path, and no ``enable_sparse_mlp`` wrapping (CPU
+reference runs on the unwrapped MoE).
 
 - ``test_deepseek_v3_1_decode_static_cache``: autoregressive greedy decode
-  through ``MLACache`` (``cache_position`` + ``attention_mask``), per-step
-  CPU forward.
+  through ``MLACache`` (``cache_position`` + ``attention_mask``), CPU
+  reference followed by 2-compile TT run (prefill + decode), per-step PCC.
 """
 import json
 import os
@@ -18,15 +19,21 @@ import re
 import sys
 import time
 
+import numpy as np
 import pytest
 import torch
+import torch_xla
+import torch_xla.distributed.spmd as xs
+import torch_xla.runtime as xr
 from huggingface_hub import hf_hub_download
 from infra import MLACache
+from infra.testers.compiler_config import CompilerConfig
 from safetensors import safe_open
+from torch_xla.distributed.spmd import Mesh
 
 sys.path.insert(0, os.path.dirname(__file__))
 from configuration_deepseek import DeepseekV3Config
-from modeling_deepseek import DeepseekV3ForCausalLM
+from modeling_deepseek import DeepseekV3ForCausalLM, DeepseekV3MLP
 
 DEEPSEEK_V3_1_BF16_REPO = "DevQuasar-2/deepseek-ai.DeepSeek-V3.1-BF16"
 
@@ -104,7 +111,7 @@ def _fix_meta_buffers_hf(model, max_seq_len):
         ra.max_seq_len_cached = max_seq_len
 
 
-def _init_mla_cache(config, batch_size, max_cache_len):
+def _init_mla_cache(config, batch_size, max_cache_len, device=None):
     """Construct an MLACache and eagerly allocate its backing tensors."""
     cache = MLACache(config=config, max_cache_len=max_cache_len)
     for layer in cache.layers:
@@ -114,7 +121,64 @@ def _init_mla_cache(config, batch_size, max_cache_len):
                 batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
             ),
         )
+    if device is not None:
+        _move_cache_to_device(cache, device)
     return cache
+
+
+def _move_cache_to_device(cache, device):
+    """In-place move of each MLAStaticLayer's backing tensors."""
+    for layer in cache.layers:
+        layer.compressed_kv = layer.compressed_kv.to(device)
+        layer.k_pe = layer.k_pe.to(device)
+        layer.keys = layer.compressed_kv
+        layer.values = layer.k_pe
+        layer.device = layer.compressed_kv.device
+
+
+def _apply_shard_specs(model, mesh, batch_size, tokens_device, cache):
+    """Apply mark_sharding to weights / MLA cache / input tokens.
+
+    Targets the unwrapped HF attribute layout (no ``enable_sparse_mlp``).
+    Plain ``DeepseekV3MLP`` layers are sharded across both mesh axes; the
+    unwrapped ``DeepseekV3MoE`` layers are left unsharded (sparse stacking
+    isn't applied in this test).
+    """
+    xs.mark_sharding(tokens_device, mesh, ("_axis_1", None))
+    xs.mark_sharding(model.model.embed_tokens.weight, mesh, (None, "_axis_0"))
+    xs.mark_sharding(model.model.norm.weight, mesh, ("_axis_0",))
+    xs.mark_sharding(model.lm_head.weight, mesh, (None, "_axis_0"))
+
+    for layer_idx, layer in enumerate(model.model.layers):
+        sa = layer.self_attn
+        xs.mark_sharding(sa.q_a_proj.weight, mesh, (None, "_axis_0"))
+        xs.mark_sharding(sa.q_b_proj.weight, mesh, ("_axis_0", None))
+        xs.mark_sharding(sa.kv_a_proj_with_mqa.weight, mesh, (None, "_axis_0"))
+        xs.mark_sharding(sa.kv_b_proj.weight, mesh, ("_axis_0", None))
+        xs.mark_sharding(sa.o_proj.weight, mesh, (None, "_axis_0"))
+
+        xs.mark_sharding(layer.input_layernorm.weight, mesh, ("_axis_0",))
+        xs.mark_sharding(layer.post_attention_layernorm.weight, mesh, ("_axis_0",))
+
+        cache_layer = cache.layers[layer_idx]
+        xs.mark_sharding(cache_layer.compressed_kv, mesh, ("_axis_1", None, None, None))
+        xs.mark_sharding(cache_layer.k_pe, mesh, ("_axis_1", None, None, None))
+
+        mlp = layer.mlp
+        if isinstance(mlp, DeepseekV3MLP):
+            xs.mark_sharding(mlp.gate_proj.weight, mesh, ("_axis_1", "_axis_0"))
+            xs.mark_sharding(mlp.up_proj.weight, mesh, ("_axis_1", "_axis_0"))
+            xs.mark_sharding(mlp.down_proj.weight, mesh, ("_axis_0", "_axis_1"))
+        # DeepseekV3MoE layers are left unsharded (no sparse wrapper here).
+
+
+def _pcc(a, b):
+    x = a.to(torch.float64).flatten().numpy()
+    y = b.to(torch.float64).flatten().numpy()
+    vx = x - x.mean()
+    vy = y - y.mean()
+    denom = float(np.linalg.norm(vx) * np.linalg.norm(vy))
+    return float("nan") if denom == 0 else float(np.dot(vx, vy) / denom)
 
 
 def _build_prefill_attention_mask(
@@ -185,10 +249,26 @@ def _build_decode_attention_mask(
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    "cpu_reference",
+    [
+        pytest.param(True, marks=pytest.mark.nightly, id="cpu_reference"),
+        pytest.param(False, id="no_cpu_reference"),
+    ],
+)
 @pytest.mark.parametrize("n_layers", [4, 61])
-def test_deepseek_v3_1_decode_static_cache(n_layers):
-    """Autoregressive greedy CPU decode using the MLACache path."""
+def test_deepseek_v3_1_decode_static_cache(cpu_reference, n_layers):
+    """Autoregressive greedy decode on TT using the MLACache path.
+
+    Two compiles: prefill (prompt_seq_len), decode (seq_len=1, reused).
+    """
+    import torch._dynamo  # noqa: F401
+
     t_start = time.perf_counter()
+
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+    xr.set_device_type("TT")
+    torch_xla.runtime.use_spmd()
 
     from transformers import PreTrainedTokenizerFast
 
@@ -243,93 +323,233 @@ def test_deepseek_v3_1_decode_static_cache(n_layers):
         flush=True,
     )
 
-    # ===== CPU eager prefill + decode =====
-    meta_params = [n for n, p in model.named_parameters() if p.is_meta]
-    meta_buffers = [n for n, b in model.named_buffers() if b.is_meta]
-    print(
-        f"[diag] meta params={len(meta_params)}, meta buffers={len(meta_buffers)}",
-        flush=True,
-    )
-    if meta_params:
-        print(f"[diag] first meta params: {meta_params[:5]}", flush=True)
-    if meta_buffers:
-        print(f"[diag] first meta buffers: {meta_buffers[:5]}", flush=True)
-    ra0 = model.model.layers[0].self_attn.rotary_emb
-    print(
-        f"[diag] rotary[0]: inv_freq.device={ra0.inv_freq.device} "
-        f"dtype={ra0.inv_freq.dtype} max_seq_len_cached={ra0.max_seq_len_cached} "
-        f"cos_cached.device={ra0.cos_cached.device}",
-        flush=True,
-    )
-    emb_w = model.model.embed_tokens.weight
-    print(
-        f"[diag] embed_tokens: device={emb_w.device} dtype={emb_w.dtype} "
-        f"is_meta={emb_w.is_meta}",
-        flush=True,
-    )
-
-    print("[cpu] running prefill + decode eagerly...", flush=True)
-    cpu_cache = _init_mla_cache(config, batch_size, max_seq_len)
+    # ===== CPU eager reference (opt-in) =====
+    cpu_logits_list = []
     cpu_token_ids = []
-    t_cpu_start = time.perf_counter()
-    with torch.no_grad():
-        attn_mask = _build_prefill_attention_mask(
-            batch_size,
-            prompt_len,
-            max_seq_len,
-            token_attention_mask=token_attn_mask_cpu,
-        )
-        out = model(
-            input_ids=tokens_cpu,
-            attention_mask=attn_mask,
-            past_key_values=cpu_cache,
-            cache_position=torch.arange(prompt_len, dtype=torch.long),
-            use_cache=True,
-            return_dict=True,
-        )
-        _l = out.logits.float()
+    if cpu_reference:
+        meta_params = [n for n, p in model.named_parameters() if p.is_meta]
+        meta_buffers = [n for n, b in model.named_buffers() if b.is_meta]
         print(
-            f"[diag] prefill logits: shape={tuple(out.logits.shape)} "
-            f"dtype={out.logits.dtype} "
-            f"mean={_l.mean().item():.4f} std={_l.std().item():.4f} "
-            f"absmax={_l.abs().max().item():.4f} "
-            f"nan%={torch.isnan(out.logits).float().mean().item():.4f} "
-            f"inf%={torch.isinf(out.logits).float().mean().item():.4f}",
+            f"[diag] meta params={len(meta_params)}, meta buffers={len(meta_buffers)}",
             flush=True,
         )
-        next_id = int(out.logits[0, -1].argmax(dim=-1).item())
-        cpu_token_ids.append(next_id)
-        for step in range(n_decode - 1):
-            pos = prompt_len + step
-            next_tokens = torch.full((batch_size, 1), next_id, dtype=tokens_cpu.dtype)
-            attn_mask = _build_decode_attention_mask(
+        if meta_params:
+            print(f"[diag] first meta params: {meta_params[:5]}", flush=True)
+        if meta_buffers:
+            print(f"[diag] first meta buffers: {meta_buffers[:5]}", flush=True)
+        ra0 = model.model.layers[0].self_attn.rotary_emb
+        print(
+            f"[diag] rotary[0]: inv_freq.device={ra0.inv_freq.device} "
+            f"dtype={ra0.inv_freq.dtype} max_seq_len_cached={ra0.max_seq_len_cached} "
+            f"cos_cached.device={ra0.cos_cached.device}",
+            flush=True,
+        )
+        emb_w = model.model.embed_tokens.weight
+        print(
+            f"[diag] embed_tokens: device={emb_w.device} dtype={emb_w.dtype} "
+            f"is_meta={emb_w.is_meta}",
+            flush=True,
+        )
+
+        print("[cpu] running prefill + decode eagerly...", flush=True)
+        cpu_cache = _init_mla_cache(config, batch_size, max_seq_len)
+        t_cpu_start = time.perf_counter()
+        with torch.no_grad():
+            attn_mask = _build_prefill_attention_mask(
                 batch_size,
-                pos + 1,
+                prompt_len,
                 max_seq_len,
                 token_attention_mask=token_attn_mask_cpu,
-                prompt_len=prompt_len,
             )
             out = model(
-                input_ids=next_tokens,
+                input_ids=tokens_cpu,
                 attention_mask=attn_mask,
                 past_key_values=cpu_cache,
-                cache_position=torch.tensor([pos], dtype=torch.long),
+                cache_position=torch.arange(prompt_len, dtype=torch.long),
                 use_cache=True,
                 return_dict=True,
             )
+            _l = out.logits.float()
+            print(
+                f"[diag] prefill logits: shape={tuple(out.logits.shape)} "
+                f"dtype={out.logits.dtype} "
+                f"mean={_l.mean().item():.4f} std={_l.std().item():.4f} "
+                f"absmax={_l.abs().max().item():.4f} "
+                f"nan%={torch.isnan(out.logits).float().mean().item():.4f} "
+                f"inf%={torch.isinf(out.logits).float().mean().item():.4f}",
+                flush=True,
+            )
+            cpu_logits_list.append(out.logits[0].detach().clone())
             next_id = int(out.logits[0, -1].argmax(dim=-1).item())
             cpu_token_ids.append(next_id)
-    t_cpu_end = time.perf_counter()
+            for step in range(n_decode - 1):
+                pos = prompt_len + step
+                next_tokens = torch.full(
+                    (batch_size, 1), next_id, dtype=tokens_cpu.dtype
+                )
+                attn_mask = _build_decode_attention_mask(
+                    batch_size,
+                    pos + 1,
+                    max_seq_len,
+                    token_attention_mask=token_attn_mask_cpu,
+                    prompt_len=prompt_len,
+                )
+                out = model(
+                    input_ids=next_tokens,
+                    attention_mask=attn_mask,
+                    past_key_values=cpu_cache,
+                    cache_position=torch.tensor([pos], dtype=torch.long),
+                    use_cache=True,
+                    return_dict=True,
+                )
+                cpu_logits_list.append(out.logits[0].detach().clone())
+                next_id = int(out.logits[0, -1].argmax(dim=-1).item())
+                cpu_token_ids.append(next_id)
+        t_cpu_end = time.perf_counter()
+        print(
+            f"[timing] CPU prefill+decode: {t_cpu_end - t_cpu_start:.1f}s",
+            flush=True,
+        )
+        print(
+            f"[CPU tokens] {[tokenizer.decode([t]) for t in cpu_token_ids]}",
+            flush=True,
+        )
+        print(
+            f"[CPU full]   "
+            f"{tokenizer.decode(tokens_single[0].tolist() + cpu_token_ids)!r}",
+            flush=True,
+        )
+        del cpu_cache
+    else:
+        print("[cpu] SKIPPED — no CPU reference", flush=True)
+
+    # ===== TT path =====
+    torch._dynamo.reset()
+
+    mesh_shape = (4, 8)
+    num_devices = xr.global_runtime_device_count()
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("_axis_0", "_axis_1"))
+    device = torch_xla.device()
+
+    torch_xla.set_custom_compile_options(
+        CompilerConfig(experimental_weight_dtype="bfp_bf8").to_torch_compile_options()
+    )
+    compiled_model = torch.compile(model, backend="tt")
+
+    tt_cache = _init_mla_cache(config, batch_size, max_seq_len)
+
+    t_mv_start = time.perf_counter()
+    model = model.to(device)
+    _move_cache_to_device(tt_cache, device)
+    tokens_device = tokens_cpu.to(device)
+    cache_position_prefill = torch.arange(prompt_len, dtype=torch.long).to(device)
+    attn_mask_prefill = _build_prefill_attention_mask(
+        batch_size,
+        prompt_len,
+        max_seq_len,
+        token_attention_mask=token_attn_mask_cpu,
+        dtype=torch.bfloat16,
+    ).to(device)
+    t_mv_end = time.perf_counter()
+    print(f"[timing] move to device: {t_mv_end - t_mv_start:.1f}s", flush=True)
+
+    _apply_shard_specs(model, mesh, batch_size, tokens_device, tt_cache)
+
+    # ===== Prefill =====
+    print("[tt] running prefill (compile #1)...", flush=True)
+    t_pf_start = time.perf_counter()
+    with torch.no_grad():
+        tt_out_prefill = compiled_model(
+            input_ids=tokens_device,
+            attention_mask=attn_mask_prefill,
+            past_key_values=tt_cache,
+            cache_position=cache_position_prefill,
+            use_cache=True,
+            return_dict=True,
+        )
+    t_pf_end = time.perf_counter()
     print(
-        f"[timing] CPU prefill+decode: {t_cpu_end - t_cpu_start:.1f}s",
+        f"[timing] TT prefill compile + run: {t_pf_end - t_pf_start:.1f}s",
+        flush=True,
+    )
+    tt_logits_prefill_cpu = tt_out_prefill.logits.to("cpu").detach()
+    tt_logits_list = [tt_logits_prefill_cpu[0].clone()]
+    tt_token_ids = [int(tt_logits_prefill_cpu[0, -1].argmax(dim=-1).item())]
+    print(
+        f"[tt] prefill top-1: {tokenizer.decode([tt_token_ids[0]])!r}",
+        flush=True,
+    )
+
+    # ===== Decode loop =====
+    for step in range(n_decode - 1):
+        pos = prompt_len + step
+        next_tokens = torch.full(
+            (batch_size, 1), tt_token_ids[-1], dtype=tokens_cpu.dtype
+        ).to(device)
+        cache_position_decode = torch.tensor([pos], dtype=torch.long).to(device)
+        attn_mask_decode = _build_decode_attention_mask(
+            batch_size,
+            pos + 1,
+            max_seq_len,
+            token_attention_mask=token_attn_mask_cpu,
+            prompt_len=prompt_len,
+            dtype=torch.bfloat16,
+        ).to(device)
+        t_dec_start = time.perf_counter()
+        with torch.no_grad():
+            tt_out = compiled_model(
+                input_ids=next_tokens,
+                attention_mask=attn_mask_decode,
+                past_key_values=tt_cache,
+                cache_position=cache_position_decode,
+                use_cache=True,
+                return_dict=True,
+            )
+        tt_logits_cpu = tt_out.logits.to("cpu").detach()
+        t_dec_end = time.perf_counter()
+        tt_logits_list.append(tt_logits_cpu[0].clone())
+        tt_token_ids.append(int(tt_logits_cpu[0, -1].argmax(dim=-1).item()))
+        print(
+            f"[tt] decode step {step + 1}/{n_decode - 1}: "
+            f"time={t_dec_end - t_dec_start:.2f}s "
+            f"tok={tokenizer.decode([tt_token_ids[-1]])!r}",
+            flush=True,
+        )
+
+    print(
+        f"[TT tokens]  {[tokenizer.decode([t]) for t in tt_token_ids]}",
         flush=True,
     )
     print(
-        f"[CPU tokens] {[tokenizer.decode([t]) for t in cpu_token_ids]}",
+        f"[TT full]    "
+        f"{tokenizer.decode(tokens_single[0].tolist() + tt_token_ids)!r}",
         flush=True,
     )
-    print(
-        f"[CPU full]   "
-        f"{tokenizer.decode(tokens_single[0].tolist() + cpu_token_ids)!r}",
-        flush=True,
-    )
+
+    if cpu_logits_list:
+        print("\n[pcc] per-step logits PCC (TT vs CPU):", flush=True)
+        step_pccs = []
+        for step, (tt_l, cpu_l) in enumerate(zip(tt_logits_list, cpu_logits_list)):
+            pcc = _pcc(tt_l, cpu_l)
+            step_pccs.append(pcc)
+            tt_tok = tt_token_ids[step]
+            cpu_tok = cpu_token_ids[step]
+            match = "OK" if tt_tok == cpu_tok else "MISMATCH"
+            print(
+                f"  step {step}: pcc={pcc:.4f}  "
+                f"tt_tok={tt_tok!r:>10} cpu_tok={cpu_tok!r:>10}  [{match}]",
+                flush=True,
+            )
+        print(
+            f"\n[pcc] min={min(step_pccs):.4f}, max={max(step_pccs):.4f}, "
+            f"avg={sum(step_pccs) / len(step_pccs):.4f}",
+            flush=True,
+        )
+        matches = sum(1 for a, b in zip(tt_token_ids, cpu_token_ids) if a == b)
+        print(
+            f"[tokens] TT==CPU match: {matches}/{len(tt_token_ids)}",
+            flush=True,
+        )
+    else:
+        print("\n[pcc] SKIPPED — no CPU reference", flush=True)
