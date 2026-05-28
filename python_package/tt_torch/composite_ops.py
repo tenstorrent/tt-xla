@@ -409,6 +409,52 @@ def replace_group_norm_module(
     gm.graph.erase_node(node)
 
 
+def replace_rms_norm_module(
+    gm: torch.fx.GraphModule,
+    node: torch.fx.Node,
+    module: torch.nn.RMSNorm,
+) -> None:
+    """
+    Replace nn.RMSNorm call_module node with composite_rms_norm call_function.
+
+    Transformation:
+        BEFORE: %out = call_module[target=rms_norm](args=(%x,))
+        AFTER:  %weight = get_attr[target=rms_norm.weight]
+                %out = call_function[target=composite_rms_norm](
+                    args=(%x,),
+                    kwargs={normalized_shape: (2560,), weight: %weight,
+                            eps: 1e-5}
+                )
+
+    Args:
+        gm: GraphModule containing the node
+        node: call_module node to replace
+        module: nn.RMSNorm instance
+    """
+    normalized_shape = module.normalized_shape
+    eps = module.eps
+    has_weight = module.weight is not None and module.elementwise_affine
+
+    input_tensor = node.args[0]
+
+    kwargs = {"normalized_shape": normalized_shape, "eps": eps}
+
+    with gm.graph.inserting_before(node):
+        if has_weight:
+            weight_node = gm.graph.get_attr(f"{node.target}.weight")
+            kwargs["weight"] = weight_node
+        else:
+            kwargs["weight"] = None
+
+        new_node = gm.graph.call_function(
+            composite_rms_norm, args=(input_tensor,), kwargs=kwargs
+        )
+        new_node.meta = node.meta.copy()
+
+    node.replace_all_uses_with(new_node)
+    gm.graph.erase_node(node)
+
+
 ################# composite constraint checks #################
 
 
@@ -489,6 +535,7 @@ replacements = {
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
     torch.nn.GroupNorm: replace_group_norm_module,
+    torch.nn.RMSNorm: replace_rms_norm_module,
 }
 
 """
