@@ -190,7 +190,7 @@ def test_deepseek_v3_1_decode_static_cache(n_layers):
     """Autoregressive greedy CPU decode using the MLACache path."""
     t_start = time.perf_counter()
 
-    from transformers import AutoTokenizer
+    from transformers import PreTrainedTokenizerFast
 
     batch_size = 32
     prompt_seq_len = 32
@@ -220,7 +220,7 @@ def test_deepseek_v3_1_decode_static_cache(n_layers):
     t1 = time.perf_counter()
     print(f"[timing] model build + weight load: {t1 - t0:.1f}s", flush=True)
 
-    tokenizer = AutoTokenizer.from_pretrained(
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(
         repo_id, trust_remote_code=True, add_bos_token=True, padding_side="left"
     )
     prompt_text = "Tell me a short story."
