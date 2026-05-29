@@ -111,15 +111,24 @@ class SetupConfig:
             )
         mlir_sha = mlir_match.group(1)
 
-        # Fetch tt-metal SHA from tt-mlir repo
-        tt_mlir_url = f"https://raw.githubusercontent.com/tenstorrent/tt-mlir/{mlir_sha}/third_party/CMakeLists.txt"
-        try:
-            with urllib.request.urlopen(tt_mlir_url) as response:
-                tt_mlir_content = response.read().decode("utf-8")
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to fetch tt-mlir CMakeLists.txt from {tt_mlir_url}: {e}"
-            )
+        # Resolve tt-metal SHA from the tt-mlir checkout. Prefer the local
+        # checkout (so dev builds against an un-pushed/local tt-mlir commit
+        # still work), and fall back to fetching from GitHub by SHA.
+        local_mlir_cmake = (
+            REPO_DIR / "third_party" / "tt-mlir" / "src" / "tt-mlir" / "third_party" / "CMakeLists.txt"
+        )
+        tt_mlir_content = None
+        if local_mlir_cmake.exists():
+            tt_mlir_content = local_mlir_cmake.read_text()
+        else:
+            tt_mlir_url = f"https://raw.githubusercontent.com/tenstorrent/tt-mlir/{mlir_sha}/third_party/CMakeLists.txt"
+            try:
+                with urllib.request.urlopen(tt_mlir_url) as response:
+                    tt_mlir_content = response.read().decode("utf-8")
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to fetch tt-mlir CMakeLists.txt from {tt_mlir_url}: {e}"
+                )
 
         metal_match = re.search(r'set\(TT_METAL_VERSION "([^"]+)"\)', tt_mlir_content)
         if not metal_match:

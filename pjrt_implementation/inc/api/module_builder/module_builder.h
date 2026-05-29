@@ -223,12 +223,20 @@ private:
       const CompileOptions &compile_options, ClientInstance *client_instance,
       std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code);
 
-  // Walks the post-TTNN module for `ttnn.tt_lang_op` ops (set by tt-mlir's
-  // TTIR -> TTNN legalization of `stablehlo.custom_call @tt.tt_lang_op`),
-  // resolves each deferred kernel by directly calling
-  // `tt_torch.tt_lang.resolve_kernel` through the embedded Python interpreter,
-  // and attaches the resolved artifact bytes as a `kernel_artifact` attribute
-  // on the same op. A no-op when no such ops are present.
+  // Runs the tt-mlir `--ttnn-resolve-tt-lang-kernels` pass on the
+  // post-TTNN module. The pass walks `ttnn.tt_lang_op` operations
+  // (set by tt-mlir's TTIR -> TTNN legalization of
+  // `stablehlo.custom_call @tt.tt_lang_op`) and resolves each
+  // deferred kernel by calling `tt_torch.tt_lang.resolve_kernel`
+  // through the embedded Python interpreter, attaching the resolved
+  // artifact bytes as a `kernel_artifact` attribute. A no-op when no
+  // such ops are present.
+  //
+  // The pybind11 dependency lives in tt-mlir's MLIRTTNNTransforms
+  // library (gated by `TTMLIR_ENABLE_TT_LANG_PYBIND_RESOLVER`, which
+  // this plugin's third_party build flips ON). This translation unit
+  // remains `-fno-rtti` because the pybind11-using code is over the
+  // library boundary.
   tt_pjrt_status
   resolveTtLangKernels(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                        const std::vector<std::uint32_t> &mesh_shape);
