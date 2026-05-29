@@ -134,10 +134,17 @@ private:
 
   // Either returns single or multi-device runtime tensor from shards, depending
   // on the strategy.
+  //
+  // When `captured_host_shards` is non-null and a multi-device host tensor is
+  // built, the per-shard host runtime tensors that back it are copied out so
+  // they can be explicitly deallocated after a host->device migration (see
+  // ensure_layout). They share the underlying HostBuffer with the returned
+  // multi-device tensor, so both must be released to reclaim the host bytes.
   static tt::runtime::Tensor rt_tensor_from_strategy(
       const std::vector<BufferInstance *> &shards,
       const std::unordered_map<std::string, std::string> &strategy,
-      const std::vector<std::uint32_t> &mesh_shape);
+      const std::vector<std::uint32_t> &mesh_shape,
+      std::vector<tt::runtime::Tensor> *captured_host_shards = nullptr);
 
 private:
   // Tensor unique identifier. For now, used for debug only.
@@ -153,6 +160,12 @@ private:
   // Optional metadata for host-submitted tensors used to recreate worker-local
   // runtime tensors without depending on the initial runtime tensor descriptor.
   std::optional<HostTensorShell> m_host_tensor_shell;
+
+  // Per-shard host runtime tensors that back a multi-device host tensor, kept
+  // alive so they can be explicitly deallocated after a host->device migration
+  // (see ensure_layout). Populated only when host-input deallocation is enabled
+  // (TT_XLA_DEALLOCATE_HOST_INPUTS_AFTER_MIGRATION); empty otherwise.
+  std::vector<tt::runtime::Tensor> m_host_source_shards;
 };
 
 // Shared pointer to pjrt tensor used by all shards that holds tensor.

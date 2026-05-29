@@ -11,6 +11,8 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
+#include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -29,8 +31,45 @@
 #include "api/tensor_pool.h"
 #include "utils/assert.h"
 #include "utils/logging.h"
+#include "utils/utils.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+// Opt-in (TT_XLA_DEALLOCATE_HOST_INPUTS_AFTER_MIGRATION) host-input
+// reclamation.
+//
+// When enabled, ensure_layout explicitly deallocates the host runtime tensors
+// that backed an input once it has been migrated to device. This matters most
+// in the distributed runtime, where dropping the controller-side handle does
+// not free the worker-side host copy (the worker only releases a tensor on an
+// explicit DeallocateTensor command). Off by default to preserve current
+// behavior.
+bool deallocHostInputsAfterMigrationEnabled() {
+  static const bool enabled = [] {
+    const char *env =
+        std::getenv("TT_XLA_DEALLOCATE_HOST_INPUTS_AFTER_MIGRATION");
+    return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
+  }();
+  return enabled;
+}
+
+// Releases a host source runtime tensor. Clearing the retain flag is required
+// because input tensors are created retained (see from_runtime_tensor) and the
+// runtime/worker will refuse to deallocate a retained tensor. ttnn host
+// deallocation is a no-op on the data itself; the reclamation happens when the
+// last handle to the underlying HostBuffer is dropped (on the worker, the pool
+// erase performed by the DeallocateTensor command). Guarded so a failure to
+// release one tensor cannot abort execution.
+void deallocateHostSourceTensor(tt::runtime::Tensor &tensor) {
+  utils::invoke_noexcept([&tensor] {
+    tt::runtime::setTensorRetain(tensor, false);
+    tt::runtime::deallocateTensor(tensor, /*force=*/false);
+  });
+}
+
+} // namespace
 
 // Initializes pjrt tensor from pjrt buffers.
 //
@@ -45,8 +84,15 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
   if (have_same_tensor(shards))
     return from_shards(shards);
 
-  return from_runtime_tensor(
-      shards, rt_tensor_from_strategy(shards, strategy, mesh_shape));
+  std::vector<tt::runtime::Tensor> captured_host_shards;
+  tt::runtime::Tensor rt_tensor = rt_tensor_from_strategy(
+      shards, strategy, mesh_shape,
+      deallocHostInputsAfterMigrationEnabled() ? &captured_host_shards
+                                               : nullptr);
+
+  PjrtTensor &tensor = from_runtime_tensor(shards, std::move(rt_tensor));
+  tensor.m_host_source_shards = std::move(captured_host_shards);
+  return tensor;
 }
 
 // Creates new pjrt tensor for provided shards from an existing runtime tensor.
@@ -98,6 +144,15 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   if (tt::runtime::hasLayout(*m_runtime_tensor, layout))
     return;
 
+  const bool dealloc_host_inputs = deallocHostInputsAfterMigrationEnabled();
+
+  // Keep the pre-migration host tensor alive so it can be explicitly released
+  // after the layout conversion produces the device tensor.
+  std::optional<tt::runtime::Tensor> old_host_tensor;
+  if (dealloc_host_inputs) {
+    old_host_tensor = *m_runtime_tensor;
+  }
+
   const bool retain = tt::runtime::getTensorRetain(*m_runtime_tensor);
   m_runtime_tensor =
       tt::runtime::toLayout(*m_runtime_tensor, device, layout, retain);
@@ -110,6 +165,21 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
     if (shard != nullptr) {
       shard->fireDoneWithHostBufferEvent();
     }
+  }
+
+  // The input now lives on device. Release the host-side runtime tensors that
+  // backed it (the multi-device host tensor and each per-shard host tensor),
+  // otherwise in the distributed runtime the worker keeps these host copies
+  // resident for the process lifetime. Enqueued after toLayout so the worker
+  // processes the migration before the deallocation.
+  if (dealloc_host_inputs) {
+    if (old_host_tensor.has_value()) {
+      deallocateHostSourceTensor(*old_host_tensor);
+    }
+    for (tt::runtime::Tensor &shard_tensor : m_host_source_shards) {
+      deallocateHostSourceTensor(shard_tensor);
+    }
+    m_host_source_shards.clear();
   }
 }
 
@@ -215,7 +285,8 @@ void PjrtTensor::remove_shard(const BufferInstance *shard) noexcept {
 tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
     const std::vector<BufferInstance *> &shards,
     const std::unordered_map<std::string, std::string> &strategy,
-    const std::vector<std::uint32_t> &mesh_shape) {
+    const std::vector<std::uint32_t> &mesh_shape,
+    std::vector<tt::runtime::Tensor> *captured_host_shards) {
 
   if (strategy.at("strategy") == "identity") {
     return shards.front()->runtimeTensor();
@@ -226,6 +297,10 @@ tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
 
   for (const BufferInstance *shard : shards) {
     tensors.emplace_back(shard->runtimeTensor());
+  }
+
+  if (captured_host_shards != nullptr) {
+    *captured_host_shards = tensors;
   }
 
   return tt::runtime::createMultiDeviceHostTensor(tensors, strategy,
