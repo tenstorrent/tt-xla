@@ -26,6 +26,7 @@ on:
           - p150
           - n300-llmbox
           - galaxy-wh-6u
+          - qb2-blackhole
         default: n150
       skip-device-perf:
         description: "Skip device performance measurement"
