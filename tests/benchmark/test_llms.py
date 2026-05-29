@@ -201,6 +201,63 @@ def write_llm_perf_reports(
         ]
     )
 
+    # Compare measured perf against the estimated top-perf roofline. Actual
+    # TTFT (ms) and actual decode tokens/sec/user come from the benchmark
+    # measurements (total_samples is the per-user decode token count, so
+    # total_samples/total_time is already tokens/sec/user).
+    def _measured(name):
+        for m in results.get("measurements", []):
+            if m.get("measurement_name") == name:
+                return m.get("value")
+        return None
+
+    actual_ttft_ms = _measured("ttft")
+    total_samples = _measured("total_samples")
+    total_time = _measured("total_time")
+    actual_tokens_per_sec_per_user = (
+        total_samples / total_time if total_samples is not None and total_time else None
+    )
+
+    # Percentage of the estimated top perf actually achieved (100% == roofline).
+    # TTFT is a latency (lower is better) -> estimate/actual; throughput is
+    # higher-is-better -> actual/estimate.
+    top_perf_ttft_percentage = (
+        target_ttft_ms / actual_ttft_ms * 100.0 if actual_ttft_ms else 0.0
+    )
+    top_perf_tps_percentage = (
+        actual_tokens_per_sec_per_user / target_tokens_per_sec_per_user * 100.0
+        if actual_tokens_per_sec_per_user is not None and target_tokens_per_sec_per_user
+        else 0.0
+    )
+
+    results["config"]["top_perf_ttft_percentage"] = top_perf_ttft_percentage
+    results["config"]["top_perf_tps_percentage"] = top_perf_tps_percentage
+
+    results["measurements"].extend(
+        [
+            {
+                "iteration": 1,
+                "step_name": results.get("model", ""),
+                "step_warm_up_num_iterations": 0,
+                "measurement_name": "top_perf_ttft_percentage",
+                "value": top_perf_ttft_percentage,
+                "target": -1,
+                "device_power": -1.0,
+                "device_temperature": -1.0,
+            },
+            {
+                "iteration": 1,
+                "step_name": results.get("model", ""),
+                "step_warm_up_num_iterations": 0,
+                "measurement_name": "top_perf_tps_percentage",
+                "value": top_perf_tps_percentage,
+                "target": -1,
+                "device_power": -1.0,
+                "device_temperature": -1.0,
+            },
+        ]
+    )
+
     if not prefill["perf_targets"] and not decode["perf_targets"]:
         logger.warning(
             "perf_targets section not found in prefill (%s) or decode (%s) "
@@ -227,6 +284,7 @@ def write_llm_perf_reports(
     print(f"|   Top perf estimate (ms): {prefill['top_perf_estimate_ms']}")
     print(f"|   Roofline (ms): {prefill_pt.get('roofline_ms', 0.0)}")
     print(f"|   Target TTFT (ms): {target_ttft_ms}")
+    print(f"|   Top perf TTFT achieved: {top_perf_ttft_percentage:.1f}%")
     print(f"|   DRAM-bound ops: {prefill_pt.get('dram_bound_ops', 0)}")
     print(f"|   Compute-bound ops: {prefill_pt.get('compute_bound_ops', 0)}")
     print(f"|   Skipped ops: {prefill_pt.get('skipped_ops', 0)}")
@@ -237,6 +295,7 @@ def write_llm_perf_reports(
         f"|   Top perf samples/sec (per forward call): {decode['top_perf_samples_per_sec']}"
     )
     print(f"|   Target tokens/sec/user: {target_tokens_per_sec_per_user}")
+    print(f"|   Top perf TPS achieved: {top_perf_tps_percentage:.1f}%")
     print(f"|   DRAM-bound ops: {decode_pt.get('dram_bound_ops', 0)}")
     print(f"|   Compute-bound ops: {decode_pt.get('compute_bound_ops', 0)}")
     print(f"|   Skipped ops: {decode_pt.get('skipped_ops', 0)}")
