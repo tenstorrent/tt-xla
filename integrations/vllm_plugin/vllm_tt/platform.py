@@ -95,6 +95,12 @@ class TTConfig:
 
     enable_trace: bool = False
 
+    # Pad num_attention_heads / num_key_value_heads up to the next multiple of
+    # the "batch" mesh axis size, so models with awkward head counts can be
+    # sharded cleanly. GQA ratio is preserved; padded heads are zero-projected
+    # and contribute nothing to the output.
+    pad_attention_heads: bool = False
+
     def __post_init__(self):
         # tt::sampling + enable_trace + optimization_level >= 1 hits a
         # tt-mlir compile bug: TTNNGreedyMemoryLayoutPropagation falls
