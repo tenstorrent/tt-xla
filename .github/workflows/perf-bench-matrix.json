@@ -840,6 +840,12 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "a0l_12b_heretic",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_a0l_12b_heretic",
+        "runs-on": "p150"
       }
     ]
   }
