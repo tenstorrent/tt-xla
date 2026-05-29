@@ -295,6 +295,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b"
       },
       {
+        "name": "huggingfacetb_smollm2-360m",
+        "pytest": "tests/benchmark/test_llms.py::test_smollm2_360m"
+      },
+      {
         "name": "qwen_2_5_0_5b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b"
       },
