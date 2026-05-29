@@ -222,15 +222,15 @@ def test_llm(
 
             summary = data.get("summary") if isinstance(data, dict) else None
             perf_targets = data.get("perf_targets") if isinstance(data, dict) else None
-            roofline = (
-                (perf_targets.get("roofline", {}) or {})
-                if isinstance(perf_targets, dict)
-                else {}
-            )
-            matmul = (
-                (perf_targets.get("matmul", {}) or {})
-                if isinstance(perf_targets, dict)
-                else {}
+            # perf_targets is a flat object emitted by tt-mlir
+            # TTNNCollectPerfMetrics (e.g. arch, dram_bandwidth_bytes_per_sec,
+            # dram_bound_ops, compute_bound_ops, roofline_ms,
+            # top_perf_estimate_ms, ...). Throughput is derived from the
+            # estimated wall-clock: samples/sec = 1000 / top_perf_estimate_ms.
+            pt = perf_targets if isinstance(perf_targets, dict) else {}
+            top_perf_estimate_ms = pt.get("top_perf_estimate_ms", 0.0)
+            top_perf_samples_per_sec = (
+                1000.0 / top_perf_estimate_ms if top_perf_estimate_ms else 0.0
             )
 
             # Copy the raw per-graph perf_metrics JSON next to output_file.
@@ -257,12 +257,14 @@ def test_llm(
                     "effectively_sharded_percentage", 0.0
                 )
                 graph_config["graph_summary"] = summary
-            if isinstance(perf_targets, dict):
-                graph_config["perf_targets"] = perf_targets
-                graph_config["top_perf_samples_per_sec"] = roofline.get(
-                    "top_perf_samples_per_sec", 0.0
-                )
-                graph_config["top_perf_time_ms"] = roofline.get("top_perf_time_ms", 0.0)
+            if pt:
+                # Keep the nested perf_targets object, and also surface every
+                # perf_targets field at the top level with the same name.
+                graph_config["perf_targets"] = pt
+                for key, value in pt.items():
+                    graph_config[key] = value
+                # Derived throughput (not a raw perf_targets field).
+                graph_config["top_perf_samples_per_sec"] = top_perf_samples_per_sec
 
             # Per-graph result JSON next to output_file.
             per_graph_result = copy.deepcopy(results)
@@ -277,12 +279,9 @@ def test_llm(
             return {
                 "pf": pf,
                 "summary": summary,
-                "perf_targets": perf_targets,
-                "matmul": matmul,
-                "top_perf_samples_per_sec": roofline.get(
-                    "top_perf_samples_per_sec", 0.0
-                ),
-                "top_perf_time_ms": roofline.get("top_perf_time_ms", 0.0),
+                "perf_targets": pt,
+                "top_perf_estimate_ms": top_perf_estimate_ms,
+                "top_perf_samples_per_sec": top_perf_samples_per_sec,
                 "config": graph_config,
             }
 
@@ -297,7 +296,7 @@ def test_llm(
         # emits one token per user (batch element).
         target_tokens_per_sec_per_user = decode["top_perf_samples_per_sec"]
         # Prefill: time to first token.
-        target_ttft_ms = prefill["top_perf_time_ms"]
+        target_ttft_ms = prefill["top_perf_estimate_ms"]
 
         results["config"][
             "target_tokens_per_sec_per_user"
@@ -329,23 +328,17 @@ def test_llm(
             ]
         )
 
-        if not isinstance(prefill["perf_targets"], dict) and not isinstance(
-            decode["perf_targets"], dict
-        ):
+        if not prefill["perf_targets"] and not decode["perf_targets"]:
             logger.warning(
                 "perf_targets section not found in prefill (%s) or decode (%s) "
-                "perf_metrics JSONs. Did tt-mlir get built with the "
-                "per-matmul-roofline change?",
+                "perf_metrics JSONs. Did tt-mlir get built with the perf-target "
+                "roofline change?",
                 prefill["pf"],
                 decode["pf"],
             )
 
-        prefill_pt = (
-            prefill["perf_targets"] if isinstance(prefill["perf_targets"], dict) else {}
-        )
-        decode_pt = (
-            decode["perf_targets"] if isinstance(decode["perf_targets"], dict) else {}
-        )
+        prefill_pt = prefill["perf_targets"]
+        decode_pt = decode["perf_targets"]
         arch = prefill_pt.get("arch") or decode_pt.get("arch") or "unknown"
         dram_bw = prefill_pt.get("dram_bandwidth_bytes_per_sec") or decode_pt.get(
             "dram_bandwidth_bytes_per_sec", 0
@@ -358,30 +351,20 @@ def test_llm(
         print(f"| DRAM bandwidth (B/s): {dram_bw}")
         print(f"| Batch size: {batch_size}")
         print(f"| Prefill (graph {PREFILL_GRAPH}, {prefill['pf']}):")
-        print(f"|   Top perf time (ms): {prefill['top_perf_time_ms']}")
+        print(f"|   Top perf estimate (ms): {prefill['top_perf_estimate_ms']}")
+        print(f"|   Roofline (ms): {prefill_pt.get('roofline_ms', 0.0)}")
         print(f"|   Target TTFT (ms): {target_ttft_ms}")
-        print(
-            f"|   Matmul DRAM-bound ops: {prefill['matmul'].get('dram_bound_ops', 0)}"
-        )
-        print(
-            f"|   Matmul compute-bound ops: {prefill['matmul'].get('compute_bound_ops', 0)}"
-        )
-        print(
-            f"|   Matmul roofline time (us): {prefill['matmul'].get('roofline_time_us', 0.0)}"
-        )
+        print(f"|   DRAM-bound ops: {prefill_pt.get('dram_bound_ops', 0)}")
+        print(f"|   Compute-bound ops: {prefill_pt.get('compute_bound_ops', 0)}")
         print(f"| Decode (graph {DECODE_GRAPH}, {decode['pf']}):")
-        print(f"|   Top perf time (ms): {decode['top_perf_time_ms']}")
+        print(f"|   Top perf estimate (ms): {decode['top_perf_estimate_ms']}")
+        print(f"|   Roofline (ms): {decode_pt.get('roofline_ms', 0.0)}")
         print(
             f"|   Top perf samples/sec (per forward call): {decode['top_perf_samples_per_sec']}"
         )
         print(f"|   Target tokens/sec/user: {target_tokens_per_sec_per_user}")
-        print(f"|   Matmul DRAM-bound ops: {decode['matmul'].get('dram_bound_ops', 0)}")
-        print(
-            f"|   Matmul compute-bound ops: {decode['matmul'].get('compute_bound_ops', 0)}"
-        )
-        print(
-            f"|   Matmul roofline time (us): {decode['matmul'].get('roofline_time_us', 0.0)}"
-        )
+        print(f"|   DRAM-bound ops: {decode_pt.get('dram_bound_ops', 0)}")
+        print(f"|   Compute-bound ops: {decode_pt.get('compute_bound_ops', 0)}")
         print(sep)
 
         with open(output_file, "w") as file:
