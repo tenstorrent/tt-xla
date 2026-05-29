@@ -2,6 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import os
+
+if os.environ.get("TTXLA_VLLM_BACKEND", "").lower() in ("ttmetal", "d2m"):
+    import pjrt_plugin_tt
+
+    pjrt_plugin_tt.set_backend("ttmetal")
+
 import time
 
 import pytest

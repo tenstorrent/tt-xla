@@ -8,6 +8,13 @@ import torch
 import vllm
 
 
+def _get_compile_backend_override() -> str:
+    backend = os.environ.get("TTXLA_VLLM_BACKEND", "").lower()
+    if backend in ("ttmetal", "d2m"):
+        return "ttmetal_flatbuffer"
+    return os.environ.get("TTXLA_VLLM_COMPILE_BACKEND", "")
+
+
 def run_pooling_test(
     model_name: str,
     baseline_path,
@@ -31,6 +38,19 @@ def run_pooling_test(
         "We build computers for AI. We design Graph Processors, high-performance RISC CPUs, and configurable chips that run our robust software stack.",
         "The capital of France is Paris",
     ]
+    additional_config = {
+        "experimental_weight_dtype": experimental_weight_dtype,
+        "enable_tensor_parallel": enable_tensor_parallel,
+        "enable_data_parallel": enable_data_parallel,
+        "min_context_len": min_context_len,
+        "enable_const_eval": enable_const_eval,
+        "optimization_level": optimization_level,
+        "use_2d_mesh": use_2d_mesh,
+    }
+    compile_backend = _get_compile_backend_override()
+    if compile_backend:
+        additional_config["backend"] = compile_backend
+
     llm_args = {
         "model": model_name,
         "dtype": "bfloat16",
@@ -38,15 +58,7 @@ def run_pooling_test(
         "disable_sliding_window": True,
         "max_num_batched_tokens": max_num_batched_tokens,
         "max_num_seqs": max_num_reqs,
-        "additional_config": {
-            "experimental_weight_dtype": experimental_weight_dtype,
-            "enable_tensor_parallel": enable_tensor_parallel,
-            "enable_data_parallel": enable_data_parallel,
-            "min_context_len": min_context_len,
-            "enable_const_eval": enable_const_eval,
-            "optimization_level": optimization_level,
-            "use_2d_mesh": use_2d_mesh,
-        },
+        "additional_config": additional_config,
     }
     model = vllm.LLM(**llm_args)
 
