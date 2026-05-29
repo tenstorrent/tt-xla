@@ -18,6 +18,7 @@ On blackhole (p150)::
 """
 
 import inspect
+import os
 
 import pytest
 import torch
@@ -80,12 +81,12 @@ def test_image_token_prefill_pro_1b():
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "ImageTokenStep decode (Pro-1B): observed pcc=0.94 vs required 0.99"
-    ),
-    strict=False,
-)
+# @pytest.mark.xfail(
+#     reason=incorrect_result(
+#         "ImageTokenStep decode (Pro-1B): observed pcc=0.94 vs required 0.99"
+#     ),
+#     strict=False,
+# )
 def test_image_token_decode_pro_1b():
     _run_decode("Pro_1B")
 
@@ -106,12 +107,12 @@ def test_image_token_prefill_pro_7b():
     run_mode=RunMode.INFERENCE,
     bringup_status=BringupStatus.INCORRECT_RESULT,
 )
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "ImageTokenStep decode (Pro-7B): observed pcc=0.82 vs required 0.99"
-    ),
-    strict=False,
-)
+# @pytest.mark.xfail(
+#     reason=incorrect_result(
+#         "ImageTokenStep decode (Pro-7B): observed pcc=0.82 vs required 0.99"
+#     ),
+#     strict=False,
+# )
 def test_image_token_decode_pro_7b():
     _run_decode("Pro_7B")
 
@@ -151,11 +152,30 @@ def _run_decode(variant_name: str):
         loader = ModelLoader(variant)
         inputs = loader.load_inputs(dtype_override=torch.bfloat16, prefill=False)
         step = loader.load_model(dtype_override=torch.bfloat16)
+
+        if os.environ.get("JANUS_SAVE_LAYER0_TENSORS") == "1":
+            from tests.torch.models.janus_pro_pcc_drop.layer0_tensor_capture import (
+                DEFAULT_LAYER0_TENSOR_DIR,
+                save_layer0_input_layernorm_tensors_from_decode_step,
+            )
+
+            out_dir = os.environ.get(
+                "JANUS_LAYER0_TENSOR_DIR", str(DEFAULT_LAYER0_TENSOR_DIR)
+            )
+            save_layer0_input_layernorm_tensors_from_decode_step(
+                step,
+                inputs,
+                out_dir,
+                variant_label=variant_name,
+            )
+            pytest.exit(
+                f"Saved layer-0 layernorm tensors under {out_dir}", returncode=0
+            )
+
         xr.set_device_type("TT")
 
         wrapper = ImageTokenDecodeWrapper(step)
         wrapper.past_key_values = inputs["past_key_values"]
-
         run_graph_test(
             wrapper,
             [inputs["inputs_embeds"]],
