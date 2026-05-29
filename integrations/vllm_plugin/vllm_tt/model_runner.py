@@ -2168,10 +2168,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling decode_postprocess with different input shapes.")
         start = time.perf_counter()
         hsize = self.model_config.get_hidden_size()
-        dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
-            self.device
+        # Use non-trivial dummy values so XLA traces both branches of the
+        # structured_decode `torch.where`s, preventing constant-folding away
+        # the masking path based on the zero-valued CPU buffers at warmup time.
+        dummy_require = torch.ones(
+            (self.max_num_reqs, 1), dtype=torch.bool, device=self.device
         )
-        dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(self.device)
+        dummy_bitmask = torch.ones(
+            (self.max_num_reqs, cdiv(self.vocab_size, 32)),
+            dtype=torch.int32,
+            device=self.device,
+        )
         bitmasks = self.structured_decode_bitmasks.to(self.device)
         # decode always processes exactly 1 token per request, so only num_tokens=1
         # is needed here. Prefill batches (num_tokens > 1) use the cpu-sample fallback.
