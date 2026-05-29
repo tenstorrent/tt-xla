@@ -17,12 +17,16 @@ import os
 
 import numpy as np
 import pytest
+import setproctitle
 import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from loguru import logger
 from torch_xla.distributed.spmd import Mesh
+
+setproctitle("kimi")
+
 
 # ============== MEMORY INSTRUMENTATION ==============
 # Lightweight helpers to localize host (CPU) memory retention. The goal is to
