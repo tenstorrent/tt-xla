@@ -254,6 +254,10 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
 
+        # Import-time side effect: registers TTFusedMoE via CustomOp.register_oot
+        # so Gemma-4's FusedMoE uses our dense routing path under XLA SPMD.
+        from . import moe_shims  # noqa: F401
+
         additional_config = vllm_config.additional_config or {}
         if "batch_size" in additional_config:
             logger.warning(

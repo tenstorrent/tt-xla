@@ -39,3 +39,33 @@ def test_generation_single_device_gemma4_e4b():
     assert_output_coherent(output_text)
 
     check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.bhqb
+def test_generation_bhqb_gemma4_26b_a4b():
+    model_name = "google/gemma-4-26B-A4B-it"
+    messages = [[{"role": "user", "content": "Describe Tenstorrent in one sentence."}]]
+    sampling_params = vllm.SamplingParams(temperature=0.0, top_p=1.0, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
+        "max_num_batched_tokens": 2560,
+        "max_num_seqs": 1,
+        "max_model_len": 128,
+        "gpu_memory_utilization": 0.1,
+        "additional_config": {
+            "enable_const_eval": True,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "use_2d_mesh": True,
+            "cpu_sampling": False,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.chat(messages, sampling_params)[0].outputs[0].text
+    print(f"output: {output_text}")
+    assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
