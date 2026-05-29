@@ -299,6 +299,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b"
       },
       {
+        "name": "stanford-crfm_alias-gpt2-small-x21",
+        "pytest": "tests/benchmark/test_llms.py::test_alias_gpt2_small_x21"
+      },
+      {
         "name": "qwen_2_5_1_5b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_1_5b"
       },
