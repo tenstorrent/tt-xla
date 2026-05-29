@@ -19,6 +19,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
+from tt_torch.utils import torch_dynamo_tt_device_compatibility
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -70,6 +71,7 @@ from vllm.v1.kv_cache_interface import (
     KVCacheSpec,
     MLAAttentionSpec,
     SlidingWindowSpec,
+    UniformTypeKVCacheSpecs,
 )
 from vllm.v1.outputs import (
     EMPTY_MODEL_RUNNER_OUTPUT,
@@ -100,7 +102,7 @@ from .metadata import XLASupportedSamplingMetadata
 from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
-from .vllm_distributed_utils import shard_model
+from .vllm_distributed_utils import safe_mark_sharding, shard_model
 from .vllm_utils import determine_mesh_shape, prev_power_of_2
 
 
@@ -133,6 +135,14 @@ def add_kv_sharing_layers_to_kv_cache_groups(
 
         if runner_only_attn_layers is not None:
             runner_only_attn_layers.add(layer_name)
+
+
+def _get_layer_kv_cache_spec(
+    kv_cache_spec: KVCacheSpec, layer_name: str
+) -> KVCacheSpec:
+    if isinstance(kv_cache_spec, UniformTypeKVCacheSpecs):
+        return kv_cache_spec.kv_cache_specs[layer_name]
+    return kv_cache_spec
 
 
 if TYPE_CHECKING:
@@ -235,6 +245,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         parallel_config = self.parallel_config
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
+        self.use_flat_model_io = self.tt_config.flat_model_io
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
@@ -418,6 +429,46 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Keep in int64 to avoid overflow with long context
         self.arange_np = np.arange(self.max_num_tokens, dtype=np.int64)
 
+        # Persistent device-side scratch buffers for `_prepare_inputs`,
+        # reused via copy_ each step to avoid per-step H2D broadcasts under SPMD.
+        def _alloc_dev(shape, dtype):
+            return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
+
+        self._input_ids_dev = {
+            n: _alloc_dev((self.max_num_reqs, n), torch.int32)
+            for n in self.num_tokens_paddings
+        }
+        self._position_ids_dev = {
+            n: _alloc_dev((self.max_num_reqs, n), torch.int32)
+            for n in self.num_tokens_paddings
+        }
+        self._logits_indices_dev = _alloc_dev((self.max_num_reqs,), torch.int32)
+        self._page_table_dev_max = _alloc_dev(
+            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
+            self.block_table_cpu.dtype,
+        )
+        self._fill_page_table_dev_max = _alloc_dev(
+            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
+            self.block_table_cpu.dtype,
+        )
+        self._cache_position_dev_max = _alloc_dev(
+            (self.num_reqs_max_model_len,), self.seq_lens_cpu.dtype
+        )
+        if self.most_model_len is not None:
+            assert self.num_reqs_most_model_len is not None
+            assert self.num_blocks_per_most_len_req is not None
+            self._page_table_dev_most = _alloc_dev(
+                (self.num_reqs_most_model_len, self.num_blocks_per_most_len_req),
+                self.block_table_cpu.dtype,
+            )
+            self._fill_page_table_dev_most = _alloc_dev(
+                (self.num_reqs_most_model_len, self.num_blocks_per_most_len_req),
+                self.block_table_cpu.dtype,
+            )
+            self._cache_position_dev_most = _alloc_dev(
+                (self.num_reqs_most_model_len,), self.seq_lens_cpu.dtype
+            )
+
         # Layer pairings for cross-layer KV sharing.
         # If an Attention layer `layer_name` is in the keys of this dict, it
         # means this layer will perform attention using the keys and values
@@ -473,10 +524,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._original_num_layers = None
         self._target_num_layers = None
         target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
+        # Multimodal configs (e.g. Gemma 4) nest num_hidden_layers under text_config.
+        hf_config = vllm_config.model_config.hf_config
+        hf_text_config = getattr(hf_config, "text_config", hf_config)
+        original_num_layers = getattr(hf_text_config, "num_hidden_layers", 0)
 
         if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
+            hf_text_config.num_hidden_layers = target_num_layers
             logger.info(
                 f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
             )
@@ -993,8 +1047,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ]
 
         # Move input_ids and position_ids to the target device for execution.
-        self.input_ids = input_ids_cpu.to(self.device)
-        self.position_ids = arange.to(self.device)
+        # Reuse persistent device buffers and update in place via copy_ to
+        # avoid issuing a fresh H2D transfer (and on-device alloc) per step.
+        input_ids_dev = self._input_ids_dev[padded_total_num_scheduled_tokens]
+        input_ids_dev.copy_(input_ids_cpu)
+        self.input_ids = input_ids_dev
+        position_ids_dev = self._position_ids_dev[padded_total_num_scheduled_tokens]
+        position_ids_dev.copy_(arange)
+        self.position_ids = position_ids_dev
 
         # Prepare the attention metadata.
         self.query_start_loc_np[0] = 0
@@ -1054,13 +1114,33 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             fill_page_table = page_table
 
-        cache_position = cache_position.to(self.device)
-        page_table = page_table.to(self.device)
-        fill_page_table = (
-            fill_page_table.to(self.device)
-            if fill_page_table is not page_table
-            else page_table
-        )
+        if use_max_model_len:
+            cache_position_dev = self._cache_position_dev_max
+            page_table_dev = self._page_table_dev_max
+            fill_page_table_dev_buf = self._fill_page_table_dev_max
+        else:
+            cache_position_dev = self._cache_position_dev_most
+            page_table_dev = self._page_table_dev_most
+            fill_page_table_dev_buf = self._fill_page_table_dev_most
+
+        # Clear unused rows so persistent device buffers don't keep stale
+        # block indices from a previous call (would surface as KV bleed).
+        cache_position[num_reqs:] = -1
+        page_table[num_reqs:, :] = 0
+        if fill_page_table is not page_table:
+            fill_page_table[num_reqs:, :] = 0
+
+        cache_position_dev.copy_(cache_position)
+        page_table_dev.copy_(page_table)
+        if fill_page_table is page_table:
+            fill_page_table_dev = page_table_dev
+        else:
+            fill_page_table_dev_buf.copy_(fill_page_table)
+            fill_page_table_dev = fill_page_table_dev_buf
+
+        cache_position = cache_position_dev
+        page_table = page_table_dev
+        fill_page_table = fill_page_table_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1089,7 +1169,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits_indices[: len(num_scheduled_tokens_per_req)] = (
             torch.from_numpy(num_scheduled_tokens_per_req) - 1
         )
-        logits_indices = logits_indices.to(self.device)
+        self._logits_indices_dev.copy_(logits_indices)
+        logits_indices = self._logits_indices_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1102,10 +1183,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
         return (
             per_layer_attn_metadata,
             logits_indices,
@@ -1272,6 +1352,48 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # then the embedding layer is not included in the CUDA graph.
             return input_ids, None
 
+    def _prepare_model_call_tensors(
+        self,
+        input_ids: torch.Tensor | None,
+        positions: torch.Tensor,
+        inputs_embeds: torch.Tensor | None,
+    ) -> tuple[
+        torch.Tensor | None,
+        torch.Tensor,
+        torch.Tensor | None,
+        Optional[torch.Size],
+    ]:
+        if not self.use_flat_model_io:
+            return input_ids, positions, inputs_embeds, None
+
+        restore_shape: Optional[torch.Size] = None
+
+        if input_ids is not None and input_ids.ndim > 1:
+            restore_shape = input_ids.shape
+            input_ids = input_ids.reshape(-1)
+
+        if inputs_embeds is not None and inputs_embeds.ndim > 2:
+            if restore_shape is None:
+                restore_shape = torch.Size(inputs_embeds.shape[:-1])
+            inputs_embeds = inputs_embeds.reshape(-1, inputs_embeds.shape[-1])
+
+        if positions.ndim > 1:
+            if restore_shape is None:
+                restore_shape = positions.shape
+            positions = positions.reshape(-1)
+
+        return input_ids, positions, inputs_embeds, restore_shape
+
+    def _restore_model_hidden_states(
+        self,
+        hidden_states: torch.Tensor,
+        restore_shape: Optional[torch.Size],
+    ) -> torch.Tensor:
+        if restore_shape is None or hidden_states.ndim != 2:
+            return hidden_states
+
+        return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
+
     @torch.no_grad()
     def execute_model(
         self,
@@ -1336,6 +1458,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
+            (
+                model_input_ids,
+                model_positions,
+                model_inputs_embeds,
+                hidden_state_shape,
+            ) = self._prepare_model_call_tensors(
+                input_ids, self.position_ids, inputs_embeds
+            )
             torch_xla.sync(wait=False)
             # Run the decoder
             with (
@@ -1349,10 +1479,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 ) as kv_connector_output,
             ):
                 hidden_states = self.model(
-                    input_ids=input_ids,
-                    positions=self.position_ids,
-                    inputs_embeds=inputs_embeds,
+                    input_ids=model_input_ids,
+                    positions=model_positions,
+                    inputs_embeds=model_inputs_embeds,
                 )
+            hidden_states = self._restore_model_hidden_states(
+                hidden_states, hidden_state_shape
+            )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1367,6 +1500,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             hidden_states = self.select_hidden_states(hidden_states, logits_indices)
             logits = self.compute_logits(hidden_states)
+
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
             )
@@ -1597,16 +1731,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
-        if (
-            self.enable_tensor_parallel
-            and self.model.lm_head is not None
-            and isinstance(self.model.lm_head, ParallelLMHead)
-        ):
-            self.is_sharded_compute_logits = True
+        # Multimodal configs (e.g. Gemma-4) nest the language model and
+        # don't expose lm_head on the top-level module. Walk the module
+        # tree to find any ParallelLMHead instance.
+        self.is_sharded_compute_logits = self.enable_tensor_parallel and any(
+            isinstance(m, ParallelLMHead) for m in self.model.modules()
+        )
 
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
+
+        # Cache attention layer names so we don't rebuild the per-layer
+        # attn_metadata dict every step.
+        self._attention_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, Attention).keys()
+        )
 
     def reload_weights(self) -> None:
         assert (
@@ -1618,18 +1758,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     @torch.no_grad()
     def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
-        if self.supports_mm_inputs:
-            input_ids = None
-            inputs_embeds = torch.zeros(
-                (num_tokens, self.inputs_embeds_size),
-                dtype=self.dtype,
-                device=self.device,
-            )
-        else:
-            input_ids = torch.zeros(
-                (self.max_num_reqs, num_tokens), dtype=torch.int32
-            ).to(self.device)
-            inputs_embeds = None
+        # Start with token ids so _get_model_inputs runs embed_input_ids and the
+        # XLA graph structure matches the real execution path.
+        input_ids = torch.zeros((self.max_num_reqs, num_tokens), dtype=torch.int32).to(
+            self.device
+        )
 
         position_ids = torch.zeros(
             (self.max_num_reqs, num_tokens), dtype=torch.int32
@@ -1646,20 +1779,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             attn_mask=None,
         )
 
-        layer_names = get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        per_layer_attn_metadata = {
-            layer_name: attn_metadata for layer_name in layer_names
-        }
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
 
         with (
+            torch_dynamo_tt_device_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_tokens], dtype=np.int32)
             ),
             set_forward_context(per_layer_attn_metadata, self.vllm_config, 0),
         ):
-            out = self.model(
-                input_ids=input_ids, positions=position_ids, inputs_embeds=inputs_embeds
+            input_ids, inputs_embeds = self._get_model_inputs(
+                input_ids, mm_embed_inputs=None
             )
+            # Pin pre-flatten sharding hints; without this, large prefill traces
+            # split into a secondary sync that drops mhlo.spmd_output_sharding
+            # and trips shlo_clean_for_xla_ingestion.
+            if self.enable_tensor_parallel:
+                # 2D mesh: model batch dim -> "batch" axis (data-parallel).
+                # 1D mesh (1, N): "batch" axis is size 1, fall back to "model".
+                batch_axis = "batch" if self.use_2d_mesh else "model"
+                if input_ids is not None:
+                    safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
+                safe_mark_sharding(position_ids, self.mesh, (batch_axis, None))
+                if inputs_embeds is not None:
+                    safe_mark_sharding(
+                        inputs_embeds, self.mesh, (batch_axis, None, None)
+                    )
+            (
+                model_input_ids,
+                model_positions,
+                model_inputs_embeds,
+                hidden_state_shape,
+            ) = self._prepare_model_call_tensors(input_ids, position_ids, inputs_embeds)
+            torch_xla.sync(wait=False)
+            out = self.model(
+                input_ids=model_input_ids,
+                positions=model_positions,
+                inputs_embeds=model_inputs_embeds,
+            )
+            out = self._restore_model_hidden_states(out, hidden_state_shape)
 
         self._hidden_states_dtype = out.dtype
 
@@ -1764,12 +1924,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
             )
+            # Sync per token count so prefill and decode graphs stay separate.
+            torch_xla.sync()
             if self.most_model_len is not None:
                 self._dummy_run(
                     num_tokens,
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
                 )
+                torch_xla.sync()
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
@@ -1798,9 +1961,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # (during execution) to avoid re-compilation of select_hidden_states
             # graph later.
             if self.enable_tensor_parallel:
-                xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+                safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
 
-            self.select_hidden_states(dummy_hidden, indices)
+            with torch_dynamo_tt_device_compatibility():
+                self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1818,9 +1982,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         dummy_hidden = dummy_hidden.to(self.device)
         if self.enable_tensor_parallel and self.is_sharded_compute_logits:
-            xs.mark_sharding(dummy_hidden, self.mesh, (None, None))
+            safe_mark_sharding(dummy_hidden, self.mesh, (None, None))
 
-        self.compute_logits(dummy_hidden)
+        with torch_dynamo_tt_device_compatibility():
+            self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1849,12 +2014,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # mark_dynamic because some operations in structured_decode require
         # them to be static.
         bitmasks = self.structured_decode_bitmasks.to(self.device)
-        self.structured_decode(
-            dummy_require_struct_decoding,
-            dummy_grammar_bitmask,
-            dummy_logits,
-            bitmasks,
-        )
+        with torch_dynamo_tt_device_compatibility():
+            self.structured_decode(
+                dummy_require_struct_decoding,
+                dummy_grammar_bitmask,
+                dummy_logits,
+                bitmasks,
+            )
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -1887,6 +2053,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             sampling_metadata.all_greedy = all_greedy
             with (
+                torch_dynamo_tt_device_compatibility(),
                 self.maybe_select_dummy_loras(
                     self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
                 ),
@@ -1920,6 +2087,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         with (
+            torch_dynamo_tt_device_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
             ),
@@ -2030,15 +2198,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self._dummy_run(
             num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
         )
+        torch_xla.sync()
         if self.most_model_len is not None:
             self._dummy_run(
                 num_tokens,
                 self.num_reqs_most_model_len,
                 self.num_blocks_per_most_len_req,
             )
-
         torch_xla.sync(wait=False)
-        xm.wait_device_ops()
         self.encoder_cache.clear()
         gc.collect()
         logger.info(f"Profiling run with num_tokens={num_tokens} finished.")
@@ -2112,8 +2279,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         kv_caches: dict[str, torch.Tensor] = {}
         for kv_cache_group in kv_cache_config.kv_cache_groups:
-            kv_cache_spec = kv_cache_group.kv_cache_spec
             for layer_name in kv_cache_group.layer_names:
+                kv_cache_spec = _get_layer_kv_cache_spec(
+                    kv_cache_group.kv_cache_spec, layer_name
+                )
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
@@ -2154,11 +2323,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]
+            # Shard KV Cache — each entry is [k_cache, v_cache].
             for kv_pair in self.kv_caches:
                 for cache in kv_pair:
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    xs.mark_sharding(cache, self.mesh, (None, "batch", None, None))
+                    safe_mark_sharding(cache, self.mesh, (None, "model", None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
@@ -2185,7 +2354,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        if self.enable_tensor_parallel:
+        # Only emit the sharding constraint on 2D mesh — under 1D mesh the
+        # `tt.sharding_constraint @mesh` op lands in a sub-graph that doesn't
+        # otherwise reference @mesh, which trips "unknown mesh: @mesh" in
+        # shlo_compiler.
+        if self.enable_tensor_parallel and self.use_2d_mesh:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 
