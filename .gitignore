@@ -50,3 +50,8 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Tracy profiling files
 /tracy_artifacts/
+
+/cigraphs/
+generated/
+irs/
+tmp/

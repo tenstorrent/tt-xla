@@ -2,8 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import copy
 import json
 import os
+import shutil
 
 import numpy as np
 import pytest
@@ -173,49 +175,214 @@ def test_llm(
         results["project"] = "tt-forge/tt-xla"
         results["model_rawname"] = model_info_name
 
-        # LLM-specific perf metrics handling: Use only decode graph (second file)
-        # LLMs split into 2 graphs: prefill (index 0) and decode (index 1)
-        # Only decode is relevant for throughput
+        # Per-graph perf metrics: tt-mlir emits one
+        # `tt_xla_<model>_perf_metrics_<i>.json` per graph. LLMs compile into 4
+        # graphs; graph 0 is prefill and graph 1 is decode. We only derive perf
+        # targets from those two: target TTFT from prefill, target
+        # tokens/sec/user from decode. All stats are kept strictly per graph
+        # (no aggregation across graphs). A per-graph result JSON is written
+        # next to `output_file` so the CI artifact upload (which uploads the
+        # whole perf_reports/ directory) catches them.
+        PREFILL_GRAPH = 0
+        DECODE_GRAPH = 1
+
         base_name = os.path.basename(ttnn_perf_metrics_output_file)
         perf_files = [
             f
             for f in os.listdir(".")
             if f.startswith(base_name) and f.endswith(".json")
         ]
-        perf_files = sorted(perf_files)
 
-        if len(perf_files) == 2:
-            # Use only the decode graph (second file)
-            decode_perf_file = perf_files[1]
-            print(f"Using decode graph perf metrics from: {decode_perf_file}")
+        output_dir = os.path.dirname(os.path.abspath(output_file)) or "."
+        output_stem, output_ext = os.path.splitext(os.path.basename(output_file))
 
-            with open(decode_perf_file, "r") as f:
-                perf_metrics_data = json.load(f)
+        # Map graph index -> perf_metrics filename, parsed from the trailing
+        # `_<i>` of `tt_xla_<model>_perf_metrics_<i>.json`.
+        graphs_by_index = {}
+        for pf in perf_files:
+            graph_idx_str = os.path.splitext(pf)[0].rsplit("_", 1)[-1]
+            try:
+                graphs_by_index[int(graph_idx_str)] = pf
+            except ValueError:
+                continue
 
-            if "summary" in perf_metrics_data and isinstance(
-                perf_metrics_data["summary"], dict
-            ):
-                summary = perf_metrics_data["summary"]
-                results["config"]["ttnn_total_ops"] = summary.get("total_ops", 0)
-                results["config"]["ttnn_total_shardable_ops"] = summary.get(
+        assert len(graphs_by_index) == 4, (
+            f"Expected 4 perf_metrics graphs for LLM (found {len(graphs_by_index)}): "
+            f"{sorted(perf_files)}"
+        )
+        results["config"]["ttnn_num_graphs"] = len(graphs_by_index)
+
+        def load_graph_perf(graph_idx):
+            """Read graph `graph_idx`'s perf_metrics JSON, copy the raw file next
+            to output_file for CI upload, write a per-graph result JSON, and
+            return the extracted stats (no aggregation across graphs)."""
+            pf = graphs_by_index[graph_idx]
+            with open(pf, "r") as f:
+                data = json.load(f)
+
+            summary = data.get("summary") if isinstance(data, dict) else None
+            perf_targets = data.get("perf_targets") if isinstance(data, dict) else None
+            roofline = (
+                (perf_targets.get("roofline", {}) or {})
+                if isinstance(perf_targets, dict)
+                else {}
+            )
+            matmul = (
+                (perf_targets.get("matmul", {}) or {})
+                if isinstance(perf_targets, dict)
+                else {}
+            )
+
+            # Copy the raw per-graph perf_metrics JSON next to output_file.
+            raw_dst = os.path.join(output_dir, pf)
+            if os.path.abspath(pf) != raw_dst:
+                shutil.copy2(pf, raw_dst)
+
+            graph_config = {
+                "graph_index": graph_idx,
+                "perf_metrics_file": pf,
+            }
+            if isinstance(summary, dict):
+                graph_config["ttnn_total_ops"] = summary.get("total_ops", 0)
+                graph_config["ttnn_total_shardable_ops"] = summary.get(
                     "total_shardable_ops", 0
                 )
-                results["config"]["ttnn_effectively_sharded_ops"] = summary.get(
+                graph_config["ttnn_effectively_sharded_ops"] = summary.get(
                     "effectively_sharded_ops", 0
                 )
-                results["config"]["ttnn_system_memory_ops"] = summary.get(
+                graph_config["ttnn_system_memory_ops"] = summary.get(
                     "system_memory_ops", 0
                 )
-                results["config"]["ttnn_effectively_sharded_percentage"] = summary.get(
+                graph_config["ttnn_effectively_sharded_percentage"] = summary.get(
                     "effectively_sharded_percentage", 0.0
                 )
-                results["config"]["ttnn_num_graphs"] = 2  # prefill + decode
-        else:
-            logger.warning(
-                f"Expected 2 perf metrics files (prefill + decode) for LLM, but found {len(perf_files)}: {perf_files}. "
-                f"Skipping perf metrics."
+                graph_config["graph_summary"] = summary
+            if isinstance(perf_targets, dict):
+                graph_config["perf_targets"] = perf_targets
+                graph_config["top_perf_samples_per_sec"] = roofline.get(
+                    "top_perf_samples_per_sec", 0.0
+                )
+                graph_config["top_perf_time_ms"] = roofline.get("top_perf_time_ms", 0.0)
+
+            # Per-graph result JSON next to output_file.
+            per_graph_result = copy.deepcopy(results)
+            per_graph_result["config"].update(graph_config)
+            per_graph_path = os.path.join(
+                output_dir, f"{output_stem}_g{graph_idx}{output_ext}"
             )
-            results["config"]["ttnn_num_graphs"] = len(perf_files)
+            with open(per_graph_path, "w") as fp:
+                json.dump(per_graph_result, fp, indent=2)
+            graph_config["result_file"] = os.path.basename(per_graph_path)
+
+            return {
+                "pf": pf,
+                "summary": summary,
+                "perf_targets": perf_targets,
+                "matmul": matmul,
+                "top_perf_samples_per_sec": roofline.get(
+                    "top_perf_samples_per_sec", 0.0
+                ),
+                "top_perf_time_ms": roofline.get("top_perf_time_ms", 0.0),
+                "config": graph_config,
+            }
+
+        prefill = load_graph_perf(PREFILL_GRAPH)
+        decode = load_graph_perf(DECODE_GRAPH)
+        results["config"]["per_graph_perf_targets"] = [
+            prefill["config"],
+            decode["config"],
+        ]
+
+        # Decode: tokens/sec/user == forward calls/sec, since each decode step
+        # emits one token per user (batch element).
+        target_tokens_per_sec_per_user = decode["top_perf_samples_per_sec"]
+        # Prefill: time to first token.
+        target_ttft_ms = prefill["top_perf_time_ms"]
+
+        results["config"][
+            "target_tokens_per_sec_per_user"
+        ] = target_tokens_per_sec_per_user
+        results["config"]["target_ttft_ms"] = target_ttft_ms
+
+        results.setdefault("measurements", []).extend(
+            [
+                {
+                    "iteration": 1,
+                    "step_name": results.get("model", ""),
+                    "step_warm_up_num_iterations": 0,
+                    "measurement_name": "target_tokens_per_sec_per_user",
+                    "value": target_tokens_per_sec_per_user,
+                    "target": -1,
+                    "device_power": -1.0,
+                    "device_temperature": -1.0,
+                },
+                {
+                    "iteration": 1,
+                    "step_name": results.get("model", ""),
+                    "step_warm_up_num_iterations": 0,
+                    "measurement_name": "target_ttft_ms",
+                    "value": target_ttft_ms,
+                    "target": -1,
+                    "device_power": -1.0,
+                    "device_temperature": -1.0,
+                },
+            ]
+        )
+
+        if not isinstance(prefill["perf_targets"], dict) and not isinstance(
+            decode["perf_targets"], dict
+        ):
+            logger.warning(
+                "perf_targets section not found in prefill (%s) or decode (%s) "
+                "perf_metrics JSONs. Did tt-mlir get built with the "
+                "per-matmul-roofline change?",
+                prefill["pf"],
+                decode["pf"],
+            )
+
+        prefill_pt = (
+            prefill["perf_targets"] if isinstance(prefill["perf_targets"], dict) else {}
+        )
+        decode_pt = (
+            decode["perf_targets"] if isinstance(decode["perf_targets"], dict) else {}
+        )
+        arch = prefill_pt.get("arch") or decode_pt.get("arch") or "unknown"
+        dram_bw = prefill_pt.get("dram_bandwidth_bytes_per_sec") or decode_pt.get(
+            "dram_bandwidth_bytes_per_sec", 0
+        )
+        sep = "=" * 68
+        print(sep)
+        print("| Perf targets — tt-mlir TTNNCollectPerfMetrics")
+        print("-" * 68)
+        print(f"| Arch: {arch}")
+        print(f"| DRAM bandwidth (B/s): {dram_bw}")
+        print(f"| Batch size: {batch_size}")
+        print(f"| Prefill (graph {PREFILL_GRAPH}, {prefill['pf']}):")
+        print(f"|   Top perf time (ms): {prefill['top_perf_time_ms']}")
+        print(f"|   Target TTFT (ms): {target_ttft_ms}")
+        print(
+            f"|   Matmul DRAM-bound ops: {prefill['matmul'].get('dram_bound_ops', 0)}"
+        )
+        print(
+            f"|   Matmul compute-bound ops: {prefill['matmul'].get('compute_bound_ops', 0)}"
+        )
+        print(
+            f"|   Matmul roofline time (us): {prefill['matmul'].get('roofline_time_us', 0.0)}"
+        )
+        print(f"| Decode (graph {DECODE_GRAPH}, {decode['pf']}):")
+        print(f"|   Top perf time (ms): {decode['top_perf_time_ms']}")
+        print(
+            f"|   Top perf samples/sec (per forward call): {decode['top_perf_samples_per_sec']}"
+        )
+        print(f"|   Target tokens/sec/user: {target_tokens_per_sec_per_user}")
+        print(f"|   Matmul DRAM-bound ops: {decode['matmul'].get('dram_bound_ops', 0)}")
+        print(
+            f"|   Matmul compute-bound ops: {decode['matmul'].get('compute_bound_ops', 0)}"
+        )
+        print(
+            f"|   Matmul roofline time (us): {decode['matmul'].get('roofline_time_us', 0.0)}"
+        )
+        print(sep)
 
         with open(output_file, "w") as file:
             json.dump(results, file, indent=2)
