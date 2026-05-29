@@ -166,6 +166,8 @@
   _STUB(PJRT_TopologyDescription_Attributes);
   _STUB(PJRT_TopologyDescription_Deserialize);
   _STUB(PJRT_TopologyDescription_Fingerprint);
+  _STUB(PJRT_TopologyDescription_MakeCanonicalShapeForMemorySpace);
+  _STUB(PJRT_TopologyDescription_GetMemorySpaceKindIds);
   _STUB(PJRT_Compile);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Device);
@@ -181,4 +183,3 @@
   _STUB(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
   _STUB(PJRT_Buffer_Bitcast);
   _STUB(PJRT_Error_ForEachPayload);
-  _STUB(PJRT_TopologyDescription_GetMemorySpaceKindIds);
