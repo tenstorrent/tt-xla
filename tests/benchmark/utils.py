@@ -44,29 +44,6 @@ def get_xla_device_arch():
     return align_arch(arch_name)
 
 
-def get_device_type(arch: str, device_count: int) -> str:
-    """Determine device type string based on architecture and device count."""
-
-    if device_count == 32:
-        return "galaxy"
-    if device_count == 8:
-        return "llmbox"
-    if arch == "wormhole":
-        if device_count == 1:
-            return "n150"
-        if device_count == 2:
-            return "n300"
-    if arch == "blackhole":
-        if device_count == 1:
-            return "p150"
-        if device_count == 2:
-            return "p300"
-        if device_count == 4:
-            return "qb2-blackhole"
-
-    return "unknown"
-
-
 def sanitize_filename(name: str) -> str:
     """
     Sanitize a string to be safe for use in filenames.
@@ -374,7 +351,6 @@ def create_benchmark_result(
     torch_xla_enabled: bool = True,
     backend: str = "tt",
     device_name: str = "",
-    galaxy: bool = False,
     arch: str = "",
     input_is_image: bool = True,
     input_sequence_length: Optional[int] = -1,
@@ -474,11 +450,10 @@ def create_benchmark_result(
         "measurements": measurements,
         "device_info": {
             "device_name": device_name,
-            "galaxy": galaxy,
             "arch": arch,
             "device_count": device_count,
             "mesh_shape": mesh_shape,
-            "device_type": get_device_type(arch, device_count),
+            "device_type": None,
         },
     }
 
