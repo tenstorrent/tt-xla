@@ -63,3 +63,64 @@ def test_gather_replicated(input_shape, index_shape, dim):
         [input, index],
         framework=Framework.TORCH,
     )
+
+
+def _build_shard_spec(rank, strategy):
+    if strategy == "replicated":
+        return tuple([None] * rank)
+    if strategy == "shard_batch":
+        return ("batch",) + tuple([None] * (rank - 1))
+    if strategy == "shard_model":
+        return tuple([None] * (rank - 1)) + ("model",)
+    raise ValueError(f"unknown sharding strategy: {strategy}")
+
+
+@pytest.mark.parametrize(
+    "input_shape,index_shape,dim",
+    [
+        ((32,), (16,), 0),
+        ((8, 32), (8, 16), 1),
+        ((32, 64), (16, 64), 0),
+        ((4, 32, 64), (4, 8, 64), 1),
+        ((4, 16, 64), (4, 16, 32), 2),
+        ((2, 4, 32, 64), (2, 4, 16, 64), 2),
+        ((2, 2, 4, 16, 32), (2, 2, 4, 8, 32), 3),
+    ],
+    ids=["1d_dim0", "2d_dim1", "2d_dim0", "3d_dim1", "3d_dim2", "4d_dim2", "5d_dim3"],
+)
+@pytest.mark.parametrize("input_shard", ["replicated", "shard_batch", "shard_model"])
+@pytest.mark.parametrize("index_shard", ["replicated", "shard_batch", "shard_model"])
+def test_gather_simple(input_shape, index_shape, dim, input_shard, index_shard):
+    xr.set_device_type("TT")
+
+    class SimpleGather(nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x, index):
+            return torch.gather(x, self.dim, index)
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (2, num_devices // 2) if num_devices >= 2 else (1, 1)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(module, args, kwargs):
+        x, index = args
+        return {
+            x: _build_shard_spec(x.ndim, input_shard),
+            index: _build_shard_spec(index.ndim, index_shard),
+        }
+
+    x = torch.randn(*input_shape, dtype=torch.bfloat16)
+    index_max = input_shape[dim]
+    index = torch.randint(0, index_max, index_shape, dtype=torch.int64)
+
+    run_graph_test(
+        SimpleGather(dim),
+        [x, index],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
