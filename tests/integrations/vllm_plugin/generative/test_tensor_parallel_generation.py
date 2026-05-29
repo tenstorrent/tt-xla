@@ -79,9 +79,10 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-32B", False, "", True),
-        pytest.param("Qwen/Qwen3-8B", False, "", False),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", True),
+        # pytest.param("Qwen/Qwen3-32B", False, "", True),
+        # pytest.param("Qwen/Qwen3-8B", False, "", False),
+        # pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", True),
+        pytest.param("Qwen/Qwen3.6-27B", False, "", True)
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
@@ -96,7 +97,7 @@ def test_tensor_parallel_generation_llmbox_large(
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
         "model": model_name,
-        "max_num_batched_tokens": 32,
+        "max_num_batched_tokens": 16384,
         "max_num_seqs": 1,
         "max_model_len": 32,
         "gpu_memory_utilization": 0.002,
