@@ -260,6 +260,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            # Register as the global SPMD mesh so tt_torch.moe_backend's
+            # _mesh_info() can resolve the expert-parallel cluster axis (the
+            # tt_moe EP path reads get_global_mesh()).
+            xs.set_global_mesh(self.mesh)
             # Updating the config to reflect the actual mesh shape used.
             if self.use_2d_mesh and 1 in mesh_shape:
                 self.use_2d_mesh = False
@@ -1609,8 +1613,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         batch_idx, logits_indices, :
                     ].unsqueeze(1)
                     if self.enable_tensor_parallel and self.use_2d_mesh:
+                        # "batch"-axis, matching the decode_postprocess precompile
+                        # and the decode-branch raw model.forward output. "model"
+                        # here compiled the fused prefill graph for the wrong axis
+                        # vs the precompile, corrupting selected hidden states (#4440).
                         xs.mark_sharding(
-                            hidden_states, self.mesh, (None, None, "model")
+                            hidden_states, self.mesh, (None, None, "batch")
                         )
                     logits_indices = torch.zeros(
                         self.max_num_reqs, dtype=torch.int32, device=self.device
@@ -1847,6 +1855,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        # Repair MoE routing closures that captured CPU tensors before
+        # model.to(device). Must run after the model is on device.
+        from .overrides import repair_stale_moe_closures
+
+        repair_stale_moe_closures(self.model)
+
         # Multimodal configs (e.g. Gemma-4) nest the language model and
         # don't expose lm_head on the top-level module. Walk the module
         # tree to find any ParallelLMHead instance.
@@ -2074,11 +2088,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
-            # Mark dummy inputs to match the generated hidden_states shardings
-            # (during execution) to avoid re-compilation of select_hidden_states
-            # graph later.
+            # Match model.forward's hidden_states sharding ("batch" axis,
+            # from RowParallel down_proj). A mismatched axis here silently
+            # corrupts the select output on (2,2) 2D mesh.
             if self.enable_tensor_parallel:
-                safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+                safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
 
             self.select_hidden_states(dummy_hidden, indices)
 
@@ -2243,7 +2257,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     dtype=self._hidden_states_dtype,
                 ).to(self.device)
                 if self.enable_tensor_parallel and self.use_2d_mesh:
-                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+                    # Match select_hidden_states precompile + model.forward output
+                    # ("batch"-axis hidden).
+                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
                 sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                     self.input_batch,
                     self.max_num_reqs,
