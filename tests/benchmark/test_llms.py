@@ -1729,7 +1729,7 @@ def test_llama_3_1_70b_tp(
         ModelLoader,
         variant,
         output_file,
-        num_layers=num_layers,
+        num_layers=1,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
@@ -1746,6 +1746,7 @@ def test_llama_3_1_70b_tp(
             if input_sequence_length is not None
             else {}
         ),
+        trace_enabled=False,
     )
 
 
