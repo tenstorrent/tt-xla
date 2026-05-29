@@ -266,11 +266,11 @@ class TorchModelTester(ModelTester):
         self._workload.model.zero_grad()
 
         # Run forward on TT
-        compile_options = {"tt_experimental_compile": False}
-
-        # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
-        if self._parallelism == Parallelism.TENSOR_PARALLEL:
-            compile_options["tt_enable_torch_fx_fusion_pass"] = False
+        compile_options = {
+            "tt_legacy_compile": True,
+            # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
+            "tt_enable_torch_fx_fusion_pass": False,
+        }
 
         self._compile_for_tt_device(self._workload, compile_options)
         tt_res = self._run_on_tt_device(self._workload)
@@ -301,6 +301,12 @@ class TorchModelTester(ModelTester):
         )
         tt_grads, tt_none_grads = self._extract_grads(self._model)
 
+        assert (
+            len(tt_grads.keys()) > 0
+        ), "No TT gradients collected - check that the model has trainable parameters"
+        assert (
+            len(cpu_grads.keys()) > 0
+        ), "No CPU gradients collected - check that the model has trainable parameters"
         assert (
             cpu_none_grads == tt_none_grads
         ), f"CPU and TT have different None grad parameters: {cpu_none_grads} != {tt_none_grads}"
