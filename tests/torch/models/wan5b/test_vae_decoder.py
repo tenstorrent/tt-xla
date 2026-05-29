@@ -35,12 +35,6 @@ from .shared import (
     wan22_mesh,
 )
 
-# Module-load patches — must run before model load and torch.compile.
-_patch_wan_resample_rep_sentinel()
-_patch_wan_resample_avoid_4d_fold()
-_disable_tt_torch_function_override()
-
-
 _COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     experimental_enable_dram_space_saving_optimization=True,
@@ -58,6 +52,12 @@ def test_vae_decoder_480p_sharded():
 
 
 def _run(resolution: str, sharded: bool) -> None:
+    # Apply monkey patches here (not at module top) so they don't leak into
+    # other tests collected in the same pytest session.
+    _patch_wan_resample_rep_sentinel()
+    _patch_wan_resample_avoid_4d_fold()
+    _disable_tt_torch_function_override()
+
     shapes = RESOLUTIONS[resolution]
     torch.manual_seed(42)
     z = torch.randn(

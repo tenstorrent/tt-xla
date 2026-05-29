@@ -27,11 +27,6 @@ from tests.infra.testers.compiler_config import CompilerConfig
 from .monkey_patch import _disable_tt_torch_function_override, _patch_apply_lora_scale
 from .shared import RESOLUTIONS, WanDiTWrapper, load_dit, shard_dit_specs, wan22_mesh
 
-# Module-load patches — must run before model load and torch.compile.
-_patch_apply_lora_scale()
-_disable_tt_torch_function_override()
-
-
 # Set to 0 to run the full model, otherwise set to the number of blocks to run.
 MAX_BLOCKS = 0
 
@@ -51,6 +46,11 @@ def test_wan_dit_480p_sharded():
 
 
 def _run(resolution: str, sharded: bool) -> None:
+    # Apply monkey patches here (not at module top) so they don't leak into
+    # other tests collected in the same pytest session.
+    _patch_apply_lora_scale()
+    _disable_tt_torch_function_override()
+
     shapes = RESOLUTIONS[resolution]
     t, h, w = shapes["latent_frames"], shapes["latent_h"], shapes["latent_w"]
 
