@@ -1582,7 +1582,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         : self.max_num_reqs
                     ].to(self.device)
                     bitmasks = self.structured_decode_bitmasks.to(self.device)
-                selected_token_ids = self.decode_postprocess(
+                selected_token_ids, logits = self.decode_postprocess(
                     hidden_states,
                     logits_indices,
                     sampling_metadata,
@@ -2198,7 +2198,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 with self.maybe_select_dummy_loras(
                     self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
                 ):
-                    self.decode_postprocess(
+                    _, _ = self.decode_postprocess(
                         dummy_hidden,
                         indices,
                         sampling_metadata,
@@ -2521,8 +2521,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         require_struct_decoding: torch.Tensor,
         grammar_bitmask: torch.Tensor,
         bitmasks: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Fused select_hidden_states → compute_logits → structured_decode → sample.
+
+        Returns (selected_token_ids, logits). The logits are post-structured-decode
+        (matching the cpu_sampling path) and pre-penalty/temperature, so callers
+        that need logprobs can use them directly without recomputation.
 
         NOTE: This method inlines the logic of select_hidden_states, compute_logits,
         structured_decode (via apply_grammar_bitmask), and sample_from_logits.
@@ -2558,8 +2562,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            return torch.argmax(logits, dim=-1, keepdim=True)
-        return self.sampler(logits, sampling_metadata).sampled_token_ids
+            selected = torch.argmax(logits, dim=-1, keepdim=True)
+        else:
+            selected = self.sampler(logits, sampling_metadata).sampled_token_ids
+        return selected, logits
 
     def sample_from_logits_cpu(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
