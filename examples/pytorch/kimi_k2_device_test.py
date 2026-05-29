@@ -11,8 +11,6 @@ Usage:
     NUM_LAYERS=2 BATCH_SIZE=64 pytest kimi_k2_device_test.py -k prefill -s
 """
 
-import ctypes
-import gc
 import os
 
 import numpy as np
@@ -22,126 +20,9 @@ import torch
 import torch_xla
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-from loguru import logger
 from torch_xla.distributed.spmd import Mesh
 
-setproctitle("kimi")
-
-
-# ============== MEMORY INSTRUMENTATION ==============
-# Lightweight helpers to localize host (CPU) memory retention. The goal is to
-# answer: after the weights are on device, is the residual host RSS the
-# torch-xla `tensor_data` host snapshot (shows up as "Tensor on host: with
-# size ..." in the per-tensor debug info), or is it a separate Python-level CPU
-# copy held by the model / Dynamo executor (snapshots show "None" yet RSS stays
-# high)?
-
-try:
-    _LIBC = ctypes.CDLL("libc.so.6")
-except OSError:
-    _LIBC = None
-
-
-def _malloc_trim():
-    """Force glibc to return free arenas to the OS so RSS reflects live refs."""
-    if _LIBC is not None:
-        try:
-            _LIBC.malloc_trim(0)
-        except Exception:
-            pass
-
-
-def _rss_mb() -> float:
-    try:
-        with open("/proc/self/status") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) / 1024.0
-    except Exception:
-        pass
-    return -1.0
-
-
-def _mem(label: str, trim: bool = False):
-    gc.collect()
-    if trim:
-        _malloc_trim()
-    logger.info(f"[MEM] {label}{' (+gc+trim)' if trim else ''}: {_rss_mb():.1f} MB")
-
-
-def _dump_large_maps(label: str, threshold_mb: float = 64.0):
-    """Characterize where host RSS lives: list large mappings and totals.
-
-    Splits anonymous (rw-p, no backing file = heap/arena/mmap'd buffers) from
-    file-backed mappings, so we can tell whether the residual RSS is data
-    buffers (anon) vs shared libraries (file)."""
-    n = 0
-    anon_total = 0.0
-    file_total = 0.0
-    big = []
-    try:
-        with open("/proc/self/maps") as f:
-            for line in f:
-                parts = line.split()
-                if not parts or "-" not in parts[0]:
-                    continue
-                start, end = parts[0].split("-")
-                size_mb = (int(end, 16) - int(start, 16)) / (1024 * 1024)
-                perms = parts[1] if len(parts) > 1 else ""
-                is_anon = len(parts) < 6  # no pathname/inode field
-                n += 1
-                if is_anon:
-                    anon_total += size_mb
-                else:
-                    file_total += size_mb
-                if size_mb >= threshold_mb:
-                    big.append((size_mb, is_anon, line.strip()))
-    except Exception as e:
-        logger.info(f"[MEM] {label}: failed to read maps: {e}")
-        return
-    logger.info(
-        f"[MEM] {label} -- {n} mappings, anon(rw) total {anon_total:.1f} MB, "
-        f"file-backed total {file_total:.1f} MB; mappings >= {threshold_mb:.0f} MB:"
-    )
-    for size_mb, is_anon, line in sorted(big, reverse=True):
-        logger.info(f"  [{'anon' if is_anon else 'file'}] {size_mb:.1f} MB  {line}")
-
-
-def _probe_host_state(model, label: str, sample: int = 3):
-    """Report how many params/buffers still carry a torch-xla host snapshot.
-
-    "Tensor on host: with size ..." in _get_xla_tensor_debug_info means the
-    XLATensor still owns a CPU copy (data()->tensor_data). "None" means the host
-    snapshot was released and any residual RSS must be held elsewhere.
-    """
-    n_total = 0
-    n_with_host = 0
-    host_bytes = 0
-    printed = 0
-    for kind, named in (
-        ("param", model.named_parameters()),
-        ("buffer", model.named_buffers()),
-    ):
-        for name, t in named:
-            try:
-                info = torch_xla._XLAC._get_xla_tensor_debug_info(t)
-            except Exception as e:
-                logger.info(f"[PROBE] {label}: debug_info failed for {name}: {e}")
-                continue
-            n_total += 1
-            has_host = "Tensor on host: with size" in info
-            if has_host:
-                n_with_host += 1
-                host_bytes += t.numel() * t.element_size()
-            if printed < sample:
-                logger.info(
-                    f"[PROBE] {label} [{kind}] {name} (device={t.device}):\n{info}"
-                )
-                printed += 1
-    logger.info(
-        f"[PROBE] {label}: {n_with_host}/{n_total} tensors retain a host snapshot, "
-        f"~{host_bytes / 1e6:.1f} MB of host snapshots"
-    )
+setproctitle.setproctitle("kimi")
 
 
 # ============== CONFIGURATION ==============
@@ -359,25 +240,16 @@ def test_kimi_k2_prefill(num_layers, batch_size, input_seq_len):
     setup_spmd()
     device = torch_xla.device()
 
-    _mem("00 baseline (before load)")
-
     # Load model
     print(f"\nLoading Kimi K2 with {num_layers} layers...")
     model, tokenizer, model_loader = load_model_and_tokenizer(num_layers)
-    _mem("01 after load_model (CPU weights)", trim=True)
 
     # Create mesh and apply sharding
     mesh = create_mesh(model_loader)
     print(f"Mesh: {mesh.shape()}")
 
     model = model.to(device)
-    _mem("02 after model.to(device)")
-    _probe_host_state(model, "02 after model.to(device)")
-
     apply_sharding(model, model_loader, mesh)
-    _mem("03 after apply_sharding", trim=True)
-    _probe_host_state(model, "03 after apply_sharding")
-    _dump_large_maps("03 after apply_sharding")
 
     # Create inputs
     cache = init_mla_cache(model.config, batch_size, input_seq_len)
@@ -407,15 +279,10 @@ def test_kimi_k2_prefill(num_layers, batch_size, input_seq_len):
     # Compile and run
     print("Compiling model...")
     compiled_model = torch.compile(model, backend="tt")
-    _mem("04 after torch.compile (pre-trace)")
 
     print("Running prefill...")
     with torch.no_grad():
         output = compiled_model(**input_args)
-
-    _mem("05 after first forward", trim=True)
-    _probe_host_state(model, "05 after first forward")
-    _dump_large_maps("05 after first forward")
 
     logits = output.logits.cpu()
     extract_and_print_tokens(logits, tokenizer, prefix="[PREFILL] ")
@@ -427,25 +294,16 @@ def test_kimi_k2_decode(num_layers, batch_size, input_seq_len, max_output_tokens
     setup_spmd()
     device = torch_xla.device()
 
-    _mem("00 baseline (before load)")
-
     # Load model
     print(f"\nLoading Kimi K2 with {num_layers} layers...")
     model, tokenizer, model_loader = load_model_and_tokenizer(num_layers)
-    _mem("01 after load_model (CPU weights)", trim=True)
 
     # Create mesh and apply sharding
     mesh = create_mesh(model_loader)
     print(f"Mesh: {mesh.shape()}")
 
     model = model.to(device)
-    _mem("02 after model.to(device)")
-    _probe_host_state(model, "02 after model.to(device)")
-
     apply_sharding(model, model_loader, mesh)
-    _mem("03 after apply_sharding", trim=True)
-    _probe_host_state(model, "03 after apply_sharding")
-    _dump_large_maps("03 after apply_sharding")
 
     # Create inputs - single token input for decode
     cache = init_mla_cache(model.config, batch_size, input_seq_len)
@@ -486,16 +344,11 @@ def test_kimi_k2_decode(num_layers, batch_size, input_seq_len, max_output_tokens
     # Compile and run
     print("Compiling model...")
     compiled_model = torch.compile(model, backend="tt")
-    _mem("04 after torch.compile (pre-trace)")
 
     print(f"Running {max_output_tokens} decode step(s)...")
     with torch.no_grad():
         for step in range(max_output_tokens):
             output = compiled_model(**input_args)
-            if step == 0:
-                _mem("05 after first forward", trim=True)
-                _probe_host_state(model, "05 after first forward")
-                _dump_large_maps("05 after first forward")
             logits = output.logits.cpu()
 
             extract_and_print_tokens(logits, tokenizer, prefix=f"[DECODE step {step}] ")
@@ -504,17 +357,3 @@ def test_kimi_k2_decode(num_layers, batch_size, input_seq_len, max_output_tokens
             next_token = logits[:, -1].argmax(dim=-1, keepdim=True)
             input_args["input_ids"] = next_token.to(device)
             input_args["cache_position"] = input_args["cache_position"][-1:] + 1
-
-    # ---- Teardown probe: prove who owns the residual ~38 GB of host RSS. ----
-    # tensor_data is already 0/39 by stage 03, so if dropping the device tensors
-    # (model params/buffers + cache) collapses RSS back toward baseline, the
-    # holder is the device-resident weight buffers (PJRT / tt-xla BufferInstance),
-    # not any torch-xla host cache.
-    _mem("06 before teardown")
-    model_loader.model = None  # loader keeps `self.model = model` alive
-    del compiled_model, output, logits, input_args, cache, model, model_loader
-    gc.collect()
-    torch_xla.sync()
-    gc.collect()
-    _mem("07 after del model + cache + sync", trim=True)
-    _dump_large_maps("07 after teardown")
