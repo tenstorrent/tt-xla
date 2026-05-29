@@ -335,6 +335,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "amd_olmo_1b_sft_dpo",
+        "pytest": "tests/benchmark/test_llms.py::test_amd_olmo_1b_sft_dpo"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
