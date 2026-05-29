@@ -100,6 +100,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
+        "name": "afrique_qwen_8b",
+        "pytest": "tests/benchmark/test_llms.py::test_afrique_qwen_8b",
+        "runs-on": "p150"
+      },
+      {
         "name": "falcon3_7b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
         "runs-on": "n300-llmbox"
