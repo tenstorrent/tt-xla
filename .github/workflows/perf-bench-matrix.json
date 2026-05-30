@@ -323,6 +323,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "bw_v1",
+        "pytest": "tests/benchmark/test_llms.py::test_bw_v1"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
