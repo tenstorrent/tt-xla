@@ -1,0 +1,199 @@
+# ONNX on tt-xla — Implementation Log
+
+Living document for the native ONNX integration effort. Records **procedure**, **blockers**, **fixes**, and **current status** from project start through each workstream.
+
+**Branch:** `akannan/onnx_support_check`  
+**Related plans:** [onnx_support_options.md](onnx_support_options.md), [onnx_integration_milestones.md](onnx_integration_milestones.md), [onnx_workstreams.md](onnx_workstreams.md)
+
+---
+
+## Target architecture
+
+```text
+ONNX (.onnx)
+  → onnx-mlir (--EmitONNXIR)
+  → ONNX dialect MLIR (.onnx.mlir)
+  → onnx-mlir-opt (--convert-onnx-to-stablehlo)
+  → StableHLO MLIR
+  → tt-xla ModuleBuilder / PJRT (mlir_input_format=auto|stablehlo)
+  → TTIR → TTNN → device execute
+```
+
+Two separate MLIR stacks connect via **StableHLO MLIR text**, not shared LLVM linking:
+
+| Stack | LLVM/MLIR source |
+|-------|------------------|
+| onnx-mlir tools | Bundled LLVM from onnx-mlir `utils/clone-mlir.sh` |
+| tt-xla / tt-mlir | `/opt/ttmlir-toolchain` |
+
+---
+
+## Environment
+
+| Item | Value |
+|------|-------|
+| Host | Reservation node (e.g. `yyzo-bh-11-special-...`) |
+| Python | venv, Python 3.12.3 |
+| tt-mlir toolchain | `TTMLIR_TOOLCHAIN_DIR=/opt/ttmlir-toolchain` |
+| PJRT unit tests | `-DTTXLA_ENABLE_PJRT_TESTS=ON` (Release default OFF) |
+
+Build and smoke tests must run on the **reservation host with venv activated**. Agent shells on other nodes may hit GLIBC / venv mismatches.
+
+---
+
+## Workstream 1 — Direct StableHLO ingestion (C++)
+
+**Milestone:** M1.2  
+**Status:** ✅ Complete (commit `a52b27974`)
+
+### Procedure
+
+1. Add `mlir_input_format` compile option: `auto` | `vhlo` | `stablehlo`.
+2. Implement `detectMlirInputFormat()` in `ModuleBuilder` after MLIR parse.
+3. Skip `convertFromVHLOToSHLO` when input is already StableHLO dialect.
+4. Add unit tests in `module_builder_tests.cc`.
+5. Build with PJRT tests enabled and run `ModuleBuilderUnitTests.*`.
+
+### Blockers and fixes
+
+| Blocker | Fix |
+|---------|-----|
+| JAX/PyTorch path always ran VHLO deserialize; onnx-mlir emits raw `stablehlo.*` | Auto-detect `vhlo.*` vs `stablehlo.*`; optional override via compile option |
+| Link error: `detectMlirInputFormat` undefined in tests | Removed erroneous `static` from declaration in header |
+| PJRT unit tests not built in default Release config | Enable `-DTTXLA_ENABLE_PJRT_TESTS=ON` for validation |
+
+### Validation
+
+```bash
+cmake --build build --target TTPJRTTests
+ctest --test-dir build -R PJRTUnitTests --output-on-failure
+./build/tests/pjrt/TTPJRTTests --gtest_filter='ModuleBuilderUnitTests.*'
+```
+
+---
+
+## Workstream 2 — onnx-mlir build + smoke test
+
+**Milestone:** M1.3  
+**Status:** ✅ Complete (smoke test passed on reservation host)
+
+### Procedure
+
+```bash
+cd /path/to/tt-xla
+source venv/activate
+pip install onnx numpy   # fixture generation only
+
+tools/onnx/build_onnx_mlir.sh
+source tools/onnx/env.sh
+tools/onnx/smoke_test.sh
+```
+
+**Artifacts (local, gitignored):**
+
+- Binaries: `tools/onnx/build/install/bin/onnx-mlir`, `onnx-mlir-opt`
+- Smoke output: `tools/onnx/build/smoke/add.onnx.mlir`, `add.stablehlo.mlir`
+- Pinned commit: `4400cbc21c88632cdb6aa47566d72bed25cd345f` (`tools/onnx/onnx_mlir_commit.txt`)
+
+### Blockers and fixes (chronological)
+
+| # | Blocker | Fix |
+|---|---------|-----|
+| 1 | CMake 4.x: `cmake_minimum_required` too old in onnx submodule | Pass `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` in `build_onnx_mlir.sh` |
+| 2 | Configure fails: missing `stablehlo`, `pybind11`, `ChloOps`, etc. | `git submodule update --init` for `onnx`, `pybind11`, `rapidcheck`, `stablehlo`, `benchmark` |
+| 3 | Build against `TTMLIR_TOOLCHAIN_DIR` MLIR fails: `Krnl.td` tblgen overlap, `QuantTypes.h`, float8 API drift | **Do not** link onnx-mlir to tt-mlir MLIR for this pin; build bundled LLVM via `utils/clone-mlir.sh` (~30–90 min first time) |
+| 4 | `cmake --install` fails: missing `librapidcheck.a` with `ONNX_MLIR_BUILD_TESTS=OFF` | Copy only `onnx-mlir-opt` and `onnx-mlir` from build tree to `install/bin/` |
+| 5 | Smoke test: `add.onnx.mlir`: No such file or directory | `onnx-mlir --EmitONNXIR` treats `-o` as basename **without** extension and appends `.onnx.mlir`. Using `-o .../add.onnx.mlir` wrote `add.onnx.mlir.onnx.mlir`. Fixed: `-o .../add` → `add.onnx.mlir` |
+
+### Smoke test success criteria
+
+Output StableHLO must contain `stablehlo.add` (verified by `grep` in `smoke_test.sh`). Example from Add model:
+
+```mlir
+%5 = stablehlo.add %3, %4 : tensor<1x4xf32>
+```
+
+### Tooling added
+
+| Path | Purpose |
+|------|---------|
+| `tools/onnx/build_onnx_mlir.sh` | Clone, build bundled LLVM + onnx-mlir |
+| `tools/onnx/smoke_test.sh` | Add ONNX → ONNX dialect → StableHLO |
+| `tools/onnx/gen_add_onnx.py` | Generate trivial Add ONNX fixture |
+| `tools/onnx/onnx_mlir_commit.txt` | Pinned onnx-mlir commit |
+| `tools/onnx/README.md` | Build/run/troubleshooting |
+| `tools/onnx/env.sh` | Generated by build script (gitignored) |
+
+---
+
+## Workstream 3 — `tt_onnx` Python package
+
+**Milestone:** M1.5  
+**Status:** ⬜ Not started  
+**Prerequisite:** WS1 + WS2 ✅
+
+### Planned procedure
+
+1. Add `python_package/tt_onnx/` (`bridge.py`, `compiler.py`, `runtime.py`, `session.py`).
+2. Wrap onnx-mlir CLI (same steps as `smoke_test.sh`).
+3. Feed StableHLO MLIR to PJRT via JAX plugin with `mlir_input_format: stablehlo`.
+4. Spike: `tools/onnx_spike/compile_add.py` + `tests/onnx/test_add_e2e.py`.
+5. Compare device output vs ONNX Runtime CPU reference.
+
+### Target API
+
+```python
+from tt_onnx import ONNXSession
+
+session = ONNXSession("model.onnx", device="tt")
+outputs = session.run({"A": arr_a, "B": arr_b})
+```
+
+---
+
+## Workstream 4 — Tests and incremental validation
+
+**Milestones:** M1.6–M1.11  
+**Status:** ⬜ Not started  
+**Prerequisite:** WS3
+
+Op matrix, MLP, ResNet/BERT/UNet from `tt_forge_models` — see [onnx_workstreams.md](onnx_workstreams.md).
+
+---
+
+## Commit history (this branch)
+
+| Commit | Summary |
+|--------|---------|
+| `8e92a74f1` | ONNX integration planning docs |
+| `a52b27974` | WS1: direct StableHLO ingestion + unit tests |
+| *(pending)* | WS2: onnx-mlir build tooling + smoke test fixes |
+
+---
+
+## Quick reference — common commands
+
+```bash
+# WS1 tests
+cmake --build build --target TTPJRTTests
+./build/tests/pjrt/TTPJRTTests --gtest_filter='ModuleBuilderUnitTests.*'
+
+# WS2 build + smoke
+tools/onnx/build_onnx_mlir.sh
+source tools/onnx/env.sh
+tools/onnx/smoke_test.sh
+
+# Clean ONNX local build only
+rm -rf tools/onnx/build
+```
+
+---
+
+## Update policy
+
+When a workstream milestone completes or a new blocker is resolved:
+
+1. Update the **Status** line for that workstream.
+2. Append a row to the **Blockers and fixes** table (WS2) or add a new section.
+3. Update **Commit history** after push.
+4. Keep [onnx_workstreams.md](onnx_workstreams.md) exit-criteria checkboxes in sync.

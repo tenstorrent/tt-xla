@@ -48,5 +48,14 @@ tests/benchmark/reference_outputs/*.refpt
 # Perf benchmark generated modules
 /modules/
 
+# ONNX bridge local build artifacts (tools/onnx/build_onnx_mlir.sh)
+tools/onnx/build/
+tools/onnx/env.sh
+tools/onnx/fixtures/*.onnx
+
+# Local build logs (not for commit)
+build_log.log
+onn_mlir_build.log
+
 # Tracy profiling files
 /tracy_artifacts/

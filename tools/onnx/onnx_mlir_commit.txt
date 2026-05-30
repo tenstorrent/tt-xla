@@ -1,0 +1,5 @@
+# Pinned onnx-mlir git commit for tt-xla ONNX bridge (WS2).
+# Built with bundled LLVM from utils/clone-mlir.sh at this commit.
+# Do NOT build against TTMLIR_TOOLCHAIN_DIR MLIR for this pin — ABI mismatch.
+# Override at build time: ONNX_MLIR_COMMIT=<sha> tools/onnx/build_onnx_mlir.sh
+4400cbc21c88632cdb6aa47566d72bed25cd345f

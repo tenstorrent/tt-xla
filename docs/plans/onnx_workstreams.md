@@ -7,7 +7,7 @@ isProject: false
 
 # ONNX on TT-XLA — Workstreams & Implementation Plan
 
-**Parent plans:** [onnx_support_options.md](onnx_support_options.md), [onnx_integration_milestones.md](onnx_integration_milestones.md)
+**Parent plans:** [onnx_support_options.md](onnx_support_options.md), [onnx_integration_milestones.md](onnx_integration_milestones.md), [onnx_implementation_log.md](onnx_implementation_log.md) (procedure, blockers, status)
 
 This document turns the agreed ONNX strategy into four concrete workstreams. Workstream 1 is the prerequisite for all ONNX frontend work.
 
@@ -33,7 +33,7 @@ flowchart LR
 ## Workstream 1 — Direct StableHLO ingestion (C++)
 
 **Milestone:** M1.2  
-**Status:** In progress  
+**Status:** ✅ Complete (`a52b27974`)  
 **Blocks:** All ONNX bridge work
 
 ### Problem
@@ -70,10 +70,10 @@ JAX and PyTorch emit **versioned VHLO** from XLA. ONNX bridges (onnx-mlir) emit 
 
 ### Exit criteria
 
-- [ ] Unit tests pass for StableHLO and VHLO detection
-- [ ] Existing JAX/PyTorch compile path unchanged (VHLO still deserializes)
-- [ ] Hand-fed StableHLO MLIR reaches `runFrontendSHLOPipeline` without error
-- [ ] Documented compile option available for debugging
+- [x] Unit tests pass for StableHLO and VHLO detection
+- [x] Existing JAX/PyTorch compile path unchanged (VHLO still deserializes)
+- [x] Hand-fed StableHLO MLIR reaches `runFrontendSHLOPipeline` without error
+- [x] Documented compile option available for debugging
 
 ### Validation commands
 
@@ -93,11 +93,31 @@ ctest --test-dir build -R PJRTUnitTests --output-on-failure
 ## Workstream 2 — Build onnx-mlir pinned to tt-mlir
 
 **Milestone:** M1.3  
-**Prerequisite:** Workstream 1 complete
+**Prerequisite:** Workstream 1 complete  
+**Status:** ✅ Complete — smoke test passed (bundled LLVM; tt-mlir MLIR pin incompatible)
 
 ### Goal
 
-Reproducible `onnx-mlir-opt` binary aligned with tt-mlir's LLVM/MLIR commit.
+Reproducible `onnx-mlir-opt` binary for ONNX → StableHLO lowering.
+
+### Important: MLIR pin strategy
+
+Building onnx-mlir against `/opt/ttmlir-toolchain` MLIR **fails** for commit `4400cbc` with:
+
+- `Krnl.td`: mlir-tblgen `Unexpected overlap` (newer tblgen vs old Krnl dialect)
+- Bundled `stablehlo` submodule: MLIR API mismatches (`QuantTypes.h`, `Type::dyn_cast`, float8 helpers)
+
+**Fix:** `build_onnx_mlir.sh` builds the **LLVM revision pinned in onnx-mlir's `utils/clone-mlir.sh`**, then builds onnx-mlir against that MLIR. Output StableHLO is fed to tt-xla via WS1 (`mlir_input_format=auto`).
+
+### Tooling (added)
+
+| Path | Purpose |
+|------|---------|
+| `tools/onnx/build_onnx_mlir.sh` | Clone/build onnx-mlir against bundled LLVM (see MLIR pin strategy) |
+| `tools/onnx/smoke_test.sh` | Add ONNX → StableHLO smoke test |
+| `tools/onnx/gen_add_onnx.py` | Generate trivial Add ONNX fixture |
+| `tools/onnx/onnx_mlir_commit.txt` | Pinned onnx-mlir git commit |
+| `tools/onnx/README.md` | Full instructions |
 
 ### Steps
 
@@ -106,10 +126,24 @@ Reproducible `onnx-mlir-opt` binary aligned with tt-mlir's LLVM/MLIR commit.
 3. Smoke test: 1-op Add ONNX → StableHLO MLIR
 4. Document env var `TT_ONNX_MLIR_OPT` pointing to built binary
 
+### Run (on reservation host with working venv)
+
+```bash
+cd /path/to/tt-xla
+source venv/activate
+pip install onnx numpy   # fixture generation only
+
+tools/onnx/build_onnx_mlir.sh
+source tools/onnx/env.sh
+tools/onnx/smoke_test.sh
+```
+
 ### Exit criteria
 
-- [ ] `onnx-mlir-opt --convert-onnx-to-stablehlo` runs on trivial Add model
-- [ ] Output parses as MLIR with `stablehlo` ops
+- [x] `onnx-mlir-opt --convert-onnx-to-stablehlo` runs on trivial Add model
+- [x] Output parses as MLIR with `stablehlo` ops
+
+See [onnx_implementation_log.md](onnx_implementation_log.md) for blockers, fixes, and runbook.
 
 **Effort:** 1–3 weeks (MLIR pin alignment is the long pole)
 
