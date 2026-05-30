@@ -331,6 +331,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "characterbuilderai_gguf",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_characterbuilderai_gguf"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
