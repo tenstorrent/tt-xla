@@ -2772,3 +2772,50 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+# FAILED: nvidia Llama-3.1-Nemotron-Nano-8B-v1 (GGUF, Q4_K_M) — Llama-3.1-8B arch.
+# The model runs fine on p150 (bringup defaults: opt_level=0, trace=False, bf16) and
+# produces valid perf numbers (~2.90 samples/s, TTFT ~487 ms), but the #2861
+# fp32_dest_acc_en/math_fidelity PCC cap that already forces the 3.1_8B_Instruct
+# sibling onto assert_pcc:false hits this RL/reasoning fine-tune harder: best config
+# (fp32_dest_acc_en=False, default bfp_bf8 weights) lands prefill PCC ~0.891 but first
+# decode PCC only ~0.768 — below any meaningful bar. Forcing weights to full bf16 made
+# it marginally worse (0.879 / 0.755), confirming the ceiling is the HW fp32-accum cap,
+# not weight quant; it is not recoverable with the test-level levers allowed in bringup
+# (opt_level / math_fidelity are out of scope here — left for model-perf-tuning).
+# Kept here for traceability but UNREGISTERED in perf-bench-matrix.json, per the
+# known-failing convention (cf. test_gemma_1_1_7b, test_phi3_mini).
+def test_nemotron_nano_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.NEMOTRON_NANO_8B_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        # Mirror the 3.1_8B_Instruct sibling's #2861 treatment (fp32_dest_acc_en=False,
+        # relaxed 0.90 bar). Decode PCC still falls short on this RL fine-tune — see the
+        # FAILED note above.
+        fp32_dest_acc_en=False,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        required_pcc=0.90,
+    )
