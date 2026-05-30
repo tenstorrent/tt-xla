@@ -2772,3 +2772,36 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_smallthinker_3b_preview(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # SmallThinker-3B-Preview ships only as GGUF; transformers dequantizes it
+    # back into the standard Qwen2 architecture, so it returns a normal HF
+    # CausalLMOutput (default_read_logits_fn works).
+    from third_party.tt_forge_models.smallthinker.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.PREVIEW_3B_Q4_K_M
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

@@ -307,6 +307,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_3b"
       },
       {
+        "name": "smallthinker_3b_preview",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_smallthinker_3b_preview"
+      },
+      {
         "name": "qwen_3_0_6b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_0_6b"
       },
