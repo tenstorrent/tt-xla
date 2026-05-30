@@ -327,6 +327,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
       {
+        "name": "cicikus_v3_1_4b",
+        "pytest": "tests/benchmark/test_llms.py::test_cicikus_v3_1_4b"
+      },
+      {
         "name": "mistral_7b",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
