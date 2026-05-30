@@ -335,6 +335,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "alpaca_native",
+        "pytest": "tests/benchmark/test_llms.py::test_alpaca_native"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
