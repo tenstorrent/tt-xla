@@ -311,6 +311,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_0_6b"
       },
       {
+        "name": "mistral_small_3_1_draft_0_5b",
+        "pytest": "tests/benchmark/test_llms.py::test_mistral_small_3_1_draft_0_5b",
+        "pyreq": "gguf>=0.10.0"
+      },
+      {
         "name": "qwen_3_1_7b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_1_7b"
       },
