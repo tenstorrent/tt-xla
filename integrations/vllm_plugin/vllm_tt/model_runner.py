@@ -2168,18 +2168,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling decode_postprocess with different input shapes.")
         start = time.perf_counter()
         hsize = self.model_config.get_hidden_size()
-        dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
-            self.device
-        )
-        dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(self.device)
-        bitmasks = self.structured_decode_bitmasks.to(self.device)
         # decode always processes exactly 1 token per request, so only num_tokens=1
         # is needed here. Prefill batches (num_tokens > 1) use the cpu-sample fallback.
-        indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(self.device)
         for num_tokens in [1]:
             for all_greedy in [False, True]:
                 logger.info(
                     "  -- num_tokens: %d, all_greedy: %s", num_tokens, all_greedy
+                )
+                # Fresh tensors per iteration — reusing across SPMD compilations
+                # causes stale tensor IDs that misclassify inputs as constants
+                # (#3672). For decode_postprocess this previously caused the
+                # structured-decode masking branch to be elided on the second
+                # compile, so real grammar bitmasks were ignored at runtime.
+                dummy_require = self.require_structured_out_cpu[
+                    : self.max_num_reqs
+                ].to(self.device)
+                dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(
+                    self.device
+                )
+                bitmasks = self.structured_decode_bitmasks.to(self.device)
+                indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
+                    self.device
                 )
                 dummy_hidden = torch.zeros(
                     (self.max_num_reqs, num_tokens, hsize),
