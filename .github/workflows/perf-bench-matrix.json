@@ -319,6 +319,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b"
       },
       {
+        "name": "qwen_3_5_2b_abliterate_gguf",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_5_2b_abliterate_gguf",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_8b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
