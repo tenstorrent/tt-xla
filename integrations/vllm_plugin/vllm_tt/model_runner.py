@@ -282,6 +282,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.kv_cache_dtype = model_dtype
         else:
             self.kv_cache_dtype = TPU_STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
+        if self.tt_config.experimental_kv_cache_dtype == "bfp_bf8":
+            # uint8: a 1-byte stand-in so vLLM budgets blocks for the BFP8
+            # on-device footprint. The staged buffer stays bf16 (see below).
+            self.kv_cache_spec_dtype = torch.uint8
+        elif self.tt_config.experimental_kv_cache_dtype == "bfp_bf4":
+            raise NotImplementedError(
+                "experimental_kv_cache_dtype='bfp_bf4' is not yet supported; "
+                "see tt-xla #5011."
+            )
+        else:
+            self.kv_cache_spec_dtype = self.kv_cache_dtype
         self._hidden_states_dtype = self.dtype
 
         self.sliding_window = model_config.get_sliding_window()
@@ -851,7 +862,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             block_size=block_size,
                             num_kv_heads=attn_module.num_kv_heads,
                             head_size=attn_module.head_size,
-                            dtype=self.kv_cache_dtype,
+                            dtype=self.kv_cache_spec_dtype,
                             sliding_window=attn_module.sliding_window,
                         )
                     else:
@@ -859,7 +870,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             block_size=block_size,
                             num_kv_heads=attn_module.num_kv_heads,
                             head_size=attn_module.head_size,
-                            dtype=self.kv_cache_dtype,
+                            dtype=self.kv_cache_spec_dtype,
                         )
                 elif attn_module.attn_type in (
                     AttentionType.ENCODER,
@@ -879,7 +890,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     block_size=block_size,
                     num_kv_heads=1,
                     head_size=attn_module.head_size,
-                    dtype=self.kv_cache_dtype,
+                    dtype=self.kv_cache_spec_dtype,
                     cache_dtype_str=cache_dtype_str,
                 )
             else:
@@ -2464,7 +2475,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         kv_cache_spec.num_kv_heads,
                         kv_cache_spec.head_size,
                     )
-                    dtype = kv_cache_spec.dtype
+                    # spec.dtype may be a 1-byte accounting dtype; the staged
+                    # buffer uses the real transfer dtype (converted on device).
+                    dtype = self.kv_cache_dtype
 
                     # Allocate separate K and V cache tensors to avoid
                     # slice/concat copies in the compiled decode graph.
