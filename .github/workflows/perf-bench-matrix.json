@@ -331,6 +331,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "quantum_vqe_mistral",
+        "pytest": "tests/benchmark/test_llms.py::test_quantum_vqe_mistral",
+        "runs-on": "p150"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
