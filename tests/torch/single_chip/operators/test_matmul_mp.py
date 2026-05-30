@@ -62,18 +62,23 @@ _REDUCED_MAP = {
 _OPT_LEVELS = (0, 2)
 _FP32_ACC_VALUES = (True, False)
 
-_SHAPE_PAIR: Tuple[Tuple[int, ...], Tuple[int, ...]] = (
-    (32, 128, 1024),
-    (1024, 2048),
+# Shape pairs taken from test_matmul_mp_pcc.conf (3 shapes, all FROM_ANOTHER_OP/opt=2
+# combos there were previously observed to fail PCC). Grid is expanded below.
+_SHAPE_PAIRS = (
+    ((32, 128, 1024), (1024, 2048)),
+    ((32, 128, 2304), (2304, 1024)),
+    ((32, 128, 2560), (2560, 1024)),
 )
 
-def _is_known_pcc_failure(opt_level: int, fp32_acc: bool) -> bool:
-    """Empirically observed PCC mismatches for `_SHAPE_PAIR` (PCC ~0.97-0.99 < 0.99).
 
-    Sweeps' xfail/matmul_mp_data_mismatch_pcc_low_range.txt only lists
-    FROM_ANOTHER_OP at opt=2 for this shape, but the same combos also fail with
-    FROM_HOST and at opt=0 with fp32_dest_acc_en=False. Only opt=0 +
-    fp32_dest_acc_en=True passes for this shape pair.
+def _is_known_pcc_failure(opt_level: int, fp32_acc: bool) -> bool:
+    """Empirically observed PCC mismatch predicate for these shape pairs.
+
+    Calibrated against the first shape ((32, 128, 1024), (1024, 2048)): opt=2 fails
+    for every reduced-map combo (sweeps' xfail txt covers only FROM_ANOTHER_OP, but
+    FROM_HOST shows identical PCC), and opt=0 fails only when fp32_dest_acc_en=False.
+    Whether this extrapolates to the larger 2304/2560 shapes will be confirmed by
+    the rerun; refine here once results are in.
     """
     if opt_level == 2:
         return True
@@ -91,39 +96,49 @@ def _parse_compiler_config(config_str: str) -> CompilerConfig:
     )
 
 
+def _shape_id(shape_pair):
+    return f"{shape_pair[0]}x{shape_pair[1]}".replace(" ", "")
+
+
 def _build_params():
-    for input_source in _MODELS:
-        for opt_level in _OPT_LEVELS:
-            for wd, math_fidelities in _REDUCED_MAP.items():
-                for mf, fp32_acc in itertools.product(math_fidelities, _FP32_ACC_VALUES):
-                    fp32_str = "true" if fp32_acc else "false"
-                    cfg = f"mp_opt{opt_level}_{wd}_fp32acc{fp32_str}_{mf}"
-                    marks = []
-                    if _is_known_pcc_failure(opt_level, fp32_acc):
-                        # The sweeps conftest hook (SweepsPytestReport.adjust_report)
-                        # looks up failing reasons by the `description` field, not by
-                        # the enum name. The standalone path here uses tt-xla's
-                        # evaluator, which raises AssertionError -> matches
-                        # FailingReasons.DATA_MISMATCH_WRONG_PCC. Its description is
-                        # "Data mismatch PCC is wrong"; mismatch would cause the hook
-                        # to rewrite the xfail outcome to FAILED.
-                        marks = [
-                            pytest.mark.xfail(
-                                reason="Data mismatch PCC is wrong", strict=False
-                            ),
-                            pytest.mark.known_failure_xfail,
-                        ]
-                    yield pytest.param(
-                        input_source, cfg, marks=marks, id=f"{input_source}-{cfg}"
-                    )
+    for shape_pair in _SHAPE_PAIRS:
+        for input_source in _MODELS:
+            for opt_level in _OPT_LEVELS:
+                for wd, math_fidelities in _REDUCED_MAP.items():
+                    for mf, fp32_acc in itertools.product(math_fidelities, _FP32_ACC_VALUES):
+                        fp32_str = "true" if fp32_acc else "false"
+                        cfg = f"mp_opt{opt_level}_{wd}_fp32acc{fp32_str}_{mf}"
+                        marks = []
+                        if _is_known_pcc_failure(opt_level, fp32_acc):
+                            # The sweeps conftest hook (SweepsPytestReport.adjust_report)
+                            # looks up failing reasons by `description`, not enum name.
+                            # tt-xla's evaluator raises AssertionError -> matches
+                            # FailingReasons.DATA_MISMATCH_WRONG_PCC
+                            # (description "Data mismatch PCC is wrong"). Any other
+                            # string would make the hook rewrite the xfail to FAILED.
+                            marks = [
+                                pytest.mark.xfail(
+                                    reason="Data mismatch PCC is wrong", strict=False
+                                ),
+                                pytest.mark.known_failure_xfail,
+                            ]
+                        yield pytest.param(
+                            shape_pair,
+                            input_source,
+                            cfg,
+                            marks=marks,
+                            id=f"{_shape_id(shape_pair)}-{input_source}-{cfg}",
+                        )
 
 
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
 @pytest.mark.record_test_properties(category=Category.OP_TEST)
-@pytest.mark.parametrize("input_source,compiler_config_str", list(_build_params()))
-def test_matmul_mp(input_source, compiler_config_str):
+@pytest.mark.parametrize(
+    "shape_pair,input_source,compiler_config_str", list(_build_params())
+)
+def test_matmul_mp(shape_pair, input_source, compiler_config_str):
     model = _MODELS[input_source]()
     compiler_config = _parse_compiler_config(compiler_config_str)
     comparison_config = ComparisonConfig()
@@ -131,7 +146,7 @@ def test_matmul_mp(input_source, compiler_config_str):
 
     run_op_test_with_random_inputs(
         model,
-        [_SHAPE_PAIR[0], _SHAPE_PAIR[1]],
+        [shape_pair[0], shape_pair[1]],
         dtype=torch.bfloat16,
         comparison_config=comparison_config,
         framework=Framework.TORCH,
