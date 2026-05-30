@@ -335,6 +335,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "mistral_nemo_12b_heretic_gguf",
+        "pyreq": "gguf>=0.10.0 mistral-common>=1.5.5",
+        "pytest": "tests/benchmark/test_llms.py::test_mistral_nemo_12b_heretic_gguf",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
