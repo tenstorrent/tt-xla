@@ -2180,9 +2180,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # (#3672). For decode_postprocess this previously caused the
                 # structured-decode masking branch to be elided on the second
                 # compile, so real grammar bitmasks were ignored at runtime.
-                dummy_require = self.require_structured_out_cpu[
-                    : self.max_num_reqs
-                ].to(self.device)
+                dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
+                    self.device
+                )
                 dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(
                     self.device
                 )
