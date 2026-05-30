@@ -279,6 +279,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_phi2"
       },
       {
+        "name": "jpacifico_chocolatine-3b-instruct-dpo-revised-q4_k_m",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_chocolatine_3b"
+      },
+      {
         "name": "google_gemma-1.1-2b-it",
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
