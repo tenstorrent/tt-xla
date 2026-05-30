@@ -167,7 +167,7 @@ Op matrix, MLP, ResNet/BERT/UNet from `tt_forge_models` — see [onnx_workstream
 |--------|---------|
 | `8e92a74f1` | ONNX integration planning docs |
 | `a52b27974` | WS1: direct StableHLO ingestion + unit tests |
-| *(pending)* | WS2: onnx-mlir build tooling + smoke test fixes |
+| `21b4e9cf7` | WS2: onnx-mlir build tooling + smoke test + implementation log |
 
 ---
 
