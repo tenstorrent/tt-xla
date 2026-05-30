@@ -840,6 +840,11 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "capybarahermes_2_5_7b",
+        "pytest": "tests/benchmark/test_llms.py::test_capybarahermes_2_5_7b",
+        "runs-on": "p150"
       }
     ]
   }
