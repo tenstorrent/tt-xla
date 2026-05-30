@@ -266,6 +266,34 @@ ModuleBuilder::ModuleBuilder()
   m_tt_alchemist_handler.initialize();
 }
 
+MlirInputFormat detectMlirInputFormat(mlir::ModuleOp module) {
+  bool has_vhlo = false;
+  bool has_stablehlo = false;
+
+  module.walk([&](mlir::Operation *op) {
+    if (op->getDialect() == nullptr) {
+      return;
+    }
+    llvm::StringRef dialect_namespace = op->getDialect()->getNamespace();
+    if (dialect_namespace == "vhlo") {
+      has_vhlo = true;
+    } else if (dialect_namespace == "stablehlo") {
+      has_stablehlo = true;
+    }
+  });
+
+  // VHLO takes precedence when both are present (should not happen in practice).
+  if (has_vhlo) {
+    return MlirInputFormat::Vhlo;
+  }
+  if (has_stablehlo) {
+    return MlirInputFormat::StableHLO;
+  }
+
+  // Func-only or empty modules: default to VHLO path for XLA backward compatibility.
+  return MlirInputFormat::Vhlo;
+}
+
 std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
 ModuleBuilder::buildModule(
     const std::string_view &mlir_code,
@@ -299,10 +327,31 @@ ModuleBuilder::buildModule(
 
   std::string original_mlir_code(mlir_code);
 
-  status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path,
-                                 compile_options.export_model_name);
-  if (!tt_pjrt_status_is_ok(status)) {
-    return {status, nullptr};
+  MlirInputFormat input_format = MlirInputFormat::Vhlo;
+  if (compile_options.mlir_input_format == "stablehlo") {
+    input_format = MlirInputFormat::StableHLO;
+  } else if (compile_options.mlir_input_format == "vhlo") {
+    input_format = MlirInputFormat::Vhlo;
+  } else if (compile_options.mlir_input_format == "auto") {
+    input_format = detectMlirInputFormat(*mlir_module);
+  } else {
+    LOG_F(ERROR,
+          "Unknown mlir_input_format \"%s\"; expected auto, vhlo, or stablehlo",
+          compile_options.mlir_input_format.c_str());
+    return {tt_pjrt_status::kInvalidArgument, nullptr};
+  }
+
+  if (input_format == MlirInputFormat::Vhlo) {
+    status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path,
+                                   compile_options.export_model_name);
+    if (!tt_pjrt_status_is_ok(status)) {
+      return {status, nullptr};
+    }
+  } else {
+    DLOG_F(LOG_DEBUG,
+           "Skipping VHLO deserialize — input is direct StableHLO");
+    printModule(mlir_module, compile_options.export_path, "shlo",
+                compile_options.export_model_name);
   }
 
   status = runFrontendSHLOPipeline(mlir_module, compile_options.export_path,

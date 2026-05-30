@@ -85,6 +85,9 @@ CompileOptions CompileOptions::parse(
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
+  options.mlir_input_format =
+      internal::parseStringOption(compile_options, "mlir_input_format")
+          .value_or(options.mlir_input_format);
 
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {

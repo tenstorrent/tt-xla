@@ -45,6 +45,17 @@ namespace tt::pjrt::module_builder {
 // MLIR program format name. This would ideally be defined in PJRT API header.
 extern const std::string c_mlir_format_name;
 
+// Describes whether parsed MLIR needs the VHLO → StableHLO deserialize step.
+enum class MlirInputFormat {
+  // Versioned VHLO from XLA (JAX / torch_xla). Run deserialize pipeline.
+  Vhlo,
+  // Raw StableHLO dialect (onnx-mlir, hand-fed SHLO). Skip deserialize.
+  StableHLO,
+};
+
+// Detect input format from parsed module ops.
+MlirInputFormat detectMlirInputFormat(mlir::ModuleOp module);
+
 // Class to hold tt-alchemist library handles and function pointers.
 class TTAlchemistHandler {
 public:

@@ -149,6 +149,13 @@ struct CompileOptions {
   // The graph number (g0, g1, etc.) is automatically appended.
   std::string export_model_name = "";
 
+  // MLIR input format for PJRT compile entry. Controls whether the VHLO
+  // deserialize pipeline runs after parsing.
+  //   "auto" (default) — detect from module ops (vhlo vs stablehlo)
+  //   "vhlo"           — always run VHLO → StableHLO deserialize (JAX/PyTorch)
+  //   "stablehlo"      — skip deserialize (onnx-mlir, hand-fed SHLO)
+  std::string mlir_input_format = "auto";
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };
