@@ -335,6 +335,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "communicative_baby_dpo_synthetic",
+        "pytest": "tests/benchmark/test_llms.py::test_communicative_baby_dpo_synthetic"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
