@@ -92,6 +92,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b"
       },
       {
+        "name": "bella_bartender_heretic_1b",
+        "pytest": "tests/benchmark/test_llms.py::test_bella_bartender_heretic_1b",
+        "runs-on": "p150"
+      },
+      {
         "name": "llama_3_2_3b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
