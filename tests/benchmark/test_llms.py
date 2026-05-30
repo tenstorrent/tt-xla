@@ -2800,6 +2800,7 @@ def test_chatgpt_5(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         required_pcc=0.94,
-        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,
+        trace_enabled=True,
+        weight_dtype_overrides={"default": "bfp_bf8"},
     )
