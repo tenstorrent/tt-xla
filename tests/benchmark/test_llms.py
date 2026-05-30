@@ -2772,3 +2772,37 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+# BatVenom_V9.1: GGUF-only roleplay fine-tune of Mistral-Nemo-Instruct-2407 (~12B),
+# same Nemo architecture as test_ministral_8b/mistral_nemo. Single-chip bringup on
+# blackhole (p150). Safe bringup defaults; model-perf-tuning will ramp these.
+def test_mistral_batvenom(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.mistral.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MISTRAL_BATVENOM_V9_1
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

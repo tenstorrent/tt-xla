@@ -335,6 +335,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "mistral_batvenom",
+        "pytest": "tests/benchmark/test_llms.py::test_mistral_batvenom",
+        "pyreq": "gguf>=0.10.0",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
