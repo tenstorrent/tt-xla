@@ -159,3 +159,17 @@ class TestDumpWeightNames:
         assert all(v == "bfp_bf4" for v in result.values())
         assert "model.layers.0.mlp.fc1.weight" in result
         assert "model.layers.1.self_attn.q_proj.weight" in result
+
+    def test_no_model_name_no_output_dir(self):
+        # model_name is optional when output_dir is not set
+        model = SimpleModel()
+        result = dump_weight_names(model)
+        assert "linear1.weight" in result
+        assert "linear2.weight" in result
+
+    def test_output_dir_without_model_name_raises(self):
+        # output_dir without model_name must raise a clear ValueError
+        model = SimpleModel()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with pytest.raises(ValueError, match="model_name must be provided"):
+                dump_weight_names(model, output_dir=tmpdir)
