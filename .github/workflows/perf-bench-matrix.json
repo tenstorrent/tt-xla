@@ -335,6 +335,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "ministral_8b_instruct_2410_gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_ministral_8b_instruct_2410_gguf"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
