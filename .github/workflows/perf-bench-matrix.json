@@ -100,6 +100,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
+        "name": "codeqwen_1_5_7b_chat",
+        "pytest": "tests/benchmark/test_llms.py::test_codeqwen_1_5_7b",
+        "runs-on": "p150"
+      },
+      {
         "name": "falcon3_7b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
         "runs-on": "n300-llmbox"
