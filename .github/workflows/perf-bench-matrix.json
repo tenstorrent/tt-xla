@@ -331,6 +331,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "causallm_7b",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_causallm_7b"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
