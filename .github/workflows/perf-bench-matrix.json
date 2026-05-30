@@ -291,6 +291,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_3b"
       },
       {
+        "name": "ibm-granite_granite-4.0-micro",
+        "pytest": "tests/benchmark/test_llms.py::test_granite_4_0_micro"
+      },
+      {
         "name": "tiiuae_falcon3-7b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b"
       },
