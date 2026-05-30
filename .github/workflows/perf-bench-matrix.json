@@ -96,6 +96,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
       {
+        "name": "deephermes_3_llama_3_3b",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_deephermes_3_llama_3_3b"
+      },
+      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
