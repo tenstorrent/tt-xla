@@ -100,6 +100,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
+        "name": "argilla_llama_3_2_1b_apigen_fc",
+        "pytest": "tests/benchmark/test_llms.py::test_argilla_llama_3_2_1b_apigen_fc",
+        "runs-on": "p150"
+      },
+      {
         "name": "falcon3_7b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
         "runs-on": "n300-llmbox"
