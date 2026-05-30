@@ -2772,3 +2772,46 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+# FAILED: AttributeError: 'BitnetConfig' object has no attribute 'get_text_config'.
+# The self-contained BitNet model (tt-forge-models bitnet/causal_lm) is a
+# prefill-only implementation: its config is a plain dataclass (not a
+# transformers PretrainedConfig) and BitnetForCausalLM.forward only accepts
+# (input_ids, attention_mask) with no KV-cache support. The test_llm decode
+# harness drives the model through a transformers StaticCache and calls it with
+# past_key_values/position_ids/cache_position/use_cache, which the model cannot
+# accept at any optimization/trace setting. Making this run would require adding
+# transformers-style KV-cache decode to the model definition (out of scope for
+# perf bringup).
+def test_bitnet_b1_58_large(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.bitnet.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LARGE_TQ2_0
+    # BitnetForCausalLM.forward returns the logits tensor directly (no .logits
+    # attribute), so extract it as-is.
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        read_logits_fn=lambda output: output,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,   # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,    # safe default for bringup; model-perf-tuning will ramp
+    )
