@@ -2799,7 +2799,7 @@ def test_llm360_amber(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=2,
+        optimization_level=1,
         trace_enabled=True,
         weight_dtype_overrides={"default": "bfp_bf8"},
     )
