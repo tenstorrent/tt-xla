@@ -2382,7 +2382,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
-        if self.is_sharded_compute_logits:
+        if self.is_sharded_compute_logits and self.use_2d_mesh:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
         if (
             sampling_metadata.all_greedy
@@ -2393,7 +2393,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            if self.is_sharded_compute_logits:
+            if self.is_sharded_compute_logits and self.use_2d_mesh:
                 _, out_tokens = composite_topk(
                     logits, k=1, dim=-1, largest=True, sorted=False
                 )
