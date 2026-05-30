@@ -840,6 +840,10 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "llm360_amber",
+        "pytest": "tests/benchmark/test_llms.py::test_llm360_amber"
       }
     ]
   }
