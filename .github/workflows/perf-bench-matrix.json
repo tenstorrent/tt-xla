@@ -307,6 +307,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_3b"
       },
       {
+        "name": "arch_router_1_5b",
+        "pytest": "tests/benchmark/test_llms.py::test_arch_router_1_5b"
+      },
+      {
         "name": "qwen_3_0_6b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_0_6b"
       },
