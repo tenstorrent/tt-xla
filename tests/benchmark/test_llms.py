@@ -2772,3 +2772,36 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_baobab_ai_v0_2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # BaobabAI-v0.2 is a Llama-3.2-3B fine-tune distributed as imatrix-quantized
+    # GGUF (mradermacher/BaobabAI-v0.2-i1-GGUF); transformers dequantizes it to a
+    # standard LlamaForCausalLM via gguf_file=. Modelled on test_llama_3_2_3b.
+    from third_party.tt_forge_models.baobab_ai.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.V0_2_I1_Q4_K_M_GGUF
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

@@ -96,6 +96,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
       {
+        "name": "baobab_ai_v0_2",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_baobab_ai_v0_2",
+        "runs-on": "p150"
+      },
+      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
