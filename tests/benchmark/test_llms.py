@@ -2772,3 +2772,38 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_denglish_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # Denglish-8B-Instruct is a Llama-3.1-8B based GGUF-dequantized model, so it
+    # is modelled on test_llama_3_1_8b (same architecture -> same fp32_dest_acc_en
+    # and PCC needs). Bringup safe defaults: optimization_level=0, trace_enabled=False.
+    from third_party.tt_forge_models.denglish.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DENGLISH_8B_INSTRUCT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        fp32_dest_acc_en=False,
+        required_pcc=0.90,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
