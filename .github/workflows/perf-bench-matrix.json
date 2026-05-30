@@ -291,6 +291,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_3b"
       },
       {
+        "name": "babylm_interaction_baseline_simpo",
+        "pytest": "tests/benchmark/test_llms.py::test_babylm_interaction_baseline_simpo"
+      },
+      {
         "name": "tiiuae_falcon3-7b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b"
       },
