@@ -5,8 +5,12 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    # set(TT_MLIR_VERSION "eb9005fa360a80e44607e2dfd4404137b510092e")
-    set(TT_MLIR_VERSION "hshah/mla-rebased")
+<<<<<<< HEAD
+    set(TT_MLIR_VERSION "c5f398432a61100da79b7b9f2941130496092287")
+=======
+    # set(TT_MLIR_VERSION "a53ca15ef0d7e17ca7ecbac52698302539bfaa71")
+    set(TT_MLIR_VERSION "hshah/composite-ordering-check")
+>>>>>>> 619859299 (use ttmlir branch with fix)
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
@@ -128,6 +132,7 @@ else()
           -DTTMLIR_ENABLE_TESTS=OFF
           -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
           -DTTMLIR_ENABLE_DOCS=OFF
+          -DTTMLIR_ENABLE_TTRT=OFF
           -DTT_USE_SYSTEM_SFPI=${TT_USE_SYSTEM_SFPI}
         ${TTMLIR_TTMETAL_SOURCE_DIR}
         ${TTMLIR_SOURCE_ARGS}

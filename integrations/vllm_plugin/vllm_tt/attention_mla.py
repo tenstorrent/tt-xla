@@ -192,6 +192,16 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         Returns the written output tensor.
         """
         q_nope, q_pe = q
+        print("[HET DEBUG][INPUTS] q type: ", type(q))
+        print("[HET DEBUG][INPUTS] q length: ", len(q))
+        print("[HET DEBUG][INPUTS] q_nope shape: ", q_nope.shape)
+        print("[HET DEBUG][INPUTS] q_pe shape: ", q_pe.shape)
+        print("[HET DEBUG][INPUTS] k_pe shape: ", k_pe.shape)
+        print("[HET DEBUG][INPUTS] kv_cache type: ", type(kv_cache))
+        print("[HET DEBUG][INPUTS] kv_cache shape: ", kv_cache.shape)
+
+        # print("[HET DEBUG][INPUTS] kv_cache shape: ", kv_cache.shape)
+        # print("[HET DEBUG][INPUTS] attn_metadata: ", attn_metadata)
 
         is_prefill = self._infer_is_prefill(q_nope, attn_metadata)
         if not is_prefill:
@@ -216,18 +226,6 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         R = self.qk_rope_head_dim
         V = self.v_head_dim
         P = self.qk_nope_head_dim
-
-        # DEBUG: log shapes to file (Dynamo will trace through Python)
-        try:
-            with open("/tmp/mla_shapes.log", "a") as _f:
-                _f.write(
-                    f"[TTMLAImpl.forward] users={users} S={S} N={N} L={L} R={R} V={V} P={P} | "
-                    f"q_nope.shape={tuple(q_nope.shape)} q_pe.shape={tuple(q_pe.shape)} "
-                    f"kv_c_normed.shape={tuple(kv_c_normed.shape)} k_pe.shape={tuple(k_pe.shape)} "
-                    f"kv_cache.shape={tuple(kv_cache.shape) if isinstance(kv_cache, torch.Tensor) else type(kv_cache).__name__}\n"
-                )
-        except Exception:
-            pass
 
         # -- 1. Reshape inputs to [users, S, ...] --------------------------
         q_nope = q_nope.view(users, S, N, P)

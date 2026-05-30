@@ -154,11 +154,22 @@ def test_tensor_parallel_mla_prefill_only(model_name: str, use_2d_mesh: bool):
         "max_num_seqs": 1,
         "max_model_len": 32,
         "gpu_memory_utilization": 0.02,
+        # Skip capture_model's warmup dummy runs. capture_model precompiles
+        # every token-padding bucket, including the num_tokens=1 decode bucket,
+        # which routes through flash_mla_prefill with a non-tile-aligned
+        # sequence length (1) and trips the kernel's "seq len must be divisible
+        # by 32" assertion. The MLA backend is prefill-only and decode never
+        # runs at max_tokens=1, so eager startup is sufficient here; the prefill
+        # graph compiles lazily on the first (padded-to-32) forward.
+        "enforce_eager": True,
         "additional_config": {
             "enable_const_eval": False,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": use_2d_mesh,
+            # The MLA backend's profile-run path is not yet supported, so skip
+            # the memory-profiling run during startup.
+            "skip_profile_run": True,
         },
     }
     llm = vllm.LLM(**llm_args)

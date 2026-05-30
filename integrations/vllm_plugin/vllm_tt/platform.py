@@ -96,6 +96,14 @@ class TTConfig:
 
     enable_trace: bool = False
 
+    # When True, skip the memory-profiling run in
+    # ``determine_available_memory``. The profile run executes the model
+    # without a KV cache to estimate activation memory; since TT currently
+    # reports zero used memory (the heuristic below ignores the measurement),
+    # skipping it only removes a compile/warm-up pass. Useful for backends
+    # whose profile-run code path is not yet supported (e.g. MLA prefill).
+    skip_profile_run: bool = False
+
     def __post_init__(self):
         # tt::sampling + enable_trace + optimization_level >= 1 hits a
         # tt-mlir compile bug: TTNNGreedyMemoryLayoutPropagation falls

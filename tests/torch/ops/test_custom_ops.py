@@ -2,10 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import numpy as np
 import pytest
 import torch
 import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
 from infra.utilities.types import Framework
+from torch_xla.distributed.spmd import Mesh
 
 from tests.infra.testers.single_chip.op.op_tester import OpTester, run_op_test
 
@@ -143,6 +146,78 @@ def test_flash_mla_prefill(
         torch.ops.tt.flash_mla_prefill,
         [query, key, head_dim_v, value, attn_mask, is_causal, scale],
         framework=Framework.TORCH,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.dual_chip
+@pytest.mark.parametrize(
+    "batch_size, num_heads, seq_len, head_size, num_kv_heads, head_dim_v, has_value, is_causal, scale",
+    [
+        # MLA-from-latent (value=None, head_dim_v < head_size, d_rope=64)
+        (1, 16, 64, 192, 1, 128, False, True, 1.0),
+        (2, 16, 128, 192, 1, 128, False, False, 1.0),
+        # MLA-from-latent with d_rope=0 (head_dim_v == head_size)
+        (1, 32, 64, 128, 1, 128, False, True, 1.0),
+        # Explicit value tensor path
+        (1, 16, 64, 128, 1, 64, True, True, 1.0),
+    ],
+)
+def test_flash_mla_prefill_sharded(
+    batch_size,
+    num_heads,
+    seq_len,
+    head_size,
+    num_kv_heads,
+    head_dim_v,
+    has_value,
+    is_causal,
+    scale,
+):
+    """
+    Tensor-parallel MLA prefill: query heads are sharded across the "model"
+    axis of the mesh while the (single) KV head is replicated on every device.
+    This mirrors how MLA attention is sharded for tensor parallelism.
+    """
+
+    query = torch.randn(batch_size, num_heads, seq_len, head_size, dtype=torch.bfloat16)
+    key = torch.randn(
+        batch_size, num_kv_heads, seq_len, head_size, dtype=torch.bfloat16
+    )
+    value = (
+        torch.randn(batch_size, num_kv_heads, seq_len, head_dim_v, dtype=torch.bfloat16)
+        if has_value
+        else None
+    )
+    attn_mask = (
+        torch.randn(batch_size, 1, seq_len, seq_len, dtype=torch.bfloat16)
+        if not is_causal
+        else None
+    )
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+
+    def get_shard_spec(args, kwargs):
+        # args = [query, key, head_dim_v, value, attn_mask, is_causal, scale]
+        # Shard query on the head dimension; replicate KV / attn_mask.
+        shard_specs = {}
+        shard_specs[args[0]] = (None, "model", None, None)
+        shard_specs[args[1]] = (None, None, None, None)
+        if value is not None:
+            shard_specs[args[3]] = (None, None, None, None)
+        if attn_mask is not None:
+            shard_specs[args[4]] = (None, None, None, None)
+        return shard_specs
+
+    run_op_test(
+        torch.ops.tt.flash_mla_prefill,
+        [query, key, head_dim_v, value, attn_mask, is_causal, scale],
+        framework=Framework.TORCH,
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
     )
 
 

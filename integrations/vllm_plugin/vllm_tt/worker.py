@@ -219,8 +219,9 @@ class TTWorker:
         )
 
         # `max_num_tokens >= max_num_batched_tokens` due to padding.
-        with self.model_runner.maybe_setup_dummy_loras(self.lora_config):
-            self.model_runner.profile_run(self.model_runner.max_num_tokens)
+        if not self.tt_config.skip_profile_run:
+            with self.model_runner.maybe_setup_dummy_loras(self.lora_config):
+                self.model_runner.profile_run(self.model_runner.max_num_tokens)
 
         # Synchronize before measuring the memory usage.
         xm.wait_device_ops()
