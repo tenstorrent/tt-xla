@@ -323,6 +323,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "afrique_qwen_14b_fact",
+        "pytest": "tests/benchmark/test_llms.py::test_afrique_qwen_14b_fact",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
