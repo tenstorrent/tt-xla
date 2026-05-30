@@ -394,6 +394,12 @@
         "accuracy-testing": true
       },
       {
+        "name": "curie_7b_v1",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_curie_7b_v1",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_2_5_7b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b",
         "accuracy-testing": true
