@@ -2772,3 +2772,39 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_ai_girlfriend_v2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # ai-girlfriend-v2 is a Llama-3.1-8B architecture fine-tune distributed as a
+    # GGUF (Q4_K_M imatrix) quantization, dequantized back into LlamaForCausalLM.
+    # Modelled on test_llama_3_1_8b (same arch): fp32_dest_acc_en=False and
+    # required_pcc=0.90 carried over from that reference.
+    from third_party.tt_forge_models.ai_girlfriend.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.V2_I1_Q4_K_M
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        required_pcc=0.90,
+    )
