@@ -136,7 +136,7 @@ def remove_weight_dtype_overrides(model: torch.nn.Module) -> int:
 
 def dump_weight_names(
     model: torch.nn.Module,
-    model_name: str,
+    model_name: Optional[str] = None,
     output_dir: Optional[str] = None,
     default_dtype: str = "bfp_bf8",
 ) -> dict:
@@ -149,8 +149,9 @@ def dump_weight_names(
 
     Args:
         model: The model to inspect.
-        model_name: HuggingFace model name (e.g. "mistralai/Mistral-7B-Instruct-v0.3").
-            The part after '/' is used as the JSON filename.
+        model_name: Optional HuggingFace model name (e.g. "mistralai/Mistral-7B-Instruct-v0.3").
+            The part after '/' is used as the JSON filename when output_dir is set.
+            Required when output_dir is provided.
         output_dir: Optional directory to write the JSON file to.
             The filename is derived from model_name automatically.
         default_dtype: Default dtype string to use for all entries.
@@ -165,6 +166,10 @@ def dump_weight_names(
             result[key] = default_dtype
 
     if output_dir is not None:
+        if model_name is None:
+            raise ValueError(
+                "model_name must be provided when output_dir is set."
+            )
         filename = model_name.split("/")[-1] + ".json"
         output_path = os.path.join(output_dir, filename)
         os.makedirs(output_dir, exist_ok=True)
