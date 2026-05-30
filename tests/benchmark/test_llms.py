@@ -2799,10 +2799,7 @@ def test_chocolatine_3b(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
-        # GGUF Q4_K_M weights are already coarsely quantized then dequantized to
-        # bf16; the default on-device bfp_bf8 block-float conversion double-quantizes
-        # and drops prefill PCC below threshold (0.876). Keep weights in bf16.
-        experimental_weight_dtype="",
+        optimization_level=2,
+        trace_enabled=True,
+        experimental_weight_dtype="bfp_bf8",
     )
