@@ -2772,3 +2772,44 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_ace_step_5hz_lm_4b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # ACE-Step/acestep-5Hz-lm-4B is the autoregressive LM component of the
+    # ACE-Step text-to-music system; architecturally a Qwen3 causal LM, so it
+    # mirrors test_qwen_3_4b. Brought up at conservative safe defaults
+    # (optimization_level=0, trace_enabled=False); model-perf-tuning will ramp.
+    from third_party.tt_forge_models.ace_step.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.ACE_STEP_5HZ_LM_4B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        # Keep weights in bf16 (no block-float quantization). At the bfp_bf8
+        # default prefill PCC was 0.9157 (< 0.94); bf16 weights raise it to
+        # 0.9368 — the closest-to-passing config. 4B fits the 30B blackhole
+        # comfortably, so there is no OOM pressure to quantize. (fp32_dest_acc_en
+        # was also tried and made no difference.) The residual ~0.003 prefill-PCC
+        # gap is numerical and not closable with test-level precision knobs.
+        experimental_weight_dtype="",
+    )

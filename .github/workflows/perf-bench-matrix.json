@@ -319,6 +319,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b"
       },
       {
+        "name": "ace_step_5hz_lm_4b",
+        "pytest": "tests/benchmark/test_llms.py::test_ace_step_5hz_lm_4b",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_8b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
