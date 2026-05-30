@@ -279,6 +279,14 @@
         "pytest": "tests/benchmark/test_llms.py::test_phi2"
       },
       {
+        "name": "bartowski_phi-3.1-mini-4k-instruct-gguf",
+        "pyreq": "gguf",
+        "runs-on": [
+          "p150"
+        ],
+        "pytest": "tests/benchmark/test_llms.py::test_phi_3_1_mini_gguf"
+      },
+      {
         "name": "google_gemma-1.1-2b-it",
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
