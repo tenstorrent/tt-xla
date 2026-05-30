@@ -319,6 +319,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b"
       },
       {
+        "name": "qwen_3_4b_instruct_2507_sandbox_rl",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b_instruct_2507_sandbox_rl"
+      },
+      {
         "name": "qwen_3_8b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
