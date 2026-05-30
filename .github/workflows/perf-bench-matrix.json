@@ -331,6 +331,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "functionary_small_v2_4",
+        "pytest": "tests/benchmark/test_llms.py::test_functionary_small_v2_4"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },

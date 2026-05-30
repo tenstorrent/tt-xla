@@ -2772,3 +2772,35 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_functionary_small_v2_4(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # Functionary small v2.4 is a Mistral-7B based chat model; modelled after
+    # test_mistral_7b. Single-chip, bringup-safe defaults.
+    from third_party.tt_forge_models.functionary.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.SMALL_V2_4
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
