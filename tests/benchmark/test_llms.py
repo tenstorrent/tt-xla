@@ -2772,3 +2772,39 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_apriel_5b_instruct(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.apriel.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.APRIEL_5B_INSTRUCT
+    # Apriel's SDPA-decode writer kernel emits ~1 runtime arg per user; at the
+    # default batch size of 32 that exceeds tt-metal's 341 runtime-arg cap
+    # (344 args -> TT_THROW on writer_decode_all). Cap the batch so the decode
+    # graph stays within the kernel limit.
+    if batch_size is None or batch_size > 16:
+        batch_size = 16
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
