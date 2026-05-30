@@ -840,6 +840,11 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "communicative_baby_rfolmo_score",
+        "pytest": "tests/benchmark/test_llms.py::test_communicative_baby_rfolmo_score",
+        "runs-on": "p150"
       }
     ]
   }
