@@ -311,6 +311,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_0_6b"
       },
       {
+        "name": "tsundere_qwen_0_6b",
+        "pytest": "tests/benchmark/test_llms.py::test_tsundere_qwen_0_6b"
+      },
+      {
         "name": "qwen_3_1_7b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_1_7b"
       },
