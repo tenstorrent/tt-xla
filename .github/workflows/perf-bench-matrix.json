@@ -92,6 +92,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b"
       },
       {
+        "name": "testing_llama_tiny",
+        "pytest": "tests/benchmark/test_llms.py::test_testing_llama_tiny"
+      },
+      {
         "name": "llama_3_2_3b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
