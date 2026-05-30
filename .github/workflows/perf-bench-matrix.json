@@ -335,6 +335,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "captain_eris_diogenes_twilight_12b",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_captain_eris_diogenes_twilight_12b",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
