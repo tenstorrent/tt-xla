@@ -291,6 +291,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_3b"
       },
       {
+        "name": "babylm-community_babylm-baseline-10m-gpt2",
+        "pytest": "tests/benchmark/test_llms.py::test_babylm_baseline_10m_gpt2"
+      },
+      {
         "name": "tiiuae_falcon3-7b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b"
       },
