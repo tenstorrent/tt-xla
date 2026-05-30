@@ -2772,3 +2772,40 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+# FAILED: Prefill PCC plateaus at ~0.90 (<0.94 required) at the bringup safe
+# defaults. The gap is not a precision/quantization issue: disabling bfp_bf8
+# weight quantization (experimental_weight_dtype="") only moved PCC 0.8909 ->
+# 0.8986, and adding fp32_dest_acc_en=True did not move it further. The residual
+# error is structural in the model/compiler lowering — most likely Apertus's
+# xIELU activation (its sole architectural novelty, which falls back to a Python
+# implementation). Model/compiler debugging is out of scope for perf bringup.
+def test_apertus_sea_lion_v4_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.apertus.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.SEA_LION_V4_8B_IT
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

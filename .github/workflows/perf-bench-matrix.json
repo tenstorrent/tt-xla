@@ -323,6 +323,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "apertus_sea_lion_v4_8b",
+        "pytest": "tests/benchmark/test_llms.py::test_apertus_sea_lion_v4_8b"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
