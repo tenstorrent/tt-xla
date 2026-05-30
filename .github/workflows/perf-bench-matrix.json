@@ -331,6 +331,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "aprielguard",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_aprielguard",
+        "runs-on": "p150"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
