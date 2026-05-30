@@ -283,6 +283,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
       {
+        "name": "mradermacher_Albert_Wesker-1B-GGUF",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_albert_wesker_1b",
+        "runs-on": "p150"
+      },
+      {
         "name": "tiiuae_falcon3-1b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b"
       },
