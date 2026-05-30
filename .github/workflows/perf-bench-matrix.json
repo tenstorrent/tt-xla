@@ -319,6 +319,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_4b"
       },
       {
+        "name": "chimera_4b_rl",
+        "pytest": "tests/benchmark/test_llms.py::test_chimera_4b_rl",
+        "pyreq": "gguf>=0.10.0",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_8b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
