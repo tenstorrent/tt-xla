@@ -28,6 +28,15 @@ class VLLMBenchmarkConfig:
     max_model_len: int = 128
     gpu_memory_utilization: float = 0.002
 
+    # Per-modality input caps; zero them (e.g. {"image": 0, "video": 0,
+    # "audio": 0}) to run a multimodal model text-only so its encoder never compiles.
+    limit_mm_per_prompt: Optional[Dict[str, int]] = None
+
+    # Floor for max_num_batched_tokens (effective = max(batch * len, this)).
+    # Some multimodal models need a higher floor (Gemma-4: >= 2560 for the
+    # MultiModalBudget video-frame floor).
+    min_num_batched_tokens: int = 0
+
     # TT compile options passed directly to vLLM's additional_config (TTConfig).
     additional_config: Dict[str, Any] = field(default_factory=dict)
 
@@ -36,6 +45,10 @@ class VLLMBenchmarkConfig:
     max_tokens: int = 128
     warmup_iterations: int = 1
     prompt: str = DEFAULT_PROMPT
+
+    # When True, send `prompt` as a chat message via llm.chat() so the chat
+    # template is applied; instruct models (e.g. Gemma-4-it) degenerate without it.
+    use_chat_template: bool = False
 
     # Sampling params (temperature=0.0 -> greedy)
     temperature: float = 0.0
@@ -62,15 +75,21 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
     # tests/benchmark/test_vllm_benchmarks.py).
     additional_config.setdefault("cpu_sampling", False)
 
+    max_num_batched_tokens = max(
+        config.batch_size * config.max_model_len, config.min_num_batched_tokens
+    )
+
     llm_args: Dict[str, Any] = {
         "model": config.model,
         "max_model_len": config.max_model_len,
         "max_num_seqs": config.batch_size,
-        "max_num_batched_tokens": config.batch_size * config.max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
         "gpu_memory_utilization": config.gpu_memory_utilization,
         "disable_log_stats": False,
         "additional_config": additional_config,
     }
+    if config.limit_mm_per_prompt is not None:
+        llm_args["limit_mm_per_prompt"] = config.limit_mm_per_prompt
 
     print(f"Creating vLLM engine for {config.model} ...")
     print(f"  LLM args: {llm_args}")
@@ -185,7 +204,6 @@ def benchmark_vllm(
     display_name: str,
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
-    prompts = [config.prompt] * config.batch_size
     sampling_params = vllm.SamplingParams(
         max_tokens=config.max_tokens,
         ignore_eos=True,
@@ -194,14 +212,29 @@ def benchmark_vllm(
 
     llm = _create_llm(config)
 
+    # chat() applies the model's chat template; generate() feeds the raw
+    # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
+    if config.use_chat_template:
+        inputs = [
+            [{"role": "user", "content": config.prompt}]
+            for _ in range(config.batch_size)
+        ]
+        run_fn = llm.chat
+    else:
+        inputs = [config.prompt] * config.batch_size
+        run_fn = llm.generate
+
+    def _run() -> List[vllm.RequestOutput]:
+        return run_fn(inputs, sampling_params)
+
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
         for _ in range(config.warmup_iterations):
-            llm.generate(prompts, sampling_params)
+            _run()
         print("Warmup complete.")
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
-    outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+    outputs: List[vllm.RequestOutput] = _run()
 
     # Print generated text for output-quality inspection.
     for i, output in enumerate(outputs):

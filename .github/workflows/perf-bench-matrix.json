@@ -792,6 +792,16 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "vllm_gemma4_31b_it_tp",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gemma4-31b-it-tp]",
+        "vllm": true,
+        "skip-stablehlo-dump": true,
+        "skip-ttir-dump": true,
+        "skip-ttnn-dump": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "vllm_qwen2_5_14b_instruct_tp",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-14b-instruct-tp]",
         "vllm": true,
