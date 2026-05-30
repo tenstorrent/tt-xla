@@ -2772,3 +2772,38 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_olympiccoder_7b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # OlympicCoder-7B is a code-reasoning fine-tune of Qwen2.5-Coder-7B-Instruct,
+    # consumed here from the bartowski GGUF distribution. transformers dequantizes
+    # the GGUF into a standard Qwen2ForCausalLM, so the StaticCache decode harness
+    # works the same as for the official Qwen2.5-7B perf test this is modelled on.
+    from third_party.tt_forge_models.olympiccoder.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.Q4_K_M
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        required_pcc=0.90,  # mirror sibling test_qwen_2_5_7b (Qwen2.5-7B arch)
+    )

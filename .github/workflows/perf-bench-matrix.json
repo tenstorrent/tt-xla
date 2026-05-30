@@ -327,6 +327,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
       {
+        "name": "olympiccoder_7b",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_olympiccoder_7b",
+        "runs-on": "p150"
+      },
+      {
         "name": "mistral_7b",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
