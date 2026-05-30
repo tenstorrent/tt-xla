@@ -1153,6 +1153,36 @@ def test_phi3_5_mini(
     )
 
 
+def test_arc1_mini(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.arc1_mini.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.ARC1_MINI
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
+
+
 # FAILED: AttributeError: 'MambaConfig' object has no attribute 'num_attention_heads'
 def test_mamba_2_8b(
     output_file, num_layers, request, max_output_tokens, optimization_level
