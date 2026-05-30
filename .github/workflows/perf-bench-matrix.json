@@ -331,6 +331,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "bielik_4_5b_v3_0_instruct",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_bielik_4_5b_v3_0_instruct"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
