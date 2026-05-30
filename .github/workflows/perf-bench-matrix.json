@@ -331,6 +331,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "bielik_11b_v2_3_instruct",
+        "pytest": "tests/benchmark/test_llms.py::test_bielik_11b_v2_3_instruct",
+        "runs-on": "p150"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
