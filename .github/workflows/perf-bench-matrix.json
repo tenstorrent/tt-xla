@@ -283,6 +283,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
       {
+        "name": "vandijklab_c2s-scale-gemma-2-2b",
+        "pytest": "tests/benchmark/test_llms.py::test_c2s_scale_gemma_2_2b",
+        "runs-on": "p150"
+      },
+      {
         "name": "tiiuae_falcon3-1b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b"
       },
