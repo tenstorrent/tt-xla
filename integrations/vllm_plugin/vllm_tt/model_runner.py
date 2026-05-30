@@ -17,9 +17,10 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
-import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
 from tt_torch.utils import torch_dynamo_tt_device_compatibility
+
+import vllm.envs as envs
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -261,7 +262,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.use_2d_mesh and 1 in mesh_shape:
                 self.use_2d_mesh = False
 
-            self._maybe_pad_attention_heads(vllm_config, mesh_shape[0])
+            # QKV is sharded ("model", "batch"); heads land on the "model" axis.
+            heads_axis_size = mesh_shape[self.mesh.axis_names.index("model")]
+            self._maybe_pad_attention_heads(vllm_config, heads_axis_size)
 
         self.enforce_eager = model_config.enforce_eager
 
@@ -540,36 +543,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._original_num_layers = original_num_layers
             self._target_num_layers = target_num_layers
 
-    def _maybe_pad_attention_heads(self, vllm_config, batch_axis: int) -> None:
-        """Pad num_attention_heads / num_key_value_heads so that num_kv_heads
-        is a multiple of batch_axis. Two strategies are considered per padding
-        decision and the cheaper one (in qkv-projection size) is chosen:
+    @staticmethod
+    def _compute_head_pad_decision(
+        orig_q, orig_kv, head_dim, heads_axis, force_equal=False
+    ):
+        """Pick the cheapest pad_q / pad_kv such that pad_kv is a multiple of
+        heads_axis and the q->kv mapping is preserved for real heads. See
+        _maybe_pad_attention_heads docstring for the two strategies.
 
-        - "Preserve ratio" (c=1): keep the original GQA ratio k, zero-pad both
-          Q and KV. pad_kv = next mult of batch_axis >= orig_kv. pad_q = pad_kv * k.
-        - "Replicate KV" (c>1): replicate each original KV head c times where
-          c divides k. New GQA ratio m = k / c. pad_kv = next mult of batch_axis
-          >= orig_kv * c. pad_q = pad_kv * m (typically much smaller than the
-          preserve-ratio case for MQA / small-ratio GQA models).
+        Returns a spec dict, or None if no padding is required (i.e. orig_kv
+        already divides heads_axis with pad_q == orig_q).
 
-        In both cases the original q->kv mapping is preserved for real q heads:
-        each q_idx in [0, orig_q) attends to (a copy of) the same orig kv head
-        it would have attended to without padding. Padded q heads attend to
-        zero-padded kv heads and produce zero outputs (zero-rows in o_proj).
+        ``force_equal=True`` restricts the search to c=k (replicate each KV
+        head k times, post-pad GQA ratio m=1), producing pad_q == pad_kv. This
+        is a workaround for an open tt-metal concat-kernel placement bug when
+        the [Q;K;V] concat axis is the sharded axis and Q is larger than K/V —
+        the runtime asks for kernel args on a core that the kernel was not
+        compiled for, e.g. ``reader_concat_interleaved_start_id ... not placed
+        on core 2-0``. Equal-sized concat inputs stay on a path that works.
         """
-        if not self.tt_config.pad_attention_heads:
-            return
-        if getattr(vllm_config.model_config, "use_mla", False):
-            return
-
-        hf_config = vllm_config.model_config.hf_config
-        orig_q = hf_config.num_attention_heads
-        orig_kv = getattr(hf_config, "num_key_value_heads", None) or orig_q
-
-        assert orig_q % orig_kv == 0, (
-            f"GQA ratio must be an integer: num_attention_heads={orig_q}, "
-            f"num_key_value_heads={orig_kv}"
-        )
+        assert (
+            orig_q % orig_kv == 0
+        ), f"GQA ratio must be an integer: q={orig_q}, kv={orig_kv}"
         k = orig_q // orig_kv
 
         best = None
@@ -577,8 +572,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if k % m != 0:
                 continue
             c = k // m
+            if force_equal and c != k:
+                continue
             min_pad_kv = orig_kv * c
-            pad_kv_candidate = cdiv(min_pad_kv, batch_axis) * batch_axis
+            pad_kv_candidate = cdiv(min_pad_kv, heads_axis) * heads_axis
             pad_q_candidate = pad_kv_candidate * m
             if pad_q_candidate < orig_q:
                 continue
@@ -594,43 +591,121 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         padded_q = best["pad_q"]
         padded_kv = best["pad_kv"]
-        c = best["c"]
-        m = best["m"]
-
         if padded_q == orig_q and padded_kv == orig_kv:
-            return
+            return None
 
-        # NOTE: deliberately NOT mutating hf_config.num_attention_heads,
-        # num_key_value_heads, or head_dim. The model classes derive head_dim
-        # from hidden_size // num_heads (Qwen2.5) or from config.head_dim
-        # (Qwen3, Llama); leaving num_heads at orig means every derivation is
-        # correct and we don't need per-model patches. The padding is applied
-        # post-construction via _surgery_pad_attention_modules.
-        head_dim = getattr(hf_config, "head_dim", None) or (
-            hf_config.hidden_size // orig_q
-        )
-
-        hf_config._tt_head_pad = {
+        return {
             "orig_q": orig_q,
             "orig_kv": orig_kv,
             "padded_q": padded_q,
             "padded_kv": padded_kv,
             "head_dim": head_dim,
-            "kv_replication_factor": c,
+            "kv_replication_factor": best["c"],
+            "_gqa_ratio_post": best["m"],
         }
 
-        logger.info(
-            "[TT] Padding attention heads to align with batch_axis=%d: "
-            "num_attention_heads %d->%d, num_key_value_heads %d->%d "
-            "(kv_replication_factor=%d, new GQA ratio=%d)",
-            batch_axis,
-            orig_q,
-            padded_q,
-            orig_kv,
-            padded_kv,
-            c,
-            m,
+    def _maybe_pad_attention_heads(self, vllm_config, heads_axis: int) -> None:
+        """Pad num_attention_heads / num_key_value_heads so that num_kv_heads
+        is a multiple of heads_axis. Two strategies are considered per padding
+        decision and the cheaper one (in qkv-projection size) is chosen:
+
+        - "Preserve ratio" (c=1): keep the original GQA ratio k, zero-pad both
+          Q and KV. pad_kv = next mult of heads_axis >= orig_kv. pad_q = pad_kv * k.
+        - "Replicate KV" (c>1): replicate each original KV head c times where
+          c divides k. New GQA ratio m = k / c. pad_kv = next mult of heads_axis
+          >= orig_kv * c. pad_q = pad_kv * m (typically much smaller than the
+          preserve-ratio case for MQA / small-ratio GQA models).
+
+        In both cases the original q->kv mapping is preserved for real q heads:
+        each q_idx in [0, orig_q) attends to (a copy of) the same orig kv head
+        it would have attended to without padding. Padded q heads attend to
+        zero-padded kv heads and produce zero outputs (zero-rows in o_proj).
+
+        Models with two attention head configurations (e.g. Gemma-4's
+        sliding-attention layers use num_key_value_heads/head_dim and
+        full-attention layers use num_global_key_value_heads/global_head_dim)
+        get one pad spec per configuration, stored as a list on
+        hf_config._tt_head_pad_specs. _surgery_pad_attention_modules picks the
+        matching spec per module by (attn.num_kv_heads, attn.head_dim).
+        """
+        if not self.tt_config.pad_attention_heads:
+            return
+        if getattr(vllm_config.model_config, "use_mla", False):
+            return
+
+        hf_config = vllm_config.model_config.hf_config
+        # Multimodal models (e.g. Gemma 4) nest text-side attention attrs
+        # under `text_config`. Use that when the top-level is missing.
+        head_config = hf_config
+        if not hasattr(head_config, "num_attention_heads") and hasattr(
+            head_config, "text_config"
+        ):
+            head_config = head_config.text_config
+        orig_q = head_config.num_attention_heads
+        orig_kv = getattr(head_config, "num_key_value_heads", None) or orig_q
+        # NOTE: deliberately NOT mutating hf_config.num_attention_heads,
+        # num_key_value_heads, or head_dim. Model classes derive head_dim from
+        # hidden_size // num_heads (Qwen2.5) or config.head_dim (Qwen3, Llama),
+        # so leaving num_heads at orig means every derivation is correct and we
+        # don't need per-model patches. The padding is applied post-construction
+        # via _surgery_pad_attention_modules.
+        head_dim = getattr(head_config, "head_dim", None) or (
+            head_config.hidden_size // orig_q
         )
+
+        force_equal = self.tt_config.pad_attention_heads_force_equal
+        specs = []
+        regular_spec = self._compute_head_pad_decision(
+            orig_q, orig_kv, head_dim, heads_axis, force_equal=force_equal
+        )
+        if regular_spec is not None:
+            specs.append(regular_spec)
+            logger.warning(
+                "[TT] Padding attention heads to align with heads_axis=%d: "
+                "num_attention_heads %d->%d, num_key_value_heads %d->%d "
+                "(kv_replication_factor=%d, new GQA ratio=%d)",
+                heads_axis,
+                regular_spec["orig_q"],
+                regular_spec["padded_q"],
+                regular_spec["orig_kv"],
+                regular_spec["padded_kv"],
+                regular_spec["kv_replication_factor"],
+                regular_spec["_gqa_ratio_post"],
+            )
+
+        # Gemma-4-style: separate KV head count (and possibly head_dim) for
+        # full-attention layers. Only emit a second spec if it would differ.
+        orig_global_kv = getattr(head_config, "num_global_key_value_heads", None)
+        global_head_dim = getattr(head_config, "global_head_dim", head_dim)
+        if orig_global_kv is not None and (
+            orig_global_kv != orig_kv or global_head_dim != head_dim
+        ):
+            global_spec = self._compute_head_pad_decision(
+                orig_q,
+                orig_global_kv,
+                global_head_dim,
+                heads_axis,
+                force_equal=force_equal,
+            )
+            if global_spec is not None:
+                specs.append(global_spec)
+                logger.warning(
+                    "[TT] Padding GLOBAL attention heads to align with "
+                    "heads_axis=%d: num_attention_heads %d->%d, "
+                    "num_global_key_value_heads %d->%d, head_dim=%d "
+                    "(kv_replication_factor=%d, new GQA ratio=%d)",
+                    heads_axis,
+                    global_spec["orig_q"],
+                    global_spec["padded_q"],
+                    global_spec["orig_kv"],
+                    global_spec["padded_kv"],
+                    global_spec["head_dim"],
+                    global_spec["kv_replication_factor"],
+                    global_spec["_gqa_ratio_post"],
+                )
+
+        if specs:
+            hf_config._tt_head_pad_specs = specs
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -678,15 +753,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             f"Weight filtering complete: kept {kept_count} weights, skipped {skipped_count} weights"
         )
 
-    def _surgery_pad_attention_modules(self, model, pad_spec):
+    def _surgery_pad_attention_modules(self, model, specs):
         """Walk the loaded model and surgically pad each attention module's
-        qkv_proj, o_proj, and inner Attention.
+        qkv_proj, o_proj, and inner Attention to whichever spec matches.
 
         Runs after the model has been constructed with the original head counts
         (so each model class derives head_dim correctly) and after weights have
-        been loaded into the orig-shape Linears. For each parent that exposes
-        qkv_proj + o_proj + attn:Attention:
+        been loaded into the orig-shape Linears. ``specs`` is a list of pad
+        spec dicts (see _compute_head_pad_decision). For each parent that
+        exposes qkv_proj + o_proj + attn:Attention, the matching spec is the
+        one whose (orig_kv, head_dim) equals the module's (num_kv_heads,
+        head_dim) at construction time; modules with no matching spec are
+        left untouched.
 
+        For each padded module:
         1. Pad qkv_proj.weight (and bias) on the head dim — Q is zero-padded,
            K/V are per-head replicated c times then zero-padded if needed.
         2. Pad o_proj.weight input dim with zero columns for the new q heads.
@@ -703,21 +783,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         from vllm.model_executor.layers.attention.attention import Attention
 
-        orig_q = pad_spec["orig_q"]
-        orig_kv = pad_spec["orig_kv"]
-        padded_q = pad_spec["padded_q"]
-        padded_kv = pad_spec["padded_kv"]
-        head_dim = pad_spec["head_dim"]
-        c = pad_spec.get("kv_replication_factor", 1)
-
-        if padded_q == orig_q and padded_kv == orig_kv:
+        if not specs:
             return
-
-        pad_q_rows = (padded_q - orig_q) * head_dim
-        q_size_orig = orig_q * head_dim
-        kv_size_orig = orig_kv * head_dim
-        padded_q_size = padded_q * head_dim
-        padded_kv_size = padded_kv * head_dim
 
         def pad_dim0(t, amount):
             if amount == 0:
@@ -731,31 +798,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 return t
             return F.pad(t, (0, amount, 0, 0))
 
-        def replicate_then_zero_pad_kv(t):
-            expected_rows = orig_kv * head_dim
-            if t.shape[0] != expected_rows:
-                return pad_dim0(t, (padded_kv - orig_kv) * head_dim)
-            per_head = t.view(orig_kv, head_dim, *t.shape[1:])
-            if c > 1:
-                per_head = per_head.repeat_interleave(c, dim=0)
-            flat = per_head.reshape(orig_kv * c * head_dim, *t.shape[1:])
-            zero_rows = (padded_kv - orig_kv * c) * head_dim
-            return pad_dim0(flat, zero_rows)
+        def match_spec(attn):
+            """Pick the spec whose (orig_kv, head_dim) matches the module."""
+            for spec in specs:
+                if (
+                    spec["orig_kv"] == attn.num_kv_heads
+                    and spec["head_dim"] == attn.head_size
+                ):
+                    return spec
+            return None
 
-        def pad_qkv_packed(t):
-            q_part = t[:q_size_orig]
-            k_part = t[q_size_orig : q_size_orig + kv_size_orig]
-            v_part = t[q_size_orig + kv_size_orig : q_size_orig + 2 * kv_size_orig]
-            return torch.cat(
-                [
-                    pad_dim0(q_part, pad_q_rows),
-                    replicate_then_zero_pad_kv(k_part),
-                    replicate_then_zero_pad_kv(v_part),
-                ],
-                dim=0,
-            )
-
-        found = 0
+        applied = {}  # key: (orig_kv, head_dim) -> count
         for name, parent in model.named_modules():
             qkv_proj = getattr(parent, "qkv_proj", None)
             o_proj = getattr(parent, "o_proj", None)
@@ -764,6 +817,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 continue
             if not isinstance(attn, Attention):
                 continue
+
+            pad_spec = match_spec(attn)
+            if pad_spec is None:
+                continue
+
+            orig_q = pad_spec["orig_q"]
+            orig_kv = pad_spec["orig_kv"]
+            padded_q = pad_spec["padded_q"]
+            padded_kv = pad_spec["padded_kv"]
+            head_dim = pad_spec["head_dim"]
+            c = pad_spec["kv_replication_factor"]
+
+            pad_q_rows = (padded_q - orig_q) * head_dim
+            q_size_orig = orig_q * head_dim
+            kv_size_orig = orig_kv * head_dim
+            padded_q_size = padded_q * head_dim
+            padded_kv_size = padded_kv * head_dim
+
+            def replicate_then_zero_pad_kv(t):
+                expected_rows = orig_kv * head_dim
+                if t.shape[0] != expected_rows:
+                    return pad_dim0(t, (padded_kv - orig_kv) * head_dim)
+                per_head = t.view(orig_kv, head_dim, *t.shape[1:])
+                if c > 1:
+                    per_head = per_head.repeat_interleave(c, dim=0)
+                flat = per_head.reshape(orig_kv * c * head_dim, *t.shape[1:])
+                zero_rows = (padded_kv - orig_kv * c) * head_dim
+                return pad_dim0(flat, zero_rows)
+
+            def pad_qkv_packed(t):
+                q_part = t[:q_size_orig]
+                k_part = t[q_size_orig : q_size_orig + kv_size_orig]
+                v_part = t[q_size_orig + kv_size_orig : q_size_orig + 2 * kv_size_orig]
+                return torch.cat(
+                    [
+                        pad_dim0(q_part, pad_q_rows),
+                        replicate_then_zero_pad_kv(k_part),
+                        replicate_then_zero_pad_kv(v_part),
+                    ],
+                    dim=0,
+                )
 
             # Pad qkv_proj.weight and bias.
             qkv_proj.weight = nn.Parameter(
@@ -819,19 +913,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if sinks is not None and sinks.shape[0] == orig_q:
                     impl.sinks = pad_dim0(sinks, padded_q - orig_q)
 
-            found += 1
+            key = (orig_kv, head_dim)
+            applied[key] = applied.get(key, 0) + 1
 
-        logger.info(
-            "[TT] Surgery padded %d attention module(s): "
-            "num_attention_heads %d->%d, num_key_value_heads %d->%d "
-            "(kv_replication_factor=%d)",
-            found,
-            orig_q,
-            padded_q,
-            orig_kv,
-            padded_kv,
-            c,
-        )
+        for spec in specs:
+            key = (spec["orig_kv"], spec["head_dim"])
+            count = applied.get(key, 0)
+            logger.warning(
+                "[TT] Surgery padded %d attention module(s) [head_dim=%d]: "
+                "num_attention_heads %d->%d, num_key_value_heads %d->%d "
+                "(kv_replication_factor=%d)",
+                count,
+                spec["head_dim"],
+                spec["orig_q"],
+                spec["padded_q"],
+                spec["orig_kv"],
+                spec["padded_kv"],
+                spec.get("kv_replication_factor", 1),
+            )
 
     def reset_mm_cache(self) -> None:
         if self.mm_budget:
@@ -1937,13 +2036,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             try:
                 model_loader = get_model_loader(self.load_config)
 
-                # The model is constructed with the ORIGINAL num_heads /
-                # num_kv_heads (we do not mutate hf_config), so every model
-                # class derives head_dim correctly. Head padding is applied
-                # post-load via _surgery_pad_attention_modules below.
-                pad_spec = getattr(
+                # Model is constructed with ORIGINAL num_heads / num_kv_heads
+                # (we do not mutate hf_config) so each model class derives
+                # head_dim correctly. Head padding is applied post-load via
+                # _surgery_pad_attention_modules. _tt_head_pad_specs is a list
+                # — one spec per distinct attention config (e.g. sliding vs
+                # full on Gemma-4).
+                pad_specs = getattr(
                     self.vllm_config.model_config.hf_config,
-                    "_tt_head_pad",
+                    "_tt_head_pad_specs",
                     None,
                 )
                 layer_override_active = (
@@ -1964,8 +2065,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         vllm_config=self.vllm_config, model_config=self.model_config
                     ).eval()
 
-                if pad_spec is not None:
-                    self._surgery_pad_attention_modules(model, pad_spec)
+                if pad_specs is not None:
+                    self._surgery_pad_attention_modules(model, pad_specs)
 
                 replace_modules(model)
                 model = model.to(self.device)
@@ -2585,6 +2686,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache].
+            # NOTE: QKV weight is sharded ("model", "batch") in
+            # vllm_distributed_utils, so K/V projection outputs land on the
+            # "model" axis. Cache heads-axis must match to avoid emitting
+            # sdy.CollectivePermute (tt-mlir #3370, unsupported lowering).
             for kv_pair in self.kv_caches:
                 for cache in kv_pair:
                     assert cache.ndim == 4, "KV cache tensor must be 4D."

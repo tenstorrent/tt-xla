@@ -39,7 +39,25 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["meta-llama/Llama-3.2-3B", "Qwen/Qwen2.5-7B"])
-def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
+def test_tensor_parallel_generation_llmbox_pad_attention_heads(model_name: str):
+    """Smoke test for pad_attention_heads on llmbox 1D mesh.
+
+    Renamed from the original `test_tensor_parallel_generation_n300` so it
+    doesn't shadow the dual-chip test of the same name above; also dropped a
+    stale `use_2d_mesh: bool` parameter that was missing a parametrize, which
+    failed setup with `fixture 'use_2d_mesh' not found`.
+
+    NOTE: previously included `num_hidden_layers: 1` which produced degenerate
+    output. Qwen2.5-7B at 1 layer produces multilingual token soup that fails
+    the assert_output_coherent stopword check (verified locally: padding
+    correctness is fine — 1-layer Qwen2.5-7B also produces gibberish under
+    use_2d_mesh=True with no padding at all). Llama-3.2-3B at 1 layer happens
+    to produce 'the the the...' which passes the stopword check by accident
+    but is still degenerate. Use the full model so the coherence check
+    actually exercises real generation; padding fires on Qwen2.5-7B
+    (num_kv_heads=4, not divisible by 8) and is a no-op on Llama-3.2-3B
+    (num_kv_heads=8, divisible by 8).
+    """
     prompts = [
         "Continue in English: I like taking walks in the",
     ]
@@ -55,7 +73,6 @@ def test_tensor_parallel_generation_n300(model_name: str, use_2d_mesh: bool):
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": False,
-            "num_hidden_layers": 1,
             "pad_attention_heads": True,
         },
     }
