@@ -100,6 +100,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
+        "name": "qwen_2_5_14b_instruct_1m_gguf",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_14b_instruct_1m_gguf",
+        "runs-on": "p150"
+      },
+      {
         "name": "falcon3_7b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
         "runs-on": "n300-llmbox"
