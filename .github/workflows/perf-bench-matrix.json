@@ -283,6 +283,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
       {
+        "name": "google_gemma-3-270m-it-gguf",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_3_270m_it_gguf"
+      },
+      {
         "name": "tiiuae_falcon3-1b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b"
       },
