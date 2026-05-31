@@ -67,6 +67,7 @@ After execution:
   - `pending_terminalization`
 - Preserve original harness details separately from normalized outcome.
 - Do not classify infrastructure, auth, missing-artifact, or OOM capacity failures as model-quality failures without evidence.
+- Write normalized row results using `docs/protocols/model-run-job-normalized-results-template.csv`.
 
 ## NVIDIA Validation Command Shape
 
@@ -153,6 +154,17 @@ Stop or pause dispatch when any of these conditions occurs:
 - Artifact capture fails for a terminal row.
 - The manifest, repo ref, or submodule ref no longer matches the launch record.
 - A human-review gate is reached for issue comments, PR updates, or stakeholder reports.
+
+## Normalized Results Contract
+
+Use `docs/protocols/model-run-job-normalized-results-template.csv` as the header for normalized row outputs. Required outcome fields:
+
+- `status_raw`: original runner status, return code, or harness status.
+- `outcome_normalized`: one of `validated_pass`, `validated_fail`, `pipeline_error`, `blocked_collectability`, `needs_mapping`, or `pending_terminalization`.
+- `outcome_class`: `model_quality`, `pipeline`, `planning`, or `pending`.
+- `evidence_path`: row artifact directory or wave artifact directory.
+
+Preserve raw logs and JUnit paths even when normalization classifies the row as a pipeline or planning issue.
 
 ## Reporting Rules
 
