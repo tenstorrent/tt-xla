@@ -125,7 +125,181 @@ where `num_cores < max_cores`. Now the placement is a proper subset of
 the grid, opening the possibility of mismatch under hypotheses 1–3
 above.
 
-## Proposed fixes (not yet attempted)
+## Live attempt — Fix A prototype (2026-05-31)
+
+Patched `concat_program_factory.cpp` in-place (uncommitted, kept in
+working tree) with the following:
+
+1. Pin `reader_desc.core_ranges` and `writer_desc.core_ranges` to the
+   full compute grid (or `sub_core_grids` when provided), regardless
+   of `num_cores` returned by `split_work_to_cores`.
+2. After the work-split runtime-args loop, emplace **zero-valued
+   runtime args** of the correct shape on every full-grid core that
+   isn't in the work-split `cores`. The kernel's first arg is
+   `num_tiles`; setting it to 0 short-circuits the per-tile loop, so
+   the kernel is effectively a no-op on those cores.
+
+### Build sequence (notes for next session)
+
+```
+# Edit concat_program_factory.cpp in tt-metal source
+cd /localdev/kmabee/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build_Release
+cmake --build . --target _ttnncpp.so -- -j 16   # rebuilds + links
+# Manual sync — the tt-mlir ExternalProject install step is unreliable here
+cp ttnn/_ttnncpp.so /localdev/kmabee/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so
+# Also sync libtt_metal.so and _ttnn.so if any non-ttnn source was touched.
+```
+
+Important caveat I burned ~30 min on: running `cmake --build build`
+from tt-xla root does pick up tt-metal source changes, but the install
+step that copies `_ttnncpp.so` to `install/lib/` is occasionally
+silently stale — the source `.so` had my new code, the install
+`.so` did not. Always `md5sum` both after a rebuild and `cp` manually
+if they differ.
+
+### What Fix A demonstrably did
+
+Adding a `TT_FATAL` tripwire confirmed `ConcatProgramFactory::create_descriptor`
+IS reached on first call with `num_cores=64` (full 8x8 grid). Then
+running with the real fix:
+
+- **Eliminated the "Cannot get runtime args for kernel ... not placed
+  on core X-Y" assertion** — never fired again in any subsequent run.
+- **Then a different cache-related assertion surfaced**: "Index N is
+  larger than runtime args size 0" — same root cause family (cached
+  program's per-core rt-args storage smaller than fresh call wants).
+- **Adding zero-rt-args on every full-grid no-work core eliminated
+  that one too** — never fired in subsequent runs either.
+
+### What Fix A could not conclusively demonstrate
+
+After the two assertions cleared, the gemma4-31b-it benchmark ran for
+22+ minutes of compile without errors, but never reached the
+"Warmup complete" or "Starting benchmark" milestones before hitting
+the test timeout. The log went silent ~7 min in — last entry was a
+normal `_build_params_and_consts` warning, then nothing for ~22 min.
+Could be one of:
+
+- **Genuinely slow compile**: without `force_equal`, more diverse
+  concat shapes → more kernel cache misses → longer compile. The
+  force_equal version completes in 10 min.
+- **Silent hang**: a tt-metal-side issue triggered by the zero-rt-args
+  no-work cores (e.g., kernel dispatch waiting on a core that's
+  silently faulted).
+- **Resource exhaustion**: hugepages or shm leaks across multiple
+  failed attempts.
+
+We did NOT get a single full PASSED run without `force_equal`.
+The patch is live in the working tree but not validated end-to-end.
+
+### Patch summary (concat_program_factory.cpp)
+
+```cpp
+// Replace:
+//   reader_desc.core_ranges = all_cores;
+//   writer_desc.core_ranges = all_cores;
+// With (before emplacing runtime args):
+const CoreRangeSet kernel_core_ranges = (sub_core_grids.has_value() && !output.is_sharded())
+    ? sub_core_grids.value()
+    : CoreRangeSet(CoreRange({0, 0},
+        {device->compute_with_storage_grid_size().x - 1,
+         device->compute_with_storage_grid_size().y - 1}));
+reader_desc.core_ranges = kernel_core_ranges;
+writer_desc.core_ranges = kernel_core_ranges;
+
+// And after the runtime-args emplace loop, fill no-work cores:
+if (!sub_core_grids.has_value() || output.is_sharded()) {
+    std::set<CoreCoord> cores_with_work(cores.begin(), cores.end());
+    const size_t reader_rt_size = 3 + 3 * num_input_tensors;
+    const size_t writer_rt_size = rm_layout ? 4 : 3;
+    for (uint32_t x = 0; x < num_cores_x; ++x) {
+        for (uint32_t y = 0; y < num_cores_y; ++y) {
+            CoreCoord c{x, y};
+            if (cores_with_work.count(c) == 0) {
+                reader_desc.runtime_args.emplace_back(c, std::vector<uint32_t>(reader_rt_size, 0));
+                writer_desc.runtime_args.emplace_back(c, std::vector<uint32_t>(writer_rt_size, 0));
+            }
+        }
+    }
+}
+```
+
+### 60-min final retry (2026-05-31, 17:18 → 18:16)
+
+Ran with `timeout 3600` on a freshly-reset board. Same pattern:
+- Padding applied (sliding kv_repl=1, global kv_repl=2 — exactly
+  what previously triggered concat assert).
+- KV cache configured (1280 tokens, 10x concurrency).
+- Three "Failed to deserialize executable" compile cycles in the
+  first ~6 min, last log line at 17:24:36.
+- Then **complete log silence for 52 minutes** while EngineCore
+  stayed alive at 114% CPU.
+- No errors, no assertions, no exceptions surfaced before the
+  60-min timeout killed it.
+
+`py-spy dump` on the hung EngineCore showed Python parked in:
+```
+sync (torch_xla/torch_xla.py:87)
+_precompile_backbone (vllm_tt/model_runner.py:2220)
+capture_model (vllm_tt/model_runner.py:2400)
+compile_or_warm_up_model (vllm_tt/worker.py:351)
+```
+
+So Python is blocked on a `torch_xla.sync()` call — waiting for the
+XLA → tt-mlir → tt-metal compile/dispatch on the C++ side to finish.
+The 114% CPU is a worker thread on the C++ side doing actual work.
+Whether that's genuinely-slow-compile or a deadlock-without-error is
+unclear from py-spy alone — would need gdb on the C++ side to know.
+
+### Conclusion
+
+**Fix A demonstrably eliminates the two concat assertions** that
+forced us to use `force_equal=True`. The "Cannot get runtime args for
+kernel ... not placed on core" assertion never fires after the patch,
+and the related "Index N is larger than runtime args size 0"
+assertion (which surfaced as a follow-on cache mismatch) is also
+eliminated by emplacing zero-rt-args on the no-work full-grid cores.
+
+**But Fix A is not sufficient to drop `force_equal` in practice.**
+Without `force_equal`, the test never completes the precompile
+sweep within a 60-min budget — much slower than the 10-min
+`force_equal=True` baseline. Whether this is fundamentally-more-work
+(many more distinct concat shapes to compile) or a downstream
+silent-hang masked by my patch is unknown.
+
+**Action**: keep `pad_attention_heads_force_equal=True` as the
+shipped workaround. The tt-metal concat_program_factory.cpp patch is
+left in the working tree (uncommitted, per your instruction) as a
+candidate upstream change. If you want to push it upstream, it needs
+(a) a definitive validation run that completes without `force_equal`,
+and (b) a microbenchmark to confirm the full-grid kernel placement
+doesn't regress concat perf for the common all-cores case (it
+shouldn't, since `cores` already == full grid in most calls).
+
+### Where the C++ patch lives
+
+`/localdev/kmabee/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/ttnn/cpp/ttnn/operations/data_movement/concat/device/concat_program_factory.cpp`
+
+Two hunks, ~30 LOC total. See the "Patch summary" block above for
+the exact edits.
+
+### Build sequence reminder (for the next person)
+
+```
+# After editing concat_program_factory.cpp:
+cd /localdev/kmabee/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/build_Release
+cmake --build . --target _ttnncpp.so -- -j 16
+# Manual sync — ExternalProject install is unreliable here:
+cp ttnn/_ttnncpp.so /localdev/kmabee/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so
+md5sum /localdev/kmabee/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so \
+       ttnn/_ttnncpp.so   # should match
+```
+
+If you touch anything in `tt_metal/` (not just `ttnn/`), also
+`cp ../tt_metal/libtt_metal.so /localdev/kmabee/tt-xla/third_party/tt-mlir/install/lib/`
+and `cp ttnn/_ttnn.so /localdev/kmabee/tt-xla/third_party/tt-mlir/install/lib/`.
+
+## Proposed fixes (original plan, pre-attempt)
 
 ### Fix A — Concat factory always uses full grid for `core_ranges`
 
