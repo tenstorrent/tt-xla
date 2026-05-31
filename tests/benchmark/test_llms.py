@@ -2772,3 +2772,35 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
     )
+
+
+def test_cardiollama_nl_clinical(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    # CardioLlama.nl_clinical is a Llama-3.2-1B-Instruct fine-tune
+    # (standard LlamaForCausalLM); modelled on test_llama_3_2_1b.
+    from third_party.tt_forge_models.cardiollama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.NL_CLINICAL
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

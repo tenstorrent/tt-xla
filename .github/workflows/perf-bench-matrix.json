@@ -92,6 +92,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b"
       },
       {
+        "name": "cardiollama_nl_clinical",
+        "pytest": "tests/benchmark/test_llms.py::test_cardiollama_nl_clinical",
+        "runs-on": "p150"
+      },
+      {
         "name": "llama_3_2_3b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
