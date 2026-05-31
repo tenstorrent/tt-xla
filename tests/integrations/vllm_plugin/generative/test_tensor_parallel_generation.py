@@ -3,8 +3,49 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from conftest import assert_output_coherent, check_host_memory
+from vllm_tt.model_runner import TTModelRunner
 
 import vllm
+
+
+@pytest.mark.push
+def test_pad_decision_gates_force_equal_with_zero_pad():
+    """force_equal padding that requires zero-padding on top of c=k
+    replication is gated by _compute_head_pad_decision because it has
+    been observed to hang at first decode on llmbox. The Qwen2.5-7B case
+    (orig_kv=4, k=7, heads_axis=8 → padded_kv=32 with 4 zero-pad heads
+    on top of 28 replicated) hits the gate; Gemma-4-31B's force_equal
+    configs (both have padded_kv == orig_kv * c) do not. See
+    CONCAT_FORCE_EQUAL_INVESTIGATION.md.
+    """
+    # Qwen2.5-7B + force_equal → gated.
+    with pytest.raises(NotImplementedError, match="force_equal"):
+        TTModelRunner._compute_head_pad_decision(
+            orig_q=28, orig_kv=4, head_dim=128, heads_axis=8, force_equal=True
+        )
+
+    # Same Qwen2.5-7B WITHOUT force_equal → fine (min-cost strategy).
+    spec = TTModelRunner._compute_head_pad_decision(
+        orig_q=28, orig_kv=4, head_dim=128, heads_axis=8, force_equal=False
+    )
+    assert spec is not None
+    assert spec["padded_kv"] == 8 and spec["padded_q"] == 56
+
+    # Gemma-4-31B sliding force_equal (orig_kv=16, k=2 → c=2, padded_kv=32,
+    # padded_kv == orig_kv * c, no zero-pad on top) → fine.
+    spec = TTModelRunner._compute_head_pad_decision(
+        orig_q=32, orig_kv=16, head_dim=256, heads_axis=8, force_equal=True
+    )
+    assert spec is not None
+    assert spec["padded_kv"] == 32 and spec["kv_replication_factor"] == 2
+
+    # Gemma-4-31B global force_equal (orig_kv=4, k=8 → c=8, padded_kv=32,
+    # padded_kv == orig_kv * c, no zero-pad on top) → fine.
+    spec = TTModelRunner._compute_head_pad_decision(
+        orig_q=32, orig_kv=4, head_dim=512, heads_axis=8, force_equal=True
+    )
+    assert spec is not None
+    assert spec["padded_kv"] == 32 and spec["kv_replication_factor"] == 8
 
 
 @pytest.mark.push
@@ -48,30 +89,26 @@ def test_tensor_parallel_generation_n300(model_name: str):
         # Qwen2.5-7B: num_kv_heads=4 needs padding. Default (min-cost)
         # strategy with k=7: padded_kv 4->8, padded_q 28->56.
         pytest.param("Qwen/Qwen2.5-7B", False, id="qwen2.5-7b"),
-        # Qwen2.5-7B + force_equal: c=k=7, m=1, so padded_q == padded_kv
-        # (both 32). Exercises the workaround for the tt-metal concat
-        # kernel placement bug that fires on unequal-sized [Q;K;V] concat
-        # along the sharded axis. Gemma-4-31B on llmbox needs this path;
-        # this case keeps push coverage for it without paying for Gemma's
-        # full compile.
-        #
-        # Skipped: hangs at first decode step (no output, never returns)
-        # on a freshly-reset board after the engine init completes.
-        # Gemma-4-31B with the same force_equal path runs fine, so it's
-        # not a generic flag issue — most likely a tt-metal-side
-        # interaction between Qwen's c=7 KV replication (head_dim=128)
-        # and the small max_model_len=32. See
-        # CONCAT_FORCE_EQUAL_INVESTIGATION.md for the open thread; the
-        # nightly Gemma-4 test gives us coverage of the force_equal path
-        # in the meantime.
+        # Qwen2.5-7B + force_equal: c=k=7, m=1. Real KV heads after
+        # replication = 4*7 = 28, padded_kv = 32 → 4 zero-pad heads on top.
+        # That configuration is gated by NotImplementedError in
+        # _compute_head_pad_decision (we've seen it hang at the first
+        # decode step on llmbox; Gemma-4-31B's force_equal configs both
+        # have padded_kv == orig_kv * c and run fine). The gate raises in
+        # the engine subprocess and surfaces as a wrapped
+        # RuntimeError("Engine core initialization failed"), which isn't
+        # cleanly catchable with xfail's strict=True — so this param is
+        # still skipped. The gate itself is exercised via a unit test on
+        # _compute_head_pad_decision (test_pad_decision_gates_force_equal).
+        # See CONCAT_FORCE_EQUAL_INVESTIGATION.md.
         pytest.param(
             "Qwen/Qwen2.5-7B",
             True,
             id="qwen2.5-7b-force-equal",
             marks=pytest.mark.skip(
                 reason=(
-                    "hangs at first decode step on llmbox; see "
-                    "CONCAT_FORCE_EQUAL_INVESTIGATION.md"
+                    "gated at decision time (would hang at first decode "
+                    "otherwise); see CONCAT_FORCE_EQUAL_INVESTIGATION.md"
                 )
             ),
         ),

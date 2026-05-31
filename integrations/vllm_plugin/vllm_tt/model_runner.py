@@ -594,6 +594,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if padded_q == orig_q and padded_kv == orig_kv:
             return None
 
+        # Known-bad config: force_equal=True AND padded_kv > orig_kv * c
+        # means c=k replication doesn't fill padded_kv on its own and we'd
+        # zero-pad on top. The one observed instance — Qwen2.5-7B (orig_kv=4,
+        # c=7 → 28 real heads, padded to 32 with 4 zero heads) — hangs at
+        # first decode on llmbox. Gemma-4-31B's two force_equal configs both
+        # happen to have padded_kv == orig_kv * c (no zero-pad layer) and run
+        # fine. Until we understand the root cause, surface a clear error
+        # at startup instead of letting it hang for half an hour. See
+        # CONCAT_FORCE_EQUAL_INVESTIGATION.md.
+        if force_equal and padded_kv > orig_kv * best["c"]:
+            raise NotImplementedError(
+                f"pad_attention_heads_force_equal=True with orig_kv={orig_kv}, "
+                f"c={best['c']}, heads_axis={heads_axis} would require "
+                f"zero-padding {padded_kv - orig_kv * best['c']} KV heads on "
+                f"top of c=k replication (padded_kv={padded_kv}). This config "
+                f"is known to hang at the first decode step on llmbox; see "
+                f"CONCAT_FORCE_EQUAL_INVESTIGATION.md for the underlying "
+                f"tt-metal investigation. Drop force_equal or use a model "
+                f"where orig_kv * k is already a multiple of heads_axis."
+            )
+
         return {
             "orig_q": orig_q,
             "orig_kv": orig_kv,
