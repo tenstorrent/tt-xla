@@ -335,6 +335,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "roneneldan_tinystories-33m",
+        "pytest": "tests/benchmark/test_llms.py::test_tiny_stories_33m"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
