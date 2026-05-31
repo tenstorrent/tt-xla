@@ -155,6 +155,11 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "astral_14b",
+        "pytest": "tests/benchmark/test_llms.py::test_astral_14b",
+        "runs-on": "p150"
+      },
+      {
         "name": "test_llama_3_1_70b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp",
         "runs-on": "n300-llmbox"
