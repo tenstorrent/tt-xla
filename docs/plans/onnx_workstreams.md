@@ -152,72 +152,189 @@ See [onnx_implementation_log.md](onnx_implementation_log.md) for blockers, fixes
 ## Workstream 3 — `tt_onnx` Python package
 
 **Milestone:** M1.5  
-**Prerequisite:** Workstreams 1 + 2
+**Prerequisite:** Workstreams 1 + 2 ✅  
+**Status:** ✅ Complete — Add e2e passed on reservation host (TT device vs ORT CPU, `max_abs_diff=0`)
 
-### Layout
+### Goal
 
+Single Python API and spike script: ONNX → onnx-mlir → canonicalized StableHLO → PJRT compile → TT device execute, with ONNX Runtime CPU reference checks.
+
+### Problem
+
+onnx-mlir StableHLO is not directly consumable by the JAX tt compile path:
+
+1. Emits `shape`/`arith`/`onnx.EntryPoint` ops that jaxlib’s MLIR context does not register.
+2. Entry function is `@main_graph` (private by default); XLA expects `@main` and tt-xla needs one **public** `func.func`.
+3. JAX `backend_compile_and_load` serializes input to **VHLO** before PJRT — forcing `mlir_input_format=stablehlo` skips VHLO→StableHLO and breaks `getPublicFuncOps`.
+
+### Solution
+
+1. **`mlir_utils.py`** — canonicalize onnx-mlir output before compile:
+   - Strip `onnx.EntryPoint`
+   - For static-shape Add: collapse shape-broadcast prelude to pure `stablehlo.add`
+   - Rename entry `@main_graph` → `@main`; mark `func.func public`
+2. **`compiler.py`** — feed canonical MLIR **text** to `backend.compile_and_load()` (not `ir.Module` + `module_to_bytecode`, which drops visibility)
+3. **Compile option** `mlir_input_format=auto` — JAX sends VHLO; tt-xla auto-detects and runs VHLO deserialize (WS1)
+4. **`ONNXSession`** — bridge (WS2 CLI) + compile + execute; compare vs ORT CPU in spike/test
+
+### Tooling (added)
+
+| Path | Purpose |
+|------|---------|
+| `python_package/tt_onnx/bridge.py` | ONNX → StableHLO via `onnx-mlir` / `onnx-mlir-opt` (same as `smoke_test.sh`) |
+| `python_package/tt_onnx/mlir_utils.py` | Canonicalize onnx-mlir StableHLO for JAX/tt-xla |
+| `python_package/tt_onnx/compiler.py` | StableHLO MLIR → PJRT `LoadedExecutable` via JAX tt backend |
+| `python_package/tt_onnx/runtime.py` | Execute loaded executable + ORT CPU reference |
+| `python_package/tt_onnx/session.py` | `ONNXSession` high-level API |
+| `python_package/tt_onnx/plugin_check.py` | Preflight `dlopen` of `pjrt_plugin_tt.so` |
+| `tools/onnx_spike/compile_add.py` | Add e2e spike script |
+| `tests/onnx/test_add_e2e.py` | Pytest: TT device vs ORT CPU |
+
+### Steps
+
+1. Ensure WS1 + WS2 complete (`tools/onnx/smoke_test.sh` passes).
+2. Rebuild PJRT if tt-mlir changed: `cmake --build build --target TTPJRTTTDylib -j$(nproc)`.
+3. Confirm `python_package/pjrt_plugin_tt/pjrt_plugin_tt.so` symlink points at `build/pjrt_implementation/src/pjrt_plugin_tt.so`.
+4. Install Python deps: `pip install onnx numpy onnxruntime`.
+5. Run spike or pytest on reservation host (venv + `tools/onnx/env.sh`).
+
+### Run (on reservation host with working venv)
+
+```bash
+cd /path/to/tt-xla
+source venv/activate
+source tools/onnx/env.sh
+pip install onnx numpy onnxruntime
+
+python tools/onnx_spike/compile_add.py 2>&1 | tee onnx_compile_add.log
+pytest -svv tests/onnx/test_add_e2e.py
 ```
-python_package/tt_onnx/
-  __init__.py
-  bridge.py          # onnx-mlir-opt subprocess wrapper
-  compiler.py        # PJRT compile via JAX client
-  runtime.py         # buffer I/O + execute
-  session.py         # ONNXSession high-level API
-tools/onnx_spike/
-  compile_add.py
-tests/onnx/
-  test_add_e2e.py
-```
 
-### API sketch
+**Expected spike output:** `PASSED: Add ONNX e2e on TT device.` with `max_abs_diff=0` vs ORT CPU.
+
+### API
 
 ```python
 from tt_onnx import ONNXSession
 
 session = ONNXSession("model.onnx", device="tt")
-outputs = session.run({"input": np_array})
+outputs = session.run({"A": arr_a, "B": arr_b})
 ```
 
-Compile options passed to PJRT:
+Compile options passed to PJRT (via `ONNXSession`):
 
 ```python
 {
-    "export_path": "onnx_artifacts",
-    "export_model_name": "resnet18",
-    "mlir_input_format": "stablehlo",  # or rely on auto-detect
+    "export_path": "tools/onnx/build/tt_onnx/add_spike/export",
+    "export_model_name": "add",
+    "mlir_input_format": "auto",  # required when compiling via JAX (VHLO round-trip)
+    "optimization_level": "0",
+}
+```
+
+**Canonical Add MLIR shape** (after `mlir_utils`):
+
+```mlir
+module attributes {sym_name = "onnx_module"} {
+  func.func public @main(%arg0: tensor<1x4xf32>, %arg1: tensor<1x4xf32>) -> tensor<1x4xf32> {
+    %0 = stablehlo.add %arg0, %arg1 : tensor<1x4xf32>
+    return %0 : tensor<1x4xf32>
+  }
 }
 ```
 
 ### Exit criteria
 
-- [ ] Single command: Add ONNX → compile → execute on TT device
-- [ ] Numerical match vs ONNX Runtime CPU reference
+- [x] Single command: Add ONNX → compile → execute on TT device
+- [x] Numerical match vs ONNX Runtime CPU reference
+- [x] IR dumps under `export_path` (`vhlo_*`, `shlo_*`, `shlo_compiler_*`)
 
-**Effort:** 1–2 weeks
+See [onnx_implementation_log.md](onnx_implementation_log.md) for blockers, fixes, and runbook.
+
+**Effort:** 1–2 weeks (actual: ~1 week including compile-path debugging)
 
 ---
 
 ## Workstream 4 — Tests and incremental validation
 
 **Milestones:** M1.6–M1.11  
-**Prerequisite:** Workstream 3
+**Prerequisite:** Workstream 3 ✅  
+**Status:** 🔄 In progress — MLP e2e + seed op matrix harness (onnx-mlir only; torch-mlir comparison deferred)
+
+### Scope (this phase)
+
+- **Bridge:** onnx-mlir only (WS2/WS3 path). No torch-mlir dual-bridge runs.
+- **M1.6 (partial):** 2-layer **elementwise** MLP e2e (`Mul→Add→Relu→Mul→Add`; no Gemm). Gemm MLP blocked on `stablehlo.dot` → TTIR (see implementation log).
+- **M1.7 (seed):** Op matrix harness + 5 ops: Add, Mul, MatMul, Relu, Reshape. ✅
+- **M1.8 (in progress):** Full 17-op matrix — Sub, Div, Sigmoid, ReduceMean, ReduceSum, Transpose, Concat, Slice, Conv, LayerNorm, Softmax, Gather.
+- **Next:** Triage M1.8 failures, then ResNet-18 (M1.9).
+
+### Tooling (added)
+
+| Path | Purpose |
+|------|---------|
+| `tools/onnx/gen_mlp_onnx.py` | Generate 2-layer MLP fixture (`Gemm` → `Relu` → `Gemm`) |
+| `tools/onnx/gen_op_onnx.py` | Generate single-op ONNX fixtures (seed + M1.8 full matrix) |
+| `python_package/tt_onnx/op_matrix.py` | Op matrix runner + JSON report |
+| `tools/onnx_spike/compile_mlp.py` | MLP e2e spike script |
+| `tools/onnx_spike/run_op_matrix.py` | Seed/full op matrix CLI + JSON report |
+| `tests/onnx/onnx_e2e_utils.py` | Shared e2e helpers |
+| `tests/onnx/test_mlp_e2e.py` | Pytest: MLP on TT vs ORT |
+| `tests/onnx/test_op_matrix_seed.py` | Pytest: 5 seed ops parametrized |
+| `tests/onnx/test_op_matrix_full.py` | Pytest: M1.8 full 17-op matrix |
+
+### Steps
+
+1. Complete WS3 Add e2e on reservation host.
+2. Generate fixtures: `gen_mlp_onnx.py`, `gen_op_onnx.py --all`.
+3. Run MLP spike, then seed op matrix (records JSON report).
+4. Run pytest push tests on reservation host.
+5. Triage failures using `export/irs/shlo_compiler_*.mlir` + `tests/op_by_op/` if needed.
+
+### Run (on reservation host)
+
+```bash
+cd /path/to/tt-xla
+source venv/activate
+source tools/onnx/env.sh
+pip install onnx numpy onnxruntime
+
+# Generate fixtures
+python tools/onnx/gen_mlp_onnx.py
+python tools/onnx/gen_op_onnx.py --all
+
+# Spikes
+python tools/onnx_spike/compile_mlp.py 2>&1 | tee onnx_compile_mlp.log
+python tools/onnx_spike/run_op_matrix.py --report tools/onnx/build/tt_onnx/op_matrix/report.json
+
+# Pytest
+pytest -svv tests/onnx/test_mlp_e2e.py
+pytest -svv tests/onnx/test_op_matrix_seed.py
+```
 
 ### Order
 
-| Step | Test | Proves |
-|------|------|--------|
-| 1 | Add ONNX → SHLO dump | Bridge works |
-| 2 | Add ONNX → PJRT compile-only | SHLO ingestion + tt-mlir |
-| 3 | Add ONNX → device execute | Full stack |
-| 4 | 2-layer MLP ONNX | Multi-op graph |
-| 5 | Op matrix (~15–20 ops) | Scaling signal |
-| 6 | ResNet-18 from `tt_forge_models` | First real model |
+| Step | Test | Proves | Status |
+|------|------|--------|--------|
+| 1 | Add ONNX → SHLO dump | Bridge works | ✅ WS2 |
+| 2 | Add ONNX → PJRT compile-only | SHLO ingestion + tt-mlir | ✅ WS3 |
+| 3 | Add ONNX → device execute | Full stack | ✅ WS3 |
+| 4 | 2-layer MLP ONNX | Multi-op graph | 🔄 WS4 |
+| 5 | Op matrix (5 seed ops) | Scaling signal | ✅ WS4 |
+| 6 | Op matrix (17 full ops, M1.8) | Gap inventory | 🔄 WS4 |
+| 7 | ResNet-18 from `tt_forge_models` | First real model | ⬜ |
 
 Reuse existing infra:
 
 - IR dumps via `export_path` / `export_model_name` (same as `examples/pytorch/export_ir_example.py`)
 - Op failures via `tests/op_by_op/` on dumped `shlo_compiler_*.mlir`
 - Model loaders from `third_party/tt_forge_models/*/onnx/loader.py`
+
+### Exit criteria (WS4 phase 1)
+
+- [ ] MLP e2e passes on TT device vs ORT CPU
+- [ ] Seed op matrix JSON report with pass/fail per op
+- [ ] Pytest `test_mlp_e2e` + `test_op_matrix_seed` green on reservation host
 
 ---
 

@@ -142,7 +142,7 @@ flowchart TD
 |------|--------|
 | **Prerequisites** | M1.2, M1.3 **or** M1.4 (at least one bridge) |
 | **Tasks** | Create `python_package/tt_onnx/` or `tools/onnx_spike/` with: load ONNX, call bridge CLI, feed MLIR to PJRT (via minimal XLA client or direct binding), run with numpy/torch inputs, return outputs |
-| **Exit criteria** | [ ] Single command compiles and runs Add ONNX on device [ ] Logs saved: bridge used, SHLO dump, compile time |
+| **Exit criteria** | [x] Single command compiles and runs Add ONNX on device [x] Logs saved: bridge used, SHLO dump, compile time |
 | **Effort** | 3 days – 2 weeks |
 | **End-goal link** | Reusable harness for all following milestones |
 

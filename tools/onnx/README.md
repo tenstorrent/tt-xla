@@ -136,6 +136,38 @@ tools/onnx/build_onnx_mlir.sh
 
 ## Exit criteria (WS2)
 
-- [ ] `build_onnx_mlir.sh` completes
-- [ ] `smoke_test.sh` passes (`stablehlo.add` in output)
-- [ ] `TT_ONNX_MLIR_OPT` documented and usable for WS3 (`tt_onnx` package)
+- [x] `build_onnx_mlir.sh` completes
+- [x] `smoke_test.sh` passes (`stablehlo.add` in output)
+- [x] `TT_ONNX_MLIR_OPT` documented and usable for WS3 (`tt_onnx` package)
+
+## Workstream 4 — MLP + op matrix (onnx-mlir only)
+
+After WS3 Add e2e passes, generate fixtures and run validation on the reservation host:
+
+```bash
+source venv/activate
+source tools/onnx/env.sh
+pip install onnx numpy onnxruntime
+
+python tools/onnx/gen_mlp_onnx.py
+python tools/onnx/gen_op_onnx.py --all
+
+python tools/onnx_spike/compile_mlp.py
+python tools/onnx_spike/run_op_matrix.py --report tools/onnx/build/tt_onnx/op_matrix/report.json
+
+pytest -svv tests/onnx/test_mlp_e2e.py tests/onnx/test_op_matrix_seed.py
+```
+
+Seed ops: `add`, `mul`, `matmul`, `relu`, `reshape`.
+
+**M1.8 full matrix (17 ops):**
+
+```bash
+python tools/onnx/gen_op_onnx.py --all --full
+python tools/onnx_spike/run_op_matrix.py --full
+pytest -svv tests/onnx/test_op_matrix_full.py -m push
+```
+
+Full ops add: `sub`, `div`, `sigmoid`, `reduce_mean`, `reduce_sum`, `transpose`, `concat`, `slice`, `conv`, `layer_norm`, `softmax`, `gather`. Report: `tools/onnx/build/tt_onnx/op_matrix_full/report.json`.
+
+See [onnx_workstreams.md](../../docs/plans/onnx_workstreams.md) WS4.
