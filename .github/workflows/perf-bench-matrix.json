@@ -335,6 +335,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "ibm-granite_granite-3.2-2b-instruct",
+        "pytest": "tests/benchmark/test_llms.py::test_granite_3_2_2b"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
