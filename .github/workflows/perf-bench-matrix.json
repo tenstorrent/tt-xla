@@ -323,6 +323,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "dmind_3_mini",
+        "pytest": "tests/benchmark/test_llms.py::test_dmind_3_mini"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
