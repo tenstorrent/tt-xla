@@ -323,6 +323,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "glm_z1_9b",
+        "pytest": "tests/benchmark/test_llms.py::test_glm_z1_9b",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
