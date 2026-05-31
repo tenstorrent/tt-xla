@@ -155,6 +155,8 @@ Stop or pause dispatch when any of these conditions occurs:
 - The manifest, repo ref, or submodule ref no longer matches the launch record.
 - A human-review gate is reached for issue comments, PR updates, or stakeholder reports.
 
+When a stop condition blocks launch, execution, normalization, or reporting, create a blocker record from `docs/protocols/model-run-job-blocker-template.md` and link it from the launch record.
+
 ## Normalized Results Contract
 
 Use `docs/protocols/model-run-job-normalized-results-template.csv` as the header for normalized row outputs. Required outcome fields:
