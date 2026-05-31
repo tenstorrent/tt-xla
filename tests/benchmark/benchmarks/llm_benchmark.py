@@ -77,6 +77,12 @@ def setup_model_and_tokenizer(
         model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
+    # Some loaders build their tokenizer lazily (only on the first load_inputs
+    # call) and leave model_loader.tokenizer as None after load_model. Populate
+    # it here via the loader's _load_tokenizer hook so construct_inputs has a
+    # callable tokenizer.
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        tokenizer = model_loader._load_tokenizer()
 
     return model, tokenizer
 
