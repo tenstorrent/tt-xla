@@ -283,6 +283,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
       {
+        "name": "lmstudio-community_gemma-2-9b-it-gguf",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_2_9b_it",
+        "runs-on": "p150"
+      },
+      {
         "name": "tiiuae_falcon3-1b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b"
       },
