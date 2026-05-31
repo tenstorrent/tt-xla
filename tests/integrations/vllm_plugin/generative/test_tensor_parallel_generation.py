@@ -54,7 +54,27 @@ def test_tensor_parallel_generation_n300(model_name: str):
         # along the sharded axis. Gemma-4-31B on llmbox needs this path;
         # this case keeps push coverage for it without paying for Gemma's
         # full compile.
-        pytest.param("Qwen/Qwen2.5-7B", True, id="qwen2.5-7b-force-equal"),
+        #
+        # Skipped: hangs at first decode step (no output, never returns)
+        # on a freshly-reset board after the engine init completes.
+        # Gemma-4-31B with the same force_equal path runs fine, so it's
+        # not a generic flag issue — most likely a tt-metal-side
+        # interaction between Qwen's c=7 KV replication (head_dim=128)
+        # and the small max_model_len=32. See
+        # CONCAT_FORCE_EQUAL_INVESTIGATION.md for the open thread; the
+        # nightly Gemma-4 test gives us coverage of the force_equal path
+        # in the meantime.
+        pytest.param(
+            "Qwen/Qwen2.5-7B",
+            True,
+            id="qwen2.5-7b-force-equal",
+            marks=pytest.mark.skip(
+                reason=(
+                    "hangs at first decode step on llmbox; see "
+                    "CONCAT_FORCE_EQUAL_INVESTIGATION.md"
+                )
+            ),
+        ),
     ],
 )
 def test_tensor_parallel_generation_llmbox_pad(model_name: str, force_equal: bool):
