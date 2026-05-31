@@ -335,6 +335,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "deepseek_r1_distill_nsfw_rpv1",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_deepseek_r1_distill_nsfw_rpv1",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
