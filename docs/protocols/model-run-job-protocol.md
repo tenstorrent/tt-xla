@@ -123,7 +123,7 @@ Use this sequence for every model-run job:
 
 ## Launch Record Template
 
-Every kickoff must produce a launch record with these fields:
+Every kickoff must produce a launch record using `docs/protocols/model-run-job-launch-record-template.md`. At minimum, the record must include these fields:
 
 - `run_id`
 - `job_type`
