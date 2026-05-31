@@ -283,6 +283,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
       {
+        "name": "mlc-ai_gemma-2-2b-it-q4f16_0-MLC",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_2_2b_it_q4f16_0_mlc"
+      },
+      {
         "name": "tiiuae_falcon3-1b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b"
       },
