@@ -96,6 +96,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
       {
+        "name": "bella_bartender_heretic_3b",
+        "pytest": "tests/benchmark/test_llms.py::test_bella_bartender_heretic_3b",
+        "pyreq": "gguf>=0.10.0",
+        "runs-on": "p150"
+      },
+      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
