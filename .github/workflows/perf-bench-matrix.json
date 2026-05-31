@@ -283,6 +283,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_gemma_1_1_2b"
       },
       {
+        "name": "unsloth_gemma-2-2b-it",
+        "pytest": "tests/benchmark/test_llms.py::test_unsloth_gemma_2_2b_it"
+      },
+      {
         "name": "tiiuae_falcon3-1b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_1b"
       },
