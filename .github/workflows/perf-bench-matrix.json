@@ -840,6 +840,12 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "deepseek_r1_0528_qwen3_8b",
+        "pyreq": "gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_deepseek_r1_0528_qwen3_8b",
+        "runs-on": "p150"
       }
     ]
   }
