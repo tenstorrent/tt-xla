@@ -76,7 +76,13 @@ def setup_model_and_tokenizer(
     if hasattr(model.config, "_experts_implementation"):
         model.config._experts_implementation = "dense"
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    tokenizer = getattr(model_loader, "tokenizer", None)
+    # Some loaders build the tokenizer lazily (e.g. only inside load_inputs)
+    # rather than during load_model. Fall back to the loader's _load_tokenizer
+    # hook so the harness always gets a usable tokenizer.
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        model_loader._load_tokenizer()
+        tokenizer = model_loader.tokenizer
 
     return model, tokenizer
 
