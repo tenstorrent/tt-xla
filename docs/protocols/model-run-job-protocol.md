@@ -176,6 +176,16 @@ Preserve raw logs and JUnit paths even when normalization classifies the row as 
 - Every external report must include source link, source SHA-256, repo ref, command line, and evidence paths.
 - Routine progress checkpoints are local artifacts unless a human explicitly approves external posting.
 
+## Protocol Package Validation
+
+Run this repository-local validator before opening or updating a PR that changes the protocol package:
+
+```sh
+python3 scripts/validate_model_run_protocol.py
+```
+
+The validator is read-only. It checks that the shared protocol and required templates exist, that Claude and Codex wrappers delegate to the protocol instead of embedding launch commands, and that the normalized-results CSV header matches the protocol contract.
+
 ## Agent Wrapper Rules
 
 Claude, Codex, and other agent-specific skills must:
