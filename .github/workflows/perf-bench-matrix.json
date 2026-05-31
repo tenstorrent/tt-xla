@@ -100,6 +100,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
+        "name": "bielik_11b_v2_3_instruct_gguf",
+        "pytest": "tests/benchmark/test_llms.py::test_bielik_11b",
+        "runs-on": "p150",
+        "pyreq": "gguf>=0.10.0"
+      },
+      {
         "name": "falcon3_7b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
         "runs-on": "n300-llmbox"
