@@ -323,6 +323,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "qwen_3_5_9b_huihui_abliterated",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_5_9b_huihui_abliterated",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
