@@ -71,18 +71,31 @@ _SHAPE_PAIRS = (
 )
 
 
-def _is_known_pcc_failure(opt_level: int, fp32_acc: bool) -> bool:
-    """Empirically observed PCC mismatch predicate for these shape pairs.
+_SHAPE_2560 = ((32, 128, 2560), (2560, 1024))
 
-    Calibrated against the first shape ((32, 128, 1024), (1024, 2048)): opt=2 fails
-    for every reduced-map combo (sweeps' xfail txt covers only FROM_ANOTHER_OP, but
-    FROM_HOST shows identical PCC), and opt=0 fails only when fp32_dest_acc_en=False.
-    Whether this extrapolates to the larger 2304/2560 shapes will be confirmed by
-    the rerun; refine here once results are in.
+
+def _is_known_pcc_failure(
+    shape_pair, opt_level: int, fp32_acc: bool, math_fidelity: str
+) -> bool:
+    """Empirically observed PCC mismatch predicate (forked rerun across 3 shapes).
+
+    Common pattern (all three shape pairs): opt=2 always fails; opt=0 fails when
+    fp32_dest_acc_en=False. The 2560-reduction shape adds one extra failure mode:
+    opt=0 + fp32_dest_acc_en=True + math_fidelity=lofi (lofi alone is too lossy
+    at that reduction size even with fp32 accumulation).
+    Input source (FROM_ANOTHER_OP vs FROM_HOST) does not affect PCC; the add(x,x)
+    prelude is a linear scaling.
     """
     if opt_level == 2:
         return True
-    return opt_level == 0 and not fp32_acc
+    if opt_level == 0 and not fp32_acc:
+        return True
+    return (
+        shape_pair == _SHAPE_2560
+        and opt_level == 0
+        and fp32_acc
+        and math_fidelity == "lofi"
+    )
 
 
 def _parse_compiler_config(config_str: str) -> CompilerConfig:
@@ -109,7 +122,7 @@ def _build_params():
                         fp32_str = "true" if fp32_acc else "false"
                         cfg = f"mp_opt{opt_level}_{wd}_fp32acc{fp32_str}_{mf}"
                         marks = []
-                        if _is_known_pcc_failure(opt_level, fp32_acc):
+                        if _is_known_pcc_failure(shape_pair, opt_level, fp32_acc, mf):
                             # The sweeps conftest hook (SweepsPytestReport.adjust_report)
                             # looks up failing reasons by `description`, not enum name.
                             # tt-xla's evaluator raises AssertionError -> matches
