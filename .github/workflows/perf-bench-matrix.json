@@ -335,6 +335,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "gpt_fr_base",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_fr_base"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
