@@ -96,6 +96,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
       {
+        "name": "dolphin_3_0_llama_3_2_3b",
+        "pytest": "tests/benchmark/test_llms.py::test_dolphin_3_0_llama_3_2_3b",
+        "runs-on": "p150"
+      },
+      {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
