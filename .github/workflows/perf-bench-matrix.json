@@ -323,6 +323,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "gpt5_distill_qwen3_4b_instruct",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt5_distill_qwen3_4b_instruct"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
