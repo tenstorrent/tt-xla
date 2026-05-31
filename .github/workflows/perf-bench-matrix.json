@@ -323,6 +323,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
+        "name": "codescout_14b",
+        "pytest": "tests/benchmark/test_llms.py::test_codescout_14b",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_2_5_7b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
