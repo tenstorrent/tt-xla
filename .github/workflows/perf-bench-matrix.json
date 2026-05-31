@@ -311,6 +311,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_0_6b"
       },
       {
+        "name": "aya_x_yeni",
+        "pytest": "tests/benchmark/test_llms.py::test_aya_x_yeni",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_1_7b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_1_7b"
       },
