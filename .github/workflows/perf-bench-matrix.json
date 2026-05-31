@@ -327,6 +327,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_7b"
       },
       {
+        "name": "qwen_2_5_14b_instruct_abliterated",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_14b_instruct_abliterated",
+        "runs-on": "p150"
+      },
+      {
         "name": "mistral_7b",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
