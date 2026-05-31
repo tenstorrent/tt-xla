@@ -2804,6 +2804,6 @@ def test_denglish_8b(
         decode_only=decode_only,
         fp32_dest_acc_en=False,
         required_pcc=0.90,
-        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,  # model-perf-tuning: ramped from 0
+        trace_enabled=True,  # model-perf-tuning: ramped from False
     )
