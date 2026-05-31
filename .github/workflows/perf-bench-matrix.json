@@ -267,6 +267,10 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "cerebras_cerebras-gpt-1.3b",
+        "pytest": "tests/benchmark/test_llms.py::test_cerebras_gpt_1_3b"
+      },
+      {
         "name": "microsoft_phi-1",
         "pytest": "tests/benchmark/test_llms.py::test_phi1"
       },

@@ -77,6 +77,16 @@ def setup_model_and_tokenizer(
         model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
+    # Some loaders populate `self.tokenizer` eagerly in load_model(), while
+    # others only do so lazily (in _load_tokenizer()/load_inputs()). The
+    # benchmark needs the tokenizer right after load_model(), so trigger the
+    # lazy path here if it hasn't been populated yet.
+    if tokenizer is None:
+        if hasattr(model_loader, "_load_tokenizer"):
+            tokenizer = model_loader._load_tokenizer()
+        elif hasattr(model_loader, "load_inputs"):
+            model_loader.load_inputs()
+            tokenizer = model_loader.tokenizer
 
     return model, tokenizer
 
