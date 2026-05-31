@@ -331,6 +331,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "chinese_alpaca_2_7b",
+        "pytest": "tests/benchmark/test_llms.py::test_chinese_alpaca_2_7b",
+        "runs-on": "p150"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
