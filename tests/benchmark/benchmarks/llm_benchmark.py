@@ -77,6 +77,11 @@ def setup_model_and_tokenizer(
         model.config._experts_implementation = "dense"
     model = model.eval()
     tokenizer = model_loader.tokenizer
+    # Some loaders populate the tokenizer lazily (only on load_inputs) rather than
+    # eagerly inside load_model. Fall back to the loader's _load_tokenizer() so the
+    # benchmark works regardless of which pattern a loader follows.
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        tokenizer = model_loader._load_tokenizer()
 
     return model, tokenizer
 

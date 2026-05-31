@@ -291,6 +291,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_3b"
       },
       {
+        "name": "hooshvarelab_gpt2-fa",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt2_fa"
+      },
+      {
         "name": "tiiuae_falcon3-7b-base",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b"
       },
