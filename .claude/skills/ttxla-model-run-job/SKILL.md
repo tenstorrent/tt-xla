@@ -1,3 +1,8 @@
+---
+name: ttxla-model-run-job
+description: Prepare, launch, validate, or report a bounded tt-xla model-run job using the repository-owned shared protocol.
+---
+
 # TT-XLA Model Run Job
 
 Use this skill when the user wants Claude to prepare, launch, validate, or report a bounded model-run job in `tt-xla`.

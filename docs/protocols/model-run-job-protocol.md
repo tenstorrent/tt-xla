@@ -46,6 +46,7 @@ Before running:
 - Confirm the runner host, hardware, OS, Python environment, CUDA or TT device availability, and disk headroom.
 - Run a collectability check for manifest-driven NVIDIA jobs.
 - Split rows into `runnable`, `blocked_collectability`, and `needs_mapping`.
+- Create a launch record before executing the first row or wave.
 
 During execution:
 
@@ -53,6 +54,7 @@ During execution:
 - Record the exact command line for every wave.
 - Preserve `pytest.log`, `junit.xml`, environment snapshot, and manifest path for every wave.
 - Clean transient model/cache artifacts only through documented cleanup commands.
+- Update local checkpoints for routine progress instead of posting GitHub status comments.
 
 After execution:
 
@@ -92,12 +94,73 @@ pytest -q \
   >"<wave_dir>/pytest.log" 2>&1
 ```
 
+## Kickoff Procedure
+
+Use this sequence for every model-run job:
+
+1. Identify the job type, manifest path, target runner, repo ref, and expected hardware.
+2. Verify the manifest contract and compute or confirm the manifest SHA-256.
+3. Capture the repository identity:
+   - `git rev-parse HEAD`
+   - `git submodule status --recursive`
+   - `git status --short`
+4. Capture the runner identity:
+   - hostname
+   - OS release
+   - Python executable and version
+   - installed package environment needed by the selected test lane
+   - accelerator inventory (`nvidia-smi` for NVIDIA, TT device inventory for TT jobs)
+   - disk headroom for repository, scratch, model cache, and artifact directories
+5. Run collectability or targeted dry-run validation for the selected job type.
+6. Create per-run output directories before execution:
+   - `artifacts/<run-id>/`
+   - `artifacts/<run-id>/waves/`
+   - `artifacts/<run-id>/normalized/`
+7. Launch bounded waves or single-row runs with the protocol command shape.
+8. Normalize terminal results and preserve raw outcomes.
+9. Record local checkpoints with evidence paths after every major handoff, terminalization batch, stop condition, or blocker.
+10. Prepare external report text only as a draft until a human approves posting.
+
+## Launch Record Template
+
+Every kickoff must produce a launch record with these fields:
+
+- `run_id`
+- `job_type`
+- `manifest_path`
+- `manifest_sha256`
+- `repo_ref`
+- `submodule_refs`
+- `runner_host`
+- `hardware`
+- `environment_summary`
+- `artifact_root`
+- `command_template`
+- `row_scope`
+- `wave_policy`
+- `cleanup_policy`
+- `stop_conditions`
+- `human_review_required_before_external_post`
+
+## Stop Conditions
+
+Stop or pause dispatch when any of these conditions occurs:
+
+- Runner host becomes unreachable or cannot complete login/session setup.
+- Disk free space drops below the run-specific floor.
+- Accelerator inventory is missing or changes unexpectedly.
+- Authentication, dependency, or environment failures affect multiple rows and are likely pipeline-class failures.
+- Artifact capture fails for a terminal row.
+- The manifest, repo ref, or submodule ref no longer matches the launch record.
+- A human-review gate is reached for issue comments, PR updates, or stakeholder reports.
+
 ## Reporting Rules
 
 - Do not post GitHub comments, update issues, or publish stakeholder reports without human review.
 - Status updates must distinguish known source coverage from requested target coverage.
 - If the requested target count is larger than the available source count, report the gap explicitly.
 - Every external report must include source link, source SHA-256, repo ref, command line, and evidence paths.
+- Routine progress checkpoints are local artifacts unless a human explicitly approves external posting.
 
 ## Agent Wrapper Rules
 
