@@ -335,6 +335,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "qcri_fanar-1-9b-instruct",
+        "pytest": "tests/benchmark/test_llms.py::test_fanar_1_9b_instruct",
+        "runs-on": "p150"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
