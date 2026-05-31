@@ -840,6 +840,10 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "distilgpt2",
+        "pytest": "tests/benchmark/test_llms.py::test_distilgpt2"
       }
     ]
   }
