@@ -840,6 +840,12 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "gemma_sea_guard_12b",
+        "pyreq": "gguf>=0.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_sea_guard_12b",
+        "runs-on": "p150"
       }
     ]
   }
