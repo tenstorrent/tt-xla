@@ -295,6 +295,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b"
       },
       {
+        "name": "quokka_590m",
+        "pytest": "tests/benchmark/test_llms.py::test_quokka_590m"
+      },
+      {
         "name": "qwen_2_5_0_5b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b"
       },
