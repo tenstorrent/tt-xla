@@ -76,7 +76,12 @@ def setup_model_and_tokenizer(
     if hasattr(model.config, "_experts_implementation"):
         model.config._experts_implementation = "dense"
     model = model.eval()
+    # Some loaders populate self.tokenizer in load_model(); others load it
+    # lazily (e.g. via load_inputs/decode_output) and leave it None until then.
+    # Trigger the lazy load here so the benchmark always gets a tokenizer.
     tokenizer = model_loader.tokenizer
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        tokenizer = model_loader._load_tokenizer()
 
     return model, tokenizer
 

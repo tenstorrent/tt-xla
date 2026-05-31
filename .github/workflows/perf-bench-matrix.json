@@ -299,6 +299,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_0_5b"
       },
       {
+        "name": "corianas_quokka_256m",
+        "pytest": "tests/benchmark/test_llms.py::test_quokka_256m"
+      },
+      {
         "name": "qwen_2_5_1_5b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_1_5b"
       },
