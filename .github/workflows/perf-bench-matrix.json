@@ -331,6 +331,10 @@
         "pytest": "tests/benchmark/test_llms.py::test_mistral_7b"
       },
       {
+        "name": "hermes_7b_ita",
+        "pytest": "tests/benchmark/test_llms.py::test_hermes_7b_ita"
+      },
+      {
         "name": "ministral_8b",
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
