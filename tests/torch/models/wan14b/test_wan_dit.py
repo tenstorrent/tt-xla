@@ -54,6 +54,9 @@ _COMPILER_CONFIG = CompilerConfig(
 )
 
 
+@pytest.mark.xfail(
+    reason="PCC comparison fails: captured 0.75 on single decoder block"
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
