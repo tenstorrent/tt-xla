@@ -36,11 +36,16 @@ def get_jax_device_arch():
 
 def get_xla_device_arch():
     """Get the architecture of the XLA device."""
-    import torch_xla.core.xla_model as xm
+    import torch_xla.runtime as xr
 
-    device = xm.xla_device()
-    device = xm.xla_device_kind(device)
-    arch_name = str(device).lower()
+    # Query the physical runtime devices directly. This works in both regular
+    # and SPMD modes. xm.xla_device_kind() cannot be used because in SPMD mode
+    # (e.g. tensor-parallel benchmarks) xm.xla_device() resolves to a virtual
+    # "SPMD:0" device that the device-kind lookup cannot find.
+    attrs = xr.global_runtime_device_attributes()
+    if not attrs:
+        return ""
+    arch_name = str(attrs[0]["device_arch"]).lower()
     return align_arch(arch_name)
 
 
