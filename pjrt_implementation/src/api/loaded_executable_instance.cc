@@ -177,6 +177,27 @@ std::unordered_set<int> LoadedExecutableInstance::getDeviceIds(
   return device_ids;
 }
 
+namespace {
+
+// Builds a "[shard i uid=U shape=S], ..." description of an argument's shards
+// for diagnostic logging.
+std::string
+describeArgBuffers(const std::vector<BufferInstance *> &arg_buffers) {
+  std::string out;
+  for (size_t i = 0; i < arg_buffers.size(); ++i) {
+    const BufferInstance *buf = arg_buffers[i];
+    if (i != 0) {
+      out += ", ";
+    }
+    out += "[shard " + std::to_string(i) +
+           " uid=" + std::to_string(buf->getUID()) +
+           " shape=" + buf->toShapeStr() + "]";
+  }
+  return out;
+}
+
+} // namespace
+
 tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     PJRT_Buffer *const *const *argument_lists, size_t num_args,
     size_t num_devices, const tt::runtime::Device &runtime_device,
@@ -205,13 +226,17 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.
     if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
-                   "be deallocated during execution.");
+      LOG_F(ERROR,
+            "Prepared input tensor (arg %zu) should have retain=true or it "
+            "may be deallocated during execution. Shards: %s",
+            arg_index, describeArgBuffers(arg_buffers).c_str());
       return tt_pjrt_status::kInternal;
     }
     if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
-                   "means it was deallocated by a previous operation.");
+      LOG_F(ERROR,
+            "Prepared input tensor (arg %zu) is not allocated on device. This "
+            "means it was deallocated by a previous operation. Shards: %s",
+            arg_index, describeArgBuffers(arg_buffers).c_str());
       return tt_pjrt_status::kInternal;
     }
   }

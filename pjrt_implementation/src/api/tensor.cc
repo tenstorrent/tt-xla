@@ -173,6 +173,21 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   // resident for the process lifetime. Enqueued after toLayout so the worker
   // processes the migration before the deallocation.
   if (dealloc_host_inputs) {
+    // Diagnostic: record which buffers (by uid + shape) are having their host
+    // source released here, so a later "Tensor is not allocated" failure in
+    // getInputRuntimeTensors can be correlated with the migration that freed
+    // the backing host copy.
+    for (const BufferInstance *shard : m_shards) {
+      if (shard != nullptr) {
+        LOG_F(
+            INFO,
+            "ensure_layout: releasing host source after migration for "
+            "buffer uid=%lu shape=%s (host_source_shards=%zu, had_old_host=%d)",
+            shard->getUID(), shard->toShapeStr().c_str(),
+            m_host_source_shards.size(),
+            static_cast<int>(old_host_tensor.has_value()));
+      }
+    }
     if (old_host_tensor.has_value()) {
       deallocateHostSourceTensor(*old_host_tensor);
     }

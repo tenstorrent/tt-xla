@@ -77,6 +77,45 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     materializeShellTensors(arg_buffers);
   }
 
+  // Diagnostic: surface each shard's shape / allocation / retain state BEFORE
+  // any runtime op runs, so a buffer whose backing host copy was reclaimed by
+  // a prior program's host-input deallocation can be identified (by shape +
+  // uid) instead of only seeing a worker-side "Tensor is not allocated" throw.
+  // Guarded against shell-only buffers, which legitimately have no runtime
+  // tensor yet, and against throws via invoke_noexcept.
+  for (size_t shard_index = 0; shard_index < arg_buffers.size();
+       ++shard_index) {
+    BufferInstance *buf = arg_buffers[shard_index];
+    if (!buf->getPjrtTensor()->has_runtime_tensor()) {
+      LOG_F(INFO,
+            "prepareInputTensor: arg %zu shard %zu uid=%lu shape=%s "
+            "shell-only (no runtime tensor yet)",
+            arg_index, shard_index, buf->getUID(), buf->toShapeStr().c_str());
+      continue;
+    }
+    bool allocated = false;
+    bool retain = false;
+    utils::invoke_noexcept([&] {
+      const tt::runtime::Tensor &rt = buf->runtimeTensor();
+      allocated = tt::runtime::isTensorAllocated(rt);
+      retain = tt::runtime::getTensorRetain(rt);
+    });
+    if (!allocated) {
+      LOG_F(ERROR,
+            "prepareInputTensor: arg %zu shard %zu uid=%lu shape=%s is NOT "
+            "allocated before prepare (retain=%d). Its backing was likely "
+            "reclaimed by a previous program's host-input deallocation.",
+            arg_index, shard_index, buf->getUID(), buf->toShapeStr().c_str(),
+            static_cast<int>(retain));
+    } else {
+      LOG_F(INFO,
+            "prepareInputTensor: arg %zu shard %zu uid=%lu shape=%s "
+            "allocated=1 retain=%d",
+            arg_index, shard_index, buf->getUID(), buf->toShapeStr().c_str(),
+            static_cast<int>(retain));
+    }
+  }
+
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
 
