@@ -6,7 +6,6 @@ import math
 
 import torch
 import torch.nn as nn
-from tt_torch.composite_ops import composite_topk
 from vllm.v1.outputs import LogprobsTensors, SamplerOutput
 
 from .metadata import XLASupportedSamplingMetadata
@@ -108,6 +107,7 @@ class Sampler(nn.Module):
         self, logits: torch.Tensor, *, vocab_sharded: bool = False
     ) -> torch.Tensor:
         if vocab_sharded:
+            from tt_torch.composite_ops import composite_topk
             # argmax over a vocab-sharded tensor would return shard-local
             # indices. composite_topk(k=1) is sharding-aware via the
             # tenstorrent.topk custom sharding rule — local topk + all-gather
@@ -413,6 +413,7 @@ def chunked_topk_candidates(
     )
 
     if vocab_sharded:
+        from tt_torch.composite_ops import composite_topk
         # Vocab is sharded along the "model" axis. The composite carries the
         # sharding through tt-mlir's custom rule (local topk + all-gather of
         # candidates + shard-offset + merge). Output W = 128 is already
