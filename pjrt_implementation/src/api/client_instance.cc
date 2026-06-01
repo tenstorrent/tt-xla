@@ -508,6 +508,18 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                                          {}};
   }
 
+  // [Workaround] Force FABRIC_1D for BH Galaxy on the exabox cluster.
+  // computeMeshFabricConfig otherwise returns RING_RING which tt-metal
+  // reinterprets as TORUS_XY, rejected on UBB galaxy boards lacking both-axis
+  // wrap. Same env var that forces {8, 4} parent mesh in populateDevices, so
+  // single-node BH Galaxy works without triggering the multi-host distributed
+  // runtime path that TT_RUNTIME_ENABLE_DISTRIBUTED enables.
+  const char *bh_galaxy_env = std::getenv("TT_RUNTIME_USING_BH_GALAXY");
+  if (bh_galaxy_env != nullptr && std::string(bh_galaxy_env) != "0") {
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
+  }
+
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
 
