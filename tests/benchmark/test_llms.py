@@ -2136,6 +2136,6 @@ def test_lexora_lite_3b_v2(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,
+        trace_enabled=True,
     )
