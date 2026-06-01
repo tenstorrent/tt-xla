@@ -57,6 +57,28 @@ DEFAULT_NUM_LAYERS = 4
 DEFAULT_BATCH_SIZE = 64
 DEFAULT_MAX_CACHE_LEN = 128
 
+# Pool of seed words for the decode step. Each batch row gets one word (cycled
+# to fill the batch) so the single decode token differs across the batch
+# instead of every row decoding the same token.
+DECODE_WORDS = [
+    "The",
+    "Hello",
+    "Once",
+    "Today",
+    "Water",
+    "Music",
+    "Science",
+    "History",
+    "Mountain",
+    "Ocean",
+    "Future",
+    "Light",
+    "Time",
+    "Dream",
+    "Robot",
+    "Garden",
+]
+
 
 # ============== PYTEST FIXTURES ==============
 
@@ -403,8 +425,14 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     logger.info("Compiling whole model...")
     compiled_model = torch.compile(model, backend="tt")
 
-    single_token = tokenizer.encode("Hello", return_tensors="pt")[:, :1]
-    input_ids = single_token.expand(batch_size, -1).contiguous().to(device)
+    # Distinct single-token input per batch row, cycling through DECODE_WORDS.
+    seed_words = [DECODE_WORDS[i % len(DECODE_WORDS)] for i in range(batch_size)]
+    seed_token_ids = [
+        tokenizer.encode(word, add_special_tokens=False)[0] for word in seed_words
+    ]
+    input_ids = (
+        torch.tensor(seed_token_ids, dtype=torch.long).unsqueeze(1).to(device)
+    )  # (batch_size, 1)
     xs.mark_sharding(input_ids, mesh, ("batch", None))
     cache_position = torch.tensor([0], dtype=torch.long).to(device)
 
@@ -420,6 +448,6 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     logits = output.logits.cpu()
     predicted_ids = logits[:, -1].argmax(dim=-1)
     decoded = tokenizer.batch_decode(predicted_ids)
-    logger.info("[STREAMING DECODE] Predicted tokens:")
-    for i, text in enumerate(decoded[: min(8, batch_size)]):
-        logger.info(f"  User {i}: {repr(text)}")
+    logger.info("[STREAMING DECODE] Predicted next tokens:")
+    for i in range(min(8, batch_size)):
+        logger.info(f"  User {i}: {seed_words[i]!r} -> {decoded[i]!r}")
