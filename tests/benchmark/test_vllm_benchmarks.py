@@ -12,7 +12,7 @@ from benchmarks.vllm_benchmark import (
     benchmark_vllm,
     benchmark_vllm_embedding,
 )
-from utils import resolve_display_name
+from utils import resolve_display_name, sanitize_model_name
 
 # Sampling overrides — keep SINGLE_DEVICE_CONFIGS focused on (model,
 # batch_size). CI re-runs the same matrix with different sampling
@@ -242,6 +242,15 @@ def _run_vllm_benchmark(config, output_file, request):
     print(f"\n{'='*60}")
     print(f"vLLM Benchmark: {display_name}")
     print(f"{'='*60}")
+
+    # Dump compiler IR (StableHLO + TTNN) to modules/irs/ by default, keyed by a
+    # filename-safe display name, mirroring the torch-xla benchmark
+    # (export_path="modules"). An explicit export_path / export_model_name in
+    # additional_config still wins.
+    config.additional_config.setdefault("export_path", "modules")
+    config.additional_config.setdefault(
+        "export_model_name", sanitize_model_name(display_name)
+    )
 
     results = benchmark_vllm(config, display_name)
 
