@@ -405,8 +405,20 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // [Workaround] BH Galaxy on the exabox cluster requires forcing the parent
+    // mesh to {8, 4} rather than the default {1, num_devices}. Without this,
+    // tt::runtime::computeMeshFabricConfig produces RING_RING which tt-metal
+    // reinterprets as TORUS_XY, rejected on UBB galaxy boards that lack
+    // both-axis wrap. Gated on env var so QB2 and other non-BH-Galaxy targets
+    // stay on the default mesh shape. Pair with TT_RUNTIME_ENABLE_DISTRIBUTED=1
+    // to take the existing FABRIC_1D path in computeFabricConfig.
+    const char *bh_galaxy_env = std::getenv("TT_RUNTIME_USING_BH_GALAXY");
+    if (bh_galaxy_env != nullptr && std::string(bh_galaxy_env) != "0") {
+      m_parent_mesh = getOrCreateMeshDevice({8, 4});
+    } else {
+      m_parent_mesh =
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    }
   }
 
   return tt_pjrt_status::kSuccess;
