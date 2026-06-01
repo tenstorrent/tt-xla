@@ -446,8 +446,14 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
         )
 
     logits = output.logits.cpu()
+    # Expected (batch_size, seq_len=1, vocab). Log the shape because under SPMD
+    # the gathered host tensor's batch dim may not match batch_size.
+    logger.info(f"[STREAMING DECODE] logits shape: {tuple(logits.shape)}")
     predicted_ids = logits[:, -1].argmax(dim=-1)
     decoded = tokenizer.batch_decode(predicted_ids)
-    logger.info("[STREAMING DECODE] Predicted next tokens:")
-    for i in range(min(8, batch_size)):
-        logger.info(f"  User {i}: {seed_words[i]!r} -> {decoded[i]!r}")
+    logger.info(
+        f"[STREAMING DECODE] {len(decoded)} decoded row(s); predicted next tokens:"
+    )
+    for i in range(min(8, len(decoded))):
+        seed = seed_words[i] if i < len(seed_words) else "?"
+        logger.info(f"  User {i}: {seed!r} -> {decoded[i]!r}")
