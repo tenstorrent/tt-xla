@@ -3,8 +3,34 @@
 # SPDX-License-Identifier: Apache-2.0
 import pytest
 from conftest import assert_output_coherent, check_host_memory
+from vllm_tt.model_runner import TTModelRunner
 
 import vllm
+
+
+@pytest.mark.push
+def test_pad_decision_gates_force_equal_with_zero_pad():
+    """force_equal with padded_kv > orig_kv*c is gated (#5015)."""
+    # Qwen2.5-7B + force_equal → gated (orig_kv=4, c=7 → 28 + 4 zero-pad).
+    with pytest.raises(NotImplementedError, match="force_equal"):
+        TTModelRunner._compute_head_pad_decision(
+            orig_q=28, orig_kv=4, head_dim=128, heads_axis=8, force_equal=True
+        )
+    # Qwen2.5-7B without force_equal → min-cost spec.
+    spec = TTModelRunner._compute_head_pad_decision(
+        orig_q=28, orig_kv=4, head_dim=128, heads_axis=8, force_equal=False
+    )
+    assert spec["padded_kv"] == 8 and spec["padded_q"] == 56
+    # Gemma-4-31B sliding (orig_kv=16, c=2) — padded_kv == orig_kv*c, fine.
+    spec = TTModelRunner._compute_head_pad_decision(
+        orig_q=32, orig_kv=16, head_dim=256, heads_axis=8, force_equal=True
+    )
+    assert spec["padded_kv"] == 32 and spec["kv_replication_factor"] == 2
+    # Gemma-4-31B global (orig_kv=4, c=8) — padded_kv == orig_kv*c, fine.
+    spec = TTModelRunner._compute_head_pad_decision(
+        orig_q=32, orig_kv=4, head_dim=512, heads_axis=8, force_equal=True
+    )
+    assert spec["padded_kv"] == 32 and spec["kv_replication_factor"] == 8
 
 
 @pytest.mark.push
@@ -47,12 +73,15 @@ def test_tensor_parallel_generation_n300(model_name: str):
         pytest.param("meta-llama/Llama-3.2-3B", False, id="llama-3.2-3b"),
         # Qwen2.5-7B: min-cost path (k=7, padded_kv 4->8, padded_q 28->56).
         pytest.param("Qwen/Qwen2.5-7B", False, id="qwen2.5-7b"),
-        # Qwen2.5-7B + force_equal hangs at first decode on llmbox (#5015).
+        # Qwen2.5-7B + force_equal hits the NotImplementedError gate (#5015)
+        # at decision time. Skipped (not xfailed) because the gate raises in
+        # the engine subprocess and gets wrapped in RuntimeError; the gate
+        # itself is covered by test_pad_decision_gates_force_equal_with_zero_pad.
         pytest.param(
             "Qwen/Qwen2.5-7B",
             True,
             id="qwen2.5-7b-force-equal",
-            marks=pytest.mark.skip(reason="hangs at first decode (#5015)"),
+            marks=pytest.mark.skip(reason="gated by #5015"),
         ),
     ],
 )

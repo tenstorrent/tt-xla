@@ -590,6 +590,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if padded_q == orig_q and padded_kv == orig_kv:
             return None
 
+        # force_equal + padded_kv > orig_kv*c (i.e. c=k replication doesn't
+        # fill padded_kv and we'd zero-pad on top) hangs at first decode on
+        # llmbox; fail fast instead. See #5015.
+        if force_equal and padded_kv > orig_kv * best["c"]:
+            raise NotImplementedError(
+                f"pad_attention_heads_force_equal=True with orig_kv={orig_kv}, "
+                f"c={best['c']}, heads_axis={heads_axis} would zero-pad "
+                f"{padded_kv - orig_kv * best['c']} KV heads on top of c=k "
+                f"replication (padded_kv={padded_kv}). Known to hang at first "
+                f"decode on llmbox (#5015)."
+            )
+
         return {
             "orig_q": orig_q,
             "orig_kv": orig_kv,
