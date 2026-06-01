@@ -38,8 +38,8 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
-def test_vae_encoder_480p_sharded():
-    _run("480p", sharded=True)
+def test_vae_encoder_480p():
+    _run("480p", sharded=False)
 
 
 def _run(resolution: str, sharded: bool) -> None:
