@@ -33,15 +33,28 @@ _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 
 def _config(
     model: str,
-    batch_size: int,
+    batch_size: int = 32,
     *,
     gpu_memory_utilization: float = 0.05,
     optimization_level: int = 0,
+    # Defaults aligned with the torch-xla LLM benchmark: bfp_bf8 weights (a
+    # large decode win, and required for 8B-class models to fit on one
+    # Wormhole) and fp32_dest_acc_en=False. optimization_level stays 0 --
+    # opt>=1 currently fails to compile the vLLM Llama graph at b=32 (tt-mlir
+    # #4569 BeamCandidate) and opt2 fails at b=1 (select_hidden_states
+    # INTERNAL). Pass experimental_weight_dtype="" / fp32_dest_acc_en=None to
+    # opt out (see _tp_config).
+    experimental_weight_dtype: str = "bfp_bf8",
+    fp32_dest_acc_en: bool | None = False,
     **additional_config_extra,
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
         optimization_level = int(_BENCH_OPTIMIZATION_LEVEL)
     additional = {"enable_trace": True}
+    if experimental_weight_dtype:
+        additional["experimental_weight_dtype"] = experimental_weight_dtype
+    if fp32_dest_acc_en is not None:
+        additional["fp32_dest_acc_en"] = fp32_dest_acc_en
     if optimization_level > 0:
         additional["optimization_level"] = optimization_level
         # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
@@ -84,6 +97,10 @@ def _tp_config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
+        # Keep TP configs as-is: the single-device alignment defaults
+        # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
+        experimental_weight_dtype="",
+        fp32_dest_acc_en=None,
         **tp_defaults,
     )
 
@@ -115,82 +132,48 @@ def _gemma4_tp_config(model: str, batch_size: int):
     return cfg
 
 
+# Single-device LLMs mirror the torch-xla llm benchmark (tests/benchmark/
+# test_llms.py) at batch_size=32 with the aligned _config defaults (bfp_bf8
+# weights, fp32_dest_acc_en=False, optimization_level=0, trace on). Models the
+# vLLM plugin can't run on a single device are intentionally omitted: Mamba
+# (arch unsupported), all tensor-parallel models (need >1 device; see
+# TP_CONFIGS), and the galaxy/qb2 MoE + DeepSeek/Kimi MLA tests.
 SINGLE_DEVICE_CONFIGS = [
-    pytest.param(_config("meta-llama/Llama-3.2-3B", 1), id="llama-3.2-3b"),
+    # Llama
+    pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
+    pytest.param(_config("meta-llama/Llama-3.2-3B-Instruct"), id="llama-3.2-3b"),
+    pytest.param(_config("meta-llama/Llama-3.1-8B-Instruct"), id="llama-3.1-8b"),
+    # Qwen 2.5
+    pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct"), id="qwen2.5-0.5b-instruct"),
+    pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct"), id="qwen2.5-1.5b-instruct"),
+    pytest.param(_config("Qwen/Qwen2.5-3B-Instruct"), id="qwen2.5-3b-instruct"),
+    pytest.param(_config("Qwen/Qwen2.5-7B-Instruct"), id="qwen2.5-7b-instruct"),
+    # Qwen 3
+    pytest.param(_config("Qwen/Qwen3-0.6B"), id="qwen3-0.6b"),
+    pytest.param(_config("Qwen/Qwen3-1.7B"), id="qwen3-1.7b"),
+    pytest.param(_config("Qwen/Qwen3-4B"), id="qwen3-4b"),
+    pytest.param(_config("Qwen/Qwen3-8B"), id="qwen3-8b"),
+    # Gemma
+    pytest.param(_config("google/gemma-1.1-2b-it"), id="gemma-1.1-2b-it"),
+    pytest.param(_config("google/gemma-2-2b-it"), id="gemma-2-2b-it"),
+    pytest.param(_config("google/gemma-1.1-7b-it"), id="gemma-1.1-7b-it"),
+    # Phi
+    pytest.param(_config("microsoft/phi-1"), id="phi-1"),
+    pytest.param(_config("microsoft/phi-1_5"), id="phi-1_5"),
+    pytest.param(_config("microsoft/phi-2"), id="phi-2"),
+    pytest.param(_config("microsoft/Phi-3-mini-4k-instruct"), id="phi-3-mini-4k"),
+    pytest.param(_config("microsoft/Phi-3.5-mini-instruct"), id="phi-3.5-mini"),
+    # Falcon 3
+    pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
+    pytest.param(_config("tiiuae/Falcon3-3B-Base"), id="falcon3-3b-base"),
+    pytest.param(_config("tiiuae/Falcon3-7B-Base"), id="falcon3-7b-base"),
+    # Mistral
     pytest.param(
-        _config("meta-llama/Llama-3.2-3B", 32, gpu_memory_utilization=0.037),
-        id="llama-3.2-3b-batch32",
+        _config("mistralai/Mistral-7B-Instruct-v0.3"), id="mistral-7b-instruct"
     ),
-    # bfp_bf8 weights match the torch-xla benchmark default and are a large
-    # decode win (~+30% at b=1, ~+15% at b=32). For Llama-3.1-8B they are also
-    # *required* to fit on a single Wormhole (bf16 ~16GB > 12GB DRAM -> OOM).
-    # optimization_level stays 0 for both shapes: opt2 fails to compile the
-    # vLLM Llama graph (b=1 -> select_hidden_states INTERNAL error; b=32 ->
-    # tt-mlir #4569 BeamCandidate assert), and opt1 also hits #4569 at b=32.
-    # (opt1 does compile at b=1 for a marginal ~+2%, left off for uniformity.)
-    pytest.param(
-        _config(
-            "meta-llama/Llama-3.2-1B-Instruct", 1, experimental_weight_dtype="bfp_bf8"
-        ),
-        id="llama-3.2-1b",
-    ),
-    pytest.param(
-        _config(
-            "meta-llama/Llama-3.2-1B-Instruct", 32, experimental_weight_dtype="bfp_bf8"
-        ),
-        id="llama-3.2-1b-batch32",
-    ),
-    # fp32_dest_acc_en=False matches the torch-xla Llama-3.1-8B benchmark.
-    pytest.param(
-        _config(
-            "meta-llama/Llama-3.1-8B-Instruct",
-            1,
-            experimental_weight_dtype="bfp_bf8",
-            fp32_dest_acc_en=False,
-        ),
-        id="llama-3.1-8b",
-    ),
-    pytest.param(
-        _config(
-            "meta-llama/Llama-3.1-8B-Instruct",
-            32,
-            experimental_weight_dtype="bfp_bf8",
-            fp32_dest_acc_en=False,
-        ),
-        id="llama-3.1-8b-batch32",
-    ),
-    pytest.param(
-        _config(
-            "facebook/opt-125m", 1, gpu_memory_utilization=0.001, optimization_level=1
-        ),
-        id="opt-125m-opt1",
-    ),
-    pytest.param(
-        _config(
-            "facebook/opt-125m", 32, gpu_memory_utilization=0.02, optimization_level=1
-        ),
-        id="opt-125m-batch32-opt1",
-        marks=pytest.mark.xfail(
-            reason="tt-mlir MemoryLayoutPropagation::consolidateBeam assert "
-            "(regression from tt-mlir uplift #4569); see tt-mlir issue TODO",
-            strict=False,
-            run=True,
-        ),
-    ),
-    pytest.param(_config("Qwen/Qwen2.5-0.5B-Instruct", 1), id="qwen2.5-0.5b-instruct"),
-    pytest.param(_config("Qwen/Qwen2.5-1.5B-Instruct", 1), id="qwen2.5-1.5b-instruct"),
-    pytest.param(_config("Qwen/Qwen2.5-3B-Instruct", 1), id="qwen2.5-3b-instruct"),
-    pytest.param(_config("Qwen/Qwen3-0.6B", 1), id="qwen3-0.6b"),
-    pytest.param(_config("Qwen/Qwen3-1.7B", 1), id="qwen3-1.7b"),
-    pytest.param(_config("microsoft/phi-1", 1), id="phi-1"),
-    pytest.param(_config("microsoft/phi-1_5", 1), id="phi-1_5"),
-    pytest.param(_config("microsoft/phi-2", 1), id="phi-2"),
-    pytest.param(_config("tiiuae/Falcon3-1B-Base", 1), id="falcon3-1b-base"),
-    pytest.param(
-        _config("tiiuae/Falcon3-1B-Base", 1, optimization_level=1),
-        id="falcon3-1b-base-opt1",
-    ),
-    pytest.param(_config("tiiuae/Falcon3-3B-Base", 1), id="falcon3-3b-base"),
+    pytest.param(_config("mistralai/Ministral-8B-Instruct-2410"), id="ministral-8b"),
+    # OPT (vLLM-only fast canary; not part of the torch-xla matrix)
+    pytest.param(_config("facebook/opt-125m"), id="opt-125m"),
 ]
 
 
