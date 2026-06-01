@@ -16,6 +16,7 @@ from torch._decomp import get_decompositions as get_aten_decompositions
 from torch._dynamo import register_backend
 from torch._dynamo.backends.common import aot_autograd
 from torch._dynamo.utils import detect_fake_mode
+from torch._subclasses.fake_tensor import unset_fake_temporarily
 
 # Force the min-cut partitioner to never save aten.view/permute/transpose/etc.
 # A saved view of a parameter is a parameter-sized device copy for nothing -
@@ -55,42 +56,34 @@ from .passes import (
 )
 
 
-def _move_cpu_tensor_attrs_to_xla(gm: torch.fx.GraphModule) -> None:
-    """Rebind CPU ``_tensor_constant*`` buffers on ``gm`` to XLA, in place.
+def _relocate_lifted_constants_to_xla(gm: torch.fx.GraphModule) -> None:
+    """Move the CPU constant buffers AOTAutograd lifted onto ``gm`` to XLA.
 
-    Why: AOTAutograd's functionalisation lifts Python literals that were
-    promoted to tensors mid-trace (e.g. gemma's ``math.sqrt(hidden_size)``)
-    onto the forward GraphModule as registered buffers named
-    ``_tensor_constant<N>``, leaving them on CPU. They surface in the FX
-    graph as ``get_attr`` nodes feeding ``lift_fresh_copy`` and a
-    downstream ``mul``. When DynamoBridge later runs its
-    ``UnsupportedNodesCollector`` with real XLA args, it marks that triple
-    unsupported and ``CapabilityBasedPartitioner`` fractures the FX graph
-    there — splitting the supposed-single decoder forward into two
-    partitions with a host roundtrip between them, which also breaks the
-    downstream RMSNorm fusion in TTIRFusing.
+    AOTAutograd interns Python-literal tensors created mid-trace (e.g. a
+    ``math.sqrt(hidden_size)`` scale) as registered buffers named
+    ``_tensor_constant<N>``, left on CPU and surfacing as ``get_attr`` nodes.
+    torch-xla's ``UnsupportedNodesCollector`` runs each node with real args,
+    sees the CPU result, and ``CapabilityBasedPartitioner`` then splits the
+    graph at that boundary — a host roundtrip that also blocks downstream
+    fusion (e.g. RMSNorm in TTIRFusing).
 
-    ``_assign_attr`` routes the constants through ``register_buffer`` so
-    they live in ``mod._buffers`` (not ``mod.__dict__``). Rebinding via
-    ``_buffers[name] = ...`` keeps nn.Module's ``__setattr__`` out of
-    the loop.
-
-    Called from ``XLAExecutor.__call__`` on the first invocation rather
-    than from ``fw_compiler_boxed``: at compile time AOTAutograd has a
-    ``FakeTensorMode`` on the dispatch stack and any ``.to(xla)`` would
-    route through fake dispatch and produce a FakeTensor; at call time
-    fake mode is off and ``.to(xla)`` is a normal real-tensor op.
+    AOTAutograd keeps a ``FakeTensorMode`` on the dispatch stack through the
+    fw_compiler callback, so a bare ``.to("xla")`` here would yield a
+    FakeTensor; ``unset_fake_temporarily()`` pops that mode so the transfer
+    produces a real XLA tensor. Rebinding via ``_buffers[name] = ...`` keeps
+    nn.Module's ``__setattr__`` out of the loop.
     """
     xla_device = torch.device("xla")
-    for mod in gm.modules():
-        for name, value in list(mod._buffers.items()):
-            if isinstance(value, torch.Tensor) and value.device.type != "xla":
-                logger.info(
-                    f"[aot_backend] moving CPU buffer attribute "
-                    f"'{type(mod).__name__}.{name}' "
-                    f"(dtype={value.dtype}, shape={tuple(value.shape)}) to XLA"
-                )
-                mod._buffers[name] = value.to(xla_device)
+    with unset_fake_temporarily():
+        for mod in gm.modules():
+            for name, value in list(mod._buffers.items()):
+                if isinstance(value, torch.Tensor) and value.device.type != "xla":
+                    logger.info(
+                        f"[aot_backend] moving CPU constant buffer "
+                        f"'{type(mod).__name__}.{name}' "
+                        f"(dtype={value.dtype}, shape={tuple(value.shape)}) to XLA"
+                    )
+                    mod._buffers[name] = value.to(xla_device)
 
 
 def _build_aot_graph_signature(
@@ -298,6 +291,11 @@ def torch_pass_pipeline(
         graph_signature = aot_graph_signature
         params_and_consts = ()
 
+        # Relocate the CPU constant buffers AOTAutograd lifted onto the graph
+        # to XLA, so torch-xla's partitioner doesn't fracture the graph at the
+        # resulting host op. See _relocate_lifted_constants_to_xla.
+        _relocate_lifted_constants_to_xla(compiled_graph)
+
         # AOTAutograd's matmul lowering reshapes (..., M, K) @ (..., K, N) to
         # (B*H, M, K) @ (B*H, K, N) via a view->bmm->view sandwich.  Under TP
         # with the head dim sharded, the collapsed bmm form destroys head
@@ -430,9 +428,6 @@ class XLAExecutor:
         self.params_and_consts = params_and_consts
         self.compiled_graph = None
 
-        # Deferred until first __call__; see _move_cpu_tensor_attrs_to_xla.
-        self._cpu_buffers_rebound = False
-
     def _call_experimental_compile(self, *args):
         if self.compiled_graph is None:
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
@@ -462,14 +457,6 @@ class XLAExecutor:
                 arg = arg.to(torch.device("xla"))
             moved_args.append(arg)
         args = tuple(moved_args)
-
-        # First call only: rebind any CPU `_tensor_constant*` buffers
-        # AOTAutograd left on the gm to XLA. Done here rather than at
-        # compile time to avoid AOTAutograd's FakeTensorMode intercepting
-        # the `.to(xla)` — see _move_cpu_tensor_attrs_to_xla docstring.
-        if not self._cpu_buffers_rebound:
-            _move_cpu_tensor_attrs_to_xla(self.module)
-            self._cpu_buffers_rebound = True
 
         if not self.legacy_compile_enabled:
             return self._call_experimental_compile(*args)
