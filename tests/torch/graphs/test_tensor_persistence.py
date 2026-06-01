@@ -899,15 +899,13 @@ def test_no_rss_leak_across_executions(dim: int, record_property):
 
     samples: list[tuple[int, float, float]] = []
     checksum = torch.zeros((), dtype=torch.float64)
-    per_iter_sums: list[torch.Tensor] = []  
+    per_iter_sums: list[torch.Tensor] = []
 
     for i in range(ITERS):
         with torch.no_grad():
             out = model(x).cpu()
-        iter_sum = out.to(
-            torch.float64
-        ).sum()  
-        per_iter_sums.append(iter_sum)  
+        iter_sum = out.to(torch.float64).sum()
+        per_iter_sums.append(iter_sum)
         checksum += iter_sum
         samples.append((i, get_rss_mib(), get_vmhwm_mib() - initial_vmhwm_mib))
 
