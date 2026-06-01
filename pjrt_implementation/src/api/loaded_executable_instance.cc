@@ -12,6 +12,8 @@
 #include "tt/runtime/types.h"
 
 // c++ standard library includes
+#include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
@@ -42,6 +44,22 @@
 #include "utils/logging.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+// When TT_EVICT_CE_INPUTS=1, const-eval / streaming flows intentionally evict
+// (deallocate) input host backings after migration, so the per-input
+// retain/allocated safety check in getInputRuntimeTensors would spuriously
+// reject inputs that were deliberately reclaimed. Opt-in to skip that check.
+bool evictConstEvalInputsEnabled() {
+  static const bool enabled = [] {
+    const char *env = std::getenv("TT_EVICT_CE_INPUTS");
+    return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
+  }();
+  return enabled;
+}
+
+} // namespace
 
 // Clears program cache on instance destroy.
 LoadedExecutableInstance::~LoadedExecutableInstance() {
@@ -204,15 +222,19 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.
-    if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
-                   "be deallocated during execution.");
-      return tt_pjrt_status::kInternal;
-    }
-    if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
-                   "means it was deallocated by a previous operation.");
-      return tt_pjrt_status::kInternal;
+    // Skipped under TT_EVICT_CE_INPUTS=1, where const-eval / streaming flows
+    // intentionally evict input host backings after migration.
+    if (!evictConstEvalInputsEnabled()) {
+      if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
+                     "be deallocated during execution.");
+        return tt_pjrt_status::kInternal;
+      }
+      if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
+                     "means it was deallocated by a previous operation.");
+        return tt_pjrt_status::kInternal;
+      }
     }
   }
   return tt_pjrt_status::kSuccess;
