@@ -23,12 +23,18 @@ from utils import resolve_display_name, sanitize_model_name
 #   _BENCH_OPTIMIZATION_LEVEL=<int>       default 0 (overrides per-test opt level)
 #   TT_BENCHMARK_WEIGHT_DTYPE=<str>       e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test weight dtype)
 #   TT_BENCHMARK_WEIGHT_OVERRIDES=<path>  JSON file of {glob: dtype} per-tensor mixed-precision overrides
+#   TT_BENCHMARK_GMU=<float>              overrides per-test gpu_memory_utilization
+#   TT_BENCHMARK_BATCH_SIZE=<int>         overrides per-test batch_size
+#   TT_BENCHMARK_TRACE=0|1                overrides per-test enable_trace
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
 _BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
 _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
+_BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
+_BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
+_BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
 
 
 def _config(
@@ -50,6 +56,10 @@ def _config(
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
         optimization_level = int(_BENCH_OPTIMIZATION_LEVEL)
+    if _BENCH_BATCH_SIZE is not None:
+        batch_size = int(_BENCH_BATCH_SIZE)
+    if _BENCH_GMU is not None:
+        gpu_memory_utilization = float(_BENCH_GMU)
     additional = {"enable_trace": True}
     if experimental_weight_dtype:
         additional["experimental_weight_dtype"] = experimental_weight_dtype
@@ -70,6 +80,8 @@ def _config(
         # Path to a JSON {glob: dtype} file; loaded plugin-side by
         # apply_weight_dtype_overrides. Takes precedence over the uniform dtype.
         additional["weight_dtype_overrides"] = _BENCH_WEIGHT_OVERRIDES
+    if _BENCH_TRACE is not None:
+        additional["enable_trace"] = _BENCH_TRACE == "1"
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
