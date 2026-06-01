@@ -4,11 +4,24 @@
 """
 Precompute CPU golden (``Layer0LnAttnNoDep``) for TTNN PCC.
 
-From tt-metal repo root::
+From tt-metal repo root (``python_env`` needs **transformers 5.5.x**; no ``torch_xla``)::
 
   export JANUS_TTXLA_ROOT=/path/to/31_may_yyz/tt-xla
   export JANUS_LAYER0_FIXTURE_DIR=.../janus_logs/layer0_tensors/Pro_1B
   python janus_layer0_ln_attn_no_dep_codegen/cpu_reference/generate_golden.py
+
+Or precompute in **tt-xla venv** and only load the ``.pt`` in tt-metal::
+
+  cd tt-xla && source venv/bin/activate
+  export JANUS_LAYER0_FIXTURE_DIR=.../janus_logs/layer0_tensors/Pro_1B
+  python -c "
+from pathlib import Path; import sys, torch
+r=Path('.').resolve(); sys.path[:0]=[str(r), str(r/'examples/pytorch/codegen/python')]
+from janus_layer0_build import run_forward_stacked
+g=run_forward_stacked('Pro_1B')
+out=Path('../31_may_tt_metal/tt-metal/janus_layer0_ln_attn_no_dep_codegen/cpu_reference/golden/stacked_stages_pro_1b.pt')
+out.parent.mkdir(parents=True, exist_ok=True); torch.save(g, out); print(out, g.shape)
+"
 """
 
 from __future__ import annotations

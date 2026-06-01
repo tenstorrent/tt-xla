@@ -85,14 +85,15 @@ def compare_layer0_ln_attn_stages(
     *,
     variant: str = "Pro_1B",
     refresh_cpu_golden: bool = False,
-    expected_self_attn_pcc: float = 0.77,
-    pcc_tolerance: float = 0.15,
 ) -> list[StagePccMetrics]:
     """
-    TTNN vs CPU where CPU = ``Layer0LnAttnNoDep`` (same as codegen).
+    TTNN export vs CPU golden.
 
-    **Experiment C** (tt-metal export + tensorbins) often shows ~0.99 on ``self_attn``.
-    **Experiment A** (Forge vs this CPU in tt-xla) shows ~0.77 — see ``EXPERIMENTS.md``.
+    CPU golden = ``janus_layer0_build.run_forward_stacked`` via tt-xla tests (no ``torch_xla``;
+    same graph as codegen compare gate / no-dep sanity CPU side).
+
+    Expect **~0.99** on ``self_attn`` here (TTNN vs CPU). The **~0.77** drop is **Forge vs this
+    same CPU** on tt-xla only — not TTNN vs CPU.
     """
     cpu_stacked = load_or_compute_cpu_golden(variant=variant, refresh=refresh_cpu_golden)
     tt_stacked = _ttnn_output_to_stacked(ttnn_outputs)
@@ -117,8 +118,9 @@ def compare_layer0_ln_attn_stages(
 
     attn_pcc = metrics[2].pcc
     print(
-        f"\nself_attn PCC={attn_pcc:.4f}  "
-        f"(tt-xla Forge vs this CPU ~{expected_self_attn_pcc}; "
-        "tt-metal export vs this CPU often ~0.99 — see janus_layer0_forge_vs_ttnn_compare/EXPERIMENTS.md)"
+        f"\nself_attn PCC={attn_pcc:.4f}  (TTNN vs CPU golden)")
+    print(
+        "CPU golden = same build as codegen/compare gate (expect ~0.99 on self_attn). "
+        "Forge vs this CPU on tt-xla ≈ 0.77 — see janus_layer0_forge_vs_ttnn_compare/EXPERIMENTS.md"
     )
     return metrics

@@ -51,7 +51,7 @@ echo "========== Capture artifacts (Forge / TTNN / CPU) =========="
 mkdir -p "${ART}"
 rm -f "${ART}"/forge_stacked_*.pt "${ART}"/ttnn_stacked_*.pt "${ART}"/cpu_stacked_*.pt
 python "${COMPARE}/capture_forge.py" || echo "WARN: capture_forge failed"
-cd "${TTMETAL}" && "${TT_PY}" "${TTXLA}/${COMPARE}/capture_ttnn.py" || echo "WARN: capture_ttnn failed"
+cd "${TTMETAL}" && "${TT_PY}" "${TTXLA}/janus_layer0_forge_vs_ttnn_compare/capture_ttnn.py" || echo "WARN: capture_ttnn failed"
 cd "${TTXLA}"
 python "${COMPARE}/capture_cpu.py" || echo "WARN: capture_cpu failed"
 

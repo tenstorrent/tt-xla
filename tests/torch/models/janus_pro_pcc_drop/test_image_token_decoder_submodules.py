@@ -11,6 +11,11 @@ to locate interaction / depth PCC drops (issue #4968).
 
 Layer-0 ``input_layernorm`` + ``self_attn`` fused tests: loader ``inputs_embeds`` vs saved
 ``hidden_before_input_layernorm`` (see ``test_*_ln_attn_*``).
+
+Pro-7B tests use ``@pytest.mark.p150`` only (DRAM OOM on n150). Example::
+
+    pytest -m "p150 and single_device" -s \\
+      tests/torch/models/janus_pro_pcc_drop/test_image_token_decoder_layers.py::test_image_token_decoder_layer_pcc_profile_pro_7b
 """
 
 from __future__ import annotations
@@ -390,6 +395,68 @@ def test_image_token_decode_decoder_full_with_norm_pro_1b():
     wrapper.past_key_values = bundle["past_key_values"]
     run_decoder_op_test(
         "decoder_full_with_norm",
+        wrapper,
+        [bundle["inputs_embeds"]],
+        assert_on_failure=False,
+    )
+
+
+# --- Pro-7B (p150 only; DRAM OOM on n150) ---
+
+
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_decode_input_layernorm_layer0_pro_7b():
+    fx = _load_fixtures("Pro_7B")
+    run_decoder_op_test(
+        "input_layernorm",
+        JanusLlamaRMSNormDecode(fx.input_layernorm),
+        [fx.input_layernorm_hidden],
+    )
+
+
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_decode_attention_layer0_pro_7b():
+    """Real hidden after input_layernorm (capture path), native ``self_attn`` — not random."""
+    bundle = _load_decode_bundle("Pro_7B")
+    wrapper = make_layer0_self_attn_native_wrapper(bundle["llama_model"], bundle)
+    fx = _load_fixtures("Pro_7B")
+    run_decoder_op_test(
+        "attention_captured_hidden",
+        wrapper,
+        [fx.attn_hidden_states],
+    )
+
+
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_decode_decoder_layer0_input_layernorm_self_attn_loader_pro_7b():
+    """Fused ``input_layernorm`` + ``self_attn``; entry = loader ``inputs_embeds`` (decode bundle)."""
+    bundle = _load_decode_bundle("Pro_7B")
+    _run_layer0_ln_attn_profile(
+        "decoder_layer0_ln_attn_loader",
+        bundle,
+        entry="embeds",
+        forward_input=bundle["inputs_embeds"],
+        stage_names=LAYER0_LN_ATTN_STAGE_NAMES_FROM_EMBEDS,
+        assert_on_failure=False,
+    )
+
+
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_decode_decoder_layer0_native_pro_7b():
+    """Layer 0 via native ``LlamaDecoderLayer`` (same path as full ``LlamaModel`` decode)."""
+    bundle = _load_decode_bundle("Pro_7B")
+    wrapper = JanusLlamaDecoderNativeLayerDecode(bundle["llama_model"])
+    wrapper.past_key_values = bundle["past_key_values"]
+    run_decoder_op_test(
+        "decoder_layer0_native",
         wrapper,
         [bundle["inputs_embeds"]],
         assert_on_failure=False,

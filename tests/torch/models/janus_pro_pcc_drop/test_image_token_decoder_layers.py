@@ -10,6 +10,8 @@ Isolates ``language_model.model`` decoder execution (``LlamaDecoderLayer`` loop 
 
 Prefill component tests pass; decode PCC drops (issue #4968). These op tests narrow
 whether error accumulates across decoder layers vs ``gen_head``.
+
+Pro-7B: ``@pytest.mark.p150`` only (DRAM OOM on n150).
 """
 
 from __future__ import annotations
@@ -20,14 +22,10 @@ from dataclasses import dataclass
 import pytest
 import torch
 import torch_xla.runtime as xr
-from infra import Framework, run_op_test
 from infra.evaluators import ComparisonConfig, TorchComparisonEvaluator
 from tests.runner.requirements import RequirementsManager
 from tests.torch.models.janus_pro_pcc_drop.decoder_sanity import (
     JanusGenHeadDecode,
-    JanusLlamaDecoderDecodeLoop,
-    JanusLlamaDecoderLayersLoop,
-    JanusLlamaDecoderLayersPCCProfile,
     llama_decode_hidden_states,
     load_image_token_decode_bundle,
 )
@@ -64,21 +62,19 @@ def _execute_decoder_op_test(
     use_explicit_layers_loop: bool,
     num_layers: int | None = None,
 ) -> None:
-    llama_model = decode_bundle["llama_model"]
+    from tests.torch.models.janus_pro_pcc_drop.decoder_layers_op_test import (
+        run_full_decoder_forge_vs_cpu_isolated,
+    )
 
-    if use_explicit_layers_loop:
-        wrapper = JanusLlamaDecoderLayersLoop(llama_model, num_layers=num_layers)
-    else:
-        assert num_layers is None
-        wrapper = JanusLlamaDecoderDecodeLoop(llama_model)
-
-    wrapper.past_key_values = decode_bundle["past_key_values"]
-    xr.set_device_type("TT")
-
-    run_op_test(
-        wrapper,
-        [decode_bundle["inputs_embeds"]],
-        framework=Framework.TORCH,
+    label = "decoder_layers_loop" if use_explicit_layers_loop else "decoder_model_forward"
+    if num_layers is not None:
+        label = f"{label}_n{num_layers}"
+    run_full_decoder_forge_vs_cpu_isolated(
+        decode_bundle,
+        use_explicit_layers_loop=use_explicit_layers_loop,
+        num_layers=num_layers,
+        label=label,
+        assert_on_failure=True,
     )
 
 
@@ -204,71 +200,26 @@ def _print_decoder_layer_profile_table(
 
 
 def _run_decoder_layer_pcc_profile(variant_name: str) -> dict[int, _DecoderLayerProfileRow]:
-    """
-    One model load + one TT compile; print PCC and diff stats after each decoder layer.
+    """Isolated CPU vs Forge; cumulative PCC after each decoder layer depth."""
+    from tests.torch.models.janus_pro_pcc_drop.decoder_layers_op_test import (
+        load_decode_bundle_for_variant,
+        run_decoder_cumulative_layer_profile_isolated,
+    )
 
-    Diagnostic only (``assert_on_failure=False``). Does not replace checkpoint op tests.
-    """
-    loader_path = inspect.getsourcefile(janus_loader)
-    with RequirementsManager.for_loader(loader_path, framework="torch"):
-        from third_party.tt_forge_models.janus_pro.text_to_image.pytorch.src import (
-            model_utils,
+    decode_bundle = load_decode_bundle_for_variant(variant_name)
+    isolated_rows = run_decoder_cumulative_layer_profile_isolated(
+        decode_bundle,
+        variant_name=variant_name,
+    )
+    return {
+        depth: _DecoderLayerProfileRow(
+            pcc=row.pcc,
+            max_abs_diff=row.max_abs_diff,
+            mean_abs_diff=row.mean_abs_diff,
+            rel_l2_diff=row.rel_l2_diff,
         )
-
-        torch.manual_seed(42)
-        model_utils._mmgpt_cache.clear()
-
-        repo_id = ModelLoader(ModelVariant(variant_name))._repo_id()
-        decode_bundle = load_image_token_decode_bundle(repo_id, dtype=torch.bfloat16)
-        llama_model = decode_bundle["llama_model"]
-        num_hidden_layers = llama_model.config.num_hidden_layers
-
-        wrapper = JanusLlamaDecoderLayersPCCProfile(llama_model)
-        wrapper.past_key_values = decode_bundle["past_key_values"]
-
-        comparison_config = ComparisonConfig(assert_on_failure=False)
-        evaluator = TorchComparisonEvaluator(comparison_config)
-        rows_after_layer: dict[int, _DecoderLayerProfileRow] = {}
-        row_after_norm_holder: list[_DecoderLayerProfileRow] = []
-
-        def _profile_comparator(
-            tt_stacked: torch.Tensor,
-            cpu_stacked: torch.Tensor,
-            _args,
-            _kwargs,
-        ) -> None:
-            for depth in range(1, num_hidden_layers + 1):
-                rows_after_layer[depth] = _profile_row_for_hidden_pair(
-                    evaluator,
-                    tt_stacked[depth - 1],
-                    cpu_stacked[depth - 1],
-                )
-            last_cpu = cpu_stacked[num_hidden_layers - 1]
-            row_after_norm_holder.append(
-                _profile_row_for_hidden_pair(
-                    evaluator,
-                    llama_model.norm(tt_stacked[num_hidden_layers - 1].cpu()),
-                    llama_model.norm(last_cpu),
-                )
-            )
-
-        xr.set_device_type("TT")
-        run_op_test(
-            wrapper,
-            [decode_bundle["inputs_embeds"]],
-            framework=Framework.TORCH,
-            comparison_config=comparison_config,
-            custom_comparator=_profile_comparator,
-        )
-
-        row_after_norm = row_after_norm_holder[0] if row_after_norm_holder else None
-        _print_decoder_layer_profile_table(
-            rows_after_layer,
-            row_after_norm=row_after_norm,
-            num_hidden_layers=num_hidden_layers,
-            variant_name=variant_name,
-        )
-        return rows_after_layer
+        for depth, row in isolated_rows.items()
+    }
 
 
 def _run_gen_head_op_test(variant_name: str) -> None:
@@ -291,14 +242,18 @@ def _run_gen_head_op_test(variant_name: str) -> None:
                 bundle["past_key_values"],
             )
 
-        wrapper = JanusGenHeadDecode(bundle["gen_head"])
         xr.set_device_type("TT")
 
-        run_op_test(
-            wrapper,
-            [hidden_states],
-            framework=Framework.TORCH,
+        from tests.torch.models.janus_pro_pcc_drop.decoder_op_test_utils import (
+            run_forge_vs_cpu_op_test_isolated,
         )
+
+        hidden_cpu = hidden_states.detach().cpu()
+
+        def build() -> tuple:
+            return JanusGenHeadDecode(bundle["gen_head"]), [hidden_cpu]
+
+        run_forge_vs_cpu_op_test_isolated(build, label="gen_head_decode")
 
 
 @pytest.mark.model_test
@@ -347,41 +302,42 @@ def test_image_token_decoder_layer_pcc_profile_pro_1b():
     _run_decoder_layer_pcc_profile("Pro_1B")
 
 
-# @pytest.mark.model_test
-# @pytest.mark.single_device
-# @pytest.mark.p150
-# def test_image_token_decoder_model_forward_decode_pro_7b():
-#     _run_decoder_op_test("Pro_7B", use_explicit_layers_loop=False)
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_decoder_model_forward_decode_pro_7b():
+    _run_decoder_op_test("Pro_7B", use_explicit_layers_loop=False)
 
 
-# @pytest.mark.model_test
-# @pytest.mark.single_device
-# @pytest.mark.p150
-# def test_image_token_decoder_layers_loop_full_decode_pro_7b():
-#     _run_decoder_op_test("Pro_7B", use_explicit_layers_loop=True, num_layers=None)
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_decoder_layers_loop_full_decode_pro_7b():
+    _run_decoder_op_test("Pro_7B", use_explicit_layers_loop=True, num_layers=None)
 
 
-# @pytest.mark.model_test
-# @pytest.mark.single_device
-# @pytest.mark.p150
-# @pytest.mark.parametrize(
-#     "num_layers",
-#     PARTIAL_LAYER_CHECKPOINTS_PRO_7B,
-#     ids=[f"layers_{n}" for n in PARTIAL_LAYER_CHECKPOINTS_PRO_7B],
-# )
-# def test_image_token_decoder_layers_loop_partial_decode_pro_7b(num_layers: int):
-#     _run_decoder_partial_op_test("Pro_7B", num_layers)
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+@pytest.mark.parametrize(
+    "num_layers",
+    PARTIAL_LAYER_CHECKPOINTS_PRO_7B,
+    ids=[f"layers_{n}" for n in PARTIAL_LAYER_CHECKPOINTS_PRO_7B],
+)
+def test_image_token_decoder_layers_loop_partial_decode_pro_7b(num_layers: int):
+    _run_decoder_partial_op_test("Pro_7B", num_layers)
 
 
-# @pytest.mark.model_test
-# @pytest.mark.single_device
-# @pytest.mark.p150
-# def test_image_token_gen_head_decode_pro_7b():
-#     _run_gen_head_op_test("Pro_7B")
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_gen_head_decode_pro_7b():
+    _run_gen_head_op_test("Pro_7B")
 
 
-# @pytest.mark.model_test
-# @pytest.mark.single_device
-# @pytest.mark.p150
-# def test_image_token_decoder_layer_pcc_profile_pro_7b():
-#     _run_decoder_layer_pcc_profile("Pro_7B")
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.p150
+def test_image_token_decoder_layer_pcc_profile_pro_7b():
+    """Print PCC + abs/L2 diff per decoder layer (one compile); use ``pytest -s``."""
+    _run_decoder_layer_pcc_profile("Pro_7B")

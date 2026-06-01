@@ -77,10 +77,26 @@ def patch_graph_main(main_path: Path) -> None:
             "\ndef main():\n    load_activations_for__main_0",
             _COMPARE_BLOCK + "\n\ndef main():\n    load_activations_for__main_0",
         )
-        text = text.replace(
-            "_main_0 = _main(load_activations_for__main_0, load_weights_for__main_0)\n    return _main_0",
-            "ttnn_outputs = _main(load_activations_for__main_0, load_weights_for__main_0)\n"
-            "    compare_layer0_ln_attn_stages(ttnn_outputs)\n    return ttnn_outputs",
-        )
+
+    if "compare_layer0_ln_attn_stages(ttnn_outputs)" not in text:
+        for old, new in (
+            (
+                "_main_0 = _main(load_activations_for__main_0, load_weights_for__main_0)\n"
+                "    return _main_0",
+                "ttnn_outputs = _main(load_activations_for__main_0, load_weights_for__main_0)\n"
+                "    compare_layer0_ln_attn_stages(ttnn_outputs)\n"
+                "    return ttnn_outputs",
+            ),
+            (
+                "ttnn_outputs = _main(load_activations_for__main_0, load_weights_for__main_0)\n"
+                "    return ttnn_outputs",
+                "ttnn_outputs = _main(load_activations_for__main_0, load_weights_for__main_0)\n"
+                "    compare_layer0_ln_attn_stages(ttnn_outputs)\n"
+                "    return ttnn_outputs",
+            ),
+        ):
+            if old in text:
+                text = text.replace(old, new, 1)
+                break
 
     main_path.write_text(text)

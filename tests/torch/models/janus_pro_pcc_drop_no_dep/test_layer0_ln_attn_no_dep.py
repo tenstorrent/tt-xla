@@ -16,11 +16,15 @@ Layer-0 fused ``input_layernorm`` + ``self_attn`` PCC repro — no Janus/MMGPT l
      pytest -m "n150 and single_device" -s \\
        tests/torch/models/janus_pro_pcc_drop_no_dep/test_layer0_ln_attn_no_dep.py::test_layer0_ln_attn_no_dep_pro_1b
 
-Fixtures: ``janus_logs/layer0_tensors/<variant>/`` (``torch`` + ``transformers`` only at step 2).
+3. Gate codegen graph (isolated Forge vs CPU, same as step 2; expect ~0.99 on ``self_attn``)::
 
-Codegen (TTNN op sequence for tt-metal reference)::
+     python examples/pytorch/codegen/python/janus_layer0_ln_attn_no_dep_compare.py
 
-  python examples/pytorch/codegen/python/janus_layer0_ln_attn_no_dep.py
+4. Export TTNN for tt-metal (after step 3 passes)::
+
+     python examples/pytorch/codegen/python/janus_layer0_ln_attn_no_dep.py
+
+Fixtures: ``janus_logs/layer0_tensors/<variant>/`` (``torch`` + ``transformers`` only at steps 2–4).
 
 **Random baseline:** ``test_layer0_ln_attn_no_dep_pro_1b_random``.
 """
@@ -31,16 +35,9 @@ import os
 
 import pytest
 
-from tests.torch.models.janus_pro_pcc_drop.decoder_op_test_utils import (
-    run_decoder_stacked_stage_profile_op_test,
-)
-from tests.torch.models.janus_pro_pcc_drop.decoder_submodule_sanity import (
-    LAYER0_LN_ATTN_STAGE_NAMES_FROM_EMBEDS,
-)
 from tests.torch.models.janus_pro_pcc_drop_no_dep.arch_specs import get_layer0_spec
-from tests.torch.models.janus_pro_pcc_drop_no_dep.build_modules import (
-    Layer0LnAttnNoDep,
-    build_layer0_no_dep,
+from tests.torch.models.janus_pro_pcc_drop_no_dep.op_test import (
+    run_layer0_ln_attn_forge_vs_cpu_isolated,
 )
 from tests.torch.models.janus_pro_pcc_drop_no_dep.saved_fixtures import (
     fixture_dir_for_variant,
@@ -65,18 +62,11 @@ def _run_ln_attn_no_dep(
     if use_saved_inputs:
         print(f"fixtures={fixture_dir_for_variant(variant)}")
 
-    bundle = build_layer0_no_dep(
+    run_layer0_ln_attn_forge_vs_cpu_isolated(
+        f"layer0_ln_attn_no_dep_{variant}",
         spec,
         use_saved_inputs=use_saved_inputs,
         load_hf_weights=load_hf_weights,
-    )
-
-    wrapper = Layer0LnAttnNoDep(bundle)
-    run_decoder_stacked_stage_profile_op_test(
-        f"layer0_ln_attn_no_dep_{variant}",
-        wrapper,
-        [wrapper.inputs_embeds_decode],
-        LAYER0_LN_ATTN_STAGE_NAMES_FROM_EMBEDS,
         assert_on_failure=False,
     )
 
@@ -96,7 +86,7 @@ def _require_saved_fixtures(variant: str) -> None:
 @pytest.mark.n150
 @pytest.mark.p150
 def test_layer0_ln_attn_no_dep_pro_1b():
-    """Pro-1B: saved decode I/O + weights; expect ~0.77 PCC on ``self_attn``."""
+    """Pro-1B: saved decode I/O + weights; isolated Forge vs CPU (expect ~0.99 on ``self_attn``)."""
     _require_saved_fixtures("Pro_1B")
     _run_ln_attn_no_dep("Pro_1B", use_saved_inputs=True, load_hf_weights=False)
 
@@ -115,6 +105,6 @@ def test_layer0_ln_attn_no_dep_pro_7b():
 @pytest.mark.n150
 @pytest.mark.p150
 def test_layer0_ln_attn_no_dep_pro_1b_random():
-    """Pro-1B random weights/inputs (smoke only; does not reproduce ~0.77 PCC drop)."""
+    """Pro-1B random weights/inputs (smoke only)."""
     use_hf = os.environ.get("JANUS_NO_DEP_HF_WEIGHTS", "0") == "1"
     _run_ln_attn_no_dep("Pro_1B", use_saved_inputs=False, load_hf_weights=use_hf)

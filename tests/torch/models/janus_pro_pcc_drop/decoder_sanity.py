@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
@@ -233,6 +234,105 @@ def llama_decode_hidden_states_stacked_per_layer(
         )
         per_layer.append(hidden_states)
     return torch.stack(per_layer, dim=0)
+
+
+@dataclass(frozen=True)
+class DecoderLayerIsolatedContext:
+    """Inputs to run exactly one ``LlamaDecoderLayer`` in decode (layer ``layer_idx``)."""
+
+    layer_idx: int
+    hidden_in: torch.Tensor
+    past_key_values: Any
+    causal_mask: torch.Tensor
+    position_embeddings: tuple[torch.Tensor, torch.Tensor]
+    position_ids: torch.Tensor
+    cache_position: torch.Tensor
+    use_cache: bool
+
+
+@torch.inference_mode()
+def compute_decoder_layer_isolated_context(
+    llama_model: nn.Module,
+    inputs_embeds: torch.Tensor,
+    past_key_values: Any,
+    layer_idx: int,
+) -> DecoderLayerIsolatedContext:
+    """
+    Run layers ``0 .. layer_idx-1`` on CPU, snapshot hidden + KV before layer ``layer_idx``.
+    """
+    from tests.torch.models.janus_pro_pcc_drop.decoder_submodule_sanity import (
+        clone_dynamic_cache,
+    )
+
+    kv = clone_dynamic_cache(past_key_values)
+    (
+        hidden_states,
+        past_key_values,
+        causal_mask,
+        position_embeddings,
+        position_ids,
+        cache_position,
+        use_cache,
+    ) = _llama_decode_step_tensors_from_model(
+        llama_model, inputs_embeds, clone_dynamic_cache(kv)
+    )
+
+    for idx in range(layer_idx):
+        hidden_states = llama_model.layers[idx](
+            hidden_states,
+            attention_mask=causal_mask,
+            position_embeddings=position_embeddings,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+            cache_position=cache_position,
+        )
+
+    return DecoderLayerIsolatedContext(
+        layer_idx=layer_idx,
+        hidden_in=hidden_states.detach().cpu().clone(),
+        past_key_values=clone_dynamic_cache(past_key_values),
+        causal_mask=causal_mask.detach().cpu().clone(),
+        position_embeddings=(
+            position_embeddings[0].detach().cpu().clone(),
+            position_embeddings[1].detach().cpu().clone(),
+        ),
+        position_ids=position_ids.detach().cpu().clone(),
+        cache_position=cache_position.detach().cpu().clone(),
+        use_cache=use_cache,
+    )
+
+
+class JanusLlamaDecoderSingleLayerIsolated(nn.Module):
+    """One ``LlamaDecoderLayer`` with decode context captured from CPU (layer ``layer_idx``)."""
+
+    def __init__(self, decoder_layer: nn.Module, ctx: DecoderLayerIsolatedContext):
+        super().__init__()
+        self.decoder_layer = decoder_layer
+        self._ctx = ctx
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        from tests.torch.models.janus_pro_pcc_drop.decoder_submodule_sanity import (
+            clone_dynamic_cache,
+        )
+
+        ctx = self._ctx
+        device = hidden_states.device
+        past_key_values = align_kv_cache_device(
+            clone_dynamic_cache(ctx.past_key_values), device
+        )
+        return self.decoder_layer(
+            hidden_states,
+            attention_mask=ctx.causal_mask.to(device),
+            position_embeddings=(
+                ctx.position_embeddings[0].to(device),
+                ctx.position_embeddings[1].to(device),
+            ),
+            position_ids=ctx.position_ids.to(device),
+            past_key_values=past_key_values,
+            use_cache=ctx.use_cache,
+            cache_position=ctx.cache_position.to(device),
+        )
 
 
 class JanusLlamaDecoderDecodeLoop(nn.Module):

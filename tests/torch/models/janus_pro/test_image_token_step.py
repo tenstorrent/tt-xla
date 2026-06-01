@@ -26,6 +26,12 @@ import torch.nn as nn
 import torch_xla.runtime as xr
 from infra import Framework, RunMode, run_graph_test
 from tests.runner.requirements import RequirementsManager
+from tests.torch.models.janus_pro_pcc_drop.decoder_op_test_utils import (
+    run_forge_vs_cpu_op_test_isolated,
+)
+from tests.torch.models.janus_pro_pcc_drop.decoder_submodule_sanity import (
+    clone_dynamic_cache,
+)
 from utils import BringupStatus, Category, incorrect_result
 
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
@@ -174,10 +180,15 @@ def _run_decode(variant_name: str):
 
         xr.set_device_type("TT")
 
-        wrapper = ImageTokenDecodeWrapper(step)
-        wrapper.past_key_values = inputs["past_key_values"]
-        run_graph_test(
-            wrapper,
-            [inputs["inputs_embeds"]],
-            framework=Framework.TORCH,
+        inputs_embeds = inputs["inputs_embeds"]
+        kv_template = inputs["past_key_values"]
+
+        def build() -> tuple:
+            wrapper = ImageTokenDecodeWrapper(step)
+            wrapper.past_key_values = clone_dynamic_cache(kv_template)
+            return wrapper, [inputs_embeds]
+
+        run_forge_vs_cpu_op_test_isolated(
+            build,
+            label=f"image_token_decode_{variant_name}",
         )

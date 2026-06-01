@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Any, Sequence
 
 import torch
@@ -14,6 +15,8 @@ import torch.nn as nn
 from infra import Framework, run_op_test
 from infra.evaluators import ComparisonConfig, TorchComparisonEvaluator
 from infra.utilities import PyTree
+from infra.workloads.torch_workload import TorchWorkload
+from tests.infra.testers.single_chip.op.op_tester import OpTester
 from torch.utils._pytree import tree_flatten
 
 
@@ -148,7 +151,8 @@ def run_decoder_stacked_stage_profile_op_test(
     stage_names: Sequence[str],
     *,
     assert_on_failure: bool = True,
-) -> None:
+    return_metrics: bool = False,
+) -> list[tuple[str, TensorMatchMetrics]] | None:
     """
     Run op test on stacked stage outputs; print PCC / diff per stage.
 
@@ -195,6 +199,106 @@ def run_decoder_stacked_stage_profile_op_test(
         custom_comparator=_stage_comparator,
     )
     print_tensor_match_metrics(label, metrics_rows)
+    if return_metrics:
+        return list(metrics_rows)
+    return None
+
+
+def run_decoder_stacked_stage_forge_vs_cpu_isolated(
+    label: str,
+    build_model_and_inputs: Callable[[], tuple[nn.Module, list[torch.Tensor]]],
+    stage_names: Sequence[str],
+    *,
+    assert_on_failure: bool = True,
+    return_metrics: bool = False,
+) -> list[tuple[str, TensorMatchMetrics]] | None:
+    """
+    Forge vs CPU with **separate** module instances (fair PCC).
+
+    ``run_op_test`` reuses one module: CPU forward mutates ``past_key_values``, then
+    Forge runs on dirty state and can show a false ~0.77 on ``self_attn``. This helper
+    builds fresh ``(wrapper, inputs)`` for CPU and again for Forge.
+    """
+    if len(stage_names) == 0:
+        raise ValueError("stage_names must be non-empty")
+
+    num_stages = len(stage_names)
+    comparison_config = ComparisonConfig(assert_on_failure=False)
+    evaluator = TorchComparisonEvaluator(comparison_config)
+    tester = OpTester(
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+    )
+
+    cpu_wrapper, cpu_inputs = build_model_and_inputs()
+    cpu_out = tester._device_runner.run_on_cpu(
+        TorchWorkload(model=cpu_wrapper, args=cpu_inputs)
+    )
+
+    forge_wrapper, forge_inputs = build_model_and_inputs()
+    forge_workload = TorchWorkload(model=forge_wrapper, args=forge_inputs)
+    tester._compile_for_tt_device(forge_workload)
+    forge_out = tester._device_runner.run_on_tt_device(forge_workload)
+
+    cpu_stages = _split_stage_outputs(cpu_out, num_stages)
+    forge_stages = _split_stage_outputs(forge_out, num_stages)
+    metrics_rows: list[tuple[str, TensorMatchMetrics]] = []
+    for index, name in enumerate(stage_names):
+        metrics_rows.append(
+            (
+                name,
+                _tensor_match_metrics(
+                    evaluator,
+                    forge_stages[index],
+                    cpu_stages[index],
+                ),
+            )
+        )
+    if assert_on_failure:
+        evaluator.evaluate(forge_stages[-1], cpu_stages[-1])
+
+    print_tensor_match_metrics(label, metrics_rows)
+    if return_metrics:
+        return list(metrics_rows)
+    return None
+
+
+def run_forge_vs_cpu_op_test_isolated(
+    build_model_and_inputs: Callable[[], tuple[nn.Module, list[torch.Tensor]]],
+    *,
+    label: str = "forge_vs_cpu_isolated",
+    assert_on_failure: bool = True,
+    custom_comparator: Callable[..., None] | None = None,
+) -> None:
+    """
+    Forge vs CPU with separate module instances (fair single-output PCC).
+
+    Use instead of ``run_op_test`` when ``past_key_values`` mutates across forwards.
+    """
+    comparison_config = ComparisonConfig(assert_on_failure=False)
+    tester = OpTester(
+        comparison_config=comparison_config,
+        framework=Framework.TORCH,
+    )
+
+    cpu_wrapper, cpu_inputs = build_model_and_inputs()
+    cpu_out = tester._device_runner.run_on_cpu(
+        TorchWorkload(model=cpu_wrapper, args=cpu_inputs)
+    )
+
+    forge_wrapper, forge_inputs = build_model_and_inputs()
+    forge_workload = TorchWorkload(model=forge_wrapper, args=forge_inputs)
+    tester._compile_for_tt_device(forge_workload)
+    forge_out = tester._device_runner.run_on_tt_device(forge_workload)
+
+    if custom_comparator is not None:
+        custom_comparator(forge_out, cpu_out, forge_inputs, {})
+    else:
+        evaluator = TorchComparisonEvaluator(comparison_config)
+        metrics = _tensor_match_metrics(evaluator, forge_out, cpu_out)
+        print_tensor_match_metrics(label, [("output", metrics)])
+        if assert_on_failure:
+            evaluator.evaluate(forge_out, cpu_out)
 
 
 def run_decoder_op_test_collect_metrics(

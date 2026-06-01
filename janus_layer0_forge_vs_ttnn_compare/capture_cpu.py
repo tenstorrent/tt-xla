@@ -24,14 +24,15 @@ import torch
 
 from janus_layer0_forge_vs_ttnn_compare.paths import artifacts_dir, stacked_artifact
 
-_TT_METAL_CPU_REF = (
-    _REPO_ROOT.parent.parent
-    / "31_may_tt_metal"
-    / "tt-metal"
-    / "janus_layer0_ln_attn_no_dep_codegen"
-)
-if _TT_METAL_CPU_REF.is_dir() and str(_TT_METAL_CPU_REF) not in sys.path:
-    sys.path.insert(0, str(_TT_METAL_CPU_REF))
+
+def _run_cpu_stacked(variant: str) -> torch.Tensor:
+    """Same CPU as codegen / sanity (no torch_xla)."""
+    codegen_py = _REPO_ROOT / "examples" / "pytorch" / "codegen" / "python"
+    if str(codegen_py) not in sys.path:
+        sys.path.insert(0, str(codegen_py))
+    from janus_layer0_build import run_forward_stacked
+
+    return run_forward_stacked(variant)
 
 
 def main() -> None:
@@ -39,13 +40,11 @@ def main() -> None:
     parser.add_argument("--variant", default="Pro_1B", choices=["Pro_1B", "Pro_7B"])
     args = parser.parse_args()
 
-    from cpu_reference.forward import run_forward_from_fixtures
-
     out_path = stacked_artifact("cpu", args.variant)
     artifacts_dir().mkdir(parents=True, exist_ok=True)
 
     print(f"Running CPU reference ({args.variant}) ...")
-    stacked = run_forward_from_fixtures(args.variant)
+    stacked = _run_cpu_stacked(args.variant)
     torch.save(stacked, out_path)
     print(f"Wrote {out_path}  shape={tuple(stacked.shape)} dtype={stacked.dtype}")
 

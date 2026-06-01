@@ -60,7 +60,7 @@ def main() -> None:
     cpu_path = stacked_artifact("cpu", args.variant)
     if not args.skip_cpu and cpu_path.is_file():
         cpu = _load(cpu_path, "cpu")
-        print("\n=== CPU eager vs Forge artifact (should track Experiment A ~0.77) ===")
+        print("\n=== CPU eager vs Forge artifact (should track isolated Experiment A ~0.99) ===")
         print_comparison_table(
             f"offline ({args.variant})",
             reference_label="CPU",
@@ -81,7 +81,7 @@ def main() -> None:
 
     attn_ft = next(m for name, m in forge_vs_ttnn if name == "self_attn")
     print(f"\nSummary: self_attn Forge vs TTNN artifact PCC = {attn_ft.pcc:.4f}")
-    print("  Experiment A (live Forge vs CPU): run run_cpu_vs_forge_sanity.py — expect ~0.77")
+    print("  Experiment A (isolated Forge vs CPU): run_cpu_vs_forge_sanity.py — expect ~0.99")
     print("  Experiment C (tt-metal main.py): uses tensorbins; often ~0.99 vs cpu_reference")
     print("  See EXPERIMENTS.md — A and C are not the same test.")
 
