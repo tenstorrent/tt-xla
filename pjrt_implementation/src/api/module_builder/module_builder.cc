@@ -62,6 +62,7 @@
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Utils/BFPDtypeParser.h"
 #include "ttmlir/RegisterAll.h"
+#include "ttmlir/Support/TTGraphTelemetryInstrumentation.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
 
@@ -81,6 +82,51 @@
 namespace tt::pjrt::module_builder {
 
 const std::string c_mlir_format_name = "mlir";
+
+// Default output directory used when telemetry is enabled without an explicit
+// path. Relative to the process working directory, so CI can just enable
+// telemetry and upload this directory without overriding the path.
+static constexpr const char *kDefaultTelemetryDir = "graph-telemetry";
+
+// Creates a graph-telemetry session for one compilation when telemetry is
+// enabled, otherwise returns null (disabled, zero overhead). Enabled when
+// either TT_GRAPH_TELEMETRY_DIR (an explicit output path) or TT_GRAPH_TELEMETRY
+// (an enable flag, uses the default path) is set non-empty. One session spans
+// the SHLO, SHLO->TTIR and TTIR->TTNN pass managers so all snapshots land in
+// one JSON per graph.
+static std::string getenvOr(const char *name) {
+  const char *v = std::getenv(name);
+  return v ? std::string(v) : std::string();
+}
+
+static std::unique_ptr<mlir::tt::TTGraphTelemetrySession>
+makeTelemetrySession(const std::string &model_name) {
+  const char *dir = std::getenv("TT_GRAPH_TELEMETRY_DIR");
+  const char *enable = std::getenv("TT_GRAPH_TELEMETRY");
+  bool have_dir = dir && *dir;
+  if (!have_dir && !(enable && *enable)) {
+    return nullptr;
+  }
+  mlir::tt::TTGraphTelemetryOptions opts;
+  opts.outputDir = have_dir ? dir : kDefaultTelemetryDir;
+  // A non-empty model name (e.g. "model_g0") doubles as a readable graph id and
+  // JSON file name; otherwise the session generates a UUID and resolves the
+  // model name from the IR location. Run-level CI/GitHub provenance (run,
+  // branch, commit, workflow) is stamped later by mlir-graph-push, not here.
+  opts.graphId = model_name;
+  opts.modelName = model_name;
+  // The test that triggered this compile is compilation context only the
+  // frontend knows. pytest exports PYTEST_CURRENT_TEST as "<node id> (call)";
+  // keep the node id.
+  std::string test = getenvOr("PYTEST_CURRENT_TEST");
+  size_t phase = test.rfind(" (");
+  if (phase != std::string::npos) {
+    test.resize(phase);
+  }
+  opts.testName = test;
+
+  return std::make_unique<mlir::tt::TTGraphTelemetrySession>(std::move(opts));
+}
 
 // Returns true if the public entry point of the module has at least one
 // argument.
@@ -299,6 +345,12 @@ ModuleBuilder::buildModule(
 
   std::string original_mlir_code(mlir_code);
 
+  // One telemetry session per compilation (one graph). Null unless
+  // TT_GRAPH_TELEMETRY_DIR is set. RAII: flushes one JSON on scope exit,
+  // including the early-return paths below.
+  std::unique_ptr<mlir::tt::TTGraphTelemetrySession> telemetry =
+      makeTelemetrySession(compile_options.export_model_name);
+
   status = convertFromVHLOToSHLO(mlir_module, compile_options.export_path,
                                  compile_options.export_model_name);
   if (!tt_pjrt_status_is_ok(status)) {
@@ -345,7 +397,7 @@ ModuleBuilder::buildModule(
 
   status = runCompilerStableHLOPipeline(
       mlir_module, result_presharded, compile_options.export_path,
-      compile_options.export_model_name, current_mesh_shape);
+      compile_options.export_model_name, current_mesh_shape, telemetry.get());
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -387,7 +439,7 @@ ModuleBuilder::buildModule(
   std::string ttir_mlir;
   status =
       convertFromSHLOToTTIR(mlir_module, ttir_mlir, compile_options.export_path,
-                            compile_options.export_model_name);
+                            compile_options.export_model_name, telemetry.get());
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -407,7 +459,7 @@ ModuleBuilder::buildModule(
   std::string ttnn_mlir;
   status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
                                  compile_options, client_instance, mesh_shape,
-                                 ttnn_mlir);
+                                 ttnn_mlir, telemetry.get());
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -857,7 +909,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     const std::vector<int64_t> &result_presharded,
     const std::optional<std::string> &export_path,
     const std::string &model_name,
-    const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
+    const std::optional<std::vector<uint32_t>> &current_mesh_shape,
+    mlir::tt::TTGraphTelemetrySession *telemetry) {
   mlir::PassManager stablehlo_pipeline_pm(mlir_module.get()->getName(),
                                           mlir::PassManager::Nesting::Implicit);
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
@@ -871,6 +924,13 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   }
   mlir::tt::stablehlo::createStableHLOPipeline(stablehlo_pipeline_pm,
                                                stablehlo_pipeline_options);
+
+  // Snapshot the input IR before the SHLO compiler pipeline runs.
+  if (telemetry) {
+    mlir::tt::TTGraphTelemetryInstrumentation::Stage stage;
+    stage.initialTag = "before_shlo_pipeline";
+    telemetry->instrument(stablehlo_pipeline_pm, std::move(stage));
+  }
 
   enableVerboseIRPrinting(stablehlo_pipeline_pm);
 
@@ -896,7 +956,8 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
 tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module, std::string &ttir_mlir,
     const std::optional<std::string> &export_path,
-    const std::string &model_name) {
+    const std::string &model_name,
+    mlir::tt::TTGraphTelemetrySession *telemetry) {
   // Implicit nesting required to call the stablehlo.composite --> func.call
   // conversion.
   mlir::PassManager shlo_to_ttir_pm(mlir_module.get()->getName(),
@@ -906,6 +967,14 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
   shlo_options.arithDialectConversionsEnabled = true;
   shlo_options.legalizeCompositeToCallEnabled = true;
   mlir::tt::ttir::createStableHLOToTTIRPipeline(shlo_to_ttir_pm, shlo_options);
+
+  // Snapshot the IR entering and leaving the SHLO->TTIR pipeline.
+  if (telemetry) {
+    mlir::tt::TTGraphTelemetryInstrumentation::Stage stage;
+    stage.initialTag = "before_shlo_to_ttir";
+    stage.finalTag = "after_shlo_to_ttir";
+    telemetry->instrument(shlo_to_ttir_pm, std::move(stage));
+  }
 
   enableVerboseIRPrinting(shlo_to_ttir_pm);
 
@@ -1015,7 +1084,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     const std::string &system_descriptor_path,
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const CompileOptions &compile_options, ClientInstance *client_instance,
-    std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir) {
+    std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_mlir,
+    mlir::tt::TTGraphTelemetrySession *telemetry) {
   mlir::PassManager ttir_to_ttnn_pm(mlir_module.get()->getName());
 
   // Static counter for auto-numbering graphs when perf metrics are enabled
@@ -1162,6 +1232,18 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
+
+  // Snapshot after the first canonicalize and first TTIR fusing pass, plus the
+  // final TTNN IR. (The pipeline runs canonicalize/fusing several times; only
+  // the first of each is captured. "TTIRFusing" is matched exactly so the later
+  // "TTNNFusing" pass is not picked up.)
+  if (telemetry) {
+    mlir::tt::TTGraphTelemetryInstrumentation::Stage stage;
+    stage.finalTag = "ttir_to_ttnn_end";
+    stage.targetPasses = {"Canonicalizer", "TTIRFusing"};
+    telemetry->instrument(ttir_to_ttnn_pm, std::move(stage));
+  }
+
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.

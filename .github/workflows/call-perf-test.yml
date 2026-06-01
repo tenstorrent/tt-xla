@@ -49,6 +49,11 @@ on:
         required: false
         type: boolean
         default: false
+      enable_graph_telemetry:
+        description: "Emit IR graph telemetry artifacts"
+        required: false
+        type: boolean
+        default: false
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -119,6 +124,15 @@ jobs:
         echo "perf_report_path=$(pwd)/perf_reports" >> "$GITHUB_OUTPUT"
         echo "perf_report_json_file=$(pwd)/perf_reports/perf_report_$JOB_ID.json" >> "$GITHUB_OUTPUT"
 
+    # Resolve the canonical Actions API job id so the telemetry artifact name
+    # ends in a job id that mlir-graph-push can map back to a job name.
+    - name: Fetch job id
+      id: fetch-job-id
+      if: inputs.enable_graph_telemetry
+      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+      with:
+        job_name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on }})"
+
     - name: Install gh CLI
       shell: bash
       run: |
@@ -183,6 +197,9 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
         TORCH_HOME: /mnt/dockercache/torchhub
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        # Enable flag only (no path) so the compiler uses its default output
+        # directory, which the upload step below collects.
+        TT_GRAPH_TELEMETRY: ${{ inputs.enable_graph_telemetry && '1' || '' }}
       run: |
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
@@ -287,6 +304,14 @@ jobs:
       with:
         name: ${{ steps.dump-ttnn.outputs.artifact_name }}
         path: ${{ steps.strings.outputs.perf_report_path }}/ttnn/
+        if-no-files-found: ignore
+
+    - name: Upload Graph Telemetry
+      if: inputs.enable_graph_telemetry && (success() || failure())
+      uses: actions/upload-artifact@v6
+      with:
+        name: graph-telemetry-${{ matrix.build.name }}-${{ matrix.build.runs-on }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: ${{ steps.strings.outputs.work-dir }}/graph-telemetry/
         if-no-files-found: ignore
 
     # Device Performance Collection

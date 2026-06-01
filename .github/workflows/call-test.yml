@@ -53,6 +53,11 @@ on:
         required: false
         default: false
         type: boolean
+      enable_graph_telemetry:
+        description: 'Capture IR graph telemetry and upload as artifacts'
+        required: false
+        default: false
+        type: boolean
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
@@ -366,6 +371,9 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
+        # Enable flag only (no path) so the compiler uses its default output
+        # directory, which the upload step below collects.
+        TT_GRAPH_TELEMETRY: ${{ inputs.enable_graph_telemetry && '1' || '' }}
       shell: bash
       run: |
         source venv/activate
@@ -438,6 +446,14 @@ jobs:
       with:
         name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: collected_irs/
+        if-no-files-found: ignore
+
+    - name: Upload Graph Telemetry
+      if: inputs.enable_graph_telemetry && (success() || failure())
+      uses: actions/upload-artifact@v6
+      with:
+        name: graph-telemetry-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        path: graph-telemetry/
         if-no-files-found: ignore
 
 

@@ -68,6 +68,11 @@ on:
         required: false
         type: boolean
         default: false
+      enable_graph_telemetry:
+        description: "Emit IR graph telemetry artifacts"
+        required: false
+        type: boolean
+        default: false
 
 
 permissions:
@@ -144,6 +149,7 @@ jobs:
       sh-runner: ${{ inputs.sh-runner || false }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
       check_fusions: ${{ inputs.check_fusions }}
+      enable_graph_telemetry: ${{ inputs.enable_graph_telemetry || false }}
 
   fail-notify:
     if: always()

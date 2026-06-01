@@ -35,6 +35,10 @@
 #include "api/compile_options.h"
 #include "utils/status.h"
 
+namespace mlir::tt {
+class TTGraphTelemetrySession;
+} // namespace mlir::tt
+
 namespace tt::pjrt {
 class ClientInstance;
 class ExecutableImage;
@@ -190,14 +194,16 @@ private:
       const std::optional<std::string> &export_path,
       const std::string &model_name = "",
       const std::optional<std::vector<uint32_t>> &current_mesh_shape =
-          std::nullopt);
+          std::nullopt,
+      mlir::tt::TTGraphTelemetrySession *telemetry = nullptr);
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status
   convertFromSHLOToTTIR(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
                         std::string &ttir_code,
                         const std::optional<std::string> &export_path,
-                        const std::string &model_name = "");
+                        const std::string &model_name = "",
+                        mlir::tt::TTGraphTelemetrySession *telemetry = nullptr);
 
   // Collects the information about the mesh shape the module is intended to run
   // on.
@@ -221,7 +227,8 @@ private:
       const std::string &system_descriptor_path,
       mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const CompileOptions &compile_options, ClientInstance *client_instance,
-      std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code);
+      std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code,
+      mlir::tt::TTGraphTelemetrySession *telemetry = nullptr);
 
   // Creates flatbuffer binary from the built TTNN module.
   tt_pjrt_status createFlatbufferBinary(
