@@ -196,12 +196,34 @@ def transfer_and_shard_cache(cache, mesh, device):
         xs.mark_sharding(layer.k_pe, mesh, kv_spec)
 
 
-def zero_cache(cache):
-    """Re-zero the MLA cache in place (the per-layer dummy flushes write
-    garbage into it; clear before the real decode)."""
+def reinit_cache_buffers(cache, mesh, device):
+    """Replace the MLA cache tensors with FRESH zeroed, sharded device buffers.
+
+    The per-layer dummy flushes do two things to the cache: (1) write garbage
+    into it via the attention update, and (2) under host-input reclamation
+    (``TT_XLA_DEALLOCATE_HOST_INPUTS_AFTER_MIGRATION``) free the host backing
+    of the original cache shards once the first flush migrates them to device.
+
+    Re-zeroing in place (``.zero_()``) re-stages the buffer and makes the next
+    program rebuild a multi-device host tensor from those now-freed per-shard
+    host copies -> "Tensor is not allocated". Instead we ship brand-new zeroed
+    device tensors so the real decode consumes clean, freshly-allocated buffers
+    whose host backing is still live. Mirrors the streaming package's
+    ``_reinit_mutable_kv_buffers``."""
+    kv_spec = ("batch", None, None, None)
     for layer in cache.layers:
-        layer.compressed_kv.zero_()
-        layer.k_pe.zero_()
+        kv_shape = tuple(layer.compressed_kv.shape)
+        pe_shape = tuple(layer.k_pe.shape)
+        fresh_kv = torch.zeros(kv_shape, dtype=torch.bfloat16).to(device)
+        fresh_pe = torch.zeros(pe_shape, dtype=torch.bfloat16).to(device)
+        layer.compressed_kv = fresh_kv
+        layer.k_pe = fresh_pe
+        layer.keys = fresh_kv
+        layer.values = fresh_pe
+        torch._dynamo.mark_static_address(layer.compressed_kv)
+        torch._dynamo.mark_static_address(layer.k_pe)
+        xs.mark_sharding(layer.compressed_kv, mesh, kv_spec)
+        xs.mark_sharding(layer.k_pe, mesh, kv_spec)
 
 
 def build_decode_mask(batch_size: int, max_cache_len: int, cache_pos: int, dtype):
@@ -368,9 +390,11 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
         _malloc_trim()
         log_mem(f"layer {i:>3}")
 
-    # ---- 6. All layers device-resident: re-zero KV the flushes dirtied ----
-    logger.info("All layers resident. Re-zeroing MLA cache for the real decode...")
-    zero_cache(cache)
+    # ---- 6. All layers device-resident: re-init KV the flushes dirtied ----
+    # Ship FRESH device buffers rather than zeroing in place, so the decode
+    # does not reuse cache shards whose host backing the flushes already freed.
+    logger.info("All layers resident. Re-initializing MLA cache for the real decode...")
+    reinit_cache_buffers(cache, mesh, device)
     torch_xla.sync(wait=True)
     xm.wait_device_ops()
     log_mem("post-stream")
