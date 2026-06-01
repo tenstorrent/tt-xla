@@ -25,14 +25,15 @@ import pytest
 import torch
 from infra import Framework, run_graph_test
 from infra.utilities import Mesh
-from tt_torch.torch_overrides import torch_function_override_disabled
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
+    _disable_tt_torch_function_override,
     _patch_adaln_modulation_bf16,
     _patch_apply_rotary_emb_stack_form,
     _patch_patchify_ndhwc_aware,
+    _patch_wan_time_embedder_dtype_probe,
 )
 from .shared import (
     LATENT_CHANNELS,
@@ -63,9 +64,16 @@ def test_wan_dit_480p_sharded():
 def _run(resolution: str, sharded: bool) -> None:
     # Apply monkey patches here (not at module top) so they don't leak into
     # other tests collected in the same pytest session.
+    # torch-2.10 dynamo workaround: rewrite the .parameters() dtype probe in
+    # WanTimeTextImageEmbedding.forward (the accelerator-stub and XLA guard
+    # shims it also relies on are applied globally by tt_torch's package
+    # patches in tt_torch/__init__.py).
+    _patch_wan_time_embedder_dtype_probe()
+    # diffusers Wan-transformer rewrites (perf + tracing).
     _patch_adaln_modulation_bf16()
     _patch_patchify_ndhwc_aware()
     _patch_apply_rotary_emb_stack_form()
+    _disable_tt_torch_function_override()
 
     shapes = RESOLUTIONS[resolution]
     t, h, w = shapes["latent_frames"], shapes["latent_h"], shapes["latent_w"]
@@ -80,15 +88,11 @@ def _run(resolution: str, sharded: bool) -> None:
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
     shard_spec_fn = (lambda m: shard_dit_specs(m.dit)) if sharded else None
 
-    # torch_function_override_disabled pops the tt_torch TorchFunctionMode for
-    # the scope and restores on exit — scoped isolation matching wan14b's
-    # existing dev_wan test.
-    with torch_function_override_disabled():
-        run_graph_test(
-            graph=model,
-            inputs=[hidden_states, timestep, encoder_hidden_states],
-            framework=Framework.TORCH,
-            compiler_config=_COMPILER_CONFIG,
-            mesh=mesh,
-            shard_spec_fn=shard_spec_fn,
-        )
+    run_graph_test(
+        graph=model,
+        inputs=[hidden_states, timestep, encoder_hidden_states],
+        framework=Framework.TORCH,
+        compiler_config=_COMPILER_CONFIG,
+        mesh=mesh,
+        shard_spec_fn=shard_spec_fn,
+    )
