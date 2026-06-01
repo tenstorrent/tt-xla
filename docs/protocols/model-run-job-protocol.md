@@ -16,6 +16,12 @@ Define the repository-owned protocol for launching, validating, and reporting bo
   - Purpose: determine which manifest rows are collectable by the current harness before execution.
   - Required command family: `pytest --collect-only ... --nvidia-cohort-json <manifest>`.
 
+## Supported Recovery Operations
+
+- `runner_reboot_recovery`
+  - Purpose: recover a blocked model-run runner by rebooting exactly one recorded runner instance and reconciling the run state before dispatch resumes.
+  - Required command family: provider reboot command recorded in the launch or reboot record. For EC2 runners, the command shape is `aws ec2 reboot-instances --instance-ids <instance-id> --region <region>`.
+
 ## Manifest Contract
 
 Every model-run job must start from a machine-readable manifest with:
@@ -157,6 +163,40 @@ Stop or pause dispatch when any of these conditions occurs:
 
 When a stop condition blocks launch, execution, normalization, or reporting, create a blocker record from `docs/protocols/model-run-job-blocker-template.md` and link it from the launch record.
 
+## Runner Reboot Recovery
+
+Runner reboot is a mutating recovery operation. Use it only for `runner_reboot_recovery` when a model-run job is blocked by runner access or host health and the run records identify the single runner instance to reboot.
+
+Preconditions:
+
+- A launch record or blocker record exists for the affected run.
+- The record maps `runner_host` to an explicit cloud identity, including provider, `instance_id`, `region`, and profile or account scope when applicable.
+- The latest known run state, terminal row count, pending row count, and duplicate-dispatch risk are recorded before reboot.
+- Read-only access failures meet the run-specific threshold, or a human has explicitly approved the reboot.
+- `automatic_reboot_allowed` is recorded as `true` before proceeding without another prompt, with the trigger threshold, target instance identity, and rollback/escalation owner documented.
+- A read-only cloud health/status check has been attempted and saved as evidence.
+- The operator environment has the cloud authentication required for the recorded reboot command.
+
+Procedure:
+
+1. Create a reboot record from `docs/protocols/model-run-job-reboot-record-template.md`.
+2. Record the pre-reboot runner state, including last known good state, failed access attempts, read-only cloud status, and artifact paths.
+3. Reconfirm that the reboot target is exactly one recorded instance and that `duplicate_dispatch_risk` is documented.
+4. Execute the recorded provider reboot command only for that instance.
+5. Record the exact reboot command, terminal status, start time, and end time in the reboot record.
+6. Poll the runner with bounded retries until session setup and a read-only run-state check succeed.
+7. Reconcile artifacts, terminal rows, active processes, and pending rows before resuming dispatch.
+8. Resume only when the reboot record has a `resume_condition` that has been satisfied.
+9. If the runner does not recover inside the retry window, create or update a blocker record and stop.
+
+Invariants:
+
+- Do not infer cloud identity from an IP address alone.
+- Do not reboot more than one instance from a single recovery record.
+- Do not use a cloud profile, account, or region that is not recorded in the run evidence.
+- Do not launch replacement work or duplicate rows until original runner state has been reconciled.
+- Do not post GitHub comments, issue updates, or stakeholder reports without human review.
+
 ## Normalized Results Contract
 
 Use `docs/protocols/model-run-job-normalized-results-template.csv` as the header for normalized row outputs. Required outcome fields:
@@ -185,13 +225,14 @@ python3 scripts/validate_model_run_protocol.py
 ```
 
 The validator is read-only. It checks that the shared protocol and required templates exist, that Claude and Codex wrappers delegate to the protocol instead of embedding launch commands, and that the normalized-results CSV header matches the protocol contract.
+It also checks that runner reboot skills delegate to this protocol and that the reboot record template is present.
 
 ## Agent Wrapper Rules
 
 Claude, Codex, and other agent-specific skills must:
 
 - Read this protocol first.
-- Select one supported job type.
+- Select one supported job type or recovery operation.
 - Ask for or locate the manifest.
 - Refuse to invent missing source rows.
 - Produce commands and evidence expectations from this protocol.

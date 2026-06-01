@@ -12,17 +12,30 @@ ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = ROOT / "docs/protocols/model-run-job-protocol.md"
 CLAUDE_SKILL = ROOT / ".claude/skills/ttxla-model-run-job/SKILL.md"
 CODEX_SKILL = ROOT / ".codex/skills/ttxla-model-run-job/SKILL.md"
+CLAUDE_REBOOT_SKILL = ROOT / ".claude/skills/ttxla-runner-reboot/SKILL.md"
+CODEX_REBOOT_SKILL = ROOT / ".codex/skills/ttxla-runner-reboot/SKILL.md"
 LAUNCH_TEMPLATE = ROOT / "docs/protocols/model-run-job-launch-record-template.md"
 BLOCKER_TEMPLATE = ROOT / "docs/protocols/model-run-job-blocker-template.md"
+REBOOT_TEMPLATE = ROOT / "docs/protocols/model-run-job-reboot-record-template.md"
 NORMALIZED_TEMPLATE = ROOT / "docs/protocols/model-run-job-normalized-results-template.csv"
 
 REQUIRED_FILES = (
     PROTOCOL,
     CLAUDE_SKILL,
     CODEX_SKILL,
+    CLAUDE_REBOOT_SKILL,
+    CODEX_REBOOT_SKILL,
     LAUNCH_TEMPLATE,
     BLOCKER_TEMPLATE,
+    REBOOT_TEMPLATE,
     NORMALIZED_TEMPLATE,
+)
+
+SKILL_FILES = (
+    CLAUDE_SKILL,
+    CODEX_SKILL,
+    CLAUDE_REBOOT_SKILL,
+    CODEX_REBOOT_SKILL,
 )
 
 PROTOCOL_REQUIRED_TEXT = (
@@ -32,8 +45,11 @@ PROTOCOL_REQUIRED_TEXT = (
     "collectability_check",
     "--nvidia-cohort-json",
     "human_review_required_before_external_post",
+    "runner_reboot_recovery",
+    "automatic_reboot_allowed",
     "model-run-job-launch-record-template.md",
     "model-run-job-blocker-template.md",
+    "model-run-job-reboot-record-template.md",
     "model-run-job-normalized-results-template.csv",
     "Do not post GitHub comments",
 )
@@ -50,6 +66,8 @@ WRAPPER_FORBIDDEN_TEXT = (
     "test_models",
     "--nvidia-cohort-json",
     "ssh ",
+    "aws ec2",
+    "reboot-instances",
     "gh issue",
     "gh api",
 )
@@ -104,7 +122,7 @@ def require_not_contains(name: str, text: str, forbidden: tuple[str, ...]) -> No
 
 
 def validate_wrappers() -> None:
-    for path in (CLAUDE_SKILL, CODEX_SKILL):
+    for path in SKILL_FILES:
         text = read_text(path)
         rel = str(path.relative_to(ROOT))
         require_contains(rel, text, WRAPPER_REQUIRED_TEXT)
@@ -119,6 +137,7 @@ def validate_protocol() -> None:
 def validate_templates() -> None:
     launch = read_text(LAUNCH_TEMPLATE)
     blocker = read_text(BLOCKER_TEMPLATE)
+    reboot = read_text(REBOOT_TEMPLATE)
 
     require_contains(
         str(LAUNCH_TEMPLATE.relative_to(ROOT)),
@@ -140,6 +159,23 @@ def validate_templates() -> None:
             "`duplicate_dispatch_risk`: `true`",
             "`external_reporting_allowed`: `false`",
             "`resume_condition`",
+        ),
+    )
+    require_contains(
+        str(REBOOT_TEMPLATE.relative_to(ROOT)),
+        reboot,
+        (
+            "`runner_host`",
+            "`instance_id`",
+            "`region`",
+            "`automatic_reboot_allowed`",
+            "`approval_source`",
+            "`pre_reboot_health`",
+            "`reboot_command`",
+            "`post_reboot_poll`",
+            "`resume_condition`",
+            "`duplicate_dispatch_risk`: `true`",
+            "`external_reporting_allowed`: `false`",
         ),
     )
 
