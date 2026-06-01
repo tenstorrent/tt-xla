@@ -262,6 +262,12 @@ def pytest_addoption(parser):
         default=False,
         help="Enable IR dumping during model tests",
     )
+    parser.addoption(
+        "--enable-chisel",
+        action="store_true",
+        default=False,
+        help="Initialize Chisel context before running tests",
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -544,6 +550,21 @@ def run_around_tests():
     yield
     torch._dynamo.reset()
     _release_dynamo_bridge_tensors()
+
+
+@pytest.fixture(autouse=True)
+def chisel_context(request):
+    if not request.config.getoption("--enable-chisel"):
+        yield
+        return
+
+    import chisel
+
+    safe_name = request.node.nodeid.replace("/", "_").replace("::", "__")
+    results_dir = Path("chisel_results")
+    results_dir.mkdir(parents=True, exist_ok=True)
+    with chisel.session(results_path=str(results_dir / f"{safe_name}.json")) as report:
+        yield report
 
 
 @pytest.fixture()
