@@ -548,19 +548,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         orig_q, orig_kv, head_dim, heads_axis, force_equal=False
     ):
         """Pick the cheapest pad_q / pad_kv such that pad_kv is a multiple of
-        heads_axis and the q->kv mapping is preserved for real heads. See
-        _maybe_pad_attention_heads docstring for the two strategies.
-
-        Returns a spec dict, or None if no padding is required (i.e. orig_kv
-        already divides heads_axis with pad_q == orig_q).
-
-        ``force_equal=True`` restricts the search to c=k (replicate each KV
-        head k times, post-pad GQA ratio m=1), producing pad_q == pad_kv. This
-        is a workaround for an open tt-metal concat-kernel placement bug when
-        the [Q;K;V] concat axis is the sharded axis and Q is larger than K/V —
-        the runtime asks for kernel args on a core that the kernel was not
-        compiled for, e.g. ``reader_concat_interleaved_start_id ... not placed
-        on core 2-0``. Equal-sized concat inputs stay on a path that works.
+        heads_axis and the q->kv mapping is preserved for real heads. Returns
+        None if no padding is needed. ``force_equal=True`` restricts to c=k
+        (pad_q == pad_kv) — workaround for #5015.
         """
         assert (
             orig_q % orig_kv == 0
@@ -594,25 +584,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if padded_q == orig_q and padded_kv == orig_kv:
             return None
 
-        # Known-bad config: force_equal=True AND padded_kv > orig_kv * c
-        # means c=k replication doesn't fill padded_kv on its own and we'd
-        # zero-pad on top. The one observed instance — Qwen2.5-7B (orig_kv=4,
-        # c=7 → 28 real heads, padded to 32 with 4 zero heads) — hangs at
-        # first decode on llmbox. Gemma-4-31B's two force_equal configs both
-        # happen to have padded_kv == orig_kv * c (no zero-pad layer) and run
-        # fine. Until we understand the root cause, surface a clear error
-        # at startup instead of letting it hang for half an hour. See
-        # CONCAT_FORCE_EQUAL_INVESTIGATION.md.
+        # force_equal + padded_kv > orig_kv*c (i.e. c=k replication doesn't
+        # fill padded_kv and we'd zero-pad on top) hangs at first decode on
+        # llmbox; fail fast instead. See #5015.
         if force_equal and padded_kv > orig_kv * best["c"]:
             raise NotImplementedError(
                 f"pad_attention_heads_force_equal=True with orig_kv={orig_kv}, "
-                f"c={best['c']}, heads_axis={heads_axis} would require "
-                f"zero-padding {padded_kv - orig_kv * best['c']} KV heads on "
-                f"top of c=k replication (padded_kv={padded_kv}). This config "
-                f"is known to hang at the first decode step on llmbox; see "
-                f"CONCAT_FORCE_EQUAL_INVESTIGATION.md for the underlying "
-                f"tt-metal investigation. Drop force_equal or use a model "
-                f"where orig_kv * k is already a multiple of heads_axis."
+                f"c={best['c']}, heads_axis={heads_axis} would zero-pad "
+                f"{padded_kv - orig_kv * best['c']} KV heads on top of c=k "
+                f"replication (padded_kv={padded_kv}). Known to hang at first "
+                f"decode on llmbox (#5015)."
             )
 
         return {

@@ -114,14 +114,9 @@ class TTConfig:
     # to the output.
     pad_attention_heads: bool = False
 
-    # When pad_attention_heads is enabled, force the c=k strategy: replicate
-    # each KV head k times so padded_q == padded_kv (i.e. Q/K/V end up the
-    # same size). The default (min-cost) strategy picks the cheapest combination
-    # of c (kv replication) and m (post-pad GQA ratio), which can yield unequal
-    # Q/K/V sizes — those trip an unfixed tt-metal concat kernel placement bug
-    # when the concat axis is the sharded axis (specifically:
-    # `reader_concat_interleaved_start_id` runtime args lookup against an
-    # unincluded core). Gemma-4-31B on 1D mesh + 8 chips needs this.
+    # Force c=k (padded_q == padded_kv) instead of the default min-cost
+    # strategy. Workaround for #5015 (tt-metal concat bug on unequal Q/K/V).
+    # Gemma-4-31B on llmbox 1D 8-chip needs this.
     pad_attention_heads_force_equal: bool = False
 
     def __post_init__(self):

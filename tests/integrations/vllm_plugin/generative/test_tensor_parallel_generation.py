@@ -10,41 +10,26 @@ import vllm
 
 @pytest.mark.push
 def test_pad_decision_gates_force_equal_with_zero_pad():
-    """force_equal padding that requires zero-padding on top of c=k
-    replication is gated by _compute_head_pad_decision because it has
-    been observed to hang at first decode on llmbox. The Qwen2.5-7B case
-    (orig_kv=4, k=7, heads_axis=8 → padded_kv=32 with 4 zero-pad heads
-    on top of 28 replicated) hits the gate; Gemma-4-31B's force_equal
-    configs (both have padded_kv == orig_kv * c) do not. See
-    CONCAT_FORCE_EQUAL_INVESTIGATION.md.
-    """
-    # Qwen2.5-7B + force_equal → gated.
+    """force_equal with padded_kv > orig_kv*c is gated (#5015)."""
+    # Qwen2.5-7B + force_equal → gated (orig_kv=4, c=7 → 28 + 4 zero-pad).
     with pytest.raises(NotImplementedError, match="force_equal"):
         TTModelRunner._compute_head_pad_decision(
             orig_q=28, orig_kv=4, head_dim=128, heads_axis=8, force_equal=True
         )
-
-    # Same Qwen2.5-7B WITHOUT force_equal → fine (min-cost strategy).
+    # Qwen2.5-7B without force_equal → min-cost spec.
     spec = TTModelRunner._compute_head_pad_decision(
         orig_q=28, orig_kv=4, head_dim=128, heads_axis=8, force_equal=False
     )
-    assert spec is not None
     assert spec["padded_kv"] == 8 and spec["padded_q"] == 56
-
-    # Gemma-4-31B sliding force_equal (orig_kv=16, k=2 → c=2, padded_kv=32,
-    # padded_kv == orig_kv * c, no zero-pad on top) → fine.
+    # Gemma-4-31B sliding (orig_kv=16, c=2) — padded_kv == orig_kv*c, fine.
     spec = TTModelRunner._compute_head_pad_decision(
         orig_q=32, orig_kv=16, head_dim=256, heads_axis=8, force_equal=True
     )
-    assert spec is not None
     assert spec["padded_kv"] == 32 and spec["kv_replication_factor"] == 2
-
-    # Gemma-4-31B global force_equal (orig_kv=4, k=8 → c=8, padded_kv=32,
-    # padded_kv == orig_kv * c, no zero-pad on top) → fine.
+    # Gemma-4-31B global (orig_kv=4, c=8) — padded_kv == orig_kv*c, fine.
     spec = TTModelRunner._compute_head_pad_decision(
         orig_q=32, orig_kv=4, head_dim=512, heads_axis=8, force_equal=True
     )
-    assert spec is not None
     assert spec["padded_kv"] == 32 and spec["kv_replication_factor"] == 8
 
 
@@ -82,46 +67,26 @@ def test_tensor_parallel_generation_n300(model_name: str):
 @pytest.mark.parametrize(
     ["model_name", "force_equal"],
     [
-        # Llama-3.2-3B: num_kv_heads=8 already divides batch_axis=8, so the
-        # padding decision is a no-op. Verifies pad_attention_heads=True
-        # doesn't break models that don't need it.
+        # Llama-3.2-3B: num_kv_heads=8 divides 8 → padding is a no-op,
+        # covers the "pad_attention_heads=True on a model that doesn't
+        # need it" path.
         pytest.param("meta-llama/Llama-3.2-3B", False, id="llama-3.2-3b"),
-        # Qwen2.5-7B: num_kv_heads=4 needs padding. Default (min-cost)
-        # strategy with k=7: padded_kv 4->8, padded_q 28->56.
+        # Qwen2.5-7B: min-cost path (k=7, padded_kv 4->8, padded_q 28->56).
         pytest.param("Qwen/Qwen2.5-7B", False, id="qwen2.5-7b"),
-        # Qwen2.5-7B + force_equal: c=k=7, m=1. Real KV heads after
-        # replication = 4*7 = 28, padded_kv = 32 → 4 zero-pad heads on top.
-        # That configuration is gated by NotImplementedError in
-        # _compute_head_pad_decision (we've seen it hang at the first
-        # decode step on llmbox; Gemma-4-31B's force_equal configs both
-        # have padded_kv == orig_kv * c and run fine). The gate raises in
-        # the engine subprocess and surfaces as a wrapped
-        # RuntimeError("Engine core initialization failed"), which isn't
-        # cleanly catchable with xfail's strict=True — so this param is
-        # still skipped. The gate itself is exercised via a unit test on
-        # _compute_head_pad_decision (test_pad_decision_gates_force_equal).
-        # See CONCAT_FORCE_EQUAL_INVESTIGATION.md.
+        # Qwen2.5-7B + force_equal hits the NotImplementedError gate
+        # (#5015). Skipped (not xfailed) because the gate raises in the
+        # engine subprocess and gets wrapped in RuntimeError; the gate
+        # itself is covered by test_pad_decision_gates_force_equal_with_zero_pad.
         pytest.param(
             "Qwen/Qwen2.5-7B",
             True,
             id="qwen2.5-7b-force-equal",
-            marks=pytest.mark.skip(
-                reason=(
-                    "gated at decision time (would hang at first decode "
-                    "otherwise); see CONCAT_FORCE_EQUAL_INVESTIGATION.md"
-                )
-            ),
+            marks=pytest.mark.skip(reason="gated by #5015"),
         ),
     ],
 )
 def test_tensor_parallel_generation_llmbox_pad(model_name: str, force_equal: bool):
-    """Smoke test for pad_attention_heads on llmbox 1D mesh (8 chips).
-
-    Padding fires on Qwen2.5-7B (num_kv_heads=4, not divisible by 8) and is
-    a no-op on Llama-3.2-3B (num_kv_heads=8). Uses full model layers — 1
-    layer is too thin for assert_output_coherent's stopword check to be
-    meaningful on either model.
-    """
+    """pad_attention_heads smoke test on llmbox 1D 8-chip mesh."""
     prompts = [
         "Continue in English: I like taking walks in the",
     ]
@@ -334,19 +299,12 @@ def test_tensor_parallel_generation_bhqb_gemma4_31b(
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 def test_tensor_parallel_generation_llmbox_gemma4_31b():
-    """Sister of test_tensor_parallel_generation_bhqb_gemma4_31b: 1D mesh
-    on n300_llmbox (8 chips) with pad_attention_heads instead of BHQB's
-    2D mesh. Exercises the full padding stack for Gemma-4-31B:
+    """Gemma-4-31B on n300_llmbox 1D 8-chip mesh.
 
-    * pad_attention_heads (Aleks's feature)
-    * pad_attention_heads_force_equal (workaround for tt-metal concat
-      kernel placement bug when padded Q/K/V are unequal on the
-      sharded axis)
-    * per-layer-type spec dispatch — Gemma-4 has both sliding and
-      full-attention layers with different num_kv_heads (16 vs 4) and
-      head_dim (256 vs 512)
-    * text_config fallback in `_maybe_pad_attention_heads` for
-      multimodal HF configs
+    End-to-end coverage of the full pad_attention_heads stack:
+    force_equal (#5015), per-layer-type spec dispatch (sliding vs
+    full attention configs), and the text_config fallback for
+    multimodal HF configs. Sister of the BHQB 2D-mesh test.
     """
     model_name = "google/gemma-4-31B-it"
 

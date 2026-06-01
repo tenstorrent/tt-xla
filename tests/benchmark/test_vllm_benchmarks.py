@@ -90,11 +90,7 @@ def _gemma4_tp_config(model: str, batch_size: int):
         enable_tensor_parallel=True,
         use_2d_mesh=False,
         pad_attention_heads=True,
-        # Gemma-4 has two distinct attention configurations (sliding /
-        # full+k_eq_v). The min-cost padding strategy produces unequal-sized
-        # Q vs K/V, which trips a tt-metal concat kernel placement bug on
-        # the [Q;K;V] concat in XlaQKVParallelLinear. Force equal-sized
-        # padding (c=k) to stay on a working kernel path.
+        # Workaround for #5015 (drop once the tt-metal concat fix lands).
         pad_attention_heads_force_equal=True,
         min_context_len=32,
         enable_const_eval=True,
