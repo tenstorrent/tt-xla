@@ -22,11 +22,13 @@ from utils import resolve_display_name
 #   TT_BENCHMARK_MAX_MODEL_LEN=<int>      default 128
 #   _BENCH_OPTIMIZATION_LEVEL=<int>       default 0 (overrides per-test opt level)
 #   TT_BENCHMARK_WEIGHT_DTYPE=<str>       e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test weight dtype)
+#   TT_BENCHMARK_WEIGHT_OVERRIDES=<path>  JSON file of {glob: dtype} per-tensor mixed-precision overrides
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
 _BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
+_BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 
 
 def _config(
@@ -51,6 +53,10 @@ def _config(
     # one knob per re-run (mirrors _BENCH_OPTIMIZATION_LEVEL/CPU_SAMPLING).
     if _BENCH_WEIGHT_DTYPE is not None:
         additional["experimental_weight_dtype"] = _BENCH_WEIGHT_DTYPE
+    if _BENCH_WEIGHT_OVERRIDES is not None:
+        # Path to a JSON {glob: dtype} file; loaded plugin-side by
+        # apply_weight_dtype_overrides. Takes precedence over the uniform dtype.
+        additional["weight_dtype_overrides"] = _BENCH_WEIGHT_OVERRIDES
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,

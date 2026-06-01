@@ -68,6 +68,16 @@ class TTConfig:
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
+    # Per-tensor weight dtype overrides for mixed precision. Either a dict
+    # mapping fnmatch globs over (vLLM) parameter names to dtype strings
+    # ("bfp_bf4"/"bfp_bf8"/"bf16"), with an optional "default" key for
+    # unmatched weights, or a path to a JSON file of the same shape. Applied
+    # via tt_torch.weight_dtype.apply_weight_dtype_overrides at load time,
+    # mirroring the torch-xla benchmark's weight_dtype_overrides. Takes
+    # precedence over experimental_weight_dtype for matched tensors. None
+    # disables.
+    weight_dtype_overrides: Optional[Union[dict, str]] = None
+
     # Toggle the tt-mlir permute+matmul fusion optimization. Mirrors the PJRT
     # compile option; defaults to True to match the PJRT default.
     experimental_enable_permute_matmul_fusion: bool = True

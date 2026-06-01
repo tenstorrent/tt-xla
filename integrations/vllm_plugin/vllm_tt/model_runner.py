@@ -1828,6 +1828,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             isinstance(m, ParallelLMHead) for m in self.model.modules()
         )
 
+        # Per-tensor weight dtype overrides (mixed precision), mirroring the
+        # torch-xla benchmark's apply_weight_dtype_overrides. Registered after
+        # weight load and before compile so the tt.weight_dtype_override custom
+        # call is captured in the traced graph. Patterns must match vLLM's
+        # (often fused) parameter names, e.g. "*.mlp.down_proj.weight".
+        if self.tt_config.weight_dtype_overrides is not None:
+            from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+            applied = apply_weight_dtype_overrides(
+                self.model, self.tt_config.weight_dtype_overrides
+            )
+            logger.info("Applied %d per-tensor weight dtype override(s)", len(applied))
+
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
