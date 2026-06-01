@@ -89,6 +89,9 @@ def _gemma4_tp_config(model: str, batch_size: int):
         gpu_memory_utilization=0.1,
         enable_tensor_parallel=True,
         use_2d_mesh=False,
+        pad_attention_heads=True,
+        # Workaround for #5015 (drop once the tt-metal concat fix lands).
+        pad_attention_heads_force_equal=True,
         min_context_len=32,
         enable_const_eval=True,
         experimental_weight_dtype="",
