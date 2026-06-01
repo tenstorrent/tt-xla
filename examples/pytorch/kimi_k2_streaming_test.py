@@ -43,6 +43,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from loguru import logger
 from torch_xla.distributed.spmd import Mesh
 
 setproctitle.setproctitle("kimi-stream")
@@ -97,9 +98,9 @@ def log_mem(tag: str):
         p = psutil.Process(os.getpid())
         rss = p.memory_info().rss / 1e9
         sys_used = psutil.virtual_memory().used / 1e9
-        print(f"[mem] [{tag:28s}] rss={rss:6.2f} sys={sys_used:6.2f} GB")
+        logger.info(f"[mem] [{tag:28s}] rss={rss:6.2f} sys={sys_used:6.2f} GB")
     except Exception:
-        print(f"[mem] [{tag:28s}] (psutil unavailable)")
+        logger.info(f"[mem] [{tag:28s}] (psutil unavailable)")
 
 
 def setup_spmd():
@@ -251,11 +252,11 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     )
 
     mesh = create_mesh()
-    print(f"\nMesh: {mesh.shape()}  num_devices={xr.global_runtime_device_count()}")
+    logger.info(f"Mesh: {mesh.shape()}  num_devices={xr.global_runtime_device_count()}")
     mesh_shape = mesh_shape_for(xr.global_runtime_device_count())
 
     # ---- 1. Build a weight-less CPU skeleton ----
-    print(f"\nBuilding Kimi K2 skeleton with {num_layers} layers...")
+    logger.info(f"Building Kimi K2 skeleton with {num_layers} layers...")
     loader = ModelLoader(
         variant=ModelVariant.KIMI_K2_INSTRUCT_MODIFIED, num_layers=num_layers
     )
@@ -267,7 +268,7 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     log_mem("skeleton")
 
     # ---- 2. Ship top-level params (embed / norm / head) ----
-    print("Shipping top-level params (embed / norm / lm_head)...")
+    logger.info("Shipping top-level params (embed / norm / lm_head)...")
     top_sd = loader.load_top_level_state_dict()
     missing, unexpected = model.load_state_dict(top_sd, strict=False)
     if unexpected:
@@ -287,7 +288,7 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     # ---- 3. Pre-allocate + ship the MLA cache (persistent, on device) ----
     # The cache must exist on device before the per-layer dummy flush, which
     # writes into cache.layers[i] via the attention update.
-    print("Allocating + sharding MLA cache on device...")
+    logger.info("Allocating + sharding MLA cache on device...")
     cache = init_mla_cache(config, batch_size, max_cache_len)
     transfer_and_shard_cache(cache, mesh, device)
     torch_xla.sync(wait=True)
@@ -320,7 +321,7 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
         )
 
     # ---- 5. Per-layer: load -> sparse-MLP -> ship -> dummy-flush -> free ----
-    print(f"\nStreaming {n_layers} layers onto device (dummy_flush={do_flush})...")
+    logger.info(f"Streaming {n_layers} layers onto device (dummy_flush={do_flush})...")
     for i in range(n_layers):
         block = layers[i]
 
@@ -368,14 +369,14 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
         log_mem(f"layer {i:>3}")
 
     # ---- 6. All layers device-resident: re-zero KV the flushes dirtied ----
-    print("\nAll layers resident. Re-zeroing MLA cache for the real decode...")
+    logger.info("All layers resident. Re-zeroing MLA cache for the real decode...")
     zero_cache(cache)
     torch_xla.sync(wait=True)
     xm.wait_device_ops()
     log_mem("post-stream")
 
     # ---- 7. Whole-model compile + single decode step ----
-    print("Compiling whole model...")
+    logger.info("Compiling whole model...")
     compiled_model = torch.compile(model, backend="tt")
 
     single_token = tokenizer.encode("Hello", return_tensors="pt")[:, :1]
@@ -383,7 +384,7 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     xs.mark_sharding(input_ids, mesh, ("batch", None))
     cache_position = torch.tensor([0], dtype=torch.long).to(device)
 
-    print("Running decode step...")
+    logger.info("Running decode step...")
     with torch.no_grad():
         output = compiled_model(
             input_ids=input_ids,
@@ -395,6 +396,6 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     logits = output.logits.cpu()
     predicted_ids = logits[:, -1].argmax(dim=-1)
     decoded = tokenizer.batch_decode(predicted_ids)
-    print("\n[STREAMING DECODE] Predicted tokens:")
+    logger.info("[STREAMING DECODE] Predicted tokens:")
     for i, text in enumerate(decoded[: min(8, batch_size)]):
-        print(f"  User {i}: {repr(text)}")
+        logger.info(f"  User {i}: {repr(text)}")
