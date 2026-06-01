@@ -408,13 +408,44 @@ class AscendScheduler(Scheduler):
         )
         scheduled_cached_reqs = cached_reqs_data
 
+        # Base Scheduler schedules encoder inputs inline with KV allocation;
+        # do it post-hoc here to avoid diverging from AscendScheduler.schedule().
+        # Without this, scheduled_encoder_inputs stays empty and the runner hits
+        # an "Encoder cache miss". Safe only with chunked-mm/prefill disabled, so
+        # num_new_tokens is never truncated mid-item.
+        scheduled_encoder_inputs: dict[str, list[int]] = {}
+        encoder_compute_budget_left = self.max_num_encoder_input_tokens
+        for _req in (
+            scheduled_new_reqs + scheduled_resumed_reqs + scheduled_running_reqs
+        ):
+            if not _req.has_encoder_inputs:
+                continue
+            (
+                _enc_to_sched,
+                _new_tok,
+                encoder_compute_budget_left,
+                _ext_load,
+            ) = self._try_schedule_encoder_inputs(
+                _req,
+                _req.num_computed_tokens,
+                num_scheduled_tokens.get(_req.request_id, 0),
+                encoder_compute_budget_left,
+                shift_computed_tokens=1 if self.use_eagle else 0,
+            )
+            if _enc_to_sched:
+                scheduled_encoder_inputs[_req.request_id] = _enc_to_sched
+                for _i in _enc_to_sched:
+                    self.encoder_cache_manager.allocate(_req, _i)
+                    if self.ec_connector is not None:
+                        self.ec_connector.update_state_after_alloc(_req, _i)
+
         scheduler_output = SchedulerOutput(
             scheduled_new_reqs=new_reqs_data,
             scheduled_cached_reqs=scheduled_cached_reqs,
             num_scheduled_tokens=num_scheduled_tokens,
             total_num_scheduled_tokens=total_num_scheduled_tokens,
             scheduled_spec_decode_tokens=scheduled_spec_decode_tokens,
-            scheduled_encoder_inputs={},
+            scheduled_encoder_inputs=scheduled_encoder_inputs,
             num_common_prefix_blocks=num_common_prefix_blocks,
             preempted_req_ids=set(),
             # finished_req_ids is an existing state in the scheduler,
