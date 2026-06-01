@@ -39,6 +39,11 @@ def get_xla_device_arch():
     import torch_xla.core.xla_model as xm
 
     device = xm.xla_device()
+    # In SPMD mode xm.xla_device() returns a virtual "SPMD:N" device which
+    # xm.xla_device_kind() cannot resolve. All chips in the mesh share the
+    # same arch so querying xla:0 is sufficient.
+    if str(device).startswith("SPMD:"):
+        device = "xla:0"
     device = xm.xla_device_kind(device)
     arch_name = str(device).lower()
     return align_arch(arch_name)
