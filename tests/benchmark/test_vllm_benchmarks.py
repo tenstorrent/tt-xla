@@ -171,8 +171,25 @@ TP_CONFIGS = [
             32,
             gpu_memory_utilization=0.01,
             experimental_weight_dtype="bfp_bf4",
+            # 1x4 mesh: the 2x2 (batch-axis) mesh hits a paged_update_cache
+            # sharding bug where the decode K/V update user dim is sharded
+            # inconsistently (32 vs 16). 1x4 keeps the user dim unsharded.
+            use_2d_mesh=False,
         ),
         id="devstral-123b-tp-batch32-bfp4-qb2",
+    ),
+    # Fast smoke variant of the above: 4 transformer layers only, exercising the
+    # full fp8->bf16 dequant + bfp4 weight path without the full 88-layer cost.
+    pytest.param(
+        _tp_config(
+            "mistralai/Devstral-2-123B-Instruct-2512",
+            32,
+            gpu_memory_utilization=0.01,
+            experimental_weight_dtype="bfp_bf4",
+            use_2d_mesh=False,
+            num_hidden_layers=4,
+        ),
+        id="devstral-123b-tp-batch32-bfp4-4layer-qb2",
     ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
