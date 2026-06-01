@@ -6,6 +6,7 @@ import math
 
 import torch
 import torch.nn as nn
+from tt_torch.composite_ops import composite_topk
 from vllm.v1.outputs import LogprobsTensors, SamplerOutput
 
 from .metadata import XLASupportedSamplingMetadata
@@ -69,11 +70,13 @@ class Sampler(nn.Module):
         self,
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
+        *,
+        vocab_sharded: bool = False,
     ) -> SamplerOutput:
         # Use float32 for the logits.
         logits = logits.to(torch.float32)
         # Sample the next token.
-        sampled = self.sample(logits, sampling_metadata)
+        sampled = self.sample(logits, sampling_metadata, vocab_sharded=vocab_sharded)
 
         # These are XLA tensors.
         sampler_output = SamplerOutput(
@@ -101,7 +104,16 @@ class Sampler(nn.Module):
             temp = torch.where(temp < _SAMPLING_EPS, 1.0, temp)
         return logits.div_(temp.unsqueeze(dim=1))
 
-    def greedy_sample(self, logits: torch.Tensor) -> torch.Tensor:
+    def greedy_sample(
+        self, logits: torch.Tensor, *, vocab_sharded: bool = False
+    ) -> torch.Tensor:
+        if vocab_sharded:
+            # argmax over a vocab-sharded tensor would return shard-local
+            # indices. composite_topk(k=1) is sharding-aware via the
+            # tenstorrent.topk custom sharding rule — local topk + all-gather
+            # + shard-offset + merge — and returns the global argmax.
+            _, indices = composite_topk(logits, k=1, dim=-1, largest=True, sorted=False)
+            return indices.squeeze(-1)
         return logits.argmax(dim=-1).view(-1)
 
     def apply_penalties(
@@ -166,6 +178,8 @@ class Sampler(nn.Module):
         self,
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
+        *,
+        vocab_sharded: bool = False,
     ) -> torch.Tensor:
         # Apply allowed_token_ids mask (sets disallowed tokens to -inf).
         if not sampling_metadata.no_allowed_token_ids:
@@ -202,12 +216,14 @@ class Sampler(nn.Module):
         # over full vocab was ~34% of sampler runtime at b=32 in tracy.
         all_random = sampling_metadata.all_random
         if not all_random:
-            greedy_sampled = self.greedy_sample(logits)
+            greedy_sampled = self.greedy_sample(logits, vocab_sharded=vocab_sharded)
 
         # Build the candidate set via chunked multi-core topk. The fused
         # tt::sampling kernel applies user top-k, top-p, softmax, and
         # multinomial downstream — no need to filter twice here.
-        filtered_logits, candidate_indices = chunked_topk_candidates(logits)
+        filtered_logits, candidate_indices = chunked_topk_candidates(
+            logits, vocab_sharded=vocab_sharded
+        )
         random_sampled = self._ttnn_sampling_padded(
             filtered_logits, candidate_indices, sampling_metadata
         )
@@ -362,22 +378,31 @@ class Sampler(nn.Module):
         return result[:batch].to(torch.int64)
 
 
+_SHARDED_TOPK_CANDIDATES = 128  # matches typical num_chunks * k_per_chunk
+
+
 def chunked_topk_candidates(
     logits: torch.Tensor,
+    *,
+    vocab_sharded: bool = False,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Build a per-row top-K candidate set via multi-core ttnn.topk.
+    """Build a per-row top-K candidate set.
 
-    Splits vocab into power-of-2 chunks (<= 32768) so torch.topk compiles
-    to multi-core ttnn.topk (~0.18ms/chunk) instead of single-core ttnn.sort
-    (~9ms). Returns (candidate_values, candidate_indices) of shape
-    [batch, num_chunks * k_per_chunk] (~128 tokens for typical vocabs);
-    candidate_indices holds global vocab positions.
+    Replicated path: splits vocab into power-of-2 chunks (<= 32768) so
+    torch.topk compiles to multi-core ttnn.topk (~0.18ms/chunk) instead of
+    single-core ttnn.sort (~9ms). Returns ~128 candidates total.
 
-    User-specified top-k / top-p / softmax / multinomial are applied
-    downstream by the fused tt::sampling kernel, not here.
+    Vocab-sharded path (2D-mesh TP): uses composite_topk so the tt-mlir
+    custom sharding rule emits local topk + all-gather + shard-offset + merge
+    instead of all-gathering the full vocab. Only the merged [batch, 128]
+    candidate set crosses the wire.
+
+    Returns (candidate_values, candidate_indices) of shape [batch, 128];
+    candidate_indices holds global vocab positions. User-specified top-k /
+    top-p / softmax / multinomial are applied downstream by the fused
+    tt::sampling kernel, not here.
     """
     batch = logits.shape[0]
-    chunk_size, padded_chunk_size = _get_topk_split_params(logits.shape[-1])
 
     # Multi-core topk is 14x faster at batch=32 vs small batches — pad
     # with -inf rows so dummy entries can't win the topk.
@@ -386,6 +411,19 @@ def chunked_topk_candidates(
         (0, 0, 0, _TTNN_SAMPLING_BATCH_SIZE - batch),
         value=float("-inf"),
     )
+
+    if vocab_sharded:
+        # Vocab is sharded along the "model" axis. The composite carries the
+        # sharding through tt-mlir's custom rule (local topk + all-gather of
+        # candidates + shard-offset + merge). Output W = 128 is already
+        # power-of-2 with W/32 = 4 >= 2, satisfying the tt::sampling kernel
+        # constraints (#4560).
+        all_values, all_indices = composite_topk(
+            logits, k=_SHARDED_TOPK_CANDIDATES, dim=-1, largest=True, sorted=False
+        )
+        return all_values[:batch], all_indices[:batch]
+
+    chunk_size, padded_chunk_size = _get_topk_split_params(logits.shape[-1])
 
     # Split vocab, pad each chunk to power-of-2, run topk.
     chunks = torch.split(logits, chunk_size, dim=-1)

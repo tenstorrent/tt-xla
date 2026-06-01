@@ -2552,10 +2552,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
-        # (quant_method.apply bypasses __call__) and all_gather is a
-        # no-op (world_size=1). Must be inside the compiled graph —
-        # external sharding_constraint between compiled functions breaks.
+        # On 1D-mesh TP, replicate logits so the downstream sampler sees the
+        # full vocab (the ParallelLMHead output is otherwise vocab-sharded).
+        # On 2D-mesh TP we deliberately skip this: logits stay vocab-sharded
+        # and the topk reductions are done sharding-aware via composite_topk
+        # later, avoiding an expensive full-vocab all-gather every decode step.
+        # Must be inside the compiled graph — an external sharding_constraint
+        # between compiled functions breaks.
         if self.enable_tensor_parallel and not self.use_2d_mesh:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
@@ -2568,6 +2571,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Sample with xla-friendly function. This function is to be traced
         separately from `forward` for lighter compilation overhead.
         """
+        # Re-annotate vocab-sharding at the entry of this separately-compiled
+        # graph: logits enter vocab-sharded only on 2D mesh, and sharding does
+        # not carry across the compiled-graph boundary from compute_logits.
         if self.is_sharded_compute_logits and self.use_2d_mesh:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
         if (
@@ -2586,7 +2592,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             else:
                 out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
-            out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
+            vocab_sharded = self.is_sharded_compute_logits and self.use_2d_mesh
+            out_tokens = self.sampler(
+                logits, sampling_metadata, vocab_sharded=vocab_sharded
+            ).sampled_token_ids
         return out_tokens
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
