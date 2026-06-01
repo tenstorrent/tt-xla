@@ -171,6 +171,10 @@ TP_CONFIGS = [
             32,
             gpu_memory_utilization=0.01,
             experimental_weight_dtype="bfp_bf4",
+            # const-eval folds the bf16->bfp4 weight conversion at compile time
+            # rather than recomputing it per step (mirrors the Llama-3.1-70B
+            # bfp_bf8 recipe in test_tensor_parallel_generation.py).
+            enable_const_eval=True,
             # 1x4 mesh: the 2x2 (batch-axis) mesh hits a paged_update_cache
             # sharding bug where the decode K/V update user dim is sharded
             # inconsistently (32 vs 16). 1x4 keeps the user dim unsharded.
@@ -186,6 +190,7 @@ TP_CONFIGS = [
             32,
             gpu_memory_utilization=0.01,
             experimental_weight_dtype="bfp_bf4",
+            enable_const_eval=True,
             use_2d_mesh=False,
             num_hidden_layers=4,
         ),
