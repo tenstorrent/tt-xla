@@ -1,0 +1,48 @@
+[meta]
+schema_version = 1
+benchmark_test = test_smollm2_360m
+benchmark_file = tests/benchmark/test_llms.py
+model_id = HuggingFaceTB/SmolLM2-360M
+family = llm
+hw_target = n300
+mesh_shape = 1x1
+model_dir = /__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/codegen-output/HuggingFaceTB/SmolLM2-360M
+reached_step = 6
+final_status = failed
+final_step_name = run_graph
+
+[step_0_xla_py]
+status = passed
+notes = generated xla.py with stock-transformers AutoModelForCausalLM; LLM patches + StaticCache.early_initialization + weight_dtype_overrides inlined
+
+[step_1_run_pt]
+status = passed
+elapsed_s = 19.3
+log = run-logs/step-1.log
+
+[step_2_run_tt]
+status = passed
+elapsed_s = 272.2
+log = run-logs/step-2.log
+
+[step_3_golden]
+status = passed
+elapsed_s = 234.5
+pcc = 0.968750
+log = run-logs/step-3.log
+
+[step_4_codegen]
+status = passed
+elapsed_s = 175.4
+graph_count = 1
+log = run-logs/step-4.log
+
+[step_5_single_graph]
+status = passed
+
+[step_6_run_graph]
+status = failed
+elapsed_s = 7.1
+exit_code = 1
+failure_summary = TypeError: main_const_eval_0() missing 1 required positional argument: 'device' (generated main.py consteval__main calls const-eval helper without device arg)
+log = run-logs/step-6.log

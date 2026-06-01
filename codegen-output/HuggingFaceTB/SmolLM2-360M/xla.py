@@ -80,12 +80,29 @@ def load_input():
     # https://github.com/tenstorrent/tt-xla/issues/1645 for why we don't construct
     # it directly on the device.
     model = load_pytorch_model()
+    config = model.config
     past_key_values = StaticCache(
-        config=model.config,
+        config=config,
         max_batch_size=BATCH_SIZE,
         max_cache_len=INPUT_SEQUENCE_LENGTH,
         device="cpu",
         dtype=DATA_FORMAT,
+    )
+    # Mirror init_static_cache() (llm_utils/decode_utils.py:113-145): preallocate the
+    # per-layer key/value tensors so transfer_to_device can move them.
+    if getattr(config, "head_dim", None):
+        head_dim = config.head_dim
+    else:
+        head_dim = config.hidden_size // config.num_attention_heads
+    num_key_value_heads = getattr(
+        config, "num_key_value_heads", config.num_attention_heads
+    )
+    past_key_values.early_initialization(
+        batch_size=BATCH_SIZE,
+        num_heads=num_key_value_heads,
+        head_dim=head_dim,
+        dtype=DATA_FORMAT,
+        device="cpu",
     )
 
     cache_position = torch.arange(0, input_ids.shape[1])
@@ -143,11 +160,17 @@ def codegen_model():
 
     model = load_pytorch_model()
     apply_weight_dtype_overrides(model, WEIGHT_DTYPE_OVERRIDES)
+
+    # codegen_py forwards only torch.Tensor args/kwargs to the model (codegen.py:43-44),
+    # so the StaticCache + dict used in run_tt/golden can't be threaded through. Emit the
+    # representative prefill graph from the same tokenized input_ids; transformers builds
+    # a default cache internally for this single forward.
     inputs = load_input()
+    input_ids = inputs["input_ids"]
 
     codegen_py(
         model,
-        inputs,
+        input_ids=input_ids,
         export_path=OUTPUT_DIR,
         export_tensors=True,
         compiler_options=COMPILE_OPTIONS,
@@ -156,7 +179,7 @@ def codegen_model():
 
 def compare_pytorch_and_tt_runs():
     # Capture exact PCC from first --golden run and paste here.
-    exact_pcc = None
+    exact_pcc = 0.968750
 
     pt_output = run_pytorch_model()
     tt_output = run_tt_model()
