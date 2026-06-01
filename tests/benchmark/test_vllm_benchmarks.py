@@ -134,15 +134,22 @@ SINGLE_DEVICE_CONFIGS = [
         ),
         id="llama-3.2-1b-batch32",
     ),
+    # fp32_dest_acc_en=False matches the torch-xla Llama-3.1-8B benchmark.
     pytest.param(
         _config(
-            "meta-llama/Llama-3.1-8B-Instruct", 1, experimental_weight_dtype="bfp_bf8"
+            "meta-llama/Llama-3.1-8B-Instruct",
+            1,
+            experimental_weight_dtype="bfp_bf8",
+            fp32_dest_acc_en=False,
         ),
         id="llama-3.1-8b",
     ),
     pytest.param(
         _config(
-            "meta-llama/Llama-3.1-8B-Instruct", 32, experimental_weight_dtype="bfp_bf8"
+            "meta-llama/Llama-3.1-8B-Instruct",
+            32,
+            experimental_weight_dtype="bfp_bf8",
+            fp32_dest_acc_en=False,
         ),
         id="llama-3.1-8b-batch32",
     ),
