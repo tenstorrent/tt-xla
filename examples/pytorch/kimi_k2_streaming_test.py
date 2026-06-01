@@ -21,8 +21,9 @@ single decode step is run.
 
 Like ``kimi_k2_device_test.py`` this is a device/streaming smoke test: it runs
 on hardware and prints argmaxed tokens, it does not compare against a CPU
-golden (rotary caches are left uninitialized by the meta-skeleton build, same
-as the device test).
+golden. (RoPE caches are left uninitialized by the meta-skeleton build, but
+Kimi K2's YaRN rotary recomputes ``inv_freq`` and the cos/sin caches from
+config on the first forward, so this does not affect the device run.)
 
 Usage:
     pytest kimi_k2_streaming_test.py -k decode -s
