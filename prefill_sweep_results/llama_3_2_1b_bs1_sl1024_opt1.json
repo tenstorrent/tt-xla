@@ -1,0 +1,83 @@
+{
+  "model": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface",
+  "model_type": "text-generation",
+  "run_type": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface_1_1024_16_1",
+  "config": {
+    "model_size": "small",
+    "optimization_level": 1,
+    "program_cache_enabled": true,
+    "trace_enabled": false,
+    "experimental_weight_dtype": "bfp_bf8",
+    "model_info": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface",
+    "display_name": "llama_3_2_1b",
+    "torch_xla_enabled": true,
+    "backend": "tt",
+    "ttnn_total_ops": 1051,
+    "ttnn_total_shardable_ops": 332,
+    "ttnn_effectively_sharded_ops": 0,
+    "ttnn_system_memory_ops": 0,
+    "ttnn_effectively_sharded_percentage": 0,
+    "ttnn_num_graphs": 2
+  },
+  "num_layers": 16,
+  "batch_size": 1,
+  "precision": "bfloat16",
+  "dataset_name": "Random Data",
+  "profile_name": "",
+  "input_sequence_length": 1024,
+  "output_sequence_length": -1,
+  "image_dimension": "",
+  "perf_analysis": false,
+  "measurements": [
+    {
+      "iteration": 1,
+      "step_name": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface",
+      "step_warm_up_num_iterations": 0,
+      "measurement_name": "total_samples",
+      "value": 0,
+      "target": -1,
+      "device_power": -1.0,
+      "device_temperature": -1.0
+    },
+    {
+      "iteration": 1,
+      "step_name": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface",
+      "step_warm_up_num_iterations": 0,
+      "measurement_name": "total_time",
+      "value": 0.0,
+      "target": -1,
+      "device_power": -1.0,
+      "device_temperature": -1.0
+    },
+    {
+      "iteration": 1,
+      "step_name": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface",
+      "step_warm_up_num_iterations": 0,
+      "measurement_name": "evaluation_score",
+      "value": 0.0,
+      "target": -1,
+      "device_power": -1.0,
+      "device_temperature": -1.0
+    },
+    {
+      "iteration": 1,
+      "step_name": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface",
+      "step_warm_up_num_iterations": 0,
+      "measurement_name": "ttft_s",
+      "value": 0.052151364,
+      "target": -1,
+      "device_power": -1.0,
+      "device_temperature": -1.0
+    }
+  ],
+  "device_info": {
+    "device_name": "21251d25f9b6",
+    "galaxy": false,
+    "arch": "blackhole",
+    "device_count": 4,
+    "mesh_shape": null,
+    "device_type": "qb2-blackhole"
+  },
+  "project": "tt-forge/tt-xla",
+  "model_rawname": "pytorch_Llama_3.2_1B_Instruct_nlp_causal_lm_huggingface"
+}

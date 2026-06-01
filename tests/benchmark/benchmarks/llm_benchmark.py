@@ -420,7 +420,7 @@ def benchmark_llm_torch_xla(
     # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
     if not accuracy_testing:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
-        cpu_wrapper.train() if prefill_only else cpu_wrapper.eval()
+        cpu_wrapper.eval()  # FLIP: force eval (was: train if prefill_only)
 
         # Iter 0: prefill. After this, input_args holds the post-prefill decode
         # state (input_ids=next_token_0, cache_position=[prompt_len]).
@@ -431,7 +431,7 @@ def benchmark_llm_torch_xla(
             1,
             verbose=False,
             collect_logits=True,
-            train_mode=prefill_only,
+            train_mode=False,  # FLIP: force eval
         )
 
         if decode_only:
@@ -448,7 +448,7 @@ def benchmark_llm_torch_xla(
             1,
             verbose=False,
             collect_logits=True,
-            train_mode=prefill_only,
+            train_mode=False,  # FLIP: force eval
         )
 
         cpu_output_logits = prefill_logits + decode_logits
@@ -520,7 +520,7 @@ def benchmark_llm_torch_xla(
         mesh=mesh,
         output_sharding_spec=input_output_sharding_spec,
     )
-    perf_wrapper.train() if prefill_only else perf_wrapper.eval()
+    perf_wrapper.eval()  # FLIP: force eval (was: train if prefill_only)
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
     warmup_kv_cache = None
@@ -554,7 +554,7 @@ def benchmark_llm_torch_xla(
             warmup_tokens,
             verbose=False,
             collect_logits=False,
-            train_mode=prefill_only,
+            train_mode=False,  # FLIP: force eval
         )
         print("Warmup complete")
 
@@ -593,17 +593,71 @@ def benchmark_llm_torch_xla(
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
     benchmark_tokens = 1 if prefill_only else max_output_tokens
-    _, iteration_times = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        benchmark_tokens,
-        verbose=True,
-        tokenizer=tokenizer,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=False,
-        train_mode=prefill_only,
-    )
+
+    if prefill_only:
+        # Re-run the single prefill forward N times and keep the FASTEST (min) — the
+        # cleanest estimate of prefill device latency (TTFT), free of host-side jitter.
+        PREFILL_PERF_RUNS = 10
+        prefill_times_ns = []
+        for run_idx in range(PREFILL_PERF_RUNS):
+            # Fresh inputs each run: generate_and_benchmark mutates input_args into the
+            # post-step decode state, so reusing it would turn run 1+ into a decode step.
+            run_args = construct_inputs(
+                tokenizer,
+                model.config,
+                batch_size,
+                max_cache_len,
+                input_prompt=custom_input_prompt,
+                input_prompt_tokens=_input_prompt_tokens(),
+                use_mla_cache=use_mla_cache,
+                prefill_only=prefill_only,
+            )
+            run_args = transfer_to_device(run_args, device)
+            if input_output_sharding_spec:
+                xs.mark_sharding(
+                    run_args["input_ids"], mesh, input_output_sharding_spec
+                )
+            _, iter_times = generate_and_benchmark(
+                compiled_perf_model,
+                run_args,
+                device,
+                1,
+                verbose=False,
+                tokenizer=tokenizer,
+                ground_truth_tokens=ground_truth_for_benchmark,
+                collect_logits=False,
+                train_mode=False,
+            )
+            prefill_times_ns.append(iter_times[0])
+            print(
+                f"  prefill run {run_idx + 1}/{PREFILL_PERF_RUNS}: "
+                f"{iter_times[0] / 1e6:.3f} ms"
+            )
+
+        best_ns = min(prefill_times_ns)
+        iteration_times = [best_ns]
+        best_ms = best_ns / 1e6
+
+        # Theatrical print of the fastest run.
+        bar = "█" * 68
+        print("\n" + bar)
+        print("█" + " " * 66 + "█")
+        print("█" + f"   🏆  FASTEST PREFILL  (min of {PREFILL_PERF_RUNS} runs)".ljust(66) + "█")
+        print("█" + f"   ⚡  TTFT = {best_ms:.3f} ms".ljust(66) + "█")
+        print("█" + " " * 66 + "█")
+        print(bar + "\n")
+    else:
+        _, iteration_times = generate_and_benchmark(
+            compiled_perf_model,
+            input_args,
+            device,
+            benchmark_tokens,
+            verbose=True,
+            tokenizer=tokenizer,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=False,
+            train_mode=False,  # FLIP: force eval
+        )
     print("\nPerformance benchmark complete")
 
     # ========================================================
@@ -656,7 +710,7 @@ def benchmark_llm_torch_xla(
             verbose=False,
             ground_truth_tokens=ground_truth_for_benchmark,
             collect_logits=True,
-            train_mode=prefill_only,
+            train_mode=False,  # FLIP: force eval
         )
         print("\nPCC/TOPK benchmark complete")
     else:

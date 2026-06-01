@@ -270,6 +270,8 @@ def test_llama_3_2_1b(
     decode_only,
     optimization_level,
     check_fusions,
+    prefill_only,
+    input_sequence_length,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -299,6 +301,12 @@ def test_llama_3_2_1b(
             "ttnn.rms_norm",
         ],
         check_fusions=check_fusions,
+        prefill_only=prefill_only,
+        **(
+            {"input_sequence_length": input_sequence_length}
+            if input_sequence_length is not None
+            else {}
+        ),
     )
 
 
@@ -345,6 +353,8 @@ def test_gemma_1_1_2b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    prefill_only,
+    input_sequence_length,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -368,6 +378,12 @@ def test_gemma_1_1_2b(
             optimization_level
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        prefill_only=prefill_only,
+        **(
+            {"input_sequence_length": input_sequence_length}
+            if input_sequence_length is not None
+            else {}
         ),
     )
 
@@ -415,6 +431,8 @@ def test_phi1(
     max_output_tokens,
     decode_only,
     optimization_level,
+    prefill_only,
+    input_sequence_length,
 ):
     from third_party.tt_forge_models.phi1.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -438,6 +456,12 @@ def test_phi1(
             optimization_level
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        prefill_only=prefill_only,
+        **(
+            {"input_sequence_length": input_sequence_length}
+            if input_sequence_length is not None
+            else {}
         ),
     )
 
