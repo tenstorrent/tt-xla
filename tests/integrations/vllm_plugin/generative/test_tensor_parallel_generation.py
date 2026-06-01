@@ -2,10 +2,9 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 import pytest
+import vllm
 from conftest import assert_output_coherent, check_host_memory
 from vllm_tt.model_runner import TTModelRunner
-
-import vllm
 
 
 @pytest.mark.push

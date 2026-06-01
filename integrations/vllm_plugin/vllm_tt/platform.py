@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
 import torch
-
 from vllm.platforms.interface import Platform, PlatformEnum
 from vllm.v1.attention.backends.registry import AttentionBackendEnum
 
