@@ -65,7 +65,6 @@ def _compile_only(system_desc_path: str):
     parse_compiled_artifacts_from_cache_to_disk(cache_dir, "output/model")
 
 
-
 def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
     """Assert compilation produced the expected artifacts."""
     # Artifacts the compile step is expected to emit.
