@@ -133,14 +133,6 @@ struct CompileOptions {
   // Enables splitting codegen output into separate files.
   bool codegen_split_files = false;
 
-  // Enables emitting the codegen-Python solution as a target module. This is
-  // required by the EmitPy verification path
-  // (`verify_emitpy`), which executes the generated Python via
-  // `PythonModelRunner` and expects a `forward(inputs, device)` entrypoint. For
-  // normal codegen runs (e.g. just exporting Python sources) this should stay
-  // disabled.
-  bool codegen_target_module = false;
-
   // Output file path for TTNN performance metrics.
   // If empty, metrics will be saved to the "perf_metrics" directory with a
   // default name.

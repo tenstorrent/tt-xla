@@ -398,10 +398,6 @@ class TorchModelTester(ModelTester):
                 "export_path": emitpy_export_path,
                 "export_tensors": "true",
                 "dry_run": "false",
-                # EmitPy verification executes the generated Python via
-                # PythonModelRunner, which expects a `forward(inputs, device)` entrypoint.
-                # This is enabled through the targetModule codegen path.
-                "codegen_target_module": "true",
             }
             torch_xla.set_custom_compile_options(emitpy_options)
 
