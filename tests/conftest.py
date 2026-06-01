@@ -569,7 +569,7 @@ def chisel_context(request):
     safe_name = request.node.nodeid.replace("/", "_").replace("::", "__")
     results_dir = Path("chisel_results")
     results_dir.mkdir(parents=True, exist_ok=True)
-    with chisel.session(results_path=str(results_dir / f"{safe_name}.json")):
+    with chisel.session(results_path=str(results_dir / f"{safe_name}.jsonl")):
         yield
 
 
