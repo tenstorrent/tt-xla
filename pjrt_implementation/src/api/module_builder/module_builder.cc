@@ -162,16 +162,22 @@ TTAlchemistHandler::~TTAlchemistHandler() {
 }
 
 std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
-  const char *mlir_home = std::getenv("TT_MLIR_HOME");
-  if (mlir_home == nullptr) {
-    return std::nullopt;
+  // Wheel install: pjrt_plugin_tt/__init__.py exports TT_PJRT_PLUGIN_DIR,
+  // and the bundled library lives in <plugin_dir>/lib/.
+  if (const char *plugin_dir = std::getenv("TT_PJRT_PLUGIN_DIR")) {
+    std::string p = std::string(plugin_dir) + "/lib/libtt-alchemist-lib.so";
+    if (std::filesystem::exists(p)) {
+      return p;
+    }
   }
 
-  std::string alchemist_lib_path =
-      std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
-
-  if (std::filesystem::exists(alchemist_lib_path)) {
-    return alchemist_lib_path;
+  // Source build fallback: tt-mlir build tree.
+  if (const char *mlir_home = std::getenv("TT_MLIR_HOME")) {
+    std::string p =
+        std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
+    if (std::filesystem::exists(p)) {
+      return p;
+    }
   }
 
   return std::nullopt;
