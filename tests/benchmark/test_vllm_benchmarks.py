@@ -21,10 +21,12 @@ from utils import resolve_display_name
 #   TT_BENCHMARK_CPU_SAMPLING=1           default 0 (device sampling)
 #   TT_BENCHMARK_MAX_MODEL_LEN=<int>      default 128
 #   _BENCH_OPTIMIZATION_LEVEL=<int>       default 0 (overrides per-test opt level)
+#   TT_BENCHMARK_WEIGHT_DTYPE=<str>       e.g. "bfp_bf8"/"bfp_bf4"/"" (overrides per-test weight dtype)
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
+_BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
 
 
 def _config(
@@ -45,6 +47,10 @@ def _config(
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
     additional.update(additional_config_extra)
+    # Env override wins over per-config value so CI can sweep weight dtype
+    # one knob per re-run (mirrors _BENCH_OPTIMIZATION_LEVEL/CPU_SAMPLING).
+    if _BENCH_WEIGHT_DTYPE is not None:
+        additional["experimental_weight_dtype"] = _BENCH_WEIGHT_DTYPE
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
@@ -109,14 +115,35 @@ SINGLE_DEVICE_CONFIGS = [
         _config("meta-llama/Llama-3.2-3B", 32, gpu_memory_utilization=0.037),
         id="llama-3.2-3b-batch32",
     ),
-    pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct", 1), id="llama-3.2-1b"),
+    # bfp_bf8 weights match the torch-xla benchmark default and are a large
+    # decode win (~+30% at b=1, ~+15% at b=32). For Llama-3.1-8B they are also
+    # *required* to fit on a single Wormhole (bf16 ~16GB > 12GB DRAM -> OOM).
+    # optimization_level stays 0 for both shapes: opt2 fails to compile the
+    # vLLM Llama graph (b=1 -> select_hidden_states INTERNAL error; b=32 ->
+    # tt-mlir #4569 BeamCandidate assert), and opt1 also hits #4569 at b=32.
+    # (opt1 does compile at b=1 for a marginal ~+2%, left off for uniformity.)
     pytest.param(
-        _config("meta-llama/Llama-3.2-1B-Instruct", 32),
+        _config(
+            "meta-llama/Llama-3.2-1B-Instruct", 1, experimental_weight_dtype="bfp_bf8"
+        ),
+        id="llama-3.2-1b",
+    ),
+    pytest.param(
+        _config(
+            "meta-llama/Llama-3.2-1B-Instruct", 32, experimental_weight_dtype="bfp_bf8"
+        ),
         id="llama-3.2-1b-batch32",
     ),
-    pytest.param(_config("meta-llama/Llama-3.1-8B-Instruct", 1), id="llama-3.1-8b"),
     pytest.param(
-        _config("meta-llama/Llama-3.1-8B-Instruct", 32),
+        _config(
+            "meta-llama/Llama-3.1-8B-Instruct", 1, experimental_weight_dtype="bfp_bf8"
+        ),
+        id="llama-3.1-8b",
+    ),
+    pytest.param(
+        _config(
+            "meta-llama/Llama-3.1-8B-Instruct", 32, experimental_weight_dtype="bfp_bf8"
+        ),
         id="llama-3.1-8b-batch32",
     ),
     pytest.param(
