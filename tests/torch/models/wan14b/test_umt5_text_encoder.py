@@ -23,12 +23,7 @@ from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .shared import (
-    UMT5Wrapper,
-    load_umt5,
-    shard_umt5_specs,
-    wan22_mesh,
-)
+from .shared import UMT5Wrapper, load_umt5, shard_umt5_specs, wan22_mesh
 
 _COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,

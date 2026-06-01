@@ -71,7 +71,9 @@ def _run(resolution: str, sharded: bool) -> None:
     model = VAEDecoderWrapper(load_vae()).eval().bfloat16()
 
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
-    shard_spec_fn = (lambda m: shard_vae_decoder_specs(m.vae, mesh)) if sharded else None
+    shard_spec_fn = (
+        (lambda m: shard_vae_decoder_specs(m.vae, mesh)) if sharded else None
+    )
 
     # safe_xla_slicing wraps the entire run: its TorchFunctionMode stays on
     # the stack across CPU golden, dynamo trace + compile, and TT execution.

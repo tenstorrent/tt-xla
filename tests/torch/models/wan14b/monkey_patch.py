@@ -694,9 +694,7 @@ def _patch_wan_time_embedder_dtype_probe() -> None:
     into), so this single rewrite clears the trace.
     """
     import torch
-    from diffusers.models.transformers.transformer_wan import (
-        WanTimeTextImageEmbedding,
-    )
+    from diffusers.models.transformers.transformer_wan import WanTimeTextImageEmbedding
 
     def patched_forward(
         self,
@@ -712,10 +710,7 @@ def _patch_wan_time_embedder_dtype_probe() -> None:
         # Direct weight-dtype read instead of next(iter(.parameters())).dtype,
         # which crashes torch 2.10 dynamo's wrap_values (see docstring).
         time_embedder_dtype = self.time_embedder.linear_1.weight.dtype
-        if (
-            timestep.dtype != time_embedder_dtype
-            and time_embedder_dtype != torch.int8
-        ):
+        if timestep.dtype != time_embedder_dtype and time_embedder_dtype != torch.int8:
             timestep = timestep.to(time_embedder_dtype)
         temb = self.time_embedder(timestep).type_as(encoder_hidden_states)
         timestep_proj = self.time_proj(self.act_fn(temb))
