@@ -558,13 +558,19 @@ def chisel_context(request):
         yield
         return
 
-    import chisel
+    try:
+        import chisel
+    except ImportError as e:
+        raise ImportError(
+            "Failed to import 'chisel'. Chisel requires the plugin to be built with "
+            "TT_RUNTIME_DEBUG and TTMLIR_ENABLE_BINDINGS_PYTHON enabled."
+        ) from e
 
     safe_name = request.node.nodeid.replace("/", "_").replace("::", "__")
     results_dir = Path("chisel_results")
     results_dir.mkdir(parents=True, exist_ok=True)
-    with chisel.session(results_path=str(results_dir / f"{safe_name}.json")) as report:
-        yield report
+    with chisel.session(results_path=str(results_dir / f"{safe_name}.json")):
+        yield
 
 
 @pytest.fixture()
