@@ -251,6 +251,11 @@ void BufferInstance::copyFromHost(
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type);
 
   if (is_distributed) {
+    TT_ASSERT(host_buffer_semantics !=
+                  PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+              "In distributed mode we unsafely borrow data from host_buffer; "
+              "this is okay iff caller guarantees that host_buffer lifetime is "
+              "safe until execution.");
     PjrtTensor::HostTensorShell host_tensor_shell = PjrtTensor::HostTensorShell{
         host_buffer, shape, strides, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
