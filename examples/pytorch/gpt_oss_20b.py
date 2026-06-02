@@ -231,6 +231,11 @@ def construct_inputs(
     override_cache_sliding_window_layers(static_cache, max_cache_len, sliding_window)
 
     cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
+    # Pass position_ids explicitly so gpt_oss's forward never enters the
+    # "position_ids is None" branch (which calls past_key_values.get_seq_length()
+    # and bakes a per-step Python int into the graph, causing dynamo to
+    # recompile on every decode step).
+    position_ids = cache_position.unsqueeze(0)
 
     # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
     # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
@@ -244,6 +249,7 @@ def construct_inputs(
         "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
+        "position_ids": position_ids,
         "use_cache": True,
         "attention_mask": full_attention_mask,
     }
@@ -282,8 +288,19 @@ def transfer_to_device(
     for layer in input_args["past_key_values"].layers:
         layer.keys = layer.keys.to(device)
         layer.values = layer.values.to(device)
+        # StaticLayer.update builds a fresh `cache_position` each call as
+        # `torch.arange(kv_length, device=self.device) + self.cumulative_length`,
+        # then passes it to `self.keys.index_copy_(2, cache_position, ...)`.
+        # If `self.device` is still "cpu" or `cumulative_length` is a CPU tensor,
+        # the resulting index is CPU and `index_copy_` on an XLA `keys` tensor
+        # raises `Check failed: xtensor: Input tensor is not an XLA tensor`.
+        if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
+            layer.cumulative_length = layer.cumulative_length.to(device)
+        if hasattr(layer, "device"):
+            layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["position_ids"] = input_args["position_ids"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
     model = model.to(device)
@@ -398,6 +415,8 @@ def run_generate(
             host_cache_pos = input_args["cache_position"].to("cpu")
             host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
             input_args["cache_position"] = host_cache_pos.to(device)
+            # keep position_ids in sync with cache_position (see construct_inputs)
+            input_args["position_ids"] = host_cache_pos.unsqueeze(0).to(device)
 
     print()
     if not is_interactive:

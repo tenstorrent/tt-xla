@@ -77,9 +77,10 @@ def override_cache_sliding_window_layers(
 def tt_create_sliding_window_causal_mask(
     config,
     inputs_embeds: torch.Tensor,
-    attention_mask: Optional[torch.Tensor],
-    cache_position: torch.Tensor,
+    attention_mask: Optional[torch.Tensor] = None,
+    cache_position: Optional[torch.Tensor] = None,
     past_key_values=None,
+    position_ids: Optional[torch.Tensor] = None,
     **kwargs,
 ) -> torch.Tensor:
     """
@@ -89,15 +90,42 @@ def tt_create_sliding_window_causal_mask(
     only broadcasting tensor operations — no get_mask_sizes(),
     and no mutable Python state.  Designed to run with torch.compile on TT
     hardware as part of the model forward graph.
+
+    Accepts either ``cache_position`` (older HF call signature) or
+    ``position_ids`` (newer HF olmo3 / mistral / gpt_oss signature where
+    ``mask_kwargs`` no longer includes ``cache_position``). When only
+    ``position_ids`` is supplied, it is used as the cache position.
     """
+    if cache_position is None and position_ids is not None:
+        cache_position = position_ids[0] if position_ids.ndim == 2 else position_ids
+
     if past_key_values is None:
         return create_sliding_window_causal_mask(
             config,
             inputs_embeds,
             attention_mask,
             cache_position,
-            past_key_values,
+            past_key_values=past_key_values,
+            position_ids=position_ids,
             **kwargs,
+        )
+
+    # gpt_oss builds `mask_kwargs` without either `cache_position` or
+    # `position_ids`, so derive the absolute query position directly from
+    # `past_key_values.get_seq_length()` (the same primitive upstream relies on)
+    # offset by the query length implied by `inputs_embeds`. We can't simply
+    # call upstream `_preprocess_mask_arguments` instead: it is private, takes a
+    # `layer_idx`, returns a 7-tuple, and never returns `cache_position`, so we
+    # would still have to build the arange here anyway. Caches whose
+    # `get_seq_length()` returns a 0-D tensor stay graph-friendly; ones that
+    # return a Python int will specialize per decode step (recompile risk).
+    if cache_position is None:
+        q_length = inputs_embeds.shape[1]
+        past_seen_tokens = past_key_values.get_seq_length()
+        if isinstance(past_seen_tokens, torch.Tensor):
+            past_seen_tokens = past_seen_tokens.to(inputs_embeds.device)
+        cache_position = (
+            torch.arange(q_length, device=inputs_embeds.device) + past_seen_tokens
         )
 
     if isinstance(attention_mask, torch.Tensor) and attention_mask.ndim == 4:
