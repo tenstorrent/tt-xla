@@ -108,31 +108,6 @@ def _patch_wan_time_embedder_dtype_probe() -> None:
     WanTimeTextImageEmbedding.forward = patched_forward
 
 
-def _disable_tt_torch_function_override() -> None:
-    """Pop `TorchFunctionOverride` off the global TorchFunctionMode stack.
-
-    `tt_torch/torch_overrides.py` enters a `TorchFunctionMode` at import
-    time. Its body is gated by `torch.compiler.is_compiling()` and does
-    nothing on the compile path, but the mode still sits on dynamo's
-    function-mode stack and forces a `__torch_function__` trace for every
-    matmul / linear encountered during tracing.
-    """
-    try:
-        import tt_torch.torch_overrides as overrides
-    except ImportError:
-        return
-
-    mode = getattr(overrides, "torch_function_override", None)
-    if mode is None:
-        return
-
-    try:
-        mode.__exit__(None, None, None)
-    except Exception:
-        # Mode wasn't on the stack or was already popped – ignore.
-        pass
-
-
 # ---------------------------------------------------------------------------
 # VAE Decoder monkey patches
 # ---------------------------------------------------------------------------

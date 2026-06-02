@@ -22,7 +22,6 @@ from infra.utilities import Mesh
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
-    _disable_tt_torch_function_override,
     _patch_wan_resample_avoid_4d_fold,
     _patch_wan_resample_rep_sentinel,
     safe_xla_slicing,
@@ -71,7 +70,6 @@ def _run(resolution: str, sharded: bool) -> None:
     # other tests collected in the same pytest session.
     _patch_wan_resample_rep_sentinel()
     _patch_wan_resample_avoid_4d_fold()
-    _disable_tt_torch_function_override()
 
     shapes = RESOLUTIONS[resolution]
     torch.manual_seed(42)
