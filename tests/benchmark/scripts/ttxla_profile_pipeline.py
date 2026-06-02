@@ -788,14 +788,14 @@ def infer_model_status(
         return "pending"
     if text_has_skip_signal(text):
         return "skipped"
-    if text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
-        return "not_run"
     if text_has_hint(text, MODEL_FAILURE_HINTS):
         return "failed"
-    if returncode not in (0, None):
-        return "failed" if benchmark_json else "unknown"
     if returncode == 0:
         return "passed"
+    if text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
+        return "not_run"
+    if returncode not in (0, None):
+        return "failed" if benchmark_json else "unknown"
     return "unknown"
 
 

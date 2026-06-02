@@ -143,6 +143,13 @@ def test_skip_detection_ignores_unrelated_log_words():
     assert taxonomy == "pipeline_error"
 
 
+def test_model_success_ignores_environment_warning_text():
+    pipeline = load_pipeline_module()
+    text = "Profiler API not found for PJRT plugin"
+
+    assert pipeline.infer_model_status(0, False, text, {"model": "demo"}) == "passed"
+
+
 def test_discovery_and_manifest_artifacts_are_written(tmp_path):
     pipeline = load_pipeline_module()
     run_dir = tmp_path / "artifacts" / "prd-009" / "ttxla-profile" / "run-5009-demo"
