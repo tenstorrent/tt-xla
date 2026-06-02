@@ -57,9 +57,18 @@ DEFAULT_NUM_LAYERS = 4
 DEFAULT_BATCH_SIZE = 64
 DEFAULT_MAX_CACHE_LEN = 128
 
+# Set to a word to feed the SAME single decode token to EVERY batch row, like
+# kimi_k2_device_test.py (which decodes "Hello" across the whole batch). This
+# makes the streaming output directly comparable to the device test: with
+# identical inputs both should argmax the same next token per row. Set to None
+# to use distinct per-row words from DECODE_WORDS instead (good for spotting
+# degenerate/identical output, bad for a 1:1 device-test comparison).
+UNIFORM_DECODE_WORD = "Hello"
+
 # Pool of seed words for the decode step. Each batch row gets one word (cycled
 # to fill the batch) so the single decode token differs across the batch
-# instead of every row decoding the same token.
+# instead of every row decoding the same token. Only used when
+# UNIFORM_DECODE_WORD is None.
 DECODE_WORDS = [
     "The",
     "Hello",
@@ -476,8 +485,12 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     logger.info("Compiling whole model...")
     compiled_model = torch.compile(model, backend="tt")
 
-    # Distinct single-token input per batch row, cycling through DECODE_WORDS.
-    seed_words = [DECODE_WORDS[i % len(DECODE_WORDS)] for i in range(batch_size)]
+    # Either the same token for every row (UNIFORM_DECODE_WORD, comparable to
+    # the device test) or a distinct word per row cycled from DECODE_WORDS.
+    if UNIFORM_DECODE_WORD is not None:
+        seed_words = [UNIFORM_DECODE_WORD] * batch_size
+    else:
+        seed_words = [DECODE_WORDS[i % len(DECODE_WORDS)] for i in range(batch_size)]
     seed_token_ids = [
         tokenizer.encode(word, add_special_tokens=False)[0] for word in seed_words
     ]
@@ -506,9 +519,14 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     # decoded as a SINGLE N-token sequence (= one joined string).
     predicted_ids = logits[:, -1].argmax(dim=-1)
     decoded = tokenizer.batch_decode(predicted_ids.unsqueeze(-1))
-    logger.info(
+    # Build the whole report as ONE string and log it in a single call. Under
+    # SPMD multiple rank processes share stdout; one logger.info per row gets
+    # interleaved/clobbered (which is why early rows looked "missing"). A single
+    # atomic write keeps every row intact.
+    lines = [
         f"[STREAMING DECODE] {len(decoded)} decoded row(s); predicted next tokens:"
-    )
-    for i in range(min(8, len(decoded))):
+    ]
+    for i in range(len(decoded)):
         seed = seed_words[i] if i < len(seed_words) else "?"
-        logger.info(f"  User {i}: {seed!r} -> {decoded[i]!r}")
+        lines.append(f"  User {i}: {seed!r} -> {decoded[i]!r}")
+    logger.info("\n".join(lines))
