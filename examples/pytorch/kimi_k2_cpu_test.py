@@ -2,15 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 """
-Kimi K2 CPU-only cold-decode reference test.
+Kimi K2 CPU-only autoregressive decode reference test.
 
-Runs a single "cold" decode step on plain CPU torch (no torch_xla, no SPMD, no
-sharding, no sparse MLP) so its argmaxed tokens can be compared against the TT
-device / streaming tests for output parity. "Cold" means the same scenario the
-device smoke tests use:
+Runs an autoregressive decode loop on plain CPU torch (no torch_xla, no SPMD, no
+sharding, no sparse MLP) so its generated tokens can be compared against the TT
+device / streaming tests for output parity. The scenario mirrors the device
+smoke tests:
 
-    * a freshly ZEROED MLA cache (no prefill), and
-    * a single decode token at cache_position 0.
+    * a freshly ZEROED MLA cache (no prefill),
+    * a single seed decode token at cache_position 0, then
+    * NUM_DECODE_TOKENS autoregressive steps, each feeding the previous step's
+      argmax'd token back in and advancing cache_position by one.
+
+Running multiple steps (rather than a single cold decode) is deliberate: at
+position 0 RoPE is the identity rotation (cos=1, sin=0), so a single-step decode
+cannot exercise the rotary embeddings at all. Positions 1+ index real cos/sin
+tables, so this loop is the CPU golden for RoPE as well as the rest of the math.
 
 This is the canonical / golden path: the MoE runs in its DENSE form
 (``DeepseekV3MoE.forward``), which is the unsharded reference the device's
@@ -20,15 +27,16 @@ from this, the bug is on the device/sharding side, not the math.
 No streaming and no memory optimization -- the whole (few-layer) model is loaded
 into host RAM at once. Intended for small depths (NUM_LAYERS=2 or 4).
 
-Because every batch row is fed the SAME token (UNIFORM_DECODE_WORD), every row
-is identical, so BATCH_SIZE does not change the predicted token -- it only needs
-to match the device test's batch if you want identical shapes. A small batch is
-plenty for the reference.
+Because every batch row is fed the SAME seed token (UNIFORM_DECODE_WORD), every
+row stays identical, so BATCH_SIZE does not change the generated continuation --
+it only needs to match the device test's batch if you want identical shapes. A
+small batch is plenty for the reference.
 
 Usage:
-    pytest kimi_k2_cpu_test.py -k cold_decode -s
-    NUM_LAYERS=4 BATCH_SIZE=8 pytest kimi_k2_cpu_test.py -k cold_decode -s
-    DTYPE=float32 pytest kimi_k2_cpu_test.py -k cold_decode -s   # fp32 golden
+    pytest kimi_k2_cpu_test.py -k decode -s
+    NUM_LAYERS=4 BATCH_SIZE=8 pytest kimi_k2_cpu_test.py -k decode -s
+    NUM_DECODE_TOKENS=32 pytest kimi_k2_cpu_test.py -k decode -s
+    DTYPE=float32 pytest kimi_k2_cpu_test.py -k decode -s   # fp32 golden
 """
 
 import gc
@@ -48,11 +56,43 @@ from loguru import logger
 DEFAULT_NUM_LAYERS = 2
 DEFAULT_BATCH_SIZE = 8
 DEFAULT_MAX_CACHE_LEN = 128
+# Number of autoregressive decode steps to run from the single seed token.
+# Each step feeds the previous step's argmax'd token back in as the next input
+# and advances cache_position by one -- this is what makes RoPE actually matter
+# (position 0 is the identity rotation; positions 1+ exercise the cos/sin
+# tables), so the CPU golden now covers RoPE instead of just position 0.
+DEFAULT_NUM_DECODE_TOKENS = 16
 
-# Single token fed to every batch row, matching kimi_k2_device_test.py (decode)
-# and kimi_k2_streaming_test.py's UNIFORM_DECODE_WORD, so the three tests are
-# directly comparable.
+# Set to a word to feed the SAME single seed token to EVERY batch row, like
+# kimi_k2_device_test.py / kimi_k2_streaming_test.py, so the three tests are
+# directly comparable. Set to None to use distinct per-row words from
+# DECODE_WORDS instead (good for confirming the CPU path is genuinely
+# input-sensitive within one run, bad for a 1:1 uniform device-test compare).
+# Default: uniform (distinct seeding OFF).
 UNIFORM_DECODE_WORD = "Hello"
+
+# Pool of seed words for the decode step, IDENTICAL to kimi_k2_streaming_test's
+# DECODE_WORDS. Each batch row gets one word (cycled to fill the batch) so the
+# single seed token differs across the batch. Only used when
+# UNIFORM_DECODE_WORD is None.
+DECODE_WORDS = [
+    "The",
+    "Hello",
+    "Once",
+    "Today",
+    "Water",
+    "Music",
+    "Science",
+    "History",
+    "Mountain",
+    "Ocean",
+    "Future",
+    "Light",
+    "Time",
+    "Dream",
+    "Robot",
+    "Garden",
+]
 
 # bfloat16 matches the device run (same rounding) and is the right comparison
 # target. Set DTYPE=float32 for a higher-precision golden reference.
@@ -80,6 +120,11 @@ def batch_size():
 @pytest.fixture
 def max_cache_len():
     return int(os.environ.get("MAX_CACHE_LEN", DEFAULT_MAX_CACHE_LEN))
+
+
+@pytest.fixture
+def num_decode_tokens():
+    return int(os.environ.get("NUM_DECODE_TOKENS", DEFAULT_NUM_DECODE_TOKENS))
 
 
 @pytest.fixture
@@ -274,50 +319,94 @@ def init_zeroed_mla_cache(config, batch_size: int, max_cache_len: int, dtype):
     return cache
 
 
-# ============== CPU COLD-DECODE TEST ==============
+# ============== CPU AUTOREGRESSIVE DECODE TEST ==============
 
 
-def test_kimi_k2_cpu_cold_decode(num_layers, batch_size, max_cache_len, dtype):
-    """Load the model on CPU and run one cold decode step; print argmaxed
-    tokens for parity comparison against the device / streaming tests."""
+def test_kimi_k2_cpu_decode(
+    num_layers, batch_size, max_cache_len, dtype, num_decode_tokens
+):
+    """Load the model on CPU and autoregressively decode ``num_decode_tokens``
+    tokens from a single seed token; print the generated continuations for
+    parity comparison against the device / streaming tests.
+
+    Mirrors ``kimi_k2_streaming_test.test_kimi_k2_streaming_decode``'s loop:
+    each step feeds the previous step's argmax'd token back in as the next
+    single decode input and advances ``cache_position`` by one. The zeroed MLA
+    cache is mutated in place across steps, so attention sees a growing context
+    and RoPE is evaluated at positions 0, 1, 2, ... (only position 0 is the
+    identity rotation, so multi-step decode is what makes the CPU run a golden
+    for RoPE too)."""
     model, config, tokenizer = load_cpu_model(num_layers, dtype)
 
-    # ---- Cold decode inputs: single token, zeroed cache, position 0 ----
+    # ---- Seed inputs: single token, zeroed cache, position 0 ----
     cache = init_zeroed_mla_cache(config, batch_size, max_cache_len, dtype)
 
-    # Same single token for every row (matches device/streaming defaults).
-    token_id = tokenizer.encode(UNIFORM_DECODE_WORD, add_special_tokens=False)[0]
-    input_ids = torch.full((batch_size, 1), token_id, dtype=torch.long)
+    # Either the same seed token for every row (UNIFORM_DECODE_WORD, comparable
+    # to the device/streaming defaults) or a distinct word per row cycled from
+    # DECODE_WORDS. Distinct seeding is OFF by default.
+    uniform = UNIFORM_DECODE_WORD is not None
+    if uniform:
+        seed_words = [UNIFORM_DECODE_WORD] * batch_size
+    else:
+        seed_words = [DECODE_WORDS[i % len(DECODE_WORDS)] for i in range(batch_size)]
+    seed_token_ids = [
+        tokenizer.encode(word, add_special_tokens=False)[0] for word in seed_words
+    ]
+    input_ids = torch.tensor(seed_token_ids, dtype=torch.long).unsqueeze(1)  # (B, 1)
     cache_position = torch.tensor([0], dtype=torch.long)
 
     logger.info(
-        f"[cpu] Running cold decode: word={UNIFORM_DECODE_WORD!r} token_id={token_id} "
+        f"[cpu] Running {num_decode_tokens} autoregressive decode step(s): "
+        f"uniform={uniform} "
+        f"seed={UNIFORM_DECODE_WORD!r} "
         f"batch={batch_size} max_cache_len={max_cache_len}"
     )
+
+    # Per-row accumulated continuation (one list of token ids per batch row),
+    # matching the streaming test so the printed output is directly comparable.
+    generated_ids = [[] for _ in range(batch_size)]
+    logits_shape = None
     with torch.no_grad():
-        output = model(
-            input_ids=input_ids,
-            past_key_values=cache,
-            cache_position=cache_position,
-            use_cache=True,
-        )
+        for step in range(num_decode_tokens):
+            output = model(
+                input_ids=input_ids,
+                past_key_values=cache,
+                cache_position=cache_position,
+                use_cache=True,
+            )
+            logits = output.logits  # (batch, 1, vocab)
+            if step == 0:
+                logits_shape = tuple(logits.shape)
 
-    logits = output.logits  # (batch, 1, vocab)
-    predicted_ids = logits[:, -1].argmax(dim=-1)  # (batch,)
-    decoded = tokenizer.batch_decode(predicted_ids.unsqueeze(-1))
+            predicted_ids = logits[:, -1].argmax(dim=-1)  # (batch,)
+            for i in range(batch_size):
+                generated_ids[i].append(int(predicted_ids[i]))
 
-    # All rows are identical (same input token), so report the shared result
-    # plus a couple of rows as a sanity check. Single atomic log call.
+            # In uniform mode every row gets the same seed token, so the loop is
+            # deterministic and rows must stay identical; a divergence signals
+            # nondeterminism. With distinct seeds rows are expected to differ.
+            if uniform:
+                assert (
+                    predicted_ids == predicted_ids[0]
+                ).all(), (
+                    f"step {step}: rows diverged despite identical input -- "
+                    f"nondeterminism in the CPU path"
+                )
+
+            # Feed the argmax'd token back in and advance the cache position by
+            # one (mirrors the device/streaming autoregressive update).
+            input_ids = predicted_ids.unsqueeze(1)  # (batch, 1)
+            cache_position = cache_position[-1:] + 1
+
+    # Decode each row's full generated continuation. batch_decode treats each
+    # inner list as its own token sequence, so we get one string per row.
+    decoded = tokenizer.batch_decode(generated_ids)
     lines = [
-        f"[CPU COLD DECODE] logits shape: {tuple(logits.shape)}",
-        f"[CPU COLD DECODE] {UNIFORM_DECODE_WORD!r} (id={token_id}) -> "
-        f"{decoded[0]!r} (id={int(predicted_ids[0])})",
+        f"[CPU DECODE] logits shape: {logits_shape}",
+        f"[CPU DECODE] uniform={uniform}; {len(decoded)} row(s); "
+        f"{num_decode_tokens} token(s) generated per row:",
     ]
     for i in range(min(4, len(decoded))):
-        lines.append(f"  User {i}: {decoded[i]!r} (id={int(predicted_ids[i])})")
+        seed = seed_words[i] if i < len(seed_words) else "?"
+        lines.append(f"  User {i}: {seed!r} -> {decoded[i]!r} (ids={generated_ids[i]})")
     logger.info("\n".join(lines))
-
-    # Every row got the same token (deterministic, uniform input).
-    assert (
-        predicted_ids == predicted_ids[0]
-    ).all(), "Rows diverged despite identical input -- nondeterminism in the CPU path"
