@@ -15,6 +15,7 @@ from tests.runner.requirements import RequirementsManager
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
 
 
+@pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
 @pytest.mark.n150
@@ -23,6 +24,7 @@ def test_gen_vision_decode_pro_1b():
     _run("GenVisionDecode")
 
 
+@pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
 @pytest.mark.n150

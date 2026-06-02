@@ -17,7 +17,11 @@ On blackhole (p150)::
   pytest -m "p150 and single_device" tests/torch/models/janus_pro/
 """
 
+from __future__ import annotations
+
+import copy
 import inspect
+from typing import Any
 
 import pytest
 import torch
@@ -25,7 +29,7 @@ import torch.nn as nn
 import torch_xla.runtime as xr
 from infra import Framework, RunMode, run_graph_test
 from tests.runner.requirements import RequirementsManager
-from utils import BringupStatus, Category, incorrect_result
+from utils import BringupStatus, Category
 
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
 from third_party.tt_forge_models.janus_pro.text_to_image.pytorch import (
@@ -50,18 +54,22 @@ class ImageTokenPrefillWrapper(nn.Module):
 
 
 class ImageTokenDecodeWrapper(nn.Module):
-    """Decode step: single-token embeds; KV cache set before run_graph_test."""
+    """Decode step: single-token embeds + prefill KV for run_graph_test."""
 
-    def __init__(self, step: nn.Module):
+    def __init__(self, step: nn.Module, kv_template: Any):
         super().__init__()
         self.step = step
-        self.past_key_values = None
+        self._kv_template = kv_template
 
     def forward(self, inputs_embeds: torch.Tensor) -> torch.Tensor:
-        logits, _ = self.step(inputs_embeds, self.past_key_values)
+        # run_graph_test runs CPU then Forge on one module; attention mutates KV
+        # in-place. Clone prefill KV each forward so both sides start clean (#4968).
+        past_key_values = copy.deepcopy(self._kv_template)
+        logits, _ = self.step(inputs_embeds, past_key_values)
         return logits
 
 
+@pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
 @pytest.mark.n150
@@ -70,6 +78,7 @@ def test_image_token_prefill_pro_1b():
     _run_prefill("Pro_1B")
 
 
+@pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
 @pytest.mark.n150
@@ -78,18 +87,13 @@ def test_image_token_prefill_pro_1b():
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO_PRO_1B,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "ImageTokenStep decode (Pro-1B): observed pcc=0.94 vs required 0.99"
-    ),
-    strict=False,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_image_token_decode_pro_1b():
     _run_decode("Pro_1B")
 
 
+@pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
 @pytest.mark.p150
@@ -97,6 +101,7 @@ def test_image_token_prefill_pro_7b():
     _run_prefill("Pro_7B")
 
 
+@pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
 @pytest.mark.p150
@@ -104,13 +109,7 @@ def test_image_token_prefill_pro_7b():
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO_PRO_7B,
     run_mode=RunMode.INFERENCE,
-    bringup_status=BringupStatus.INCORRECT_RESULT,
-)
-@pytest.mark.xfail(
-    reason=incorrect_result(
-        "ImageTokenStep decode (Pro-7B): observed pcc=0.82 vs required 0.99"
-    ),
-    strict=False,
+    bringup_status=BringupStatus.PASSED,
 )
 def test_image_token_decode_pro_7b():
     _run_decode("Pro_7B")
@@ -153,11 +152,8 @@ def _run_decode(variant_name: str):
         step = loader.load_model(dtype_override=torch.bfloat16)
         xr.set_device_type("TT")
 
-        wrapper = ImageTokenDecodeWrapper(step)
-        wrapper.past_key_values = inputs["past_key_values"]
-
         run_graph_test(
-            wrapper,
+            ImageTokenDecodeWrapper(step, inputs["past_key_values"]),
             [inputs["inputs_embeds"]],
             framework=Framework.TORCH,
         )
