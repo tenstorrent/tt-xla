@@ -757,6 +757,17 @@ def text_has_hint(text: str, hints: Iterable[str]) -> bool:
     return any(hint in lowered for hint in hints)
 
 
+def text_has_skip_signal(text: str) -> bool:
+    lowered = text.lower()
+    return bool(
+        re.search(r"=+.*\bskipped\b.*=+", lowered)
+        or re.search(r"\b\d+\s+skipped\b", lowered)
+        or re.search(r"(^|\n)\s*skipped\b", lowered)
+        or re.search(r"(^|\n)\s*xfailed\b", lowered)
+        or re.search(r"(^|\n)\s*xfail\b", lowered)
+    )
+
+
 def infer_profile_status(returncode: Optional[int], timed_out: bool) -> str:
     if timed_out:
         return "pending"
@@ -775,7 +786,7 @@ def infer_model_status(
 ) -> str:
     if timed_out:
         return "pending"
-    if text_has_hint(text, SKIP_HINTS):
+    if text_has_skip_signal(text):
         return "skipped"
     if text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
         return "not_run"

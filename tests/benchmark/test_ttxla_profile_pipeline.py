@@ -127,6 +127,22 @@ def test_status_semantics_do_not_treat_profile_success_as_model_success():
     assert "model or runtime behavior failed" in reason
 
 
+def test_skip_detection_ignores_unrelated_log_words():
+    pipeline = load_pipeline_module()
+    text = "nanobind: leaked types!\\n - ... skipped remainder"
+
+    assert pipeline.infer_model_status(0, False, text, {"model": "demo"}) == "passed"
+
+    taxonomy, _ = pipeline.infer_taxonomy(
+        returncode=0,
+        timed_out=False,
+        text=text,
+        benchmark_json={"model": "demo"},
+        perf_report_ok=False,
+    )
+    assert taxonomy == "pipeline_error"
+
+
 def test_discovery_and_manifest_artifacts_are_written(tmp_path):
     pipeline = load_pipeline_module()
     run_dir = tmp_path / "artifacts" / "prd-009" / "ttxla-profile" / "run-5009-demo"
