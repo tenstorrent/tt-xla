@@ -1368,6 +1368,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # then the embedding layer is not included in the CUDA graph.
             return input_ids, None
 
+    def _pin_input_shardings(
+        self,
+        input_ids: torch.Tensor | None,
+        position_ids: torch.Tensor,
+        inputs_embeds: torch.Tensor | None,
+    ) -> None:
+        """Pin the model input shardings (batch dim across the mesh). Applied in
+        BOTH the warmup (_dummy_run) and execution (sample_tokens) paths so their
+        graphs match;
+        otherwise warmup shards these inputs while execution leaves them
+        replicated, and the backbone recompiles at the first real step for any
+        shardable batch. Also keeps large prefill traces from splitting into a
+        secondary sync that drops mhlo.spmd_output_sharding (which trips
+        shlo_clean_for_xla_ingestion)."""
+        if not self.enable_tensor_parallel:
+            return
+        # 2D mesh: model batch dim -> "batch" axis (data-parallel).
+        # 1D mesh (1, N): "batch" axis is size 1, fall back to "model".
+        batch_axis = "batch" if self.use_2d_mesh else "model"
+        if input_ids is not None:
+            safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
+        safe_mark_sharding(position_ids, self.mesh, (batch_axis, None))
+        if inputs_embeds is not None:
+            safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
+
     def _prepare_model_call_tensors(
         self,
         input_ids: torch.Tensor | None,
@@ -1474,6 +1499,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
+            self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
             (
                 model_input_ids,
                 model_positions,
@@ -1857,20 +1883,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 input_ids, mm_embed_inputs=None
             )
-            # Pin pre-flatten sharding hints; without this, large prefill traces
-            # split into a secondary sync that drops mhlo.spmd_output_sharding
-            # and trips shlo_clean_for_xla_ingestion.
-            if self.enable_tensor_parallel:
-                # 2D mesh: model batch dim -> "batch" axis (data-parallel).
-                # 1D mesh (1, N): "batch" axis is size 1, fall back to "model".
-                batch_axis = "batch" if self.use_2d_mesh else "model"
-                if input_ids is not None:
-                    safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
-                safe_mark_sharding(position_ids, self.mesh, (batch_axis, None))
-                if inputs_embeds is not None:
-                    safe_mark_sharding(
-                        inputs_embeds, self.mesh, (batch_axis, None, None)
-                    )
+            self._pin_input_shardings(input_ids, position_ids, inputs_embeds)
             (
                 model_input_ids,
                 model_positions,
