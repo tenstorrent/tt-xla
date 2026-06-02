@@ -16,8 +16,9 @@ decode-only case. The per-layer lifecycle is:
     load layer weights (CPU)  ->  enable sparse MLP  ->  ship to device (lazy)
     ->  dummy-flush (force the lazy host->device transfer)  ->  free CPU storage
 
-After every layer is device-resident the whole model is compiled once and a
-single decode step is run.
+After every layer is device-resident the whole model is compiled once and then
+autoregressively decodes ``NUM_DECODE_TOKENS`` tokens from a single seed token:
+each step's argmax'd logit is fed back in as the next step's input.
 
 Like ``kimi_k2_device_test.py`` this is a device/streaming smoke test: it runs
 on hardware and prints argmaxed tokens, it does not compare against a CPU
@@ -28,6 +29,7 @@ config on the first forward, so this does not affect the device run.)
 Usage:
     pytest kimi_k2_streaming_test.py -k decode -s
     NUM_LAYERS=61 BATCH_SIZE=64 pytest kimi_k2_streaming_test.py -k decode -s
+    NUM_DECODE_TOKENS=32 pytest kimi_k2_streaming_test.py -k decode -s
     NO_DUMMY_FLUSH=1 pytest kimi_k2_streaming_test.py -k decode -s   # debug
 """
 
@@ -56,6 +58,9 @@ setproctitle.setproctitle("kimi-stream")
 DEFAULT_NUM_LAYERS = 4
 DEFAULT_BATCH_SIZE = 64
 DEFAULT_MAX_CACHE_LEN = 128
+# Number of autoregressive decode steps to run from the single seed token.
+# Each step feeds the previous step's argmax'd token back in as the next input.
+DEFAULT_NUM_DECODE_TOKENS = 16
 
 # Set to a word to feed the SAME single decode token to EVERY batch row, like
 # kimi_k2_device_test.py (which decodes "Hello" across the whole batch). This
@@ -105,6 +110,11 @@ def batch_size():
 @pytest.fixture
 def max_cache_len():
     return int(os.environ.get("MAX_CACHE_LEN", DEFAULT_MAX_CACHE_LEN))
+
+
+@pytest.fixture
+def num_decode_tokens():
+    return int(os.environ.get("NUM_DECODE_TOKENS", DEFAULT_NUM_DECODE_TOKENS))
 
 
 # ============== MEMORY / MESH HELPERS ==============
@@ -304,9 +314,12 @@ def reinit_cache_buffers(cache, mesh, device):
 # ============== STREAMING DECODE TEST ==============
 
 
-def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
-    """Stream the model onto device one layer at a time, then run one decode
-    step. Peak host RAM stays bounded to ~one layer of weights."""
+def test_kimi_k2_streaming_decode(
+    num_layers, batch_size, max_cache_len, num_decode_tokens
+):
+    """Stream the model onto device one layer at a time, then autoregressively
+    decode ``num_decode_tokens`` tokens from a single seed token. Peak host RAM
+    stays bounded to ~one layer of weights."""
     from tt_torch.sparse_mlp import enable_sparse_mlp
 
     from third_party.tt_forge_models.kimi_k2.pytorch.loader import (
@@ -481,7 +494,7 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     xm.wait_device_ops()
     log_mem("post-stream")
 
-    # ---- 7. Whole-model compile + single decode step ----
+    # ---- 7. Whole-model compile + autoregressive multi-token decode ----
     logger.info("Compiling whole model...")
     compiled_model = torch.compile(model, backend="tt")
 
@@ -500,31 +513,53 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     xs.mark_sharding(input_ids, mesh, ("batch", None))
     cache_position = torch.tensor([0], dtype=torch.long).to(device)
 
-    logger.info("Running decode step...")
+    # Autoregressive loop: each step feeds the previous step's argmax'd token
+    # back in as the single decode input, advancing cache_position by one. We
+    # accumulate the per-step predicted ids on host so we can print each row's
+    # full generated continuation at the end.
+    logger.info(f"Running {num_decode_tokens} autoregressive decode step(s)...")
+    generated_ids = [[] for _ in range(batch_size)]
     with torch.no_grad():
-        output = compiled_model(
-            input_ids=input_ids,
-            past_key_values=cache,
-            cache_position=cache_position,
-            use_cache=True,
-        )
+        for step in range(num_decode_tokens):
+            output = compiled_model(
+                input_ids=input_ids,
+                past_key_values=cache,
+                cache_position=cache_position,
+                use_cache=True,
+            )
+            logits = output.logits.cpu()
+            if step == 0:
+                # Expected (batch_size, seq_len=1, vocab). Under SPMD the
+                # gathered host tensor's batch dim may be a single shard (e.g.
+                # batch_size // batch_axis) rather than the full batch -- log it
+                # so a partial gather is obvious.
+                logger.info(
+                    f"[STREAMING DECODE] logits shape: {tuple(logits.shape)}"
+                )
 
-    logits = output.logits.cpu()
-    # Expected (batch_size, seq_len=1, vocab). Under SPMD the gathered host
-    # tensor's batch dim may be a single shard (e.g. batch_size // batch_axis)
-    # rather than the full batch -- log it so a partial gather is obvious.
-    logger.info(f"[STREAMING DECODE] logits shape: {tuple(logits.shape)}")
-    # (N,) one predicted token id per row. Unsqueeze to (N, 1) so batch_decode
-    # treats each row as its own 1-token sequence; a bare 1-D tensor would be
-    # decoded as a SINGLE N-token sequence (= one joined string).
-    predicted_ids = logits[:, -1].argmax(dim=-1)
-    decoded = tokenizer.batch_decode(predicted_ids.unsqueeze(-1))
+            # (N,) one predicted token id per row for this step.
+            predicted_ids = logits[:, -1].argmax(dim=-1)
+            for i in range(predicted_ids.shape[0]):
+                generated_ids[i].append(int(predicted_ids[i]))
+
+            # Feed the argmax'd token back in as the next step's input and
+            # advance the cache position by one (mirrors kimi_k2_device_test's
+            # autoregressive update).
+            next_token = predicted_ids.unsqueeze(1).to(device)  # (N, 1)
+            xs.mark_sharding(next_token, mesh, ("batch", None))
+            input_ids = next_token
+            cache_position = cache_position[-1:] + 1
+
+    # Decode each row's full generated continuation. batch_decode treats each
+    # inner list as its own token sequence, so we get one string per row.
+    decoded = tokenizer.batch_decode(generated_ids)
     # Build the whole report as ONE string and log it in a single call. Under
     # SPMD multiple rank processes share stdout; one logger.info per row gets
     # interleaved/clobbered (which is why early rows looked "missing"). A single
     # atomic write keeps every row intact.
     lines = [
-        f"[STREAMING DECODE] {len(decoded)} decoded row(s); predicted next tokens:"
+        f"[STREAMING DECODE] {len(decoded)} row(s); "
+        f"{num_decode_tokens} token(s) generated per row:"
     ]
     for i in range(len(decoded)):
         seed = seed_words[i] if i < len(seed_words) else "?"
