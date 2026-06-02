@@ -53,6 +53,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
+@pytest.mark.bh_galaxy
 def test_vae_decoder_720p():
     _run("720p", sharded=False)
 
@@ -61,6 +62,7 @@ def test_vae_decoder_720p():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
+@pytest.mark.bh_galaxy
 def test_vae_decoder_480p():
     _run("480p", sharded=False)
 
