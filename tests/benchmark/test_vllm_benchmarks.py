@@ -169,32 +169,23 @@ TP_CONFIGS = [
         _tp_config(
             "mistralai/Devstral-2-123B-Instruct-2512",
             32,
-            gpu_memory_utilization=0.01,
-            experimental_weight_dtype="bfp_bf4",
-            # const-eval folds the bf16->bfp4 weight conversion at compile time
-            # rather than recomputing it per step (mirrors the Llama-3.1-70B
-            # bfp_bf8 recipe in test_tensor_parallel_generation.py).
-            enable_const_eval=True,
-            # 1x4 mesh: the 2x2 (batch-axis) mesh hits a paged_update_cache
-            # sharding bug where the decode K/V update user dim is sharded
-            # inconsistently (32 vs 16). 1x4 keeps the user dim unsharded.
+            experimental_weight_dtype="bfp_bf8",
+            enable_const_eval=True, # const-eval folds the bf16->bfp8 weight conversion at compile time
             use_2d_mesh=False,
         ),
-        id="devstral-123b-tp-batch32-bfp4-qb2",
+        id="devstral-123b-tp-batch32-bh-galaxy",
     ),
-    # Fast smoke variant of the above: 4 transformer layers only, exercising the
-    # full fp8->bf16 dequant + bfp4 weight path without the full 88-layer cost.
+    # host OOM fail when dequantizing all 88 layers on QB2, so running with only 16 layers
     pytest.param(
         _tp_config(
             "mistralai/Devstral-2-123B-Instruct-2512",
             32,
-            gpu_memory_utilization=0.01,
             experimental_weight_dtype="bfp_bf4",
             enable_const_eval=True,
             use_2d_mesh=False,
-            num_hidden_layers=4,
+            num_hidden_layers=16,
         ),
-        id="devstral-123b-tp-batch32-bfp4-4layer-qb2",
+        id="devstral-123b-tp-batch32-bfp4-16layer-qb2",
     ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
