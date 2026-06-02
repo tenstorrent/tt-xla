@@ -53,7 +53,7 @@
 #include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
 #include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
-#include "ttmlir/Dialect/StableHLO/Utils/MeshShardingCollection.h"
+#include "ttmlir/Dialect/StableHLO/Utils/CollectMeshShardings.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
