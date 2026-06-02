@@ -373,12 +373,79 @@ def test_profile_command_accepts_python_module_tracy_invocation(tmp_path):
         nodeid="tests/benchmark/test_llms.py::test_llama_3_2_1b",
         profile_dir=tmp_path / "profile",
         benchmark_output=tmp_path / "benchmark.json",
-        benchmark_kwargs={"batch_size": 1, "num_layers": 1, "max_output_tokens": 3},
+        benchmark_args=[
+            "--batch-size",
+            "1",
+            "--num-layers",
+            "1",
+            "--max-output-tokens",
+            "3",
+        ],
     )
 
     assert command[:3] == ["python3", "-m", "tracy"]
     assert "-m" in command
     assert "pytest" in command
+    assert "--batch-size" in command
+    assert "--num-layers" in command
+    assert "--max-output-tokens" in command
+
+
+def test_benchmark_args_are_routed_by_family():
+    pipeline = load_pipeline_module()
+    kwargs = {"batch_size": 2, "num_layers": 3, "max_output_tokens": 4}
+
+    llm = pipeline.DiscoveryEntry(
+        run_identity="run-5009-demo-0001",
+        nodeid="tests/benchmark/test_llms.py::test_llama_3_2_1b",
+        source_path="tests/benchmark/test_llms.py",
+        test_name="test_llama_3_2_1b",
+        benchmark_family="llm",
+        model_identity="test_llama_3_2_1b",
+        artifact_slug="llm",
+    )
+    encoder = pipeline.DiscoveryEntry(
+        run_identity="run-5009-demo-0002",
+        nodeid="tests/benchmark/test_encoders.py::test_bert",
+        source_path="tests/benchmark/test_encoders.py",
+        test_name="test_bert",
+        benchmark_family="encoder",
+        model_identity="test_bert",
+        artifact_slug="encoder",
+    )
+    vision = pipeline.DiscoveryEntry(
+        run_identity="run-5009-demo-0003",
+        nodeid="tests/benchmark/test_vision.py::test_mnist",
+        source_path="tests/benchmark/test_vision.py",
+        test_name="test_mnist",
+        benchmark_family="vision",
+        model_identity="test_mnist",
+        artifact_slug="vision",
+    )
+    jax = pipeline.DiscoveryEntry(
+        run_identity="run-5009-demo-0004",
+        nodeid="tests/benchmark/resnet_jax_benchmark.py::test_resnet_jax",
+        source_path="tests/benchmark/resnet_jax_benchmark.py",
+        test_name="test_resnet_jax",
+        benchmark_family="jax",
+        model_identity="test_resnet_jax",
+        artifact_slug="jax",
+    )
+
+    assert pipeline.benchmark_args_for_entry(llm, kwargs) == [
+        "--batch-size",
+        "2",
+        "--num-layers",
+        "3",
+        "--max-output-tokens",
+        "4",
+    ]
+    assert pipeline.benchmark_args_for_entry(encoder, kwargs) == [
+        "--num-layers",
+        "3",
+    ]
+    assert pipeline.benchmark_args_for_entry(vision, kwargs) == []
+    assert pipeline.benchmark_args_for_entry(jax, kwargs) == []
 
 
 def test_run_records_readiness_blocker_when_tracy_is_missing(tmp_path):

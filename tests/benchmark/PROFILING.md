@@ -51,6 +51,11 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py run \
   --timeout-seconds 1800
 ```
 
+The bounded override flags are routed by benchmark family. LLM entries receive
+`--batch-size`, `--num-layers`, and `--max-output-tokens`; encoder entries
+receive `--num-layers`; vision and JAX entries run with their benchmark-local
+settings plus the common output/profile flags.
+
 To run the same pipeline on IRD, use `--target ird`. The default mode uses a
 short-lived `ird run` job so the scheduler owns container teardown:
 

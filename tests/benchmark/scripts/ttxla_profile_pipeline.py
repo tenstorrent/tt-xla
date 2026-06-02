@@ -279,7 +279,7 @@ def profile_command(
     nodeid: str,
     profile_dir: Path,
     benchmark_output: Path,
-    benchmark_kwargs: dict[str, int],
+    benchmark_args: list[str],
 ) -> list[str]:
     return [
         *split_command_expr(tracy_bin),
@@ -295,13 +295,23 @@ def profile_command(
         "--dump-irs",
         "--output-file",
         str(benchmark_output),
-        "--batch-size",
-        str(benchmark_kwargs["batch_size"]),
-        "--num-layers",
-        str(benchmark_kwargs["num_layers"]),
-        "--max-output-tokens",
-        str(benchmark_kwargs["max_output_tokens"]),
+        *benchmark_args,
     ]
+
+
+def benchmark_args_for_entry(
+    entry: DiscoveryEntry,
+    benchmark_kwargs: dict[str, int],
+) -> list[str]:
+    family = entry.benchmark_family
+    args: list[str] = []
+    if family == "llm":
+        args.extend(["--batch-size", str(benchmark_kwargs["batch_size"])])
+        args.extend(["--num-layers", str(benchmark_kwargs["num_layers"])])
+        args.extend(["--max-output-tokens", str(benchmark_kwargs["max_output_tokens"])])
+    elif family == "encoder":
+        args.extend(["--num-layers", str(benchmark_kwargs["num_layers"])])
+    return args
 
 
 def perf_report_command(tt_perf_report_bin: str, csv_path: Path) -> list[str]:
@@ -948,7 +958,7 @@ def profile_one_model(
         nodeid=entry.nodeid,
         profile_dir=profile_dir,
         benchmark_output=benchmark_output,
-        benchmark_kwargs=benchmark_kwargs,
+        benchmark_args=benchmark_args_for_entry(entry, benchmark_kwargs),
     )
 
     profile_env = os.environ.copy()
