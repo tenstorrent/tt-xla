@@ -1826,12 +1826,11 @@ def maybe_find_binary(name: str, explicit: Optional[str] = None) -> str:
 
 
 def ird_option_args(args: argparse.Namespace) -> list[str]:
-    options: list[str] = []
+    options: list[str] = [args.ird_arch]
     if args.ird_docker_image:
         options.extend(["--docker-image", args.ird_docker_image])
     if args.ird_timeout:
         options.extend(["--timeout", args.ird_timeout])
-    options.append(args.ird_arch)
     if args.ird_cluster:
         options.extend(["--cluster", args.ird_cluster])
     if args.ird_team:
@@ -2318,7 +2317,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--ird-docker-image",
-        default="ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-22-04:latest",
+        default="xla",
         help="IRD docker image or image alias.",
     )
     parser.add_argument(

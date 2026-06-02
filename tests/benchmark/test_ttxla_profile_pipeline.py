@@ -383,8 +383,8 @@ def test_ird_run_command_wraps_remote_pipeline():
     remote_command = pipeline.build_remote_pipeline_command(args, "run-5009-demo")
     command = pipeline.build_ird_run_command(args, remote_command)
 
-    assert command[:5] == ["ird", "run", "--docker-image", "xla", "--timeout"]
-    assert "wormhole_b0" in command
+    assert command[:4] == ["ird", "run", "wormhole_b0", "--docker-image"]
+    assert command[4] == "xla"
     assert "--cluster" in command
     assert "--team" in command
     assert "--machine" in command
