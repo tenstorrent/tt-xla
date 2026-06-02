@@ -411,6 +411,8 @@ def test_ird_run_command_wraps_remote_pipeline():
             "xla",
             "--ird-timeout",
             "0:10",
+            "--readiness-timeout-seconds",
+            "120",
             "--ird-cluster",
             "tt_aus",
             "--ird-team",
@@ -443,6 +445,7 @@ def test_ird_run_command_wraps_remote_pipeline():
     assert "--machine" in command
     assert remote_command == command[-1]
     assert "--target local" in remote_command
+    assert "--readiness-timeout-seconds 120" in remote_command
     assert "--benchmark-file tests/benchmark/test_vision.py" in remote_command
     assert "--nodeid-filter test_vision.py" in remote_command
     assert "--max-models 1" in remote_command

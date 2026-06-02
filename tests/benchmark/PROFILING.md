@@ -65,6 +65,7 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py \
   --ird-num-pcie-chips 1 \
   --ird-remote-repo-root /work/tt-xla \
   --ird-remote-output-root /work/tt-xla/artifacts/prd-009/ttxla-profile \
+  --readiness-timeout-seconds 120 \
   --output-root artifacts/prd-009/ttxla-profile \
   run
 ```
@@ -77,6 +78,8 @@ uses that ordering to select the TT-XLA image.
 The nested IRD run performs a readiness gate before pytest discovery. It records
 `readiness/*.out`, `readiness/*.err`, `environment.json`, `manifest.json`, and
 `command-trace.jsonl` if `pytest`, Tracy, or `tt-perf-report` cannot start.
+Use `--readiness-timeout-seconds` for IRD runs where tool startup can exceed the
+local 30-second default.
 
 If the selected IRD image does not include those tools, install or expose them
 through `--ird-remote-setup` and pass explicit command forms as needed:

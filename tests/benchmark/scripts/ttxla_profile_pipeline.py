@@ -1969,6 +1969,8 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         str(args.timeout_seconds),
         "--discovery-timeout-seconds",
         str(args.discovery_timeout_seconds),
+        "--readiness-timeout-seconds",
+        str(args.readiness_timeout_seconds),
         "--batch-size",
         str(args.batch_size),
         "--num-layers",
@@ -2265,6 +2267,7 @@ def execute_pipeline(args: argparse.Namespace) -> int:
         pytest_command=pytest_command,
         tracy_bin=tracy_bin,
         tt_perf_report_bin=tt_perf_report_bin,
+        timeout_seconds=args.readiness_timeout_seconds,
     )
     environment["readiness"] = readiness_summary(readiness_results)
     if any(not result.ok for result in readiness_results):
@@ -2371,6 +2374,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--discovery-timeout-seconds", type=int, default=900, help="Discovery timeout."
+    )
+    parser.add_argument(
+        "--readiness-timeout-seconds",
+        type=int,
+        default=30,
+        help="Timeout for pytest, Tracy, and tt-perf-report readiness checks.",
     )
     parser.add_argument(
         "--batch-size",
