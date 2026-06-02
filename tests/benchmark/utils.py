@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
 import torch
+from PIL import Image
 
 
 def align_arch(arch: str):
@@ -568,3 +569,15 @@ def move_to_cpu(data):
         moved = [move_to_cpu(item) for item in data]
         return type(data)(moved)
     return data
+
+
+def save_image(image: torch.Tensor, filepath: str = "output.png"):
+    """Save a diffusion-model output tensor (range [-1, 1], CHW or BCHW) as a PNG."""
+    image = (
+        (torch.clamp(image / 2 + 0.5, 0.0, 1.0) * 255.0).round().to(dtype=torch.uint8)
+    )
+    image_np = image.cpu().squeeze().numpy()
+    assert image_np.ndim == 3, "Image must be 3D"
+    if image_np.shape[0] == 3:
+        image_np = image_np.transpose(1, 2, 0)
+    Image.fromarray(image_np).save(filepath)
