@@ -2090,6 +2090,20 @@ def infer_nested_ird_returncode(run_dir: Path) -> tuple[Optional[int], str]:
     return 0, "nested manifest indicates the remote pipeline terminalized"
 
 
+def parse_ird_job_id(stdout: str, stderr: str) -> str:
+    text = "\n".join(part for part in (stdout, stderr) if part)
+    patterns = [
+        r"Job submitted successfully with ID:\s*([0-9]+)",
+        r"Submitted batch job\s+([0-9]+)",
+        r"\bJOBID\s*[:=]\s*([0-9]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return ""
+
+
 def execute_ird_pipeline(args: argparse.Namespace) -> int:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
     run_id = args.run_id.strip() if args.run_id else make_run_id()
@@ -2123,6 +2137,7 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
         "reservation": {},
         "remote_run": {},
         "release": {},
+        "timeout_cleanup": {},
     }
 
     for index, template in enumerate(args.ird_pre_cleanup_command or [], start=1):
@@ -2154,6 +2169,35 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
             if nested_returncode is not None:
                 result.returncode = nested_returncode
                 result.note = f"{result.note}; {nested_note}"
+            else:
+                job_id = parse_ird_job_id(
+                    safe_read_text(ird_dir / "ird-run.out"),
+                    safe_read_text(ird_dir / "ird-run.err"),
+                )
+                if job_id:
+                    timeout_cleanup = run_subprocess(
+                        command=["scancel", job_id],
+                        cwd=root,
+                        stdout_path=ird_dir / "ird-timeout-cleanup.out",
+                        stderr_path=ird_dir / "ird-timeout-cleanup.err",
+                        stage="ird-timeout-cleanup",
+                        command_trace_path=command_trace_path,
+                        timeout_seconds=args.ird_control_timeout_seconds,
+                    )
+                    lifecycle["timeout_cleanup"] = {
+                        **asdict(timeout_cleanup),
+                        "command": shell_join(timeout_cleanup.command),
+                        "job_id": job_id,
+                    }
+                    result.note = (
+                        f"{result.note}; nested manifest was not terminalized; "
+                        f"requested scancel for IRD job {job_id}"
+                    )
+                else:
+                    result.note = (
+                        f"{result.note}; nested manifest was not terminalized; "
+                        "could not find IRD job id for scheduler cleanup"
+                    )
         lifecycle["remote_run"] = asdict(result)
         lifecycle["remote_run"]["command"] = shell_join(result.command)
     else:

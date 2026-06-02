@@ -589,3 +589,79 @@ def test_ird_run_timeout_keeps_blocker_when_nested_manifest_failed_discovery(
 
     assert returncode == 2
     assert "discovery failure" in note
+
+
+def test_ird_run_timeout_cancels_scheduler_job_when_nested_manifest_not_terminalized(
+    tmp_path,
+):
+    pipeline = load_pipeline_module()
+    root = tmp_path / "repo"
+    root.mkdir()
+    run_dir = tmp_path / "run-5009-ird-nonterminal-timeout"
+    parser = pipeline.build_parser()
+    args = parser.parse_args(
+        [
+            "--repo-root",
+            str(root),
+            "--run-dir",
+            str(run_dir),
+            "--target",
+            "ird",
+            "--ird-bin",
+            "ird",
+            "--ird-job-timeout-seconds",
+            "1",
+            "run",
+        ]
+    )
+    original_run_subprocess = pipeline.run_subprocess
+
+    def fake_run_subprocess(**kwargs):
+        if kwargs["stage"] == "ird-run":
+            pipeline.ensure_dir(kwargs["stderr_path"].parent)
+            kwargs["stderr_path"].write_text(
+                "Job submitted successfully with ID: 78328\n",
+                encoding="utf-8",
+            )
+            return pipeline.CommandResult(
+                stage="ird-run",
+                command=kwargs["command"],
+                cwd=str(root),
+                returncode=-9,
+                timed_out=True,
+                start_time="2026-06-02T20:40:00+00:00",
+                end_time="2026-06-02T20:49:00+00:00",
+                duration_seconds=540,
+                stdout_path=str(kwargs["stdout_path"]),
+                stderr_path=str(kwargs["stderr_path"]),
+                note="timed out after 1 seconds",
+            )
+        assert kwargs["stage"] == "ird-timeout-cleanup"
+        assert kwargs["command"] == ["scancel", "78328"]
+        return pipeline.CommandResult(
+            stage="ird-timeout-cleanup",
+            command=kwargs["command"],
+            cwd=str(root),
+            returncode=0,
+            timed_out=False,
+            start_time="2026-06-02T20:49:00+00:00",
+            end_time="2026-06-02T20:49:01+00:00",
+            duration_seconds=1,
+            stdout_path=str(kwargs["stdout_path"]),
+            stderr_path=str(kwargs["stderr_path"]),
+        )
+
+    try:
+        pipeline.run_subprocess = fake_run_subprocess
+        exit_code = pipeline.execute_ird_pipeline(args)
+    finally:
+        pipeline.run_subprocess = original_run_subprocess
+
+    assert exit_code == 2
+    lifecycle = json.loads(
+        (run_dir / "ird" / "ird-lifecycle.json").read_text(encoding="utf-8")
+    )
+    assert lifecycle["remote_run"]["returncode"] == -9
+    assert "requested scancel" in lifecycle["remote_run"]["note"]
+    assert lifecycle["timeout_cleanup"]["job_id"] == "78328"
+    assert lifecycle["timeout_cleanup"]["returncode"] == 0
