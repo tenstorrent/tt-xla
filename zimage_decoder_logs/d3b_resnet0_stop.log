@@ -1,0 +1,121 @@
+2026-06-02 19:26:02.062 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.13.0', 'jaxtyping': '0.3.10', 'split': '0.11.0', 'metadata': '3.1.1', 'forked': '1.6.0', 'json-report': '1.5.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.13.0, jaxtyping-0.3.10, split-0.11.0, metadata-3.1.1, forked-1.6.0, json-report-1.5.0
+collecting ... collected 3 items
+
+tests/torch/model/zimage_decoder_debug/test_groupnorm_bisect.py::test_d3b_prefix_up3_resnet0_stop[conv1] Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-06-02 19:27:11.274435: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+PASSED
+tests/torch/model/zimage_decoder_debug/test_groupnorm_bisect.py::test_d3b_prefix_up3_resnet0_stop[norm2] 2026-06-02 19:29:37.822 | critical |          Always | TT_FATAL: Out of Memory: Not enough space to allocate 3774873600 B DRAM buffer across 12 banks, where each bank needs to store 314572800 B, but bank size is 1071821792 B (allocated: 652944064 B, free: 418877728 B, largest free block: 167335424 B) (assert.hpp:104)
+2026-06-02 19:29:37.858 ( 215.795s) [        BDFFB6C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/impl/allocator/bank_manager.cpp:462: false
+info:
+Out of Memory: Not enough space to allocate 3774873600 B DRAM buffer across 12 banks, where each bank needs to store 314572800 B, but bank size is 1071821792 B (allocated: 652944064 B, free: 418877728 B, largest free block: 167335424 B)
+backtrace:
+ --- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x889241) [0x7f0a15156241]
+ --- tt::tt_metal::BankManager::allocate_buffer(unsigned long, unsigned long, bool, tt::tt_metal::CoreRangeSet const&, std::optional<unsigned int>, ttsl::StrongType<unsigned int, tt::tt_metal::AllocatorIDTag>, std::vector<std::pair<unsigned long, unsigned long>, std::allocator<std::pair<unsigned long, unsigned long> > > const&)
+ --- tt::tt_metal::AllocatorImpl::allocate_buffer(tt::tt_metal::Buffer*)
+ --- tt::tt_metal::Buffer::allocate_impl()
+ --- tt::tt_metal::Buffer::create(tt::tt_metal::IDevice*, unsigned long, unsigned long, tt::tt_metal::BufferType, tt::tt_metal::BufferShardingArgs const&, std::optional<bool>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> >)
+ --- tt::tt_metal::distributed::MeshBuffer::create(std::variant<tt::tt_metal::distributed::ReplicatedBufferConfig, tt::tt_metal::distributed::ShardedBufferConfig> const&, tt::tt_metal::distributed::DeviceLocalBufferConfig const&, tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned long>)
+ --- tt::tt_metal::tensor_impl::allocate_device_buffer(tt::tt_metal::distributed::MeshDevice*, tt::tt_metal::TensorSpec const&)
+ --- tt::tt_metal::MeshTensor::allocate_on_device(tt::tt_metal::distributed::MeshDevice&, tt::tt_metal::TensorSpec const&, tt::tt_metal::TensorTopology const&)
+ --- tt::tt_metal::create_device_tensor(tt::tt_metal::TensorSpec const&, tt::tt_metal::distributed::MeshDevice*, std::optional<tt::tt_metal::TensorTopology>)
+ --- ttnn::operations::binary_ng::BinaryNgDeviceOperation::create_output_tensors(ttnn::operations::binary_ng::BinaryNgDeviceOperation::operation_attributes_t const&, ttnn::operations::binary_ng::BinaryNgDeviceOperation::tensor_args_t const&)
+ --- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn16device_operation6detail6launchITkNS0_22DeviceOperationConceptENS_10operations9binary_ng23BinaryNgDeviceOperationEEENT_21tensor_return_value_tERKNS6_22operation_attributes_tERKNS6_13tensor_args_tE+0x15d) [0x7f0a138c1ddd]
+ --- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn4prim9binary_ngERKN2tt8tt_metal6TensorES5_NS_10operations6binary12BinaryOpTypeERKSt8optionalIKNS2_8DataTypeEERKS9_INS2_12MemoryConfigEERKS9_IS3_ERKS9_IbESt4spanIKNS6_5unary19BasicUnaryWithParamIJfijEEELm18446744073709551615EESU_SU_S9_ISt7variantIJjifEEERKS9_INS2_12CoreRangeSetEERKS9_IN4ttsl10StrongTypeIhNS2_14SubDeviceIdTagEEEEffb+0xb93) [0x7f0a138b0443]
+ --- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(+0xc3f812) [0x7f0a13895812]
+ --- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn8subtractERKN2tt8tt_metal6TensorES4_RKSt8optionalIKNS1_8DataTypeEERKS5_INS1_12MemoryConfigEERKS5_IS2_ESt4spanIKNS_10operations5unary19BasicUnaryWithParamIJfijEEELm18446744073709551615EESO_SO_RKS5_INS1_12CoreRangeSetEERKS5_IN4ttsl10StrongTypeIhNS1_14SubDeviceIdTagEEEE+0x56) [0x7f0a13881816]
+ --- tt::runtime::ttnn::operations::eltwise::binary::run(tt::target::ttnn::EltwiseBinaryOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > std::__invoke_impl<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&>(std::__invoke_other, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::optional<std::conditional<std::is_same_v<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, void>, std::monostate, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >::type> tt::pjrt::utils::invoke_noexcept<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >(std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::ExecuteWithSingleDevice(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- xla::PjRtCApiLoadedExecutable::ExecutePortable(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteComputation(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, torch_xla::runtime::ComputationClient::ExecuteComputationOptions const&)
+ --- torch_xla::XlaBackendImpl::ExecuteComputation(std::shared_ptr<torch::lazy::Computation>, c10::ArrayRef<std::shared_ptr<torch::lazy::BackendData> >, torch::lazy::BackendDevice const&) const
+ --- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6dff560) [0x7f0a94520560]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x116a3112) [0x7f0a9edc4112]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x9caa4) [0x7f0b0dac0aa4]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x129c6c) [0x7f0b0db4dc6c]
+}
+
+FAILED
+tests/torch/model/zimage_decoder_debug/test_groupnorm_bisect.py::test_d3b_prefix_up3_resnet0_stop[full] Fatal Python error: Segmentation fault
+
+Thread 0x00007f067faff6c0 (most recent call first):
+  File "/usr/lib/python3.12/threading.py", line 359 in wait
+  File "/usr/lib/python3.12/threading.py", line 655 in wait
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/tqdm/_monitor.py", line 60 in run
+  File "/usr/lib/python3.12/threading.py", line 1073 in _bootstrap_inner
+  File "/usr/lib/python3.12/threading.py", line 1030 in _bootstrap
+
+Thread 0x00007f0b0da23140 (most recent call first):
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/src/pjrt-plugin-tt/python_package/tt_torch/torch_overrides.py", line 22 in __torch_function__
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1367 in convert
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 964 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 933 in _apply
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1381 in to
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/infra/runners/torch_device_runner.py", line 125 in _safely_put_workload_on_device
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/infra/runners/device_runner.py", line 54 in _put_on_device
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/infra/runners/device_runner.py", line 38 in run_on_device
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/infra/runners/device_runner.py", line 26 in run_on_cpu
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/infra/testers/single_chip/op/op_tester.py", line 69 in test
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/infra/testers/single_chip/graph/graph_tester.py", line 74 in run_graph_test
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/torch/model/zimage_decoder_debug/test_groupnorm_bisect.py", line 115 in test_d3b_prefix_up3_resnet0_stop
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/python.py", line 166 in pytest_pyfunc_call
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/python.py", line 1720 in runtest
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 179 in pytest_runtest_call
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 245 in <lambda>
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 353 in from_call
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 244 in call_and_report
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 137 in runtestprotocol
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/runner.py", line 118 in pytest_runtest_protocol
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 396 in pytest_runtestloop
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 372 in _main
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 318 in wrap_session
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/main.py", line 365 in pytest_cmdline_main
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121 in _multicall
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120 in _hookexec
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512 in __call__
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 199 in main
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_pytest/config/__init__.py", line 223 in console_main
+  File "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/pytest/__main__.py", line 9 in <module>
+  File "<frozen runpy>", line 88 in _run_code
+  File "<frozen runpy>", line 198 in _run_module_as_main
+
+Extension modules: numpy._core._multiarray_umath, numpy.linalg._umath_linalg, psutil._psutil_linux, torch._C, torch._C._dynamo.autograd_compiler, torch._C._dynamo.eval_frame, torch._C._dynamo.guards, torch._C._dynamo.utils, torch._C._fft, torch._C._linalg, torch._C._nested, torch._C._nn, torch._C._sparse, torch._C._special, charset_normalizer.md, charset_normalizer.cd, simplejson._speedups, requests.packages.charset_normalizer.md, requests.packages.chardet.md, requests.packages.charset_normalizer.cd, requests.packages.chardet.cd, yaml._yaml, numpy.random._common, numpy.random.bit_generator, numpy.random._bounded_integers, numpy.random._mt19937, numpy.random.mtrand, numpy.random._philox, numpy.random._pcg64, numpy.random._sfc64, numpy.random._generator, markupsafe._speedups, regex._regex, PIL._imaging, sklearn.__check_build._check_build, _cyutility, scipy._cyutility, scipy._lib._ccallback_c, scipy.sparse._sparsetools, _csparsetools, scipy.sparse._csparsetools, lz4._version, lz4.frame._frame, scipy.special._ufuncs_cxx, scipy.special._ellip_harm_2, scipy.special._special_ufuncs, scipy.special._gufuncs, scipy.special._ufuncs, scipy.special._specfun, scipy.special._comb, scipy.linalg._fblas, scipy.linalg._flapack, scipy.linalg.cython_lapack, scipy.linalg._cythonized_array_utils, scipy.linalg._solve_toeplitz, scipy.linalg._batched_linalg, scipy.linalg._decomp_lu_cython, scipy.linalg._matfuncs_schur_sqrtm, scipy.linalg._matfuncs_expm, scipy.linalg._linalg_pythran, scipy.linalg.cython_blas, scipy.linalg._decomp_update, scipy.sparse.linalg._dsolve._superlu, scipy.sparse.linalg._eigen.arpack._arpacklib, scipy.sparse.linalg._propack, scipy.spatial._ckdtree, scipy._lib.messagestream, scipy.spatial._qhull, scipy.spatial._voronoi, scipy.spatial._hausdorff, scipy.spatial._distance_wrap, scipy.spatial.transform._rotation_cy, scipy.spatial.transform._rigid_transform_cy, scipy.optimize._group_columns, scipy.optimize._trlib._trlib, scipy.optimize._lbfgsb, _moduleTNC, scipy.optimize._moduleTNC, scipy.optimize._slsqplib, scipy.optimize._minpack, scipy.optimize._lsq.givens_elimination, scipy.optimize._zeros, scipy._lib._uarray._uarray, scipy.linalg._decomp_interpolative, scipy.optimize._bglu_dense, scipy.optimize._lsap, scipy.optimize._direct, scipy.integrate._odepack, scipy.integrate._quadpack, scipy.integrate._vode, scipy.integrate._dop, scipy.interpolate._fitpack, scipy.interpolate._dfitpack, scipy.interpolate._dierckx, scipy.interpolate._ppoly, scipy.interpolate._interpnd, scipy.interpolate._rbfinterp_pythran, scipy.interpolate._rgi_cython, scipy.special.cython_special, scipy.stats._stats, scipy.stats._biasedurn, scipy.stats._stats_pythran, scipy.stats._levy_stable.levyst, scipy.stats._ansari_swilk_statistics, scipy.sparse.csgraph._tools, scipy.sparse.csgraph._shortest_path, scipy.sparse.csgraph._traversal, scipy.sparse.csgraph._min_spanning_tree, scipy.sparse.csgraph._flow, scipy.sparse.csgraph._matching, scipy.sparse.csgraph._reordering, scipy.stats._sobol, scipy.stats._qmc_cy, scipy.stats._rcont.rcont, scipy.stats._qmvnt_cy, scipy.ndimage._nd_image, scipy.ndimage._rank_filter_1d, _ni_label, scipy.ndimage._ni_label, pyarrow.lib, pandas._libs._cyutility, pandas._libs.tslibs.ccalendar, pandas._libs.tslibs.np_datetime, pandas._libs.tslibs.dtypes, pandas._libs.tslibs.base, pandas._libs.tslibs.nattype, pandas._libs.tslibs.timezones, pandas._libs.properties, pandas._libs.tslibs.fields, pandas._libs.tslibs.timedeltas, pandas._libs.tslibs.tzconversion, pandas._libs.tslibs.timestamps, pandas._libs.tslibs.offsets, pandas._libs.tslibs.strptime, pandas._libs.tslibs.parsing, pandas._libs.tslibs.conversion, pandas._libs.tslibs.period, pandas._libs.tslibs.vectorized, pandas._libs.ops_dispatch, pandas._libs.missing, pandas._libs.hashtable, pandas._libs.algos, pandas._libs.interval, pandas._libs.lib, pyarrow._compute, pandas._libs.ops, pandas._libs.hashing, pandas._libs.arrays, pandas._libs.tslib, pandas._libs.sparse, pandas._libs.internals, pandas._libs.indexing, pandas._libs.index, pandas._libs.writers, pandas._libs.join, pandas._libs.window.aggregations, pandas._libs.window.indexers, pandas._libs.reshape, pandas._libs.groupby, pandas._libs.json, pandas._libs.parsers, pandas._libs.testing, sklearn._cyutility, sklearn.utils._isfinite, sklearn.utils.sparsefuncs_fast, sklearn.utils.murmurhash, sklearn.utils._openmp_helpers, sklearn.metrics.cluster._expected_mutual_info_fast, sklearn.metrics._dist_metrics, sklearn.metrics._pairwise_distances_reduction._datasets_pair, sklearn.utils._cython_blas, sklearn.metrics._pairwise_distances_reduction._base, sklearn.metrics._pairwise_distances_reduction._middle_term_computer, sklearn.utils._heap, sklearn.utils._sorting, sklearn.metrics._pairwise_distances_reduction._argkmin, sklearn.metrics._pairwise_distances_reduction._argkmin_classmode, sklearn.utils._vector_sentinel, sklearn.metrics._pairwise_distances_reduction._radius_neighbors, sklearn.metrics._pairwise_distances_reduction._radius_neighbors_classmode, sklearn.metrics._pairwise_fast, sklearn.preprocessing._csr_polynomial_expansion, sklearn.preprocessing._target_encoder_fast, _cffi_backend, PIL._imagingft, jaxlib.cpu_feature_guard, msgpack._cmsgpack, sentencepiece._sentencepiece (total: 188)
