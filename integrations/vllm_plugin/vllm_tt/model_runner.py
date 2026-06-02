@@ -2552,15 +2552,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
-        # On 1D-mesh TP, replicate logits so the downstream sampler sees the
-        # full vocab (the ParallelLMHead output is otherwise vocab-sharded).
-        # On 2D-mesh TP we deliberately skip this: logits stay vocab-sharded
-        # and the topk reductions are done sharding-aware via composite_topk
-        # later, avoiding an expensive full-vocab all-gather every decode step.
-        # Must be inside the compiled graph — an external sharding_constraint
-        # between compiled functions breaks.
-        if self.enable_tensor_parallel and not self.use_2d_mesh:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        # Logits leave this graph vocab-sharded (ParallelLMHead output). The
+        # downstream sampler runs sharding-aware topk via composite_topk and
+        # only all_gathers the tiny [batch, k] candidates, avoiding a
+        # full-vocab all_gather every decode step.
         return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -2572,9 +2567,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         separately from `forward` for lighter compilation overhead.
         """
         # Re-annotate vocab-sharding at the entry of this separately-compiled
-        # graph: logits enter vocab-sharded only on 2D mesh, and sharding does
-        # not carry across the compiled-graph boundary from compute_logits.
-        if self.is_sharded_compute_logits and self.use_2d_mesh:
+        # graph: sharding does not carry across the compiled-graph boundary
+        # from compute_logits.
+        if self.is_sharded_compute_logits:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
         if (
             sampling_metadata.all_greedy
@@ -2585,14 +2580,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            if self.is_sharded_compute_logits and self.use_2d_mesh:
+            if self.is_sharded_compute_logits:
                 _, out_tokens = composite_topk(
                     logits, k=1, dim=-1, largest=True, sorted=False
                 )
             else:
                 out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
-            vocab_sharded = self.is_sharded_compute_logits and self.use_2d_mesh
+            vocab_sharded = self.is_sharded_compute_logits
             out_tokens = self.sampler(
                 logits, sampling_metadata, vocab_sharded=vocab_sharded
             ).sampled_token_ids
@@ -2759,6 +2754,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         of logprobs as an alternative to having multiple pre-compiled graphs.
         Select the number of logprobs actually demanded by each request on CPU.
         """
+        # logits enter vocab-sharded from compute_logits; replicate here so
+        # logsoftmax sees the full vocab. Only paid when logprobs are requested.
+        if self.is_sharded_compute_logits:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         logprobs = self.sampler.compute_logprobs(logits)
         logprobTensors = self.sampler.gather_logprobs(
             logprobs,
