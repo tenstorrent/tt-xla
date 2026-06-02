@@ -28,10 +28,10 @@ import torch
 import torch.nn as nn
 import torch_xla.runtime as xr
 from infra import Framework, RunMode, run_graph_test
-from tests.runner.requirements import RequirementsManager
 from utils import BringupStatus, Category
 
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
+from tests.runner.requirements import RequirementsManager
 from third_party.tt_forge_models.janus_pro.text_to_image.pytorch import (
     ModelLoader,
     ModelVariant,

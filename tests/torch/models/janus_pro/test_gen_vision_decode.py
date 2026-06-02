@@ -10,9 +10,9 @@ import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
-from tests.runner.requirements import RequirementsManager
 
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
+from tests.runner.requirements import RequirementsManager
 
 
 @pytest.mark.nightly
