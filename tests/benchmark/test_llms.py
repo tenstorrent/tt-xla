@@ -2581,7 +2581,6 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
-        arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
         required_pcc=0.90,
@@ -2615,7 +2614,6 @@ def test_glm_4_5_tp_galaxy_4_layers(
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
         input_output_sharding_spec=("batch", None),
@@ -2651,7 +2649,6 @@ def test_glm_4_7_tp_galaxy_4_layers(
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
         input_output_sharding_spec=("batch", None),
