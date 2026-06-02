@@ -46,6 +46,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
+@pytest.mark.xfail(reason="DRAM OOM: TTNN TypecastOp")
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
