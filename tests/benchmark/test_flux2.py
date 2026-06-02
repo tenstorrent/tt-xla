@@ -123,8 +123,12 @@ def test_flux2_dev_text_encoder(output_file, request, optimization_level):
         loop_count=8,
         warmup_steps=2,
         required_pcc=0.97,
-        # Stays at optimization_level 0: level 2 collapses PCC to ~0.07 on this
-        # component (numerically unsafe). See report.
+        # Stays at optimization_level 0. Tuning sweep (2026-06-02): BOTH level 1
+        # and level 2 collapse PCC to ~0.07 (level 1 would be +18% otherwise),
+        # so the collapse threshold is opt>=1, not just opt 2. The collapse is
+        # structural, not an accumulation-precision issue: fp32_dest_acc_en=true
+        # + math_fidelity=hifi4 at opt 1 leaves PCC at the identical 0.0678.
+        # See report.
         default_optimization_level=0,
     )
 
@@ -140,7 +144,9 @@ def test_flux2_dev_vae(output_file, request, optimization_level):
         warmup_steps=2,
         required_pcc=0.95,
         # Tuned: optimization_level 2 gives ~26% speedup, PCC stays high
-        # (0.993 vs 0.9998 at level 0). See report.
+        # (0.993 vs 0.9998 at level 0). trace_enabled was also swept and is
+        # neutral here (+0.1%): a single VAE forward has nothing to amortize, so
+        # trace stays off. See report.
         default_optimization_level=2,
     )
 
