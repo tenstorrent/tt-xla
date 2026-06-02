@@ -81,9 +81,6 @@ def _run(resolution: str, sharded: bool) -> None:
     # patches in tt_torch/__init__.py).
     _patch_wan_time_embedder_dtype_probe()
     # diffusers Wan-transformer rewrites (perf + tracing).
-    _patch_adaln_modulation_bf16()
-    _patch_patchify_ndhwc_aware()
-    _patch_apply_rotary_emb_stack_form()
     _disable_tt_torch_function_override()
 
     shapes = RESOLUTIONS[resolution]
