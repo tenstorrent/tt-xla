@@ -57,7 +57,8 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.xfail(reason="PCC comparison fails: captured 0.75 on single decoder block")
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.llmbox
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
@@ -65,7 +66,8 @@ def test_wan_dit_720p_sharded():
 @pytest.mark.xfail(reason="PCC comparison fails: captured 0.75 on single decoder block")
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.llmbox
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 

@@ -37,14 +37,16 @@ _COMPILER_CONFIG = CompilerConfig(
 
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.llmbox
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
 def test_vae_encoder_720p():
     _run("720p", sharded=False)
 
 
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.llmbox
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
 def test_vae_encoder_480p():
     _run("480p", sharded=False)
 
