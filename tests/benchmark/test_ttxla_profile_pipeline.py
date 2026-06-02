@@ -48,6 +48,26 @@ def test_parse_collect_output_discovers_benchmark_nodes():
     assert entries[-1].benchmark_family == "jax"
 
 
+def test_select_discovery_entries_filters_and_limits_nodes():
+    pipeline = load_pipeline_module()
+    entries = pipeline.parse_collect_output(
+        "\n".join(
+            [
+                "tests/benchmark/test_llms.py::test_llama_3_2_1b",
+                "tests/benchmark/test_vision.py::test_resnet50",
+                "tests/benchmark/test_vision.py::test_mobilenet",
+            ]
+        ),
+        "run-5009-demo",
+    )
+
+    selected = pipeline.select_discovery_entries(entries, ["test_vision.py"], 1)
+
+    assert [entry.nodeid for entry in selected] == [
+        "tests/benchmark/test_vision.py::test_resnet50"
+    ]
+
+
 def test_infer_taxonomy_distinguishes_environment_model_and_terminal_states():
     pipeline = load_pipeline_module()
 
@@ -339,6 +359,10 @@ def test_ird_run_command_wraps_remote_pipeline():
             "/work/tt-xla",
             "--ird-remote-output-root",
             "/work/tt-xla/artifacts/prd-009/ttxla-profile",
+            "--nodeid-filter",
+            "test_vision.py",
+            "--max-models",
+            "1",
             "run",
         ]
     )
@@ -353,6 +377,8 @@ def test_ird_run_command_wraps_remote_pipeline():
     assert "--machine" in command
     assert remote_command == command[-1]
     assert "--target local" in remote_command
+    assert "--nodeid-filter test_vision.py" in remote_command
+    assert "--max-models 1" in remote_command
     assert "ttxla_profile_pipeline.py" in remote_command
     assert "run" in remote_command
 

@@ -447,6 +447,24 @@ def discover_models(
     return entries, result
 
 
+def select_discovery_entries(
+    entries: list[DiscoveryEntry],
+    nodeid_filters: Iterable[str],
+    max_models: int,
+) -> list[DiscoveryEntry]:
+    filters = [value for value in (item.strip() for item in nodeid_filters) if value]
+    selected = entries
+    if filters:
+        selected = [
+            entry
+            for entry in selected
+            if any(pattern in entry.nodeid for pattern in filters)
+        ]
+    if max_models > 0:
+        selected = selected[:max_models]
+    return selected
+
+
 def preflight_command_for_tool(
     tool_name: str,
     python_bin: str,
@@ -1846,6 +1864,10 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         remote_args.extend(["--tracy-bin", args.tracy_bin])
     if args.tt_perf_report_bin:
         remote_args.extend(["--tt-perf-report-bin", args.tt_perf_report_bin])
+    for nodeid_filter in args.nodeid_filter:
+        remote_args.extend(["--nodeid-filter", nodeid_filter])
+    if args.max_models:
+        remote_args.extend(["--max-models", str(args.max_models)])
     remote_args.append("run")
     setup = args.ird_remote_setup.strip()
     command = (
@@ -2136,6 +2158,7 @@ def execute_pipeline(args: argparse.Namespace) -> int:
         command_trace_path=command_trace_path,
         timeout_seconds=args.discovery_timeout_seconds,
     )
+    entries = select_discovery_entries(entries, args.nodeid_filter, args.max_models)
     discover_artifacts(run_dir, entries, discovery_result, environment)
 
     if discovery_result.returncode not in (0, None) and not entries:
@@ -2245,6 +2268,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_OUTPUT_TOKENS,
         help="Bounded max-output-tokens fixture value.",
+    )
+    parser.add_argument(
+        "--nodeid-filter",
+        action="append",
+        default=[],
+        help="Only profile collected pytest node IDs containing this substring; may be repeated.",
+    )
+    parser.add_argument(
+        "--max-models",
+        type=int,
+        default=0,
+        help="Maximum selected benchmark entries to profile; 0 means no limit.",
     )
     parser.add_argument(
         "--target",
