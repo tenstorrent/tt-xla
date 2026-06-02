@@ -16,10 +16,12 @@ from utils import resolve_display_name
 #   TT_BENCHMARK_CPU_SAMPLING=1           default 0 (device sampling)
 #   TT_BENCHMARK_MAX_MODEL_LEN=<int>      default 128
 #   _BENCH_OPTIMIZATION_LEVEL=<int>       default 0 (overrides per-test opt level)
+#   TT_BENCHMARK_GPU_MEMORY_UTILIZATION=<float>  overrides per-test value
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
+_BENCH_GPU_MEMORY_UTILIZATION = os.environ.get("TT_BENCHMARK_GPU_MEMORY_UTILIZATION")
 
 
 def _config(
@@ -32,6 +34,8 @@ def _config(
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
         optimization_level = int(_BENCH_OPTIMIZATION_LEVEL)
+    if _BENCH_GPU_MEMORY_UTILIZATION is not None:
+        gpu_memory_utilization = float(_BENCH_GPU_MEMORY_UTILIZATION)
     additional = {"enable_trace": True}
     if optimization_level > 0:
         additional["optimization_level"] = optimization_level
