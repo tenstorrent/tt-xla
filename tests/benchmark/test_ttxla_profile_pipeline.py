@@ -68,6 +68,17 @@ def test_select_discovery_entries_filters_and_limits_nodes():
     ]
 
 
+def test_selected_benchmark_files_defaults_or_resolves_requested_paths(tmp_path):
+    pipeline = load_pipeline_module()
+
+    assert pipeline.selected_benchmark_files(tmp_path, []) == pipeline.benchmark_files(
+        tmp_path
+    )
+    assert pipeline.selected_benchmark_files(
+        tmp_path, ["tests/benchmark/test_vision.py"]
+    ) == [tmp_path / "tests/benchmark/test_vision.py"]
+
+
 def test_infer_taxonomy_distinguishes_environment_model_and_terminal_states():
     pipeline = load_pipeline_module()
 
@@ -359,6 +370,8 @@ def test_ird_run_command_wraps_remote_pipeline():
             "/work/tt-xla",
             "--ird-remote-output-root",
             "/work/tt-xla/artifacts/prd-009/ttxla-profile",
+            "--benchmark-file",
+            "tests/benchmark/test_vision.py",
             "--nodeid-filter",
             "test_vision.py",
             "--max-models",
@@ -377,6 +390,7 @@ def test_ird_run_command_wraps_remote_pipeline():
     assert "--machine" in command
     assert remote_command == command[-1]
     assert "--target local" in remote_command
+    assert "--benchmark-file tests/benchmark/test_vision.py" in remote_command
     assert "--nodeid-filter test_vision.py" in remote_command
     assert "--max-models 1" in remote_command
     assert "ttxla_profile_pipeline.py" in remote_command

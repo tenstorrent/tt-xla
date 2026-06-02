@@ -243,6 +243,16 @@ def benchmark_files(repo: Path) -> list[Path]:
     return [repo / relative for relative in DEFAULT_BENCHMARK_FILES]
 
 
+def selected_benchmark_files(repo: Path, values: Iterable[str]) -> list[Path]:
+    selected = [value for value in (item.strip() for item in values) if value]
+    if not selected:
+        return benchmark_files(repo)
+    return [
+        path if path.is_absolute() else repo / path
+        for path in (Path(value) for value in selected)
+    ]
+
+
 def collect_command(python_bin: str, files: Iterable[Path]) -> list[str]:
     return [
         python_bin,
@@ -1864,6 +1874,8 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         remote_args.extend(["--tracy-bin", args.tracy_bin])
     if args.tt_perf_report_bin:
         remote_args.extend(["--tt-perf-report-bin", args.tt_perf_report_bin])
+    for benchmark_file in args.benchmark_file:
+        remote_args.extend(["--benchmark-file", benchmark_file])
     for nodeid_filter in args.nodeid_filter:
         remote_args.extend(["--nodeid-filter", nodeid_filter])
     if args.max_models:
@@ -2156,6 +2168,7 @@ def execute_pipeline(args: argparse.Namespace) -> int:
         run_id=run_dir.name,
         python_bin=python_bin,
         command_trace_path=command_trace_path,
+        benchmark_paths=selected_benchmark_files(root, args.benchmark_file),
         timeout_seconds=args.discovery_timeout_seconds,
     )
     entries = select_discovery_entries(entries, args.nodeid_filter, args.max_models)
@@ -2268,6 +2281,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_OUTPUT_TOKENS,
         help="Bounded max-output-tokens fixture value.",
+    )
+    parser.add_argument(
+        "--benchmark-file",
+        action="append",
+        default=[],
+        help="Benchmark file to collect; may be repeated. Defaults to the full benchmark cohort.",
     )
     parser.add_argument(
         "--nodeid-filter",
