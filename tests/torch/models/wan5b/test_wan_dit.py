@@ -49,6 +49,7 @@ _COMPILER_CONFIG = CompilerConfig(
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
+
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole

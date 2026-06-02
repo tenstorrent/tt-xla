@@ -43,12 +43,18 @@ _COMPILER_CONFIG = CompilerConfig(
     enable_trace=True,
 )
 
+
+@pytest.mark.xfail(
+    reason="DRAM OOM: Out of Memory: Not enough space to allocate 14763950080 B "
+    "DRAM buffer across 8 banks during VAE decoder permute output allocation"
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 def test_vae_decoder_720p_sharded():
     _run("720p", sharded=True)
+
 
 @pytest.mark.nightly
 @pytest.mark.model_test

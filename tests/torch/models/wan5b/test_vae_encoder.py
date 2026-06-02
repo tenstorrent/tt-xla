@@ -34,12 +34,14 @@ _COMPILER_CONFIG = CompilerConfig(
     enable_trace=True,
 )
 
+
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 def test_vae_encoder_720p_sharded():
     _run("720p", sharded=True)
+
 
 @pytest.mark.nightly
 @pytest.mark.model_test
