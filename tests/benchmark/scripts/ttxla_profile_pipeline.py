@@ -34,6 +34,7 @@ DEFAULT_TIMEOUT_SECONDS = 1800
 DEFAULT_MAX_OUTPUT_TOKENS = 3
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_NUM_LAYERS = 1
+DEFAULT_MAX_RAW_ARTIFACT_BYTES = 100_000_000
 DEFAULT_BENCHMARK_FILES = [
     Path("tests/benchmark/test_llms.py"),
     Path("tests/benchmark/test_encoders.py"),
@@ -415,8 +416,44 @@ def append_command_trace(path: Path, record: CommandResult) -> None:
     ensure_dir(path.parent)
     payload = asdict(record)
     payload["command"] = shell_join(record.command)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, sort_keys=True) + "\n")
+    try:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, sort_keys=True) + "\n")
+    except OSError as exc:
+        print(
+            f"warning: failed to append command trace {path}: {exc}",
+            file=sys.stderr,
+        )
+
+
+def prune_large_raw_artifacts(
+    profile_dir: Path, max_bytes: int
+) -> list[dict[str, Any]]:
+    if max_bytes <= 0:
+        return []
+    candidates = [
+        profile_dir / "tracy" / ".logs" / "tracy_ops_times.csv",
+        profile_dir / "tracy" / ".logs" / "profile_log_device.csv",
+        profile_dir / "tracy" / ".logs" / "tracy_profile_log_host.tracy",
+    ]
+    candidates.extend(
+        sorted((profile_dir / "tracy" / "reports").glob("*/profile_log_device.csv"))
+    )
+    candidates.extend(
+        sorted(
+            (profile_dir / "tracy" / "reports").glob("*/tracy_profile_log_host.tracy")
+        )
+    )
+    pruned = []
+    for path in candidates:
+        if not path.exists() or not path.is_file():
+            continue
+        size = path.stat().st_size
+        if size <= max_bytes:
+            continue
+        path.unlink()
+        pruned.append({"path": str(path), "bytes": size})
+    return pruned
 
 
 def parse_collect_output(output: str, run_id: str) -> list[DiscoveryEntry]:
@@ -941,6 +978,7 @@ def profile_one_model(
     command_trace_path: Path,
     timeout_seconds: int,
     benchmark_kwargs: dict[str, int],
+    max_raw_artifact_bytes: int,
 ) -> dict[str, Any]:
     profile_dir = ensure_dir(run_dir / "profiles" / entry.artifact_slug)
     perf_dir = ensure_dir(profile_dir / "perf-report")
@@ -976,6 +1014,9 @@ def profile_one_model(
         command_trace_path=command_trace_path,
         timeout_seconds=timeout_seconds,
         env=profile_env,
+    )
+    pruned_raw_artifacts = prune_large_raw_artifacts(
+        profile_dir, max_raw_artifact_bytes
     )
 
     benchmark_json = load_json(benchmark_output)
@@ -1118,6 +1159,8 @@ def profile_one_model(
             "ir_source": str(ir_source) if ir_source else "",
             "copied_ir_count": len(copied_ir_files),
             "perf_csv_source": str(perf_csv_source) if perf_csv_source else "",
+            "max_raw_artifact_bytes": max_raw_artifact_bytes,
+            "pruned_raw_artifacts": pruned_raw_artifacts,
         },
         "stages": {
             "profile": {
@@ -2108,6 +2151,8 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         str(args.num_layers),
         "--max-output-tokens",
         str(args.max_output_tokens),
+        "--max-raw-artifact-bytes",
+        str(args.max_raw_artifact_bytes),
     ]
     if args.pytest_bin:
         remote_args.extend(["--pytest-bin", args.pytest_bin])
@@ -2515,6 +2560,7 @@ def execute_pipeline(args: argparse.Namespace) -> int:
             command_trace_path=command_trace_path,
             timeout_seconds=args.timeout_seconds,
             benchmark_kwargs=benchmark_kwargs,
+            max_raw_artifact_bytes=args.max_raw_artifact_bytes,
         )
 
     statuses = load_model_statuses(run_dir)
@@ -2599,6 +2645,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_OUTPUT_TOKENS,
         help="Bounded max-output-tokens fixture value.",
+    )
+    parser.add_argument(
+        "--max-raw-artifact-bytes",
+        type=int,
+        default=DEFAULT_MAX_RAW_ARTIFACT_BYTES,
+        help="Prune raw Tracy artifacts larger than this many bytes after each profile; 0 disables pruning.",
     )
     parser.add_argument(
         "--benchmark-file",

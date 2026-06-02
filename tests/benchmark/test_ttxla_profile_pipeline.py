@@ -448,6 +448,31 @@ def test_benchmark_args_are_routed_by_family():
     assert pipeline.benchmark_args_for_entry(jax, kwargs) == []
 
 
+def test_prune_large_raw_artifacts_removes_only_oversized_tracy_files(tmp_path):
+    pipeline = load_pipeline_module()
+    profile_dir = tmp_path / "profile"
+    logs_dir = profile_dir / "tracy" / ".logs"
+    report_dir = profile_dir / "tracy" / "reports" / "2026_06_02_21_25_05"
+    pipeline.ensure_dir(logs_dir)
+    pipeline.ensure_dir(report_dir)
+    large_raw = logs_dir / "tracy_ops_times.csv"
+    small_raw = logs_dir / "tracy_ops_data.csv"
+    large_report = report_dir / "profile_log_device.csv"
+    large_raw.write_bytes(b"x" * 12)
+    small_raw.write_bytes(b"x" * 4)
+    large_report.write_bytes(b"x" * 11)
+
+    pruned = pipeline.prune_large_raw_artifacts(profile_dir, max_bytes=10)
+
+    assert {Path(item["path"]).name for item in pruned} == {
+        "tracy_ops_times.csv",
+        "profile_log_device.csv",
+    }
+    assert not large_raw.exists()
+    assert small_raw.exists()
+    assert not large_report.exists()
+
+
 def test_run_records_readiness_blocker_when_tracy_is_missing(tmp_path):
     pipeline = load_pipeline_module()
     fake_perf_report = tmp_path / "tt-perf-report"
@@ -533,6 +558,7 @@ def test_ird_run_command_wraps_remote_pipeline():
     assert remote_command == command[-1]
     assert "--target local" in remote_command
     assert "--readiness-timeout-seconds 120" in remote_command
+    assert "--max-raw-artifact-bytes 100000000" in remote_command
     assert "--benchmark-file tests/benchmark/test_vision.py" in remote_command
     assert "--nodeid-filter test_vision.py" in remote_command
     assert "--max-models 1" in remote_command

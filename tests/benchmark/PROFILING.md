@@ -56,6 +56,12 @@ The bounded override flags are routed by benchmark family. LLM entries receive
 receive `--num-layers`; vision and JAX entries run with their benchmark-local
 settings plus the common output/profile flags.
 
+Raw Tracy logs can be large enough to fill a shared runner. By default the
+pipeline prunes raw Tracy artifacts larger than 100 MB after each model profile
+returns and records the removed paths in `status.json` under
+`artifacts.pruned_raw_artifacts`. Use `--max-raw-artifact-bytes 0` only when the
+raw files must be retained for debugging.
+
 To run the same pipeline on IRD, use `--target ird`. The default mode uses a
 short-lived `ird run` job so the scheduler owns container teardown:
 
