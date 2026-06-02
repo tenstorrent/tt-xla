@@ -153,8 +153,10 @@ SINGLE_DEVICE_CONFIGS = [
     # Gemma
     pytest.param(_config("google/gemma-1.1-2b-it"), id="gemma-1.1-2b-it"),
     # Phi
-    pytest.param(_config("microsoft/phi-1"), id="phi-1"),
-    pytest.param(_config("microsoft/phi-1_5"), id="phi-1_5"),
+    pytest.param(_config("microsoft/phi-1", gpu_memory_utilization=0.30), id="phi-1"),
+    pytest.param(
+        _config("microsoft/phi-1_5", gpu_memory_utilization=0.30), id="phi-1_5"
+    ),
     pytest.param(_config("microsoft/phi-2", gpu_memory_utilization=0.30), id="phi-2"),
     # Falcon 3
     pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
