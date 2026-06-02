@@ -2069,6 +2069,27 @@ def run_template_command(
     )
 
 
+def infer_nested_ird_returncode(run_dir: Path) -> tuple[Optional[int], str]:
+    manifest = load_json(run_dir / "manifest.json")
+    if not manifest:
+        return None, "nested manifest was not available"
+
+    run = manifest.get("run") or {}
+    summary = manifest.get("summary") or {}
+    if not run.get("completed_at"):
+        return None, "nested manifest did not record completed_at"
+
+    if run.get("status") == "environment_blocked":
+        return 2, "nested manifest terminalized with readiness blocker"
+    if summary.get("discovery_failed"):
+        return 2, "nested manifest terminalized with discovery failure"
+    readiness = summary.get("readiness")
+    if isinstance(readiness, dict) and readiness.get("ok") is False:
+        return 2, "nested manifest terminalized with readiness failure"
+
+    return 0, "nested manifest indicates the remote pipeline terminalized"
+
+
 def execute_ird_pipeline(args: argparse.Namespace) -> int:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
     run_id = args.run_id.strip() if args.run_id else make_run_id()
@@ -2128,6 +2149,11 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
             command_trace_path=command_trace_path,
             timeout_seconds=args.ird_job_timeout_seconds,
         )
+        if result.timed_out:
+            nested_returncode, nested_note = infer_nested_ird_returncode(run_dir)
+            if nested_returncode is not None:
+                result.returncode = nested_returncode
+                result.note = f"{result.note}; {nested_note}"
         lifecycle["remote_run"] = asdict(result)
         lifecycle["remote_run"]["command"] = shell_join(result.command)
     else:

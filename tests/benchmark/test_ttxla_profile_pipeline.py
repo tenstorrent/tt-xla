@@ -499,3 +499,93 @@ def test_ird_target_records_blocker_when_ird_binary_is_missing(tmp_path):
     assert "failed to start command" in lifecycle["remote_run"]["note"]
     trace = (run_dir / "command-trace.jsonl").read_text(encoding="utf-8")
     assert "definitely-not-ird" in trace
+
+
+def test_ird_run_timeout_uses_nested_manifest_when_remote_pipeline_terminalized(
+    tmp_path,
+):
+    pipeline = load_pipeline_module()
+    root = tmp_path / "repo"
+    root.mkdir()
+    run_dir = tmp_path / "run-5009-ird-tail-timeout"
+    parser = pipeline.build_parser()
+    args = parser.parse_args(
+        [
+            "--repo-root",
+            str(root),
+            "--run-dir",
+            str(run_dir),
+            "--target",
+            "ird",
+            "--ird-bin",
+            "ird",
+            "--ird-job-timeout-seconds",
+            "1",
+            "run",
+        ]
+    )
+    original_run_subprocess = pipeline.run_subprocess
+
+    def fake_run_subprocess(**kwargs):
+        assert kwargs["stage"] == "ird-run"
+        pipeline.ensure_dir(run_dir)
+        (run_dir / "manifest.json").write_text(
+            json.dumps(
+                {
+                    "run": {"completed_at": "2026-06-02T20:29:35+00:00"},
+                    "summary": {"models": 1, "taxonomy": {"environment_failure": 1}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return pipeline.CommandResult(
+            stage="ird-run",
+            command=kwargs["command"],
+            cwd=str(root),
+            returncode=-9,
+            timed_out=True,
+            start_time="2026-06-02T20:24:00+00:00",
+            end_time="2026-06-02T20:34:00+00:00",
+            duration_seconds=600,
+            stdout_path=str(kwargs["stdout_path"]),
+            stderr_path=str(kwargs["stderr_path"]),
+            note="timed out after 1 seconds",
+        )
+
+    try:
+        pipeline.run_subprocess = fake_run_subprocess
+        exit_code = pipeline.execute_ird_pipeline(args)
+    finally:
+        pipeline.run_subprocess = original_run_subprocess
+
+    assert exit_code == 0
+    lifecycle = json.loads(
+        (run_dir / "ird" / "ird-lifecycle.json").read_text(encoding="utf-8")
+    )
+    assert lifecycle["remote_run"]["timed_out"] is True
+    assert lifecycle["remote_run"]["returncode"] == 0
+    assert "nested manifest indicates" in lifecycle["remote_run"]["note"]
+
+
+def test_ird_run_timeout_keeps_blocker_when_nested_manifest_failed_discovery(
+    tmp_path,
+):
+    pipeline = load_pipeline_module()
+    root = tmp_path / "repo"
+    root.mkdir()
+    run_dir = tmp_path / "run-5009-ird-discovery-failed"
+    (run_dir / "manifest.json").parent.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run": {"completed_at": "2026-06-02T20:22:40+00:00"},
+                "summary": {"discovery_failed": True, "returncode": 4},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    returncode, note = pipeline.infer_nested_ird_returncode(run_dir)
+
+    assert returncode == 2
+    assert "discovery failure" in note
