@@ -155,7 +155,7 @@ SINGLE_DEVICE_CONFIGS = [
     # Phi
     pytest.param(_config("microsoft/phi-1"), id="phi-1"),
     pytest.param(_config("microsoft/phi-1_5"), id="phi-1_5"),
-    pytest.param(_config("microsoft/phi-2"), id="phi-2"),
+    pytest.param(_config("microsoft/phi-2", gpu_memory_utilization=0.30), id="phi-2"),
     # Falcon 3
     pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
     pytest.param(_config("tiiuae/Falcon3-3B-Base"), id="falcon3-3b-base"),
