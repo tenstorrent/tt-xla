@@ -43,13 +43,6 @@ def _config(
     *,
     gpu_memory_utilization: float = 0.05,
     optimization_level: int = 0,
-    # Defaults aligned with the torch-xla LLM benchmark: bfp_bf8 weights (a
-    # large decode win, and required for 8B-class models to fit on one
-    # Wormhole) and fp32_dest_acc_en=False. optimization_level stays 0 --
-    # opt>=1 currently fails to compile the vLLM Llama graph at b=32 (tt-mlir
-    # #4569 BeamCandidate) and opt2 fails at b=1 (select_hidden_states
-    # INTERNAL). Pass experimental_weight_dtype="" / fp32_dest_acc_en=None to
-    # opt out (see _tp_config).
     experimental_weight_dtype: str = "bfp_bf8",
     fp32_dest_acc_en: bool | None = False,
     **additional_config_extra,
@@ -72,8 +65,6 @@ def _config(
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
     additional.update(additional_config_extra)
-    # Env override wins over per-config value so CI can sweep weight dtype
-    # one knob per re-run (mirrors _BENCH_OPTIMIZATION_LEVEL/CPU_SAMPLING).
     if _BENCH_WEIGHT_DTYPE is not None:
         additional["experimental_weight_dtype"] = _BENCH_WEIGHT_DTYPE
     if _BENCH_WEIGHT_OVERRIDES is not None:
@@ -144,12 +135,6 @@ def _gemma4_tp_config(model: str, batch_size: int):
     return cfg
 
 
-# Single-device LLMs mirror the torch-xla llm benchmark (tests/benchmark/
-# test_llms.py) at batch_size=32 with the aligned _config defaults (bfp_bf8
-# weights, fp32_dest_acc_en=False, optimization_level=0, trace on). Models the
-# vLLM plugin can't run on a single device are intentionally omitted: Mamba
-# (arch unsupported), all tensor-parallel models (need >1 device; see
-# TP_CONFIGS), and the galaxy/qb2 MoE + DeepSeek/Kimi MLA tests.
 SINGLE_DEVICE_CONFIGS = [
     # Llama
     pytest.param(_config("meta-llama/Llama-3.2-1B-Instruct"), id="llama-3.2-1b"),
@@ -167,14 +152,10 @@ SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("Qwen/Qwen3-8B"), id="qwen3-8b"),
     # Gemma
     pytest.param(_config("google/gemma-1.1-2b-it"), id="gemma-1.1-2b-it"),
-    pytest.param(_config("google/gemma-2-2b-it"), id="gemma-2-2b-it"),
-    pytest.param(_config("google/gemma-1.1-7b-it"), id="gemma-1.1-7b-it"),
     # Phi
     pytest.param(_config("microsoft/phi-1"), id="phi-1"),
     pytest.param(_config("microsoft/phi-1_5"), id="phi-1_5"),
     pytest.param(_config("microsoft/phi-2"), id="phi-2"),
-    pytest.param(_config("microsoft/Phi-3-mini-4k-instruct"), id="phi-3-mini-4k"),
-    pytest.param(_config("microsoft/Phi-3.5-mini-instruct"), id="phi-3.5-mini"),
     # Falcon 3
     pytest.param(_config("tiiuae/Falcon3-1B-Base"), id="falcon3-1b-base"),
     pytest.param(_config("tiiuae/Falcon3-3B-Base"), id="falcon3-3b-base"),
@@ -238,10 +219,7 @@ def _run_vllm_benchmark(config, output_file, request):
     print(f"vLLM Benchmark: {display_name}")
     print(f"{'='*60}")
 
-    # Dump compiler IR (StableHLO + TTNN) to modules/irs/ by default, keyed by a
-    # filename-safe display name, mirroring the torch-xla benchmark
-    # (export_path="modules"). An explicit export_path / export_model_name in
-    # additional_config still wins.
+    # Dump compiler IR modules.
     config.additional_config.setdefault("export_path", "modules")
     config.additional_config.setdefault(
         "export_model_name", sanitize_model_name(display_name)

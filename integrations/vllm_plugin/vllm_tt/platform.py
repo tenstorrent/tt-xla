@@ -71,9 +71,7 @@ class TTConfig:
     # Per-tensor weight dtype overrides for mixed precision. Either a dict
     # mapping fnmatch globs over (vLLM) parameter names to dtype strings
     # ("bfp_bf4"/"bfp_bf8"/"bf16"), with an optional "default" key for
-    # unmatched weights, or a path to a JSON file of the same shape. Applied
-    # via tt_torch.weight_dtype.apply_weight_dtype_overrides at load time,
-    # mirroring the torch-xla benchmark's weight_dtype_overrides. Takes
+    # unmatched weights, or a path to a JSON file of the same shape. Takes
     # precedence over experimental_weight_dtype for matched tensors. None
     # disables.
     weight_dtype_overrides: Optional[Union[dict, str]] = None
@@ -82,15 +80,10 @@ class TTConfig:
     # compile option; defaults to True to match the PJRT default.
     experimental_enable_permute_matmul_fusion: bool = True
 
-    # Enable fp32 destination accumulation in matmul/reduction kernels. None
-    # leaves the tt-mlir default; some models (e.g. Llama-3.1-8B, Ministral)
-    # set this False in the torch-xla benchmark. Mirrors that fp32_dest_acc_en
-    # knob.
+    # Enable fp32 destination accumulation in matmul/reduction kernels.
     fp32_dest_acc_en: Optional[bool] = None
 
-    # Override the on-device KV cache element dtype (e.g. "bfp8"). None leaves
-    # the tt-mlir default. Emitted as the "experimental-kv-cache-dtype" PJRT
-    # compile option (note the hyphenated key, matching the torch-xla bench).
+    # Override the on-device KV cache element dtype.
     experimental_kv_cache_dtype: Optional[str] = None
 
     # Perform token sampling on CPU instead of compiling a sampling graph for device
@@ -153,8 +146,6 @@ class TTConfig:
             "enable_trace": "true" if self.enable_trace else "false",
             "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
-        # Conditionally-emitted options (omitted when None to leave the tt-mlir
-        # defaults), matching how the torch-xla benchmark builds its options.
         if self.fp32_dest_acc_en is not None:
             cfg["fp32_dest_acc_en"] = self.fp32_dest_acc_en
         if self.experimental_kv_cache_dtype is not None:
