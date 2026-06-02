@@ -228,7 +228,6 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
            "getNumOutputs()={}, output_specs.size()={}",
            this->getNumOutputs(), output_specs.size());
 
-
   // Generate fingerprint after all dependencies are initialized
   m_fingerprint = generateFingerprint();
 }
