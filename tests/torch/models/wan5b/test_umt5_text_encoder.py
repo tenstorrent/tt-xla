@@ -30,7 +30,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
-def test_umt5_480p_sharded():
+def test_umt5_sharded():
     _run(sharded=True)
 
 
