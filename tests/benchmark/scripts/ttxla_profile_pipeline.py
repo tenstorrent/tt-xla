@@ -2267,6 +2267,7 @@ def write_artifacts(
             "run": {
                 **manifest.get("run", {}),
                 "completed_at": now_iso(),
+                "status": "completed",
             },
         },
     )

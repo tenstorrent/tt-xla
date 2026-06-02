@@ -329,7 +329,9 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
     assert "REQ-F-009" in report_text
     assert "dashboard.html" in report_text
     requirements = json.loads((run_dir / "requirements.json").read_text())
+    manifest = json.loads((run_dir / "manifest.json").read_text())
     requirements_by_id = {item["id"]: item for item in requirements["requirements"]}
+    assert manifest["run"]["status"] == "completed"
     assert requirements["issue"]["number"] == 5009
     assert requirements["summary"]["total"] == 9
     assert requirements_by_id["REQ-F-006"]["status"] == "passed"
