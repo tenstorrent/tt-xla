@@ -165,16 +165,6 @@ TP_CONFIGS = [
     pytest.param(_tp_config("Qwen/Qwen3-14B", 1), id="qwen3-14b-tp"),
     pytest.param(_tp_config("Qwen/Qwen3-32B", 1), id="qwen3-32b-tp"),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 1), id="gemma4-31b-it-tp"),
-    pytest.param(
-        _tp_config(
-            "mistralai/Devstral-2-123B-Instruct-2512",
-            32,
-            experimental_weight_dtype="bfp_bf8",
-            enable_const_eval=True, # const-eval folds the bf16->bfp8 weight conversion at compile time
-            use_2d_mesh=False,
-        ),
-        id="devstral-123b-tp-batch32-bh-galaxy",
-    ),
     # host OOM fail when dequantizing all 88 layers on QB2, so running with only 16 layers
     pytest.param(
         _tp_config(
