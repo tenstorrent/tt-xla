@@ -62,6 +62,14 @@ returns and records the removed paths in `status.json` under
 `artifacts.pruned_raw_artifacts`. Use `--max-raw-artifact-bytes 0` only when the
 raw files must be retained for debugging.
 
+Use `--run-budget-seconds` to keep the nested pipeline inside the scheduler
+reservation window. When the budget is exhausted before a selected benchmark
+starts, the pipeline writes a terminal `status.json` with `taxonomy: not_run`.
+Before rendering the final artifacts, the pipeline also writes
+`pending_terminalization` statuses for any discovered model that does not yet
+have a `status.json`, so partial runs still produce explicit evidence for every
+model in scope.
+
 To run the same pipeline on IRD, use `--target ird`. The default mode uses a
 short-lived `ird run` job so the scheduler owns container teardown:
 
@@ -77,6 +85,7 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py \
   --ird-remote-repo-root /work/tt-xla \
   --ird-remote-output-root /work/tt-xla/artifacts/prd-009/ttxla-profile \
   --readiness-timeout-seconds 120 \
+  --run-budget-seconds 2400 \
   --output-root artifacts/prd-009/ttxla-profile \
   run
 ```
@@ -84,7 +93,10 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py \
 The `xla` image alias is expected to select the Ubuntu 24 TT-XLA IRD image. The
 harness emits `ird run wormhole_b0 --docker-image xla ...`; keep
 `--docker-image` after the hardware architecture argument because this IRD CLI
-uses that ordering to select the TT-XLA image.
+uses that ordering to select the TT-XLA image. If `--run-budget-seconds` is not
+set for `--target ird`, the harness derives a remote run budget from
+`--ird-timeout` with a 300-second cleanup/finalization buffer when the timeout is
+parseable.
 
 The nested IRD run performs a readiness gate before pytest discovery. It records
 `readiness/*.out`, `readiness/*.err`, `environment.json`, `manifest.json`, and

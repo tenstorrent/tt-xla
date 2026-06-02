@@ -473,6 +473,68 @@ def test_prune_large_raw_artifacts_removes_only_oversized_tracy_files(tmp_path):
     assert not large_report.exists()
 
 
+def test_terminalize_missing_model_statuses_writes_blocker_artifacts(tmp_path):
+    pipeline = load_pipeline_module()
+    run_dir = tmp_path / "run-5009-terminalize"
+    pipeline.ensure_dir(run_dir)
+    entries = [
+        pipeline.DiscoveryEntry(
+            run_identity="run-5009-terminalize-0001",
+            nodeid="tests/benchmark/test_vision.py::test_mnist",
+            source_path="tests/benchmark/test_vision.py",
+            test_name="test_mnist",
+            benchmark_family="vision",
+            model_identity="test_mnist",
+            artifact_slug="vision",
+        ),
+        pipeline.DiscoveryEntry(
+            run_identity="run-5009-terminalize-0002",
+            nodeid="tests/benchmark/resnet_jax_benchmark.py::test_resnet_jax",
+            source_path="tests/benchmark/resnet_jax_benchmark.py",
+            test_name="test_resnet_jax",
+            benchmark_family="jax",
+            model_identity="test_resnet_jax",
+            artifact_slug="jax",
+        ),
+    ]
+    existing_dir = run_dir / "profiles" / "vision"
+    pipeline.ensure_dir(existing_dir)
+    (existing_dir / "status.json").write_text(
+        json.dumps(
+            {
+                "model": {"model_identity": "test_mnist"},
+                "terminal_state": "blocked",
+                "profile_status": "failed",
+                "model_status": "failed",
+                "taxonomy": "environment_failure",
+                "status_path": str(existing_dir / "status.json"),
+                "artifacts": {},
+                "stages": {},
+                "slow_ops": str(existing_dir / "slow-ops.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    created = pipeline.terminalize_missing_model_statuses(
+        run_dir=run_dir,
+        entries=entries,
+        repo=tmp_path,
+        reason="pipeline finalized before this discovered model emitted status.json",
+    )
+
+    assert len(created) == 1
+    status = json.loads(
+        (run_dir / "profiles" / "jax" / "status.json").read_text(encoding="utf-8")
+    )
+    assert status["profile_status"] == "pending"
+    assert status["model_status"] == "pending"
+    assert status["taxonomy"] == "pending_terminalization"
+    assert status["terminal_state"] == "pending"
+    assert "before this discovered model emitted status.json" in status["reason"]
+    assert (run_dir / "profiles" / "jax" / "slow-ops.json").exists()
+
+
 def test_run_records_readiness_blocker_when_tracy_is_missing(tmp_path):
     pipeline = load_pipeline_module()
     fake_perf_report = tmp_path / "tt-perf-report"
@@ -559,11 +621,34 @@ def test_ird_run_command_wraps_remote_pipeline():
     assert "--target local" in remote_command
     assert "--readiness-timeout-seconds 120" in remote_command
     assert "--max-raw-artifact-bytes 100000000" in remote_command
+    assert "--run-budget-seconds 300" in remote_command
     assert "--benchmark-file tests/benchmark/test_vision.py" in remote_command
     assert "--nodeid-filter test_vision.py" in remote_command
     assert "--max-models 1" in remote_command
     assert "ttxla_profile_pipeline.py" in remote_command
     assert "run" in remote_command
+
+
+def test_ird_remote_run_budget_uses_explicit_value():
+    pipeline = load_pipeline_module()
+    parser = pipeline.build_parser()
+    args = parser.parse_args(
+        [
+            "--target",
+            "ird",
+            "--run-id",
+            "run-5009-demo",
+            "--ird-timeout",
+            "1:00",
+            "--run-budget-seconds",
+            "42",
+            "run",
+        ]
+    )
+
+    remote_command = pipeline.build_remote_pipeline_command(args, "run-5009-demo")
+
+    assert "--run-budget-seconds 42" in remote_command
 
 
 def test_parse_ird_reservation_accepts_json_and_text():

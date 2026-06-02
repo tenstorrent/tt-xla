@@ -35,6 +35,7 @@ DEFAULT_MAX_OUTPUT_TOKENS = 3
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_NUM_LAYERS = 1
 DEFAULT_MAX_RAW_ARTIFACT_BYTES = 100_000_000
+DEFAULT_IRD_RUN_BUDGET_BUFFER_SECONDS = 300
 DEFAULT_BENCHMARK_FILES = [
     Path("tests/benchmark/test_llms.py"),
     Path("tests/benchmark/test_encoders.py"),
@@ -207,6 +208,10 @@ def write_json(path: Path, payload: Any) -> None:
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
+
+
+def path_exists(path: str) -> bool:
+    return bool(path) and Path(path).exists()
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -966,6 +971,150 @@ def stage_result_paths(profile_dir: Path) -> dict[str, str]:
         "tt_perf_report": str(profile_dir / "perf-report" / "tt-perf-report.txt"),
         "slow_ops": str(profile_dir / "slow-ops.json"),
     }
+
+
+def write_unprofiled_model_status(
+    entry: DiscoveryEntry,
+    repo: Path,
+    run_dir: Path,
+    taxonomy: str,
+    reason: str,
+    next_action: str = "",
+) -> dict[str, Any]:
+    profile_dir = ensure_dir(run_dir / "profiles" / entry.artifact_slug)
+    ensure_dir(profile_dir / "perf-report")
+    ensure_dir(profile_dir / "ir")
+    ensure_dir(profile_dir / "tracy")
+    slow_ops_path = profile_dir / "slow-ops.json"
+    terminal_state = terminal_state_for_taxonomy(taxonomy)
+    if taxonomy == "not_run":
+        profile_status = "not_run"
+        model_status = "not_run"
+    elif taxonomy == "pending_terminalization":
+        profile_status = "pending"
+        model_status = "pending"
+    else:
+        profile_status = "blocked"
+        model_status = "unknown"
+    status_payload = {
+        "issue": {
+            "number": ISSUE_NUMBER,
+            "url": ISSUE_URL,
+        },
+        "prd": PRD_ID,
+        "run": {
+            "run_id": entry.run_identity,
+            "created_at": now_iso(),
+        },
+        "model": {
+            "run_identity": entry.run_identity,
+            "nodeid": entry.nodeid,
+            "source_path": entry.source_path,
+            "test_name": entry.test_name,
+            "benchmark_family": entry.benchmark_family,
+            "model_identity": entry.model_identity,
+            "artifact_slug": entry.artifact_slug,
+        },
+        "environment": {
+            "repo_root": str(repo),
+            "hostname": socket.gethostname(),
+            "python": sys.version,
+            "python_executable": sys.executable,
+            "trace_enabled": False,
+        },
+        "commands": {
+            "profile": "",
+            "tt_perf_report": "",
+        },
+        "artifacts": {
+            **stage_result_paths(profile_dir),
+            "ir_source": "",
+            "copied_ir_count": 0,
+            "perf_csv_source": "",
+            "max_raw_artifact_bytes": 0,
+            "pruned_raw_artifacts": [],
+        },
+        "stages": {
+            "profile": {
+                "state": profile_status,
+                "returncode": None,
+                "timed_out": taxonomy == "pending_terminalization",
+                "note": reason,
+                "stdout": str(profile_dir / "run.log"),
+                "stderr": str(profile_dir / "compile.log"),
+            },
+            "ir": {
+                "state": "missing",
+                "source": "",
+                "count": 0,
+            },
+            "tt_perf_report": {
+                "state": "blocked",
+                "returncode": None,
+                "note": reason,
+            },
+        },
+        "profile_status": profile_status,
+        "model_status": model_status,
+        "tool_status": {
+            "tt_perf_report": "blocked",
+            "ir": "missing",
+        },
+        "taxonomy": taxonomy,
+        "terminal_state": terminal_state,
+        "reason": reason,
+        "next_action": next_action or next_action_for_taxonomy(taxonomy),
+        "status_path": str(profile_dir / "status.json"),
+        "benchmark": {},
+        "slow_ops": str(slow_ops_path),
+        "verification": {
+            "verified": False,
+            "state": "pending",
+        },
+    }
+    slow_ops_payload = {
+        "model": entry.model_identity,
+        "nodeid": entry.nodeid,
+        "source_path": entry.source_path,
+        "profile_dir": str(profile_dir),
+        "ir_dir": str(profile_dir / "ir"),
+        "perf_csv": "",
+        "tt_perf_report": str(profile_dir / "perf-report" / "tt-perf-report.txt"),
+        "rows": [],
+        "summary": {
+            "row_count": 0,
+            "total_duration_us": 0.0,
+            "op_type_totals": {},
+            "op_name_totals": {},
+        },
+    }
+    write_json(slow_ops_path, slow_ops_payload)
+    write_json(profile_dir / "status.json", status_payload)
+    return status_payload
+
+
+def terminalize_missing_model_statuses(
+    run_dir: Path,
+    entries: list[DiscoveryEntry],
+    repo: Path,
+    reason: str,
+    taxonomy: str = "pending_terminalization",
+) -> list[dict[str, Any]]:
+    created = []
+    for entry in entries:
+        status_path = run_dir / "profiles" / entry.artifact_slug / "status.json"
+        if status_path.exists():
+            continue
+        created.append(
+            write_unprofiled_model_status(
+                entry=entry,
+                repo=repo,
+                run_dir=run_dir,
+                taxonomy=taxonomy,
+                reason=reason,
+            )
+        )
+    return created
 
 
 def profile_one_model(
@@ -1912,7 +2061,7 @@ def requirement_coverage(
                 str(Path(str(status.get("artifacts", {}).get("ir_dir", ""))))
                 for status in statuses
                 if status.get("artifacts", {}).get("ir_dir")
-                and Path(str(status.get("artifacts", {}).get("ir_dir", ""))).exists()
+                and path_exists(str(status.get("artifacts", {}).get("ir_dir", "")))
             ],
         },
         {
@@ -1924,9 +2073,9 @@ def requirement_coverage(
                 str(Path(str(status.get("artifacts", {}).get("tt_perf_report", ""))))
                 for status in statuses
                 if status.get("artifacts", {}).get("tt_perf_report")
-                and Path(
+                and path_exists(
                     str(status.get("artifacts", {}).get("tt_perf_report", ""))
-                ).exists()
+                )
             ],
         },
         {
@@ -2108,6 +2257,46 @@ def maybe_find_binary(name: str, explicit: Optional[str] = None) -> str:
     return found or name
 
 
+def parse_ird_timeout_seconds(value: str) -> int:
+    text = value.strip()
+    if not text:
+        return 0
+    try:
+        return int(text)
+    except ValueError:
+        pass
+    parts = text.split("-")
+    days = 0
+    clock = parts[-1]
+    if len(parts) == 2:
+        try:
+            days = int(parts[0])
+        except ValueError:
+            return 0
+    fields = clock.split(":")
+    try:
+        numbers = [int(field) for field in fields]
+    except ValueError:
+        return 0
+    if len(numbers) == 2:
+        hours, minutes = numbers
+        seconds = 0
+    elif len(numbers) == 3:
+        hours, minutes, seconds = numbers
+    else:
+        return 0
+    return days * 86400 + hours * 3600 + minutes * 60 + seconds
+
+
+def effective_remote_run_budget_seconds(args: argparse.Namespace) -> int:
+    if args.run_budget_seconds > 0:
+        return args.run_budget_seconds
+    ird_timeout_seconds = parse_ird_timeout_seconds(args.ird_timeout)
+    if ird_timeout_seconds <= DEFAULT_IRD_RUN_BUDGET_BUFFER_SECONDS:
+        return 0
+    return ird_timeout_seconds - DEFAULT_IRD_RUN_BUDGET_BUFFER_SECONDS
+
+
 def ird_option_args(args: argparse.Namespace) -> list[str]:
     options: list[str] = [args.ird_arch]
     if args.ird_docker_image:
@@ -2154,6 +2343,9 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         "--max-raw-artifact-bytes",
         str(args.max_raw_artifact_bytes),
     ]
+    remote_budget = effective_remote_run_budget_seconds(args)
+    if remote_budget > 0:
+        remote_args.extend(["--run-budget-seconds", str(remote_budget)])
     if args.pytest_bin:
         remote_args.extend(["--pytest-bin", args.pytest_bin])
     if args.tracy_bin:
@@ -2501,6 +2693,11 @@ def execute_pipeline(args: argparse.Namespace) -> int:
     tracy_bin = maybe_find_binary("tracy", args.tracy_bin)
     tt_perf_report_bin = maybe_find_binary("tt-perf-report", args.tt_perf_report_bin)
     command_trace_path = run_dir / "command-trace.jsonl"
+    run_deadline = (
+        time.monotonic() + args.run_budget_seconds
+        if args.run_budget_seconds > 0
+        else None
+    )
 
     environment = capture_environment(
         root, tracy_bin, tt_perf_report_bin, pytest_command
@@ -2550,6 +2747,21 @@ def execute_pipeline(args: argparse.Namespace) -> int:
         "max_output_tokens": args.max_output_tokens,
     }
     for entry in entries:
+        model_timeout_seconds = args.timeout_seconds
+        if run_deadline is not None:
+            remaining_seconds = int(run_deadline - time.monotonic())
+            if remaining_seconds <= 0:
+                write_unprofiled_model_status(
+                    entry=entry,
+                    repo=root,
+                    run_dir=run_dir,
+                    taxonomy="not_run",
+                    reason=(
+                        "run budget was exhausted before profiling started for this model"
+                    ),
+                )
+                continue
+            model_timeout_seconds = min(model_timeout_seconds, remaining_seconds)
         profile_one_model(
             entry=entry,
             repo=root,
@@ -2558,11 +2770,17 @@ def execute_pipeline(args: argparse.Namespace) -> int:
             tracy_bin=tracy_bin,
             tt_perf_report_bin=tt_perf_report_bin,
             command_trace_path=command_trace_path,
-            timeout_seconds=args.timeout_seconds,
+            timeout_seconds=model_timeout_seconds,
             benchmark_kwargs=benchmark_kwargs,
             max_raw_artifact_bytes=args.max_raw_artifact_bytes,
         )
 
+    terminalize_missing_model_statuses(
+        run_dir=run_dir,
+        entries=entries,
+        repo=root,
+        reason="pipeline finalized before this discovered model emitted status.json",
+    )
     statuses = load_model_statuses(run_dir)
     slow_ops = load_slow_ops(run_dir)
     dashboard_path, packet_path, report_path = write_artifacts(
@@ -2618,6 +2836,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_TIMEOUT_SECONDS,
         help="Per-model profiling timeout.",
+    )
+    parser.add_argument(
+        "--run-budget-seconds",
+        type=int,
+        default=0,
+        help="Total wall-clock budget for local profiling after readiness/discovery; 0 disables the run-level budget.",
     )
     parser.add_argument(
         "--discovery-timeout-seconds", type=int, default=900, help="Discovery timeout."
