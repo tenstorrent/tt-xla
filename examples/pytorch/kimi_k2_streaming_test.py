@@ -162,6 +162,50 @@ def upload_with_sharding(cpu_tensor, mesh, partition_spec, device):
     return xla_t
 
 
+def materialize_rotary_caches(model, seq_len: int, dtype=torch.bfloat16):
+    """Eagerly recompute every rotary embedding's cos/sin cache on CPU.
+
+    The skeleton is built on ``meta`` then ``to_empty``, so each
+    ``DeepseekV3*RotaryEmbedding``'s non-persistent ``inv_freq`` /
+    ``cos_cached`` / ``sin_cached`` buffers hold uninitialized garbage. They
+    are registered ``persistent=False``, so they are absent from the module's
+    ``state_dict`` and ``load_state_dict`` never fills them -- even though the
+    unsloth checkpoint does ship ``inv_freq`` (it surfaces as an *unexpected*
+    key and is filtered out by ``weight_loader._is_loadable_key``), and the
+    cos/sin caches are derived and never in the checkpoint at all. Normally
+    ``forward`` lazily recomputes them on the first call (its
+    ``max_seq_len_cached`` starts ``None``), but in streaming that first call
+    is a *per-layer* compiled dummy flush whose recomputed device buffer is a
+    transient of that graph and is not reliably retained into the separate
+    whole-model decode graph (host-input reclamation can reclaim it). Decode
+    then reads stale/garbage rotary tables, attention saturates, and every row
+    argmaxes to the same junk token regardless of input.
+
+    Recomputing here (YaRN rebuilds ``inv_freq`` from config scalars, so the
+    garbage buffer is irrelevant) and pinning ``max_seq_len_cached`` to
+    ``seq_len`` means neither the flush nor the decode recomputes; the correct
+    caches are shipped to device as ordinary held buffers alongside the
+    weights. ``seq_len`` must be the runtime rotary length, i.e.
+    ``cache.get_max_cache_shape()`` == ``max_cache_len``."""
+    count = 0
+    for module in model.modules():
+        if hasattr(module, "_set_cos_sin_cache") and hasattr(module, "inv_freq"):
+            module._set_cos_sin_cache(seq_len=seq_len, device="cpu", dtype=dtype)
+            count += 1
+    logger.info(
+        f"Materialized rotary cos/sin caches on {count} module(s) (seq_len={seq_len})"
+    )
+    # Guard against a silent no-op: if the rotary class is ever refactored and
+    # _set_cos_sin_cache disappears/renames, count drops to 0, the caches stay
+    # garbage, and the degenerate-output bug returns quietly. Fail loudly here.
+    if count == 0:
+        raise RuntimeError(
+            "materialize_rotary_caches matched no rotary modules -- expected one "
+            "per decoder layer (DeepseekV3*RotaryEmbedding._set_cos_sin_cache). "
+            "The rotary embedding API likely changed; update this helper."
+        )
+
+
 def ship_module_to_device(module, spec_by_id, mesh, device):
     """Replace every CPU param/buffer in ``module`` with a device handle,
     dropping the CPU storage. ``spec_by_id`` maps ``id(cpu_tensor)`` to a
@@ -248,16 +292,6 @@ def reinit_cache_buffers(cache, mesh, device):
         xs.mark_sharding(layer.k_pe, mesh, kv_spec)
 
 
-def build_decode_mask(batch_size: int, max_cache_len: int, cache_pos: int, dtype):
-    """4D causal mask (batch, 1, 1, max_cache_len) for a single decode token
-    at position ``cache_pos``. Mirrors MLAStaticLayer.build_causal_mask."""
-    key_idx = torch.arange(max_cache_len)
-    pos = torch.tensor([cache_pos])
-    causal = (key_idx.unsqueeze(0) > pos.unsqueeze(1)).to(dtype)  # (1, max_cache_len)
-    fill = torch.finfo(dtype).min
-    return (causal * fill).unsqueeze(0).unsqueeze(0).expand(batch_size, 1, 1, -1)
-
-
 # ============== STREAMING DECODE TEST ==============
 
 
@@ -311,6 +345,12 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
     n_layers = len(layers)
     log_mem("skeleton")
 
+    # ``to_empty`` left the rotary cos/sin caches uninitialized. Recompute them
+    # on CPU now (for the fixed rotary length = max_cache_len) so they ship to
+    # device as correct, held buffers instead of being lazily (and unreliably)
+    # rebuilt inside a per-layer flush graph. See materialize_rotary_caches.
+    materialize_rotary_caches(model, seq_len=max_cache_len, dtype=torch.bfloat16)
+
     # ---- 2. Ship top-level params (embed / norm / head) ----
     logger.info("Shipping top-level params (embed / norm / lm_head)...")
     top_sd = loader.load_top_level_state_dict()
@@ -345,12 +385,23 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
         batch_size, 1, config.hidden_size, dtype=torch.bfloat16
     ).to(device)
     xs.mark_sharding(dummy_hidden, mesh, ("batch", None, None))
-    dummy_mask = build_decode_mask(
-        batch_size, max_cache_len, flush_pos, torch.bfloat16
-    ).to(device)
+    # Reuse the cache's own mask builder (the layers are MLAStaticLayer) so the
+    # flush mask matches exactly what the model/cache produces at runtime --
+    # built on CPU here, then shipped + sharded like every other input.
+    cpu_cache_pos = torch.tensor([flush_pos], dtype=torch.long)
+    dummy_mask = (
+        cache.layers[0]
+        .build_causal_mask(
+            cache_position=cpu_cache_pos,
+            batch_size=batch_size,
+            dtype=torch.bfloat16,
+            device=torch.device("cpu"),
+        )
+        .to(device)
+    )
     xs.mark_sharding(dummy_mask, mesh, ("batch", None, None, None))
     dummy_pos_ids = torch.tensor([[flush_pos]], dtype=torch.long).to(device)
-    dummy_cache_pos = torch.tensor([flush_pos], dtype=torch.long).to(device)
+    dummy_cache_pos = cpu_cache_pos.to(device)
     torch_xla.sync(wait=True)
 
     @torch.compile(backend="tt")
@@ -446,11 +497,15 @@ def test_kimi_k2_streaming_decode(num_layers, batch_size, max_cache_len):
         )
 
     logits = output.logits.cpu()
-    # Expected (batch_size, seq_len=1, vocab). Log the shape because under SPMD
-    # the gathered host tensor's batch dim may not match batch_size.
+    # Expected (batch_size, seq_len=1, vocab). Under SPMD the gathered host
+    # tensor's batch dim may be a single shard (e.g. batch_size // batch_axis)
+    # rather than the full batch -- log it so a partial gather is obvious.
     logger.info(f"[STREAMING DECODE] logits shape: {tuple(logits.shape)}")
+    # (N,) one predicted token id per row. Unsqueeze to (N, 1) so batch_decode
+    # treats each row as its own 1-token sequence; a bare 1-D tensor would be
+    # decoded as a SINGLE N-token sequence (= one joined string).
     predicted_ids = logits[:, -1].argmax(dim=-1)
-    decoded = tokenizer.batch_decode(predicted_ids)
+    decoded = tokenizer.batch_decode(predicted_ids.unsqueeze(-1))
     logger.info(
         f"[STREAMING DECODE] {len(decoded)} decoded row(s); predicted next tokens:"
     )
