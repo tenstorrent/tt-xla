@@ -13,6 +13,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -36,6 +37,71 @@ const std::string c_weight_dtype_override_function_name =
     "tt.weight_dtype_override";
 const std::string c_weight_dtype_attr_name = "ttcore.weight_dtype";
 
+namespace {
+
+// Shardy attaches argument shardings via this discardable attribute name.
+constexpr llvm::StringLiteral c_sdy_sharding_attr_name = "sdy.sharding";
+
+// Propagate per-argument `sdy.sharding` annotations from a private callee onto
+// the public caller arguments that it forwards.
+//
+// Large tensor-parallel models (e.g. Qwen3-32B at high layer counts) are
+// emitted by the frontend with the prefill graph as a thin public `@main`
+// wrapper whose arguments are bare, forwarding 1:1 to a private inner function
+// (`@SyncTensorsGraph.N`) whose arguments carry the `sdy.sharding`. The later
+// Inliner folds the inner function into `@main` but does NOT copy the callee's
+// per-argument shardings onto `@main`'s arguments, so ApplyArgumentShardStatus
+// subsequently marks every `@main` argument Unsharded -> the compiler emits a
+// spurious replicate `distribute_tensor` for already-mesh-distributed inputs
+// (runtime "single buffer from host storage" fatal) or trips the TTNNLayout
+// assertion on the trace path. Copying the callee's arg sharding up to the
+// caller's forwarded arguments (before inlining) makes the entry function carry
+// the sharding, matching how smaller graphs are already emitted.
+void propagateShardyArgShardings(mlir::ModuleOp module) {
+  module.walk([&](mlir::func::CallOp call_op) {
+    auto callee =
+        mlir::SymbolTable::lookupNearestSymbolFrom<mlir::func::FuncOp>(
+            call_op, call_op.getCalleeAttr());
+    if (!callee) {
+      return;
+    }
+
+    for (unsigned operand_index = 0;
+         operand_index < call_op.getNumOperands() &&
+         operand_index < callee.getNumArguments();
+         ++operand_index) {
+      mlir::Attribute sharding =
+          callee.getArgAttr(operand_index, c_sdy_sharding_attr_name);
+      if (!sharding) {
+        continue;
+      }
+
+      // Only propagate onto a value that is directly a caller block argument
+      // (i.e. forwarded unchanged from the caller's signature).
+      auto block_arg =
+          mlir::dyn_cast<mlir::BlockArgument>(call_op.getOperand(operand_index));
+      if (!block_arg) {
+        continue;
+      }
+      auto caller_func = mlir::dyn_cast<mlir::func::FuncOp>(
+          block_arg.getOwner()->getParentOp());
+      if (!caller_func) {
+        continue;
+      }
+
+      unsigned caller_arg_index = block_arg.getArgNumber();
+      // Do not override an existing sharding on the caller argument.
+      if (caller_func.getArgAttr(caller_arg_index, c_sdy_sharding_attr_name)) {
+        continue;
+      }
+      caller_func.setArgAttr(caller_arg_index, c_sdy_sharding_attr_name,
+                             sharding);
+    }
+  });
+}
+
+} // namespace
+
 tt_pjrt_status
 annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 
@@ -43,6 +109,10 @@ annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // created.
   mlir::MLIRContext *context = mlir_module->getContext();
   context->loadDialect<mlir::tt::ttcore::TTCoreDialect>();
+  // Make sure the public entry function carries the argument shardings that the
+  // frontend may have placed only on a private forwarded callee, before the
+  // compiler pipeline inlines that callee away.
+  propagateShardyArgShardings(mlir_module.get());
   // If the model being compiled originates from JAX then the argument types
   // will be annotated using function calls to empty functions, whose attributes
   // contain the argument type information. This function will handle that case.
