@@ -38,6 +38,76 @@ def _patch_apply_lora_scale() -> None:
         WanTransformer3DModel.forward = underlying
 
 
+def _patch_wan_time_embedder_dtype_probe() -> None:
+    """Replace the ``next(iter(self.time_embedder.parameters())).dtype`` probe
+    in ``WanTimeTextImageEmbedding.forward`` with a direct weight read,
+    ``self.time_embedder.linear_1.weight.dtype``.
+
+    ``tt_torch`` sets ``torch._dynamo.config.inline_inbuilt_nn_modules = False``
+    so the tt backend can tell parameters apart from graph inputs. That routes
+    every ``nn.Module`` method call through dynamo's specialized
+    ``NNModuleVariable.call_method`` path. In torch 2.10's
+    ``torch/_dynamo/variables/nn_module.py`` that path's ``wrap_values`` helper
+    has a typo — it builds a list called ``result`` but returns
+    ``ListIteratorVariable(named_children, ...)``, and ``named_children`` is
+    only bound in a sibling branch — so ``.parameters()`` (and ``.buffers()`` /
+    ``.children()`` / ``.modules()``) raise at trace time:
+
+        InternalTorchDynamoError: NameError: cannot access free variable
+        'named_children' where it is not associated with a value in enclosing
+        scope
+
+    diffusers' ``WanTimeTextImageEmbedding.forward`` (transformer_wan.py:341)
+    calls ``next(iter(self.time_embedder.parameters())).dtype`` only to learn
+    the weight dtype before casting ``timestep`` to it. ``self.time_embedder``
+    is a ``TimestepEmbedding`` whose first parameter is ``linear_1.weight``, so
+    ``self.time_embedder.linear_1.weight.dtype`` is the identical value via a
+    plain attribute read — which dynamo resolves through
+    ``NNModuleVariable.var_getattr``, never touching ``wrap_values``.
+
+    This is the only ``.parameters()`` / ``.buffers()`` / ``.children()`` /
+    ``.modules()`` call in the DiT forward path (verified by scanning
+    transformer_wan.py and the diffusers blocks the Wan transformer calls
+    into), so this single rewrite clears the trace.
+    """
+    import torch
+    from diffusers.models.transformers.transformer_wan import WanTimeTextImageEmbedding
+
+    def patched_forward(
+        self,
+        timestep,
+        encoder_hidden_states,
+        encoder_hidden_states_image=None,
+        timestep_seq_len=None,
+    ):
+        timestep = self.timesteps_proj(timestep)
+        if timestep_seq_len is not None:
+            timestep = timestep.unflatten(0, (-1, timestep_seq_len))
+
+        # Direct weight-dtype read instead of next(iter(.parameters())).dtype,
+        # which crashes torch 2.10 dynamo's wrap_values (see docstring).
+        time_embedder_dtype = self.time_embedder.linear_1.weight.dtype
+        if timestep.dtype != time_embedder_dtype and time_embedder_dtype != torch.int8:
+            timestep = timestep.to(time_embedder_dtype)
+        temb = self.time_embedder(timestep).type_as(encoder_hidden_states)
+        timestep_proj = self.time_proj(self.act_fn(temb))
+
+        encoder_hidden_states = self.text_embedder(encoder_hidden_states)
+        if encoder_hidden_states_image is not None:
+            encoder_hidden_states_image = self.image_embedder(
+                encoder_hidden_states_image
+            )
+
+        return (
+            temb,
+            timestep_proj,
+            encoder_hidden_states,
+            encoder_hidden_states_image,
+        )
+
+    WanTimeTextImageEmbedding.forward = patched_forward
+
+
 def _disable_tt_torch_function_override() -> None:
     """Pop `TorchFunctionOverride` off the global TorchFunctionMode stack.
 

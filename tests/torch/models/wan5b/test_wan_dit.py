@@ -24,7 +24,11 @@ from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .monkey_patch import _disable_tt_torch_function_override, _patch_apply_lora_scale
+from .monkey_patch import (
+    _disable_tt_torch_function_override,
+    _patch_apply_lora_scale,
+    _patch_wan_time_embedder_dtype_probe,
+)
 from .shared import RESOLUTIONS, WanDiTWrapper, load_dit, shard_dit_specs, wan22_mesh
 
 # Set to 0 to run the full model, otherwise set to the number of blocks to run.
@@ -40,7 +44,15 @@ _COMPILER_CONFIG = CompilerConfig(
 
 @pytest.mark.nightly
 @pytest.mark.model_test
-@pytest.mark.llmbox
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
+def test_wan_dit_720p_sharded():
+    _run("720p", sharded=True)
+
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 
@@ -49,6 +61,7 @@ def _run(resolution: str, sharded: bool) -> None:
     # Apply monkey patches here (not at module top) so they don't leak into
     # other tests collected in the same pytest session.
     _patch_apply_lora_scale()
+    _patch_wan_time_embedder_dtype_probe()
     _disable_tt_torch_function_override()
 
     shapes = RESOLUTIONS[resolution]
