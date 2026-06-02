@@ -2628,6 +2628,7 @@ def test_gpt_oss_attention_decode(variant, variant_config, arch):
     )
 
 
+@pytest.mark.testing
 @pytest.mark.nightly
 @pytest.mark.llmbox
 @pytest.mark.parametrize("seq_len", [1024])
@@ -2690,6 +2691,7 @@ def test_glm_4_attention_prefill(seq_len, variant, variant_config):
     )
 
 
+@pytest.mark.testing
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize(
@@ -2783,6 +2785,7 @@ def test_glm_4_attention_decode(variant, variant_config, arch):
     )
 
 
+@pytest.mark.testing
 @pytest.mark.nightly
 @parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("seq_len", [1024])
@@ -2884,6 +2887,7 @@ def test_glm_4_attention(seq_len, variant, variant_config, arch):
     )
 
 
+@pytest.mark.testing
 @pytest.mark.nightly
 @parametrize_arch(["galaxy"])
 @pytest.mark.parametrize(
