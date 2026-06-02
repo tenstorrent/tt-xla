@@ -1,0 +1,6 @@
+[32m2026-06-02 08:27:22.958[0m | [33m[1mWARNING [0m | [36mtorch_plugin_tt[0m:[36m__init__[0m:[36m40[0m - [33m[1mTT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.[0m
+`torch_dtype` is deprecated! Use `dtype` instead!
+WARNING:transformers.configuration_utils:`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/434 [00:00<?, ?it/s]Loading weights:  86%|████████▋ | 375/434 [00:00<00:00, 3724.48it/s]Loading weights: 100%|██████████| 434/434 [00:00<00:00, 3875.78it/s]
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+WARNING:transformers.generation.configuration_utils:The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.

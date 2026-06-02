@@ -63,8 +63,18 @@ def load_pytorch_model():
     return model
 
 
-def load_input():
-    """Replicates construct_inputs() from benchmarks/llm_benchmark.py:85-169 (StaticCache path)."""
+def load_input(model, device="cpu"):
+    """Replicates construct_inputs() from benchmarks/llm_benchmark.py:85-169 (StaticCache path).
+
+    The StaticCache is built directly on `device` (not on CPU then transferred): the
+    transformers 5.2.0 StaticLayer caches its own `device`/`cumulative_length` internally
+    and uses them inside `update()` / `get_seq_length()`, so a partial keys/values transfer
+    leaves the layer inconsistent (mixes cpu and xla tensors during the forward). Building on
+    the device keeps every cache tensor consistent with the model and inputs. Issue
+    https://github.com/tenstorrent/tt-xla/issues/1645 (the reason the benchmark builds on CPU)
+    only affects traced runs; trace is disabled here.
+    """
+    config = model.config
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     prompts = [DEFAULT_INPUT_PROMPT] * BATCH_SIZE
     tokenized = tokenizer(
@@ -73,21 +83,33 @@ def load_input():
         max_length=INPUT_SEQUENCE_LENGTH,
         truncation=True,
     )
-    input_ids = tokenized["input_ids"]
+    input_ids = tokenized["input_ids"].to(device)
 
-    # StaticCache lives on CPU and is moved to the device explicitly later — see
-    # https://github.com/tenstorrent/tt-xla/issues/1645 for why we don't construct
-    # it directly on the device.
-    model = load_pytorch_model()
     past_key_values = StaticCache(
-        config=model.config,
+        config=config,
         max_batch_size=BATCH_SIZE,
         max_cache_len=INPUT_SEQUENCE_LENGTH,
-        device="cpu",
+        device=device,
         dtype=DATA_FORMAT,
     )
+    # Mirror init_static_cache() from tests/benchmark/llm_utils/decode_utils.py:113-145:
+    # eagerly allocate per-layer keys/values (the raw constructor leaves them lazily None).
+    if getattr(config, "head_dim", None):
+        head_dim = config.head_dim
+    else:
+        head_dim = config.hidden_size // config.num_attention_heads
+    num_key_value_heads = getattr(
+        config, "num_key_value_heads", config.num_attention_heads
+    )
+    past_key_values.early_initialization(
+        batch_size=BATCH_SIZE,
+        num_heads=num_key_value_heads,
+        head_dim=head_dim,
+        dtype=DATA_FORMAT,
+        device=device,
+    )
 
-    cache_position = torch.arange(0, input_ids.shape[1])
+    cache_position = torch.arange(0, input_ids.shape[1], device=device)
 
     return {
         "input_ids": input_ids,
@@ -97,21 +119,9 @@ def load_input():
     }
 
 
-def _inputs_to_device(inputs, device):
-    """Mirrors transfer_to_device() from benchmarks/llm_benchmark.py:179-204 for the
-    StaticCache path (no MLA layers in this model)."""
-    out = dict(inputs)
-    out["input_ids"] = out["input_ids"].to(device)
-    out["cache_position"] = out["cache_position"].to(device)
-    for layer in out["past_key_values"].layers:
-        layer.keys = layer.keys.to(device)
-        layer.values = layer.values.to(device)
-    return out
-
-
 def run_pytorch_model():
     model = load_pytorch_model()
-    inputs = load_input()
+    inputs = load_input(model, device="cpu")
 
     with torch.no_grad():
         output = model(**inputs)
@@ -127,7 +137,7 @@ def run_tt_model():
     model = load_pytorch_model()
     model.compile(backend="tt", options={"tt_legacy_compile": True})
     model = model.to(device)
-    inputs = _inputs_to_device(load_input(), device)
+    inputs = load_input(model, device=device)
 
     with torch.no_grad():
         output = model(**inputs)
@@ -139,7 +149,7 @@ def codegen_model():
     os.environ["XLA_HLO_DEBUG"] = "1"
 
     model = load_pytorch_model()
-    inputs = load_input()
+    inputs = load_input(model, device="cpu")
 
     codegen_py(
         model,

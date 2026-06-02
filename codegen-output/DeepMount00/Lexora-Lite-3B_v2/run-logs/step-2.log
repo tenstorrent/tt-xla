@@ -1,0 +1,112 @@
+[32m2026-06-02 08:28:29.512[0m | [33m[1mWARNING [0m | [36mtorch_plugin_tt[0m:[36m__init__[0m:[36m40[0m - [33m[1mTT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.[0m
+[90m2026-06-02 08:28:29.524[0m | info     | [35m            UMD[0m | [37mCreating TopologyDiscovery for architecture: blackhole[0m [90m(topology_discovery.cpp:75)[0m
+[90m2026-06-02 08:28:29.524[0m | info     | [35m            UMD[0m | [37mStarting topology discovery.[0m [90m(topology_discovery.cpp:92)[0m
+[90m2026-06-02 08:28:29.527[0m | warning  | [35m            UMD[0m | [37mLow power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed.[0m [90m(topology_discovery.cpp:143)[0m
+[90m2026-06-02 08:28:29.528[0m | info     | [35m            UMD[0m | [37mEstablished firmware bundle version: 19.6.0[0m [90m(topology_discovery.cpp:544)[0m
+[90m2026-06-02 08:28:29.528[0m | info     | [35m            UMD[0m | [37mFirmware bundle version 19.6.0 on the system is newer than the latest fully tested version 19.5.0 for blackhole architecture. Newest features may not be supported.[0m [90m(topology_discovery.cpp:576)[0m
+[90m2026-06-02 08:28:29.528[0m | info     | [35m            UMD[0m | [37mCompleted topology discovery.[0m [90m(topology_discovery.cpp:96)[0m
+[90m2026-06-02 08:28:29.530[0m | info     | [35m         Device[0m | [37mOpening user mode device driver[0m [90m(tt_cluster.cpp:225)[0m
+[90m2026-06-02 08:28:29.530[0m | info     | [35m            UMD[0m | [37mCluster constructor started.[0m [90m(cluster.cpp:317)[0m
+[90m2026-06-02 08:28:29.530[0m | info     | [35m            UMD[0m | [37mCreating TopologyDiscovery for architecture: blackhole[0m [90m(topology_discovery.cpp:75)[0m
+[90m2026-06-02 08:28:29.530[0m | info     | [35m            UMD[0m | [37mStarting topology discovery.[0m [90m(topology_discovery.cpp:92)[0m
+[90m2026-06-02 08:28:29.533[0m | warning  | [35m            UMD[0m | [37mLow power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed.[0m [90m(topology_discovery.cpp:143)[0m
+[90m2026-06-02 08:28:29.533[0m | info     | [35m            UMD[0m | [37mEstablished firmware bundle version: 19.6.0[0m [90m(topology_discovery.cpp:544)[0m
+[90m2026-06-02 08:28:29.533[0m | info     | [35m            UMD[0m | [37mFirmware bundle version 19.6.0 on the system is newer than the latest fully tested version 19.5.0 for blackhole architecture. Newest features may not be supported.[0m [90m(topology_discovery.cpp:576)[0m
+[90m2026-06-02 08:28:29.533[0m | info     | [35m            UMD[0m | [37mCompleted topology discovery.[0m [90m(topology_discovery.cpp:96)[0m
+[90m2026-06-02 08:28:29.533[0m | info     | [35m            UMD[0m | [37mHarvesting masks for Chip 0: Tensix: 0xc0 DRAM: 0x0 ETH: 0x120 PCIe: 0x2 L2CPU: 0x0[0m [90m(cluster.cpp:270)[0m
+[90m2026-06-02 08:28:29.542[0m | warning  | [35m            UMD[0m | [37minit_detect_tt_device_numanodes(): Could not determine NumaNodeSet for TT device (physical_device_id: 0 pci_bus_id: 0000:05:00.0)[0m [90m(cpuset_lib.cpp:570)[0m
+[90m2026-06-02 08:28:29.543[0m | warning  | [35m            UMD[0m | [37mCould not find NumaNodeSet for TT Device (physical_device_id: 0 pci_bus_id: 0000:05:00.0)[0m [90m(cpuset_lib.cpp:179)[0m
+[90m2026-06-02 08:28:29.543[0m | warning  | [35m            UMD[0m | [37mbind_area_memory_nodeset(): Unable to determine TT Device to NumaNode mapping for physical_device_id: 0. Skipping membind.[0m [90m(cpuset_lib.cpp:456)[0m
+[90m2026-06-02 08:28:29.543[0m | warning  | [35m            UMD[0m | [37m---- ttSiliconDevice::init_hugepage: bind_area_to_memory_nodeset() failed (physical_device_id: 0 ch: 0). Hugepage allocation is not on NumaNode matching TT Device. Side-Effect is decreased Device->Host perf (Issue #893).[0m [90m(silicon_sysmem_manager.cpp:246)[0m
+[90m2026-06-02 08:28:29.544[0m | info     | [35m            UMD[0m | [37mOpening local chip ids/PCIe ids: {0}/[0] and remote chip ids {}[0m [90m(cluster.cpp:159)[0m
+[90m2026-06-02 08:28:29.544[0m | info     | [35m            UMD[0m | [37mIOMMU: disabled[0m [90m(cluster.cpp:133)[0m
+[90m2026-06-02 08:28:29.544[0m | info     | [35m            UMD[0m | [37mKMD version: 2.8.0[0m [90m(cluster.cpp:136)[0m
+[90m2026-06-02 08:28:29.544[0m | info     | [35m            UMD[0m | [37mCluster constructor completed.[0m [90m(cluster.cpp:409)[0m
+[90m2026-06-02 08:28:29.545[0m | info     | [35m            UMD[0m | [37mStarting devices in cluster[0m [90m(cluster.cpp:1044)[0m
+[90m2026-06-02 08:28:29.547[0m | info     | [35m            UMD[0m | [37mMapped hugepage 0x1c0000000 to NOC address 0x1000000000000000[0m [90m(silicon_sysmem_manager.cpp:275)[0m
+[90m2026-06-02 08:28:29.635[0m | info     | [35m            UMD[0m | [37mStarting devices in cluster completed.[0m [90m(cluster.cpp:1052)[0m
+[90m2026-06-02 08:28:29.685[0m | info     | [35m    Distributed[0m | [37mUsing auto discovery to generate mesh graph.[0m [90m(metal_env.cpp:332)[0m
+[90m2026-06-02 08:28:29.685[0m | info     | [35m    Distributed[0m | [37mConstructing control plane using auto-discovery (no mesh graph descriptor).[0m [90m(metal_env.cpp:394)[0m
+[90m2026-06-02 08:28:29.685[0m | info     | [35m            UMD[0m | [37mCreating TopologyDiscovery for architecture: blackhole[0m [90m(topology_discovery.cpp:75)[0m
+[90m2026-06-02 08:28:29.685[0m | info     | [35m            UMD[0m | [37mStarting topology discovery.[0m [90m(topology_discovery.cpp:92)[0m
+[90m2026-06-02 08:28:29.686[0m | warning  | [35m            UMD[0m | [37mLow power mode is disabled while UMD holds open file descriptors. The device will return to low power mode once all file descriptors are closed.[0m [90m(topology_discovery.cpp:143)[0m
+[90m2026-06-02 08:28:29.687[0m | info     | [35m            UMD[0m | [37mEstablished firmware bundle version: 19.6.0[0m [90m(topology_discovery.cpp:544)[0m
+[90m2026-06-02 08:28:29.687[0m | info     | [35m            UMD[0m | [37mFirmware bundle version 19.6.0 on the system is newer than the latest fully tested version 19.5.0 for blackhole architecture. Newest features may not be supported.[0m [90m(topology_discovery.cpp:576)[0m
+[90m2026-06-02 08:28:29.687[0m | info     | [35m            UMD[0m | [37mCompleted topology discovery.[0m [90m(topology_discovery.cpp:96)[0m
+[90m2026-06-02 08:28:29.688[0m | warning  | [35m         Always[0m | [37mUnknown motherboard '' for chip_id=0 (bus_id=0x5) — defaulting tray_id to 0. Add this motherboard and its bus IDs to mobo_to_bus_ids in physical_system_discovery.cpp.[0m [90m(physical_system_discovery.cpp:62)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mTopologyMapper: Logical Multi-Mesh Adjacency Map:[0m [90m(topology_mapper.cpp:1474)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37m
+=== Logical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+[0m [90m(topology_solver.tpp:94)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37m
+=== Logical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+[0m [90m(topology_solver.tpp:94)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mTopologyMapper: Physical Multi-Mesh Adjacency Map:[0m [90m(topology_mapper.cpp:1485)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37m
+=== Physical Mesh-Level Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+[0m [90m(topology_solver.tpp:94)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37m
+=== Physical Mesh 0 Internal Graph Adjacency Map ===
+Total nodes: 1
+Degree histogram: {0:1}
+[0m [90m(topology_solver.tpp:94)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mStarting multi-mesh mapping: 1 logical mesh(es) to 1 physical mesh(es)[0m [90m(topology_mapper_utils.cpp:1469)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mMulti-mesh mapping attempt 1/2: Trying inter-mesh mapping[0m [90m(topology_mapper_utils.cpp:1510)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mAttempt 1: Inter-mesh mapping succeeded, found 1 mesh pair(s)[0m [90m(topology_mapper_utils.cpp:1539)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mAttempt 1: Mapping 1 mesh pair(s)[0m [90m(topology_mapper_utils.cpp:1547)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mAttempt 1: Mapping mesh 0 -> 0[0m [90m(topology_mapper_utils.cpp:1554)[0m
+[90m2026-06-02 08:28:29.688[0m | info     | [35m         Fabric[0m | [37mMulti-mesh mapping succeeded after 1 attempt(s): 1 mesh pair(s) mapped[0m [90m(topology_mapper_utils.cpp:1686)[0m
+[90m2026-06-02 08:28:29.693[0m | info     | [35m   BuildKernels[0m | [37mUsing pre-compiled firmware from: /__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/13758058153021483361/[0m [90m(build_env_manager.cpp:269)[0m
+[90m2026-06-02 08:28:29.759[0m | info     | [35m   BuildKernels[0m | [37mUsing pre-compiled firmware from: /__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/pre-compiled/13758058153021483361/[0m [90m(build_env_manager.cpp:269)[0m
+[90m2026-06-02 08:28:29.806[0m | info     | [35m          Metal[0m | [37mEnabling program cache on MeshDevice 1[0m [90m(mesh_device.cpp:999)[0m
+2026-06-02 08:28:29.806665: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+`torch_dtype` is deprecated! Use `dtype` instead!
+WARNING:transformers.configuration_utils:`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/434 [00:00<?, ?it/s]Loading weights: 100%|██████████| 434/434 [00:00<00:00, 4725.61it/s]
+The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+WARNING:transformers.generation.configuration_utils:The following generation flags are not valid and may be ignored: ['temperature', 'top_p', 'top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+/usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+  return cls.__new__(cls, *args)
+loc("scatter.155"): error: failed to legalize operation 'ttir.fill_cache'
+2026-06-02 08:29:14.848 (  45.336s) [        67565140]      module_builder.cc:1172   ERR| Failed to run TTIRToTTNNCommon pipeline
+Traceback (most recent call last):
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/codegen-output/DeepMount00/Lexora-Lite-3B_v2/xla.py", line 201, in <module>
+    run_tt_model()
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/codegen-output/DeepMount00/Lexora-Lite-3B_v2/xla.py", line 143, in run_tt_model
+    output = model(**inputs)
+             ^^^^^^^^^^^^^^^
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1774, in _wrapped_call_impl
+    return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py", line 953, in compile_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/venv/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1787, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/venv/lib/python3.12/site-packages/transformers/utils/generic.py", line 870, in wrapper
+    @wraps(func)
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py", line 1181, in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/python_package/tt_torch/backend/backend.py", line 265, in __call__
+    torch_xla.sync()
+  File "/__w/tt-forge-ai-bringup/tt-forge-ai-bringup/tt-xla/venv/lib/python3.12/site-packages/torch_xla/torch_xla.py", line 87, in sync
+    torch_xla._XLAC._xla_step_marker(
+ValueError: Error code: 13
+[90m2026-06-02 08:29:16.391[0m | info     | [35m   BuildKernels[0m | [37mJIT cache stats: 6/6 hits (100.0%) [6 cached, 4 build-once dedup, 0 merged artifacts, 0 merged genfiles][0m [90m(build_cache_telemetry.cpp:207)[0m
+[90m2026-06-02 08:29:16.391[0m | info     | [35m   BuildKernels[0m | [37mJIT telemetry: 3 registered TelemetryTokens[0m [90m(build_cache_telemetry.cpp:230)[0m
+[90m2026-06-02 08:29:16.391[0m | info     | [35m   BuildKernels[0m | [37mJIT telemetry [dependencies_up_to_date]: count=12, total=17.302ms, min=0.040ms, max=4.474ms, mean=1.442ms[0m [90m(build_cache_telemetry.cpp:246)[0m
+[90m2026-06-02 08:29:16.391[0m | info     | [35m   BuildKernels[0m | [37mJIT telemetry [JitBuildState::build]: count=6, total=17.580ms, min=2.207ms, max=4.582ms, mean=2.930ms[0m [90m(build_cache_telemetry.cpp:246)[0m
+[90m2026-06-02 08:29:16.391[0m | info     | [35m   BuildKernels[0m | [37mJIT telemetry [jit_build]: count=3, total=7.126ms, min=2.208ms, max=2.651ms, mean=2.375ms[0m [90m(build_cache_telemetry.cpp:246)[0m
+[90m2026-06-02 08:29:16.393[0m | info     | [35m         Device[0m | [37mClosing user mode device drivers[0m [90m(tt_cluster.cpp:499)[0m
+[90m2026-06-02 08:29:16.393[0m | info     | [35m            UMD[0m | [37mClosing devices in cluster[0m [90m(cluster.cpp:1057)[0m
+[90m2026-06-02 08:29:16.507[0m | info     | [35m            UMD[0m | [37mClosing devices in cluster completed.[0m [90m(cluster.cpp:1066)[0m
+[90m2026-06-02 08:29:16.507[0m | info     | [35m            UMD[0m | [37mCluster destructor started.[0m [90m(cluster.cpp:550)[0m
+[90m2026-06-02 08:29:16.507[0m | info     | [35m            UMD[0m | [37mCluster destructor completed.[0m [90m(cluster.cpp:553)[0m

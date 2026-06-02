@@ -1,0 +1,40 @@
+[meta]
+schema_version = 1
+benchmark_test = test_lexora_lite_3b_v2
+benchmark_file = tests/benchmark/test_llms.py
+model_id = DeepMount00/Lexora-Lite-3B_v2
+family = llm
+hw_target = p150
+mesh_shape = 1x1
+model_dir = $TT_XLA_DIR/codegen-output/DeepMount00/Lexora-Lite-3B_v2
+reached_step = 2
+final_status = failed
+final_step_name = run_tt
+
+[step_0_xla_py]
+status = passed
+notes = generated xla.py with stock-transformers imports (AutoModelForCausalLM); LLM patches inlined. lexora ModelLoader absent from tt_forge_models submodule checkout, so standardized LLM construction reproduced from the public HF id. StaticCache built directly on the target device (not cpu+transfer) because transformers 5.2.0 StaticLayer caches its own device/cumulative_length internally; partial transfer left cpu/xla tensors mixed during forward.
+
+[step_1_run_pt]
+status = passed
+elapsed_s = 66.0
+log = run-logs/step-1.log
+
+[step_2_run_tt]
+status = failed
+exit_code = 1
+elapsed_s = 53.0
+failure_summary = failed to legalize operation 'ttir.fill_cache' (loc scatter.155); Failed to run TTIRToTTNNCommon pipeline; ValueError: Error code: 13
+log = run-logs/step-2.log
+
+[step_3_golden]
+status = not_attempted
+
+[step_4_codegen]
+status = not_attempted
+
+[step_5_single_graph]
+status = not_attempted
+
+[step_6_run_graph]
+status = not_attempted
