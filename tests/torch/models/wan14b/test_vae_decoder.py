@@ -55,6 +55,7 @@ _COMPILER_CONFIG = CompilerConfig(
 def test_vae_decoder_720p():
     _run("720p", sharded=False)
 
+
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox

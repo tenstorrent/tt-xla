@@ -34,11 +34,13 @@ _COMPILER_CONFIG = CompilerConfig(
     enable_trace=True,
 )
 
+
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
 def test_vae_encoder_720p():
     _run("720p", sharded=False)
+
 
 @pytest.mark.nightly
 @pytest.mark.model_test
