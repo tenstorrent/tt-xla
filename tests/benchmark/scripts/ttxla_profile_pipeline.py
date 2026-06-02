@@ -2078,16 +2078,19 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
         "lifecycle": str(ird_dir / "ird-lifecycle.json"),
     }
     write_json(run_dir / "environment.json", environment)
+    remote_manifest = load_json(run_dir / "manifest.json")
+    ird_summary = {
+        "target": "ird",
+        "mode": args.ird_mode,
+        "remote_run_returncode": lifecycle.get("remote_run", {}).get("returncode"),
+        "lifecycle": str(ird_dir / "ird-lifecycle.json"),
+        "manual_cleanup": args.ird_release_command or "ird release <reservation_id>",
+    }
+    if remote_manifest.get("summary"):
+        ird_summary["remote_summary"] = remote_manifest["summary"]
     update_manifest_summary(
         run_dir,
-        {
-            "target": "ird",
-            "mode": args.ird_mode,
-            "remote_run_returncode": lifecycle.get("remote_run", {}).get("returncode"),
-            "lifecycle": str(ird_dir / "ird-lifecycle.json"),
-            "manual_cleanup": args.ird_release_command
-            or "ird release <reservation_id>",
-        },
+        ird_summary,
     )
     return 0 if lifecycle.get("remote_run", {}).get("returncode") == 0 else 2
 
