@@ -19,8 +19,8 @@ IN:  hidden_states (1, 16, latent_frames, latent_h, latent_w)
 OUT: velocity (1, 16, latent_frames, latent_h, latent_w)
 """
 
-import time
 import copy
+import time
 
 import torch
 import torch_xla
@@ -28,6 +28,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.utilities.torch_multichip_utils import enable_spmd
+from tt_torch.torch_overrides import torch_function_override_disabled
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
@@ -36,11 +37,11 @@ from .monkey_patch import (
     _patch_apply_rotary_emb_stack_form,
     _patch_patchify_ndhwc_aware,
 )
-from tt_torch.torch_overrides import torch_function_override_disabled
 from .shared import (
     LATENT_CHANNELS,
     RESOLUTIONS,
     WanDiTWrapper,
+    apply_dit_sp_activation_sharding,
     compute_pcc,
     load_dit,
     shard_dit_specs,
@@ -62,8 +63,6 @@ if PERF_MODE:
     _patch_adaln_modulation_bf16()
     _patch_patchify_ndhwc_aware()
     _patch_apply_rotary_emb_stack_form()
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +88,11 @@ def test_wan_dit_720p_sharded():
 
 def _run(resolution: str, sharded: bool):
     xr.set_device_type("TT")
-    compiler_config = CompilerConfig(optimization_level=1, experimental_enable_dram_space_saving_optimization=True, enable_trace=True)
+    compiler_config = CompilerConfig(
+        optimization_level=1,
+        experimental_enable_dram_space_saving_optimization=True,
+        enable_trace=True,
+    )
     torch.manual_seed(42)
     shapes = RESOLUTIONS[resolution]
     t, h, w = shapes["latent_frames"], shapes["latent_h"], shapes["latent_w"]
@@ -119,6 +122,7 @@ def _run(resolution: str, sharded: bool):
     if use_sharding:
         for tensor, spec in shard_dit_specs(wrapper_on_device.dit).items():
             xs.mark_sharding(tensor, mesh, spec)
+        apply_dit_sp_activation_sharding(wrapper_on_device.dit, mesh)
 
     with torch_function_override_disabled():
         compiled = torch.compile(wrapper_on_device, backend="tt")
@@ -128,7 +132,6 @@ def _run(resolution: str, sharded: bool):
             out = compiled(*inputs_on_device)
             cpu_out = out.to("cpu")
             warmup_end = time.perf_counter_ns()
-
 
             warm_times = []
             for _ in range(N_RUNS):
