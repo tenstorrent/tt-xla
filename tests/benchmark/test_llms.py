@@ -2576,7 +2576,7 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         num_layers=4,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # TODO:Test hangs? for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
@@ -2612,7 +2612,7 @@ def test_glm_4_5_tp_galaxy_4_layers(
         num_layers=4,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # batch 128 fails with TT_FATAL: Invalid arguments to reshape (assert.hpp:104)
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
@@ -2648,7 +2648,7 @@ def test_glm_4_7_tp_galaxy_4_layers(
         num_layers=4,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # batch 128 fails with TT_FATAL: Invalid arguments to reshape (assert.hpp:104)
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         arch="wormhole_galaxy",
