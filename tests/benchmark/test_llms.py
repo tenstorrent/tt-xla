@@ -230,9 +230,11 @@ def test_llm_tp(
     required_pcc=DEFAULT_REQUIRED_PCC,
     **kwargs,
 ):
-    mesh_config_fn = kwargs.pop(
-        "mesh_config_fn", getattr(ModelLoaderModule, "get_mesh_config", None)
-    )
+    mesh_override = kwargs.pop("mesh_config_fn", None)
+    if mesh_override is not None:
+        ModelLoaderModule.get_mesh_config = mesh_override
+    mesh_config_fn = getattr(ModelLoaderModule, "get_mesh_config", None)
+
     shard_spec_fn = kwargs.pop(
         "shard_spec_fn", getattr(ModelLoaderModule, "load_shard_spec", None)
     )
@@ -2188,6 +2190,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     )
 
 
+
 def test_falcon3_7b_tp_qb2(
     output_file,
     num_layers,
@@ -2547,4 +2550,127 @@ def test_gpt_oss_20b_tp_qb2(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
+    )
+
+
+# Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
+# This test only runs 2 layers so we expect to see incoherent output
+def test_deepseek_v3_1_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.deepseek.deepseek_v3_1.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_V3_1_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # TODO:Test hangs? for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=0.90,
+    )
+
+
+def _glm_4_7_mesh_config_fn(model_loader, num_devices):
+    return (4, 8), ("batch", "model")
+
+
+def _glm_4_7_shard_spec_fn(model_loader, model):
+    """GLM-4.7 (4,8) mesh shard specs — mirrors load_shard_spec with batch/model axes swapped."""
+    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+
+    shard_specs = {}
+    shard_specs[model.model.embed_tokens.weight] = (None, "model")
+    shard_specs[model.model.norm.weight] = ("model",)
+    shard_specs[model.lm_head.weight] = (None, "model")
+
+    for layer in model.model.layers:
+        shard_specs[layer.input_layernorm.weight] = ("model",)
+        shard_specs[layer.post_attention_layernorm.weight] = ("model",)
+
+        attn = layer.self_attn
+        shard_specs[attn.q_proj.weight] = ("model", None)
+        shard_specs[attn.k_proj.weight] = ("model", None)
+        shard_specs[attn.v_proj.weight] = ("model", None)
+        shard_specs[attn.o_proj.weight] = (None, "model")
+        if attn.q_proj.bias is not None:
+            shard_specs[attn.q_proj.bias] = ("model",)
+            shard_specs[attn.k_proj.bias] = ("model",)
+            shard_specs[attn.v_proj.bias] = ("model",)
+        if hasattr(attn, "q_norm"):
+            shard_specs[attn.q_norm.weight] = ("model",)
+            shard_specs[attn.k_norm.weight] = ("model",)
+
+        mlp = layer.mlp
+        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
+            inner = mlp.mlp  # A2aSparseMLP
+            shard_specs[inner.router.gate.weight] = (None, "model")
+            shard_specs[inner.experts.gate_proj] = (("model", "batch"), None, None)
+            shard_specs[inner.experts.up_proj] = (("model", "batch"), None, None)
+            shard_specs[inner.experts.down_proj] = (("model", "batch"), None, None)
+            shared = getattr(mlp, "shared_experts", None)
+            if shared is not None:
+                shard_specs[shared.gate_proj.weight] = (None, "model")
+                shard_specs[shared.up_proj.weight] = (None, "model")
+                shard_specs[shared.down_proj.weight] = ("model", None)
+        else:
+            shard_specs[mlp.gate_proj.weight] = ("batch", "model")
+            shard_specs[mlp.up_proj.weight] = ("batch", "model")
+            shard_specs[mlp.down_proj.weight] = ("model", "batch")
+    return shard_specs
+
+
+# This test only runs 4 layers so we expect to see incoherent output
+def test_glm_4_7_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GLM_4_7
+
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # batch 128 fails with TT_FATAL: Invalid arguments to reshape (assert.hpp:104)
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        arch="wormhole_galaxy",
+        optimization_level=0,
+        trace_enabled=False,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", None, None, None),
+        mesh_config_fn=_glm_4_7_mesh_config_fn,
+        shard_spec_fn=_glm_4_7_shard_spec_fn,
+        required_pcc=0.80,
     )

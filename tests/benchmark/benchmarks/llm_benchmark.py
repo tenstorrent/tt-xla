@@ -74,7 +74,10 @@ def setup_model_and_tokenizer(
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
-        model.config._experts_implementation = "dense"
+        try:
+            model.set_experts_implementation("dense")
+        except (ValueError, KeyError):
+            pass  # model doesn't expose "dense"; leave config alone
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
