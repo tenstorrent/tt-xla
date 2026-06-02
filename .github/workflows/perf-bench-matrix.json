@@ -355,6 +355,11 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "glm_4_5_tp_galaxy_4_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_glm_4_5_tp_galaxy_4_layers",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
         "name": "glm_4_7_tp_galaxy_4_layers",
         "pytest": "tests/benchmark/test_llms.py::test_glm_4_7_tp_galaxy_4_layers",
         "runs-on": "galaxy-wh-6u"
