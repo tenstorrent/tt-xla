@@ -41,6 +41,74 @@ The benchmark uses tracy signposts to mark sections (warmup, token generation). 
 tt-perf-report trace.csv --start-signpost decode_1_start --end-signpost decode_1_end
 ```
 
+### Issue 5009 profiling pipeline
+
+Use `tests/benchmark/scripts/ttxla_profile_pipeline.py` to collect a run manifest, execute bounded benchmark profiles, capture IR and perf artifacts, and render the searchable dashboard and stakeholder HTML report.
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py run \
+  --output-root artifacts/prd-009/ttxla-profile \
+  --timeout-seconds 1800
+```
+
+To run the same pipeline on IRD, use `--target ird`. The default mode uses a
+short-lived `ird run` job so the scheduler owns container teardown:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --target ird \
+  --ird-docker-image ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-22-04:latest \
+  --ird-timeout 45:00 \
+  --ird-cluster tt_aus \
+  --ird-team sw \
+  --ird-machine aus-wh-01 \
+  --ird-num-pcie-chips 1 \
+  --ird-remote-repo-root /work/tt-xla \
+  --ird-remote-output-root /work/tt-xla/artifacts/prd-009/ttxla-profile \
+  --output-root artifacts/prd-009/ttxla-profile \
+  run
+```
+
+The harness writes `ird/ird-lifecycle.json` and `command-trace.jsonl` in the
+local run directory. Those files record the exact `ird run` command, remote
+pipeline command, scheduler return code, and any configured cleanup commands.
+
+If an explicit reservation is needed instead of `ird run`, use
+`--ird-mode reserve` and provide site-specific cleanup/run/release templates:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --target ird \
+  --ird-mode reserve \
+  --ird-pre-cleanup-command 'ird release {tag}' \
+  --ird-reserved-run-command 'ird run --reservation-id {reservation_id} -- {remote_command}' \
+  --ird-release-command 'ird release {reservation_id}' \
+  --ird-post-cleanup-command 'ird release {reservation_id}' \
+  run
+```
+
+Template variables include `{run_id}`, `{tag}`, `{reservation_id}`,
+`{target_host}`, `{remote_repo_root}`, `{remote_output_root}`, and
+`{remote_command}`. If `ird` is not available, or a reservation/release command
+fails, the lifecycle artifact records a `pipeline_error`-class blocker with the
+manual cleanup command.
+
+The pipeline writes:
+
+- `manifest.json`
+- `environment.json`
+- `model-manifest.json`
+- `command-trace.jsonl`
+- `ird/ird-lifecycle.json` when `--target ird` is used
+- `profiles/<model-id>/status.json`
+- `profiles/<model-id>/ir/`
+- `profiles/<model-id>/perf-report/`
+- `dashboard.html`
+- `claude-report-packet.html`
+- `report.html`
+
+The `dashboard.html` page ranks slow operations globally, by model, and by op type, while the HTML report preserves the requirement IDs, evidence paths, and blockers for stakeholder review.
+
 ### Next steps
 
 #### 1. Compare device and e2e times
