@@ -76,6 +76,33 @@ def _tp_config(
     )
 
 
+def _gemma4_tp_config(model: str, batch_size: int):
+    # Gemma-4 is a multimodal model run text-only on a TP mesh. Mirrors
+    # tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py
+    # ::test_tensor_parallel_generation_bhqb_gemma4_31b:
+    #   - limit_mm_per_prompt zeroed so the vision/audio tower never compiles
+    #   - max_num_batched_tokens floored at 2560 (MultiModalBudget video floor)
+    #   - flat_model_io for Gemma-4's PLE forward; use_2d_mesh=False -> 1D mesh
+    cfg = _config(
+        model,
+        batch_size,
+        gpu_memory_utilization=0.1,
+        enable_tensor_parallel=True,
+        use_2d_mesh=False,
+        min_context_len=32,
+        enable_const_eval=True,
+        experimental_weight_dtype="",
+        cpu_sampling=False,
+        flat_model_io=True,
+    )
+    cfg.limit_mm_per_prompt = {"image": 0, "video": 0, "audio": 0}
+    cfg.min_num_batched_tokens = 2560
+    # Gemma-4-it is instruct-tuned; drive via the chat template so it
+    # produces coherent output instead of a degenerate completion loop.
+    cfg.use_chat_template = True
+    return cfg
+
+
 SINGLE_DEVICE_CONFIGS = [
     pytest.param(_config("meta-llama/Llama-3.2-3B", 1), id="llama-3.2-3b"),
     pytest.param(
@@ -137,6 +164,10 @@ TP_CONFIGS = [
     ),
     pytest.param(_tp_config("Qwen/Qwen3-14B", 1), id="qwen3-14b-tp"),
     pytest.param(_tp_config("Qwen/Qwen3-32B", 1), id="qwen3-32b-tp"),
+    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 1), id="gemma4-31b-it-tp"),
+    pytest.param(
+        _tp_config("Qwen/Qwen3-32B", 1, use_2d_mesh=False), id="qwen3-32b-qb2-tp"
+    ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
     ),
@@ -154,6 +185,11 @@ TP_CONFIGS = [
     pytest.param(
         _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 1),
         id="mistral-small-24b-instruct-2501-tp",
+    ),
+    # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
+    pytest.param(
+        _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
+        id="opt-125m-fused-measure",
     ),
 ]
 

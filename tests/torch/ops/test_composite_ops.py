@@ -196,6 +196,37 @@ def test_composite_rms_norm(use_weight, batch_size, seq_len, hidden_size):
 @pytest.mark.single_device
 @pytest.mark.parametrize("elementwise_affine", [True, False])
 @pytest.mark.parametrize(
+    "batch_size, seq_len, hidden_size",
+    [(1, 32, 32), (1, 128, 768), (1, 1024, 768), (1, 4096, 2560)],
+)
+def test_patched_rms_norm_module(elementwise_affine, batch_size, seq_len, hidden_size):
+    class RMSNormModel(torch.nn.Module):
+        def __init__(self, hidden_size):
+            super().__init__()
+            self.rms = nn.RMSNorm(hidden_size, elementwise_affine=elementwise_affine)
+
+        def forward(self, x):
+            return self.rms(x)
+
+    options = {"tt_enable_composite_ops": True}
+
+    input_tensor = torch.randn(batch_size, seq_len, hidden_size)
+
+    model = RMSNormModel(hidden_size)
+
+    run_graph_test(
+        model,
+        [input_tensor],
+        comparison_config=ComparisonConfig(),
+        framework=Framework.TORCH,
+        torch_options=options,
+    )
+
+
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.parametrize("elementwise_affine", [True, False])
+@pytest.mark.parametrize(
     "batch_size, seq_len, embedding_dim",
     [(1, 32, 32), (1, 197, 768), (1, 1024, 768)],
 )

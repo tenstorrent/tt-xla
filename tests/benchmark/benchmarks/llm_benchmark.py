@@ -242,7 +242,6 @@ def benchmark_llm_torch_xla(
     read_logits_fn,
     mesh_config_fn,
     shard_spec_fn,
-    arch,
     required_pcc,
     fp32_dest_acc_en=None,
     experimental_kv_cache_dtype=None,
@@ -830,6 +829,7 @@ def benchmark_llm_torch_xla(
         )
 
     # Get device count and mesh info for metrics
+    arch = get_xla_device_arch()
     device_count = xr.global_runtime_device_count()
     mesh_shape = tuple(mesh.shape()) if mesh is not None else None
 
@@ -855,7 +855,7 @@ def benchmark_llm_torch_xla(
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
-        arch=arch or get_xla_device_arch(),
+        arch=arch,
         input_is_image=False,
         input_sequence_length=input_sequence_length,
         device_count=device_count,

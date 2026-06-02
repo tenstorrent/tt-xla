@@ -456,17 +456,8 @@ jobs:
           | jq -r '.workflow_runs[0].id')
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
-        arch=""
-        if [[ "${{ matrix.build.runs-on }}" == *"n150"* ]]; then
-          arch="wormhole"
-        elif [[ "${{ matrix.build.runs-on }}" == *"p150"* ]]; then
-          arch="blackhole"
-        elif [[ "${{ matrix.build.runs-on }}" == *"llmbox"* ]]; then
-          arch="wormhole_llmbox"
-        elif [[ "${{ matrix.build.runs-on }}" == *"galaxy"* ]]; then
-          arch="wormhole_galaxy"
-        fi
-        echo "arch=$arch" >> $GITHUB_OUTPUT
+        echo "device_type=${{ matrix.build.runs-on-original }}" >> $GITHUB_OUTPUT
+        echo "arch=$(jq -r '.device_info.arch // ""' ${{ steps.strings.outputs.perf_report_json_file }})" >> $GITHUB_OUTPUT
 
     - name: Fetch previous perf results
       id: prev-perf
@@ -474,7 +465,7 @@ jobs:
       uses: ./.github/actions/superset-api
       with:
         query: 'benchmarks/last_measurement'
-        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
+        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}","device_type":"${{ steps.set-query-strings.outputs.device_type }}"}'
 
     - name: Check perf regression
       if: inputs.regression_check

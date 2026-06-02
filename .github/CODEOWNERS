@@ -19,6 +19,8 @@
 # Tests
 /tests/ @mrakitaTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
 /tests/benchmark/ @odjuricicTT @vkovacevicTT @rpavlovicTT @mvasiljevicTT @bmalesevicTT
+/tests/benchmark/benchmarks/vllm_benchmark.py @alinakhanTT @kmabeeTT @mmanzoorTT @vkovacevicTT
+/tests/benchmark/test_vllm_benchmarks.py @alinakhanTT @kmabeeTT @mmanzoorTT @vkovacevicTT
 /tests/infra/utilities/failing_reasons/ @mrakitaTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @vbrkicTT @vobojevicTT @kmilanovicTT @nvukobratTT @dgolubovicTT @acicovicTT
 pytest.ini @mrakitaTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT
 .test_durations @mrakitaTT @AleksKnezevic @jameszianxuTT @kmabeeTT @ndrakulicTT @sdjukicTT @sgligorijevicTT @vzeljkovicTT @acicovicTT

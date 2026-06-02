@@ -74,7 +74,7 @@ LLM_MESH_SHAPES = (
 
 # Run modes
 RUN_MODES_STANDARD = ("inference", "training")
-RUN_MODES_LLM = ("inference",)
+RUN_MODES_LLM = ("inference", "training")
 
 # LLM phases
 LLM_PHASES = {"load_inputs_decode": "llm_decode", "load_inputs_prefill": "llm_prefill"}

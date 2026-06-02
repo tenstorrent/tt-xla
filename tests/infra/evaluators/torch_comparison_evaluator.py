@@ -119,7 +119,10 @@ class TorchComparisonEvaluator(ComparisonEvaluator):
             ), f"Expected pcc_mask to have shape [batch, seq], got {tuple(pcc_mask.shape)}"
             batch_size, seq_len = pcc_mask.shape
 
-            if x.dim() < 2 or y.dim() < 2:
+            # Mask only applies to rank-3/4 tensors (logits [B,S,V] or KV [B,H,S,D]).
+            # Rank-1/2 tensors (e.g. 2D gradient matrices in training) have no sequence
+            # dimension to mask; skip rather than crash on the assert below.
+            if x.dim() < 3 or y.dim() < 3:
                 return x, y
             if x.shape[0] != batch_size or y.shape[0] != batch_size:
                 return x, y

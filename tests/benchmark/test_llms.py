@@ -50,7 +50,6 @@ def test_llm(
     read_logits_fn=default_read_logits_fn,
     mesh_config_fn=None,
     shard_spec_fn=None,
-    arch=None,
     required_pcc=DEFAULT_REQUIRED_PCC,
     fp32_dest_acc_en=None,
     experimental_kv_cache_dtype=None,
@@ -150,7 +149,6 @@ def test_llm(
         read_logits_fn=read_logits_fn,
         mesh_config_fn=mesh_config_fn,
         shard_spec_fn=shard_spec_fn,
-        arch=arch,
         required_pcc=required_pcc,
         fp32_dest_acc_en=fp32_dest_acc_en,
         experimental_kv_cache_dtype=experimental_kv_cache_dtype,
@@ -227,7 +225,6 @@ def test_llm_tp(
     output_file,
     num_layers=None,
     request=None,
-    arch="wormhole_llmbox",
     decode_only=False,
     required_pcc=DEFAULT_REQUIRED_PCC,
     **kwargs,
@@ -251,7 +248,6 @@ def test_llm_tp(
         optimization_level=optimization_level,
         mesh_config_fn=mesh_config_fn,
         shard_spec_fn=shard_spec_fn,
-        arch=arch,
         num_layers=num_layers,
         request=request,
         decode_only=decode_only,
@@ -1861,7 +1857,6 @@ def test_llama_3_1_70b_tp_galaxy(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        arch="wormhole_galaxy",
         optimization_level=1,
     )
 
@@ -1894,7 +1889,6 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         batch_size=(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
-        arch="wormhole_galaxy",
         optimization_level=1,
     )
 
@@ -1967,7 +1961,6 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         batch_size=128,
-        arch="wormhole_galaxy",
         optimization_level=1,
         mesh_config_fn=_galaxy_mesh_config_fn,
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
@@ -2003,7 +1996,6 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         batch_size=batch_size if batch_size is not None else 64,
-        arch="wormhole_galaxy",
         optimization_level=1,
         mesh_config_fn=_galaxy_mesh_config_fn,
         shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
@@ -2062,7 +2054,6 @@ def test_gpt_oss_120b_tp_qb2(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         batch_size=batch_size if batch_size is not None else 8,
-        arch="qb2-blackhole",
         optimization_level=1,
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
@@ -2106,7 +2097,6 @@ def test_kimi_k2_tp_galaxy_2_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
-        arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
     )
@@ -2141,7 +2131,6 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
-        arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
     )
@@ -2176,8 +2165,369 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         use_indexer_cache=True,
-        arch="wormhole_galaxy",
         optimization_level=0,
         trace_enabled=False,
         required_pcc=-0.92,
+    )
+
+
+def test_falcon3_7b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.falcon.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.FALCON_7B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_falcon3_10b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.falcon.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.FALCON_10B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_llama_3_1_8b_instruct_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_8B_INSTRUCT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_ministral_8b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.mistral.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MINISTRAL_8B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_mistral_nemo_instruct_2407_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.mistral.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MISTRAL_NEMO_INSTRUCT_2407
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_mistral_small_24b_instruct_2501_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.mistral.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MISTRAL_SMALL_24B_INSTRUCT_2501
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_qwen_2_5_14b_instruct_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_2_5_14B_INSTRUCT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_qwen_2_5_coder_32b_instruct_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_2_5_coder.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_2_5_CODER_32B_INSTRUCT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_qwen_3_8b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_3_8B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_qwen_3_14b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_3_14B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_qwen_3_32b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_3_32B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=2,
+    )
+
+
+def test_gpt_oss_20b_tp_qb2(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
+        optimization_level=2,
     )
