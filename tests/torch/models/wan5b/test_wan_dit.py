@@ -62,7 +62,6 @@ def test_wan_dit_480p_sharded():
 def _run(resolution: str, sharded: bool) -> None:
     # Apply monkey patches here (not at module top) so they don't leak into
     # other tests collected in the same pytest session.
-    _patch_apply_lora_scale()
     _patch_wan_time_embedder_dtype_probe()
     _disable_tt_torch_function_override()
 
