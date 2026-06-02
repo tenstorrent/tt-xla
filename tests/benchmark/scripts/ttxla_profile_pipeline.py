@@ -96,10 +96,13 @@ MODEL_FAILURE_HINTS = (
     "pcc comparison failed",
     "comparison failed",
     "runtimeerror",
+    "tt_fatal",
+    "fatal error",
     "ttmlir compilation",
     "frontend conversion",
     "unsupported operator",
     "device crash",
+    "bad statusor access",
     "traceback",
 )
 
@@ -749,6 +752,84 @@ def parse_perf_csv(csv_path: Path, model_name: str, model_slug: str) -> dict[str
     }
 
 
+def text_has_hint(text: str, hints: Iterable[str]) -> bool:
+    lowered = text.lower()
+    return any(hint in lowered for hint in hints)
+
+
+def infer_profile_status(returncode: Optional[int], timed_out: bool) -> str:
+    if timed_out:
+        return "pending"
+    if returncode == 0:
+        return "passed"
+    if returncode is None:
+        return "unknown"
+    return "failed"
+
+
+def infer_model_status(
+    returncode: Optional[int],
+    timed_out: bool,
+    text: str,
+    benchmark_json: dict[str, Any],
+) -> str:
+    if timed_out:
+        return "pending"
+    if text_has_hint(text, SKIP_HINTS):
+        return "skipped"
+    if text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
+        return "not_run"
+    if text_has_hint(text, MODEL_FAILURE_HINTS):
+        return "failed"
+    if returncode not in (0, None):
+        return "failed" if benchmark_json else "unknown"
+    if returncode == 0:
+        return "passed"
+    return "unknown"
+
+
+def infer_taxonomy_from_statuses(
+    profile_status: str,
+    model_status: str,
+    text: str,
+    benchmark_json: dict[str, Any],
+    perf_report_ok: bool,
+) -> tuple[str, str]:
+    lowered = text.lower()
+    if profile_status == "pending" or model_status == "pending":
+        return "pending_terminalization", "timed out before reaching a terminal state"
+    if model_status == "skipped":
+        return "skipped_with_reason", "benchmark entry was skipped"
+    if model_status == "not_run" or text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
+        return (
+            "environment_failure",
+            "environment or dependency issue blocked profiling",
+        )
+    if model_status == "failed":
+        if any(
+            term in lowered
+            for term in ("pcc comparison failed", "accuracy", "validation")
+        ):
+            return "validated_fail", "model compiled but validation failed"
+        return (
+            "model_failure",
+            "model or runtime behavior failed after environment preconditions passed",
+        )
+    if profile_status == "passed" and model_status == "passed" and perf_report_ok:
+        return "validated_pass", "profiling run completed and perf report was produced"
+    if profile_status == "passed" and model_status == "passed" and not perf_report_ok:
+        return (
+            "pipeline_error",
+            "benchmark completed but perf report could not be produced",
+        )
+    if benchmark_json:
+        return (
+            "pipeline_error",
+            "pipeline or artifact stage failed after benchmark output was produced",
+        )
+    return "pipeline_error", "pipeline did not produce a terminal profiling artifact"
+
+
 def infer_taxonomy(
     returncode: Optional[int],
     timed_out: bool,
@@ -756,44 +837,11 @@ def infer_taxonomy(
     benchmark_json: dict[str, Any],
     perf_report_ok: bool,
 ) -> tuple[str, str]:
-    lowered = text.lower()
-    if timed_out:
-        return "pending_terminalization", "timed out before reaching a terminal state"
-    if returncode == 0 and perf_report_ok:
-        return "validated_pass", "profiling run completed and perf report was produced"
-    if any(hint in lowered for hint in SKIP_HINTS):
-        return "skipped_with_reason", "benchmark entry was skipped"
-    if any(hint in lowered for hint in ENVIRONMENT_FAILURE_HINTS):
-        return (
-            "environment_failure",
-            "environment or dependency issue blocked profiling",
-        )
-    if returncode not in (0, None):
-        if any(hint in lowered for hint in MODEL_FAILURE_HINTS):
-            if any(
-                term in lowered
-                for term in ("pcc comparison failed", "accuracy", "validation")
-            ):
-                return "validated_fail", "model compiled but validation failed"
-            return (
-                "model_failure",
-                "model or runtime behavior failed after environment preconditions passed",
-            )
-        if benchmark_json:
-            return (
-                "pipeline_error",
-                "pipeline or artifact stage failed after benchmark output was produced",
-            )
-        return (
-            "pipeline_error",
-            "pipeline or artifact stage failed before benchmark output was produced",
-        )
-    if benchmark_json and not perf_report_ok:
-        return (
-            "pipeline_error",
-            "benchmark completed but perf report could not be produced",
-        )
-    return "pipeline_error", "pipeline did not produce a terminal profiling artifact"
+    profile_status = infer_profile_status(returncode, timed_out)
+    model_status = infer_model_status(returncode, timed_out, text, benchmark_json)
+    return infer_taxonomy_from_statuses(
+        profile_status, model_status, text, benchmark_json, perf_report_ok
+    )
 
 
 def terminal_state_for_taxonomy(taxonomy: str) -> str:
@@ -994,6 +1042,15 @@ def profile_one_model(
         benchmark_json=benchmark_json,
         perf_report_ok=perf_report_ok,
     )
+    profile_status = infer_profile_status(
+        profile_result.returncode, profile_result.timed_out
+    )
+    model_status = infer_model_status(
+        profile_result.returncode,
+        profile_result.timed_out,
+        combined_text,
+        benchmark_json,
+    )
     terminal_state = terminal_state_for_taxonomy(taxonomy)
     next_action = next_action_for_taxonomy(taxonomy)
 
@@ -1037,7 +1094,7 @@ def profile_one_model(
         },
         "stages": {
             "profile": {
-                "state": terminal_state,
+                "state": profile_status,
                 "returncode": profile_result.returncode,
                 "timed_out": profile_result.timed_out,
                 "note": profile_result.note,
@@ -1055,6 +1112,12 @@ def profile_one_model(
                 "note": perf_report_reason,
             },
         },
+        "profile_status": profile_status,
+        "model_status": model_status,
+        "tool_status": {
+            "tt_perf_report": "generated" if perf_report_ok else "blocked",
+            "ir": "collected" if copied_ir_files else "missing",
+        },
         "taxonomy": taxonomy,
         "terminal_state": terminal_state,
         "reason": reason,
@@ -1063,11 +1126,16 @@ def profile_one_model(
         "slow_ops": str(slow_ops_path),
         "verification": {
             "verified": terminal_state == "passed"
+            and profile_status == "passed"
+            and model_status == "passed"
             and perf_report_ok
-            and bool(copied_ir_files),
+            and not text_has_hint(combined_text, MODEL_FAILURE_HINTS),
             "state": (
                 "verified"
-                if terminal_state == "passed" and perf_report_ok
+                if terminal_state == "passed"
+                and profile_status == "passed"
+                and model_status == "passed"
+                and perf_report_ok
                 else "pending"
             ),
         },
@@ -1155,7 +1223,10 @@ def load_slow_ops(run_dir: Path) -> list[dict[str, Any]]:
             record["nodeid"] = payload.get(
                 "nodeid", model_status.get("model", {}).get("nodeid", "")
             )
-            record["profile_status"] = model_status.get("terminal_state", "unknown")
+            record["profile_status"] = model_status.get(
+                "profile_status", model_status.get("terminal_state", "unknown")
+            )
+            record["model_status"] = model_status.get("model_status", "unknown")
             record["taxonomy"] = model_status.get("taxonomy", "unknown")
             record["profile_dir"] = str(slow_ops_file.parent)
             record["status_path"] = str(slow_ops_file.parent / "status.json")
@@ -1189,7 +1260,10 @@ def aggregate_models(
                 "model_identity": model_identity,
                 "nodeid": model.get("nodeid", ""),
                 "source_path": model.get("source_path", ""),
-                "profile_status": status.get("terminal_state", "unknown"),
+                "profile_status": status.get(
+                    "profile_status", status.get("terminal_state", "unknown")
+                ),
+                "model_status": status.get("model_status", "unknown"),
                 "taxonomy": status.get("taxonomy", "unknown"),
                 "reason": status.get("reason", ""),
                 "next_action": status.get("next_action", ""),
@@ -1265,6 +1339,10 @@ def render_dashboard_html(
         {row.get("profile_status", "unknown") for row in slow_ops}
         | {row.get("profile_status", "unknown") for row in models}
     )
+    all_model_statuses = sorted(
+        {row.get("model_status", "unknown") for row in slow_ops}
+        | {row.get("model_status", "unknown") for row in models}
+    )
     all_taxonomies = sorted(
         {row.get("taxonomy", "unknown") for row in slow_ops}
         | {row.get("taxonomy", "unknown") for row in models}
@@ -1277,6 +1355,7 @@ def render_dashboard_html(
             f'data-op="{html.escape(str(row.get("op_name", "")))}" '
             f'data-op-type="{html.escape(str(row.get("op_type", "")))}" '
             f'data-status="{html.escape(str(row.get("profile_status", "")))}" '
+            f'data-model-status="{html.escape(str(row.get("model_status", "")))}" '
             f'data-taxonomy="{html.escape(str(row.get("taxonomy", "")))}">'
             f"<td>{row.get('global_rank', '')}</td>"
             f"<td>{html.escape(str(row.get('model_identity', '')))}</td>"
@@ -1284,6 +1363,7 @@ def render_dashboard_html(
             f"<td>{html.escape(str(row.get('op_type', '')))}</td>"
             f"<td>{float(row.get('duration_us', 0.0)):.2f}</td>"
             f"<td>{html.escape(str(row.get('profile_status', '')))}</td>"
+            f"<td>{html.escape(str(row.get('model_status', '')))}</td>"
             f"<td>{html.escape(str(row.get('taxonomy', '')))}</td>"
             f"<td>{render_links(run_dir, str(row.get('status_path', '')), 'status')}</td>"
             f"<td>{render_links(run_dir, str(row.get('ir_dir', '')), 'ir')}</td>"
@@ -1297,10 +1377,12 @@ def render_dashboard_html(
             "<tr "
             f'data-model="{html.escape(str(row.get("model_identity", "")))}" '
             f'data-status="{html.escape(str(row.get("profile_status", "")))}" '
+            f'data-model-status="{html.escape(str(row.get("model_status", "")))}" '
             f'data-taxonomy="{html.escape(str(row.get("taxonomy", "")))}">'
             f"<td>{row.get('global_rank', '')}</td>"
             f"<td>{html.escape(str(row.get('model_identity', '')))}</td>"
             f"<td>{html.escape(str(row.get('profile_status', '')))}</td>"
+            f"<td>{html.escape(str(row.get('model_status', '')))}</td>"
             f"<td>{html.escape(str(row.get('taxonomy', '')))}</td>"
             f"<td>{row.get('row_count', 0)}</td>"
             f"<td>{row.get('total_duration_us', 0.0):.2f}</td>"
@@ -1329,8 +1411,10 @@ def render_dashboard_html(
     total_models = len(models)
     total_ops = len(slow_ops)
     passed_models = sum(1 for row in models if row.get("profile_status") == "passed")
-    blocked_models = sum(1 for row in models if row.get("profile_status") == "blocked")
-    failed_models = sum(1 for row in models if row.get("profile_status") == "failed")
+    blocked_models = sum(
+        1 for row in models if row.get("profile_status") in ("blocked", "pending")
+    )
+    failed_models = sum(1 for row in models if row.get("model_status") == "failed")
 
     return f"""<!doctype html>
 <html lang="en">
@@ -1377,6 +1461,7 @@ def render_dashboard_html(
     <div class="controls">
       <div><label for="search">Search</label><input id="search" type="search" placeholder="model, op, or path" /></div>
       <div><label for="status">Profile status</label><select id="status"><option value="">All</option>{''.join(f'<option value="{html.escape(value)}">{html.escape(value)}</option>' for value in all_status_values)}</select></div>
+      <div><label for="model-status">Model status</label><select id="model-status"><option value="">All</option>{''.join(f'<option value="{html.escape(value)}">{html.escape(value)}</option>' for value in all_model_statuses)}</select></div>
       <div><label for="taxonomy">Taxonomy</label><select id="taxonomy"><option value="">All</option>{''.join(f'<option value="{html.escape(value)}">{html.escape(value)}</option>' for value in all_taxonomies)}</select></div>
     </div>
   </section>
@@ -1386,10 +1471,10 @@ def render_dashboard_html(
     <div class="table-wrap">
       <table id="slow-ops">
         <thead>
-          <tr><th>#</th><th>Model</th><th>Operation</th><th>Type</th><th>Duration us</th><th>Status</th><th>Taxonomy</th><th>Status</th><th>IR</th><th>Perf</th></tr>
+          <tr><th>#</th><th>Model</th><th>Operation</th><th>Type</th><th>Duration us</th><th>Profile</th><th>Model</th><th>Taxonomy</th><th>Status</th><th>IR</th><th>Perf</th></tr>
         </thead>
         <tbody>
-          {''.join(html_rows) or '<tr><td colspan="10">No slow-op data available.</td></tr>'}
+          {''.join(html_rows) or '<tr><td colspan="11">No slow-op data available.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1399,10 +1484,10 @@ def render_dashboard_html(
     <div class="table-wrap">
       <table id="models">
         <thead>
-          <tr><th>#</th><th>Model</th><th>Status</th><th>Taxonomy</th><th>Ops</th><th>Total us</th><th>Slowest op</th><th>Type</th><th>IR</th><th>Perf</th></tr>
+          <tr><th>#</th><th>Model</th><th>Profile</th><th>Model</th><th>Taxonomy</th><th>Ops</th><th>Total us</th><th>Slowest op</th><th>Type</th><th>IR</th><th>Perf</th></tr>
         </thead>
         <tbody>
-          {''.join(model_rows) or '<tr><td colspan="10">No model summary available.</td></tr>'}
+          {''.join(model_rows) or '<tr><td colspan="11">No model summary available.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1423,6 +1508,7 @@ def render_dashboard_html(
   <script>
     const search = document.getElementById('search');
     const status = document.getElementById('status');
+    const modelStatus = document.getElementById('model-status');
     const taxonomy = document.getElementById('taxonomy');
     function matches(row) {{
       const text = `${{row.dataset.model || ''}} ${{row.dataset.op || ''}} ${{row.dataset.opType || ''}}`.toLowerCase();
@@ -1431,6 +1517,9 @@ def render_dashboard_html(
         return false;
       }}
       if (status.value && row.dataset.status !== status.value) {{
+        return false;
+      }}
+      if (modelStatus.value && row.dataset.modelStatus !== modelStatus.value) {{
         return false;
       }}
       if (taxonomy.value && row.dataset.taxonomy !== taxonomy.value) {{
@@ -1445,6 +1534,7 @@ def render_dashboard_html(
     }}
     search.addEventListener('input', applyFilters);
     status.addEventListener('change', applyFilters);
+    modelStatus.addEventListener('change', applyFilters);
     taxonomy.addEventListener('change', applyFilters);
     applyFilters();
   </script>
@@ -1473,6 +1563,8 @@ def render_packet_html(
             "<tr>"
             f"<td>{html.escape(str(model.get('model_identity', '')))}</td>"
             f"<td>{html.escape(str(status.get('terminal_state', '')))}</td>"
+            f"<td>{html.escape(str(status.get('profile_status', '')))}</td>"
+            f"<td>{html.escape(str(status.get('model_status', '')))}</td>"
             f"<td>{html.escape(str(status.get('taxonomy', '')))}</td>"
             f"<td>{html.escape(str(status.get('reason', '')))}</td>"
             f"<td>{render_links(run_dir, status.get('artifacts', {}).get('tt_perf_report', ''), 'perf')}</td>"
@@ -1525,8 +1617,8 @@ def render_packet_html(
   <section>
     <h2>Models</h2>
     <table>
-      <thead><tr><th>Model</th><th>Status</th><th>Taxonomy</th><th>Reason</th><th>Perf</th><th>IR</th><th>Slow ops</th></tr></thead>
-      <tbody>{''.join(model_rows) or '<tr><td colspan="7">No model status artifacts were generated.</td></tr>'}</tbody>
+      <thead><tr><th>Model</th><th>Terminal</th><th>Profile</th><th>Model</th><th>Taxonomy</th><th>Reason</th><th>Perf</th><th>IR</th><th>Slow ops</th></tr></thead>
+      <tbody>{''.join(model_rows) or '<tr><td colspan="9">No model status artifacts were generated.</td></tr>'}</tbody>
     </table>
   </section>
 </body>
@@ -1565,6 +1657,9 @@ def render_report_html(
         ),
         "ops": len(slow_ops),
     }
+    model_failures = sum(
+        1 for status in statuses if status.get("model_status") == "failed"
+    )
     blockers = [
         status for status in statuses if status.get("terminal_state") != "passed"
     ]
@@ -1575,6 +1670,8 @@ def render_report_html(
             "<tr>"
             f"<td>{html.escape(str(model.get('model_identity', '')))}</td>"
             f"<td>{html.escape(str(status.get('terminal_state', '')))}</td>"
+            f"<td>{html.escape(str(status.get('profile_status', '')))}</td>"
+            f"<td>{html.escape(str(status.get('model_status', '')))}</td>"
             f"<td>{html.escape(str(status.get('taxonomy', '')))}</td>"
             f"<td>{html.escape(str(status.get('next_action', '')))}</td>"
             "</tr>"
@@ -1611,6 +1708,7 @@ def render_report_html(
       <div class="metric"><strong>{counts['passed']}</strong><span>passed</span></div>
       <div class="metric"><strong>{counts['failed']}</strong><span>failed</span></div>
       <div class="metric"><strong>{counts['blocked']}</strong><span>blocked</span></div>
+      <div class="metric"><strong>{model_failures}</strong><span>model failures</span></div>
       <div class="metric"><strong>{counts['ops']}</strong><span>slow-op rows</span></div>
     </div>
     <p class="muted">Source packet: <a href="{html.escape(os.path.relpath(packet_path, run_dir))}">claude-report-packet.html</a> | Dashboard: <a href="{html.escape(os.path.relpath(dashboard_path, run_dir))}">dashboard.html</a></p>
@@ -1625,8 +1723,8 @@ def render_report_html(
   <section>
     <h2>Open blockers and next actions</h2>
     <table>
-      <thead><tr><th>Model</th><th>Status</th><th>Taxonomy</th><th>Next action</th></tr></thead>
-      <tbody>{''.join(blocker_rows) or '<tr><td colspan="4">No open blockers.</td></tr>'}</tbody>
+      <thead><tr><th>Model</th><th>Terminal</th><th>Profile</th><th>Model</th><th>Taxonomy</th><th>Next action</th></tr></thead>
+      <tbody>{''.join(blocker_rows) or '<tr><td colspan="6">No open blockers.</td></tr>'}</tbody>
     </table>
   </section>
   <section>

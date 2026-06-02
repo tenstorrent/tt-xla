@@ -57,7 +57,7 @@ short-lived `ird run` job so the scheduler owns container teardown:
 ```bash
 python tests/benchmark/scripts/ttxla_profile_pipeline.py \
   --target ird \
-  --ird-docker-image ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-22-04:latest \
+  --ird-docker-image xla \
   --ird-timeout 45:00 \
   --ird-cluster tt_aus \
   --ird-team sw \
@@ -69,6 +69,11 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py \
   run
 ```
 
+The `xla` image alias is expected to select the Ubuntu 24 TT-XLA IRD image. The
+harness emits `ird run wormhole_b0 --docker-image xla ...`; keep
+`--docker-image` after the hardware architecture argument because this IRD CLI
+uses that ordering to select the TT-XLA image.
+
 The nested IRD run performs a readiness gate before pytest discovery. It records
 `readiness/*.out`, `readiness/*.err`, `environment.json`, `manifest.json`, and
 `command-trace.jsonl` if `pytest`, Tracy, or `tt-perf-report` cannot start.
@@ -79,7 +84,7 @@ through `--ird-remote-setup` and pass explicit command forms as needed:
 ```bash
 python tests/benchmark/scripts/ttxla_profile_pipeline.py \
   --target ird \
-  --ird-docker-image ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-24-04:latest \
+  --ird-docker-image xla \
   --ird-cluster tt_aus \
   --ird-team sw \
   --ird-machine aus-wh-01 \
@@ -90,6 +95,15 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py \
   --tracy-bin 'python3 -m tracy' \
   --tt-perf-report-bin tt-perf-report \
   run
+```
+
+For live IRD runs, prefer a run-local `HOME` and cache directory so TT-Metal
+cache state is cleaned before use and can be removed after use. Also avoid broad
+staged library directories in `LD_LIBRARY_PATH`; use only the protobuf-specific
+directory plus the CPython runtime library path needed by the selected wheel:
+
+```bash
+--ird-remote-setup 'export HOME=/home/$USER/work/ttxla-5009/ird-home-<run-id> && mkdir -p $HOME/.cache && rm -rf $HOME/.cache/tt-metal-cache && . /home/$USER/work/ttxla-5009/venv312/bin/activate && export LD_LIBRARY_PATH=/home/$USER/work/ttxla-5009/libs-protobuf:/home/$USER/work/ttxla-5009/uv-python/cpython-3.12.12-linux-x86_64-gnu/lib:${LD_LIBRARY_PATH:-} && export XDG_CACHE_HOME=$HOME/.cache && export HF_HOME=$HOME/.cache/huggingface'
 ```
 
 The harness writes `ird/ird-lifecycle.json` and `command-trace.jsonl` in the

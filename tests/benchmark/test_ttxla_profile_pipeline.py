@@ -103,6 +103,30 @@ def test_infer_taxonomy_distinguishes_environment_model_and_terminal_states():
     assert "timed out" in reason
 
 
+def test_status_semantics_do_not_treat_profile_success_as_model_success():
+    pipeline = load_pipeline_module()
+    text = "\n".join(
+        [
+            "2026-06-02 | critical | Always | TT_FATAL: Inputs to matmul must be tilized",
+            "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13",
+        ]
+    )
+
+    assert pipeline.infer_profile_status(0, False) == "passed"
+    assert pipeline.infer_model_status(0, False, text, {}) == "failed"
+
+    taxonomy, reason = pipeline.infer_taxonomy(
+        returncode=0,
+        timed_out=False,
+        text=text,
+        benchmark_json={},
+        perf_report_ok=True,
+    )
+
+    assert taxonomy == "model_failure"
+    assert "model or runtime behavior failed" in reason
+
+
 def test_discovery_and_manifest_artifacts_are_written(tmp_path):
     pipeline = load_pipeline_module()
     run_dir = tmp_path / "artifacts" / "prd-009" / "ttxla-profile" / "run-5009-demo"
@@ -175,6 +199,8 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
             "source_path": "tests/benchmark/test_llms.py",
         },
         "terminal_state": "passed",
+        "profile_status": "passed",
+        "model_status": "passed",
         "taxonomy": "validated_pass",
         "reason": "",
         "next_action": "Review dashboard rankings and choose the next optimization target.",
@@ -199,6 +225,7 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
             "op_type": "compute",
             "duration_us": 120.5,
             "profile_status": "passed",
+            "model_status": "passed",
             "taxonomy": "validated_pass",
             "status_path": str(run_dir / "profiles" / "model-a" / "status.json"),
             "ir_dir": status["artifacts"]["ir_dir"],
@@ -266,6 +293,7 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
     report_text = report_path.read_text(encoding="utf-8")
     assert "Search" in dashboard_text
     assert "Global slow operations" in dashboard_text
+    assert "Model status" in dashboard_text
     assert "REQ-F-008" in packet_text
     assert "REQ-F-009" in report_text
     assert "dashboard.html" in report_text
@@ -313,7 +341,9 @@ def test_profile_command_accepts_python_module_tracy_invocation(tmp_path):
 def test_run_records_readiness_blocker_when_tracy_is_missing(tmp_path):
     pipeline = load_pipeline_module()
     fake_perf_report = tmp_path / "tt-perf-report"
-    fake_perf_report.write_text("#!/bin/sh\necho tt-perf-report 1.2.4\n", encoding="utf-8")
+    fake_perf_report.write_text(
+        "#!/bin/sh\necho tt-perf-report 1.2.4\n", encoding="utf-8"
+    )
     fake_perf_report.chmod(0o755)
     run_dir = tmp_path / "run-5009-readiness-blocked"
 
