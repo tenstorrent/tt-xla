@@ -261,7 +261,7 @@ index 3155d02b8..2877f7998 100644
 @@ -418,14 +418,6 @@ getFlashMlaPrefillShardingRule(mlir::stablehlo::CustomCallOp op) {
      return mlir::sdy::OpShardingRuleAttr();
    }
- 
+
 -  if (kvHeads == 1) {
 -    op.getOperation()->emitError()
 -        << "flash_mla_prefill (MLA prefill) expects MHA inputs but got "
@@ -276,7 +276,7 @@ index 3155d02b8..2877f7998 100644
 @@ -468,10 +460,20 @@ getFlashMlaPrefillShardingRule(mlir::stablehlo::CustomCallOp op) {
    builder.addFactor(makeOpDims(0, 0, 0, maskBatch), {0}, B,
                      sdy::FactorType::kPassThrough);
- 
+
 -  // Heads (dim 1): kPassThrough, factor size qHeads. Mask heads are always 1
 -  // so the mask sits out of this factor (kNullDim).
 -  builder.addFactor(makeOpDims(1, 1, 1, sdy::kNullDim), {1}, qHeads,
@@ -295,7 +295,7 @@ index 3155d02b8..2877f7998 100644
 +  int64_t kvHeadDim = (kvHeads == 1) ? sdy::kNullDim : 1;
 +  builder.addFactor(makeOpDims(1, kvHeadDim, kvHeadDim, sdy::kNullDim), {1},
 +                    qHeads, sdy::FactorType::kPassThrough);
- 
+
    // Sequence (dim 2): kNeedReplication, shared across Q/K/V/Out/mask.
    builder.addFactor(makeOpDims(2, 2, 2, 2), {2}, S,
 ```
@@ -309,7 +309,7 @@ index 179ae2985..c123d6258 100644
 +++ b/lib/Dialect/TTIR/Transforms/TTIRFusing.cpp
 @@ -3,6 +3,7 @@
  // SPDX-License-Identifier: Apache-2.0
- 
+
  #include "ttmlir/Asserts.h"
 +#include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
  #include "ttmlir/Dialect/TTIR/IR/TTIROps.h"
@@ -318,7 +318,7 @@ index 179ae2985..c123d6258 100644
 @@ -2177,6 +2178,37 @@ private:
        return false;
      }
- 
+
 +    // ttnn.concatenate_heads (nlp_concat_heads, interleaved) sizes its per-core
 +    // source circular buffer to the FULL concatenated hidden width and double-
 +    // buffers it: cb_src0 = 2 * (num_heads * head_size / TILE_WIDTH) tiles.
@@ -363,9 +363,9 @@ index e681c2c84..518efc678 100644
 --- a/test/ttmlir/Dialect/StableHLO/register_custom_sharding_rule/custom_op_flash_mla_prefill.mlir
 +++ b/test/ttmlir/Dialect/StableHLO/register_custom_sharding_rule/custom_op_flash_mla_prefill.mlir
 @@ -135,10 +135,25 @@ module @FlashMlaPrefill_Sharding_HeadDimV_NeedsAllGather attributes {mhlo.cross_
- 
+
  // -----
- 
+
 -// MQA -- a single shared KV head (kvHeads == 1) is the MLA *decode* form.
 -module @FlashMlaPrefill_MQA_Rejected attributes {mhlo.cross_program_prefetches = [], mhlo.frontend_attributes = {xla.sdy.meshes = "{mesh = #sdy.mesh<[\22_axis_0\22=2]>}"}, mhlo.input_output_alias = [], mhlo.is_dynamic = false, mhlo.use_auto_spmd_partitioning = false} {
 +// Latent KV (the canonical MLA prefill form): the compressed K/V is a single

@@ -26,11 +26,25 @@ Why test the impl directly (not the OOT wrapper)
 we can drive it without vLLM's platform/config/distributed/forward-context
 machinery — keeping this a focused single-op-graph correctness check.
 
+Sharding (tensor parallelism)
+-----------------------------
+On a multi-device arch (``llmbox``) the impl is run under SPMD with the N query
+heads split across the mesh ``"model"`` axis — the standard head-parallel MLA
+layout. The per-head Q activations (``q_nope``/``q_pe``) and the absorbed
+weights (``W_UK_T``/``W_UV``, sharded on their head axis) partition along the
+heads, so both einsums and the ``tt.flash_mla_prefill`` kernel run head-local
+with no cross-device collectives. The compressed latent KV (``num_kv_heads ==
+1``, i.e. ``kv_c_normed``/``k_pe`` and the paged latent cache) is shared by
+every head and stays replicated — exactly how vLLM keeps the MLA KV cache under
+TP. ``single_device`` runs the same code path unsharded (``mesh=None``).
+
 PCC method: run the impl on CPU (custom-op CPU fallback = SDPA + manual paged
 fill) as golden, then on the TT device (StableHLO custom calls → ttnn), and
-compare the returned attention output with Pearson correlation. The paged cache
-write is exercised but its result is discarded by ``forward`` (it returns the
-attention output), so only the attention math is scored.
+compare the returned attention output with Pearson correlation. Sharding is a
+layout hint, so the gathered device output must still match the replicated CPU
+golden. The paged cache write is exercised but its result is discarded by
+``forward`` (it returns the attention output), so only the attention math is
+scored.
 """
 
 import math
@@ -38,14 +52,18 @@ import math
 import pytest
 import torch
 import torch_xla
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from infra.utilities.torch_multichip_utils import enable_spmd, get_mesh
+
+from tests.utils import parametrize_arch
 
 REPO = "deepseek-ai/DeepSeek-V3"
 LAYER = 0
 BLOCK_SIZE = 32  # TTMLAAttentionBackend.get_page_size
 # bf16 flash attention + fp8-derived absorbed weights; the einsums run in fp32
 # inside the impl, so the residual error is dominated by the bf16 kernel.
-REQUIRED_PCC = 0.98
+REQUIRED_PCC = 0.99
 
 
 # --------------------------------------------------------------------------- #
@@ -155,9 +173,13 @@ def _pcc(device_out: torch.Tensor, golden: torch.Tensor) -> float:
     return 1.0 if denom == 0 else float((vx @ vy) / denom)
 
 
-def _run_impl(device, params, inputs):
+def _run_impl(device, params, inputs, mesh=None):
     """Build a fresh impl + stub layer + TTMetadata on ``device`` and run
-    ``TTMLAAttentionBackendImpl.forward``; returns the attention output."""
+    ``TTMLAAttentionBackendImpl.forward``; returns the attention output.
+
+    When ``mesh`` is given (the multi-device path), the inputs and absorbed
+    weights are head-parallel sharded across the mesh ``"model"`` axis before
+    ``forward`` runs."""
     from types import SimpleNamespace
 
     from vllm_tt.attention import TTMetadata
@@ -187,14 +209,26 @@ def _run_impl(device, params, inputs):
     )
 
     # Stub `layer`: forward only reads layer.W_UK_T / layer.W_UV.
-    layer = SimpleNamespace(
-        W_UK_T=params["W_UK_T"].to(device),
-        W_UV=params["W_UV"].to(device),
-    )
+    W_UK_T = params["W_UK_T"].to(device)  # [N, P, L]
+    W_UV = params["W_UV"].to(device)  # [N, L, V]
 
     q_nope, q_pe, kv_c_normed, k_pe, kv_cache, cache_position, page_table = (
         t.to(device) for t in inputs
     )
+
+    if mesh is not None:
+        # Head-parallel (tensor-parallel) MLA sharding: split the N query heads
+        # across the mesh "model" axis. The per-head Q activations and absorbed
+        # weights shard along their head axis; the compressed latent KV
+        # (num_kv_heads == 1) is shared by every head, so kv_c_normed / k_pe /
+        # cache_position / page_table and the paged latent cache stay replicated.
+        xs.mark_sharding(q_nope, mesh, (None, "model", None))  # [tokens, N, P]
+        xs.mark_sharding(q_pe, mesh, (None, "model", None))  # [tokens, N, R]
+        xs.mark_sharding(W_UK_T, mesh, ("model", None, None))  # [N, P, L]
+        xs.mark_sharding(W_UV, mesh, ("model", None, None))  # [N, L, V]
+
+    layer = SimpleNamespace(W_UK_T=W_UK_T, W_UV=W_UV)
+
     attn_metadata = TTMetadata(
         cache_position=cache_position,
         attn_mask=None,
@@ -214,9 +248,9 @@ def _run_impl(device, params, inputs):
 
 
 @pytest.mark.nightly
-@pytest.mark.single_device
+@parametrize_arch(["single_device", "llmbox"])
 @pytest.mark.parametrize("users, seq_len", [(1, 64), (2, 64), (1, 128)])
-def test_mla_prefill_impl_deepseek_v3(users, seq_len, deepseek_v3_mla):
+def test_mla_prefill_impl_deepseek_v3(users, seq_len, arch, deepseek_v3_mla):
     xr.set_device_type("TT")
     torch.manual_seed(0)
 
@@ -228,6 +262,16 @@ def test_mla_prefill_impl_deepseek_v3(users, seq_len, deepseek_v3_mla):
     R = cfg["qk_rope_head_dim"]
     P = cfg["qk_nope_head_dim"]
     head_dim = L + R
+
+    if arch == "llmbox":
+        # Head-parallel tensor parallelism: one shard of the N heads per device.
+        enable_spmd()
+        num_devices = xr.global_runtime_device_count()
+        if N % num_devices != 0:
+            pytest.skip(f"num_heads ({N}) not divisible by num_devices ({num_devices})")
+        mesh = get_mesh((1, num_devices), ("batch", "model"))
+    else:
+        mesh = None
 
     assert seq_len % 32 == 0, "flash_mla_prefill requires seq_len % 32 == 0"
     tokens = users * seq_len
@@ -252,7 +296,7 @@ def test_mla_prefill_impl_deepseek_v3(users, seq_len, deepseek_v3_mla):
 
     golden = _run_impl(torch.device("cpu"), params, inputs)
 
-    device_out = _run_impl(torch_xla.device(), params, inputs)
+    device_out = _run_impl(torch_xla.device(), params, inputs, mesh=mesh)
     torch_xla.sync()
     device_out = device_out.cpu()
 
