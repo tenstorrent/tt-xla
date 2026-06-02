@@ -227,6 +227,7 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
         "taxonomy": "validated_pass",
         "reason": "",
         "next_action": "Review dashboard rankings and choose the next optimization target.",
+        "status_path": str(run_dir / "profiles" / "model-a" / "status.json"),
         "artifacts": {
             "ir_dir": str(run_dir / "profiles" / "model-a" / "ir"),
             "tt_perf_report": str(
@@ -275,6 +276,13 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
         ),
         encoding="utf-8",
     )
+    status_path = Path(status["status_path"])
+    pipeline.ensure_dir(status_path.parent)
+    pipeline.ensure_dir(Path(status["artifacts"]["ir_dir"]))
+    perf_report_path = Path(status["artifacts"]["tt_perf_report"])
+    pipeline.ensure_dir(perf_report_path.parent)
+    perf_report_path.write_text("tt-perf-report output\n", encoding="utf-8")
+    status_path.write_text(json.dumps(status, indent=2), encoding="utf-8")
 
     dashboard_path, packet_path, report_path = pipeline.write_artifacts(
         run_dir=run_dir,
@@ -320,6 +328,18 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
     assert "REQ-F-008" in packet_text
     assert "REQ-F-009" in report_text
     assert "dashboard.html" in report_text
+    requirements = json.loads((run_dir / "requirements.json").read_text())
+    requirements_by_id = {item["id"]: item for item in requirements["requirements"]}
+    assert requirements["issue"]["number"] == 5009
+    assert requirements["summary"]["total"] == 9
+    assert requirements_by_id["REQ-F-006"]["status"] == "passed"
+    assert str(status_path) in requirements_by_id["REQ-F-006"]["evidence_paths"]
+    assert requirements_by_id["REQ-F-007"]["status"] == "passed"
+    assert str(dashboard_path) in requirements_by_id["REQ-F-007"]["evidence_paths"]
+    assert requirements_by_id["REQ-F-008"]["status"] == "passed"
+    assert str(packet_path) in requirements_by_id["REQ-F-008"]["evidence_paths"]
+    assert str(report_path) in requirements_by_id["REQ-F-008"]["evidence_paths"]
+    assert requirements_by_id["REQ-F-009"]["status"] == "passed"
 
 
 def test_run_subprocess_records_missing_command(tmp_path):

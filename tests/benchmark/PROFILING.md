@@ -138,6 +138,7 @@ The pipeline writes:
 - `manifest.json`
 - `environment.json`
 - `model-manifest.json`
+- `requirements.json`
 - `command-trace.jsonl`
 - `ird/ird-lifecycle.json` when `--target ird` is used
 - `profiles/<model-id>/status.json`
@@ -147,7 +148,7 @@ The pipeline writes:
 - `claude-report-packet.html`
 - `report.html`
 
-The `dashboard.html` page ranks slow operations globally, by model, and by op type, while the HTML report preserves the requirement IDs, evidence paths, and blockers for stakeholder review.
+The `dashboard.html` page ranks slow operations globally, by model, and by op type, while `requirements.json`, the HTML source packet, and the final HTML report preserve requirement IDs, evidence paths, and blockers for stakeholder review.
 
 ### Next steps
 

@@ -214,6 +214,12 @@ def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def read_text_if_exists(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
 def shell_join(command: list[str]) -> str:
     return shlex.join(command)
 
@@ -1133,6 +1139,7 @@ def profile_one_model(
         "terminal_state": terminal_state,
         "reason": reason,
         "next_action": next_action,
+        "status_path": str(profile_dir / "status.json"),
         "benchmark": benchmark_json,
         "slow_ops": str(slow_ops_path),
         "verification": {
@@ -1214,7 +1221,9 @@ def load_model_statuses(run_dir: Path) -> list[dict[str, Any]]:
     if not profiles_dir.exists():
         return statuses
     for status_file in sorted(profiles_dir.glob("*/status.json")):
-        statuses.append(load_json(status_file))
+        status = load_json(status_file)
+        status.setdefault("status_path", str(status_file))
+        statuses.append(status)
     return statuses
 
 
@@ -1761,11 +1770,19 @@ def requirement_coverage(
     environment: dict[str, Any],
     statuses: list[dict[str, Any]],
     slow_ops: list[dict[str, Any]],
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     model_manifest_path = run_dir / "model-manifest.json"
     model_manifest = load_json(model_manifest_path)
     model_count = len(model_manifest.get("models", []))
     status_count = len(statuses)
+    status_paths = [
+        Path(str(status.get("status_path", "")))
+        for status in statuses
+        if status.get("status_path")
+    ]
+    status_files_exist = status_count > 0 and all(
+        path.exists() for path in status_paths
+    )
     perf_report_count = sum(
         1
         for status in statuses
@@ -1777,18 +1794,38 @@ def requirement_coverage(
         for status in statuses
         if status.get("stages", {}).get("ir", {}).get("state") == "collected"
     )
-    dashboard_exists = True
-    packet_exists = True
-    report_exists = True
-    search_controls = "search"
+    dashboard_path = run_dir / "dashboard.html"
+    packet_path = run_dir / "claude-report-packet.html"
+    report_path = run_dir / "report.html"
+    dashboard_text = read_text_if_exists(dashboard_path)
+    dashboard_has_rankings = all(
+        marker in dashboard_text
+        for marker in ("Global slow operations", 'id="models"', 'id="op-types"')
+    )
+    search_controls = all(
+        marker in dashboard_text
+        for marker in (
+            'id="search"',
+            'id="status"',
+            'id="model-status"',
+            'id="taxonomy"',
+        )
+    )
+    packet_text = read_text_if_exists(packet_path)
+    report_text = read_text_if_exists(report_path)
     coverage = [
         {
             "id": "REQ-F-001",
+            "description": REQS[0][1],
             "status": "passed" if model_count > 0 else "missing",
             "evidence": f"{model_count} models recorded in model-manifest.json",
+            "evidence_paths": (
+                [str(model_manifest_path)] if model_manifest_path.exists() else []
+            ),
         },
         {
             "id": "REQ-F-002",
+            "description": REQS[1][1],
             "status": (
                 "passed"
                 if model_count > 0
@@ -1798,52 +1835,118 @@ def requirement_coverage(
                 else "missing"
             ),
             "evidence": "each discovered model carries a run identity and source path",
+            "evidence_paths": (
+                [str(model_manifest_path)] if model_manifest_path.exists() else []
+            ),
         },
         {
             "id": "REQ-F-003",
+            "description": REQS[2][1],
             "status": (
                 "passed"
                 if status_count == model_count and model_count > 0
                 else "partial"
             ),
             "evidence": f"{status_count} status.json files for {model_count} discovered models",
+            "evidence_paths": [str(path) for path in status_paths if path.exists()],
         },
         {
             "id": "REQ-F-004",
+            "description": REQS[3][1],
             "status": "passed" if ir_count > 0 else "partial",
             "evidence": f"{ir_count} models with copied IR artifacts",
+            "evidence_paths": [
+                str(Path(str(status.get("artifacts", {}).get("ir_dir", ""))))
+                for status in statuses
+                if status.get("artifacts", {}).get("ir_dir")
+                and Path(str(status.get("artifacts", {}).get("ir_dir", ""))).exists()
+            ],
         },
         {
             "id": "REQ-F-005",
+            "description": REQS[4][1],
             "status": "passed" if perf_report_count > 0 else "partial",
             "evidence": f"{perf_report_count} models with tt-perf-report output",
+            "evidence_paths": [
+                str(Path(str(status.get("artifacts", {}).get("tt_perf_report", ""))))
+                for status in statuses
+                if status.get("artifacts", {}).get("tt_perf_report")
+                and Path(
+                    str(status.get("artifacts", {}).get("tt_perf_report", ""))
+                ).exists()
+            ],
         },
         {
             "id": "REQ-F-006",
+            "description": REQS[5][1],
             "status": (
                 "passed"
-                if status_count == model_count and model_count > 0
+                if status_count == model_count
+                and model_count > 0
+                and status_files_exist
                 else "partial"
             ),
             "evidence": "per-model status.json files contain terminal state, taxonomy, commands, artifacts, and next action",
+            "evidence_paths": [str(path) for path in status_paths if path.exists()],
         },
         {
             "id": "REQ-F-007",
-            "status": "passed" if dashboard_exists else "missing",
-            "evidence": f"dashboard.html exists and exposes ranked slow-op/model/op-type tables",
+            "description": REQS[6][1],
+            "status": "passed" if dashboard_has_rankings else "missing",
+            "evidence": "dashboard.html exists and exposes ranked slow-op/model/op-type tables",
+            "evidence_paths": [str(dashboard_path)] if dashboard_path.exists() else [],
         },
         {
             "id": "REQ-F-008",
-            "status": "passed" if packet_exists and report_exists else "missing",
+            "description": REQS[7][1],
+            "status": (
+                "passed"
+                if packet_path.exists()
+                and report_path.exists()
+                and "Requirement coverage" in packet_text
+                and "Requirement coverage" in report_text
+                else "missing"
+            ),
             "evidence": "claude-report-packet.html and report.html were written",
+            "evidence_paths": [
+                str(path) for path in (packet_path, report_path) if path.exists()
+            ],
         },
         {
             "id": "REQ-F-009",
-            "status": "passed" if dashboard_exists and search_controls else "missing",
+            "description": REQS[8][1],
+            "status": "passed" if search_controls else "missing",
             "evidence": "dashboard.html includes search and filter controls",
+            "evidence_paths": [str(dashboard_path)] if dashboard_path.exists() else [],
         },
     ]
     return coverage
+
+
+def write_requirements_json(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    environment: dict[str, Any],
+    statuses: list[dict[str, Any]],
+    slow_ops: list[dict[str, Any]],
+) -> Path:
+    coverage = requirement_coverage(run_dir, manifest, environment, statuses, slow_ops)
+    payload = {
+        "issue": {"number": ISSUE_NUMBER, "url": ISSUE_URL},
+        "prd_id": PRD_ID,
+        "run_id": run_dir.name,
+        "generated_at": now_iso(),
+        "summary": {
+            "passed": sum(1 for item in coverage if item["status"] == "passed"),
+            "partial": sum(1 for item in coverage if item["status"] == "partial"),
+            "missing": sum(1 for item in coverage if item["status"] == "missing"),
+            "total": len(coverage),
+        },
+        "requirements": coverage,
+    }
+    requirements_path = run_dir / "requirements.json"
+    write_json(requirements_path, payload)
+    return requirements_path
 
 
 def summarize_run(
@@ -1916,6 +2019,24 @@ def write_artifacts(
         ),
         encoding="utf-8",
     )
+    write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
+    packet_path.write_text(
+        render_packet_html(run_dir, manifest, environment, statuses, slow_ops),
+        encoding="utf-8",
+    )
+    report_path.write_text(
+        render_report_html(
+            run_dir,
+            manifest,
+            environment,
+            statuses,
+            slow_ops,
+            dashboard_path,
+            packet_path,
+        ),
+        encoding="utf-8",
+    )
+    write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
     return dashboard_path, packet_path, report_path
 
 
@@ -2660,6 +2781,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         (run_dir / "dashboard.html").write_text(
             render_dashboard_html(run_dir, statuses, slow_ops), encoding="utf-8"
         )
+        write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
         return 0
     packet_path = run_dir / "claude-report-packet.html"
     dashboard_path = run_dir / "dashboard.html"
@@ -2680,6 +2802,24 @@ def main(argv: Optional[list[str]] = None) -> int:
         ),
         encoding="utf-8",
     )
+    write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
+    packet_path.write_text(
+        render_packet_html(run_dir, manifest, environment, statuses, slow_ops),
+        encoding="utf-8",
+    )
+    report_path.write_text(
+        render_report_html(
+            run_dir,
+            manifest,
+            environment,
+            statuses,
+            slow_ops,
+            dashboard_path,
+            packet_path,
+        ),
+        encoding="utf-8",
+    )
+    write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
     return 0
 
 
