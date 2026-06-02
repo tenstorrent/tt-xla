@@ -69,6 +69,29 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py \
   run
 ```
 
+The nested IRD run performs a readiness gate before pytest discovery. It records
+`readiness/*.out`, `readiness/*.err`, `environment.json`, `manifest.json`, and
+`command-trace.jsonl` if `pytest`, Tracy, or `tt-perf-report` cannot start.
+
+If the selected IRD image does not include those tools, install or expose them
+through `--ird-remote-setup` and pass explicit command forms as needed:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --target ird \
+  --ird-docker-image ghcr.io/tenstorrent/tt-xla/tt-xla-ird-ubuntu-24-04:latest \
+  --ird-cluster tt_aus \
+  --ird-team sw \
+  --ird-machine aus-wh-01 \
+  --ird-num-pcie-chips 1 \
+  --ird-remote-repo-root /home/$USER/work/tt-xla-issue5009 \
+  --ird-remote-output-root /home/$USER/work/tt-xla-issue5009/artifacts/prd-009/ttxla-profile \
+  --ird-remote-setup 'python3 -m pip install --user pytest /home/$USER/work/tt-perf-report && export PATH=/home/$USER/.local/bin:$PATH' \
+  --tracy-bin 'python3 -m tracy' \
+  --tt-perf-report-bin tt-perf-report \
+  run
+```
+
 The harness writes `ird/ird-lifecycle.json` and `command-trace.jsonl` in the
 local run directory. Those files record the exact `ird run` command, remote
 pipeline command, scheduler return code, and any configured cleanup commands.

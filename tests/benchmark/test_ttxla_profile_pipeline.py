@@ -262,6 +262,56 @@ def test_run_subprocess_records_missing_command(tmp_path):
     assert trace_path.exists()
 
 
+def test_profile_command_accepts_python_module_tracy_invocation(tmp_path):
+    pipeline = load_pipeline_module()
+
+    command = pipeline.profile_command(
+        tracy_bin="python3 -m tracy",
+        pytest_command="pytest",
+        nodeid="tests/benchmark/test_llms.py::test_llama_3_2_1b",
+        profile_dir=tmp_path / "profile",
+        benchmark_output=tmp_path / "benchmark.json",
+        benchmark_kwargs={"batch_size": 1, "num_layers": 1, "max_output_tokens": 3},
+    )
+
+    assert command[:3] == ["python3", "-m", "tracy"]
+    assert "-m" in command
+    assert "pytest" in command
+
+
+def test_run_records_readiness_blocker_when_tracy_is_missing(tmp_path):
+    pipeline = load_pipeline_module()
+    fake_perf_report = tmp_path / "tt-perf-report"
+    fake_perf_report.write_text("#!/bin/sh\necho tt-perf-report 1.2.4\n", encoding="utf-8")
+    fake_perf_report.chmod(0o755)
+    run_dir = tmp_path / "run-5009-readiness-blocked"
+
+    exit_code = pipeline.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--run-dir",
+            str(run_dir),
+            "--tracy-bin",
+            "definitely-not-tracy",
+            "--tt-perf-report-bin",
+            str(fake_perf_report),
+            "run",
+        ]
+    )
+
+    assert exit_code == 2
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    environment = json.loads((run_dir / "environment.json").read_text(encoding="utf-8"))
+    trace = (run_dir / "command-trace.jsonl").read_text(encoding="utf-8")
+
+    assert manifest["run"]["status"] == "environment_blocked"
+    assert manifest["summary"]["readiness"]["ok"] is False
+    assert "readiness-tracy" in trace
+    assert "definitely-not-tracy" in trace
+    assert environment["readiness"]["failed"][0]["stage"] == "readiness-tracy"
+
+
 def test_ird_run_command_wraps_remote_pipeline():
     pipeline = load_pipeline_module()
     parser = pipeline.build_parser()

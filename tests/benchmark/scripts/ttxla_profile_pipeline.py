@@ -263,7 +263,7 @@ def profile_command(
     benchmark_kwargs: dict[str, int],
 ) -> list[str]:
     return [
-        tracy_bin,
+        *split_command_expr(tracy_bin),
         "-p",
         "-r",
         "--sync-host-device",
@@ -286,7 +286,21 @@ def profile_command(
 
 
 def perf_report_command(tt_perf_report_bin: str, csv_path: Path) -> list[str]:
-    return [tt_perf_report_bin, str(csv_path)]
+    return [*split_command_expr(tt_perf_report_bin), str(csv_path)]
+
+
+def split_command_expr(command_expr: str) -> list[str]:
+    return shlex.split(command_expr) if command_expr else []
+
+
+def command_expr_available(command_expr: str) -> bool:
+    parts = split_command_expr(command_expr)
+    if not parts:
+        return False
+    executable = parts[0]
+    if os.sep in executable:
+        return Path(executable).exists()
+    return shutil.which(executable) is not None
 
 
 def run_subprocess(
@@ -431,6 +445,115 @@ def discover_models(
     collected = stdout_path.read_text(encoding="utf-8") if stdout_path.exists() else ""
     entries = parse_collect_output(collected, run_id)
     return entries, result
+
+
+def preflight_command_for_tool(
+    tool_name: str,
+    python_bin: str,
+    pytest_command: str,
+    tracy_bin: str,
+    tt_perf_report_bin: str,
+) -> list[str]:
+    if tool_name == "pytest":
+        if pytest_command == "pytest":
+            return [python_bin, "-m", "pytest", "--version"]
+        return [*split_command_expr(pytest_command), "--version"]
+    if tool_name == "tracy":
+        return [*split_command_expr(tracy_bin), "--help"]
+    if tool_name == "tt-perf-report":
+        return [*split_command_expr(tt_perf_report_bin), "--help"]
+    raise ValueError(f"unknown preflight tool: {tool_name}")
+
+
+def run_tool_readiness_checks(
+    repo: Path,
+    run_dir: Path,
+    command_trace_path: Path,
+    python_bin: str,
+    pytest_command: str,
+    tracy_bin: str,
+    tt_perf_report_bin: str,
+    timeout_seconds: int = 30,
+) -> list[CommandResult]:
+    readiness_dir = ensure_dir(run_dir / "readiness")
+    env = os.environ.copy()
+    env.setdefault("MPLCONFIGDIR", str(readiness_dir / "matplotlib-cache"))
+    results = []
+    for tool_name in ("pytest", "tracy", "tt-perf-report"):
+        command = preflight_command_for_tool(
+            tool_name, python_bin, pytest_command, tracy_bin, tt_perf_report_bin
+        )
+        result = run_subprocess(
+            command=command,
+            cwd=repo,
+            stdout_path=readiness_dir / f"{slugify(tool_name)}.out",
+            stderr_path=readiness_dir / f"{slugify(tool_name)}.err",
+            stage=f"readiness-{tool_name}",
+            command_trace_path=command_trace_path,
+            timeout_seconds=timeout_seconds,
+            env=env,
+        )
+        results.append(result)
+    return results
+
+
+def readiness_summary(results: list[CommandResult]) -> dict[str, Any]:
+    records = []
+    for result in results:
+        records.append(
+            {
+                "stage": result.stage,
+                "command": shell_join(result.command),
+                "returncode": result.returncode,
+                "timed_out": result.timed_out,
+                "ok": result.ok,
+                "stdout": result.stdout_path,
+                "stderr": result.stderr_path,
+                "note": result.note,
+            }
+        )
+    failed = [record for record in records if not record["ok"]]
+    return {
+        "ok": not failed,
+        "failed": failed,
+        "checks": records,
+    }
+
+
+def write_readiness_blocker_artifacts(
+    run_dir: Path, environment: dict[str, Any], results: list[CommandResult]
+) -> None:
+    summary = readiness_summary(results)
+    manifest = {
+        "issue": {
+            "number": ISSUE_NUMBER,
+            "url": ISSUE_URL,
+        },
+        "prd": PRD_ID,
+        "run": {
+            "run_id": run_dir.name,
+            "created_at": now_iso(),
+            "completed_at": now_iso(),
+            "run_dir": str(run_dir),
+            "repo_root": environment["repo_root"],
+            "status": "environment_blocked",
+        },
+        "summary": {
+            "models": 0,
+            "slow_ops": 0,
+            "taxonomy": {"environment_failure": 1},
+            "readiness": summary,
+        },
+        "artifacts": {
+            "environment": str(run_dir / "environment.json"),
+            "readiness": str(run_dir / "readiness"),
+            "command_trace": str(run_dir / "command-trace.jsonl"),
+        },
+    }
+    environment["readiness"] = summary
+    write_json(run_dir / "environment.json", environment)
+    write_json(run_dir / "manifest.json", manifest)
+    write_json(run_dir / "model-manifest.json", {"models": []})
 
 
 def capture_environment(
@@ -777,7 +900,7 @@ def profile_one_model(
     if perf_csv_source:
         perf_csv_recorded = str(perf_input)
         shutil.copy2(perf_csv_source, perf_input)
-    if perf_csv_source and shutil.which(tt_perf_report_bin):
+    if perf_csv_source and command_expr_available(tt_perf_report_bin):
         perf_report_command_list = perf_report_command(tt_perf_report_bin, perf_input)
         perf_report_result = run_subprocess(
             command=perf_report_command_list,
@@ -1989,6 +2112,20 @@ def execute_pipeline(args: argparse.Namespace) -> int:
     environment = capture_environment(
         root, tracy_bin, tt_perf_report_bin, pytest_command
     )
+    readiness_results = run_tool_readiness_checks(
+        repo=root,
+        run_dir=run_dir,
+        command_trace_path=command_trace_path,
+        python_bin=python_bin,
+        pytest_command=pytest_command,
+        tracy_bin=tracy_bin,
+        tt_perf_report_bin=tt_perf_report_bin,
+    )
+    environment["readiness"] = readiness_summary(readiness_results)
+    if any(not result.ok for result in readiness_results):
+        write_readiness_blocker_artifacts(run_dir, environment, readiness_results)
+        return 2
+
     entries, discovery_result = discover_models(
         repo=root,
         run_id=run_dir.name,
