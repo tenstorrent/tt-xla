@@ -588,6 +588,10 @@ def benchmark_llm_torch_xla(
     # PCC/TOPK BENCHMARK
     # ========================================================
 
+    # Use a distinct export name for PCC/TOPK graphs to avoid confusion with perf graphs
+    options["export_model_name"] = export_model_name + "_pcc"
+    torch_xla.set_custom_compile_options(options)
+
     # Return logits to calculate PCC/TOPK
     logits_wrapper = LLMSamplingWrapper(
         model,
@@ -862,11 +866,12 @@ def benchmark_llm_torch_xla(
         mesh_shape=mesh_shape,
     )
 
-    if check_fusions_enabled and expected_ops:
-        check_fusions(
-            expected_ops=expected_ops,
-            export_model_name=export_model_name,
-            modules_dir=MODULE_EXPORT_PATH,
-        )
+    check_fusions(
+        expected_ops=expected_ops,
+        export_model_name=export_model_name,
+        modules_dir=MODULE_EXPORT_PATH,
+        num_layers=num_layers,
+        strict=check_fusions_enabled,
+    )
 
     return result

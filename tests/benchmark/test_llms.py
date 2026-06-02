@@ -8,6 +8,7 @@ import os
 import numpy as np
 import pytest
 from benchmarks.llm_benchmark import benchmark_llm_torch_xla
+from fusion_check import OpCountPerLayer, OpCountPerLayerBetween
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
 from utils import create_model_loader, resolve_display_name
@@ -289,8 +290,8 @@ def test_llama_3_2_1b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         expected_ops=[
-            "ttnn.scaled_dot_product_attention",
-            "ttnn.rms_norm",
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+            OpCountPerLayer("ttnn.scaled_dot_product_attention_decode", 1),
         ],
         check_fusions=check_fusions,
     )
@@ -305,6 +306,7 @@ def test_llama_3_2_3b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -327,6 +329,10 @@ def test_llama_3_2_3b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -339,6 +345,7 @@ def test_gemma_1_1_2b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -361,6 +368,10 @@ def test_gemma_1_1_2b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -373,6 +384,7 @@ def test_gemma_2_2b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -395,6 +407,10 @@ def test_gemma_2_2b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -407,6 +423,7 @@ def test_phi1(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.phi1.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -429,6 +446,10 @@ def test_phi1(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -509,6 +530,7 @@ def test_falcon3_1b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -534,6 +556,10 @@ def test_falcon3_1b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -546,6 +572,7 @@ def test_falcon3_3b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -571,6 +598,10 @@ def test_falcon3_3b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -583,6 +614,7 @@ def test_qwen_2_5_0_5b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -606,6 +638,10 @@ def test_qwen_2_5_0_5b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -618,6 +654,7 @@ def test_qwen_3_0_6b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -640,6 +677,10 @@ def test_qwen_3_0_6b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -652,6 +693,7 @@ def test_qwen_3_1_7b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -674,6 +716,10 @@ def test_qwen_3_1_7b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -686,6 +732,7 @@ def test_qwen_3_4b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -708,6 +755,10 @@ def test_qwen_3_4b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -720,6 +771,7 @@ def test_qwen_2_5_1_5b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -741,6 +793,10 @@ def test_qwen_2_5_1_5b(
             optimization_level if optimization_level is not None else 1
         ),
         required_pcc=0.90,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -753,6 +809,7 @@ def test_qwen_2_5_3b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -775,6 +832,10 @@ def test_qwen_2_5_3b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -787,6 +848,7 @@ def test_qwen_3_8b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -809,6 +871,10 @@ def test_qwen_3_8b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -821,6 +887,7 @@ def test_qwen_2_5_7b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -842,12 +909,21 @@ def test_qwen_2_5_7b(
             optimization_level if optimization_level is not None else 1
         ),
         required_pcc=0.90,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
 # FAILED: KeyError: "L['self'].model.lifted_tensor_0"
 def test_gemma_1_1_7b(
-    output_file, num_layers, request, max_output_tokens, optimization_level
+    output_file,
+    num_layers,
+    request,
+    max_output_tokens,
+    optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gemma.pytorch.loader import (
         ModelLoader,
@@ -867,12 +943,21 @@ def test_gemma_1_1_7b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
 # FAILED: TypeError: Phi3ForCausalLM.forward() got an unexpected keyword argument 'cache_position'
 def test_phi3_mini(
-    output_file, num_layers, request, max_output_tokens, optimization_level
+    output_file,
+    num_layers,
+    request,
+    max_output_tokens,
+    optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.phi3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -892,12 +977,21 @@ def test_phi3_mini(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
 # FAILED: KeyError: 'lifted_tensor_0'
 def test_phi3_5_mini(
-    output_file, num_layers, request, max_output_tokens, optimization_level
+    output_file,
+    num_layers,
+    request,
+    max_output_tokens,
+    optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.phi3.phi_3_5.pytorch.loader import (
         ModelLoader,
@@ -917,12 +1011,21 @@ def test_phi3_5_mini(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
 # FAILED: AttributeError: 'MambaConfig' object has no attribute 'num_attention_heads'
 def test_mamba_2_8b(
-    output_file, num_layers, request, max_output_tokens, optimization_level
+    output_file,
+    num_layers,
+    request,
+    max_output_tokens,
+    optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.mamba.pytorch.loader import (
         ModelLoader,
@@ -942,6 +1045,10 @@ def test_mamba_2_8b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -954,6 +1061,7 @@ def test_falcon3_7b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -979,6 +1087,10 @@ def test_falcon3_7b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -991,6 +1103,7 @@ def test_mistral_7b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1013,6 +1126,10 @@ def test_mistral_7b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1026,6 +1143,7 @@ def test_ministral_8b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1050,6 +1168,10 @@ def test_ministral_8b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1062,6 +1184,7 @@ def test_llama_3_1_8b(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1086,6 +1209,10 @@ def test_llama_3_1_8b(
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
         required_pcc=0.90,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1098,6 +1225,7 @@ def test_falcon3_7b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -1120,6 +1248,10 @@ def test_falcon3_7b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1132,6 +1264,7 @@ def test_falcon3_10b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.falcon.pytorch.loader import (
         ModelLoader,
@@ -1154,6 +1287,10 @@ def test_falcon3_10b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1166,6 +1303,7 @@ def test_llama_3_1_8b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1188,6 +1326,10 @@ def test_llama_3_1_8b_instruct_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1200,6 +1342,7 @@ def test_mistral_7b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1222,6 +1365,10 @@ def test_mistral_7b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1235,6 +1382,7 @@ def test_ministral_8b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1254,6 +1402,10 @@ def test_ministral_8b_tp(
         decode_only=decode_only,
         trace_enabled=False,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1266,6 +1418,7 @@ def test_mistral_nemo_instruct_2407_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1284,6 +1437,10 @@ def test_mistral_nemo_instruct_2407_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1296,6 +1453,7 @@ def test_mistral_small_24b_instruct_2501_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.mistral.pytorch.loader import (
         ModelLoader,
@@ -1314,6 +1472,10 @@ def test_mistral_small_24b_instruct_2501_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1326,6 +1488,7 @@ def test_qwen_2_5_14b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1344,6 +1507,10 @@ def test_qwen_2_5_14b_instruct_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1356,6 +1523,7 @@ def test_qwen_2_5_32b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_2_5.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1378,6 +1546,10 @@ def test_qwen_2_5_32b_instruct_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1390,6 +1562,7 @@ def test_qwen_2_5_coder_32b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_2_5_coder.pytorch.loader import (
         ModelLoader,
@@ -1408,6 +1581,10 @@ def test_qwen_2_5_coder_32b_instruct_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1420,6 +1597,7 @@ def test_qwen_3_0_6b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1442,6 +1620,10 @@ def test_qwen_3_0_6b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1454,6 +1636,7 @@ def test_qwen_3_1_7b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1476,6 +1659,10 @@ def test_qwen_3_1_7b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1488,6 +1675,7 @@ def test_qwen_3_8b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1506,6 +1694,10 @@ def test_qwen_3_8b_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1518,6 +1710,7 @@ def test_qwen_3_14b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1536,6 +1729,10 @@ def test_qwen_3_14b_tp(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1548,6 +1745,7 @@ def test_qwen_3_32b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1570,6 +1768,10 @@ def test_qwen_3_32b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1582,6 +1784,7 @@ def test_llama_3_8b_instruct_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1604,6 +1807,10 @@ def test_llama_3_8b_instruct_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1616,6 +1823,7 @@ def test_llama_3_1_8b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1638,6 +1846,10 @@ def test_llama_3_1_8b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1650,6 +1862,7 @@ def test_llama_3_8b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1672,6 +1885,10 @@ def test_llama_3_8b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1684,6 +1901,7 @@ def test_llama_3_1_70b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1706,6 +1924,10 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1740,6 +1962,7 @@ def test_gpt_oss_20b_tp(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1761,6 +1984,10 @@ def test_gpt_oss_20b_tp(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1808,6 +2035,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1828,6 +2056,10 @@ def test_gpt_oss_20b_tp_batch_size_1(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1840,6 +2072,7 @@ def test_llama_3_1_70b_tp_galaxy(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1858,6 +2091,10 @@ def test_llama_3_1_70b_tp_galaxy(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1870,6 +2107,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1890,6 +2128,11 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         optimization_level=1,
+        expected_ops=[
+            # TODO(sdjordjevic): Convert back to OpCount(4) once this is resolved https://github.com/tenstorrent/tt-mlir/issues/8415
+            OpCountPerLayerBetween("ttnn.rotary_embedding", 3, 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1944,6 +2187,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1967,6 +2211,10 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -1979,6 +2227,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -2002,6 +2251,11 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+        expected_ops=[
+            # TODO(sdjordjevic): Convert back to OpCount(4) once this is resolved https://github.com/tenstorrent/tt-mlir/issues/8415
+            OpCountPerLayerBetween("ttnn.rotary_embedding", 3, 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -2037,6 +2291,7 @@ def test_gpt_oss_120b_tp_qb2(
     max_output_tokens,
     decode_only,
     optimization_level,
+    check_fusions,
 ):
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -2065,6 +2320,10 @@ def test_gpt_oss_120b_tp_qb2(
         required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
         mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
         # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+        expected_ops=[
+            OpCountPerLayer("ttnn.rotary_embedding", 4),
+        ],
+        check_fusions=check_fusions,
     )
 
 
@@ -2078,6 +2337,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
     batch_size,
     max_output_tokens,
     decode_only,
+    check_fusions,
 ):
     from third_party.tt_forge_models.kimi_k2.pytorch.loader import (
         ModelLoader,
@@ -2145,6 +2405,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     batch_size,
     max_output_tokens,
     decode_only,
+    check_fusions,
 ):
     from third_party.tt_forge_models.deepseek.deepseek_v3_2_exp.pytorch.loader import (
         ModelLoader,
