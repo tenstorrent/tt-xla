@@ -192,16 +192,6 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         Returns the written output tensor.
         """
         q_nope, q_pe = q
-        print("[HET DEBUG][INPUTS] q type: ", type(q))
-        print("[HET DEBUG][INPUTS] q length: ", len(q))
-        print("[HET DEBUG][INPUTS] q_nope shape: ", q_nope.shape)
-        print("[HET DEBUG][INPUTS] q_pe shape: ", q_pe.shape)
-        print("[HET DEBUG][INPUTS] k_pe shape: ", k_pe.shape)
-        print("[HET DEBUG][INPUTS] kv_cache type: ", type(kv_cache))
-        print("[HET DEBUG][INPUTS] kv_cache shape: ", kv_cache.shape)
-
-        # print("[HET DEBUG][INPUTS] kv_cache shape: ", kv_cache.shape)
-        # print("[HET DEBUG][INPUTS] attn_metadata: ", attn_metadata)
 
         is_prefill = self._infer_is_prefill(q_nope, attn_metadata)
         if not is_prefill:
