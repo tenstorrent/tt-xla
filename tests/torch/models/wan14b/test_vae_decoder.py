@@ -44,6 +44,17 @@ _COMPILER_CONFIG = CompilerConfig(
 )
 
 
+@pytest.mark.xfail(
+    reason="DRAM OOM on ttnn.repeat in the upsample path: repeat_interleave(2, dim=3) "
+    "materializes a 1x192x720x640x2 bf16 intermediate whose trailing dim-2 pads to a "
+    "32-wide tile (16x blowup -> 5.66 GB), exceeding device DRAM (~4 GB/bank)"
+)
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.llmbox
+def test_vae_decoder_720p():
+    _run("720p", sharded=False)
+
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
