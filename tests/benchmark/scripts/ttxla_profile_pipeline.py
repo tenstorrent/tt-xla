@@ -1117,6 +1117,74 @@ def terminalize_missing_model_statuses(
     return created
 
 
+def load_discovery_entries_from_manifest(run_dir: Path) -> list[DiscoveryEntry]:
+    payload = load_json(run_dir / "model-manifest.json")
+    entries = []
+    for row in payload.get("models", []) or []:
+        try:
+            entries.append(
+                DiscoveryEntry(
+                    run_identity=str(row["run_identity"]),
+                    nodeid=str(row["nodeid"]),
+                    source_path=str(row["source_path"]),
+                    test_name=str(row["test_name"]),
+                    benchmark_family=str(row["benchmark_family"]),
+                    model_identity=str(row["model_identity"]),
+                    artifact_slug=str(row["artifact_slug"]),
+                )
+            )
+        except KeyError:
+            continue
+    return entries
+
+
+def discovery_result_from_manifest(run_dir: Path) -> CommandResult:
+    manifest = load_json(run_dir / "manifest.json")
+    discovery = manifest.get("discovery") or {}
+    return CommandResult(
+        stage="discover",
+        command=shlex.split(str(manifest.get("command") or "")),
+        cwd=str((manifest.get("run") or {}).get("repo_root") or run_dir),
+        returncode=discovery.get("returncode"),
+        timed_out=bool(discovery.get("timed_out", False)),
+        start_time=str((manifest.get("run") or {}).get("created_at") or now_iso()),
+        end_time=str((manifest.get("run") or {}).get("created_at") or now_iso()),
+        duration_seconds=0.0,
+        stdout_path="",
+        stderr_path="",
+        note=str(discovery.get("note") or ""),
+    )
+
+
+def finalize_partial_run_from_manifest(
+    run_dir: Path,
+    repo: Path,
+    environment: dict[str, Any],
+    reason: str,
+) -> bool:
+    entries = load_discovery_entries_from_manifest(run_dir)
+    if not entries:
+        return False
+    terminalize_missing_model_statuses(
+        run_dir=run_dir,
+        entries=entries,
+        repo=repo,
+        reason=reason,
+    )
+    statuses = load_model_statuses(run_dir)
+    slow_ops = load_slow_ops(run_dir)
+    write_artifacts(
+        run_dir=run_dir,
+        environment=environment,
+        discovery_result=discovery_result_from_manifest(run_dir),
+        entries=entries,
+        statuses=statuses,
+        slow_ops=slow_ops,
+    )
+    update_manifest_summary(run_dir, summarize_run(run_dir, statuses, slow_ops))
+    return True
+
+
 def profile_one_model(
     entry: DiscoveryEntry,
     repo: Path,
@@ -2661,12 +2729,35 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
     }
     write_json(run_dir / "environment.json", environment)
     remote_manifest = load_json(run_dir / "manifest.json")
+    finalized_partial_run = False
+    remote_run = remote_manifest.get("run") or {}
+    remote_summary = remote_manifest.get("summary") or {}
+    model_manifest = load_json(run_dir / "model-manifest.json")
+    model_count = len(model_manifest.get("models", []) or [])
+    status_count = len(load_model_statuses(run_dir))
+    if model_count > 0 and (
+        not remote_run.get("completed_at")
+        or not remote_summary
+        or status_count < model_count
+        or not (run_dir / "dashboard.html").exists()
+    ):
+        finalized_partial_run = finalize_partial_run_from_manifest(
+            run_dir=run_dir,
+            repo=root,
+            environment=environment,
+            reason=(
+                "IRD wrapper finalized the run after the nested pipeline did not "
+                "complete all per-model statuses or report artifacts"
+            ),
+        )
+        remote_manifest = load_json(run_dir / "manifest.json")
     ird_summary = {
         "target": "ird",
         "mode": args.ird_mode,
         "remote_run_returncode": lifecycle.get("remote_run", {}).get("returncode"),
         "lifecycle": str(ird_dir / "ird-lifecycle.json"),
         "manual_cleanup": args.ird_release_command or "ird release <reservation_id>",
+        "finalized_partial_run": finalized_partial_run,
     }
     if remote_manifest.get("summary"):
         ird_summary["remote_summary"] = remote_manifest["summary"]

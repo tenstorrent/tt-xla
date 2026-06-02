@@ -535,6 +535,111 @@ def test_terminalize_missing_model_statuses_writes_blocker_artifacts(tmp_path):
     assert (run_dir / "profiles" / "jax" / "slow-ops.json").exists()
 
 
+def test_finalize_partial_run_from_manifest_renders_reports(tmp_path):
+    pipeline = load_pipeline_module()
+    run_dir = tmp_path / "run-5009-partial-finalize"
+    pipeline.ensure_dir(run_dir)
+    entries = [
+        {
+            "run_identity": "run-5009-partial-finalize-0001",
+            "nodeid": "tests/benchmark/test_vision.py::test_mnist",
+            "source_path": "tests/benchmark/test_vision.py",
+            "test_name": "test_mnist",
+            "benchmark_family": "vision",
+            "model_identity": "test_mnist",
+            "artifact_slug": "vision",
+        },
+        {
+            "run_identity": "run-5009-partial-finalize-0002",
+            "nodeid": "tests/benchmark/resnet_jax_benchmark.py::test_resnet_jax",
+            "source_path": "tests/benchmark/resnet_jax_benchmark.py",
+            "test_name": "test_resnet_jax",
+            "benchmark_family": "jax",
+            "model_identity": "test_resnet_jax",
+            "artifact_slug": "jax",
+        },
+    ]
+    (run_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "run": {
+                    "run_id": run_dir.name,
+                    "created_at": "2026-06-02T22:00:00+00:00",
+                    "repo_root": str(tmp_path),
+                    "run_dir": str(run_dir),
+                    "status": "discovered",
+                },
+                "command": "python -m pytest --collect-only -q tests/benchmark/test_vision.py",
+                "discovery": {"returncode": 0, "timed_out": False, "note": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "model-manifest.json").write_text(
+        json.dumps({"models": entries}),
+        encoding="utf-8",
+    )
+    existing_dir = run_dir / "profiles" / "vision"
+    pipeline.ensure_dir(existing_dir)
+    (existing_dir / "slow-ops.json").write_text(
+        json.dumps(
+            {
+                "model": "test_mnist",
+                "nodeid": entries[0]["nodeid"],
+                "rows": [],
+                "summary": {"row_count": 0},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (existing_dir / "status.json").write_text(
+        json.dumps(
+            {
+                "model": {
+                    "model_identity": "test_mnist",
+                    "nodeid": entries[0]["nodeid"],
+                },
+                "terminal_state": "blocked",
+                "profile_status": "failed",
+                "model_status": "failed",
+                "taxonomy": "environment_failure",
+                "status_path": str(existing_dir / "status.json"),
+                "artifacts": {},
+                "stages": {},
+                "slow_ops": str(existing_dir / "slow-ops.json"),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    finalized = pipeline.finalize_partial_run_from_manifest(
+        run_dir=run_dir,
+        repo=tmp_path,
+        environment={
+            "repo_root": str(tmp_path),
+            "hostname": "example-host",
+            "python": "3.12",
+            "git": {"sha": "deadbeef", "branch": "demo"},
+        },
+        reason="outer IRD wrapper finalized the partial run",
+    )
+
+    assert finalized is True
+    statuses = pipeline.load_model_statuses(run_dir)
+    assert len(statuses) == 2
+    jax_status = json.loads(
+        (run_dir / "profiles" / "jax" / "status.json").read_text(encoding="utf-8")
+    )
+    assert jax_status["taxonomy"] == "pending_terminalization"
+    assert (run_dir / "dashboard.html").exists()
+    assert (run_dir / "claude-report-packet.html").exists()
+    assert (run_dir / "report.html").exists()
+    requirements = json.loads((run_dir / "requirements.json").read_text())
+    reqs = {item["id"]: item["status"] for item in requirements["requirements"]}
+    assert reqs["REQ-F-003"] == "passed"
+    assert reqs["REQ-F-006"] == "passed"
+
+
 def test_run_records_readiness_blocker_when_tracy_is_missing(tmp_path):
     pipeline = load_pipeline_module()
     fake_perf_report = tmp_path / "tt-perf-report"
