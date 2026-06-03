@@ -69,6 +69,23 @@ _SHAPE_PAIRS = (
     ((32, 128, 1024), (1024, 2048)),
     ((32, 128, 2304), (2304, 1024)),
     ((32, 128, 2560), (2560, 1024)),
+    # Large-K, small-N shape that sweeps reports as passing — included to
+    # check whether the FROM_ANOTHER_OP+opt=2 PCC collapse is universal or
+    # shape-conditioned.
+    ((32, 128, 4864), (4864, 896)),
+)
+
+
+# Shapes whose FROM_ANOTHER_OP+opt=2 path collapses to PCC ~0.500 on the
+# realistic-inputs regime. Sweeps reports these same shapes as failing too.
+# (32,128,4864)x(4864,896) is NOT in this set — its PCC stays > 0.99, so the
+# add-prelude opt=2 transform is shape-conditioned rather than universal.
+_FAILING_SHAPES_FOR_PRELUDE_AT_OPT2 = frozenset(
+    {
+        ((32, 128, 1024), (1024, 2048)),
+        ((32, 128, 2304), (2304, 1024)),
+        ((32, 128, 2560), (2560, 1024)),
+    }
 )
 
 
@@ -77,14 +94,21 @@ def _is_known_pcc_failure(
 ) -> bool:
     """Calibrated against the realistic-inputs run (see pcc_artifacts/pcc_report_realistic.md).
 
-    All 48 FROM_ANOTHER_OP + opt=2 cases fail with PCC ~0.500 (constant across
-    weight_dtype, math_fidelity, and fp32_dest_acc_en — those compiler options
-    appear not to flow through). FROM_HOST + opt=2 passes (PCC > 0.99): the
+    With the LLM-style mixture inputs the only failures are
+    FROM_ANOTHER_OP + opt=2 on a specific subset of shapes (`_FAILING_SHAPES_...`).
+    Within those, PCC collapses to ~0.500 regardless of weight_dtype,
+    math_fidelity, or fp32_dest_acc_en — those compiler options don't appear
+    to flow through. FROM_HOST + opt=2 passes (PCC > 0.99): the
     `add(x,x) * add(y,y)` prelude in FROM_ANOTHER_OP triggers a precision-lossy
-    transform at opt_level=2 that doesn't fire without that prelude. opt=0
-    passes for every combination.
+    transform at opt_level=2. opt=0 passes for every combination on every
+    shape. Other shapes (e.g. (32,128,4864)x(4864,896)) pass even with the
+    prelude at opt=2 — the failure is shape-conditioned, not universal.
     """
-    return input_source == "FROM_ANOTHER_OP" and opt_level == 2
+    return (
+        shape_pair in _FAILING_SHAPES_FOR_PRELUDE_AT_OPT2
+        and input_source == "FROM_ANOTHER_OP"
+        and opt_level == 2
+    )
 
 
 def _parse_compiler_config(config_str: str) -> CompilerConfig:

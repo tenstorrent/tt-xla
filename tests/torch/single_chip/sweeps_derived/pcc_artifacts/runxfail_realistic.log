@@ -1,6 +1,7 @@
-................FFFFFFFFFFFFFFFF........................................ [ 37%]
-........FFFFFFFFFFFFFFFF................................................ [ 75%]
-FFFFFFFFFFFFFFFF................................                         [100%]
+................FFFFFFFFFFFFFFFF........................................ [ 28%]
+........FFFFFFFFFFFFFFFF................................................ [ 56%]
+FFFFFFFFFFFFFFFF........................................................ [ 84%]
+........................................                                 [100%]
 =================================== FAILURES ===================================
 /home/ctr-vbrkic/src/ttforge/tt-xla/tests/infra/evaluators/evaluator.py:72: AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.5001891079242851. Required: pcc=0.99.
 /home/ctr-vbrkic/src/ttforge/tt-xla/tests/infra/evaluators/evaluator.py:72: AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.5001891079242851. Required: pcc=0.99.
@@ -55,7 +56,7 @@ FFFFFFFFFFFFFFFF................................                         [100%]
   /localdev/ctr-vbrkic/venv/sweeps/xla/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
     warnings.warn(
 
-tests/torch/single_chip/sweeps_derived/test_matmul_mp.py: 192 warnings
+tests/torch/single_chip/sweeps_derived/test_matmul_mp.py: 256 warnings
   /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
     return cls.__new__(cls, *args)
 
@@ -109,14 +110,14 @@ FAILED tests/torch/single_chip/sweeps_derived/test_matmul_mp.py::test_matmul_mp[
 FAILED tests/torch/single_chip/sweeps_derived/test_matmul_mp.py::test_matmul_mp[(32,128,2560)x(2560,1024)-FROM_ANOTHER_OP-mp_opt2_bfp4_fp32accfalse_hifi2]
 FAILED tests/torch/single_chip/sweeps_derived/test_matmul_mp.py::test_matmul_mp[(32,128,2560)x(2560,1024)-FROM_ANOTHER_OP-mp_opt2_bfp4_fp32acctrue_lofi]
 FAILED tests/torch/single_chip/sweeps_derived/test_matmul_mp.py::test_matmul_mp[(32,128,2560)x(2560,1024)-FROM_ANOTHER_OP-mp_opt2_bfp4_fp32accfalse_lofi]
-48 failed, 144 passed, 206 warnings in 240.00s (0:03:59)
-2026-06-03 12:31:22.353 | info     |    BuildKernels | JIT cache stats: 214/214 hits (100.0%) [214 cached, 122 build-once dedup, 0 merged artifacts, 0 merged genfiles] (build_cache_telemetry.cpp:207)
-2026-06-03 12:31:22.353 | info     |    BuildKernels | JIT telemetry: 3 registered TelemetryTokens (build_cache_telemetry.cpp:230)
-2026-06-03 12:31:22.353 | info     |    BuildKernels | JIT telemetry [dependencies_up_to_date]: count=428, total=700.300ms, min=0.113ms, max=30.332ms, mean=1.636ms (build_cache_telemetry.cpp:246)
-2026-06-03 12:31:22.353 | info     |    BuildKernels | JIT telemetry [JitBuildState::build]: count=214, total=975.042ms, min=1.698ms, max=65.117ms, mean=4.556ms (build_cache_telemetry.cpp:246)
-2026-06-03 12:31:22.353 | info     |    BuildKernels | JIT telemetry [jit_build]: count=109, total=607.135ms, min=1.698ms, max=65.117ms, mean=5.570ms (build_cache_telemetry.cpp:246)
-2026-06-03 12:31:22.380 | info     |          Device | Closing user mode device drivers (tt_cluster.cpp:499)
-2026-06-03 12:31:22.380 | info     |             UMD | Closing devices in cluster (cluster.cpp:1057)
-2026-06-03 12:31:22.390 | info     |             UMD | Closing devices in cluster completed. (cluster.cpp:1066)
-2026-06-03 12:31:22.391 | info     |             UMD | Cluster destructor started. (cluster.cpp:550)
-2026-06-03 12:31:22.391 | info     |             UMD | Cluster destructor completed. (cluster.cpp:553)
+48 failed, 208 passed, 270 warnings in 327.05s (0:05:27)
+2026-06-03 13:01:02.254 | info     |    BuildKernels | JIT cache stats: 214/269 hits (79.6%) [214 cached, 164 build-once dedup, 0 merged artifacts, 0 merged genfiles] (build_cache_telemetry.cpp:207)
+2026-06-03 13:01:02.254 | info     |    BuildKernels | JIT telemetry: 3 registered TelemetryTokens (build_cache_telemetry.cpp:230)
+2026-06-03 13:01:02.254 | info     |    BuildKernels | JIT telemetry [dependencies_up_to_date]: count=428, total=669.609ms, min=0.103ms, max=35.219ms, mean=1.565ms (build_cache_telemetry.cpp:246)
+2026-06-03 13:01:02.254 | info     |    BuildKernels | JIT telemetry [JitBuildState::build]: count=269, total=37878.260ms, min=1.868ms, max=860.188ms, mean=140.811ms (build_cache_telemetry.cpp:246)
+2026-06-03 13:01:02.254 | info     |    BuildKernels | JIT telemetry [jit_build]: count=131, total=14765.839ms, min=1.868ms, max=859.157ms, mean=112.716ms (build_cache_telemetry.cpp:246)
+2026-06-03 13:01:02.274 | info     |          Device | Closing user mode device drivers (tt_cluster.cpp:499)
+2026-06-03 13:01:02.274 | info     |             UMD | Closing devices in cluster (cluster.cpp:1057)
+2026-06-03 13:01:02.284 | info     |             UMD | Closing devices in cluster completed. (cluster.cpp:1066)
+2026-06-03 13:01:02.284 | info     |             UMD | Cluster destructor started. (cluster.cpp:550)
+2026-06-03 13:01:02.284 | info     |             UMD | Cluster destructor completed. (cluster.cpp:553)
