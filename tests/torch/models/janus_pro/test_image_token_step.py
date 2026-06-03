@@ -4,17 +4,9 @@
 
 """Janus-Pro — ImageTokenStep (language_model.model + gen_head).
 
-Arch selection uses pytest markers (same as other tt-xla model tests):
-  - Pro-1B: ``n150`` + ``p150`` (single_device)
-  - Pro-7B: ``p150`` only (DRAM OOM on n150)
-
-On wormhole (n150), run with a marker so Pro-7B is not collected::
-
-  pytest -m "n150 and single_device" tests/torch/models/janus_pro/
-
-On blackhole (p150)::
-
-  pytest -m "p150 and single_device" tests/torch/models/janus_pro/
+Pro-7B prefill/decode skips on wormhole (n150) at runtime due to DRAM OOM.
+Pro-1B and gen components run on both n150 and p150 via standard component CI
+(``model_test and single_device``).
 """
 
 from __future__ import annotations
@@ -32,6 +24,8 @@ from utils import BringupStatus, Category
 
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
 from tests.runner.requirements import RequirementsManager
+
+from . import skip_pro_7b_image_token_on_wormhole
 from third_party.tt_forge_models.janus_pro.text_to_image.pytorch import (
     ModelLoader,
     ModelVariant,
@@ -72,8 +66,6 @@ class ImageTokenDecodeWrapper(nn.Module):
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.n150
-@pytest.mark.p150
 def test_image_token_prefill_pro_1b():
     _run_prefill("Pro_1B")
 
@@ -81,8 +73,6 @@ def test_image_token_prefill_pro_1b():
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.n150
-@pytest.mark.p150
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO_PRO_1B,
@@ -96,15 +86,14 @@ def test_image_token_decode_pro_1b():
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.p150
 def test_image_token_prefill_pro_7b():
+    skip_pro_7b_image_token_on_wormhole()
     _run_prefill("Pro_7B")
 
 
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.p150
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
     model_info=MODEL_INFO_PRO_7B,
@@ -112,6 +101,7 @@ def test_image_token_prefill_pro_7b():
     bringup_status=BringupStatus.PASSED,
 )
 def test_image_token_decode_pro_7b():
+    skip_pro_7b_image_token_on_wormhole()
     _run_decode("Pro_7B")
 
 

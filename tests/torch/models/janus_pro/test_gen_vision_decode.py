@@ -13,35 +13,29 @@ from infra import Framework, run_graph_test
 
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
 from tests.runner.requirements import RequirementsManager
+from third_party.tt_forge_models.janus_pro.text_to_image.pytorch import (
+    ModelLoader,
+    ModelVariant,
+)
 
 
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.n150
-@pytest.mark.p150
 def test_gen_vision_decode_pro_1b():
-    _run("GenVisionDecode")
+    _run(ModelVariant.GEN_VISION_DECODE)
 
 
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.n150
-@pytest.mark.p150
 def test_gen_vision_decode_pro_7b():
-    _run("GenVisionDecode_7B")
+    _run(ModelVariant.GEN_VISION_DECODE_7B)
 
 
-def _run(variant_name: str):
+def _run(variant: ModelVariant):
     loader_path = inspect.getsourcefile(janus_loader)
     with RequirementsManager.for_loader(loader_path, framework="torch"):
-        from third_party.tt_forge_models.janus_pro.text_to_image.pytorch import (
-            ModelLoader,
-            ModelVariant,
-        )
-
-        variant = ModelVariant(variant_name)
         xr.set_device_type("TT")
         torch.manual_seed(42)
 
