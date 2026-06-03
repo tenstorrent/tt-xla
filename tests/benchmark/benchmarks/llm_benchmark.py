@@ -6,6 +6,7 @@
 import os
 import socket
 import sys
+import time
 from typing import Optional, Union
 
 import numpy as np
@@ -44,6 +45,15 @@ from utils import (
 xr.set_device_type("TT")
 
 MIN_STEPS = 16
+
+# Number of times the prefill is re-run (post-warmup) when measuring its latency.
+# We keep the MINIMUM across runs to report the "happy path" device time, stripping
+# out host-side jitter and one-off noise.
+PREFILL_PERF_RUNS = 30
+
+# Seed for the random prefill prompt so a benchmark run is reproducible. Drawn through a
+# local torch.Generator (below) so the global RNG state is left untouched.
+PREFILL_RANDOM_SEED = 0
 
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
@@ -166,6 +176,28 @@ def construct_inputs(
     }
 
     return input_args
+
+
+def make_prefill_inputs(
+    prompt_tokens: torch.Tensor, batch_size: int, device: torch.device
+) -> dict:
+    """Build prefill inputs (no StaticCache) placed on `device`.
+
+    past_key_values=None + use_cache=True makes HF build a DynamicCache internally, so no
+    pre-allocated StaticCache tensors enter the compiled graph as I/O. We still go through
+    the cache-based attention-mask path on purpose: the truly cacheless path
+    (use_cache=False) fails to compile on Blackhole because it emits a UInt8 cumsum that
+    the tt-metal accumulation kernel doesn't support (only Int32/UInt32/UInt16).
+    `prompt_tokens` is a 1D tensor of token IDs, broadcast to `batch_size` rows.
+    """
+    input_ids = prompt_tokens.unsqueeze(0).expand(batch_size, -1).contiguous()
+    cache_position = torch.arange(0, input_ids.shape[1])
+    return {
+        "input_ids": input_ids.to(device),
+        "past_key_values": None,
+        "cache_position": cache_position.to(device),
+        "use_cache": True,
+    }
 
 
 def get_mesh(model_loader, mesh_config_fn):
@@ -844,6 +876,457 @@ def benchmark_llm_torch_xla(
         data_format=data_format,
         total_time=decode_total_time,
         total_samples=decode_total_tokens,
+        evaluation_score=evaluation_score,
+        custom_measurements=custom_measurements,
+        optimization_level=optimization_level,
+        program_cache_enabled=True,
+        trace_enabled=trace_enabled,
+        experimental_weight_dtype=experimental_weight_dtype,
+        model_info=full_model_name,
+        display_name=display_name,
+        torch_xla_enabled=True,
+        backend="tt",
+        device_name=socket.gethostname(),
+        arch=arch,
+        input_is_image=False,
+        input_sequence_length=input_sequence_length,
+        device_count=device_count,
+        mesh_shape=mesh_shape,
+    )
+
+    if check_fusions_enabled and expected_ops:
+        check_fusions(
+            expected_ops=expected_ops,
+            export_model_name=export_model_name,
+            modules_dir=MODULE_EXPORT_PATH,
+        )
+
+    return result
+
+
+def benchmark_llm_torch_xla_prefill(
+    model_loader,
+    model_variant,
+    display_name,
+    optimization_level,
+    trace_enabled,
+    batch_size,
+    loop_count,
+    task,
+    data_format,
+    input_sequence_length,
+    experimental_weight_dtype,
+    experimental_enable_permute_matmul_fusion,
+    ttnn_perf_metrics_output_file,
+    read_logits_fn,
+    mesh_config_fn,
+    shard_spec_fn,
+    required_pcc,
+    fp32_dest_acc_en=None,
+    experimental_kv_cache_dtype=None,
+    weight_dtype_overrides: dict = None,
+    input_output_sharding_spec=None,
+    expected_ops: list = None,
+    check_fusions_enabled: bool = False,
+    use_indexer_cache: bool = False,
+    enable_create_d2m_subgraphs: bool = False,
+    do_apply_weight_dtype_overrides: bool = False,
+    skip_pcc: bool = False,
+):
+    """
+    Benchmark the PREFILL of an LLM using PyTorch and torch-xla.
+
+    This function loads an LLM, compiles it with torch-xla for the Tenstorrent backend,
+    and measures the latency of a single prefill forward over a prompt of
+    input_sequence_length tokens. Output correctness is validated via PCC (Pearson
+    Correlation Coefficient) of the prefill logits against a CPU reference.
+
+    Args:
+        model_loader: Model loader instance for loading the LLM
+        model_variant: Specific variant/version of the model to benchmark
+        optimization_level: tt-mlir optimization level for compilation
+        batch_size: Batch size for text generation
+        loop_count: Number of inference iterations
+        task: Task type
+        data_format: Data precision format
+        input_sequence_length: Length of the prefill prompt (number of tokens processed)
+        experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
+        experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
+        ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
+        read_logits_fn: Callback function to extract logits from model output
+        required_pcc: Required PCC threshold for validation
+
+    Returns:
+        Benchmark result containing prefill latency (TTFT) and model information
+    """
+    # Enforce bfloat16 only
+    if data_format != "bfloat16":
+        raise ValueError(
+            f"Only bfloat16 data format is supported for llm benchmark. Got: {data_format}. "
+            "Please use -df bfloat16"
+        )
+
+    if not model_loader:
+        raise ValueError("Model loader must be specified for benchmark. ")
+
+    if loop_count != 1:
+        raise ValueError(
+            f"Loop count must be 1 for llm benchmark (not yet supported). Got: {loop_count}. "
+            "Please use -lp 1"
+        )
+
+    if not input_sequence_length or input_sequence_length <= 0:
+        raise ValueError(
+            f"Input sequence length must be a positive integer for llm benchmark. Got: {input_sequence_length}. "
+            "Please use -isl <length> (e.g., -isl 128)"
+        )
+
+    if task != "text-generation":
+        raise ValueError(
+            f"Only 'text-generation' task is supported for llm benchmark. Got: {task}. "
+            "Please use -t text-generation"
+        )
+
+    if enable_create_d2m_subgraphs and optimization_level < 1:
+        raise ValueError(
+            f"optimization_level must be >= 1 when enable_create_d2m_subgraphs "
+            f"is enabled, got optimization_level={optimization_level}"
+        )
+
+    xr.set_device_type("TT")
+
+    # Resolve the device arch up front (before SPMD is enabled below) WITHOUT
+    # initializing the default XLA device. NOTE: get_xla_device_arch() calls
+    # xm.xla_device(), which initializes a *non-virtual* device; doing that
+    # before xr.use_spmd() prevents SPMD from virtualizing tensors, so unmarked
+    # inputs/buffers stay plain PjRtData and segfault inside ExecuteReplicated's
+    # dynamic_cast<PjRtShardedData*>. Reading runtime device attributes does not
+    # create the default device, so it is safe to call here.
+    _arch_name = xr.global_runtime_device_attributes()[0].get("device_arch", "").lower()
+    arch = next((a for a in ("wormhole", "blackhole") if a in _arch_name), "")
+
+    # Set up for multi-chip if applicable
+    if mesh_config_fn is not None and shard_spec_fn is not None:
+        is_multichip = xr.global_runtime_device_count() > 1
+        if is_multichip:
+            os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+            xr.use_spmd()
+    else:
+        is_multichip = False
+
+    # The prefill prompt has exactly input_sequence_length tokens, so the KV cache only
+    # needs to hold that many positions.
+    max_cache_len: int = input_sequence_length
+
+    # Connect the device
+    device: torch.device = torch_xla.device()
+
+    # Instantiate model and tokenizer
+    model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    full_model_name = model_loader.get_model_info(variant=model_variant).name
+
+    # Random prompt of exactly input_sequence_length tokens so the measured prefill
+    # scales with -isl (1D; make_prefill_inputs expands it across the batch). Generated
+    # once and reused by the CPU reference and the device prefill so PCC compares the
+    # same inputs. Seeded via a local generator so runs are reproducible without
+    # perturbing the global RNG state.
+    rng = torch.Generator().manual_seed(PREFILL_RANDOM_SEED)
+    random_input_tokens = torch.randint(
+        0, model.config.vocab_size, (input_sequence_length,), generator=rng
+    )
+
+    # Initialize indexer cache if enabled (needs to be done before model.to(device))
+    # Models using this cache are expected to handle stale values since it cannot be
+    # reset once the model is transferred to device.
+    if use_indexer_cache:
+        init_indexer_cache(
+            model,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
+
+    # Run CPU prefill to produce the PCC baseline. Prefill-only: no decode, no StaticCache
+    # (DynamicCache, same as the device path so PCC is apples-to-apples).
+    # Skipped entirely when skip_pcc: no PCC is measured, so the reference isn't needed.
+    cpu_output_logits = None
+    if not skip_pcc:
+        cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+        cpu_wrapper.eval()
+
+        # Prefill over the full input_sequence_length prompt.
+        input_args = make_prefill_inputs(
+            random_input_tokens, batch_size, torch.device("cpu")
+        )
+        cpu_output_logits, _ = generate_and_benchmark(
+            cpu_wrapper,
+            input_args,
+            torch.device("cpu"),
+            1,
+            verbose=False,
+            collect_logits=True,
+        )
+
+    # Transfer model to device
+    model = model.to(device, dtype=torch.bfloat16)
+
+    # Shard model if shard spec function is provided
+    mesh = None
+    if is_multichip:
+        shard_specs = shard_spec_fn(model_loader, model)
+        mesh = get_mesh(model_loader, mesh_config_fn)
+        if shard_specs is not None:
+            for tensor, shard_spec in shard_specs.items():
+                xs.mark_sharding(tensor, mesh, shard_spec)
+
+        # Apply sharding constraint on lm_head output to all_gather logits
+        if hasattr(model, "lm_head") and model.lm_head is not None:
+            hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
+            model.lm_head.register_forward_hook(hook)
+
+    # Set XLA compilation options
+    num_layers_override = getattr(model_loader, "num_layers", None)
+    export_model_name = build_xla_export_name(
+        model_name=display_name,
+        num_layers=num_layers_override,
+        batch_size=batch_size,
+        input_sequence_length=input_sequence_length,
+    )
+    options = {
+        "optimization_level": optimization_level,
+        "enable_trace": trace_enabled,
+        "export_path": MODULE_EXPORT_PATH,
+        "export_model_name": export_model_name,
+        "ttnn_perf_metrics_enabled": True,
+        "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
+        "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
+    }
+    # Prefill runs in bf16 (experimental_weight_dtype=""). Only pass the option when a
+    # real block format is requested: feeding an empty string into the compile options
+    # crashes the tt-mlir backend during lowering (segfault in the warmup compile). The
+    # working decode path only ever passes a valid format (e.g. "bfp_bf8").
+    if experimental_weight_dtype:
+        options["experimental_weight_dtype"] = experimental_weight_dtype
+    if fp32_dest_acc_en is not None:
+        options["fp32_dest_acc_en"] = fp32_dest_acc_en
+    if experimental_kv_cache_dtype is not None:
+        options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
+    if enable_create_d2m_subgraphs:
+        options["enable_create_d2m_subgraphs"] = enable_create_d2m_subgraphs
+
+    torch_xla.set_custom_compile_options(options)
+
+    # Apply per-tensor weight dtype overrides from explicit dict (takes priority).
+    if do_apply_weight_dtype_overrides:
+        if weight_dtype_overrides:
+            applied = apply_weight_dtype_overrides(model, weight_dtype_overrides)
+            logger.info(
+                f"Applied {len(applied)} weight dtype overrides from explicit dict"
+            )
+        else:
+            # Fall back to model's weight_dtype_configs JSON (auto-discovery).
+            weight_dtype_config = model_loader.get_weight_dtype_config_path()
+            if weight_dtype_config:
+                applied = apply_weight_dtype_overrides(model, weight_dtype_config)
+                logger.info(
+                    f"Applied {len(applied)} weight dtype overrides from {weight_dtype_config}"
+                )
+
+    # ========================================================
+    # PERFORMANCE + PCC BENCHMARK
+    # ========================================================
+
+    # Two graphs are compiled (only the first when skip_pcc):
+    #   * Perf/warmup graph (return_logits=False) — the timed graph. It outputs only the
+    #     argmax over the last position (tiny), NOT the logits. With return_logits=True the
+    #     lm_head hook forces the full (batch, seq, vocab) logits to be all-gathered /
+    #     replicated as a graph OUTPUT, and at seq=input_sequence_length under SPMD that
+    #     materialization crashes the runtime. Keeping logits off the output also means the
+    #     timed runs never pay the ~GB logits host transfer, so TTFT stays a clean
+    #     device-latency number (see the perf loop below).
+    #   * PCC graph (return_logits=True) — built and run only when not skip_pcc, purely to
+    #     pull logits to host for the correctness check.
+    perf_wrapper = LLMSamplingWrapper(
+        model,
+        read_logits_fn,
+        return_logits=False,
+        mesh=mesh,
+        output_sharding_spec=input_output_sharding_spec,
+    )
+    # Eval mode (inference path). The wrapper also passes no explicit position_ids — see
+    # LLMSamplingWrapper.forward for why that matters under SPMD.
+    perf_wrapper.eval()
+    compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
+
+    def _make_prefill_inputs_on_device():
+        """Fresh prefill inputs on device for one from-scratch prefill.
+
+        past_key_values=None makes HF build a DynamicCache internally for this single
+        forward, so no pre-allocated StaticCache enters the graph as I/O (see
+        make_prefill_inputs). Rebuilt per call so every run is an independent first prefill.
+        """
+        ia = make_prefill_inputs(random_input_tokens, batch_size, device)
+        if input_output_sharding_spec:
+            xs.mark_sharding(ia["input_ids"], mesh, input_output_sharding_spec)
+        return ia
+
+    # Warmup compiles the prefill graph, so the measured runs below are pure device
+    # executions of the same graph.
+    input_args = _make_prefill_inputs_on_device()
+
+    print("Warming up...")
+    _, _ = generate_and_benchmark(
+        compiled_perf_model,
+        input_args,
+        device,
+        1,  # only need to warm up for prefill
+        verbose=False,
+        collect_logits=False,
+        tokenizer=tokenizer,
+    )
+    print("Warmup complete")
+
+    tracy.signpost("warmup_complete")
+
+    # Run the perf benchmark: re-run the prefill PREFILL_PERF_RUNS times (the graph is
+    # already compiled by warmup, so these are pure device executions) and keep the
+    # fastest. The minimum is the cleanest estimate of the prefill's device latency.
+    #
+    # The model is called directly here (not through generate_and_benchmark) so the
+    # device sync can be forced via the tiny next_token_ids tensor instead of copying the
+    # full ~GB logits to host every run. The graph still computes logits on device (TTFT
+    # reflects that compute); we just don't pay the host transfer inside the timed region.
+    print(f"\nStarting performance benchmark...")
+    prefill_times_ns = []
+    with torch.no_grad():
+        for run_idx in range(PREFILL_PERF_RUNS):
+            # Fresh DynamicCache inputs per run (no StaticCache to carry or reset), so each
+            # run is a genuine from-scratch first prefill.
+            input_args = _make_prefill_inputs_on_device()
+
+            tracy.signpost("prefill_start")
+            start = time.perf_counter_ns()
+            # return_logits=False graph -> (ids, ids_replicated, cache_position).
+            _, next_token_ids_replicated, _ = compiled_perf_model(**input_args)
+            # Force device execution to complete by pulling the small (replicated) token
+            # tensor to host.
+            next_token_ids_replicated.to("cpu")
+            elapsed_ns = time.perf_counter_ns() - start
+            tracy.signpost("prefill_end")
+
+            prefill_times_ns.append(elapsed_ns)
+            print(
+                f"  prefill run {run_idx + 1}/{PREFILL_PERF_RUNS}: {elapsed_ns / 1e6:.3f} ms"
+            )
+
+    print("\nPerformance benchmark complete")
+
+    # PCC: build and run a separate return_logits=True graph to pull the prefill logits to
+    # host and compare against the CPU reference. Inputs are identical to the timed runs,
+    # so it validates the same prefill output. Skipped entirely when skip_pcc: no extra
+    # graph, no device run, no logits collection.
+    output_logits = None
+    if not skip_pcc:
+        # NOTE: this is the full-seq replicated-logits graph that can crash under SPMD at
+        # large input_sequence_length; skip_pcc avoids building/running it at all.
+        logits_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=True,
+            mesh=mesh,
+            output_sharding_spec=input_output_sharding_spec,
+        )
+        logits_wrapper.eval()
+        compiled_logits = torch.compile(logits_wrapper, backend="tt")
+        input_args = _make_prefill_inputs_on_device()
+        output_logits, _ = generate_and_benchmark(
+            compiled_logits,
+            input_args,
+            device,
+            1,
+            verbose=False,
+            collect_logits=True,
+        )
+
+    # Prefill-only: the measured iteration is the prefill forward. TTFT (time to first
+    # token) is the prefill latency and is the primary metric. Use the fastest of the
+    # PREFILL_PERF_RUNS runs (the happy path, free of host-side jitter).
+    ttft_ns = min(prefill_times_ns)
+    ttft_ms = ttft_ns / 1e6
+
+    # No decode loop in prefill-only mode, so throughput is not measured here.
+    prefill_total_time = ttft_ns / 1e9
+    prefill_total_samples = 0
+    tokens_per_second = 0.0
+
+    metadata = get_benchmark_metadata()
+
+    model_type = "text-generation"
+    dataset_name = "Random Data"
+
+    # Extract number of layers from model config if available
+    num_layers = (
+        model.config.num_hidden_layers
+        if hasattr(model.config, "num_hidden_layers")
+        else -1
+    )
+
+    print_benchmark_results(
+        model_title=full_model_name,
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        date=metadata["date"],
+        machine_name=metadata["machine_name"],
+        total_time=prefill_total_time,
+        total_samples=prefill_total_samples,
+        samples_per_sec=tokens_per_second,
+        batch_size=batch_size,
+        data_format=data_format,
+        input_sequence_length=input_sequence_length,
+        ttft_ms=ttft_ms,
+    )
+
+    evaluation_score = 0.0
+    custom_measurements = [
+        {
+            "measurement_name": "ttft",
+            "value": ttft_ms,
+            "target": -1,
+        },
+    ]
+
+    # Prefill-only: verify the prefill logits against the CPU reference. Skipped entirely
+    # when skip_pcc (no CPU reference, no device PCC run) — perf is still reported.
+    if skip_pcc:
+        logger.warning("skip_pcc set: prefill PCC not measured.")
+    else:
+        pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+        custom_measurements.append(
+            {"measurement_name": "pcc", "value": float(pcc_value)}
+        )
+        assert (
+            pcc_value >= required_pcc
+        ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
+        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
+
+    # Get device count and mesh info for metrics. arch was resolved before SPMD
+    # was enabled (see top of function).
+    device_count = xr.global_runtime_device_count()
+    mesh_shape = tuple(mesh.shape()) if mesh is not None else None
+
+    result = create_benchmark_result(
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        num_layers=num_layers,
+        batch_size=batch_size,
+        input_size=(input_sequence_length,),
+        loop_count=loop_count,
+        data_format=data_format,
+        total_time=prefill_total_time,
+        total_samples=prefill_total_samples,
         evaluation_score=evaluation_score,
         custom_measurements=custom_measurements,
         optimization_level=optimization_level,

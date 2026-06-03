@@ -7,7 +7,10 @@ import os
 
 import numpy as np
 import pytest
-from benchmarks.llm_benchmark import benchmark_llm_torch_xla
+from benchmarks.llm_benchmark import (
+    benchmark_llm_torch_xla,
+    benchmark_llm_torch_xla_prefill,
+)
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
 from utils import create_model_loader, resolve_display_name
@@ -219,6 +222,186 @@ def test_llm(
             json.dump(results, file, indent=2)
 
 
+def test_llm_prefill(
+    ModelLoaderModule,
+    variant,
+    output_file,
+    optimization_level=DEFAULT_OPTIMIZATION_LEVEL,
+    trace_enabled=DEFAULT_TRACE_ENABLED,
+    batch_size=DEFAULT_BATCH_SIZE,
+    loop_count=DEFAULT_LOOP_COUNT,
+    input_sequence_length=DEFAULT_INPUT_SEQUENCE_LENGTH,
+    data_format=DEFAULT_DATA_FORMAT,
+    task=DEFAULT_TASK,
+    experimental_weight_dtype=None,
+    experimental_enable_permute_matmul_fusion=DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION,
+    read_logits_fn=default_read_logits_fn,
+    mesh_config_fn=None,
+    shard_spec_fn=None,
+    required_pcc=DEFAULT_REQUIRED_PCC,
+    fp32_dest_acc_en=None,
+    experimental_kv_cache_dtype=None,
+    num_layers=None,
+    request=None,
+    weight_dtype_overrides: dict = None,
+    input_output_sharding_spec=None,
+    expected_ops: list = None,
+    check_fusions: bool = False,
+    use_indexer_cache: bool = False,
+    enable_create_d2m_subgraphs: bool = False,
+    do_apply_weight_dtype_overrides: bool = False,
+    skip_pcc: bool = False,
+):
+    """Test the PREFILL of an LLM with the given variant and optional config overrides.
+
+    Args:
+        ModelLoaderModule: Model loader module/class used to instantiate the model.
+        variant: Model variant identifier.
+        output_file: Path to save benchmark results as JSON.
+        optimization_level: tt-mlir optimization level (0, 1, or 2).
+        trace_enabled: Enable device trace.
+        batch_size: Batch size (rows the prefill prompt is broadcast across).
+        loop_count: Number of benchmark iterations (must be 1).
+        input_sequence_length: Input sequence length (number of prefill tokens).
+        data_format: Data format (must be "bfloat16").
+        task: Task type (must be "text-generation").
+        experimental_weight_dtype: Weight dtype for block format conversion
+            (e.g. "bfp_bf8", "bfp_bf4", or "" for none).
+        experimental_enable_permute_matmul_fusion: Enable permute matmul fusion optimization.
+        read_logits_fn: Function to extract logits from model output.
+        mesh_config_fn: Optional callback returning the (mesh_shape, name) for multi-chip.
+        shard_spec_fn: Optional callback returning model weight sharding specs for multi-chip.
+        required_pcc: Required PCC threshold for prefill-logits validation.
+        fp32_dest_acc_en: Optional fp32 dest accumulation compile flag.
+        experimental_kv_cache_dtype: Optional KV-cache dtype compile flag.
+        num_layers: Number of layers to override (None = full model).
+        request: pytest request fixture, used to resolve the display name.
+        weight_dtype_overrides: Explicit per-tensor weight dtype override dict.
+        input_output_sharding_spec: Optional sharding spec for input_ids / output logits.
+        expected_ops: Optional list of ops to assert on when check_fusions is set.
+        check_fusions: Whether to run the fusion check against expected_ops.
+        use_indexer_cache: Initialize per-layer Indexer caches before device transfer.
+        enable_create_d2m_subgraphs: Enable D2M subgraph creation (requires opt level >= 1).
+        do_apply_weight_dtype_overrides: Apply weight dtype overrides; left False for
+            prefill since prefill runs in bf16.
+        skip_pcc: Log the prefill PCC instead of asserting it (lets the run finish and
+            still write its results JSON when PCC is below threshold).
+    """
+    # Set default batch size if None
+    if batch_size is None:
+        batch_size = DEFAULT_BATCH_SIZE
+
+    model_loader = create_model_loader(
+        ModelLoaderModule, num_layers=num_layers, variant=variant
+    )
+    if num_layers is not None and model_loader is None:
+        pytest.fail(
+            "num_layers override requested but ModelLoader does not support it."
+        )
+    model_info_name = model_loader.get_model_info(variant=variant).name
+    display_name = resolve_display_name(request=request, fallback=model_info_name)
+
+    ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
+
+    print(f"Running LLM benchmark for variant: {variant}")
+    print(f"""Configuration:
+    optimization_level={optimization_level}
+    trace_enabled={trace_enabled}
+    batch_size={batch_size}
+    loop_count={loop_count}
+    input_sequence_length={input_sequence_length}
+    data_format={data_format}
+    task={task}
+    experimental_weight_dtype={experimental_weight_dtype}
+    experimental_enable_permute_matmul_fusion={experimental_enable_permute_matmul_fusion}
+    experimental_kv_cache_dtype={experimental_kv_cache_dtype}
+    required_pcc={required_pcc}
+    num_layers={num_layers}
+    ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
+    """)
+
+    results = benchmark_llm_torch_xla_prefill(
+        optimization_level=optimization_level,
+        trace_enabled=trace_enabled,
+        model_loader=model_loader,
+        model_variant=variant,
+        display_name=display_name,
+        batch_size=batch_size,
+        loop_count=loop_count,
+        task=task,
+        data_format=data_format,
+        input_sequence_length=input_sequence_length,
+        experimental_weight_dtype=experimental_weight_dtype,
+        experimental_enable_permute_matmul_fusion=experimental_enable_permute_matmul_fusion,
+        ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
+        read_logits_fn=read_logits_fn,
+        mesh_config_fn=mesh_config_fn,
+        shard_spec_fn=shard_spec_fn,
+        required_pcc=required_pcc,
+        fp32_dest_acc_en=fp32_dest_acc_en,
+        experimental_kv_cache_dtype=experimental_kv_cache_dtype,
+        weight_dtype_overrides=weight_dtype_overrides,
+        input_output_sharding_spec=input_output_sharding_spec,
+        expected_ops=expected_ops,
+        check_fusions_enabled=check_fusions,
+        use_indexer_cache=use_indexer_cache,
+        enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
+        do_apply_weight_dtype_overrides=do_apply_weight_dtype_overrides,  # prefill needs to be bf16
+        skip_pcc=skip_pcc,
+    )
+
+    if output_file:
+        results["project"] = "tt-forge/tt-xla"
+        results["model_rawname"] = model_info_name
+
+        # Prefill-only: there is no decode graph. One perf-metrics file is produced under
+        # skip_pcc (perf graph only); otherwise two (perf graph + PCC logits graph). The
+        # perf graph compiles first, so sorted()[0] is the timed graph — use it for the
+        # TTNN op metrics. ttnn_num_graphs records how many were found.
+        base_name = os.path.basename(ttnn_perf_metrics_output_file)
+        perf_files = [
+            f
+            for f in os.listdir(".")
+            if f.startswith(base_name) and f.endswith(".json")
+        ]
+        perf_files = sorted(perf_files)
+
+        if perf_files:
+            prefill_perf_file = perf_files[0]
+            print(f"Using prefill graph perf metrics from: {prefill_perf_file}")
+
+            with open(prefill_perf_file, "r") as f:
+                perf_metrics_data = json.load(f)
+
+            if "summary" in perf_metrics_data and isinstance(
+                perf_metrics_data["summary"], dict
+            ):
+                summary = perf_metrics_data["summary"]
+                results["config"]["ttnn_total_ops"] = summary.get("total_ops", 0)
+                results["config"]["ttnn_total_shardable_ops"] = summary.get(
+                    "total_shardable_ops", 0
+                )
+                results["config"]["ttnn_effectively_sharded_ops"] = summary.get(
+                    "effectively_sharded_ops", 0
+                )
+                results["config"]["ttnn_system_memory_ops"] = summary.get(
+                    "system_memory_ops", 0
+                )
+                results["config"]["ttnn_effectively_sharded_percentage"] = summary.get(
+                    "effectively_sharded_percentage", 0.0
+                )
+            results["config"]["ttnn_num_graphs"] = len(perf_files)
+        else:
+            logger.warning(
+                "Expected at least 1 prefill perf metrics file for LLM, but found none. "
+                "Skipping perf metrics."
+            )
+            results["config"]["ttnn_num_graphs"] = 0
+
+        with open(output_file, "w") as file:
+            json.dump(results, file, indent=2)
+
+
 def test_llm_tp(
     ModelLoaderModule,
     variant,
@@ -251,6 +434,41 @@ def test_llm_tp(
         num_layers=num_layers,
         request=request,
         decode_only=decode_only,
+        required_pcc=required_pcc,
+        **kwargs,
+    )
+
+
+def test_llm_prefill_tp(
+    ModelLoaderModule,
+    variant,
+    output_file,
+    num_layers=None,
+    request=None,
+    required_pcc=DEFAULT_REQUIRED_PCC,
+    **kwargs,
+):
+    mesh_config_fn = kwargs.pop(
+        "mesh_config_fn", getattr(ModelLoaderModule, "get_mesh_config", None)
+    )
+    shard_spec_fn = kwargs.pop(
+        "shard_spec_fn", getattr(ModelLoaderModule, "load_shard_spec", None)
+    )
+
+    if "optimization_level" in kwargs:
+        optimization_level = kwargs.pop("optimization_level")
+    else:
+        optimization_level = DEFAULT_TP_OPTIMIZATION_LEVEL
+
+    test_llm_prefill(
+        ModelLoaderModule=ModelLoaderModule,
+        variant=variant,
+        output_file=output_file,
+        optimization_level=optimization_level,
+        mesh_config_fn=mesh_config_fn,
+        shard_spec_fn=shard_spec_fn,
+        num_layers=num_layers,
+        request=request,
         required_pcc=required_pcc,
         **kwargs,
     )
@@ -1089,6 +1307,47 @@ def test_llama_3_1_8b(
     )
 
 
+def test_llama_3_1_8b_prefill(
+    output_file,
+    num_layers,
+    request,
+    batch_size,
+    optimization_level,
+    input_sequence_length,
+    skip_pcc,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_8B_INSTRUCT
+    test_llm_prefill(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        batch_size=batch_size,
+        input_sequence_length=(
+            input_sequence_length
+            if input_sequence_length is not None
+            else DEFAULT_INPUT_SEQUENCE_LENGTH
+        ),
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        required_pcc=0.90,
+        experimental_weight_dtype=None,  # prefill needs to be bf16
+        do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
+        trace_enabled=False,
+        skip_pcc=skip_pcc,
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
@@ -1706,6 +1965,45 @@ def test_llama_3_1_70b_tp(
             "model.layers.*.mlp.up_proj.weight": "bfp_bf4",
         },
         optimization_level=1,  # flaky: occasionally hangs in CI with optimization_level=2
+    )
+
+
+def test_llama_3_1_70b_tp_prefill(
+    output_file,
+    num_layers,
+    request,
+    batch_size,
+    optimization_level,
+    input_sequence_length,
+    skip_pcc,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+    test_llm_prefill_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        batch_size=batch_size,
+        input_sequence_length=(
+            input_sequence_length
+            if input_sequence_length is not None
+            else DEFAULT_INPUT_SEQUENCE_LENGTH
+        ),
+        optimization_level=(
+            optimization_level if optimization_level is not None else 1
+        ),  # flaky: occasionally hangs in CI with optimization_level=2
+        required_pcc=0.90,
+        experimental_weight_dtype=None,  # prefill needs to be bf16
+        do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
+        trace_enabled=False,
+        skip_pcc=skip_pcc,
     )
 
 
