@@ -78,11 +78,10 @@ jobs:
             CCACHE_TEMPDIR=/tmp/ccache
             CCACHE_REMOTE_STORAGE="${{ env.CCACHE_REMOTE_STORAGE }}"
             IN_CIBW_ENV=ON
-            CXXFLAGS="-Wno-enum-constexpr-conversion"
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "==3.12.*"
           CIBW_SKIP: "*-musllinux_*"
-          CIBW_BEFORE_BUILD: "mkdir -p /tmp/ccache && ccache -z && ccache -p"
+          CIBW_BEFORE_BUILD: "mkdir -p /tmp/ccache && ccache -z && ccache -p && python3 .github/patch-tbb.py"
         with:
           output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
           package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
