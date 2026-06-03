@@ -26,6 +26,7 @@ DEFAULT_INPUT_SEQUENCE_LENGTH = 128
 DEFAULT_DATA_FORMAT = "bfloat16"
 DEFAULT_TASK = "text-generation"
 DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
+DEFAULT_EXPERIMENTAL_KV_CACHE_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.94
 
@@ -52,7 +53,7 @@ def test_llm(
     shard_spec_fn=None,
     required_pcc=DEFAULT_REQUIRED_PCC,
     fp32_dest_acc_en=None,
-    experimental_kv_cache_dtype=None,
+    experimental_kv_cache_dtype=DEFAULT_EXPERIMENTAL_KV_CACHE_DTYPE,
     num_layers=None,
     request=None,
     accuracy_testing: bool = False,
@@ -327,6 +328,7 @@ def test_llama_3_2_3b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -395,6 +397,7 @@ def test_gemma_2_2b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -429,6 +432,7 @@ def test_phi1(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -463,6 +467,7 @@ def test_phi1_5(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -497,6 +502,7 @@ def test_phi2(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -606,6 +612,7 @@ def test_qwen_2_5_0_5b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -674,6 +681,7 @@ def test_qwen_3_1_7b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -708,6 +716,7 @@ def test_qwen_3_4b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -741,6 +750,7 @@ def test_qwen_2_5_1_5b(
             optimization_level if optimization_level is not None else 1
         ),
         required_pcc=0.90,
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -775,6 +785,7 @@ def test_qwen_2_5_3b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -1120,6 +1131,7 @@ def test_falcon3_7b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -1154,6 +1166,7 @@ def test_falcon3_10b_tp(
             if optimization_level is not None
             else DEFAULT_TP_OPTIMIZATION_LEVEL
         ),
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -1890,6 +1903,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
             batch_size if batch_size is not None else 64
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         optimization_level=1,
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -1967,6 +1981,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -2002,6 +2017,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
+        experimental_kv_cache_dtype=None,
     )
 
 
@@ -2057,6 +2073,7 @@ def test_gpt_oss_120b_tp_qb2(
         optimization_level=1,
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
+        experimental_kv_cache_dtype=None,
         weight_dtype_overrides={
             "default": "bfp_bf8",
             "model.layers.*.mlp.experts.gate_up_proj": "bfp_bf4",
