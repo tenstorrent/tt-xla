@@ -249,16 +249,15 @@ void BufferInstance::copyFromHost(
   std::vector<std::int64_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
-  // For a non-contiguous (e.g. transposed/sliced) host buffer, force the owned
-  // path so the runtime gathers the data into a contiguous tensor: the
-  // borrowed/zero-copy path cannot alias non-contiguous memory, and the runtime
-  // would otherwise read the buffer linearly and corrupt it.
-  // Complex dtypes are left to the existing path: their `shape` carries an
-  // extra trailing dim that has no corresponding entry in `byte_strides`.
-  bool is_non_contiguous = host_buffer != nullptr &&
-                           !data_type_utils::isComplexPJRTType(m_data_type) &&
-                           !isDenseRowMajor(dims, num_dims, byte_strides,
-                                            num_byte_strides, element_size);
+  // A buffer is treated as contiguous if it is a complex dtype (its `shape`
+  // carries an extra trailing dim with no matching `byte_strides` entry) or
+  // genuinely dense row-major. A non-contiguous (e.g. transposed/sliced) buffer
+  // is forced onto the owned path below so the runtime gathers it into a
+  // contiguous tensor: the borrowed/zero-copy path cannot alias non-contiguous
+  // memory and would read it linearly, corrupting the data.
+  bool is_contiguous = data_type_utils::isComplexPJRTType(m_data_type) ||
+                       isDenseRowMajor(dims, num_dims, byte_strides,
+                                       num_byte_strides, element_size);
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
@@ -284,7 +283,7 @@ void BufferInstance::copyFromHost(
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type) ||
-      is_non_contiguous;
+      !is_contiguous;
 
   if (is_distributed) {
     TT_ASSERT(host_buffer_semantics !=
