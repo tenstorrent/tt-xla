@@ -24,12 +24,12 @@ from utils import BringupStatus, Category
 
 import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
 from tests.runner.requirements import RequirementsManager
-
-from . import skip_pro_7b_image_token_on_wormhole
 from third_party.tt_forge_models.janus_pro.text_to_image.pytorch import (
     ModelLoader,
     ModelVariant,
 )
+
+from . import skip_pro_7b_image_token_on_wormhole
 
 MODEL_INFO_PRO_1B = ModelLoader.get_model_info(ModelVariant.PRO_1B)
 MODEL_INFO_PRO_7B = ModelLoader.get_model_info(ModelVariant.PRO_7B)
