@@ -30,11 +30,6 @@ on:
         required: false
         type: string
         default: release
-      use_docker_wheel:
-        description: "Use wheel from docker instead of building a new one"
-        required: false
-        type: boolean
-        default: false
       skip-device-perf:
         description: "Skip device performance measurement"
         required: false
@@ -105,5 +100,4 @@ jobs:
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
-      use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
       check_fusions: ${{ inputs.check_fusions }}
