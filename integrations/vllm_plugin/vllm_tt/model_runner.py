@@ -2044,6 +2044,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 (self.max_num_reqs, self.vocab_size),
                 dtype=self._hidden_states_dtype,
             ).to(self.device)
+            if self.is_sharded_compute_logits:
+                safe_mark_sharding(dummy_logits, self.mesh, (None, "model"))
             generate_params_if_all_greedy = not all_greedy
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
@@ -2084,6 +2086,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             dtype=self._hidden_states_dtype,
         )
         dummy_logits = dummy_logits.to(self.device)
+        if self.is_sharded_compute_logits:
+            safe_mark_sharding(dummy_logits, self.mesh, (None, "model"))
         dummy_tokens = torch.zeros((self.max_num_reqs, 1), dtype=torch.int64).to(
             self.device
         )
@@ -2515,7 +2519,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         # logits enter vocab-sharded from compute_logits; replicate here so
         # logsoftmax sees the full vocab. Only paid when logprobs are requested.
+        # Two constraints: the first annotates the input as sharded (establishing
+        # the mesh reference in the compiled graph), the second triggers the
+        # all-gather to replicate.
         if self.is_sharded_compute_logits:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         logprobs = self.sampler.compute_logprobs(logits)
         logprobTensors = self.sampler.gather_logprobs(
