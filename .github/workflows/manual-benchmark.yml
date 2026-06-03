@@ -38,11 +38,6 @@ on:
         required: false
         type: boolean
         default: true
-      artifact_release_run_id:
-        description: "Run ID that already contains the wheel artifact (used when should_build_wheel=false)"
-        required: false
-        type: string
-        default: ""
       manylinux_build:
         description: 'Build and use manylinux wheel'
         required: false
@@ -64,7 +59,6 @@ permissions:
 
 jobs:
   docker-build:
-    if: ${{ inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
@@ -73,7 +67,6 @@ jobs:
 
   build:
     needs: docker-build
-    if: ${{ inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
@@ -121,8 +114,8 @@ jobs:
     with:
       adv_filter: ${{ needs.set-inputs.outputs.filter }}
       docker_image: ${{ needs.docker-build.outputs.docker-image }}
-      artifact_release_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
-      artifact_suffix: ${{ inputs.should_build_wheel && needs.build.outputs.artifact_suffix || '' }}
+      artifact_release_run_id: ${{ needs.build.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build.outputs.artifact_suffix }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}
