@@ -4,7 +4,8 @@
     "test-defaults": {
       "runs-on": [
         "n150",
-        "p150"
+        "p150",
+        "qb2-blackhole"
       ],
       "dir": "",
       "bs": 12,
@@ -53,11 +54,6 @@
       {
         "name": "unet",
         "pytest": "tests/benchmark/test_vision.py::test_unet"
-      },
-      {
-        "name": "unet_qb2",
-        "pytest": "tests/benchmark/test_vision.py::test_unet",
-        "runs-on": "qb2-blackhole"
       },
       {
         "name": "vit",
