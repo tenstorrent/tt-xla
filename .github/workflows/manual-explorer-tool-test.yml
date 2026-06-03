@@ -18,6 +18,9 @@ env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_XLA_CI: 1
+  HTTP_PROXY: ${{ vars.HTTP_PROXY }}
+  HTTPS_PROXY: ${{ vars.HTTP_PROXY }}
+  NO_PROXY: ${{ vars.NO_PROXY }}
 
 jobs:
   build-image:

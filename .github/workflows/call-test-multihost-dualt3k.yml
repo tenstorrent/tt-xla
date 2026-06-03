@@ -39,6 +39,9 @@ env:
   GH_TOKEN: ${{ github.token }}
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
   TT_XLA_CI: 1
+  HTTP_PROXY: ${{ vars.HTTP_PROXY }}
+  HTTPS_PROXY: ${{ vars.HTTP_PROXY }}
+  NO_PROXY: ${{ vars.NO_PROXY }}
 
 jobs:
   run-multihost-tests:

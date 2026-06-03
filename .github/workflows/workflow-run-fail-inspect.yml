@@ -341,6 +341,9 @@ jobs:
     env:
       TT_XLA_CI: 1
       GH_TOKEN: ${{ github.token }} # for gh cli tool
+      HTTP_PROXY: ${{ vars.HTTP_PROXY }}
+      HTTPS_PROXY: ${{ vars.HTTP_PROXY }}
+      NO_PROXY: ${{ vars.NO_PROXY }}
 
     steps:
       - name: Mark repo as safe for git

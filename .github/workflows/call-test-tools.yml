@@ -38,6 +38,9 @@ jobs:
     env:
       TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain
       GH_TOKEN: ${{ github.token }}
+      HTTP_PROXY: ${{ vars.HTTP_PROXY }}
+      HTTPS_PROXY: ${{ vars.HTTP_PROXY }}
+      NO_PROXY: ${{ vars.NO_PROXY }}
 
     steps:
       - name: Mark repo as safe for git

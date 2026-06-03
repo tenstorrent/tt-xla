@@ -56,6 +56,9 @@ env:
   TT_XLA_CI: 1
   TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
   TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE: "/opt/tt-triage-venv/bin/python /opt/tt-triage/tools/tt-triage.py 1>&2"
+  HTTP_PROXY: ${{ vars.HTTP_PROXY }}
+  HTTPS_PROXY: ${{ vars.HTTP_PROXY }}
+  NO_PROXY: ${{ vars.NO_PROXY }}
 
 jobs:
   run-perf-test:
