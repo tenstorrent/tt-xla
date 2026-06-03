@@ -121,6 +121,7 @@ jobs:
               -v /lib/modules:/lib/modules \
               -v /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env \
               -v /mnt/dockercache:/mnt/dockercache \
+              -v /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt \
               -v /etc/mpirun:/etc/mpirun:ro"
 
             if [ -n "$SSH_AUTH_SOCK" ] && [ -S "$SSH_AUTH_SOCK" ]; then

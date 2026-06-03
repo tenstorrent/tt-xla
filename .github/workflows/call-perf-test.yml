@@ -78,6 +78,7 @@ jobs:
         - /lib/modules:/lib/modules
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
         - /mnt/dockercache:/mnt/dockercache
+        - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt
 
     steps:
     - name: Mark repo as safe for git
@@ -347,7 +348,7 @@ jobs:
         pip install pandas==2.3.3
 
     - name: Run Device Perf
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
+      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150-120' }}
       shell: bash
       run: |
         source ttrt-venv/bin/activate
@@ -384,7 +385,7 @@ jobs:
     - name: Upload Device Perf
       id: upload-device-perf
       uses: actions/upload-artifact@v6
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
+      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150-120' }}
       with:
         name: device-perf-${{ steps.strings.outputs.job_id }}
         path: ${{ steps.strings.outputs.perf_report_path }}/device_perf/
@@ -398,7 +399,7 @@ jobs:
         STABLEHLO_URL="${{ !matrix.build.skip-stablehlo-dump && steps.upload-stablehlo-mlir.outputs.artifact-url || '' }}"
         TTIR_URL="${{ !matrix.build.skip-ttir-dump && steps.upload-ttir-mlir.outputs.artifact-url || '' }}"
         TTNN_URL="${{ !matrix.build.skip-ttnn-dump && steps.upload-ttnn-mlir.outputs.artifact-url || '' }}"
-        DEVICE_PERF_URL="${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' && steps.upload-device-perf.outputs.artifact-url || '' }}"
+        DEVICE_PERF_URL="${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150-120' && steps.upload-device-perf.outputs.artifact-url || '' }}"
         MLIR_SHA="${{ steps.find-run.outputs.mlir_sha || '' }}"
         JOB_ID_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ steps.strings.outputs.job_id }}"
 
