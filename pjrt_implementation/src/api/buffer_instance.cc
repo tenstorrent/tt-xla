@@ -253,13 +253,12 @@ void BufferInstance::copyFromHost(
   // path so the runtime gathers the data into a contiguous tensor: the
   // borrowed/zero-copy path cannot alias non-contiguous memory, and the runtime
   // would otherwise read the buffer linearly and corrupt it.
-  // Complex dtypes are left to the existing path: their `shape` carries an extra
-  // trailing dim that has no corresponding entry in `byte_strides`.
-  bool is_non_contiguous =
-      host_buffer != nullptr &&
-      !data_type_utils::isComplexPJRTType(m_data_type) &&
-      !isDenseRowMajor(dims, num_dims, byte_strides, num_byte_strides,
-                       element_size);
+  // Complex dtypes are left to the existing path: their `shape` carries an
+  // extra trailing dim that has no corresponding entry in `byte_strides`.
+  bool is_non_contiguous = host_buffer != nullptr &&
+                           !data_type_utils::isComplexPJRTType(m_data_type) &&
+                           !isDenseRowMajor(dims, num_dims, byte_strides,
+                                            num_byte_strides, element_size);
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
