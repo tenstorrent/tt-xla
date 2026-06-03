@@ -63,6 +63,7 @@ env:
   HTTP_PROXY: ${{ vars.HTTP_PROXY }}
   HTTPS_PROXY: ${{ vars.HTTP_PROXY }}
   NO_PROXY: ${{ vars.NO_PROXY }}
+  UV_NATIVE_TLS: "true"
 
 jobs:
   generate-matrix-test:
