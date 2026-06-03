@@ -13,10 +13,11 @@ also cover FROM_HOST and opt=0 across the full reduced map.
 """
 
 import itertools
+import math
 
 import pytest
 import torch
-from infra import Framework, run_op_test_with_random_inputs
+from infra import Framework, run_op_test
 from utils import Category
 
 from tests.infra.evaluators.evaluation_config import ComparisonConfig, PccConfig
@@ -71,31 +72,19 @@ _SHAPE_PAIRS = (
 )
 
 
-_SHAPE_2560 = ((32, 128, 2560), (2560, 1024))
-
-
 def _is_known_pcc_failure(
-    shape_pair, opt_level: int, fp32_acc: bool, math_fidelity: str
+    shape_pair, input_source: str, opt_level: int, fp32_acc: bool, math_fidelity: str
 ) -> bool:
-    """Empirically observed PCC mismatch predicate (forked rerun across 3 shapes).
+    """Calibrated against the realistic-inputs run (see pcc_artifacts/pcc_report_realistic.md).
 
-    Common pattern (all three shape pairs): opt=2 always fails; opt=0 fails when
-    fp32_dest_acc_en=False. The 2560-reduction shape adds one extra failure mode:
-    opt=0 + fp32_dest_acc_en=True + math_fidelity=lofi (lofi alone is too lossy
-    at that reduction size even with fp32 accumulation).
-    Input source (FROM_ANOTHER_OP vs FROM_HOST) does not affect PCC; the add(x,x)
-    prelude is a linear scaling.
+    All 48 FROM_ANOTHER_OP + opt=2 cases fail with PCC ~0.500 (constant across
+    weight_dtype, math_fidelity, and fp32_dest_acc_en — those compiler options
+    appear not to flow through). FROM_HOST + opt=2 passes (PCC > 0.99): the
+    `add(x,x) * add(y,y)` prelude in FROM_ANOTHER_OP triggers a precision-lossy
+    transform at opt_level=2 that doesn't fire without that prelude. opt=0
+    passes for every combination.
     """
-    if opt_level == 2:
-        return True
-    if opt_level == 0 and not fp32_acc:
-        return True
-    return (
-        shape_pair == _SHAPE_2560
-        and opt_level == 0
-        and fp32_acc
-        and math_fidelity == "lofi"
-    )
+    return input_source == "FROM_ANOTHER_OP" and opt_level == 2
 
 
 def _parse_compiler_config(config_str: str) -> CompilerConfig:
@@ -122,7 +111,9 @@ def _build_params():
                         fp32_str = "true" if fp32_acc else "false"
                         cfg = f"mp_opt{opt_level}_{wd}_fp32acc{fp32_str}_{mf}"
                         marks = []
-                        if _is_known_pcc_failure(shape_pair, opt_level, fp32_acc, mf):
+                        if _is_known_pcc_failure(
+                            shape_pair, input_source, opt_level, fp32_acc, mf
+                        ):
                             # The sweeps conftest hook (SweepsPytestReport.adjust_report)
                             # looks up failing reasons by `description`, not enum name.
                             # tt-xla's evaluator raises AssertionError -> matches
@@ -144,6 +135,20 @@ def _build_params():
                         )
 
 
+def _mixture_normal(shape, sigma, outlier_factor=10.0, outlier_prob=0.01):
+    """99% N(0, sigma) + 1% N(0, sigma*outlier_factor).
+
+    Models LLM-style activation/weight distributions where a small fraction
+    of values are far outside the bulk (Dettmers et al., LLM.int8). fp32
+    output — matches sweeps' default dtype handling for matmul_mp test
+    vectors with dev_data_format=None.
+    """
+    base = torch.randn(shape) * sigma
+    boost = torch.randn(shape) * (sigma * outlier_factor)
+    is_outlier = torch.rand(shape) < outlier_prob
+    return torch.where(is_outlier, boost, base)
+
+
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
@@ -154,13 +159,29 @@ def _build_params():
 def test_matmul_mp(shape_pair, input_source, compiler_config_str):
     model = _MODELS[input_source]()
     compiler_config = _parse_compiler_config(compiler_config_str)
+    # PCC-only check. Sweeps wraps PCC+allclose into AutomaticValueChecker but
+    # its `check_pcc_error_level` reclassifies failures purely on PCC ranges
+    # (low/medium/high) — allclose failures don't reach xfail lists. Outlier
+    # mixture inputs already make allclose fail on every config (even those
+    # with PCC > 0.99), so enforcing it would mark all 192 cases as failing
+    # and lose the signal the predicate gives us.
     comparison_config = ComparisonConfig()
     comparison_config.pcc = PccConfig(required_pcc=0.99)
 
-    run_op_test_with_random_inputs(
+    # LLM-realistic inputs: activations ~ N(0, 1) with outliers; weights ~
+    # N(0, 1/sqrt(K)) (Kaiming scale) with the same outlier mixture. Symmetric
+    # uniform [-1, 1] on both operands (sweeps' default) overstates output
+    # magnitudes by ~50x for these K, producing atol values that don't
+    # reflect any real model.
+    lhs_shape, rhs_shape = shape_pair
+    reduction_dim = rhs_shape[0]
+    sigma_rhs = 1.0 / math.sqrt(reduction_dim)
+    lhs = _mixture_normal(lhs_shape, sigma=1.0)
+    rhs = _mixture_normal(rhs_shape, sigma=sigma_rhs)
+
+    run_op_test(
         model,
-        [shape_pair[0], shape_pair[1]],
-        dtype=torch.bfloat16,
+        [lhs, rhs],
         comparison_config=comparison_config,
         framework=Framework.TORCH,
         compiler_config=compiler_config,
