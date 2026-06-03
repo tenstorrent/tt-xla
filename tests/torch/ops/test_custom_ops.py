@@ -355,3 +355,78 @@ def test_paged_scaled_dot_product_attention_decode(
         [query, key, value, page_table, True, None, cur_pos_tensor],
         framework=Framework.TORCH,
     )
+
+
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "num_users, num_heads, num_kv_heads, head_size, head_dim_v, has_value, block_size, max_num_blocks_per_seq, is_causal, scale",
+    [
+        # MLA-from-latent (value=None): single shared latent KV head, the Q/K
+        # head dim carries the rope tail (dh_qk = head_dim_v + d_rope = 128 + 64).
+        (8, 16, 1, 192, 128, False, 32, 16, True, 1.0),
+        (8, 16, 1, 192, 128, False, 64, 16, True, 1.0),
+        # MLA-from-latent with d_rope=0 (dh_qk == head_dim_v).
+        (8, 32, 1, 128, 128, False, 32, 16, True, 1.0),
+        # Explicit value tensor path (separate V cache) with a single latent KV
+        # head broadcast across the query heads.
+        (8, 16, 1, 128, 64, True, 32, 16, True, 1.0),
+        # GQA latent: a few KV heads, each shared by a group of query heads.
+        (8, 16, 4, 192, 128, False, 32, 16, True, 1.0),
+        # MHA sanity (num_kv_heads == num_heads), explicit value.
+        (8, 8, 8, 128, 128, True, 32, 16, True, 1.0),
+    ],
+)
+def test_paged_flash_mla_decode(
+    num_users,
+    num_heads,
+    num_kv_heads,
+    head_size,
+    head_dim_v,
+    has_value,
+    block_size,
+    max_num_blocks_per_seq,
+    is_causal,
+    scale,
+):
+    max_num_blocks = max_num_blocks_per_seq * num_users
+    max_seq_len = max_num_blocks_per_seq * block_size
+
+    query = torch.randn(1, num_users, num_heads, head_size, dtype=torch.bfloat16)
+    key = torch.randn(
+        max_num_blocks, num_kv_heads, block_size, head_size, dtype=torch.bfloat16
+    )
+    value = (
+        torch.randn(
+            max_num_blocks, num_kv_heads, block_size, head_dim_v, dtype=torch.bfloat16
+        )
+        if has_value
+        else None
+    )
+
+    # A valid page table: distinct, non-overlapping physical blocks per user.
+    page_table = (
+        torch.randperm(max_num_blocks)
+        .reshape(num_users, max_num_blocks_per_seq)
+        .to(torch.int32)
+    )
+    # Current decode position per user, kept within the cached range.
+    cur_pos_tensor = torch.randint(0, max_seq_len, (num_users,), dtype=torch.int32)
+
+    # args = [query, key, head_dim_v, page_table, value, is_causal,
+    #         attn_mask, cur_pos_tensor, attention_sink, scale]
+    run_op_test(
+        torch.ops.tt.paged_flash_mla_decode,
+        [
+            query,
+            key,
+            head_dim_v,
+            page_table,
+            value,
+            is_causal,
+            None,
+            cur_pos_tensor,
+            None,
+            scale,
+        ],
+        framework=Framework.TORCH,
+    )

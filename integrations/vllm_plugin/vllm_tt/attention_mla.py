@@ -12,8 +12,8 @@ a subclass that calls `impl.forward(...)` directly, and we install that
 replacement via vLLM's `PluggableLayer` OOT registry by registering a
 custom `MultiHeadLatentAttentionWrapper` subclass.
 
-Scope: prefill only. The unified forward raises NotImplementedError on
-the decode path.
+The unified forward handles both prefill (via tt::flash_mla_prefill) and
+paged decode (via tt::paged_flash_mla_decode against the latent KV cache).
 """
 
 from typing import TYPE_CHECKING, Optional
@@ -179,7 +179,12 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         output: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> torch.Tensor:
-        """MLA prefill on TT.
+        """MLA attention on TT (prefill and paged decode).
+
+        Dispatches on token count per user: prefill (S > 1) attends against the
+        freshly built local latent K via tt::flash_mla_prefill; decode (S == 1)
+        attends against the paged latent KV cache via tt::paged_flash_mla_decode
+        (see ``_forward_decode``).
 
         Shapes (from `TTMLAAttention.forward` after splitting `q`):
             q_nope:      [tokens, num_heads, qk_nope_head_dim]
@@ -194,12 +199,6 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         q_nope, q_pe = q
 
         is_prefill = self._infer_is_prefill(q_nope, attn_metadata)
-        if not is_prefill:
-            raise NotImplementedError(
-                "Paged MLA decode is not yet implemented on TT — this change "
-                "covers prefill only. Add a tt::paged_flash_mla_decode op + "
-                "wire it through this branch as a follow-up."
-            )
 
         users = (
             attn_metadata.cache_position.shape[0]
@@ -240,6 +239,23 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         # -- 3. Build concatenated latent Q / K ---------------------------
         q_lat = torch.cat([q_nope_lat, q_pe], dim=-1)  # [b, S, N, L+R]
         k_lat = torch.cat([kv_c.unsqueeze(2), k_pe_v], dim=-1)  # [b, S, 1, L+R]
+
+        # Decode (single token per user, S == 1): attend against the *paged
+        # latent KV cache* via tt::paged_flash_mla_decode rather than the
+        # local-tensor prefill kernel. Returning here leaves the prefill path
+        # below byte-for-byte unchanged.
+        if not is_prefill:
+            return self._forward_decode(
+                q_lat,
+                k_lat,
+                kv_cache,
+                attn_metadata,
+                layer,
+                users,
+                act_dtype,
+                device,
+                output,
+            )
 
         # -- 4. Latent prefill attention (V = K[..., :L]) -----------------
         # The kernel reads from the local k_lat tensor; it does not touch
@@ -283,17 +299,115 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         ):
             k_lat_for_fill = k_lat.transpose(1, 2)  # [b, 1, S, L+R]
             fill_page_table = attn_metadata.fill_page_table
+            # Accumulate the per-user fills into a separate local so `kv_cache`
+            # keeps referencing the bound buffer (the loop must not rebind it).
+            filled_cache = kv_cache
             for batch_idx in range(users):
-                kv_cache = torch.ops.tt.paged_fill_cache(
-                    kv_cache,
+                filled_cache = torch.ops.tt.paged_fill_cache(
+                    filled_cache,
                     k_lat_for_fill[batch_idx : batch_idx + 1],
                     fill_page_table,
                     batch_idx=torch.tensor(
                         [batch_idx], dtype=torch.int32, device=kv_cache.device
                     ),
                 )
+            # paged_fill_cache is functional (returns a new tensor, no in-place
+            # mutation), so persist the accumulated result back into the bound
+            # `kv_cache` buffer in place. Without this the prefill fills are
+            # dropped when forward returns and decode would attend over an empty
+            # cache (mirrors _forward_decode and TTAttentionBackendImpl).
+            kv_cache.copy_(filled_cache)
 
         # -- 8. Write into the pre-allocated output buffer ----------------
+        if output is not None:
+            output.copy_(out)
+            return output
+        return out
+
+    # ------------------------------------------------------------------ #
+    # Decode — paged latent attention against the persisted KV cache.
+    # ------------------------------------------------------------------ #
+    def _forward_decode(
+        self,
+        q_lat: torch.Tensor,
+        k_lat: torch.Tensor,
+        kv_cache: torch.Tensor,
+        attn_metadata: TTMetadata,
+        layer: "MLAAttention",
+        users: int,
+        act_dtype: torch.dtype,
+        device: torch.device,
+        output: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """Paged MLA decode on TT (one token per user, S == 1).
+
+        Unlike prefill — which attends against the freshly built local latent K
+        — decode attends against the *persisted* paged latent KV cache, which
+        holds every prior token. The new token's latent K is written into the
+        cache first (so the kernel sees the current position), then the
+        attention reads the cache up to each user's current position.
+
+        Shapes:
+            q_lat:    [users, 1, N, L+R]                latent query (S == 1)
+            k_lat:    [users, 1, 1, L+R]                new token's latent K
+            kv_cache: [num_blocks, 1, block_size, L+R]  paged latent cache
+
+        Returns the output tensor [users, N * V] (one token per user).
+        """
+        N = self.num_heads
+        L = self.kv_lora_rank
+        V = self.v_head_dim
+
+        # -- 1. Write the new token's latent K into the paged cache at the
+        #       current position, BEFORE attending, so the decode kernel reads
+        #       it as part of the [0, cur_pos] range. paged_update_cache wants
+        #       the fill value as [1, users, num_kv_heads(=1), L+R].
+        #       Skip during profile runs (kv_cache is a zero-numel sentinel).
+        if isinstance(kv_cache, torch.Tensor) and kv_cache.numel() > 0:
+            k_lat_for_update = k_lat.transpose(0, 1)  # [1, users, 1, L+R]
+            updated_cache = torch.ops.tt.paged_update_cache(
+                kv_cache,
+                k_lat_for_update,
+                attn_metadata.cache_position,
+                attn_metadata.page_table,
+            )
+            # Persist in place so the bound cache buffer is visible on the next
+            # decode step (mirrors TTAttentionBackendImpl._handle_paged_attention).
+            kv_cache.copy_(updated_cache)
+
+        # -- 2. Paged latent decode attention (V = K[..., :L]). The decode
+        #       kernel expects the query as [1, users, N, L+R] and reads K/V
+        #       straight from the paged cache.
+        is_causal = attn_metadata.is_causal if attn_metadata is not None else True
+        out_lat = torch.ops.tt.paged_flash_mla_decode(
+            query=q_lat.transpose(0, 1),  # [1, users, N, L+R]
+            key=kv_cache,
+            head_dim_v=L,
+            page_table=attn_metadata.page_table,
+            value=None,
+            is_causal=is_causal,
+            attn_mask=None if is_causal else attn_metadata.attn_mask,
+            cur_pos_tensor=attn_metadata.cache_position,
+            scale=self.scale,
+        )  # [1, users, N, L]
+
+        # -- 3. Project the latent output back to v_head_dim via W_UV. --------
+        # Same plain-tensor caveat as the prefill path: W_UV is a bare tensor
+        # attribute, so move it onto the activation device/dtype here.
+        out_lat = out_lat.reshape(users, N, L)  # drop the singleton token dim
+        out = torch.einsum(
+            "bnl,nlv->bnv",
+            out_lat.to(torch.float32),
+            layer.W_UV.to(device=device, dtype=torch.float32),
+        ).to(
+            act_dtype
+        )  # [users, N, V]
+
+        # -- 4. Reshape to vLLM's output contract: [tokens, N * V]. Decode has
+        #       one token per user, so tokens == users.
+        out = out.reshape(users, N * V)
+
+        # -- 5. Write into the pre-allocated output buffer. -------------------
         if output is not None:
             output.copy_(out)
             return output
@@ -391,7 +505,8 @@ class TTMultiHeadLatentAttentionWrapper(MultiHeadLatentAttentionWrapper):
             _mla_module.MLAAttention = orig_cls
         logger.info(
             "[TT] Installed TTMLAAttention (prefix=%s) — MLA prefill uses "
-            "torch.ops.tt.flash_mla_prefill; decode is NotImplementedError.",
+            "torch.ops.tt.flash_mla_prefill; decode uses "
+            "torch.ops.tt.paged_flash_mla_decode.",
             getattr(self, "prefix", "?"),
         )
 

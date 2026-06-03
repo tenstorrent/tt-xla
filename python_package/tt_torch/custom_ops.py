@@ -1075,6 +1075,262 @@ def paged_scaled_dot_product_attention_decode_fake(
 
 
 @torch.library.custom_op(
+    "tt::paged_flash_mla_decode", mutates_args=[], device_types=["xla", "cpu"]
+)
+def paged_flash_mla_decode(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    page_table: torch.Tensor,
+    value: torch.Tensor = None,
+    is_causal: bool = True,
+    attn_mask: torch.Tensor = None,
+    cur_pos_tensor: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    scale: float = None,
+) -> torch.Tensor:
+    """
+    Paged flash Multi-head Latent Attention (MLA) decode, mirroring
+    ttnn.transformer.paged_flash_multi_latent_attention_decode semantics.
+
+    This is the decode-phase counterpart to ``tt.flash_mla_prefill`` and the MLA
+    counterpart to ``tt.paged_scaled_dot_product_attention_decode``: single-token
+    (decode) attention against a paged KV cache, where the compressed latent K/V
+    cache shares one representation and ``head_dim_v`` gives the V/output head
+    dimension separately from the Q/K head dimension.
+
+    Shapes:
+        query:               [1, num_users, nqh, dh_qk]
+        key (paged cache):   [max_num_blocks, nkv, block_size, dh_qk]
+        value (paged, opt):  [max_num_blocks, nkv, block_size, head_dim_v]. When
+                             ``None`` (MLA-from-latent), V is taken from the
+                             first ``head_dim_v`` features of ``key`` (K and V
+                             share the compressed latent representation).
+        page_table:          [num_users, num_blocks_per_user], integer physical
+                             block ids per user in logical (sequence) order.
+        cur_pos_tensor (opt):[num_users], integer current position per user.
+                             Required when ``is_causal`` is ``True``; the op
+                             attends to cache positions ``[0, cur_pos]`` per user.
+        attn_mask (opt):     additive mask broadcastable to
+                             [num_users, nqh, 1, max_seq_len]. Required when
+                             ``is_causal`` is ``False``; must be ``None`` when
+                             ``is_causal`` is ``True``.
+        attention_sink (opt):per-query-head sink logits.
+
+    Args:
+        head_dim_v: head dimension of V/output. When ``value`` is provided it
+                    must equal ``value.shape[-1]``; when ``value`` is ``None`` it
+                    must be ``<= key.shape[-1]``.
+        is_causal:  Defaults to ``True``.
+        scale:      Defaults to ``1 / sqrt(dh_qk)`` inside the ttnn op.
+
+    Returns:
+        Output of shape [1, num_users, nqh, head_dim_v] with the same dtype as
+        ``query``.
+    """
+    assert (
+        len(query.shape) == 4
+    ), "query must be a 4D tensor: [1, num_users, nqh, dh_qk]."
+    assert query.shape[0] == 1, "query must have dim 0 equal to 1."
+    assert (
+        len(key.shape) == 4
+    ), "key must be a 4D tensor: [max_num_blocks, nkv, block_size, dh_qk]."
+    assert (
+        len(page_table.shape) == 2
+    ), "page_table must be a 2D tensor: [num_users, num_blocks_per_user]."
+
+    assert (
+        key.shape[-1] == query.shape[-1]
+    ), "key and query must have the same head size (dh_qk)."
+    assert (
+        query.shape[2] % key.shape[1] == 0
+    ), "nqh must be divisible by nkv (GQA/MQA/MLA constraint)."
+    assert (
+        page_table.shape[0] == query.shape[1]
+    ), "page_table number of users must match query number of users."
+
+    assert (
+        isinstance(head_dim_v, int) and head_dim_v > 0
+    ), f"head_dim_v must be a positive int, got {head_dim_v} ({type(head_dim_v)})."
+
+    if value is not None:
+        assert (
+            len(value.shape) == 4
+        ), "value must be a 4D tensor: [max_num_blocks, nkv, block_size, head_dim_v]."
+        assert value.shape[:3] == key.shape[:3], (
+            "value's block/head/block_size dims must match key's "
+            f"(value.shape={tuple(value.shape)}, key.shape={tuple(key.shape)})."
+        )
+        assert (
+            value.shape[-1] == head_dim_v
+        ), f"value's last dim ({value.shape[-1]}) must equal head_dim_v ({head_dim_v})."
+    else:
+        assert head_dim_v <= key.shape[-1], (
+            f"head_dim_v ({head_dim_v}) cannot exceed key's head dim "
+            f"({key.shape[-1]}) when value is None."
+        )
+
+    if is_causal:
+        assert attn_mask is None, "attn_mask must be None when is_causal is True."
+        assert (
+            cur_pos_tensor is not None
+        ), "cur_pos_tensor must be provided when is_causal is True."
+    if attn_mask is not None:
+        assert not is_causal, "attn_mask requires is_causal to be False."
+
+    if cur_pos_tensor is not None:
+        assert (
+            len(cur_pos_tensor.shape) == 1
+        ), "cur_pos_tensor must be a 1D tensor: [num_users]."
+        assert (
+            cur_pos_tensor.shape[0] == query.shape[1]
+        ), "cur_pos_tensor number of users must match query number of users."
+
+    assert (
+        query.device == key.device == page_table.device
+    ), "query, key, and page_table must be on the same device."
+    if value is not None:
+        assert (
+            value.device == query.device
+        ), "value must be on the same device as query."
+    if attn_mask is not None:
+        assert (
+            attn_mask.device == query.device
+        ), "attn_mask must be on the same device as query."
+    if cur_pos_tensor is not None:
+        assert (
+            cur_pos_tensor.device == query.device
+        ), "cur_pos_tensor must be on the same device as query."
+    if attention_sink is not None:
+        assert (
+            attention_sink.device == query.device
+        ), "attention_sink must be on the same device as query."
+
+    output_shape = torch.Size(
+        [query.shape[0], query.shape[1], query.shape[2], head_dim_v]
+    )
+
+    device = query.device
+    if device.type == "xla":
+        # Operand order mirrors the ttir.paged_flash_multi_latent_attention_decode
+        # operand layout (query, key, value?, page_table, mask?, cur_pos?, sink?);
+        # the has_* flags let the StableHLO->TTIR conversion reconstruct which
+        # optional operands are present.
+        inputs = [query, key]
+        if value is not None:
+            inputs.append(value)
+        inputs.append(page_table)
+        if attn_mask is not None:
+            inputs.append(attn_mask)
+        if cur_pos_tensor is not None:
+            inputs.append(cur_pos_tensor)
+        if attention_sink is not None:
+            inputs.append(attention_sink)
+
+        frontend_attributes = {
+            "head_dim_v": str(head_dim_v),
+            "is_causal": str(is_causal),
+            "has_value": str(value is not None),
+            "has_attention_mask": str(attn_mask is not None),
+            "has_cur_pos_tensor": str(cur_pos_tensor is not None),
+            "has_attention_sink": str(attention_sink is not None),
+        }
+        if scale is not None:
+            frontend_attributes["scale"] = str(scale)
+
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.paged_flash_mla_decode",
+            [output_shape],
+            [query.dtype],
+            frontend_attributes=frontend_attributes,
+        )
+
+    elif device.type == "cpu":
+        # TODO(@hshah): Model the behavior of the op when an attention_sink is
+        # provided (the ttnn op folds per-head sink logits into the softmax
+        # denominator). The XLA path forwards attention_sink unchanged.
+        block_size = key.shape[-2]
+        num_kv_heads = key.shape[-3]
+        dh_qk = key.shape[-1]
+        num_users = query.shape[1]
+        num_q_heads = query.shape[2]
+        num_blocks_per_user = page_table.shape[1]
+        max_seq_len = num_blocks_per_user * block_size
+
+        # Gather each user's K blocks from the paged cache into a contiguous
+        # [num_users, num_kv_heads, max_seq_len, dh_qk] layout. page_table[i]
+        # lists the physical block ids for user i in logical order, so sequence
+        # position p lives in the (p // block_size)-th listed block at offset
+        # (p % block_size).
+        index = page_table.long()
+        gathered_key = (
+            key[index]
+            .permute(0, 2, 1, 3, 4)
+            .reshape(num_users, num_kv_heads, max_seq_len, dh_qk)
+        )
+
+        if value is not None:
+            gathered_value = (
+                value[index]
+                .permute(0, 2, 1, 3, 4)
+                .reshape(num_users, num_kv_heads, max_seq_len, value.shape[-1])
+            )
+        else:
+            # MLA-from-latent: V is the leading head_dim_v features of K.
+            gathered_value = gathered_key[..., :head_dim_v]
+
+        query_r = query.reshape(num_users, num_q_heads, 1, dh_qk)
+
+        if is_causal:
+            # Mask out cache positions to the right of each user's current
+            # position. This mirrors the ttnn decode op's causal semantics; an
+            # explicit triangular mask cannot be used because the query seq len
+            # is 1 (see scaled_dot_product_attention_decode for the rationale).
+            additive_mask = torch.zeros(num_users, 1, 1, max_seq_len, dtype=query.dtype)
+            for i in range(num_users):
+                additive_mask[i, :, :, cur_pos_tensor[i] + 1 :] = float("-inf")
+        else:
+            additive_mask = attn_mask
+
+        scale_val = 1.0 / (dh_qk**0.5) if scale is None else scale
+
+        # enable_gqa broadcasts the (few) latent KV heads across the query heads.
+        out = torch.nn.functional.scaled_dot_product_attention(
+            query_r,
+            gathered_key,
+            gathered_value,
+            additive_mask,
+            is_causal=False,
+            scale=scale_val,
+            enable_gqa=True,
+        )
+        return out.reshape(1, num_users, num_q_heads, head_dim_v)
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@paged_flash_mla_decode.register_fake
+def paged_flash_mla_decode_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    head_dim_v: int,
+    page_table: torch.Tensor,
+    value: torch.Tensor = None,
+    is_causal: bool = True,
+    attn_mask: torch.Tensor = None,
+    cur_pos_tensor: torch.Tensor = None,
+    attention_sink: torch.Tensor = None,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros(
+        (query.shape[0], query.shape[1], query.shape[2], head_dim_v),
+        dtype=query.dtype,
+        device=query.device,
+    )
+
+
+@torch.library.custom_op(
     "tt::sparse_matmul", mutates_args=[], device_types=["xla", "cpu"]
 )
 def sparse_matmul(
