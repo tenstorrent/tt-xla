@@ -1,0 +1,14 @@
+.x.x.x.x.x.x.x.xxxxxxxxxxxxxxxxx.x.x.x.x.x.x.x.xxxxxxxxxxxxxxxxx.x.x.x.x [ 37%]
+.x.x.x.xxxxxxxxxxxxxxxxx.x.x.x.x.x.x.x.xxxxxxxxxxxxxxxxx.x.xxx.x.xxx.xxx [ 75%]
+xxxxxxxxxxxxxxxx.x.xxx.x.xxx.xxxxxxxxxxxxxxxxxxx                         [100%]
+=============================== warnings summary ===============================
+../../../../../localdev/ctr-vbrkic/venv/sweeps/xla/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /localdev/ctr-vbrkic/venv/sweeps/xla/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+tests/torch/single_chip/sweeps_derived/test_matmul_mp.py: 192 warnings
+  /localdev/ctr-vbrkic/venv/sweeps/xla/lib/python3.12/site-packages/py/_process/forkedfunc.py:45: DeprecationWarning: This process (pid=998815) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    pid = os.fork()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+42 passed, 150 xfailed, 206 warnings in 612.74s (0:10:12)

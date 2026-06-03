@@ -1,0 +1,24 @@
+.x.x.x.x.x.x.x.xxxxxxxxxxxxxxxxx.x.x.x.x.x.x.x.xxxxxxxxxxxxxxxxx.x.x.x.x [ 37%]
+.x.x.x.xxxxxxxxxxxxxxxxx.x.x.x.x.x.x.x.xxxxxxxxxxxxxxxxx.x.xxx.x.xxx.xxx [ 75%]
+xxxxxxxxxxxxxxxx.x.xxx.x.xxx.xxxxxxxxxxxxxxxxxxx                         [100%]
+=============================== warnings summary ===============================
+../../../../../localdev/ctr-vbrkic/venv/sweeps/xla/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /localdev/ctr-vbrkic/venv/sweeps/xla/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+tests/torch/single_chip/sweeps_derived/test_matmul_mp.py: 192 warnings
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+42 passed, 150 xfailed, 206 warnings in 243.07s (0:04:03)
+2026-05-31 15:06:30.600 | info     |    BuildKernels | JIT cache stats: 205/205 hits (100.0%) [205 cached, 124 build-once dedup, 0 merged artifacts, 0 merged genfiles] (build_cache_telemetry.cpp:207)
+2026-05-31 15:06:30.600 | info     |    BuildKernels | JIT telemetry: 3 registered TelemetryTokens (build_cache_telemetry.cpp:230)
+2026-05-31 15:06:30.600 | info     |    BuildKernels | JIT telemetry [dependencies_up_to_date]: count=410, total=445.864ms, min=0.102ms, max=3.548ms, mean=1.087ms (build_cache_telemetry.cpp:246)
+2026-05-31 15:06:30.600 | info     |    BuildKernels | JIT telemetry [JitBuildState::build]: count=205, total=627.817ms, min=1.847ms, max=5.819ms, mean=3.063ms (build_cache_telemetry.cpp:246)
+2026-05-31 15:06:30.600 | info     |    BuildKernels | JIT telemetry [jit_build]: count=109, total=320.405ms, min=1.847ms, max=5.819ms, mean=2.939ms (build_cache_telemetry.cpp:246)
+2026-05-31 15:06:30.619 | info     |          Device | Closing user mode device drivers (tt_cluster.cpp:499)
+2026-05-31 15:06:30.619 | info     |             UMD | Closing devices in cluster (cluster.cpp:1057)
+2026-05-31 15:06:30.630 | info     |             UMD | Closing devices in cluster completed. (cluster.cpp:1066)
+2026-05-31 15:06:30.630 | info     |             UMD | Cluster destructor started. (cluster.cpp:550)
+2026-05-31 15:06:30.630 | info     |             UMD | Cluster destructor completed. (cluster.cpp:553)
