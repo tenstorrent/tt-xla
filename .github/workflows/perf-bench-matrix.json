@@ -55,6 +55,11 @@
         "pytest": "tests/benchmark/test_vision.py::test_unet"
       },
       {
+        "name": "unet_qb2",
+        "pytest": "tests/benchmark/test_vision.py::test_unet",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "vit",
         "pytest": "tests/benchmark/test_vision.py::test_vit"
       },
