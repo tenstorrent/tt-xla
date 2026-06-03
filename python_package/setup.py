@@ -341,15 +341,6 @@ class CMakeBuildPy(build_py):
         # Set environment variables to create a more portable build.
         os.environ["TRACY_NO_ISA_EXTENSIONS"] = "1"
         os.environ["TRACY_NO_INVARIANT_CHECK"] = "1"
-        # Old Intel TBB headers (task.h:590) are included transitively via
-        # GCC 15's <execution> → pstl/parallel_backend_tbb.h when building
-        # Tracy tools.  Clang 17+ treats out-of-range enum casts in constant
-        # expressions as errors; suppress to keep the manylinux build green.
-        cxxflags = os.environ.get("CXXFLAGS", "")
-        if "-Wno-enum-constexpr-conversion" not in cxxflags:
-            os.environ["CXXFLAGS"] = (
-                cxxflags + " -Wno-enum-constexpr-conversion"
-            ).strip()
 
         # Execute cmake from top level project dir, where root CMakeLists.txt resides.
         print("Setting up CMake project...")
