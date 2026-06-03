@@ -170,7 +170,20 @@ TP_CONFIGS = [
         # (issue #5032) is fixed by the frontend propagateShardyArgShardings
         # pass in this branch. Trace stays disabled because trace capture needs
         # all intermediates resident at once, which OOMs DRAM at full depth.
-        _tp_config("Qwen/Qwen3-32B", 32, use_2d_mesh=False, enable_trace=False),
+        _tp_config(
+            "Qwen/Qwen3-32B",
+            32,
+            use_2d_mesh=False,
+            enable_trace=False,
+            # KV-cache budget on TT = device_DRAM (~32 GiB) * gpu_memory_utilization;
+            # weights are NOT subtracted (worker.determine_available_memory hardcodes
+            # current_mem=0). At batch 32 the _tp_config default of 0.005 (~160 MiB)
+            # is too small -> preemptions (KV needs ~256 MiB/device: 64 layers x 8
+            # kv-heads x 128 head_dim x 2 x bf16 / 4-way TP x 32 seq x 128 tokens).
+            # 0.1 matches the same-size gemma4-31b-it TP config (same 1x4 mesh, fits)
+            # and leaves ~10x headroom; comfortably fits beside ~16 GiB bf16 weights.
+            gpu_memory_utilization=0.1,
+        ),
         id="qwen3-32b-qb2-tp",
     ),
     pytest.param(
