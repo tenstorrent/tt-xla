@@ -169,6 +169,12 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     size_t num_devices, const tt::runtime::Device &runtime_device,
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
+  // [TTXLA_DBG] per-exec sequence number, used to limit hashing volume.
+  static std::atomic<uint64_t> s_exec_seq{0};
+  uint64_t exec_seq = s_exec_seq.fetch_add(1);
+  LOG_F(WARNING, "[TTXLA_DBG] exec#%llu START num_args=%zu num_devices=%zu",
+        (unsigned long long)exec_seq, num_args, num_devices);
+
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
     std::vector<BufferInstance *> arg_buffers;
     arg_buffers.reserve(num_devices);
@@ -188,6 +194,39 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     input_tensors.push_back(*prepared_tensor);
+
+    // [TTXLA_DBG] hash per-rank cache bytes for the first ~few cache args of
+    // the first ~few execs. We're trying to verify whether the data actually
+    // diverges across ranks and whether modifications persist call-to-call.
+    // Only sample the first 4 cache-like args (skip weights / non-caches) and
+    // only the first 25 execs to keep latency manageable.
+    if (exec_seq < 25 && (arg_index == 9 || arg_index == 10 ||
+                          arg_index == 20 || arg_index == 21)) {
+      try {
+        std::vector<tt::runtime::Tensor> shardsHost =
+            tt::runtime::toHost(*prepared_tensor, /*untilize=*/true);
+        std::string hashes;
+        for (size_t s = 0; s < shardsHost.size(); ++s) {
+          std::vector<std::byte> bytes =
+              tt::runtime::getTensorDataBuffer(shardsHost[s]);
+          // FNV-1a 64-bit on first 256 bytes (or all if smaller).
+          uint64_t h = 0xcbf29ce484222325ULL;
+          size_t lim = std::min<size_t>(bytes.size(), 256);
+          for (size_t i = 0; i < lim; ++i) {
+            h ^= static_cast<uint64_t>(bytes[i]);
+            h *= 0x100000001b3ULL;
+          }
+          char buf[32];
+          std::snprintf(buf, sizeof(buf), "%016lx,", (unsigned long)h);
+          hashes += buf;
+        }
+        LOG_F(WARNING, "[TTXLA_DBG] exec#%llu arg %zu cache hashes: [%s]",
+              (unsigned long long)exec_seq, arg_index, hashes.c_str());
+      } catch (...) {
+        LOG_F(WARNING, "[TTXLA_DBG] exec#%llu arg %zu hash failed",
+              (unsigned long long)exec_seq, arg_index);
+      }
+    }
 
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.
