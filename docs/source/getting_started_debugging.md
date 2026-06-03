@@ -5,7 +5,7 @@ This page explains how to debug the native source code of the PJRT plugin.
 ## Prerequisites
 
 - Clone and build the TT-XLA project.
-    - The build has to be of the `Debug` type, e.g. `-DCMAKE_BUILD_TYPE=Debug`.
+    - The build must be of the `Debug` type, for example `-DCMAKE_BUILD_TYPE=Debug`.
     - This is needed for native binaries to have debug symbols.
 - Verify `gdb` is installed by running `gdb --version`.
     - Needed for debugging of native code.
@@ -52,7 +52,7 @@ Verify that the profile works:
 1. Create a new Python script and set a breakpoint in VS Code.
 2. Run a VS Code command `Debug: Select and Start Debugging` and select the
    `Python: Current File` profile while the Python script tab is open.
-3. Validate that the breakpoint will be hit.
+3. Validate that the breakpoint is hit.
 
 Now, replace the `Python: Current File` with a new profile for running tests,
 `PyTest: Current File`:

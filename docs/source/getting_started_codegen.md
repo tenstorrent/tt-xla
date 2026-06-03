@@ -101,10 +101,10 @@ Use `codegen_py` to generate Python output and `codegen_cpp` to generate C++ out
 | Option | Type | Description |
 |--------|------|-------------|
 | `export_path` | `string` | Directory for generated code (created if doesn't exist) |
-| `export_tensors` | `bool` | Whether to export model input and parameter tensors to disk under `export_path/tensors` directory  (**True** by default) |
+| `export_tensors` | `bool` | Whether to export model input and parameter tensors to disk under `export_path/tensors` directory  (`True` by default) |
 | `compiler_options` | `dict` | Key-value pairs of compiler options (e.g. `optimization_level=2`) |
 
-**Note** If 'export_tensors' is set to False, model input and parameter tensors won't be exported to disk, and instead ttnn.ones will be loaded into model inputs and parameters.
+**Note:** If `export_tensors` is set to `False`, model input and parameter tensors are not exported to disk; instead, `ttnn.ones` is loaded into model inputs and parameters.
 
 ### Example Configurations
 
@@ -247,7 +247,7 @@ You can also invoke code generation by hooking into the serialization infrastruc
 - Automated pipeline generation
 
 **Examples:**
-- PyTorch: [`examples/pytorch/python/custom_module.py`](../../examples/pytorch/codegen/python/custom_module.py
+- PyTorch: [`examples/pytorch/python/custom_module.py`](../../examples/pytorch/codegen/python/custom_module.py)
 - JAX: [`examples/jax/python/custom_module.py`](../../examples/jax/codegen/python/custom_module.py)
 
 ---
