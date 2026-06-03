@@ -14,6 +14,7 @@ also cover FROM_HOST and opt=0 across the full reduced map.
 
 import itertools
 import math
+import os
 
 import pytest
 import torch
@@ -173,6 +174,34 @@ def _mixture_normal(shape, sigma, outlier_factor=10.0, outlier_prob=0.01):
     return torch.where(is_outlier, boost, base)
 
 
+def _uniform_signed(shape):
+    """Uniform [-1, 1] on fp32 — matches sweeps' ValueRanges.SMALL literally."""
+    return torch.empty(shape, dtype=torch.float32).uniform_(-1.0, 1.0)
+
+
+# Input distribution switch. Default "mixture" is the realistic LLM regime
+# used for the calibrated predicate. Set TTXLA_MATMUL_MP_PROFILE=uniform to
+# regenerate the sweeps-literal snapshot (uniform [-1, 1] on both operands,
+# no Kaiming scaling on RHS).
+_INPUT_PROFILE = os.environ.get("TTXLA_MATMUL_MP_PROFILE", "mixture")
+
+
+def _generate_inputs(shape_pair):
+    lhs_shape, rhs_shape = shape_pair
+    if _INPUT_PROFILE == "mixture":
+        reduction_dim = rhs_shape[0]
+        sigma_rhs = 1.0 / math.sqrt(reduction_dim)
+        return _mixture_normal(lhs_shape, sigma=1.0), _mixture_normal(
+            rhs_shape, sigma=sigma_rhs
+        )
+    if _INPUT_PROFILE == "uniform":
+        return _uniform_signed(lhs_shape), _uniform_signed(rhs_shape)
+    raise ValueError(
+        f"Unknown TTXLA_MATMUL_MP_PROFILE: {_INPUT_PROFILE!r} "
+        "(expected 'mixture' or 'uniform')"
+    )
+
+
 @pytest.mark.push
 @pytest.mark.nightly
 @pytest.mark.single_device
@@ -192,16 +221,10 @@ def test_matmul_mp(shape_pair, input_source, compiler_config_str):
     comparison_config = ComparisonConfig()
     comparison_config.pcc = PccConfig(required_pcc=0.99)
 
-    # LLM-realistic inputs: activations ~ N(0, 1) with outliers; weights ~
-    # N(0, 1/sqrt(K)) (Kaiming scale) with the same outlier mixture. Symmetric
-    # uniform [-1, 1] on both operands (sweeps' default) overstates output
-    # magnitudes by ~50x for these K, producing atol values that don't
-    # reflect any real model.
-    lhs_shape, rhs_shape = shape_pair
-    reduction_dim = rhs_shape[0]
-    sigma_rhs = 1.0 / math.sqrt(reduction_dim)
-    lhs = _mixture_normal(lhs_shape, sigma=1.0)
-    rhs = _mixture_normal(rhs_shape, sigma=sigma_rhs)
+    # Input profile is chosen via TTXLA_MATMUL_MP_PROFILE (default "mixture",
+    # LLM-style with outliers; "uniform" reproduces sweeps' literal
+    # ValueRanges.SMALL = [-1, 1] on both operands).
+    lhs, rhs = _generate_inputs(shape_pair)
 
     run_op_test(
         model,

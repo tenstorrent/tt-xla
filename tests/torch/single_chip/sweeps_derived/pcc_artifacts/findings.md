@@ -22,7 +22,13 @@ With `[0, 1]` inputs the matmul output had a large positive mean and small
 variance → bf16 truncation looked correlated with the signal → PCC fell to
 0.84–0.99. With `[-1, 1]` (or zero-mean Gaussian) the output is centered
 and PCC is dominated by signal, not bias. Always use **zero-mean inputs**
-when PCC is the gate.
+when PCC is the gate. Empirically (see `pcc_report_uniform.md` vs
+`pcc_report_realistic.md`), once inputs are zero-mean the actual
+distribution shape (uniform `[-1, 1]` vs mixture `N + outliers`) is
+**negligible for PCC**: identical failure set, identical group structure,
+PCC values differ in the fourth decimal (~0.0005 across both regimes).
+The atol values do change (mixture has ~5–10× larger atol because of the
+outlier tail), but PCC is the gating signal and PCC is invariant.
 
 ### 3. `weight_dtype` / `math_fidelity` / `fp32_dest_acc_en` don't flow
 Within any `(shape, input_source, opt_level)` group, all 16 combinations of
