@@ -9,11 +9,21 @@
 name: Schedule Transformers Uplift
 
 permissions:
-  contents: read
+  contents: write       # build + test workflows commit / push artifacts
+  actions:  write       # dispatch downstream reusable workflows
+  checks:   write       # build / test workflows publish check runs
+  packages: write       # build-image pushes to GHCR
+  id-token: write       # OIDC for any cloud-auth steps in build/test
+  pull-requests: write  # finalize stage opens draft PRs (when re-enabled)
 
 on:
-  schedule:
-    - cron: '0 4 * * *'   # 04:00 UTC daily
+  # Cron disabled during iterative testing — uncomment to re-enable
+  # the nightly auto-detect once the full pipeline is validated.
+  # schedule:
+  #   - cron: '0 4 * * *'   # 04:00 UTC daily
+  push:
+    branches:
+      - jazpur/auto-transformers-uplift
   workflow_dispatch: {}
 
 concurrency:
@@ -31,8 +41,9 @@ jobs:
       branch: ${{ steps.branch-check.outputs.branch }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: main
+        # No `ref:` — use whatever ref triggered the workflow. During
+        # testing, the pipeline scripts live on the feature branch; once
+        # this graduates to main, pin to `ref: main` for consistency.
 
       - name: Detect new transformers release
         id: check
