@@ -94,7 +94,9 @@ echo "Failures file: ${FAILURES} ($(wc -l <"$FAILURES") lines)"
 cd "$REPO_ROOT"
 
 rc=0
-timeout "$TIMEOUT" \
+
+env -u GH_TOKEN -u GITHUB_TOKEN \
+  timeout "$TIMEOUT" \
   "$CLAUDE_BIN" -p "$PROMPT" \
   --verbose \
   --allowed-tools "Read,Edit,Write,Bash,Grep,Glob" \
