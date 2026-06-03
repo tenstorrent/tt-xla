@@ -1282,7 +1282,7 @@ def profile_one_model(
     else:
         if not perf_csv_source:
             perf_report_reason = "no ops CSV was produced by the Tracy profile"
-        elif not shutil.which(tt_perf_report_bin):
+        elif not command_expr_available(tt_perf_report_bin):
             perf_report_reason = "tt-perf-report binary was not available"
 
     slow_ops_payload: dict[str, Any] = {
@@ -2034,6 +2034,82 @@ def render_report_html(
 """
 
 
+def coverage_entry(
+    requirement_index: int,
+    status: str,
+    evidence: str,
+    evidence_paths: Iterable[str],
+) -> dict[str, Any]:
+    requirement_id, description = REQS[requirement_index]
+    return {
+        "id": requirement_id,
+        "description": description,
+        "status": status,
+        "evidence": evidence,
+        "evidence_paths": list(evidence_paths),
+    }
+
+
+def existing_path_strings(paths: Iterable[Path]) -> list[str]:
+    return [str(path) for path in paths if path.exists()]
+
+
+def status_stage_count(statuses: list[dict[str, Any]], stage: str, state: str) -> int:
+    return sum(
+        1
+        for status in statuses
+        if status.get("stages", {}).get(stage, {}).get("state") == state
+    )
+
+
+def status_artifact_paths(
+    statuses: list[dict[str, Any]], artifact_key: str
+) -> list[str]:
+    return [
+        str(Path(str(path)))
+        for status in statuses
+        if (path := status.get("artifacts", {}).get(artifact_key))
+        and path_exists(str(path))
+    ]
+
+
+def dashboard_contains_rankings(dashboard_text: str) -> bool:
+    return all(
+        marker in dashboard_text
+        for marker in ("Global slow operations", 'id="models"', 'id="op-types"')
+    )
+
+
+def dashboard_contains_search_controls(dashboard_text: str) -> bool:
+    return all(
+        marker in dashboard_text
+        for marker in (
+            'id="search"',
+            'id="status"',
+            'id="model-status"',
+            'id="taxonomy"',
+        )
+    )
+
+
+def model_manifest_has_run_identities(model_manifest: dict[str, Any]) -> bool:
+    return all("run_identity" in row for row in model_manifest.get("models", []))
+
+
+def report_artifacts_have_requirement_coverage(
+    packet_path: Path,
+    report_path: Path,
+) -> bool:
+    packet_text = read_text_if_exists(packet_path)
+    report_text = read_text_if_exists(report_path)
+    return (
+        packet_path.exists()
+        and report_path.exists()
+        and "Requirement coverage" in packet_text
+        and "Requirement coverage" in report_text
+    )
+
+
 def requirement_coverage(
     run_dir: Path,
     manifest: dict[str, Any],
@@ -2053,142 +2129,85 @@ def requirement_coverage(
     status_files_exist = status_count > 0 and all(
         path.exists() for path in status_paths
     )
-    perf_report_count = sum(
-        1
-        for status in statuses
-        if status.get("stages", {}).get("tt_perf_report", {}).get("state")
-        == "generated"
-    )
-    ir_count = sum(
-        1
-        for status in statuses
-        if status.get("stages", {}).get("ir", {}).get("state") == "collected"
-    )
+    perf_report_count = status_stage_count(statuses, "tt_perf_report", "generated")
+    ir_count = status_stage_count(statuses, "ir", "collected")
     dashboard_path = run_dir / "dashboard.html"
     packet_path = run_dir / "claude-report-packet.html"
     report_path = run_dir / "report.html"
     dashboard_text = read_text_if_exists(dashboard_path)
-    dashboard_has_rankings = all(
-        marker in dashboard_text
-        for marker in ("Global slow operations", 'id="models"', 'id="op-types"')
-    )
-    search_controls = all(
-        marker in dashboard_text
-        for marker in (
-            'id="search"',
-            'id="status"',
-            'id="model-status"',
-            'id="taxonomy"',
-        )
-    )
-    packet_text = read_text_if_exists(packet_path)
-    report_text = read_text_if_exists(report_path)
     coverage = [
-        {
-            "id": "REQ-F-001",
-            "description": REQS[0][1],
-            "status": "passed" if model_count > 0 else "missing",
-            "evidence": f"{model_count} models recorded in model-manifest.json",
-            "evidence_paths": (
-                [str(model_manifest_path)] if model_manifest_path.exists() else []
-            ),
-        },
-        {
-            "id": "REQ-F-002",
-            "description": REQS[1][1],
-            "status": (
+        coverage_entry(
+            0,
+            "passed" if model_count > 0 else "missing",
+            f"{model_count} models recorded in model-manifest.json",
+            existing_path_strings([model_manifest_path]),
+        ),
+        coverage_entry(
+            1,
+            (
                 "passed"
-                if model_count > 0
-                and all(
-                    "run_identity" in row for row in model_manifest.get("models", [])
-                )
+                if model_count > 0 and model_manifest_has_run_identities(model_manifest)
                 else "missing"
             ),
-            "evidence": "each discovered model carries a run identity and source path",
-            "evidence_paths": (
-                [str(model_manifest_path)] if model_manifest_path.exists() else []
-            ),
-        },
-        {
-            "id": "REQ-F-003",
-            "description": REQS[2][1],
-            "status": (
-                "passed"
-                if status_count == model_count and model_count > 0
-                else "partial"
-            ),
-            "evidence": f"{status_count} status.json files for {model_count} discovered models",
-            "evidence_paths": [str(path) for path in status_paths if path.exists()],
-        },
-        {
-            "id": "REQ-F-004",
-            "description": REQS[3][1],
-            "status": "passed" if ir_count > 0 else "partial",
-            "evidence": f"{ir_count} models with copied IR artifacts",
-            "evidence_paths": [
-                str(Path(str(status.get("artifacts", {}).get("ir_dir", ""))))
-                for status in statuses
-                if status.get("artifacts", {}).get("ir_dir")
-                and path_exists(str(status.get("artifacts", {}).get("ir_dir", "")))
-            ],
-        },
-        {
-            "id": "REQ-F-005",
-            "description": REQS[4][1],
-            "status": "passed" if perf_report_count > 0 else "partial",
-            "evidence": f"{perf_report_count} models with tt-perf-report output",
-            "evidence_paths": [
-                str(Path(str(status.get("artifacts", {}).get("tt_perf_report", ""))))
-                for status in statuses
-                if status.get("artifacts", {}).get("tt_perf_report")
-                and path_exists(
-                    str(status.get("artifacts", {}).get("tt_perf_report", ""))
-                )
-            ],
-        },
-        {
-            "id": "REQ-F-006",
-            "description": REQS[5][1],
-            "status": (
+            "each discovered model carries a run identity and source path",
+            existing_path_strings([model_manifest_path]),
+        ),
+        coverage_entry(
+            2,
+            "passed" if status_count == model_count and model_count > 0 else "partial",
+            f"{status_count} status.json files for {model_count} discovered models",
+            existing_path_strings(status_paths),
+        ),
+        coverage_entry(
+            3,
+            "passed" if ir_count > 0 else "partial",
+            f"{ir_count} models with copied IR artifacts",
+            status_artifact_paths(statuses, "ir_dir"),
+        ),
+        coverage_entry(
+            4,
+            "passed" if perf_report_count > 0 else "partial",
+            f"{perf_report_count} models with tt-perf-report output",
+            status_artifact_paths(statuses, "tt_perf_report"),
+        ),
+        coverage_entry(
+            5,
+            (
                 "passed"
                 if status_count == model_count
                 and model_count > 0
                 and status_files_exist
                 else "partial"
             ),
-            "evidence": "per-model status.json files contain terminal state, taxonomy, commands, artifacts, and next action",
-            "evidence_paths": [str(path) for path in status_paths if path.exists()],
-        },
-        {
-            "id": "REQ-F-007",
-            "description": REQS[6][1],
-            "status": "passed" if dashboard_has_rankings else "missing",
-            "evidence": "dashboard.html exists and exposes ranked slow-op/model/op-type tables",
-            "evidence_paths": [str(dashboard_path)] if dashboard_path.exists() else [],
-        },
-        {
-            "id": "REQ-F-008",
-            "description": REQS[7][1],
-            "status": (
+            "per-model status.json files contain terminal state, taxonomy, commands, artifacts, and next action",
+            existing_path_strings(status_paths),
+        ),
+        coverage_entry(
+            6,
+            "passed" if dashboard_contains_rankings(dashboard_text) else "missing",
+            "dashboard.html exists and exposes ranked slow-op/model/op-type tables",
+            existing_path_strings([dashboard_path]),
+        ),
+        coverage_entry(
+            7,
+            (
                 "passed"
-                if packet_path.exists()
-                and report_path.exists()
-                and "Requirement coverage" in packet_text
-                and "Requirement coverage" in report_text
+                if report_artifacts_have_requirement_coverage(packet_path, report_path)
                 else "missing"
             ),
-            "evidence": "claude-report-packet.html and report.html were written",
-            "evidence_paths": [
-                str(path) for path in (packet_path, report_path) if path.exists()
-            ],
-        },
-        {
-            "id": "REQ-F-009",
-            "description": REQS[8][1],
-            "status": "passed" if search_controls else "missing",
-            "evidence": "dashboard.html includes search and filter controls",
-            "evidence_paths": [str(dashboard_path)] if dashboard_path.exists() else [],
-        },
+            "claude-report-packet.html and report.html were written",
+            existing_path_strings([packet_path, report_path]),
+        ),
+        coverage_entry(
+            8,
+            (
+                "passed"
+                if dashboard_contains_search_controls(dashboard_text)
+                else "missing"
+            ),
+            "dashboard.html includes search and filter controls",
+            existing_path_strings([dashboard_path]),
+        ),
     ]
     return coverage
 
