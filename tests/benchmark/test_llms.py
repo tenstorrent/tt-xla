@@ -514,6 +514,46 @@ def test_llama_3_2_1b(
     )
 
 
+def test_llama_3_2_1b_prefill(
+    output_file,
+    num_layers,
+    request,
+    batch_size,
+    optimization_level,
+    input_sequence_length,
+    skip_pcc,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_2_1B_INSTRUCT
+    test_llm_prefill(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        batch_size=batch_size,
+        input_sequence_length=(
+            input_sequence_length
+            if input_sequence_length is not None
+            else DEFAULT_INPUT_SEQUENCE_LENGTH
+        ),
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        experimental_weight_dtype=None,  # prefill needs to be bf16
+        do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
+        trace_enabled=False,
+        skip_pcc=skip_pcc,
+    )
+
+
 def test_llama_3_2_3b(
     output_file,
     num_layers,
@@ -647,6 +687,46 @@ def test_phi1(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+    )
+
+
+def test_phi1_prefill(
+    output_file,
+    num_layers,
+    request,
+    batch_size,
+    optimization_level,
+    input_sequence_length,
+    skip_pcc,
+):
+    from third_party.tt_forge_models.phi1.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.PHI1
+    test_llm_prefill(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        batch_size=batch_size,
+        input_sequence_length=(
+            input_sequence_length
+            if input_sequence_length is not None
+            else DEFAULT_INPUT_SEQUENCE_LENGTH
+        ),
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        experimental_weight_dtype=None,  # prefill needs to be bf16
+        do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
+        trace_enabled=False,
+        skip_pcc=skip_pcc,
     )
 
 
@@ -1027,6 +1107,46 @@ def test_qwen_3_8b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+    )
+
+
+def test_qwen_3_8b_prefill(
+    output_file,
+    num_layers,
+    request,
+    batch_size,
+    optimization_level,
+    input_sequence_length,
+    skip_pcc,
+):
+    from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_3_8B
+    test_llm_prefill(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        fp32_dest_acc_en=False,
+        batch_size=batch_size,
+        input_sequence_length=(
+            input_sequence_length
+            if input_sequence_length is not None
+            else DEFAULT_INPUT_SEQUENCE_LENGTH
+        ),
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        experimental_weight_dtype=None,  # prefill needs to be bf16
+        do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
+        trace_enabled=False,
+        skip_pcc=skip_pcc,
     )
 
 
