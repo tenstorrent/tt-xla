@@ -215,6 +215,7 @@ jobs:
           submodules: recursive
 
       - name: Download tt-xla wheel
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
@@ -227,6 +228,7 @@ jobs:
           ls -la wheels
 
       - name: Install wheel + uplifted transformers
+        shell: bash
         env:
           TARGET_VERSION: ${{ inputs.target_version }}
         run: |
@@ -240,6 +242,7 @@ jobs:
 
       - name: Run api-check with Claude sub-loop
         id: run
+        shell: bash
         env:
           ITERATION: ${{ needs.setup.outputs.iteration }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -258,12 +261,13 @@ jobs:
 
       - name: Push any Claude-applied fixes
         if: always()
+        shell: bash
         env:
           BRANCH: ${{ inputs.branch }}
           ITER:   ${{ needs.setup.outputs.iteration }}
         run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           # Prefer Claude's structured summary file (see the
           # transformers-uplift-fix skill's "Output format" section);
@@ -275,266 +279,288 @@ jobs:
             COMMIT_FLAG=(-m "transformers uplift: api-check fixes (iter ${ITER})")
           fi
 
+          # 1. tt-forge-models submodule — `git add -A` in the parent only
+          #    updates the submodule POINTER, not the submodule's contents.
+          #    Commit + push inside the submodule first.
+          if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
+            pushd third_party/tt_forge_models >/dev/null
+            git checkout -B "$BRANCH"
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+            git push origin "$BRANCH"
+            popd >/dev/null
+          fi
+
+          # 2. tt-xla parent — picks up the new submodule pointer + any
+          #    other edits Claude made under the allowlist.
           if ! git diff --quiet || [[ -n "$(git status --porcelain)" ]]; then
             git add -A
             git commit "${COMMIT_FLAG[@]}"
             git push origin "$BRANCH"
           fi
 
-  # ---------------------------------------------------------------------------
-  # Base coverage stage: narrow hardware matrix + Claude fix pass. All
-  # three actions (run-tests → extract → claude-fix) live in the shared
-  # call-test-uplift.yml callable, which humans can also dispatch
-  # directly during PR review.
-  # ---------------------------------------------------------------------------
-  test-and-fix-base:
-    needs: [setup, api-check]
-    if: ${{ needs.setup.outputs.under_budget == 'true' && needs['api-check'].outputs.passed == 'true' && needs.setup.outputs.filter_empty == 'false' }}
-    uses: ./.github/workflows/call-test-uplift.yml
-    with:
-      test_suite:              Custom
-      test_suite_custom:       ${{ needs.setup.outputs.matrix }}
-      scope:                   model-test-uplifts
-      tag:                     base
-      branch:                  ${{ inputs.branch }}
-      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-      target_version:          ${{ inputs.target_version }}
-      current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-      artifact_suffix:         ${{ inputs.artifact_suffix }}
-      docker_image:            ${{ inputs.docker_image }}
-    secrets: inherit
-
-  # ---------------------------------------------------------------------------
-  # Decide: self-dispatch the next iteration, or hand off to finalize.
-  # ---------------------------------------------------------------------------
-  decide:
-    needs: [setup, api-check, test-and-fix-base]
-    if: always() && needs.setup.result == 'success'
-    runs-on: ubuntu-latest
-    outputs:
-      action: ${{ steps.next.outputs.action }}
-      reason: ${{ steps.next.outputs.reason }}
-    steps:
-      - name: Resolve next action
-        id: next
-        env:
-          ITER:              ${{ needs.setup.outputs.iteration }}
-          UNDER_BUDGET:      ${{ needs.setup.outputs.under_budget }}
-          API_CHECK_PASSED:  ${{ needs['api-check'].outputs.passed }}
-          HAS_FAILURES:      ${{ needs['test-and-fix-base'].outputs.has_failures }}
-          FILTER_EMPTY:      ${{ needs.setup.outputs.filter_empty }}
-        run: |
-          # Terminal conditions -> finalize:
-          #   - budget exhausted
-          #   - iteration cap reached
-          #   - api-check green AND no base-coverage failures
-          if [[ "$UNDER_BUDGET" != "true" ]]; then
-            echo "action=finalize" >> "$GITHUB_OUTPUT"
-            echo "reason=wallclock-budget-exhausted" >> "$GITHUB_OUTPUT"
-          elif [[ "$ITER" -ge "$MAX_ITERATIONS" ]]; then
-            echo "action=finalize" >> "$GITHUB_OUTPUT"
-            echo "reason=iteration-cap" >> "$GITHUB_OUTPUT"
-          elif [[ "$API_CHECK_PASSED" == "true" && "$HAS_FAILURES" == "false" && "$FILTER_EMPTY" == "false" ]]; then
-            echo "action=finalize" >> "$GITHUB_OUTPUT"
-            echo "reason=all-tests-green" >> "$GITHUB_OUTPUT"
-          else
-            echo "action=redispatch" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Self-dispatch next iteration
-        if: steps.next.outputs.action == 'redispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          NEXT_ITER: ${{ needs.setup.outputs.iteration }}
-        run: |
-          NEXT=$((NEXT_ITER + 1))
-          echo "Re-dispatching as iteration $NEXT"
-          gh workflow run workflow-transformers-uplift.yml \
-            --ref main \
-            -f iteration="$NEXT" \
-            -f branch="${{ inputs.branch }}" \
-            -f target_version="${{ inputs.target_version }}" \
-            -f current_version="${{ inputs.current_version }}" \
-            -f artifact_release_run_id="${{ inputs.artifact_release_run_id }}" \
-            -f artifact_suffix="${{ inputs.artifact_suffix }}" \
-            -f docker_image="${{ inputs.docker_image }}"
-
-      - name: Log finalize handoff
-        if: steps.next.outputs.action == 'finalize'
-        run: |
-          echo "Loop terminating: ${{ steps.next.outputs.reason }}"
-          echo "Finalize jobs will run in this same workflow run."
-
   # ===========================================================================
-  # FINALIZE STAGE — only fires when decide picks `action == 'finalize'`.
-  # On the redispatch path these jobs are skipped (visible-but-skipped in
-  # the GHA UI) and the next iteration's run handles the loop continuation.
+  # The jobs below are DISABLED for the iterative-test phase that only
+  # exercises setup + api-check. Re-enable in order:
+  #   1. `test-and-fix-base` + `decide` (to exercise the loop)
+  #   2. `test-and-fix-full` + `perf-benchmark`
+  #   3. `open-prs`
   # ===========================================================================
 
-  # ---------------------------------------------------------------------------
-  # Full nightly model suite + Claude fix pass. Same call-test-uplift
-  # callable used for base-coverage above, just with the broader test
-  # suite and scope=full-coverage. This also adds a Claude fix pass at
-  # the finalize stage — anything the broader suite surfaces gets one
-  # attempt at a fix before the PR is opened.
-  # ---------------------------------------------------------------------------
-  test-and-fix-full:
-    needs: decide
-    if: needs.decide.outputs.action == 'finalize'
-    uses: ./.github/workflows/call-test-uplift.yml
-    with:
-      test_suite:              model-test-passing.json
-      scope:                   model-test-uplifts
-      tag:                     full
-      branch:                  ${{ inputs.branch }}
-      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-      target_version:          ${{ inputs.target_version }}
-      current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-      artifact_suffix:         ${{ inputs.artifact_suffix }}
-      docker_image:            ${{ inputs.docker_image }}
-    secrets: inherit
+  # # ---------------------------------------------------------------------------
+  # # Base coverage stage: narrow hardware matrix + Claude fix pass. All
+  # # three actions (run-tests → extract → claude-fix) live in the shared
+  # # call-test-uplift.yml callable, which humans can also dispatch
+  # # directly during PR review.
+  # # ---------------------------------------------------------------------------
+  # test-and-fix-base:
+  #   needs: [setup, api-check]
+  #   if: ${{ needs.setup.outputs.under_budget == 'true' && needs['api-check'].outputs.passed == 'true' && needs.setup.outputs.filter_empty == 'false' }}
+  #   uses: ./.github/workflows/call-test-uplift.yml
+  #   with:
+  #     test_suite:              Custom
+  #     test_suite_custom:       ${{ needs.setup.outputs.matrix }}
+  #     scope:                   model-test-uplifts
+  #     tag:                     base
+  #     branch:                  ${{ inputs.branch }}
+  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+  #     target_version:          ${{ inputs.target_version }}
+  #     current_version:         ${{ inputs.current_version }}
+  #     artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+  #     artifact_suffix:         ${{ inputs.artifact_suffix }}
+  #     docker_image:            ${{ inputs.docker_image }}
+  #   secrets: inherit
 
-  # ---------------------------------------------------------------------------
-  # Perf benchmark sweep — wraps call-perf-uplift.yml, the shared callable
-  # that humans can also dispatch manually during PR review.
-  # ---------------------------------------------------------------------------
-  perf-benchmark:
-    needs: decide
-    if: needs.decide.outputs.action == 'finalize'
-    uses: ./.github/workflows/call-perf-uplift.yml
-    secrets: inherit
-    with:
-      branch:                  ${{ inputs.branch }}
-      target_version:          ${{ inputs.target_version }}
-      current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-      artifact_suffix:         ${{ inputs.artifact_suffix }}
-      docker_image:            ${{ inputs.docker_image }}
+  # # ---------------------------------------------------------------------------
+  # # Decide: self-dispatch the next iteration, or hand off to finalize.
+  # # ---------------------------------------------------------------------------
+  # decide:
+  #   needs: [setup, api-check, test-and-fix-base]
+  #   if: always() && needs.setup.result == 'success'
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     action: ${{ steps.next.outputs.action }}
+  #     reason: ${{ steps.next.outputs.reason }}
+  #   steps:
+  #     - name: Resolve next action
+  #       id: next
+  #       env:
+  #         ITER:              ${{ needs.setup.outputs.iteration }}
+  #         UNDER_BUDGET:      ${{ needs.setup.outputs.under_budget }}
+  #         API_CHECK_PASSED:  ${{ needs['api-check'].outputs.passed }}
+  #         HAS_FAILURES:      ${{ needs['test-and-fix-base'].outputs.has_failures }}
+  #         FILTER_EMPTY:      ${{ needs.setup.outputs.filter_empty }}
+  #       run: |
+  #         # Terminal conditions -> finalize:
+  #         #   - budget exhausted
+  #         #   - iteration cap reached
+  #         #   - api-check green AND no base-coverage failures
+  #         if [[ "$UNDER_BUDGET" != "true" ]]; then
+  #           echo "action=finalize" >> "$GITHUB_OUTPUT"
+  #           echo "reason=wallclock-budget-exhausted" >> "$GITHUB_OUTPUT"
+  #         elif [[ "$ITER" -ge "$MAX_ITERATIONS" ]]; then
+  #           echo "action=finalize" >> "$GITHUB_OUTPUT"
+  #           echo "reason=iteration-cap" >> "$GITHUB_OUTPUT"
+  #         elif [[ "$API_CHECK_PASSED" == "true" && "$HAS_FAILURES" == "false" && "$FILTER_EMPTY" == "false" ]]; then
+  #           echo "action=finalize" >> "$GITHUB_OUTPUT"
+  #           echo "reason=all-tests-green" >> "$GITHUB_OUTPUT"
+  #         else
+  #           echo "action=redispatch" >> "$GITHUB_OUTPUT"
+  #         fi
+  #
+  #     - name: Self-dispatch next iteration
+  #       if: steps.next.outputs.action == 'redispatch'
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  #         NEXT_ITER: ${{ needs.setup.outputs.iteration }}
+  #       run: |
+  #         NEXT=$((NEXT_ITER + 1))
+  #         echo "Re-dispatching as iteration $NEXT"
+  #         gh workflow run workflow-transformers-uplift.yml \
+  #           --ref main \
+  #           -f iteration="$NEXT" \
+  #           -f branch="${{ inputs.branch }}" \
+  #           -f target_version="${{ inputs.target_version }}" \
+  #           -f current_version="${{ inputs.current_version }}" \
+  #           -f artifact_release_run_id="${{ inputs.artifact_release_run_id }}" \
+  #           -f artifact_suffix="${{ inputs.artifact_suffix }}" \
+  #           -f docker_image="${{ inputs.docker_image }}"
+  #
+  #     - name: Log finalize handoff
+  #       if: steps.next.outputs.action == 'finalize'
+  #       run: |
+  #         echo "Loop terminating: ${{ steps.next.outputs.reason }}"
+  #         echo "Finalize jobs will run in this same workflow run."
 
-  # ---------------------------------------------------------------------------
-  # Open the two PRs. tt-forge-models first (if its branch has commits),
-  # then tt-xla with the report and a link to the forge-models PR.
-  # Both DRAFT. Reviewers gate the actual landing.
-  # ---------------------------------------------------------------------------
-  open-prs:
-    needs: [setup, decide, test-and-fix-full, perf-benchmark]
-    if: |
-      always()
-      && needs.decide.outputs.action == 'finalize'
-      && needs['test-and-fix-full'].result == 'success'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.branch }}
-          token: ${{ secrets.GH_TOKEN }}
-          submodules: recursive
+  # # ===========================================================================
+  # # FINALIZE STAGE — only fires when decide picks `action == 'finalize'`.
+  # # On the redispatch path these jobs are skipped (visible-but-skipped in
+  # # the GHA UI) and the next iteration's run handles the loop continuation.
+  # # ===========================================================================
+  #
+  # # ---------------------------------------------------------------------------
+  # # Full nightly model suite + Claude fix pass. Same call-test-uplift
+  # # callable used for base-coverage above, just with the broader test
+  # # suite and scope=full-coverage. This also adds a Claude fix pass at
+  # # the finalize stage — anything the broader suite surfaces gets one
+  # # attempt at a fix before the PR is opened.
+  # # ---------------------------------------------------------------------------
+  # test-and-fix-full:
+  #   needs: decide
+  #   if: needs.decide.outputs.action == 'finalize'
+  #   uses: ./.github/workflows/call-test-uplift.yml
+  #   with:
+  #     test_suite:              model-test-passing.json
+  #     scope:                   model-test-uplifts
+  #     tag:                     full
+  #     branch:                  ${{ inputs.branch }}
+  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+  #     target_version:          ${{ inputs.target_version }}
+  #     current_version:         ${{ inputs.current_version }}
+  #     artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+  #     artifact_suffix:         ${{ inputs.artifact_suffix }}
+  #     docker_image:            ${{ inputs.docker_image }}
+  #   secrets: inherit
 
-      - uses: actions/download-artifact@v4
-        with:
-          # call-test-uplift uploads under this name with scope + tag + iteration.
-          name: uplift-failures-model-test-uplifts-full-iter-${{ needs.setup.outputs.iteration }}
+  # # ---------------------------------------------------------------------------
+  # # Perf benchmark sweep — wraps call-perf-uplift.yml, the shared callable
+  # # that humans can also dispatch manually during PR review.
+  # # ---------------------------------------------------------------------------
+  # perf-benchmark:
+  #   needs: decide
+  #   if: needs.decide.outputs.action == 'finalize'
+  #   uses: ./.github/workflows/call-perf-uplift.yml
+  #   secrets: inherit
+  #   with:
+  #     branch:                  ${{ inputs.branch }}
+  #     target_version:          ${{ inputs.target_version }}
+  #     current_version:         ${{ inputs.current_version }}
+  #     artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+  #     artifact_suffix:         ${{ inputs.artifact_suffix }}
+  #     docker_image:            ${{ inputs.docker_image }}
 
-      - name: Build PR body
-        env:
-          ITER_REASON: ${{ needs.decide.outputs.reason }}
-          CUR:         ${{ inputs.current_version }}
-          NEW:         ${{ inputs.target_version }}
-          FAIL_COUNT:  ${{ needs['test-and-fix-full'].outputs.failure_count }}
-          PERF_RESULT: ${{ needs.perf-benchmark.result }}
-        run: |
-          {
-            echo "## Transformers uplift: \`${CUR}\` → \`${NEW}\`"
-            echo
-            echo "**Loop termination**: \`${ITER_REASON}\`"
-            echo "**Full-coverage failures**: ${FAIL_COUNT}"
-            echo "**Perf benchmark**: ${PERF_RESULT}"
-            echo
-            if [[ "${FAIL_COUNT}" -gt 0 ]]; then
-              echo "### Remaining failures"
-              echo
-              echo '<details><summary>Click to expand</summary>'
-              echo
-              echo '```'
-              head -200 failure_context.txt
-              echo '```'
-              echo '</details>'
-              echo
-            fi
-            echo "🤖 Generated by the transformers-uplift pipeline."
-          } > pr-body.md
-          echo "Built pr-body.md ($(wc -l < pr-body.md) lines)"
-
-      - name: Open tt-forge-models PR (if branch has commits)
-        id: forge-pr
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          BRANCH:   ${{ inputs.branch }}
-          NEW:      ${{ inputs.target_version }}
-          CUR:      ${{ inputs.current_version }}
-        run: |
-          # Only open if the submodule branch actually has commits beyond main.
-          # claude-fix only pushes when there are loader edits.
-          if ! git ls-remote --exit-code --heads \
-              https://github.com/tenstorrent/tt-forge-models.git "$BRANCH" >/dev/null 2>&1; then
-            echo "No tt-forge-models branch '$BRANCH' — skipping submodule PR"
-            echo "url=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          EXISTING=$(gh pr list --repo tenstorrent/tt-forge-models \
-            --head "$BRANCH" --base main --state open \
-            --json url --jq '.[0].url' || true)
-          if [[ -n "$EXISTING" ]]; then
-            echo "Existing tt-forge-models PR: $EXISTING"
-            echo "url=$EXISTING" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          URL=$(gh pr create \
-            --repo tenstorrent/tt-forge-models \
-            --base main \
-            --head "$BRANCH" \
-            --title "transformers uplift: loader fixes for ${CUR} → ${NEW}" \
-            --body-file pr-body.md \
-            --draft \
-            --label transformers-uplift)
-          echo "Opened tt-forge-models PR: $URL"
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-      - name: Append submodule PR link to body
-        if: steps.forge-pr.outputs.url != ''
-        env:
-          FORGE_PR_URL: ${{ steps.forge-pr.outputs.url }}
-        run: |
-          {
-            echo
-            echo "### Submodule changes"
-            echo "Companion tt-forge-models PR: ${FORGE_PR_URL}"
-            echo "Merge that PR first; this one bumps the submodule pointer to its tip."
-          } >> pr-body.md
-
-      - name: Open tt-xla PR
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          BRANCH:   ${{ inputs.branch }}
-          NEW:      ${{ inputs.target_version }}
-          CUR:      ${{ inputs.current_version }}
-        run: |
-          EXISTING=$(gh pr list --head "$BRANCH" --base main --state open \
-            --json url --jq '.[0].url' || true)
-          if [[ -n "$EXISTING" ]]; then
-            echo "Existing tt-xla PR: $EXISTING"
-            exit 0
-          fi
-          gh pr create \
-            --base main \
-            --head "$BRANCH" \
-            --title "Uplift transformers ${CUR} → ${NEW}" \
-            --body-file pr-body.md \
-            --draft \
-            --label transformers-uplift
-
-      - name: Append PR body to job summary
-        if: always()
-        run: cat pr-body.md >> "$GITHUB_STEP_SUMMARY"
+  # # ---------------------------------------------------------------------------
+  # # Open the two PRs. tt-forge-models first (if its branch has commits),
+  # # then tt-xla with the report and a link to the forge-models PR.
+  # # Both DRAFT. Reviewers gate the actual landing.
+  # # ---------------------------------------------------------------------------
+  # open-prs:
+  #   needs: [setup, decide, test-and-fix-full, perf-benchmark]
+  #   if: |
+  #     always()
+  #     && needs.decide.outputs.action == 'finalize'
+  #     && needs['test-and-fix-full'].result == 'success'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #       with:
+  #         ref: ${{ inputs.branch }}
+  #         token: ${{ secrets.GH_TOKEN }}
+  #         submodules: recursive
+  #
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         # call-test-uplift uploads under this name with scope + tag + iteration.
+  #         name: uplift-failures-model-test-uplifts-full-iter-${{ needs.setup.outputs.iteration }}
+  #
+  #     - name: Build PR body
+  #       env:
+  #         ITER_REASON: ${{ needs.decide.outputs.reason }}
+  #         CUR:         ${{ inputs.current_version }}
+  #         NEW:         ${{ inputs.target_version }}
+  #         FAIL_COUNT:  ${{ needs['test-and-fix-full'].outputs.failure_count }}
+  #         PERF_RESULT: ${{ needs.perf-benchmark.result }}
+  #       run: |
+  #         {
+  #           echo "## Transformers uplift: \`${CUR}\` → \`${NEW}\`"
+  #           echo
+  #           echo "**Loop termination**: \`${ITER_REASON}\`"
+  #           echo "**Full-coverage failures**: ${FAIL_COUNT}"
+  #           echo "**Perf benchmark**: ${PERF_RESULT}"
+  #           echo
+  #           if [[ "${FAIL_COUNT}" -gt 0 ]]; then
+  #             echo "### Remaining failures"
+  #             echo
+  #             echo '<details><summary>Click to expand</summary>'
+  #             echo
+  #             echo '```'
+  #             head -200 failure_context.txt
+  #             echo '```'
+  #             echo '</details>'
+  #             echo
+  #           fi
+  #           echo "🤖 Generated by the transformers-uplift pipeline."
+  #         } > pr-body.md
+  #         echo "Built pr-body.md ($(wc -l < pr-body.md) lines)"
+  #
+  #     - name: Open tt-forge-models PR (if branch has commits)
+  #       id: forge-pr
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  #         BRANCH:   ${{ inputs.branch }}
+  #         NEW:      ${{ inputs.target_version }}
+  #         CUR:      ${{ inputs.current_version }}
+  #       run: |
+  #         # Only open if the submodule branch actually has commits beyond main.
+  #         # claude-fix only pushes when there are loader edits.
+  #         if ! git ls-remote --exit-code --heads \
+  #             https://github.com/tenstorrent/tt-forge-models.git "$BRANCH" >/dev/null 2>&1; then
+  #           echo "No tt-forge-models branch '$BRANCH' — skipping submodule PR"
+  #           echo "url=" >> "$GITHUB_OUTPUT"
+  #           exit 0
+  #         fi
+  #         EXISTING=$(gh pr list --repo tenstorrent/tt-forge-models \
+  #           --head "$BRANCH" --base main --state open \
+  #           --json url --jq '.[0].url' || true)
+  #         if [[ -n "$EXISTING" ]]; then
+  #           echo "Existing tt-forge-models PR: $EXISTING"
+  #           echo "url=$EXISTING" >> "$GITHUB_OUTPUT"
+  #           exit 0
+  #         fi
+  #         URL=$(gh pr create \
+  #           --repo tenstorrent/tt-forge-models \
+  #           --base main \
+  #           --head "$BRANCH" \
+  #           --title "transformers uplift: loader fixes for ${CUR} → ${NEW}" \
+  #           --body-file pr-body.md \
+  #           --draft \
+  #           --label transformers-uplift)
+  #         echo "Opened tt-forge-models PR: $URL"
+  #         echo "url=$URL" >> "$GITHUB_OUTPUT"
+  #
+  #     - name: Append submodule PR link to body
+  #       if: steps.forge-pr.outputs.url != ''
+  #       env:
+  #         FORGE_PR_URL: ${{ steps.forge-pr.outputs.url }}
+  #       run: |
+  #         {
+  #           echo
+  #           echo "### Submodule changes"
+  #           echo "Companion tt-forge-models PR: ${FORGE_PR_URL}"
+  #           echo "Merge that PR first; this one bumps the submodule pointer to its tip."
+  #         } >> pr-body.md
+  #
+  #     - name: Open tt-xla PR
+  #       env:
+  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  #         BRANCH:   ${{ inputs.branch }}
+  #         NEW:      ${{ inputs.target_version }}
+  #         CUR:      ${{ inputs.current_version }}
+  #       run: |
+  #         EXISTING=$(gh pr list --head "$BRANCH" --base main --state open \
+  #           --json url --jq '.[0].url' || true)
+  #         if [[ -n "$EXISTING" ]]; then
+  #           echo "Existing tt-xla PR: $EXISTING"
+  #           exit 0
+  #         fi
+  #         gh pr create \
+  #           --base main \
+  #           --head "$BRANCH" \
+  #           --title "Uplift transformers ${CUR} → ${NEW}" \
+  #           --body-file pr-body.md \
+  #           --draft \
+  #           --label transformers-uplift
+  #
+  #     - name: Append PR body to job summary
+  #       if: always()
+  #       run: cat pr-body.md >> "$GITHUB_STEP_SUMMARY"
