@@ -33,16 +33,33 @@ this code path. Worth a tt-mlir/tt-metal follow-up — they are listed in
 [`compiler_config.py`](../../../../infra/testers/compiler_config.py) as
 valid knobs but had no effect on numerics here.
 
-### 4. `add(x,x)*add(y,y)` prelude triggers a precision-lossy opt=2 transform
+### 4. `add(x,x)*add(y,y)` prelude triggers a precision-lossy opt=2 transform — but only on some shapes
 With realistic inputs:
-- `FROM_HOST` (plain matmul) at opt=2 → **PCC > 0.99** (passes)
-- `FROM_ANOTHER_OP` (prelude + matmul) at opt=2 → **PCC ~0.5** (collapses)
+- `FROM_HOST` (plain matmul) at opt=2 → **PCC > 0.99** (passes) on every shape
+- `FROM_ANOTHER_OP` (prelude + matmul) at opt=2 → **PCC ~0.5** (collapses) on
+  three of the four tested shapes, **PCC > 0.99** on the fourth
 
-`add(x,x)*add(y,y) = 4·x·y` is a linear scale on inputs, so analytically
-PCC should be identical between the two models. The 50× PCC gap means the
+`add(x,x)*add(y,y) = 4·x·y` is a linear scale on inputs, so analytically PCC
+should be identical between the two models. The 50× PCC gap means the
 compiler does something at `optimization_level=2` only when it sees the add
-prelude (probably fusion or layout transform). Same models at `opt=0` agree.
-This is the most actionable finding — likely a real bug.
+prelude. Same models at `opt=0` agree.
+
+What makes this even more interesting: the collapse is **shape-conditioned**.
+
+| Shape `(B,S,K)x(K,N)` | PCC at FROM_ANOTHER_OP × opt=2 |
+|---|---|
+| `(32,128,1024)x(1024,2048)` | 0.500 |
+| `(32,128,2304)x(2304,1024)` | 0.500 |
+| `(32,128,2560)x(2560,1024)` | 0.500 |
+| `(32,128,4864)x(4864,896)` | **>0.99 — passes** |
+
+Sweeps confirms the same split: the first three shapes are in the xfail txt
+for `matmul_mp`, the fourth isn't. So the predicate has to enumerate failing
+shapes rather than apply universally. The discriminator is probably `N`
+(896 vs ≥1024) or tile-alignment of `N` (896 = 7·128, others are
+multiples of 1024 = 8·128), but a single passing data point isn't enough to
+pin down; flagged for follow-up. This is the most actionable finding —
+likely a real bug.
 
 ### 5. Sweeps' AutomaticValueChecker effectively decides on PCC alone
 Sweeps configures the comparator with `(pcc=0.99, rtol=1e-2, atol=1e-2)`
@@ -109,7 +126,14 @@ Picking inputs is a series of independent knobs. Each row is what the test
 
 - File a tt-mlir issue: at `optimization_level=2`, an `add → matmul`
   subgraph compiled with `experimental_weight_dtype=bf16` collapses PCC to
-  ~0.5 even on a single chip; the plain matmul subgraph stays at PCC > 0.99.
+  ~0.5 on **some** shapes (e.g. `(K,N) ∈ {(1024,2048), (2304,1024), (2560,1024)}`)
+  but passes cleanly on others (e.g. `(4864, 896)`). The plain matmul
+  subgraph stays at PCC > 0.99 on every shape. Identify what about the
+  failing shapes triggers the transform — N alignment? Tile geometry?
+  Pre-allocation strategy? — and either fix the transform or gate it.
 - Investigate why `weight_dtype` / `math_fidelity` / `fp32_dest_acc_en` make
   no measurable difference for this op path — they should at least change
   the cycle count even if PCC happens to stay constant.
+- Expand the shape grid further to characterize the failing-vs-passing
+  boundary. Currently 1 passing point isn't enough to choose between
+  "N < 1024", "N not a power-of-2-times-128", "K < some threshold", etc.
