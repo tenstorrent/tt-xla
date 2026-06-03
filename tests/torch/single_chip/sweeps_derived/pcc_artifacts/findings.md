@@ -128,6 +128,68 @@ Picking inputs is a series of independent knobs. Each row is what the test
   needed later, generate snapshots by editing `_mixture_normal` and saving
   the resulting report under a distinct suffix.
 
+## Cross-validation against sweeps export (`sweeps_export.csv`)
+
+After getting a pivot CSV of the full sweeps matmul_mp suite — 1072 rows
+across 134 shapes and 4 CI runs — the following holds:
+
+### Run timeline (provided by Vladimir, 2026-06)
+
+| Run ID | tt-xla version | Date | Seed |
+|---|---|---|---|
+| `26165109284` | `1.1.0.dev20260429` | 2026-05-20 | (Test matmul_mp) |
+| `26165164203` | `1.1.0.dev20260430` | 2026-05-20 | (Test matmul_mp) |
+| `26171346075` | `1.1.0.dev20260428` | 2026-05-20 | (Test matmul_mp) |
+| `26756567247` | `1.2.0.dev20260601` | 2026-06-01 | INPUT_SEED=44 |
+
+Sibling sweeps runs at the same `1.2.0.dev20260601003137` exist for
+`INPUT_SEED=42`/`43` and `RANDOM_SEED=42/43/44` but aren't in this CSV
+snapshot.
+
+### My grid is a subset of the sweeps grid
+
+All 4 shapes in `_SHAPE_PAIRS` appear in the CSV (8 rows each: 2 input
+sources × 4 runs). The per-shape minimum-PCC profile at `opt=2`:
+
+| Shape | FROM_ANOTHER_OP across 4 runs | FROM_HOST across 4 runs |
+|---|---|---|
+| `(1024,2048)` | 0.345, 0.345, 0.345, **0.5012** | 1.000, 1.000, 1.000, 1.000 |
+| `(2304,1024)` | 1.000, 1.000, 1.000, **0.4998** | 1.000, 1.000, 1.000, 1.000 |
+| `(2560,1024)` | 1.000, 1.000, 1.000, **0.4996** | 1.000, 1.000, 1.000, 1.000 |
+| `(4864,896)` | 1.000, 1.000, 1.000, 1.000 | 1.000, 1.000, 1.000, 1.000 |
+
+`(1024,2048)` collapsed already in 1.1.0 (PCC ~0.345 even worse than my
+1.2.0 measurement of 0.500); `(2304,1024)` and `(2560,1024)` collapsed
+only in the 1.2.0 upgrade. `(4864,896)` is unaffected throughout.
+
+My tt-xla measurements (`pcc_report_realistic.md`) line up with the
+`1.2.0.dev20260601` run to 3 decimals — confirming the test reproduces
+what sweeps sees.
+
+### What the upgrade broke (`1.1.0` → `1.2.0`)
+
+Three `(src, shape)` pairs are catastrophic (PCC < 0.7 at opt=2) only in
+the 1.2.0 run:
+
+- `FROM_ANOTHER_OP × ((32,128,1024),(1024,3072))` — not in `_SHAPE_PAIRS`
+- `FROM_ANOTHER_OP × ((32,128,2304),(2304,1024))` — in `_SHAPE_PAIRS`
+- `FROM_ANOTHER_OP × ((32,128,2560),(2560,1024))` — in `_SHAPE_PAIRS`
+
+This is a real **bisect target** between dev builds
+`1.1.0.dev20260428` and `1.2.0.dev20260601` (~5 weeks of tt-xla / tt-mlir /
+tt-metal commits to walk).
+
+### Persistent FROM_HOST failures we don't cover
+
+22 `(src, shape)` pairs are catastrophic in **every** sweeps run. Of those,
+3 are `FROM_ANOTHER_OP` and **19 are `FROM_HOST`** on shapes with large
+output dim N (`3072`, `8192`, `11008`, `16384`, `9216`, etc.). The
+"FROM_HOST + opt=2 passes" conclusion from finding #4 is **only true for
+the small-N shapes in our grid**; globally FROM_HOST at opt=2 is broken on
+many shapes too. If we want the test to cover that mode, add a large-N
+shape (e.g. `(32,128,2048)x(2048,8192)`) and predict it as xfail for
+FROM_HOST at opt=2.
+
 ## Open follow-ups
 
 - File a tt-mlir issue: at `optimization_level=2`, an `add → matmul`
@@ -137,6 +199,14 @@ Picking inputs is a series of independent knobs. Each row is what the test
   subgraph stays at PCC > 0.99 on every shape. Identify what about the
   failing shapes triggers the transform — N alignment? Tile geometry?
   Pre-allocation strategy? — and either fix the transform or gate it.
+- Bisect the 1.1.0 → 1.2.0 regression: `(2304,1024)` and `(2560,1024)`
+  collapsed only at version `1.2.0.dev20260601` (date range
+  `2026-04-28` → `2026-06-01`). `(1024,2048)` was already broken in 1.1.0,
+  so the regressor is shape-conditioned on top of a pre-existing bug.
+- Pull the sibling 1.2.0 seeds (sweeps runs `26756536362` /
+  `26756551955` for INPUT_SEED=42/43) into the CSV and re-run
+  `compare_with_sweeps_export.py` to confirm whether the 1.2.0 collapse
+  is seed-stable or just our seed.
 - Investigate why `weight_dtype` / `math_fidelity` / `fp32_dest_acc_en` make
   no measurable difference for this op path — they should at least change
   the cycle count even if PCC happens to stay constant.

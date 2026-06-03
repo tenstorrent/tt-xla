@@ -68,8 +68,17 @@ inflates absolute differences. The PCC predicate is invariant across them.
 
 ## Files
 
-- `pcc_report.md` / `pcc_report_realistic.md` — markdown reports (per snapshot).
-- `runxfail.log` / `runxfail_realistic.log` — raw pytest logs the reports parse.
+- `pcc_report.md` / `pcc_report_uniform.md` / `pcc_report_realistic.md` —
+  markdown reports (one per snapshot).
+- `runxfail.log` / `runxfail_uniform.log` / `runxfail_realistic.log` — raw
+  pytest logs the reports parse.
+- `sweeps_export.csv` — pivot of the upstream sweeps matmul_mp suite
+  (`MIN(pcc)` per `(input_source, shape, run_id)` × 20 columns of
+  `(opt, fp32_acc, math_fidelity, weight_dtype)`). Snapshot from the
+  sweeps dashboard; see run-timeline table in `findings.md`.
+- `compare_with_sweeps_export.py` — cross-checks the test grid against
+  `sweeps_export.csv`. Per-shape per-run PCC profile, plus "new
+  regressions" and "persistent bugs" buckets.
 - `noforked.log` / `forked.log` — `compare_runs.sh` output (per-test outcome
   sequences from the conftest-fixture vs `--forked` isolation comparison).
 - `build_report.py` — turns a `runxfail*.log` into a `pcc_report*.md`.
