@@ -54,11 +54,18 @@ _WEIGHT_DTYPE_TO_TTXLA = {
 }
 
 
+# Compressed map: empirically `weight_dtype` and `math_fidelity` produce
+# identical PCC inside every (shape, input_source, opt_level, fp32_acc)
+# group (see pcc_artifacts/findings.md), so the test only carries one
+# canonical (wd, mf) pair. Re-enable the other entries when investigating
+# whether those compiler options ever start propagating to the kernel.
+#
 # Mirrors WEIGHT_DTYPE_MATH_FIDELITY_MAP_REDUCED in sweeps test_matmul_mp.py.
 _REDUCED_MAP = {
-    "bf16": ["hifi4", "hifi2", "lofi"],
-    "bfp8": ["hifi4", "hifi2", "lofi"],
-    "bfp4": ["hifi2", "lofi"],
+    "bf16": ["hifi2"],
+    # "bf16": ["hifi4", "hifi2", "lofi"],
+    # "bfp8": ["hifi4", "hifi2", "lofi"],
+    # "bfp4": ["hifi2", "lofi"],
 }
 
 _OPT_LEVELS = (0, 2)
