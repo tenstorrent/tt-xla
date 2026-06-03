@@ -1,0 +1,95 @@
+# One iteration of the perf benchmark sweep for the transformers uplift
+# pipeline. Used by the orchestrator's finalize stage, and dispatchable
+# directly by humans during PR review for a one-off perf re-run.
+#
+# Currently a THIN WRAPPER around call-filtered-perf-tests.yml — same
+# args the nightly perf-benchmark uses, narrowed to n150 + p150 (matches
+# the uplift loop's other test scope).
+#
+# Note: no Claude fix step (yet). Perf regressions are typically
+# algorithmic and need human judgment; Claude isn't well-suited to fix
+# them autonomously. The orchestrator's PR body surfaces the perf job's
+# success/failure status, and reviewers can dispatch this workflow
+# manually to re-measure after a hand fix.
+
+name: Call - Perf + Uplift Fix
+
+permissions:
+  contents: read
+  actions:  read
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        type: string
+        required: true
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      artifact_release_run_id:
+        type: string
+        required: true
+      artifact_suffix:
+        type: string
+        required: false
+        default: ""
+      docker_image:
+        type: string
+        required: true
+      adv_filter:
+        type: string
+        required: false
+        default: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "p150"} ]'
+    outputs:
+      perf_result:
+        description: 'Result of the underlying perf job (success | failure | skipped | cancelled)'
+        value: ${{ jobs.run-perf.result }}
+
+  workflow_dispatch:
+    inputs:
+      branch:
+        type: string
+        required: true
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      artifact_release_run_id:
+        type: string
+        required: true
+      artifact_suffix:
+        type: string
+        required: false
+        default: ""
+      docker_image:
+        type: string
+        required: true
+      adv_filter:
+        type: string
+        required: false
+        default: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "p150"} ]'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Single stage: invoke the standard perf workflow with the uplift's
+  # narrowed device filter. The orchestrator (or a reviewer dispatching
+  # manually) consumes `jobs.run-perf.result` to decide what comes next.
+  # ---------------------------------------------------------------------------
+  run-perf:
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    secrets: inherit
+    with:
+      docker_image:            ${{ inputs.docker_image }}
+      sh-runner:               false
+      skip-device-perf:        true
+      regression_check:        true
+      adv_filter:              ${{ inputs.adv_filter }}
+      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+      artifact_suffix:         ${{ inputs.artifact_suffix }}
+      wheel_build:             manylinux

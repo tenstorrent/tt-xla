@@ -1,0 +1,92 @@
+# Nightly check for a new `transformers` release on PyPI.
+# If one is available, invokes the transformers uplift orchestrator
+# (iteration 1) as a reusable workflow which then runs the test+fix loop
+# until termination via self-dispatch.
+#
+# This workflow only DETECTS and KICKS OFF the loop — it does not run
+# tests or modify the repo itself.
+
+name: Schedule Transformers Uplift
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: '0 4 * * *'   # 04:00 UTC daily
+  workflow_dispatch: {}
+
+concurrency:
+  group: schedule-transformers-uplift
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      has_update: ${{ steps.check.outputs.has_update }}
+      new_version: ${{ steps.check.outputs.new_version }}
+      current_version: ${{ steps.check.outputs.current_version }}
+      skip: ${{ steps.branch-check.outputs.skip }}
+      branch: ${{ steps.branch-check.outputs.branch }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Detect new transformers release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/uplift/transformers/detect-new-version.sh
+
+      - name: Check if an uplift branch for this version already exists
+        if: steps.check.outputs.has_update == 'true'
+        id: branch-check
+        env:
+          NEW: ${{ steps.check.outputs.new_version }}
+        run: |
+          BRANCH="transformers-uplift/${NEW}"
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists on origin; orchestrator handles continuation. Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Build the tt-xla docker image and wheel once per uplift run. The
+  # wheel is reused across every orchestrator iteration via the
+  # `artifact_release_run_id` input — transformers is a runtime dep, not
+  # a build-time one, so one build covers the whole uplift attempt.
+  build-image:
+    needs: detect
+    if: ${{ needs.detect.outputs.has_update == 'true' && needs.detect.outputs.skip == 'false' }}
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      dockbuild: all
+
+  build-ttxla:
+    needs: build-image
+    name: "Build tt-xla"
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: release,manylinux
+
+  run-uplift:
+    needs: [detect, build-image, build-ttxla]
+    if: ${{ needs.detect.outputs.has_update == 'true' && needs.detect.outputs.skip == 'false' }}
+    uses: ./.github/workflows/workflow-transformers-uplift.yml
+    with:
+      iteration: 1
+      branch: ${{ needs.detect.outputs.branch }}
+      target_version: ${{ needs.detect.outputs.new_version }}
+      current_version: ${{ needs.detect.outputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+    secrets: inherit

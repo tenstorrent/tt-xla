@@ -1,0 +1,290 @@
+# One iteration of the test+claude-fix cycle for a generic test suite.
+# Used by the transformers uplift pipeline for BOTH base-coverage (narrow,
+# in-loop) and full-coverage (broad, finalize) stages, and dispatchable
+# directly by humans during PR review.
+#
+# Stages:
+#   1. run-tests        — call-test.yml with the supplied test_suite
+#   2. extract-failures — parse junit, emit failure_context + node-id list
+#   3. claude-fix       — invoke the transformers-uplift-fix skill on the
+#                         failures; commit edits to the WIP branch (and
+#                         to tt-forge-models if the submodule was touched)
+#
+# Only ONE iteration runs per invocation. The orchestrator's self-dispatch
+# loop is what drives multiple iterations during automated uplift runs;
+# humans can call this workflow directly to do a single retry.
+
+name: Call - Test + Uplift Fix
+
+permissions:
+  contents: write
+  actions: write
+
+on:
+  workflow_call:
+    inputs:
+      test_suite:
+        type: string
+        required: true
+        description: '"Custom" (then supply test_suite_custom) or a preset filename like "model-test-passing.json".'
+      test_suite_custom:
+        type: string
+        required: false
+        default: ""
+        description: 'JSON matrix payload when test_suite="Custom"; ignored otherwise.'
+      scope:
+        type: string
+        required: false
+        default: "model-test-uplifts"
+        description: 'Claude fix scope tag (see transformers-uplift-fix skill).'
+      tag:
+        type: string
+        required: false
+        default: "default"
+        description: 'Extra artifact/commit-message discriminator (e.g. "base" vs "full") when the caller invokes this workflow more than once in the same run with the same scope.'
+      branch:
+        type: string
+        required: true
+      iteration:
+        type: number
+        required: false
+        default: 1
+        description: 'Used to disambiguate artifact names + commit messages when chained.'
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      artifact_release_run_id:
+        type: string
+        required: true
+      artifact_suffix:
+        type: string
+        required: false
+        default: ""
+      docker_image:
+        type: string
+        required: true
+    outputs:
+      has_failures:
+        description: 'true if extract-failures saw any uplift-induced failures'
+        value: ${{ jobs.extract-failures.outputs.has_failures }}
+      failure_count:
+        description: 'integer count of uplift-induced failures observed'
+        value: ${{ jobs.extract-failures.outputs.failure_count }}
+
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        type: string
+        required: true
+      test_suite_custom:
+        type: string
+        required: false
+        default: ""
+      scope:
+        type: choice
+        required: true
+        options: [model-test-uplifts]
+      tag:
+        type: string
+        required: false
+        default: "manual"
+      branch:
+        type: string
+        required: true
+      iteration:
+        type: string
+        required: false
+        default: "1"
+      target_version:
+        type: string
+        required: true
+      current_version:
+        type: string
+        required: true
+      artifact_release_run_id:
+        type: string
+        required: true
+      artifact_suffix:
+        type: string
+        required: false
+        default: ""
+      docker_image:
+        type: string
+        required: true
+
+env:
+  LAST_FAILED_FILE: .github/transformers-uplift/last_failed.txt
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Stage 1: run the test suite via the standard call-test.yml plumbing.
+  # ---------------------------------------------------------------------------
+  run-tests:
+    uses: ./.github/workflows/call-test.yml
+    with:
+      test_suite:              ${{ inputs.test_suite }}
+      test_suite_custom:       ${{ inputs.test_suite_custom }}
+      docker_image:            ${{ inputs.docker_image }}
+      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+      artifact_suffix:         ${{ inputs.artifact_suffix }}
+      wheel_build:             manylinux
+    secrets: inherit
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: extract per-test failures from the junit XML uploaded by
+  # call-test.yml. Skipped if run-tests was skipped (no work to do).
+  # ---------------------------------------------------------------------------
+  extract-failures:
+    needs: run-tests
+    if: always() && needs.run-tests.result != 'skipped'
+    runs-on: ubuntu-latest
+    outputs:
+      has_failures:  ${{ steps.extract.outputs.has_failures }}
+      failure_count: ${{ steps.extract.outputs.failure_count }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: test-results
+          # call-test.yml uploads one artifact per matrix leg with this prefix
+          # (see call-test.yml's "Upload Test Report" step).
+          pattern: test-reports-*
+
+      - name: Extract failures
+        id: extract
+        run: |
+          python3 .github/scripts/uplift/transformers/extract-failures.py \
+            --inputs-dir test-results \
+            --out-context failure_context.txt \
+            --out-failed-tests "$LAST_FAILED_FILE"
+          COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || echo 0)
+          echo "failure_count=$COUNT" >> "$GITHUB_OUTPUT"
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "has_failures=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_failures=true"  >> "$GITHUB_OUTPUT"
+          fi
+          echo "Failing tests this iteration: $COUNT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uplift-failures-${{ inputs.scope }}-${{ inputs.tag }}-iter-${{ inputs.iteration }}
+          path: |
+            failure_context.txt
+            ${{ env.LAST_FAILED_FILE }}
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: invoke the transformers-uplift-fix skill on the failures.
+  # Commits any edits to the WIP branch (and to tt-forge-models if the
+  # submodule was touched).
+  # ---------------------------------------------------------------------------
+  claude-fix:
+    needs: extract-failures
+    if: needs.extract-failures.outputs.has_failures == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.docker_image }}
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/tt_forge_models"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          token: ${{ secrets.GH_TOKEN }}
+          submodules: recursive
+
+      - name: Download tt-xla wheel
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          WHEEL_ARTIFACT="xla-whl-manylinux${{ inputs.artifact_suffix }}"
+          gh run download "${{ inputs.artifact_release_run_id }}" \
+            --repo "${{ github.repository }}" \
+            --dir wheels \
+            --name "$WHEEL_ARTIFACT"
+
+      - name: Install wheel + uplifted transformers
+        env:
+          TARGET_VERSION: ${{ inputs.target_version }}
+        run: |
+          source venv/activate
+          uv pip install wheels/*.whl
+          # The wheel was built against the OLD pin; force-install the
+          # uplifted version so Claude inspects the same API surface the
+          # tests are running against.
+          uv pip install --force-reinstall --no-deps \
+            "transformers==${TARGET_VERSION}"
+
+      - name: Download failure context
+        uses: actions/download-artifact@v4
+        with:
+          name: uplift-failures-${{ inputs.scope }}-${{ inputs.tag }}-iter-${{ inputs.iteration }}
+
+      - name: Invoke Claude fix skill
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HF_HOME: /mnt/dockercache/huggingface
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          ITERATION: ${{ inputs.iteration }}
+          TARGET_VERSION: ${{ inputs.target_version }}
+          CURRENT_VERSION: ${{ inputs.current_version }}
+          SCOPE: ${{ inputs.scope }}
+        run: |
+          source venv/activate
+          bash .github/scripts/uplift/transformers/run-claude-fix.sh \
+            --failures failure_context.txt \
+            --scope "$SCOPE"
+
+      - name: Commit + push fixes (if any)
+        # Run on failure/timeout too so any partial edits Claude made
+        # before bailing still get committed.
+        if: always()
+        env:
+          BRANCH: ${{ inputs.branch }}
+          ITER:   ${{ inputs.iteration }}
+          SCOPE:  ${{ inputs.scope }}
+          TAG:    ${{ inputs.tag }}
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Use Claude's structured summary as the commit body if it
+          # wrote one (per the transformers-uplift-fix skill's
+          # "Output format" section); otherwise fall back to a generic
+          # message tagged with scope/tag/iter.
+          SUMMARY_FILE=".github/transformers-uplift/fix-summary.md"
+          if [[ -s "$SUMMARY_FILE" ]]; then
+            COMMIT_FLAG=(-F "$SUMMARY_FILE")
+          else
+            COMMIT_FLAG=(-m "transformers uplift: ${SCOPE}/${TAG} fixes (iter ${ITER})")
+          fi
+
+          # 1. tt-forge-models submodule — `git add -A` in the parent only
+          #    updates the submodule pointer, not the submodule's contents.
+          #    Commit + push inside the submodule first.
+          if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
+            pushd third_party/tt_forge_models >/dev/null
+            git checkout -B "$BRANCH"
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+            git push origin "$BRANCH"
+            popd >/dev/null
+          fi
+
+          # 2. tt-xla parent — picks up the new submodule pointer + any
+          #    other edits Claude made under the allowlist.
+          git add "$LAST_FAILED_FILE"
+          if ! git diff --staged --quiet || [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+            git push origin "$BRANCH"
+          fi
