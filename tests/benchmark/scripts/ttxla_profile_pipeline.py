@@ -766,8 +766,8 @@ def safe_read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def copy_tree(source: Path, target: Path) -> list[str]:
-    copied: list[str] = []
+def copy_tree(source: Path, target: Path) -> list[Path]:
+    copied: list[Path] = []
     if not source.exists():
         return copied
     ensure_dir(target)
@@ -778,7 +778,7 @@ def copy_tree(source: Path, target: Path) -> list[str]:
         dest = target / relative
         ensure_dir(dest.parent)
         shutil.copy2(item, dest)
-        copied.append(str(dest))
+        copied.append(dest)
     return copied
 
 
@@ -1133,7 +1133,7 @@ def write_unprofiled_model_status(
             "profile": {
                 "state": profile_status,
                 "returncode": None,
-                "timed_out": taxonomy == TAXONOMY_NOT_STARTED,
+                "timed_out": False,
                 "note": reason,
                 "stdout": str(profile_dir / "run.log"),
                 "stderr": str(profile_dir / "compile.log"),
@@ -1504,7 +1504,7 @@ def build_profile_status_payload(
     perf_outcome: PerfReportOutcome,
     combined_text: str,
     max_raw_artifact_bytes: int,
-    pruned_raw_artifacts: list[str],
+    pruned_raw_artifacts: list[dict[str, Any]],
 ) -> dict[str, Any]:
     taxonomy, reason = infer_taxonomy(
         returncode=profile_result.returncode,
@@ -2046,13 +2046,13 @@ def render_dashboard_html(
       if (needle && !text.includes(needle)) {{
         return false;
       }}
-      if (status.value && row.dataset.status !== status.value) {{
+      if (status.value && row.hasAttribute('data-status') && row.dataset.status !== status.value) {{
         return false;
       }}
-      if (modelStatus.value && row.dataset.modelStatus !== modelStatus.value) {{
+      if (modelStatus.value && row.hasAttribute('data-model-status') && row.dataset.modelStatus !== modelStatus.value) {{
         return false;
       }}
-      if (taxonomy.value && row.dataset.taxonomy !== taxonomy.value) {{
+      if (taxonomy.value && row.hasAttribute('data-taxonomy') && row.dataset.taxonomy !== taxonomy.value) {{
         return false;
       }}
       return true;
@@ -2607,23 +2607,6 @@ def write_artifacts(
     dashboard_path.write_text(
         render_dashboard_html(run_dir, statuses, slow_ops), encoding="utf-8"
     )
-    packet_path.write_text(
-        render_packet_html(run_dir, manifest, environment, statuses, slow_ops),
-        encoding="utf-8",
-    )
-    report_path.write_text(
-        render_report_html(
-            run_dir,
-            manifest,
-            environment,
-            statuses,
-            slow_ops,
-            dashboard_path,
-            packet_path,
-        ),
-        encoding="utf-8",
-    )
-    write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
     packet_path.write_text(
         render_packet_html(run_dir, manifest, environment, statuses, slow_ops),
         encoding="utf-8",

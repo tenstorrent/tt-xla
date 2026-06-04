@@ -563,6 +563,24 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
     assert_requirement_coverage(
         run_dir, status_path, dashboard_path, packet_path, report_path
     )
+    dashboard_text = dashboard_path.read_text(encoding="utf-8")
+    assert "row.hasAttribute('data-status')" in dashboard_text
+    assert "row.hasAttribute('data-model-status')" in dashboard_text
+    assert "row.hasAttribute('data-taxonomy')" in dashboard_text
+
+
+def test_copy_tree_returns_copied_paths(tmp_path):
+    pipeline = load_pipeline_module()
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    pipeline.ensure_dir(source / "nested")
+    (source / "nested" / "graph.mlir").write_text("module {}", encoding="utf-8")
+
+    copied = pipeline.copy_tree(source, target)
+
+    assert copied == [target / "nested" / "graph.mlir"]
+    assert all(isinstance(path, Path) for path in copied)
+    assert (target / "nested" / "graph.mlir").read_text(encoding="utf-8") == "module {}"
 
 
 def test_run_subprocess_records_missing_command(tmp_path):
@@ -754,6 +772,7 @@ def test_terminalize_missing_model_statuses_writes_blocker_artifacts(tmp_path):
     assert status["model_status"] == pipeline.RUN_STATUS_NOT_RUN
     assert status["taxonomy"] == pipeline.TAXONOMY_NOT_STARTED
     assert status["terminal_state"] == pipeline.TERMINAL_STATE_BLOCKED
+    assert status["stages"]["profile"]["timed_out"] is False
     assert "before this discovered model emitted status.json" in status["reason"]
     assert (run_dir / "profiles" / "jax" / "slow-ops.json").exists()
 
