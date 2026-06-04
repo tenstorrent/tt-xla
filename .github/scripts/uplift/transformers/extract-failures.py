@@ -1,108 +1,152 @@
-#!/usr/bin/env python3
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-"""Extract failures from base-coverage junit XML artifacts.
+"""Extract failure context from JUnit XML reports + pytest logs.
 
-Walks the input directory (downloaded from call-test.yml's per-leg
-`test-reports-*` artifacts) and produces:
+Produces two outputs for the transformers uplift pipeline:
 
   --out-context        Human-readable failure summary fed to Claude:
-                       one section per failed test, with the message and
-                       a truncated traceback.
+                       per-test sections (test id, type, message, truncated
+                       traceback) followed by regex'd error excerpts from
+                       any pytest.log files found in the inputs dir.
 
-  --out-failed-tests   Flat list of pytest node IDs that failed (one per
-                       line). Used by the next iteration's matrix as the
+  --out-failed-tests   Flat list of pytest node IDs that failed, one per
+                       line. Used by the next iteration's matrix as the
                        `-k` narrower, and as the count source for
                        `has_failures` in the workflow.
 
-A test that fails on multiple matrix legs (e.g. n150 and p150) is
-deduped by node ID — we keep the first failure message we see.
-Skipped and passing tests are ignored.
-
-Usage:
-  extract-failures.py --inputs-dir <dir> --out-context <file>
-                       --out-failed-tests <file> [--max-tb-lines N]
+Test IDs are derived from junit's `classname` attribute (always present)
+rather than `file` (sometimes absent with pytest --forked). A test that
+fails on multiple matrix legs (n150 + p150) is deduped by node id — we
+keep the first failure record seen.
 """
 from __future__ import annotations
 
 import argparse
+import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
-from xml.etree import ElementTree as ET
 
-DEFAULT_MAX_TB_LINES = 40
+MAX_TB_BYTES = 2_000  # per-failure traceback cap (bounds runaway tracebacks)
 
-
-def parse_one(xml_path: Path) -> list[dict]:
-    """Return list of failure dicts for a single junit XML file."""
-    try:
-        tree = ET.parse(xml_path)
-    except ET.ParseError as e:
-        print(f"::warning::could not parse {xml_path}: {e}", file=sys.stderr)
-        return []
-    root = tree.getroot()
-    out = []
-    # Top-level may be <testsuites> wrapping <testsuite>, or a single
-    # <testsuite> at root. Treat both the same way.
-    suites = root.findall(".//testsuite") if root.tag == "testsuites" else [root]
-    for suite in suites:
-        for case in suite.findall("testcase"):
-            failure = case.find("failure")
-            error = case.find("error")
-            problem = failure if failure is not None else error
-            if problem is None:
-                continue
-            file_attr = case.get("file") or ""
-            name_attr = case.get("name") or ""
-            if not (file_attr and name_attr):
-                continue
-            node_id = f"{file_attr}::{name_attr}"
-            out.append(
-                {
-                    "node_id": node_id,
-                    "kind": "failure" if failure is not None else "error",
-                    "message": problem.get("message", "") or "",
-                    "body": (problem.text or "").strip(),
-                    "source": xml_path.name,
-                }
-            )
-    return out
+LOG_ERROR_PATTERNS = re.compile(
+    r"(FAILED|ERROR|ModuleNotFoundError|ImportError|AttributeError"
+    r"|NameError|TypeError.*argument|cannot import name)",
+    re.IGNORECASE,
+)
 
 
-def dedupe(failures: list[dict]) -> list[dict]:
-    """Keep first occurrence of each node_id."""
+def extract_failures_from_xml(xml_dir: Path) -> list[dict]:
+    """Walk *.xml under xml_dir; return one record per failing testcase.
+
+    Handles both <testsuites><testsuite>...</testsuite></testsuites> and
+    a single root-<testsuite> shape. Test IDs are built from `classname`
+    so we don't depend on the optional `file=` attribute.
+    """
+    failures: list[dict] = []
+    for xml_file in sorted(xml_dir.rglob("*.xml")):
+        try:
+            tree = ET.parse(xml_file)
+        except ET.ParseError as e:
+            print(f"::warning::could not parse {xml_file}: {e}", file=sys.stderr)
+            continue
+        root = tree.getroot()
+        suites = root.findall(".//testsuite") if root.tag == "testsuites" else [root]
+        for suite in suites:
+            for case in suite.findall("testcase"):
+                failure = case.find("failure")
+                error = case.find("error")
+                # Use `is not None` — Element truth-value is deprecated
+                # and an element with no children evaluates as falsy.
+                problem = failure if failure is not None else error
+                if problem is None:
+                    continue
+                classname = case.get("classname", "") or ""
+                name = case.get("name", "") or ""
+                if not name:
+                    continue
+                # tests.runner.test_models -> tests/runner/test_models.py
+                node_id = (
+                    f"{classname.replace('.', '/')}.py::{name}" if classname else name
+                )
+                body = problem.text or ""
+                failures.append(
+                    {
+                        "test": node_id,
+                        "type": problem.tag,
+                        "message": (problem.get("message") or "").strip(),
+                        "traceback": body[:MAX_TB_BYTES],
+                        "source": xml_file.name,
+                    }
+                )
+    return failures
+
+
+def dedupe_by_test(failures: list[dict]) -> list[dict]:
+    """Keep first occurrence of each node id (same test can fail on
+    multiple matrix legs and produce one record per leg)."""
     seen: dict[str, dict] = {}
     for f in failures:
-        if f["node_id"] not in seen:
-            seen[f["node_id"]] = f
-    return list(seen.values())
+        seen.setdefault(f["test"], f)
+    return sorted(seen.values(), key=lambda f: f["test"])
 
 
-def truncate_tb(body: str, max_lines: int) -> str:
-    """Keep the last `max_lines` of the traceback — that's where the
-    actual error lives. Pytest pads the top with collection context."""
-    lines = body.splitlines()
-    if len(lines) <= max_lines:
-        return body
-    head = lines[: max_lines // 4]
-    tail = lines[-(max_lines - len(head) - 1) :]
-    return "\n".join(head + ["    ... [truncated] ..."] + tail)
+def extract_errors_from_logs(logs_dir: Path) -> list[dict]:
+    """Grep every pytest.log under logs_dir for failure/error patterns.
+    Around each match, capture -2 / +10 lines of context. Deduplicate
+    overlapping chunks; cap at 30 unique chunks per log file."""
+    excerpts: list[dict] = []
+    for log_file in sorted(logs_dir.rglob("pytest.log")):
+        try:
+            lines = log_file.read_text(errors="replace").splitlines(keepends=True)
+        except OSError:
+            continue
+        chunks = []
+        for i, line in enumerate(lines):
+            if LOG_ERROR_PATTERNS.search(line):
+                start = max(0, i - 2)
+                end = min(len(lines), i + 11)
+                chunks.append("".join(lines[start:end]))
+        if not chunks:
+            continue
+        # Dedup overlapping chunks; key by first 200 chars.
+        seen, unique = set(), []
+        for c in chunks:
+            k = c[:200]
+            if k in seen:
+                continue
+            seen.add(k)
+            unique.append(c)
+        excerpts.append(
+            {
+                "log_file": log_file.parent.name,
+                "errors": unique[:30],
+            }
+        )
+    return excerpts
 
 
-def render_context(failures: list[dict], max_tb_lines: int) -> str:
-    out = [f"Failing tests: {len(failures)}", ""]
-    for i, f in enumerate(failures, 1):
-        out.append("=" * 78)
-        out.append(f"[{i}/{len(failures)}] {f['node_id']}")
-        out.append(f"  kind:    {f['kind']}")
-        out.append(f"  message: {f['message']}")
-        out.append(f"  source:  {f['source']}")
-        out.append("=" * 78)
-        if f["body"]:
-            out.append(truncate_tb(f["body"], max_tb_lines))
-        out.append("")
-    return "\n".join(out)
+def format_output(failures: list[dict], log_excerpts: list[dict]) -> str:
+    parts: list[str] = []
+    if failures:
+        parts.append(f"=== FAILED TESTS ({len(failures)} total) ===\n")
+        for f in failures:
+            parts.append(f"TEST: {f['test']}")
+            parts.append(f"TYPE: {f['type']}")
+            if f["message"]:
+                parts.append(f"MESSAGE: {f['message']}")
+            if f["traceback"]:
+                parts.append(f"TRACEBACK:\n{f['traceback']}")
+            parts.append("---")
+    if log_excerpts:
+        parts.append("\n=== ERROR EXCERPTS FROM LOGS ===\n")
+        for ex in log_excerpts:
+            parts.append(f"--- Log: {ex['log_file']} ---")
+            for err in ex["errors"]:
+                parts.append(err)
+                parts.append("~~~")
+    return "\n".join(parts)
 
 
 def main() -> int:
@@ -110,23 +154,18 @@ def main() -> int:
     ap.add_argument(
         "--inputs-dir",
         required=True,
-        help="Directory containing test-reports-* subdirectories with junit XML",
+        help="Directory containing test-reports-*/ subdirs (junit XML) and "
+        "optionally test-log-*/ subdirs (pytest.log files).",
     )
     ap.add_argument(
         "--out-context",
         required=True,
-        help="File to write the human-readable failure summary",
+        help="File to write the human-readable failure summary.",
     )
     ap.add_argument(
         "--out-failed-tests",
         required=True,
-        help="File to write the flat list of failed node IDs",
-    )
-    ap.add_argument(
-        "--max-tb-lines",
-        type=int,
-        default=DEFAULT_MAX_TB_LINES,
-        help=f"Max traceback lines per failure (default {DEFAULT_MAX_TB_LINES})",
+        help="File to write the flat list of failed node IDs.",
     )
     args = ap.parse_args()
 
@@ -135,23 +174,24 @@ def main() -> int:
         print(f"::error::inputs dir not found: {inputs_dir}", file=sys.stderr)
         return 2
 
-    xml_paths = sorted(inputs_dir.rglob("*.xml"))
-    if not xml_paths:
+    xml_files = sorted(inputs_dir.rglob("*.xml"))
+    if not xml_files:
         print(f"::warning::no junit XML files under {inputs_dir}", file=sys.stderr)
 
-    all_failures = []
-    for p in xml_paths:
-        all_failures.extend(parse_one(p))
+    raw_failures = extract_failures_from_xml(inputs_dir)
+    failures = dedupe_by_test(raw_failures)
+    log_excerpts = extract_errors_from_logs(inputs_dir)
 
-    failures = dedupe(all_failures)
-    failures.sort(key=lambda f: f["node_id"])
-
-    Path(args.out_context).write_text(render_context(failures, args.max_tb_lines))
+    Path(args.out_context).write_text(format_output(failures, log_excerpts))
     Path(args.out_failed_tests).write_text(
-        "\n".join(f["node_id"] for f in failures) + ("\n" if failures else "")
+        "\n".join(f["test"] for f in failures) + ("\n" if failures else "")
     )
 
-    print(f"Parsed {len(xml_paths)} junit files; {len(failures)} unique failing tests")
+    print(
+        f"Parsed {len(xml_files)} junit files; "
+        f"{len(failures)} unique failing tests; "
+        f"{sum(len(e['errors']) for e in log_excerpts)} log excerpts."
+    )
     return 0
 
 
