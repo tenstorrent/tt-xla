@@ -36,6 +36,11 @@ DEFAULT_NUM_LAYERS = 1
 DEFAULT_MAX_RAW_ARTIFACT_BYTES = 100_000_000
 DEFAULT_IRD_RUN_BUDGET_BUFFER_SECONDS = 300
 DEFAULT_COLLECTOR_JOB_ID = "0"
+PERF_REPORT_CSV_PATTERNS = (
+    "ops_perf_results_*.csv",
+    "ops_perf_results.csv",
+    "cpp_device_perf_report.csv",
+)
 DEFAULT_BENCHMARK_FILES = [
     Path("tests/benchmark/test_llms.py"),
     Path("tests/benchmark/test_encoders.py"),
@@ -139,6 +144,9 @@ RUN_STATUS_BLOCKED = "blocked"
 RUN_STATUS_UNKNOWN = "unknown"
 
 CSV_DURATION_ALIASES = (
+    "DEVICE FW DURATION [ns]",
+    "DEVICE KERNEL DURATION [ns]",
+    "HOST DURATION [ns]",
     "duration_us",
     "duration_ms",
     "duration_ns",
@@ -156,9 +164,9 @@ CSV_DURATION_ALIASES = (
     "time",
 )
 
-CSV_OP_ALIASES = ("op_name", "operation", "op", "name", "kernel")
+CSV_OP_ALIASES = ("OP CODE", "op_name", "operation", "op", "name", "kernel")
 CSV_MODEL_ALIASES = ("model", "model_name", "model_id", "model_identity")
-CSV_OP_TYPE_ALIASES = ("op_type", "type", "category", "kind")
+CSV_OP_TYPE_ALIASES = ("OP TYPE", "op_type", "type", "category", "kind")
 
 
 @dataclass
@@ -805,9 +813,9 @@ def copy_tree(source: Path, target: Path) -> list[Path]:
 def find_latest_csv(root: Path) -> Optional[Path]:
     if not root.exists():
         return None
-    candidates = [
-        path for path in root.rglob("ops_perf_results_*.csv") if path.is_file()
-    ]
+    candidates = []
+    for pattern in PERF_REPORT_CSV_PATTERNS:
+        candidates.extend(path for path in root.rglob(pattern) if path.is_file())
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
@@ -830,9 +838,9 @@ def parse_duration_value(value: str, key_name: str) -> Optional[float]:
     except ValueError:
         return None
     lowered = key_name.lower()
-    if lowered.endswith("_ns"):
+    if lowered.endswith("_ns") or "[ns]" in lowered:
         return numeric / 1000.0
-    if lowered.endswith("_ms"):
+    if lowered.endswith("_ms") or "[ms]" in lowered:
         return numeric * 1000.0
     return numeric
 

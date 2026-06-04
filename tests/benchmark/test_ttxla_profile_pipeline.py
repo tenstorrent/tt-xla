@@ -135,6 +135,38 @@ def write_report_fixture_files(pipeline, run_dir, status):
     return status_path
 
 
+def test_find_latest_csv_accepts_device_perf_report_name(tmp_path):
+    pipeline = load_pipeline_module()
+    csv_path = tmp_path / "profile" / "tracy" / ".logs" / "cpp_device_perf_report.csv"
+    pipeline.ensure_dir(csv_path.parent)
+    csv_path.write_text("OP CODE,DEVICE FW DURATION [ns]\n", encoding="utf-8")
+
+    assert pipeline.find_latest_csv(tmp_path) == csv_path
+
+
+def test_parse_perf_csv_accepts_tracy_device_report_schema(tmp_path):
+    pipeline = load_pipeline_module()
+    csv_path = tmp_path / "ops_perf_results_2026_06_04_17_42_35.csv"
+    csv_path.write_text(
+        "\n".join(
+            [
+                "OP CODE,OP TYPE,DEVICE FW DURATION [ns]",
+                "MatmulDeviceOperation,tt_dnn_device,129000",
+                "Conv2dDeviceOperation,tt_dnn_device,24000",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    parsed = pipeline.parse_perf_csv(csv_path, "mnist", "test_mnist")
+
+    assert parsed["summary"]["row_count"] == 2
+    assert parsed["rows"][0]["op_name"] == "MatmulDeviceOperation"
+    assert parsed["rows"][0]["duration_us"] == 129.0
+    assert parsed["summary"]["op_type_totals"]["tt_dnn_device"] == 153.0
+
+
 def write_sample_perf_csv(csv_path):
     csv_path.write_text(
         "\n".join(
