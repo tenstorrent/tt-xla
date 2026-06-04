@@ -33,39 +33,56 @@ outlier tail), but PCC is the gating signal and PCC is invariant.
 ### 3. `weight_dtype` / `math_fidelity` / `fp32_dest_acc_en` don't flow
 Within any `(shape, input_source, opt_level)` group, all 16 combinations of
 those three compiler options produced **identical PCC to 16 digits** in both
-the baseline (bf16) and realistic (fp32+mixture) snapshots. That is a strong
-indicator those `CompilerConfig` options don't reach the matmul kernel for
-this code path. Worth a tt-mlir/tt-metal follow-up — they are listed in
+the baseline (bf16) and realistic (fp32+mixture) snapshots. Something in
+the stack isn't honoring these knobs: it could be tt-xla not forwarding
+them, the StableHLO not encoding them, a tt-mlir pass dropping them, or
+the tt-metal kernel ignoring them. They are listed in
 [`compiler_config.py`](../../../../infra/testers/compiler_config.py) as
-valid knobs but had no effect on numerics here.
+valid options but had no effect on numerics in this code path. Triage
+by dumping IR at each stage (see follow-ups).
 
-### 4. `add(x,x)*add(y,y)` prelude triggers a precision-lossy opt=2 transform — but only on some shapes
-With realistic inputs:
-- `FROM_HOST` (plain matmul) at opt=2 → **PCC > 0.99** (passes) on every shape
-- `FROM_ANOTHER_OP` (prelude + matmul) at opt=2 → **PCC ~0.5** (collapses) on
-  three of the four tested shapes, **PCC > 0.99** on the fourth
+### 4. Two independent precision symptoms at opt=2 — both shape-conditioned
+With realistic inputs, two distinct symptoms appear at `opt_level=2`, on
+overlapping but not identical shape sets. **Both are symptoms — the actual
+defect location (torch_xla SHLO generation, tt-mlir passes, tt-metal kernel
+selection, or a mix) is unknown until we dump IR at each stage.**
 
-`add(x,x)*add(y,y) = 4·x·y` is a linear scale on inputs, so analytically PCC
-should be identical between the two models. The 50× PCC gap means the
-compiler does something at `optimization_level=2` only when it sees the add
-prelude. Same models at `opt=0` agree.
+**Symptom A — `add(x,x)*add(y,y)` prelude:** `FROM_ANOTHER_OP` (with the
+prelude) collapses on a set of shapes; `FROM_HOST` on the same shapes is
+fine. Analytically `add(x,x)*add(y,y) = 4·x·y` is a linear scale, so PCC
+should match the plain matmul; the gap means *something* in the stack
+treats the add subgraph differently at opt=2. Could be SHLO emitted
+differently, an opt-2 fusion pass kicking in only when there's a producer,
+or kernel-config selection branching on graph shape. `opt=0` agrees
+regardless, so the divergence is opt-level-gated.
 
-What makes this even more interesting: the collapse is **shape-conditioned**.
+**Symptom B — plain matmul at large N:** `FROM_HOST` (no prelude) also
+collapses, on a different set of shapes (typically large N). Same
+caveats: could be wrong tile layout chosen for that N, a sharding pass
+that misbehaves, or a less precise kernel variant selected. No prelude is
+needed to trigger this — it's a bare matmul precision symptom.
 
-| Shape `(B,S,K)x(K,N)` | PCC at FROM_ANOTHER_OP × opt=2 |
-|---|---|
-| `(32,128,1024)x(1024,2048)` | 0.500 |
-| `(32,128,2304)x(2304,1024)` | 0.500 |
-| `(32,128,2560)x(2560,1024)` | 0.500 |
-| `(32,128,4864)x(4864,896)` | **>0.99 — passes** |
+Per-shape behavior in the current `_SHAPE_PAIRS` grid:
 
-Sweeps confirms the same split: the first three shapes are in the xfail txt
-for `matmul_mp`, the fourth isn't. So the predicate has to enumerate failing
-shapes rather than apply universally. The discriminator is probably `N`
-(896 vs ≥1024) or tile-alignment of `N` (896 = 7·128, others are
-multiples of 1024 = 8·128), but a single passing data point isn't enough to
-pin down; flagged for follow-up. This is the most actionable finding —
-likely a real bug.
+| Shape `(B,S,K)x(K,N)` | FROM_ANOTHER_OP × opt=2 | FROM_HOST × opt=2 |
+|---|---|---|
+| `(32,128,1024)x(1024,2048)` | 0.500 — Bug A | >0.99 |
+| `(32,128,2304)x(2304,1024)` | 0.500 — Bug A | >0.99 |
+| `(32,128,2560)x(2560,1024)` | 0.500 — Bug A | >0.99 |
+| `(32,128,1024)x(1024,3072)` | 0.500 — Bug A | 0.500 — Bug B |
+| `(32,128,4864)x(4864,896)` | >0.99 (control) | >0.99 (control) |
+
+`(1024, 3072)` exhibits **both bugs at once**: the prelude collapses
+FROM_ANOTHER_OP, and the plain matmul independently collapses FROM_HOST.
+`(4864, 896)` is the only fully-clean shape in the grid (large K, small
+non-power-of-2-times-tile N = 896 = 7·128).
+
+Sweeps confirms the same split: the failing shapes appear in the relevant
+xfail txt for `matmul_mp`, the passing ones don't. So the predicate has to
+enumerate failing shapes per input source rather than apply universally.
+The discriminator is probably tile-alignment of `N` and/or its absolute
+magnitude, but the grid is still too thin to pin down. This is the most
+actionable finding — two distinct real bugs.
 
 ### 5. Sweeps' AutomaticValueChecker effectively decides on PCC alone
 Sweeps configures the comparator with `(pcc=0.99, rtol=1e-2, atol=1e-2)`
@@ -148,7 +165,7 @@ snapshot.
 
 ### My grid is a subset of the sweeps grid
 
-All 4 shapes in `_SHAPE_PAIRS` appear in the CSV (8 rows each: 2 input
+All 5 shapes in `_SHAPE_PAIRS` appear in the CSV (8 rows each: 2 input
 sources × 4 runs). The per-shape minimum-PCC profile at `opt=2`:
 
 | Shape | FROM_ANOTHER_OP across 4 runs | FROM_HOST across 4 runs |
@@ -156,11 +173,15 @@ sources × 4 runs). The per-shape minimum-PCC profile at `opt=2`:
 | `(1024,2048)` | 0.345, 0.345, 0.345, **0.5012** | 1.000, 1.000, 1.000, 1.000 |
 | `(2304,1024)` | 1.000, 1.000, 1.000, **0.4998** | 1.000, 1.000, 1.000, 1.000 |
 | `(2560,1024)` | 1.000, 1.000, 1.000, **0.4996** | 1.000, 1.000, 1.000, 1.000 |
+| `(1024,3072)` | 1.000, 1.000, 1.000, **0.500** (Bug A, new) | **0.500, 0.500, 0.500, 0.500** (Bug B, persistent) |
 | `(4864,896)` | 1.000, 1.000, 1.000, 1.000 | 1.000, 1.000, 1.000, 1.000 |
 
 `(1024,2048)` collapsed already in 1.1.0 (PCC ~0.345 even worse than my
-1.2.0 measurement of 0.500); `(2304,1024)` and `(2560,1024)` collapsed
-only in the 1.2.0 upgrade. `(4864,896)` is unaffected throughout.
+1.2.0 measurement of 0.500); `(2304,1024)`, `(2560,1024)`, and the
+FROM_ANOTHER_OP path of `(1024,3072)` collapsed only in the 1.2.0 upgrade.
+The FROM_HOST path of `(1024,3072)` is broken in all 4 sweeps runs — a
+**pre-existing** plain-matmul precision bug. `(4864,896)` is unaffected
+throughout (control shape).
 
 My tt-xla measurements (`pcc_report_realistic.md`) line up with the
 `1.2.0.dev20260601` run to 3 decimals — confirming the test reproduces
@@ -169,47 +190,92 @@ what sweeps sees.
 ### What the upgrade broke (`1.1.0` → `1.2.0`)
 
 Three `(src, shape)` pairs are catastrophic (PCC < 0.7 at opt=2) only in
-the 1.2.0 run:
+the 1.2.0 run — all on the prelude (FROM_ANOTHER_OP) path:
 
-- `FROM_ANOTHER_OP × ((32,128,1024),(1024,3072))` — not in `_SHAPE_PAIRS`
+- `FROM_ANOTHER_OP × ((32,128,1024),(1024,3072))` — in `_SHAPE_PAIRS`
 - `FROM_ANOTHER_OP × ((32,128,2304),(2304,1024))` — in `_SHAPE_PAIRS`
 - `FROM_ANOTHER_OP × ((32,128,2560),(2560,1024))` — in `_SHAPE_PAIRS`
 
 This is a real **bisect target** between dev builds
-`1.1.0.dev20260428` and `1.2.0.dev20260601` (~5 weeks of tt-xla / tt-mlir /
-tt-metal commits to walk).
+`1.1.0.dev20260428` and `1.2.0.dev20260601` — ~5 weeks of commits across
+**tt-xla, tt-mlir, and tt-metal** to walk. Any of those repos could host
+the regressor; bisect the combined timeline rather than picking one. The
+test now covers all three regression cases.
 
-### Persistent FROM_HOST failures we don't cover
+### Persistent FROM_HOST failures
 
 22 `(src, shape)` pairs are catastrophic in **every** sweeps run. Of those,
 3 are `FROM_ANOTHER_OP` and **19 are `FROM_HOST`** on shapes with large
 output dim N (`3072`, `8192`, `11008`, `16384`, `9216`, etc.). The
-"FROM_HOST + opt=2 passes" conclusion from finding #4 is **only true for
-the small-N shapes in our grid**; globally FROM_HOST at opt=2 is broken on
-many shapes too. If we want the test to cover that mode, add a large-N
-shape (e.g. `(32,128,2048)x(2048,8192)`) and predict it as xfail for
-FROM_HOST at opt=2.
+"FROM_HOST + opt=2 passes" conclusion from earlier was **only true for
+the small-N shapes initially in our grid**; globally FROM_HOST at opt=2
+is broken on many shapes too. The grid now carries `(1024, 3072)` as a
+representative — the smallest of the failing FROM_HOST set, so cheapest
+to run, and conveniently also a `FROM_ANOTHER_OP` regression so a single
+shape exercises both bugs. The other 18 persistent FROM_HOST cases are
+not in the grid; add more shapes here if we want broader coverage of the
+plain-matmul-precision bug.
 
 ## Open follow-ups
 
-- File a tt-mlir issue: at `optimization_level=2`, an `add → matmul`
-  subgraph compiled with `experimental_weight_dtype=bf16` collapses PCC to
-  ~0.5 on **some** shapes (e.g. `(K,N) ∈ {(1024,2048), (2304,1024), (2560,1024)}`)
-  but passes cleanly on others (e.g. `(4864, 896)`). The plain matmul
-  subgraph stays at PCC > 0.99 on every shape. Identify what about the
-  failing shapes triggers the transform — N alignment? Tile geometry?
-  Pre-allocation strategy? — and either fix the transform or gate it.
-- Bisect the 1.1.0 → 1.2.0 regression: `(2304,1024)` and `(2560,1024)`
-  collapsed only at version `1.2.0.dev20260601` (date range
-  `2026-04-28` → `2026-06-01`). `(1024,2048)` was already broken in 1.1.0,
-  so the regressor is shape-conditioned on top of a pre-existing bug.
+### Triage: localize Symptom A and Symptom B in the compiler stack
+
+Currently we know *where* (shape + opt=2 + optional prelude) but not
+*who* (torch_xla, tt-xla PJRT plugin, tt-mlir passes, or tt-metal kernel
+selection). Concrete steps:
+
+1. Run with `CompilerConfig.export_path=<dir>` and
+   `export_model_name="matmul_mp"` for three side-by-side cases on the
+   same shape, e.g. `(32,128,1024)x(1024,3072)`:
+   - `FROM_ANOTHER_OP × opt=2` (Symptom A, fails)
+   - `FROM_HOST × opt=2` (Symptom B, fails on this shape; passes on the
+     smaller-N shapes)
+   - `FROM_ANOTHER_OP × opt=0` (passes)
+2. Diff the StableHLO dumps:
+   - If SHLO differs between the failing and passing cases beyond the
+     expected `add` ops / opt-flag, the regression sits in
+     **torch_xla → SHLO emission** or **tt-xla's compile-option
+     handoff** (i.e. tt-xla is sending tt-mlir a graph it shouldn't).
+   - If SHLO is structurally identical (modulo `add` for the prelude
+     variant), the regression is downstream.
+3. If SHLO is clean, diff the TTIR dumps before/after the optimizer
+   passes. The pass whose output first shows the corruption is the
+   culprit — locates it in **tt-mlir**.
+4. If TTIR looks correct, dump TTNN / kernel-config and check which
+   matmul kernel variant and tile layout each case selects. Different
+   variant or different fp32-accumulation setting between cases points
+   to **tt-mlir lowering** or **tt-metal kernel selection**.
+
+Until those dumps exist, "tt-mlir issue" vs "tt-xla issue" is a guess.
+
+### Once the stack location is known, file targeted issues
+
+- **Symptom A** (`add → matmul` at opt=2): collapses PCC to ~0.5 on
+  `(K,N) ∈ {(1024,2048), (1024,3072), (2304,1024), (2560,1024)}` but
+  passes on `(4864, 896)`. What about the failing shapes triggers the
+  divergence — N alignment? Tile geometry? Pre-allocation? — and how
+  to gate or fix the responsible transform.
+- **Symptom B** (plain matmul at opt=2, large N): `(1024,3072)` is the
+  smallest case in the grid; sweeps has 18 more at N ∈ {3072, 8192,
+  11008, 16384, 24576, ...}. Persistent across all 4 sweeps runs and
+  independent of Symptom A.
+
+### Other follow-ups
+
+- Bisect the 1.1.0 → 1.2.0 regression: `(2304,1024)`, `(2560,1024)`,
+  and the FROM_ANOTHER_OP path of `(1024,3072)` collapsed only at
+  `1.2.0.dev20260601` (date range `2026-04-28` → `2026-06-01`).
+  `(1024,2048)` was already broken in 1.1.0, so the regressor is
+  shape-conditioned on top of a pre-existing bug. The bisect window
+  spans tt-xla, tt-mlir, and tt-metal — walk all three.
 - Pull the sibling 1.2.0 seeds (sweeps runs `26756536362` /
   `26756551955` for INPUT_SEED=42/43) into the CSV and re-run
   `compare_with_sweeps_export.py` to confirm whether the 1.2.0 collapse
   is seed-stable or just our seed.
-- Investigate why `weight_dtype` / `math_fidelity` / `fp32_dest_acc_en` make
-  no measurable difference for this op path — they should at least change
-  the cycle count even if PCC happens to stay constant.
+- Investigate why `weight_dtype` / `math_fidelity` / `fp32_dest_acc_en`
+  make no measurable difference for this op path. Could be tt-xla not
+  encoding them in SHLO/compile-options, tt-mlir dropping them, or the
+  selected kernel ignoring them. Same `export_path` triage applies.
 - Expand the shape grid further to characterize the failing-vs-passing
   boundary. Currently 1 passing point isn't enough to choose between
   "N < 1024", "N not a power-of-2-times-128", "K < some threshold", etc.

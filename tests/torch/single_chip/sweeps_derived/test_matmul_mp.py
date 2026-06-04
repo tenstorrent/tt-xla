@@ -81,6 +81,10 @@ _SHAPE_PAIRS = (
     # check whether the FROM_ANOTHER_OP+opt=2 PCC collapse is universal or
     # shape-conditioned.
     ((32, 128, 4864), (4864, 896)),
+    # Large-N shape: FROM_HOST × opt=2 fails persistently in sweeps
+    # (all 4 runs); FROM_ANOTHER_OP × opt=2 newly fails in tt-xla 1.2.0
+    # ("new regression" bucket in compare_with_sweeps_export.py).
+    ((32, 128, 1024), (1024, 3072)),
 )
 
 
@@ -93,6 +97,17 @@ _FAILING_SHAPES_FOR_PRELUDE_AT_OPT2 = frozenset(
         ((32, 128, 1024), (1024, 2048)),
         ((32, 128, 2304), (2304, 1024)),
         ((32, 128, 2560), (2560, 1024)),
+        ((32, 128, 1024), (1024, 3072)),  # new regression in tt-xla 1.2.0
+    }
+)
+
+# Shapes whose plain matmul (FROM_HOST) collapses at opt=2 even without the
+# `add` prelude. These are large-N shapes; sweeps reports the same set as
+# persistently failing across every run in `sweeps_export.csv`. The full
+# sweeps set is broader (19 shapes); we carry one representative here.
+_FAILING_SHAPES_FOR_PLAIN_MATMUL_AT_OPT2 = frozenset(
+    {
+        ((32, 128, 1024), (1024, 3072)),
     }
 )
 
@@ -100,23 +115,35 @@ _FAILING_SHAPES_FOR_PRELUDE_AT_OPT2 = frozenset(
 def _is_known_pcc_failure(
     shape_pair, input_source: str, opt_level: int, fp32_acc: bool, math_fidelity: str
 ) -> bool:
-    """Calibrated against the realistic-inputs run (see pcc_artifacts/pcc_report_realistic.md).
+    """Calibrated against the realistic-inputs run (see pcc_artifacts/pcc_report_realistic.md)
+    and `sweeps_export.csv`.
 
-    With the LLM-style mixture inputs the only failures are
-    FROM_ANOTHER_OP + opt=2 on a specific subset of shapes (`_FAILING_SHAPES_...`).
-    Within those, PCC collapses to ~0.500 regardless of weight_dtype,
-    math_fidelity, or fp32_dest_acc_en — those compiler options don't appear
-    to flow through. FROM_HOST + opt=2 passes (PCC > 0.99): the
-    `add(x,x) * add(y,y)` prelude in FROM_ANOTHER_OP triggers a precision-lossy
-    transform at opt_level=2. opt=0 passes for every combination on every
-    shape. Other shapes (e.g. (32,128,4864)x(4864,896)) pass even with the
-    prelude at opt=2 — the failure is shape-conditioned, not universal.
+    Two independent failure modes at opt=2:
+    * FROM_ANOTHER_OP collapses to PCC ~0.500 on shapes in
+      `_FAILING_SHAPES_FOR_PRELUDE_AT_OPT2` — the `add(x,x)*add(y,y)`
+      prelude triggers a precision-lossy transform that doesn't fire on
+      other shapes (e.g. (4864,896)).
+    * FROM_HOST collapses too, on a different set of shapes
+      (`_FAILING_SHAPES_FOR_PLAIN_MATMUL_AT_OPT2` — typically large N).
+      Here it's a plain matmul precision bug, no prelude required.
+
+    Within either failing bucket, PCC is constant across weight_dtype,
+    math_fidelity, and fp32_dest_acc_en. opt=0 passes for every combination
+    on every tested shape.
     """
-    return (
-        shape_pair in _FAILING_SHAPES_FOR_PRELUDE_AT_OPT2
-        and input_source == "FROM_ANOTHER_OP"
-        and opt_level == 2
-    )
+    if opt_level != 2:
+        return False
+    if (
+        input_source == "FROM_ANOTHER_OP"
+        and shape_pair in _FAILING_SHAPES_FOR_PRELUDE_AT_OPT2
+    ):
+        return True
+    if (
+        input_source == "FROM_HOST"
+        and shape_pair in _FAILING_SHAPES_FOR_PLAIN_MATMUL_AT_OPT2
+    ):
+        return True
+    return False
 
 
 def _parse_compiler_config(config_str: str) -> CompilerConfig:
