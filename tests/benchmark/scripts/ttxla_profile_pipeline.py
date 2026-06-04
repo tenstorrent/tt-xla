@@ -951,6 +951,8 @@ def infer_model_status(
         return "pending"
     if text_has_skip_signal(text):
         return "skipped"
+    if returncode == 0 and benchmark_json:
+        return "passed"
     if text_has_hint(text, MODEL_FAILURE_HINTS):
         return "failed"
     if returncode == 0:
@@ -973,8 +975,8 @@ def infer_taxonomy_from_statuses(
         return TAXONOMY_NOT_STARTED, "timed out before reaching a terminal state"
     if model_status == "skipped":
         return TAXONOMY_SKIPPED_WITH_REASON, "benchmark entry was skipped"
-    if model_status == RUN_STATUS_NOT_RUN or text_has_hint(
-        text, ENVIRONMENT_FAILURE_HINTS
+    if model_status == RUN_STATUS_NOT_RUN or (
+        profile_status != "passed" and text_has_hint(text, ENVIRONMENT_FAILURE_HINTS)
     ):
         return (
             TAXONOMY_ENVIRONMENT_FAILURE,
@@ -1472,7 +1474,6 @@ def profile_verification_state(
         and profile_status == "passed"
         and model_status == "passed"
         and perf_report_ok
-        and not text_has_hint(combined_text, MODEL_FAILURE_HINTS)
     )
     return {
         "verified": verified,

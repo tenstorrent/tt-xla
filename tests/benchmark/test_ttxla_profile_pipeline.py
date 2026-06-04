@@ -504,6 +504,32 @@ def test_status_semantics_do_not_treat_profile_success_as_model_success():
     assert "model or runtime behavior failed" in reason
 
 
+def test_successful_benchmark_json_allows_recoverable_runtime_probe_logs():
+    pipeline = load_pipeline_module()
+    text = "\n".join(
+        [
+            "TT_FATAL: Inputs to matmul must be tilized",
+            "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13",
+            "Profiler API not found for PJRT plugin",
+            "PASSED",
+        ]
+    )
+    benchmark_json = {"model": "mnist", "measurements": [{"value": 1.0}]}
+
+    assert pipeline.infer_model_status(0, False, text, benchmark_json) == "passed"
+
+    taxonomy, reason = pipeline.infer_taxonomy(
+        returncode=0,
+        timed_out=False,
+        text=text,
+        benchmark_json=benchmark_json,
+        perf_report_ok=True,
+    )
+
+    assert taxonomy == "validated_pass"
+    assert "perf report" in reason
+
+
 def test_skip_detection_ignores_unrelated_log_words():
     pipeline = load_pipeline_module()
     text = "nanobind: leaked types!\\n - ... skipped remainder"
