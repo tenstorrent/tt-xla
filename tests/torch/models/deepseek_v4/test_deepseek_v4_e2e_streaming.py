@@ -323,9 +323,9 @@ def _load_block(block, layer_id: int) -> None:
 def _tokenize(prompts: List[str]) -> torch.Tensor:
     """Wrap each prompt as <BOS><User>{prompt}<Assistant> and left-pad to
     PROMPT_LEN. Returns (BATCH_SIZE, PROMPT_LEN) input ids."""
-    from transformers import AutoTokenizer
+    from transformers import PreTrainedTokenizerFast
 
-    tok = AutoTokenizer.from_pretrained(MODEL_NAME)
+    tok = PreTrainedTokenizerFast.from_pretrained(MODEL_NAME)
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
     bos_id, user_id = tok.bos_token_id, tok.convert_tokens_to_ids("<｜User｜>")
     asst_id = tok.convert_tokens_to_ids("<｜Assistant｜>")
