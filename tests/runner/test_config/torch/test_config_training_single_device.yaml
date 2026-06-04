@@ -186,8 +186,8 @@ test_config:
     reason: "ImportError: kornia"
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory: Not enough space to allocate 1145044992 B DRAM buffer across 12 banks, where each bank needs to store 95420416 B, but bank size is 1071821792 B (allocated: 1002613504 B, free: 69208288 B, largest free block: 68508128 B) (assert.hpp:104)"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "Statically allocated circular buffers on core range [0-0 - 0-0] grow to 4819840 B which is beyond max L1 size of 1572864 B (assert.hpp:104)"
   resnext/pytorch-101_64x4d-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -209,13 +209,13 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "AttributeError: 'NoneType' object has no attribute 'max'"
   retinanet/pytorch-ResNet50_Backbone_with_FPN_V2-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 1073741824 B DRAM buffer across 7 banks, where each bank needs to store 153395200 B, but bank size is 4273390016 B (allocated: 4194768768 B, free: 78621248 B, largest free block: 71067136 B) (assert.hpp:104)"
   gliner/pytorch-Multi_v2.1-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "AttributeError: 'NoneType' object has no attribute 'max'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "SIGABRT during TT-MLIR/TTNN compilation (aborts in tt_torch backend __call__; no diagnostic emitted)"
   # yolov5/pytorch-yolov5n-single_device-training:
   #   status: NOT_SUPPORTED_SKIP
   #   bringup_status: FAILED_FE_COMPILATION
@@ -1387,8 +1387,8 @@ test_config:
     reason: "RuntimeError: TT_THROW: Failed to generate binaries for eltwise_sfpu (trisc1 build failed)"
   whisper/pytorch-Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: TT_THROW: Failed to generate binaries for eltwise_sfpu (trisc1 build failed)"
+    bringup_status: FAILED_RUNTIME
+    reason: "Out of Memory: Not enough space to allocate 180961280 B DRAM buffer across 7 banks, where each bank needs to store 25853952 B, but bank size is 4273390016 B (allocated: 4231439488 B, free: 41950528 B, largest free block: 3028544 B) (assert.hpp:104)"
   whisper/pytorch-Large_v3_Turbo-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
