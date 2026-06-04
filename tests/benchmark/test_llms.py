@@ -4,6 +4,7 @@
 
 import json
 import os
+import time
 
 import numpy as np
 import pytest
@@ -59,6 +60,34 @@ def _apply_ttnn_perf_summary(results, perf_file, num_graphs):
             "effectively_sharded_percentage", 0.0
         )
     results["config"]["ttnn_num_graphs"] = num_graphs
+
+
+def _make_perf_metrics_dir(request):
+    """Return a fresh, per-run directory for the backend's TTNN perf-metrics JSON files.
+
+    The compile backend writes one ``<base>_<i>.json`` per graph. Pointing each run at its
+    own directory keeps the later glob from picking up leftovers from a previous run in the
+    same working directory, which would otherwise inflate ttnn_num_graphs or feed stale
+    metrics into the results. Prefers pytest's tmp_path (unique per test node, auto-cleaned);
+    falls back to a pid/time-stamped dir when no request fixture is available.
+    """
+    if request is not None:
+        base = str(request.getfixturevalue("tmp_path"))
+    else:
+        base = os.path.join(".", f"perf_metrics_{os.getpid()}_{int(time.time() * 1000)}")
+    perf_dir = os.path.join(base, "ttnn_perf_metrics")
+    os.makedirs(perf_dir, exist_ok=True)
+    return perf_dir
+
+
+def _list_perf_files(perf_dir, base_name):
+    """Sorted full paths of this run's perf-metrics JSONs in perf_dir."""
+    files = [
+        os.path.join(perf_dir, f)
+        for f in os.listdir(perf_dir)
+        if f.startswith(base_name) and f.endswith(".json")
+    ]
+    return sorted(files)
 
 
 def test_llm(
@@ -127,7 +156,10 @@ def test_llm(
     model_info_name = model_loader.get_model_info(variant=variant).name
     display_name = resolve_display_name(request=request, fallback=model_info_name)
 
-    ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
+    perf_dir = _make_perf_metrics_dir(request)
+    ttnn_perf_metrics_output_file = os.path.join(
+        perf_dir, f"tt_xla_{display_name}_perf_metrics"
+    )
 
     print(f"Running LLM benchmark for variant: {variant}")
     print(f"""Configuration:
@@ -198,14 +230,10 @@ def test_llm(
 
         # LLM-specific perf metrics handling: Use only decode graph (second file)
         # LLMs split into 2 graphs: prefill (index 0) and decode (index 1)
-        # Only decode is relevant for throughput
+        # Only decode is relevant for throughput. perf_dir is unique to this run, so the
+        # glob only ever sees this run's files (no pollution from previous runs).
         base_name = os.path.basename(ttnn_perf_metrics_output_file)
-        perf_files = [
-            f
-            for f in os.listdir(".")
-            if f.startswith(base_name) and f.endswith(".json")
-        ]
-        perf_files = sorted(perf_files)
+        perf_files = _list_perf_files(perf_dir, base_name)
 
         if len(perf_files) == 2:
             # Use only the decode graph (second file)
@@ -306,7 +334,10 @@ def test_llm_prefill(
     model_info_name = model_loader.get_model_info(variant=variant).name
     display_name = resolve_display_name(request=request, fallback=model_info_name)
 
-    ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
+    perf_dir = _make_perf_metrics_dir(request)
+    ttnn_perf_metrics_output_file = os.path.join(
+        perf_dir, f"tt_xla_{display_name}_perf_metrics"
+    )
 
     print(f"Running LLM benchmark for variant: {variant}")
     print(f"""Configuration:
@@ -362,14 +393,11 @@ def test_llm_prefill(
         # Prefill-only: there is no decode graph. One perf-metrics file is produced under
         # skip_pcc (perf graph only); otherwise two (perf graph + PCC logits graph). The
         # perf graph compiles first, so sorted()[0] is the timed graph — use it for the
-        # TTNN op metrics. ttnn_num_graphs records how many were found.
+        # TTNN op metrics. ttnn_num_graphs records how many were found. perf_dir is unique
+        # to this run, so the glob only ever sees this run's files (no pollution from
+        # previous runs).
         base_name = os.path.basename(ttnn_perf_metrics_output_file)
-        perf_files = [
-            f
-            for f in os.listdir(".")
-            if f.startswith(base_name) and f.endswith(".json")
-        ]
-        perf_files = sorted(perf_files)
+        perf_files = _list_perf_files(perf_dir, base_name)
 
         if perf_files:
             prefill_perf_file = perf_files[0]
