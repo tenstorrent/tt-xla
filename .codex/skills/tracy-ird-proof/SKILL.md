@@ -11,4 +11,4 @@ Use the canonical repo skill at:
 .agents/skills/tracy-ird-proof/SKILL.md
 ```
 
-Read that file before making Tracy, IRD, profiling harness, report artifact, or PR evidence changes. Treat this Claude skill as an adapter only; do not duplicate the runbook here.
+Read that file before making Tracy, IRD, profiling harness, report artifact, or PR evidence changes. Treat this Codex skill as an adapter only; do not duplicate the runbook here.
