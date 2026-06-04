@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
-from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (
     ColumnParallelLinear,
@@ -56,6 +56,39 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
         else:
             safe_spec.append(axis)
     xs.mark_sharding(tensor, mesh, tuple(safe_spec))
+
+
+def pin_decode_users_replicated(tensor):
+    """Pin a paged-decode K/Q/V tensor's user dim replicated, keeping the head
+    dim on the "model"/TP axis. Layout is the cache-write/SDPA input
+    ``[tokens, users, heads, head_size]`` (post ``transpose(0, 1)``), so dim 1 is
+    the user dim and dim 2 the head dim.
+
+    On a 2D mesh the QKV weights are sharded ("model", "batch"), so the QKV
+    contraction runs over "batch" and Shardy reduce_scatters the rope-bound Q/K
+    user dim (-> 16) while V all-reduces (-> 32). The paged KV cache,
+    cache_position and page_table all stay batch-replicated (32), so the
+    under-counted K/Q fail the ttir.paged_update_cache and decode-SDPA user-count
+    verifiers at batch>1 (tt-xla #5083). Forcing the user dim replicated makes
+    Q/K all-reduce like V. The mesh is resolved via get_global_mesh() (registered
+    by the runner at setup); a single device (no mesh) or a 1D mesh (no "batch"
+    sharding) is a no-op.
+
+    NOTE: this is applied from the attention backend (the vLLM ``Attention``
+    module compiles to an opaque ``torch.ops.vllm.unified_attention`` custom op,
+    so a module hook/wrapper is never traced — the cache-write tensor inside the
+    op's implementation is the only point where the constraint reaches the XLA
+    graph)."""
+    mesh = xs.get_global_mesh()
+    if mesh is None or tensor.ndim != 4:
+        return tensor
+    if not hasattr(mesh, "shape"):
+        axis_sizes = dict(zip(mesh.axis_names, mesh.mesh_shape))
+    else:
+        axis_sizes = mesh.shape()
+    if axis_sizes.get("batch", 1) <= 1:
+        return tensor
+    return sharding_constraint_tensor(tensor, mesh, (None, None, "model", None))
 
 
 class XlaMergedColumnParallelLinear(nn.Module):

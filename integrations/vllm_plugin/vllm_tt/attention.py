@@ -24,6 +24,7 @@ from vllm.v1.attention.backend import (
 )
 
 from .logger import tt_init_logger
+from .vllm_distributed_utils import pin_decode_users_replicated
 
 logger = tt_init_logger(__name__)
 
@@ -466,9 +467,13 @@ class TTAttentionBackendImpl(AttentionImpl):
         v_cache = kv_cache[1]
 
         if not inputs.is_prefill:
-            # Decode: update single token in cache
-            key_for_update = inputs.key.transpose(0, 1)
-            value_for_update = inputs.value.transpose(0, 1)
+            # Decode: update single token in cache. Pin the user dim replicated
+            # so a 2D-mesh reduce_scatter of the rope-bound K can't under-count
+            # it vs the batch-replicated cache_position / page_table (#5083).
+            key_for_update = pin_decode_users_replicated(inputs.key.transpose(0, 1))
+            value_for_update = pin_decode_users_replicated(
+                inputs.value.transpose(0, 1)
+            )
 
             k_cache = torch.ops.tt.paged_update_cache(
                 k_cache,
@@ -612,7 +617,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         # Adjust for decode kernel expecting query as [1, num_users, num_heads, head]
         # Current query: [users, query_num_tokens, num_heads, head_size]
         # In decode, query_num_tokens == 1 is normal
-        query_for_decode = inputs.query.transpose(0, 1)
+        # Pin the user dim replicated to match the batch-replicated page_table
+        # (the 2D-mesh rope reduce_scatters Q's user dim otherwise; #5083).
+        query_for_decode = pin_decode_users_replicated(inputs.query.transpose(0, 1))
 
         decode_kwargs = {
             "cur_pos_tensor": attn_metadata.cache_position,

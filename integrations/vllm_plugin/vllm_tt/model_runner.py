@@ -257,6 +257,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            # Register as the global SPMD mesh so model-graph code can resolve it
+            # via get_global_mesh(): the paged-attention decode path pins the
+            # rope-bound Q/K user dim replicated against the batch-replicated KV
+            # cache (tt-xla #5083). (tt_moe's EP path reads it the same way.)
+            xs.set_global_mesh(self.mesh)
             # Updating the config to reflect the actual mesh shape used.
             if self.use_2d_mesh and 1 in mesh_shape:
                 self.use_2d_mesh = False
