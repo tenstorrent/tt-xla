@@ -23,7 +23,7 @@ on:
         options:
           - All
           - n150
-          - p150
+          - p150-perf
           - n300-llmbox
           - galaxy-wh-6u
           - qb2-blackhole

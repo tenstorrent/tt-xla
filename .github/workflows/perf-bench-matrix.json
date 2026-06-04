@@ -4,8 +4,7 @@
     "test-defaults": {
       "runs-on": [
         "n150",
-        "p150",
-        "qb2-blackhole"
+        "p150-perf"
       ],
       "dir": "",
       "bs": 12,
