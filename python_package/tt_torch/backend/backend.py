@@ -232,6 +232,106 @@ def _build_aot_graph_signature(
     return ExportGraphSignature(input_specs=input_specs, output_specs=output_specs)
 
 
+def _build_aot_backward_graph_signature(
+    gm: torch.fx.GraphModule,
+    forward_signature: ExportGraphSignature,
+) -> ExportGraphSignature:
+    """Build an ExportGraphSignature for the AOTAutograd backward graph.
+
+    The backward graph has a completely different input convention from the
+    forward.  The min-cut partitioner feeds it the tensors saved off the
+    forward pass — saved primals (forward inputs the backward still needs) and
+    saved intermediates (forward activations stashed rather than recomputed) —
+    followed by the tangents (the cotangents flowing in from downstream).
+
+    The key fact we exploit: a *saved primal keeps the exact placeholder name
+    it had in the forward graph* (``primals_K``), whereas a saved intermediate
+    takes its forward producer's node name and a tangent is ``tangents_K``.
+    So every backward placeholder whose name matches a forward input inherits
+    the forward's classification — a weight saved into the backward stays a
+    ``parameter`` and a non-mutated buffer stays a ``constant`` — which lets
+    consteval hoist weight-only preprocessing in the backward exactly as it
+    does in the forward, and is consistent with how the forward marks those
+    same tensors.  Everything with no forward match (saved intermediates and
+    tangents) is a USER_INPUT (``input``): it varies per iteration and must
+    never be folded into consteval.
+
+    Contrast _build_aot_graph_signature, which keys off the forward's
+    params-then-buffers-then-user-inputs *ordering*.  That ordering does not
+    hold in the backward (params/buffers/intermediates/tangents are
+    interleaved by what the partitioner happened to save), so we match by name
+    against the already-built forward signature instead.
+    """
+    fw_input_spec_by_name = {
+        spec.arg.name: spec for spec in forward_signature.input_specs
+    }
+
+    input_specs = []
+    for node in gm.graph.nodes:
+        if node.op != "placeholder":
+            continue
+        fw_spec = fw_input_spec_by_name.get(node.name)
+        if fw_spec is not None:
+            # Saved primal: inherit the forward's kind and target so a weight
+            # stays "parameter", a non-mutated buffer stays "constant", a user
+            # input stays "input", and the backward arg even keeps the forward's
+            # demangled FQN name.
+            input_specs.append(
+                InputSpec(
+                    kind=fw_spec.kind,
+                    arg=TensorArgument(name=node.name),
+                    target=fw_spec.target,
+                    persistent=fw_spec.persistent,
+                )
+            )
+        else:
+            # Saved intermediate or tangent: varies per iteration -> "input".
+            input_specs.append(
+                InputSpec(
+                    kind=InputKind.USER_INPUT,
+                    arg=TensorArgument(name=node.name),
+                    target=None,
+                )
+            )
+
+    # Python-literal constants AOTAutograd interned during tracing can also be
+    # rematerialised into the backward graph as ``_tensor_constant<N>``
+    # get_attr nodes.  They remain genuine constants regardless of which graph
+    # they land in, so tag them the same way the forward path does.
+    for node in gm.graph.nodes:
+        if node.op == "get_attr" and str(node.target).startswith("_tensor_constant"):
+            input_specs.append(
+                InputSpec(
+                    kind=InputKind.CONSTANT_TENSOR,
+                    arg=TensorArgument(name=node.name),
+                    target=str(node.target),
+                )
+            )
+
+    # Carry over the forward's BUFFER_MUTATION output specs so that a mutated
+    # buffer saved into the backward is still classified "input" (not
+    # consteval'd) by insert_argument_type_markers.  Targets that don't appear
+    # among the backward inputs are simply unused and harmless.
+    output_specs = [
+        spec
+        for spec in forward_signature.output_specs
+        if spec.kind == OutputKind.BUFFER_MUTATION
+    ]
+    output_nodes = [n for n in gm.graph.nodes if n.op == "output"]
+    if output_nodes:
+        for out_arg in output_nodes[0].args[0]:
+            if isinstance(out_arg, torch.fx.Node):
+                output_specs.append(
+                    OutputSpec(
+                        kind=OutputKind.USER_OUTPUT,
+                        arg=TensorArgument(name=out_arg.name),
+                        target=None,
+                    )
+                )
+
+    return ExportGraphSignature(input_specs=input_specs, output_specs=output_specs)
+
+
 def _extract_params_and_consts(ep: ExportedProgram) -> Tuple[torch.Tensor, ...]:
     """Extract params and consts from an ExportedProgram as a flat tensor tuple.
 
@@ -590,6 +690,13 @@ def aot_backend(
         )
     )
 
+    # bw_compiler matches the backward's saved primals back to the forward's
+    # parameter/buffer/input classification by placeholder name, so the forward
+    # signature must be available when the (lazily-compiled) backward runs.
+    # AOTAutograd always compiles the forward before the matching backward, so
+    # stashing it here when fw_compiler_boxed runs is sufficient.
+    forward_signature_holder = {}
+
     def fw_compiler_boxed(fw_gm, fw_example_inputs):
         # Build a synthetic ExportGraphSignature from AOTAutograd's
         # TracingContext.  This uses fw_metadata for authoritative
@@ -597,8 +704,27 @@ def aot_backend(
         signature = _build_aot_graph_signature(
             fw_gm, param_names, buffer_names, flat_name_to_original_fqn
         )
+        forward_signature_holder["signature"] = signature
         return make_boxed_func(
             fw_compiler(fw_gm, fw_example_inputs, options, signature)
+        )
+
+    def bw_compiler_boxed(bw_gm, bw_example_inputs):
+        # The backward graph reuses the forward compiler, but its inputs are
+        # saved primals / saved intermediates / tangents rather than the
+        # forward's params/buffers/user-inputs.  Drive fw_compiler with a
+        # backward-specific signature that inherits the forward's marking for
+        # saved primals (so a saved weight stays "parameter") and marks
+        # intermediates/tangents as "input".  See
+        # _build_aot_backward_graph_signature.
+        forward_signature = forward_signature_holder.get("signature")
+        assert forward_signature is not None, (
+            "bw_compiler invoked before fw_compiler — cannot map the backward's "
+            "saved primals back to the forward's parameter/buffer classification"
+        )
+        signature = _build_aot_backward_graph_signature(bw_gm, forward_signature)
+        return make_boxed_func(
+            fw_compiler(bw_gm, bw_example_inputs, options, signature)
         )
 
     # Dynamo creates FakeTensorMode(allow_non_fake_inputs=False) and stores it in
@@ -615,6 +741,7 @@ def aot_backend(
     try:
         return aot_autograd(
             fw_compiler=fw_compiler_boxed,
+            bw_compiler=bw_compiler_boxed,
             decompositions=aot_decompositions,
             partition_fn=min_cut_rematerialization_partition,
         )(gm, example_inputs)
