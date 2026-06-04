@@ -405,8 +405,15 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // [Workaround] On a 32-device galaxy (UBB) a 1D {1, N} parent mesh can't be
+    // reshaped to the 2D (4, 8) executable mesh (the MGD solver fails); open
+    // (4, 8) directly.
+    if (m_devices.size() == 32) {
+      m_parent_mesh = getOrCreateMeshDevice({4, 8});
+    } else {
+      m_parent_mesh =
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    }
   }
 
   return tt_pjrt_status::kSuccess;
@@ -507,6 +514,17 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
         num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
+  }
+  // [Workaround] The Blackhole galaxy (UBB) lacks a both-axis wrap, so
+  // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
+  // TopologyMapper; force FABRIC_1D there. Other 32-device galaxies (e.g.
+  // Wormhole) have the wrap, so keep their auto-detected fabric.
+  bool is_blackhole = m_system_descriptor->chip_descs()->size() > 0 &&
+                      m_system_descriptor->chip_descs()->Get(0)->arch() ==
+                          ::tt::target::Arch::Blackhole;
+  if (is_blackhole && m_devices.size() == 32) {
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
   }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }
