@@ -453,3 +453,38 @@ def _patch_wan_resample_avoid_4d_fold() -> None:
         return x
 
     akw.WanResample.forward = forward
+
+
+# ---------------------------------------------------------------------------
+# tt_torch global override toggle
+# ---------------------------------------------------------------------------
+
+
+@contextmanager
+def torch_function_override_disabled():
+    """Pop the always-on tt_torch 4D matmul/linear -> einsum override for the
+    scope, restore on exit.
+
+    tt_torch installs a global ``TorchFunctionMode`` (``torch_function_override``,
+    entered at import time). Some ``torch.compile``-d call sites must not see
+    that mode during their dynamo trace (e.g. forwards that call
+    ``Tensor.unflatten(..., -1)``); this temporarily pops it.
+
+    This branch's ``tt_torch.torch_overrides`` exposes the ``torch_function_override``
+    instance but no disabled-context manager, so we wrap the public instance here.
+    The fix stays test-local; the tt_torch package is not modified. Nested usage
+    is safe: an inner block is a no-op while the outer block pops on enter and
+    restores on exit.
+    """
+    from tt_torch.torch_overrides import torch_function_override
+
+    try:
+        torch_function_override.__exit__(None, None, None)
+        popped = True
+    except RuntimeError:
+        popped = False
+    try:
+        yield
+    finally:
+        if popped:
+            torch_function_override.__enter__()
