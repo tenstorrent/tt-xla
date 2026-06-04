@@ -4,6 +4,9 @@
 
 #include "api/compile_options_parser.h"
 
+// PJRT implementation headers
+#include "api/compile_options.h"
+
 // third-party includes
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -209,7 +212,7 @@ tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
           if (exec_field.number() == kOptimizationLevelFieldNumber &&
               exec_field.type() ==
                   google::protobuf::UnknownField::TYPE_VARINT) {
-            out_compile_options.emplace("optimization_level",
+            out_compile_options.emplace(CompileOptions::optimization_level_key,
                                         std::to_string(exec_field.varint()));
           }
         }

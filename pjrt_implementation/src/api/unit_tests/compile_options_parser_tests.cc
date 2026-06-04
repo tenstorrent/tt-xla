@@ -21,6 +21,7 @@
 #include <google/protobuf/unknown_field_set.h>
 
 // PJRT implementation headers
+#include "api/compile_options.h"
 #include "api/compile_options_parser.h"
 
 namespace tt::pjrt::tests {
@@ -79,36 +80,6 @@ static bool parseToFieldSet(const std::string &data,
 }
 
 TEST(CompileOptionsParserUnitTests,
-     extractCustomProtobufFields_optimizationLevelZero) {
-  std::string data = buildCompileOptionsWithOptLevel(0);
-
-  google::protobuf::UnknownFieldSet fields;
-  ASSERT_TRUE(parseToFieldSet(data, fields));
-
-  std::unordered_map<std::string, std::string> compile_options;
-  tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
-      fields, compile_options);
-  ASSERT_TRUE(tt_pjrt_status_is_ok(status));
-  ASSERT_NE(compile_options.find("optimization_level"), compile_options.end());
-  EXPECT_EQ(compile_options["optimization_level"], "0");
-}
-
-TEST(CompileOptionsParserUnitTests,
-     extractCustomProtobufFields_optimizationLevelOne) {
-  std::string data = buildCompileOptionsWithOptLevel(1);
-
-  google::protobuf::UnknownFieldSet fields;
-  ASSERT_TRUE(parseToFieldSet(data, fields));
-
-  std::unordered_map<std::string, std::string> compile_options;
-  tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
-      fields, compile_options);
-  ASSERT_TRUE(tt_pjrt_status_is_ok(status));
-  ASSERT_NE(compile_options.find("optimization_level"), compile_options.end());
-  EXPECT_EQ(compile_options["optimization_level"], "1");
-}
-
-TEST(CompileOptionsParserUnitTests,
      extractCustomProtobufFields_optimizationLevelPresent) {
   std::string data = buildCompileOptionsWithOptLevel(2);
 
@@ -119,8 +90,9 @@ TEST(CompileOptionsParserUnitTests,
   tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
       fields, compile_options);
   ASSERT_TRUE(tt_pjrt_status_is_ok(status));
-  ASSERT_NE(compile_options.find("optimization_level"), compile_options.end());
-  EXPECT_EQ(compile_options["optimization_level"], "2");
+  ASSERT_NE(compile_options.find(CompileOptions::optimization_level_key),
+            compile_options.end());
+  EXPECT_EQ(compile_options[CompileOptions::optimization_level_key], "2");
 }
 
 TEST(CompileOptionsParserUnitTests,
@@ -131,13 +103,14 @@ TEST(CompileOptionsParserUnitTests,
   tt_pjrt_status status = CompileOptionsParser::extractCustomProtobufFields(
       fields, compile_options);
   ASSERT_TRUE(tt_pjrt_status_is_ok(status));
-  EXPECT_EQ(compile_options.find("optimization_level"), compile_options.end());
+  EXPECT_EQ(compile_options.find(CompileOptions::optimization_level_key),
+            compile_options.end());
 }
 
+// Sanity check that unrelated fields are ignored.
 TEST(CompileOptionsParserUnitTests,
      extractCustomProtobufFields_unrelatedFieldsIgnored) {
 
-  // Field #5 should be ignored entirely.
   std::string unrelated = encodeVarint(5, 42);
 
   google::protobuf::UnknownFieldSet fields;

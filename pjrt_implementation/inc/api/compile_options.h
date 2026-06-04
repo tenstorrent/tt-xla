@@ -26,6 +26,10 @@ enum class BackendRuntime {
 
 // POD struct containing various options used to customize module compilation.
 struct CompileOptions {
+
+  // Map the key used to store and retrieve the optimization level
+  static inline const std::string optimization_level_key = "optimization_level";
+
   // Optimization level (0, 1, or 2) that controls multiple optimization passes.
   // See documentation for details on what each level enables.
   // Level 0 (default): All optimizations disabled
