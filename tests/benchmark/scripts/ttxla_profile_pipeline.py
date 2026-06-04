@@ -25,7 +25,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-
 ISSUE_NUMBER = 5009
 ISSUE_URL = "https://github.com/tenstorrent/tt-xla/issues/5009"
 PRD_ID = "PRD-009"
