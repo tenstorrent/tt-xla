@@ -86,6 +86,65 @@ def _relocate_lifted_constants_to_xla(gm: torch.fx.GraphModule) -> None:
                     mod._buffers[name] = value.to(xla_device)
 
 
+def _fetch_attr(mod: torch.nn.Module, target: str):
+    """Resolve a (possibly dotted) get_attr target to its value, or None."""
+    obj = mod
+    for atom in target.split("."):
+        if not hasattr(obj, atom):
+            return None
+        obj = getattr(obj, atom)
+    return obj
+
+
+def _constant_get_attr_specs(gm: torch.fx.GraphModule) -> list[InputSpec]:
+    """Return input specs for every tensor-valued get_attr baked into ``gm``.
+
+    AOTAutograd's make_fx tracer bakes constant tensors into the GraphModule as
+    ``get_attr`` nodes rather than placeholders.  Those don't get a signature
+    entry from the placeholder loop, so without an entry
+    insert_argument_type_markers can't tag them and tt-mlir defaults the
+    StableHLO argument to ``ttcore.argument_type = input`` — which blocks
+    consteval folding and downstream fusions (e.g. RMSNorm in TTIRFusing).
+
+    The tracer uses *several* name schemes for these get_attrs:
+      * ``_tensor_constant<N>`` — a plain tensor literal promoted during tracing
+        (e.g. gemma's ``torch.tensor(math.sqrt(hidden_size))``);
+      * ``_param_constant<N>`` — an nn.Parameter not found in named_parameters()
+        (PythonKeyTracer.create_arg);
+      * a reused module FQN — when the constant is already a module attribute.
+    Rather than enumerate names (brittle, and not provably exhaustive), classify
+    by *what the node holds*.  This is safe because a tensor get_attr is always
+    an immutable baked value: a user input is a placeholder (never a get_attr),
+    and AOTAutograd functionalises every in-place mutation out-of-place and
+    writes genuine input/buffer mutations back to *placeholders* via copy_
+    epilogues — so a get_attr is never a mutation target.  We therefore tag an
+    nn.Parameter value ``parameter`` and any other tensor ``constant`` (both
+    consteval-eligible).  The non-tensor get_attrs the tracer can emit
+    (``_torchbind_obj``, ``_tree_spec_constant``, ``_opaque_obj``) have
+    non-Tensor values and are correctly skipped.
+    """
+    specs = []
+    for node in gm.graph.nodes:
+        if node.op != "get_attr":
+            continue
+        value = _fetch_attr(gm, str(node.target))
+        if not isinstance(value, torch.Tensor):
+            continue
+        kind = (
+            InputKind.PARAMETER
+            if isinstance(value, torch.nn.Parameter)
+            else InputKind.CONSTANT_TENSOR
+        )
+        specs.append(
+            InputSpec(
+                kind=kind,
+                arg=TensorArgument(name=node.name),
+                target=str(node.target),
+            )
+        )
+    return specs
+
+
 def _build_aot_graph_signature(
     gm: torch.fx.GraphModule,
     param_names: list[str],
@@ -181,29 +240,10 @@ def _build_aot_graph_signature(
                 )
             )
 
-    # AOTAutograd lifts Python literals that were promoted to tensors during
-    # tracing (e.g. gemma's ``math.sqrt(hidden_size)``) onto the forward
-    # GraphModule as registered buffers named ``_tensor_constant<N>``. Those
-    # tensors appear in the FX graph as ``get_attr`` nodes, not placeholders,
-    # so they don't get a signature entry from the loop above. Without an
-    # entry, ``insert_argument_type_markers`` can't tag them, and tt-mlir
-    # defaults the StableHLO argument to ``ttcore.argument_type = input`` —
-    # which (compared with the main path's ``= constant`` marking) blocks
-    # consteval folding and prevents the downstream RMSNorm fusion in
-    # TTIRFusing from matching. Register them as CONSTANT_TENSOR specs here
-    # so the marker pass tags them ``constant``, matching the non-AOT path.
-    for node in gm.graph.nodes:
-        if node.op != "get_attr":
-            continue
-        if not str(node.target).startswith("_tensor_constant"):
-            continue
-        input_specs.append(
-            InputSpec(
-                kind=InputKind.CONSTANT_TENSOR,
-                arg=TensorArgument(name=node.name),
-                target=str(node.target),
-            )
-        )
+    # AOTAutograd bakes constant tensors into the GraphModule as get_attr nodes
+    # rather than placeholders; register them as CONSTANT_TENSOR specs so the
+    # marker pass tags them ``constant``. See _constant_get_attr_specs.
+    input_specs.extend(_constant_get_attr_specs(gm))
 
     # AOTAutograd functionalises all mutations, so the forward graph itself
     # is pure functional. But we need BUFFER_MUTATION output specs so that
@@ -294,19 +334,11 @@ def _build_aot_backward_graph_signature(
                 )
             )
 
-    # Python-literal constants AOTAutograd interned during tracing can also be
-    # rematerialised into the backward graph as ``_tensor_constant<N>``
-    # get_attr nodes.  They remain genuine constants regardless of which graph
-    # they land in, so tag them the same way the forward path does.
-    for node in gm.graph.nodes:
-        if node.op == "get_attr" and str(node.target).startswith("_tensor_constant"):
-            input_specs.append(
-                InputSpec(
-                    kind=InputKind.CONSTANT_TENSOR,
-                    arg=TensorArgument(name=node.name),
-                    target=str(node.target),
-                )
-            )
+    # Constant tensors AOTAutograd interned during tracing can also be
+    # rematerialised into the backward graph as get_attr nodes.  They remain
+    # genuine constants regardless of which graph they land in, so tag them the
+    # same way the forward path does. See _constant_get_attr_specs.
+    input_specs.extend(_constant_get_attr_specs(gm))
 
     # Carry over the forward's BUFFER_MUTATION output specs so that a mutated
     # buffer saved into the backward is still classified "input" (not
