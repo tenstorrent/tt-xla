@@ -272,6 +272,15 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
 
+        # Ensure the fp8 -> bf16 dequantization hook is installed in this
+        # process (idempotent). register() also installs it, but this runs in
+        # the worker process right before the model is loaded, guaranteeing
+        # fp8 checkpoints dequantize to bf16 instead of hitting vLLM's fp8
+        # GEMM kernel selection (KeyError: PlatformEnum.OOT).
+        from .fp8_dequant import install_fp8_dequant_hook
+
+        install_fp8_dequant_hook()
+
         additional_config = vllm_config.additional_config or {}
         if "batch_size" in additional_config:
             logger.warning(
