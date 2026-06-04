@@ -111,6 +111,7 @@ else()
 
         CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=${TTMLIR_BUILD_TYPE}
+          -DCMAKE_CXX_FLAGS=-Wno-error=pass-failed
           -DCMAKE_C_COMPILER=clang
           -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
