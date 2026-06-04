@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -224,6 +225,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         original_parallel_config: Optional[ParallelConfig] = None,
     ):
         self.tt_config = TTConfig(**vllm_config.additional_config)
+        # Belt-and-suspenders: ensure torch_xla's param-wrapping threshold is set
+        # in this worker before the first compile (normally inherited from the
+        # parent via vllm_tt.register()). Keeps large graphs (e.g. bs32 TP
+        # prefill) flat instead of wrapped+inlined, which would drop sdy.sharding
+        # and ttcore.argument_type. setdefault => shell/parent value wins.
+        os.environ.setdefault("XLA_PARAMETER_WRAPPING_THREADSHOLD", "100000")
         torch_xla.set_custom_compile_options(self.tt_config.get_pjrt_compile_config())
 
         self.vllm_config = vllm_config
