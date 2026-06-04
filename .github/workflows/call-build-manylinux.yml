@@ -81,6 +81,23 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "==3.12.*"
           CIBW_SKIP: "*-musllinux_*"
+          # Replace the buggy legacy tbb-devel (2020.3) baked into the manylinux
+          # image with intel-oneapi-tbb-devel. The old TBB headers trip a clang
+          # enum-out-of-range error when gcc-toolset-15's <execution> header pulls
+          # in tbb/task.h while building tt-metal's tracy tools. Mirrors
+          # tenstorrent/tt-metal@43c46a7. Remove once the base image carries the fix.
+          CIBW_BEFORE_ALL: |
+            cat > /etc/yum.repos.d/oneAPI.repo <<'REPO_EOF'
+            [oneAPI]
+            name=Intel oneAPI repository
+            baseurl=https://yum.repos.intel.com/oneapi
+            enabled=1
+            gpgcheck=1
+            repo_gpgcheck=1
+            gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+            REPO_EOF
+            dnf remove -y tbb-devel || true
+            dnf install -y intel-oneapi-tbb-devel
           CIBW_BEFORE_BUILD: "mkdir -p /tmp/ccache && ccache -z && ccache -p"
         with:
           output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
