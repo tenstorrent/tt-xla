@@ -37,7 +37,7 @@ const std::string c_weight_dtype_override_function_name =
     "tt.weight_dtype_override";
 const std::string c_weight_dtype_attr_name = "ttcore.weight_dtype";
 
-namespace {
+/*namespace {
 
 // Shardy attaches argument shardings via this discardable attribute name.
 constexpr llvm::StringLiteral c_sdy_sharding_attr_name = "sdy.sharding";
@@ -100,7 +100,7 @@ void propagateShardyArgShardings(mlir::ModuleOp module) {
   });
 }
 
-} // namespace
+} // namespace */
 
 tt_pjrt_status
 annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
@@ -112,7 +112,7 @@ annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   // Make sure the public entry function carries the argument shardings that the
   // frontend may have placed only on a private forwarded callee, before the
   // compiler pipeline inlines that callee away.
-  propagateShardyArgShardings(mlir_module.get());
+  //propagateShardyArgShardings(mlir_module.get());
   // If the model being compiled originates from JAX then the argument types
   // will be annotated using function calls to empty functions, whose attributes
   // contain the argument type information. This function will handle that case.
