@@ -26,7 +26,18 @@ def determine_mesh_shape(
         ParallelismMode.TENSOR_PARALLEL_ONLY_2D,
         ParallelismMode.DATA_TENSOR_PARALLEL,
     ):
-        # Use predefined mesh shapes based on number of devices
+        # Use predefined mesh shapes based on number of devices.
+        # Axes are (batch, model): "model" is the tensor-parallel axis (and for
+        # DATA_TENSOR_PRALLEL "batch" is the data-parallel axis).
+        #
+        # BH galaxy (32 chips): EXPERIMENT - forced to 4x8 = (batch=4, model=8).
+        # The full Devstral-123B does not fit in a TP-4 weight slice (~32 GB/
+        # device at 32 GB DRAM) even in bfp8, so it needs model=8 (1/8 per
+        # device, ~16 GB). Caveat: model=8 -> Devstral's 8 KV heads become
+        # 1/device -> ~120 cores/head -> may TT_FATAL in sdpa_decode (tree
+        # reduction cap is 64 cores/head). 8x4 = (8,4) avoids that but only
+        # fits smaller models (e.g. Qwen3-32B); see the qwen3-32b-bh-galaxy
+        # branch. Trying 4x8 to see whether the 123B runs end-to-end.
         mesh_shapes = {
             2: (1, 2),
             4: (2, 2),
