@@ -9,7 +9,6 @@
 // https://llvm.org/LICENSE.txt
 
 #include "api/loaded_executable_instance.h"
-#include "tt/runtime/types.h"
 
 // c++ standard library includes
 #include <filesystem>
@@ -42,18 +41,6 @@
 #include "utils/logging.h"
 
 namespace tt::pjrt {
-
-// Clears program cache on instance destroy.
-LoadedExecutableInstance::~LoadedExecutableInstance() {
-  using namespace tt::runtime;
-
-  const std::optional<Device> &device = m_client_instance->parentMesh();
-  if (device && getCurrentHostRuntime() == HostRuntime::Local &&
-      isProgramCacheEnabled(*device)) {
-    DLOG_F(LOG_DEBUG, "Clearing program cache.");
-    clearProgramCache(*device);
-  }
-}
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
@@ -480,6 +467,21 @@ PJRT_Error *
 onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args *args) {
   ZoneScoped;
   DLOG_F(LOG_DEBUG, "LoadedExecutableInstance::PJRT_LoadedExecutable_Execute");
+
+  // We don't support the major-to-minor data layout transpose for callbacks
+  // (added in PJRT API v0.110). If a client activates it we would silently
+  // produce results with unexpected layout, leading to hard-to-debug PCC
+  // mismatches, so fail loudly instead.
+  if (args->options &&
+      args->options->struct_size >=
+          PJRT_STRUCT_SIZE(PJRT_ExecuteOptions,
+                           use_major_to_minor_data_layout_for_callbacks) &&
+      args->options->use_major_to_minor_data_layout_for_callbacks) {
+    DLOG_F(ERROR,
+           "PJRT_ExecuteOptions::use_major_to_minor_data_layout_for_callbacks "
+           "is not supported by the tt-xla plugin.");
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
 
   LoadedExecutableInstance *instance =
       LoadedExecutableInstance::unwrap(args->executable);

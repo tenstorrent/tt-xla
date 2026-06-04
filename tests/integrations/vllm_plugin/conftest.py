@@ -11,9 +11,15 @@ holding the TT device outlives the test — hanging the next one. Shut
 them down explicitly on failure.
 """
 import gc
+import os
 
 import pytest
 import vllm
+
+
+def pytest_configure(config):
+    del config
+    os.environ.setdefault("TTXLA_LOGGER_LEVEL", "INFO")
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -23,8 +29,14 @@ def pytest_runtest_makereport(item, call):
     if report.when != "call" or not report.failed:
         return
     for obj in gc.get_objects():
-        if isinstance(obj, vllm.LLM):
-            try:
-                obj.llm_engine.engine_core.shutdown()
-            except Exception:
-                pass
+        try:
+            is_llm = isinstance(obj, vllm.LLM)
+        except ReferenceError:
+            # Dead weakref proxies in gc.get_objects() raise here.
+            continue
+        if not is_llm:
+            continue
+        try:
+            obj.llm_engine.engine_core.shutdown()
+        except Exception:
+            pass

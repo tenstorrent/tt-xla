@@ -76,6 +76,23 @@ def _(ctx, grad_output):
     return grad_output, None, None
 
 
+def _xla_mark_tensor_setup_context(ctx, inputs, output):
+    pass
+
+
+def _xla_mark_tensor_backward(ctx, grad_output):
+    # xla::mark_tensor(Tensor x, str name, int pos, str id, bool is_input, Any? attr)
+    # Only ``x`` is a differentiable Tensor, the rest are metadata so we return None for them.
+    return grad_output, None, None, None, None, None
+
+
+torch.library.register_autograd(
+    "xla::mark_tensor",
+    _xla_mark_tensor_backward,
+    setup_context=_xla_mark_tensor_setup_context,
+)
+
+
 @torch.library.custom_op(
     "tt::sharding_constraint", mutates_args=[], device_types=["cpu", "xla"]
 )
@@ -781,6 +798,7 @@ def paged_scaled_dot_product_attention_decode(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    sliding_window_size: int = None,
 ) -> torch.Tensor:
     device = query.device
 
@@ -802,6 +820,8 @@ def paged_scaled_dot_product_attention_decode(
 
         if scale is not None:
             attrs["scale"] = str(scale)
+        if sliding_window_size is not None:
+            attrs["sliding_window_size"] = str(sliding_window_size)
 
         inputs = [query, key, value, page_table]
         if attn_mask is not None:
@@ -894,6 +914,7 @@ def paged_scaled_dot_product_attention_decode_fake(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    sliding_window_size: int = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
@@ -1660,6 +1681,45 @@ def moe_expert_token_remap_fake(
         device=topk_tensor.device,
     )
     return mapping, reduced
+
+
+@torch.library.custom_op("tt::sampling", mutates_args=[], device_types=["xla", "cpu"])
+def sampling(
+    input_values: torch.Tensor,
+    input_indices: torch.Tensor,
+    k: torch.Tensor,
+    p: torch.Tensor,
+    temp: torch.Tensor,
+) -> torch.Tensor:
+    device = input_values.device
+    batch = input_values.shape[0]
+    if device.type == "xla":
+        # seed=0 signals the kernel to skip rand_tile_init so the hardware
+        # RNG advances naturally each step.
+        return stablehlo_custom_call.stablehlo_custom_call(
+            [input_values, input_indices, k, p, temp],
+            "tt.sampling",
+            [(batch,)],
+            [torch.int32],
+            frontend_attributes={"seed": "0"},
+        )
+    logits = input_values.float()
+    temperature = temp.float().unsqueeze(-1).clamp(min=1e-6)
+    probs = torch.softmax(logits / temperature, dim=-1)
+    sampled_local = torch.multinomial(probs, num_samples=1)
+    return input_indices.gather(1, sampled_local).squeeze(-1).to(torch.int32)
+
+
+@sampling.register_fake
+def sampling_fake(
+    input_values: torch.Tensor,
+    input_indices: torch.Tensor,
+    k: torch.Tensor,
+    p: torch.Tensor,
+    temp: torch.Tensor,
+) -> torch.Tensor:
+    batch = input_values.shape[0]
+    return torch.zeros(batch, dtype=torch.int32, device=input_values.device)
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow

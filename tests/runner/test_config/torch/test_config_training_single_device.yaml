@@ -142,20 +142,20 @@ test_config:
     reason: "RuntimeError: Test Hangs"
   centernet/pytorch-ResNet18_Backbone_COCO-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   centernet/pytorch-ResNet101_Backbone_COCO-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   centernet/pytorch-Dla1x_Coco-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   centernet/pytorch-Dla2x_Coco-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "RuntimeError: 'deformable_im2col' not implemented for 'BFloat16'"
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "ElementsAttr does not provide iteration facilities for type `int`, see attribute: dense<4294967295> : tensor<ui32>"
   vadv2/pytorch-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -178,7 +178,7 @@ test_config:
     reason: "Dataset 'imagenet-1k' is a gated dataset on the Hub."
   speecht5/pytorch-Tts-single_device-training:
     status: KNOWN_FAILURE_XFAIL
-    bringup_status: FAILED_FE_COMPILATION
+    bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "error: 'ttir.sum' op Reduce dimensions are not unique"
   rmbg/pytorch-2.0-single_device-training:
     status: NOT_SUPPORTED_SKIP
@@ -293,27 +293,26 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "loader.load_model() does not return `nn.Module`"
   yolov6/pytorch-N-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yolov6/pytorch-S-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yolov6/pytorch-M-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   pointpillars/pytorch-pointpillars-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2003264 B which is beyond max L1 size of 1499136 B"
   fpn/pytorch-ResNet50_Backbone_with_FPN_V2-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   # yolov10/pytorch-yolov10x-single_device-training:
@@ -345,59 +344,52 @@ test_config:
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   albert/question_answering/pytorch-Squad2-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   bge_m3/pytorch-Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "ImportError: cannot import name 'is_torch_fx_available' from 'transformers.utils.import_utils'"
   opt/qa/pytorch-125M-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc<0. Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   opt/qa/pytorch-350M-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   opt/qa/pytorch-1.3b-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc<0. Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   segformer/semantic_segmentation/pytorch-B0_Finetuned_Ade_512_512-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration on output dimension 1 (assert.hpp:104)"
   segformer/semantic_segmentation/pytorch-B2_Finetuned_Ade_512_512-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration on output dimension 1 (assert.hpp:104)"
   segformer/semantic_segmentation/pytorch-B3_Finetuned_Ade_512_512-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration on output dimension 1 (assert.hpp:104)"
   segformer/semantic_segmentation/pytorch-B4_Finetuned_Ade_512_512-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration on output dimension 1 (assert.hpp:104)"
   mgp_str_base/pytorch-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "TT_FATAL: CB page size 64 should be greater than the config tensor page size 132 (assert.hpp:104)"
   yolos/pytorch-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   swin/image_classification/pytorch-Tiny_Patch4_Window7_224-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   swin/image_classification/pytorch-v2_Tiny_Patch4_Window8_256-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   swin/masked_image_modeling/pytorch-v2_Tiny_Patch4_Window8_256-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "TT_FATAL: CB page size 192 should be greater than the config tensor page size 392 (assert.hpp:104)"
   # yolov8/pytorch-yolov8x-single_device-training:
@@ -406,113 +398,107 @@ test_config:
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   yolov9/pytorch-T-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
+    bringup_status: FAILED_RUNTIME
+    reason: "crashed with signal 6"
   yolov9/pytorch-S-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   yolov9/pytorch-M-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   yolov9/pytorch-C-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   yolov9/pytorch-E-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   retinanet/pytorch-ResNet18_Backbone_with_FPN-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   retinanet/pytorch-ResNet34_Backbone_with_FPN-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   retinanet/pytorch-ResNet50_Backbone_with_FPN-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   retinanet/pytorch-ResNet101_Backbone_with_FPN-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   retinanet/pytorch-ResNet152_Backbone_with_FPN-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   bert/question_answering/pytorch-Large_Finetuned_Squad2-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   bert/question_answering/pytorch-bert-large-cased-whole-word-masking-finetuned-squad-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "error: 'ttnn.pad' op Output tensor shape (32,768) must match the inferred shape: (47,768)"
   dpr/context_encoder/pytorch-Ctx_Encoder_Single_Nq_Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   dpr/context_encoder/pytorch-Ctx_Encoder_Multiset_Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   dpr/question_encoder/pytorch-Question_Encoder_Single_Nq_Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   dpr/question_encoder/pytorch-Question_Encoder_Multiset_Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    status: EXPECTED_PASSING
+    assert_pcc: false
   centernet/pytorch-Hourglass_Coco-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
     reason: "Buffer must be allocated on device"
   yolov6/pytorch-L-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   maptr/pytorch-Tiny_R50_24e_Bevformer-single_device-training:
     status: NOT_SUPPORTED_SKIP
     reason: "Not enough space to allocate 20971520000 B DRAM buffer across 8 banks, where each bank needs to store 2621440000 B, but bank size is only 4278190016 B"
   maptr/pytorch-Tiny_R50_24e_Bevformer_T4-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Boolean value of Tensor with more than one value is ambiguous"
   maptr/pytorch-Tiny_R50_24e-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Boolean value of Tensor with more than one value is ambiguous"
   maptr/pytorch-Tiny_R50_110e-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Boolean value of Tensor with more than one value is ambiguous"
   maptr/pytorch-Tiny_R50_24e_T4-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Boolean value of Tensor with more than one value is ambiguous"
   maptr/pytorch-Nano_R18_110e-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Boolean value of Tensor with more than one value is ambiguous"
   maptr/pytorch-Tiny_R50_24e_Bevpool-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "ValueError: Error code: 13 from _xla_sync_multi during bev_pool"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "error: Shardy propagation doesn't support tuples: 'tuple<tensor<1x3x3xf32>, tensor<1x3xf32>>'"
   maptr/pytorch-Tiny_Fusion_24e-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
     reason: "Test exceeds default pytest timeout during torch.compile compilation"
   yolov3/pytorch-Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "datasets.exceptions.DatasetGenerationError on chrismontes/dog_images: Invalid string class label"
   transfuser/pytorch-single_device-training:
@@ -524,7 +510,7 @@ test_config:
   #   bringup_status: FAILED_FE_COMPILATION
   #   reason: "tt-forge-models doesn't implement unpack_forward_output for this model."
   segformer/semantic_segmentation/pytorch-B1_Finetuned_Ade_512_512-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration on output dimension 1 (assert.hpp:104)"
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key-single_device-training:
@@ -532,15 +518,15 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Statically allocated circular buffers on core range [(x=0,y=0) - (x=7,y=7)] grow to 2396480 B which is beyond max L1 size of 1499136 B (assert.hpp:103)"
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_24e_2key_ema-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Couldn't load custom C++ ops. PyTorch and torchvision versions are incompatible."
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Couldn't load custom C++ ops. PyTorch and torchvision versions are incompatible."
   bevdepth/pytorch-bev_depth_lss_r50_256x704_128x128_20e_cbgs_2key_da_ema-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Couldn't load custom C++ ops. PyTorch and torchvision versions are incompatible."
   detr3d/pytorch-single_device-training:
@@ -560,7 +546,7 @@ test_config:
     bringup_status: FAILED_RUNTIME
     reason: "Fatal Python error: Aborted during torch_xla.sync after forward pass."
   detr/segmentation/pytorch-ResNet50_Backbone_Panoptic-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_RUNTIME
     reason: "Fatal Python error: Aborted during torch_xla.sync after forward pass."
   dla/pytorch-34-single_device-training:
@@ -642,7 +628,7 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   maptr/pytorch-Tiny_R50_24e_Av2-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: Boolean value of Tensor with more than one value is ambiguous"
   phi1_5/sequence_classification/pytorch-Phi_1_5-single_device-training:
@@ -703,15 +689,15 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   sam/pytorch-Vit_Base-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: No module named 'transformers.utils.output_capturing'"
   sam/pytorch-Vit_Large-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: No module named 'transformers.utils.output_capturing'"
   sam/pytorch-Vit_Huge-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: No module named 'transformers.utils.output_capturing'"
   mamba/pytorch-370M_HF-single_device-training:
@@ -1075,23 +1061,23 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
   d_fine/pytorch-Nano-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   d_fine/pytorch-Small-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   d_fine/pytorch-Medium-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   d_fine/pytorch-Large-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   d_fine/pytorch-Xlarge-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
     reason: "ElementsAttr::getValues UNREACHABLE on dense<4294967295> : tensor<ui32> (mlir BuiltinAttributeInterfaces.h:313)"
   bert/masked_lm/pytorch-Base_Uncased-single_device-training:
@@ -1609,9 +1595,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   efficientdet/pytorch-D0-single_device-training:
-    status: NOT_SUPPORTED_SKIP
+    status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    reason: "TorchDynamo NameError: cannot access free variable 'named_children' (efficientdet/pytorch/src/efficientdet.py:506 in BiFPN.forward)"
   falcon/pytorch-3_3B_Base-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     markers: [notimeout]
@@ -1659,9 +1645,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   maskformer_swin_b/pytorch-Swin_Base_Ade-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "TT_THROW: Statically allocated circular buffers on core range [(x=0,y=0)] grow to 55407104 B beyond max L1 size 1572864 B (assert.hpp:104)"
   minicpm_o_2_6/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1677,7 +1663,7 @@ test_config:
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0225-preview-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class Qwen2VLCausalLMOutputWithPast exists in `unpack_forward_output`"
+    reason: "TorchDynamo NameError: cannot access free variable 'named_children' (transformers qwen2_vl get_image_features modeling_utils.dtype generator)"
   olm_ocr/image_text_generation/pytorch-olmOCR-7B-0825-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1756,8 +1742,8 @@ test_config:
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   rt_detr/pytorch-R34vd-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class RTDetrObjectDetectionOutput exists in `unpack_forward_output`"
+    bringup_status: FAILED_RUNTIME
+    reason: "Subprocess CRASHED with signal 6 (SIGABRT) during torch_xla.sync in rt_detr forward; no TT_THROW captured in stdout"
   rt_detr/pytorch-R50vd-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1767,9 +1753,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: Could not import module 'SeamlessM4TModel'. RuntimeError: function '_has_torch_function' already has a docstring"
   siglip/image_text_similarity/pytorch-So400m_Patch14_224-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_RUNTIME
+    reason: "mesh_buffer_->size() >= spec_.compute_packed_buffer_size_bytes()"
   siglip/image_text_similarity/pytorch-So400m_Patch16_256_I18n-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1791,9 +1777,13 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yolos_small/pytorch-Small-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: INCORRECT_RESULT
-    reason: "PCC comparison failed. Calculated: pcc=nan (invalid value). Required: pcc=0.99."
+    arch_overrides:
+      n150:
+        status: KNOWN_FAILURE_XFAIL
+        assert_pcc: false
+      p150:
+        status: EXPECTED_PASSING
+        assert_pcc: false
   yolov7/pytorch-Default-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -1804,8 +1794,8 @@ test_config:
     reason: "RuntimeError: function '_has_torch_function' already has a docstring"
   yoloworld/pytorch-Large_640-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_FE_COMPILATION
-    reason: "No handler for class tuple exists in `unpack_forward_output`"
+    bringup_status: FAILED_RUNTIME
+    reason: "Subprocess CRASHED with signal 6 (SIGABRT) during torch_xla.sync in yoloworld forward; no TT_THROW captured in stdout"
   yoloworld/pytorch-Xlarge_640-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION

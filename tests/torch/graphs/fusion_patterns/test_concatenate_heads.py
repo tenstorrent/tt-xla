@@ -8,6 +8,8 @@ from einops import rearrange
 from infra import Framework, run_graph_test_with_random_inputs
 from utils import Category
 
+from tests.infra.testers.compiler_config import CompilerConfig
+
 
 @pytest.mark.extended
 @pytest.mark.nightly
@@ -25,6 +27,7 @@ def test_concatenate_heads_3d(request):
         [(1, 8, 32, 64)],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )
 
@@ -45,5 +48,6 @@ def test_concatenate_heads_2d(request):
         [(1, 8, 32, 64)],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )

@@ -182,6 +182,31 @@ class TTWorker:
             # If usage stat is enabled, collect relevant info.
             report_usage_stats(self.vllm_config)
 
+    _DEFAULT_DEVICE_DRAM_BYTES = 12 * 1024**3  # n150-safe fallback
+
+    def _get_device_dram_bytes(self) -> int:
+        """Total on-device DRAM in bytes, queried from the PJRT plugin.
+
+        The plugin exposes ``dram_size_bytes`` as a device attribute, computed
+        from the tt-mlir SystemDesc (``num_dram_channels × dram_channel_size``)
+        at device-open time.  Returns the n150 default if the attribute is
+        missing or zero, which can happen with older plugin builds.
+        """
+        try:
+            attrs = xr.global_runtime_device_attributes()
+            bytes_val = int(attrs[self.local_rank].get("dram_size_bytes", 0))
+        except Exception as e:
+            logger.warning(
+                "Could not read dram_size_bytes from PJRT device attributes "
+                "(%s); falling back to %.0f GB",
+                e,
+                self._DEFAULT_DEVICE_DRAM_BYTES / 1024**3,
+            )
+            return self._DEFAULT_DEVICE_DRAM_BYTES
+        if bytes_val <= 0:
+            return self._DEFAULT_DEVICE_DRAM_BYTES
+        return bytes_val
+
     def determine_available_memory(self) -> int:
         if self.model_config.runner_type == "pooling":
             return int(11596411699)
@@ -209,7 +234,11 @@ class TTWorker:
 
         # `max_num_tokens >= max_num_batched_tokens` due to padding.
         with self.model_runner.maybe_setup_dummy_loras(self.lora_config):
-            self.model_runner.profile_run(self.model_runner.max_num_tokens)
+            # TTXLA: skip until #1414 lands — profile_run()'s peak_bytes_used
+            # is discarded by the hardcoded `current_mem = 0` path below, so
+            # the forward pass is ~30-40 s of engine-init waste per server start.
+            # self.model_runner.profile_run(self.model_runner.max_num_tokens)
+            pass
 
         # Synchronize before measuring the memory usage.
         xm.wait_device_ops()
@@ -233,7 +262,11 @@ class TTWorker:
         # total_memory_size = m["bytes_limit"]
         # current_mem = m["bytes_used"]
         # @LPanosTT: For now we will always report that no memory has been used.
-        total_memory_size = 12 * 1024**3  # m["bytes_limit"]
+        # TTXLA: query total device DRAM via the PJRT plugin's device attribute
+        # (sourced from the tt-mlir SystemDesc that the plugin already loads at
+        # startup).  Falls back to 12 GB if the attribute is absent (e.g. older
+        # plugin build).
+        total_memory_size = self._get_device_dram_bytes()
         current_mem = 0  # m["bytes_used"]
 
         # Ideally we would use profiled = m["peak_bytes_used"] to
@@ -258,6 +291,13 @@ class TTWorker:
             # We adjust the usable memory size for the KV cache to prevent OOM
             # errors, even after padding the head_size.
             tpu_kv_cache_bytes = tpu_kv_cache_bytes * head_size // padded_head_size
+        logger.info(
+            "KV cache sizing: device DRAM = %.2f GiB, gpu_memory_utilization = %.3f, "
+            "KV cache budget = %.2f GiB",
+            total_memory_size / 1024**3,
+            self.cache_config.gpu_memory_utilization,
+            tpu_kv_cache_bytes / 1024**3,
+        )
         return int(tpu_kv_cache_bytes)
 
     def sample_tokens(self, grammar_output: "GrammarOutput") -> ModelRunnerOutput:

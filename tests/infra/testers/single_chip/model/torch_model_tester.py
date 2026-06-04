@@ -266,11 +266,11 @@ class TorchModelTester(ModelTester):
         self._workload.model.zero_grad()
 
         # Run forward on TT
-        compile_options = {"tt_experimental_compile": False}
-
-        # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
-        if self._parallelism == Parallelism.TENSOR_PARALLEL:
-            compile_options["tt_enable_torch_fx_fusion_pass"] = False
+        compile_options = {
+            "tt_legacy_compile": True,
+            # Workaround for issue: https://github.com/tenstorrent/tt-xla/issues/3289
+            "tt_enable_torch_fx_fusion_pass": False,
+        }
 
         self._compile_for_tt_device(self._workload, compile_options)
         tt_res = self._run_on_tt_device(self._workload)
@@ -302,12 +302,58 @@ class TorchModelTester(ModelTester):
         tt_grads, tt_none_grads = self._extract_grads(self._model)
 
         assert (
+            len(tt_grads.keys()) > 0
+        ), "No TT gradients collected - check that the model has trainable parameters"
+        assert (
+            len(cpu_grads.keys()) > 0
+        ), "No CPU gradients collected - check that the model has trainable parameters"
+        assert (
             cpu_none_grads == tt_none_grads
         ), f"CPU and TT have different None grad parameters: {cpu_none_grads} != {tt_none_grads}"
         logger.warning(f"Grads: {cpu_none_grads} are None")
 
         forward_result = self._compare(tt_res, cpu_res)
-        backward_result = self._compare(tt_grads, cpu_grads)
+
+        # Stream gradient comparison one parameter at a time. Comparing the full
+        # grad pytree in one call doubles memory (fp32→fp64 cast in
+        # _match_data_types) and creates large intermediates, peaking at 20+GB
+        # host RSS for 0.5-0.6B param models and OOM-killing on CI runners.
+        backward_result = ComparisonResult(
+            passed=True,
+            error_message=None,
+            pcc=None,
+            atol=None,
+            allclose=True,
+            equal=True,
+        )
+        backward_error_messages = []
+        for name in list(tt_grads.keys()):
+            tt_v = tt_grads.pop(name)
+            cpu_v = cpu_grads.pop(name)
+            r = self._compare(tt_v, cpu_v)
+            if r.atol is not None:
+                backward_result.atol = (
+                    r.atol
+                    if backward_result.atol is None
+                    else max(backward_result.atol, r.atol)
+                )
+            if r.pcc is not None:
+                backward_result.pcc = (
+                    r.pcc
+                    if backward_result.pcc is None
+                    else min(backward_result.pcc, r.pcc)
+                )
+            if r.allclose is False:
+                backward_result.allclose = False
+            if r.equal is False:
+                backward_result.equal = False
+            if not r.passed:
+                backward_result.passed = False
+                if r.error_message:
+                    backward_error_messages.append(f"[{name}] {r.error_message}")
+            del tt_v, cpu_v, r
+        if backward_error_messages:
+            backward_result.error_message = "\n".join(backward_error_messages)
 
         # Only the first result is recorded in the report properties,
         # and only want to report on the backward result

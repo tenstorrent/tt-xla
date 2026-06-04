@@ -10,7 +10,7 @@ def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]
     if use_2d_mesh:
         # Use predefined mesh shapes based on number of devices
         mesh_shapes = {
-            2: (2, 1),
+            2: (1, 2),
             4: (2, 2),
             8: (2, 4),
             16: (4, 4),
@@ -36,7 +36,7 @@ def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]
             return mesh_shape
     else:
         # For 1D mesh, all devices are in one dimension.
-        mesh_shape = (num_devices, 1)
+        mesh_shape = (1, num_devices)
         logger.info(f"Using 1D mesh shape for {num_devices} devices: {mesh_shape}")
         return mesh_shape
 

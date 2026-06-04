@@ -15,12 +15,12 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
-import transformers
 from fusion_check import check_fusions
 from infra import MLACache, MLAStaticLayer
 from llm_utils import (
     generate_and_benchmark,
     init_accuracy_testing,
+    init_indexer_cache,
     init_mla_cache,
     init_static_cache,
 )
@@ -101,6 +101,7 @@ def construct_inputs(
         max_cache_len: Maximum cache length
         input_prompt: Input text prompt (optional, defaults to DEFAULT_INPUT_PROMPT)
         input_prompt_tokens: Pre-tokenized input prompt (optional, overrides input_prompt)
+        use_mla_cache: Whether to use MLA cache
 
     Returns:
         Dictionary containing input_ids, past_key_values, cache_position, and use_cache
@@ -197,6 +198,13 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
         else:
             layer.keys = layer.keys.to(device)
             layer.values = layer.values.to(device)
+            # CL must be on device: StaticLayer.update() does
+            # torch.arange(kv_length, device=self.device) + self.cumulative_length,
+            # which fails if CL is on CPU and self.device is XLA.
+            # Zero before moving so the fresh cache starts at position 0.
+            layer.cumulative_length.zero_()
+            layer.cumulative_length = layer.cumulative_length.to(device)
+            layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
@@ -217,23 +225,6 @@ def _shard_kv_cache(past_key_values, mesh, kv_cache_sharding_spec):
             xs.mark_sharding(layer.values, mesh, kv_spec)
 
 
-def check_transformers_version():
-    """
-    Check that transformers version is = 5.2.0.
-    Raises RuntimeError if version is incompatible.
-    """
-    import packaging.version
-
-    current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("5.2.0")
-
-    if current_version != max_version:
-        raise RuntimeError(
-            f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version 5.2.0"
-        )
-
-
 def benchmark_llm_torch_xla(
     model_loader,
     model_variant,
@@ -251,7 +242,6 @@ def benchmark_llm_torch_xla(
     read_logits_fn,
     mesh_config_fn,
     shard_spec_fn,
-    arch,
     required_pcc,
     fp32_dest_acc_en=None,
     experimental_kv_cache_dtype=None,
@@ -266,6 +256,8 @@ def benchmark_llm_torch_xla(
     use_mla_cache: bool = False,
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
+    use_indexer_cache: bool = False,
+    enable_create_d2m_subgraphs: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -328,8 +320,11 @@ def benchmark_llm_torch_xla(
             "Please use -t text-generation"
         )
 
-    # Check transformers version
-    check_transformers_version()
+    if enable_create_d2m_subgraphs and optimization_level < 1:
+        raise ValueError(
+            f"optimization_level must be >= 1 when enable_create_d2m_subgraphs "
+            f"is enabled, got optimization_level={optimization_level}"
+        )
 
     xr.set_device_type("TT")
 
@@ -377,6 +372,18 @@ def benchmark_llm_torch_xla(
         use_mla_cache=use_mla_cache,
     )
 
+    # Initialize indexer cache if enabled (needs to be done before model.to(device))
+    # Models using this cache are expected to handle stale values since it cannot be
+    # reset once the model is transferred to device.
+    if use_indexer_cache:
+        init_indexer_cache(
+            model,
+            batch_size=batch_size,
+            max_cache_len=max_cache_len,
+            device="cpu",
+            dtype=torch.bfloat16,
+        )
+
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
@@ -388,7 +395,7 @@ def benchmark_llm_torch_xla(
 
         # Iter 0: prefill. After this, input_args holds the post-prefill decode
         # state (input_ids=next_token_0, cache_position=[prompt_len]).
-        prefill_logits, _ = generate_and_benchmark(
+        cpu_prefill_logits, _ = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
@@ -397,14 +404,13 @@ def benchmark_llm_torch_xla(
             collect_logits=True,
         )
 
-        if decode_only:
-            # Snapshot first-decode inputs before CPU iter 1 advances them.
-            decode_only_input_ids = input_args["input_ids"].clone()
-            decode_only_cache_position = input_args["cache_position"].clone()
-            decode_only_cache = input_args["past_key_values"]
+        # Snapshot first-decode inputs before CPU iter 1 advances them.
+        first_decode_input_ids = input_args["input_ids"].clone()
+        decode_only_cache_position = input_args["cache_position"].clone()
+        decode_only_cache = input_args["past_key_values"]
 
         # Iter 1: first decode. Provides the PCC reference for device first decode.
-        decode_logits, _ = generate_and_benchmark(
+        cpu_decode_logits, _ = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
@@ -413,7 +419,7 @@ def benchmark_llm_torch_xla(
             collect_logits=True,
         )
 
-        cpu_output_logits = prefill_logits + decode_logits
+        cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
@@ -454,6 +460,8 @@ def benchmark_llm_torch_xla(
         options["fp32_dest_acc_en"] = fp32_dest_acc_en
     if experimental_kv_cache_dtype is not None:
         options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
+    if enable_create_d2m_subgraphs:
+        options["enable_create_d2m_subgraphs"] = enable_create_d2m_subgraphs
 
     torch_xla.set_custom_compile_options(options)
 
@@ -524,13 +532,24 @@ def benchmark_llm_torch_xla(
 
         tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the perf benchmark run
+    # Reconstruct inputs for the perf benchmark run.
+    existing_cache = (
+        input_args["past_key_values"] if not decode_only else decode_only_cache
+    )
+
+    # Reset cumulative_length to 0 on CPU
+    for layer in existing_cache.layers:
+        if hasattr(layer, "cumulative_length"):
+            if layer.cumulative_length.device.type != "cpu":
+                layer.cumulative_length = layer.cumulative_length.cpu()
+            layer.cumulative_length.zero_()
+
     input_args = construct_inputs(
         tokenizer,
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
+        past_key_values=existing_cache,
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
@@ -538,7 +557,7 @@ def benchmark_llm_torch_xla(
 
     if decode_only:
         # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids.clone()
+        input_args["input_ids"] = first_decode_input_ids.clone()
         input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
@@ -596,7 +615,7 @@ def benchmark_llm_torch_xla(
 
     if decode_only:
         # Reset to post-prefill decode state (single token input)
-        input_args["input_ids"] = decode_only_input_ids.clone()
+        input_args["input_ids"] = first_decode_input_ids.clone()
         input_args["cache_position"] = decode_only_cache_position.clone()
 
     input_args = transfer_to_device(input_args, device)
@@ -606,22 +625,71 @@ def benchmark_llm_torch_xla(
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
     print("\nStarting PCC/TOPK benchmark...")
-    output_logits, _ = generate_and_benchmark(
+
+    device_prefill_logits = []
+    if not decode_only:
+        device_prefill_logits, _ = generate_and_benchmark(
+            compiled_logits,
+            input_args,
+            device,
+            1,
+            verbose=False,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=True,
+        )
+
+        device_prefill_output_ids = input_args["input_ids"].to("cpu")
+
+        # Override device's first-decode input with CPU's prefill output when they
+        # diverge, so the decode PCC reference is comparing apples to apples
+        # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
+        if not accuracy_testing and not torch.equal(
+            device_prefill_output_ids, first_decode_input_ids.cpu()
+        ):
+            logger.warning(
+                "Device prefill produced different tokens than CPU prefill; "
+                "using CPU prefill output as decode PCC reference."
+            )
+            input_args["input_ids"] = first_decode_input_ids.to(device)
+            if input_output_sharding_spec:
+                xs.mark_sharding(
+                    input_args["input_ids"], mesh, input_output_sharding_spec
+                )
+
+    # The prefill call above already consumed gt[0] as teacher-forced input for
+    # the first decode step, so the decode call must start its ground-truth
+    # window at gt[1] to stay aligned. It also consumed one of the logits_steps
+    # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
+    decode_ground_truth = (
+        ground_truth_for_benchmark[1:]
+        if ground_truth_for_benchmark is not None and not decode_only
+        else ground_truth_for_benchmark
+    )
+    decode_steps = logits_steps if decode_only else logits_steps - 1
+    device_decode_logits, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
         device,
-        logits_steps,
+        decode_steps,
         verbose=False,
-        ground_truth_tokens=ground_truth_for_benchmark,
+        ground_truth_tokens=decode_ground_truth,
         collect_logits=True,
     )
+
+    output_logits = device_prefill_logits + device_decode_logits
+
     print("\nPCC/TOPK benchmark complete")
 
-    # Post-processing: derive predicted tokens for accuracy testing
+    # Post-processing: derive predicted tokens for accuracy testing (all users)
     if accuracy_testing:
-        predicted_tokens = [
-            logits[:, -1, :].argmax(dim=-1)[0].item() for logits in output_logits
-        ]
+        batch_size_for_accuracy = output_logits[0].shape[0]
+        per_user_predictions = []
+        for user_idx in range(batch_size_for_accuracy):
+            user_tokens = [
+                logits[:, -1, :].argmax(dim=-1)[user_idx].item()
+                for logits in output_logits
+            ]
+            per_user_predictions.append(user_tokens)
 
     # Calculate Time to First Token (TTFT)
     ttft_ns = iteration_times[0] if not decode_only else 0.0
@@ -678,25 +746,54 @@ def benchmark_llm_torch_xla(
     ]
 
     if accuracy_testing:
-        # Compute token accuracy from predictions (after generation completes)
-        top1_accuracy, top5_accuracy = token_accuracy.compute_accuracy(predicted_tokens)
+        # Compute per-user token accuracy across the batch
+        all_top1 = []
+        all_top5 = []
+        for user_idx, user_tokens in enumerate(per_user_predictions):
+            user_top1, user_top5 = token_accuracy.compute_accuracy(user_tokens)
+            all_top1.append(user_top1)
+            all_top5.append(user_top5)
+
+        all_top1 = np.array(all_top1)
+        all_top5 = np.array(all_top5)
+
+        # Use 5th-percentile (p5) as primary metric: "95% of users are at or above this"
+        # This catches broken users that averaging would hide.
+        top1_p5 = float(np.percentile(all_top1, 5))
+        top5_p5 = float(np.percentile(all_top5, 5))
+
+        num_users = len(all_top1)
         print(
-            "Token accuracy: TOP1={:.2f}%, TOP5={:.2f}%".format(
-                top1_accuracy * 100, top5_accuracy * 100
-            )
+            f"Token accuracy over {num_users} users:\n"
+            f"  TOP1 — min={all_top1.min()*100:.2f}%  p5={top1_p5*100:.2f}%  "
+            f"median={np.median(all_top1)*100:.2f}%  mean={all_top1.mean()*100:.2f}%  "
+            f"max={all_top1.max()*100:.2f}%\n"
+            f"  TOP5 — min={all_top5.min()*100:.2f}%  p5={top5_p5*100:.2f}%  "
+            f"median={np.median(all_top5)*100:.2f}%  mean={all_top5.mean()*100:.2f}%  "
+            f"max={all_top5.max()*100:.2f}%"
         )
 
-        # Store accuracy scores
-        evaluation_score = top1_accuracy  # Use TOP1 as primary score
+        # Store p5 and mean accuracy scores for regression tracking
+        evaluation_score = top1_p5  # Use TOP1 p5 as primary score
+        top1_mean = float(all_top1.mean())
+        top5_mean = float(all_top5.mean())
         custom_measurements.extend(
             [
                 {
-                    "measurement_name": "top1_accuracy",
-                    "value": top1_accuracy * 100,  # Store as percentage
+                    "measurement_name": "top1_accuracy_p5",
+                    "value": top1_p5 * 100,
                 },
                 {
-                    "measurement_name": "top5_accuracy",
-                    "value": top5_accuracy * 100,  # Store as percentage
+                    "measurement_name": "top5_accuracy_p5",
+                    "value": top5_p5 * 100,
+                },
+                {
+                    "measurement_name": "top1_accuracy_mean",
+                    "value": top1_mean * 100,
+                },
+                {
+                    "measurement_name": "top5_accuracy_mean",
+                    "value": top5_mean * 100,
                 },
             ]
         )
@@ -732,6 +829,7 @@ def benchmark_llm_torch_xla(
         )
 
     # Get device count and mesh info for metrics
+    arch = get_xla_device_arch()
     device_count = xr.global_runtime_device_count()
     mesh_shape = tuple(mesh.shape()) if mesh is not None else None
 
@@ -757,7 +855,7 @@ def benchmark_llm_torch_xla(
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
-        arch=arch or get_xla_device_arch(),
+        arch=arch,
         input_is_image=False,
         input_sequence_length=input_sequence_length,
         device_count=device_count,

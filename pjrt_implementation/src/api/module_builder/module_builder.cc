@@ -162,16 +162,22 @@ TTAlchemistHandler::~TTAlchemistHandler() {
 }
 
 std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
-  const char *mlir_home = std::getenv("TT_MLIR_HOME");
-  if (mlir_home == nullptr) {
-    return std::nullopt;
+  // Wheel install: pjrt_plugin_tt/__init__.py exports TT_PJRT_PLUGIN_DIR,
+  // and the bundled library lives in <plugin_dir>/lib/.
+  if (const char *plugin_dir = std::getenv("TT_PJRT_PLUGIN_DIR")) {
+    std::string p = std::string(plugin_dir) + "/lib/libtt-alchemist-lib.so";
+    if (std::filesystem::exists(p)) {
+      return p;
+    }
   }
 
-  std::string alchemist_lib_path =
-      std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
-
-  if (std::filesystem::exists(alchemist_lib_path)) {
-    return alchemist_lib_path;
+  // Source build fallback: tt-mlir build tree.
+  if (const char *mlir_home = std::getenv("TT_MLIR_HOME")) {
+    std::string p =
+        std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
+    if (std::filesystem::exists(p)) {
+      return p;
+    }
   }
 
   return std::nullopt;
@@ -1083,8 +1089,12 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;
   options.enableCPUHoistedConstEval = compile_options.enable_const_eval_on_cpu;
+  options.enableConstEvalInputsToSystemMemory =
+      compile_options.enable_const_eval_inputs_to_system_memory;
   options.dramSpaceSavingOptimizationEnabled =
       compile_options.experimental_enable_dram_space_saving_optimization;
+  options.enableCreateD2MSubgraphs =
+      compile_options.enable_create_d2m_subgraphs;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
 
   // Auto-number performance metrics output file if enabled
@@ -1517,7 +1527,11 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string split_files =
         compile_options.codegen_split_files ? "true" : "false";
     pipeline_options += " split-files=" + split_files;
-    pipeline_options += " create-main-for-test=true";
+    // Emit a target module (forward(inputs, device)) only when the executor
+    // will actually run the generated Python via PythonModelRunner (which
+    // expects a `forward(inputs, device)` entrypoint).
+    std::string target_module = !compile_options.dry_run ? "true" : "false";
+    pipeline_options += " target-module=" + target_module;
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,

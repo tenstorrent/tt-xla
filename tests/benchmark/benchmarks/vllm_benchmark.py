@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import socket
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -27,6 +28,15 @@ class VLLMBenchmarkConfig:
     max_model_len: int = 128
     gpu_memory_utilization: float = 0.002
 
+    # Per-modality input caps; zero them (e.g. {"image": 0, "video": 0,
+    # "audio": 0}) to run a multimodal model text-only so its encoder never compiles.
+    limit_mm_per_prompt: Optional[Dict[str, int]] = None
+
+    # Floor for max_num_batched_tokens (effective = max(batch * len, this)).
+    # Some multimodal models need a higher floor (Gemma-4: >= 2560 for the
+    # MultiModalBudget video-frame floor).
+    min_num_batched_tokens: int = 0
+
     # TT compile options passed directly to vLLM's additional_config (TTConfig).
     additional_config: Dict[str, Any] = field(default_factory=dict)
 
@@ -34,24 +44,52 @@ class VLLMBenchmarkConfig:
     batch_size: int = 1
     max_tokens: int = 128
     warmup_iterations: int = 1
+    prompt: str = DEFAULT_PROMPT
+
+    # When True, send `prompt` as a chat message via llm.chat() so the chat
+    # template is applied; instruct models (e.g. Gemma-4-it) degenerate without it.
+    use_chat_template: bool = False
+
+    # Sampling params (temperature=0.0 -> greedy)
+    temperature: float = 0.0
+
+
+@dataclass
+class VLLMEmbeddingBenchmarkConfig:
+    """Configuration for a vLLM embedding benchmark run."""
+
+    model: str = "BAAI/bge-m3"
+    max_model_len: int = 512
+    gpu_memory_utilization: float = 0.05
+    additional_config: Dict[str, Any] = field(default_factory=dict)
+    batch_size: int = 1
+    warmup_iterations: int = 1
+    loop_count: int = 32
 
 
 def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
     """Build engine args from config and create a vLLM LLM instance."""
     additional_config = dict(config.additional_config)
-    # Using CPU sampling so that we have batch_size = 32
-    # See issue: https://github.com/tenstorrent/tt-xla/issues/3610
-    additional_config.setdefault("cpu_sampling", True)
+    # Default to device sampling; opt-in to CPU sampling per-config when
+    # needed (e.g. via the TT_BENCHMARK_CPU_SAMPLING env var in
+    # tests/benchmark/test_vllm_benchmarks.py).
+    additional_config.setdefault("cpu_sampling", False)
+
+    max_num_batched_tokens = max(
+        config.batch_size * config.max_model_len, config.min_num_batched_tokens
+    )
 
     llm_args: Dict[str, Any] = {
         "model": config.model,
         "max_model_len": config.max_model_len,
         "max_num_seqs": config.batch_size,
-        "max_num_batched_tokens": config.batch_size * config.max_model_len,
+        "max_num_batched_tokens": max_num_batched_tokens,
         "gpu_memory_utilization": config.gpu_memory_utilization,
         "disable_log_stats": False,
         "additional_config": additional_config,
     }
+    if config.limit_mm_per_prompt is not None:
+        llm_args["limit_mm_per_prompt"] = config.limit_mm_per_prompt
 
     print(f"Creating vLLM engine for {config.model} ...")
     print(f"  LLM args: {llm_args}")
@@ -166,21 +204,41 @@ def benchmark_vllm(
     display_name: str,
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
-    prompts = [DEFAULT_PROMPT] * config.batch_size
     sampling_params = vllm.SamplingParams(
-        max_tokens=config.max_tokens, ignore_eos=True, temperature=0.0
+        max_tokens=config.max_tokens,
+        ignore_eos=True,
+        temperature=config.temperature,
     )
 
     llm = _create_llm(config)
 
+    # chat() applies the model's chat template; generate() feeds the raw
+    # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
+    if config.use_chat_template:
+        inputs = [
+            [{"role": "user", "content": config.prompt}]
+            for _ in range(config.batch_size)
+        ]
+        run_fn = llm.chat
+    else:
+        inputs = [config.prompt] * config.batch_size
+        run_fn = llm.generate
+
+    def _run() -> List[vllm.RequestOutput]:
+        return run_fn(inputs, sampling_params)
+
     if config.warmup_iterations > 0:
         print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
         for _ in range(config.warmup_iterations):
-            llm.generate(prompts, sampling_params)
+            _run()
         print("Warmup complete.")
 
     print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
-    outputs: List[vllm.RequestOutput] = llm.generate(prompts, sampling_params)
+    outputs: List[vllm.RequestOutput] = _run()
+
+    # Print generated text for output-quality inspection.
+    for i, output in enumerate(outputs):
+        print(f"  [{i}] {output.prompt!r} -> {output.outputs[0].text!r}")
 
     # Assert decode is consistent
     _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
@@ -238,7 +296,7 @@ def benchmark_vllm(
         custom_measurements=custom_measurements,
         optimization_level=config.additional_config.get("optimization_level", 0),
         program_cache_enabled=True,
-        trace_enabled=False,
+        trace_enabled=config.additional_config.get("enable_trace", False),
         experimental_weight_dtype=(
             "bfp_bf8"
             if config.additional_config.get(
@@ -256,5 +314,90 @@ def benchmark_vllm(
         input_sequence_length=config.max_model_len,
         device_count=device_count,
         mesh_shape=mesh_shape,
+        vllm=True,
+    )
+
+
+def benchmark_vllm_embedding(
+    config: VLLMEmbeddingBenchmarkConfig,
+    display_name: str,
+) -> Dict[str, Any]:
+    """Run a vLLM embedding benchmark and return a standardised result dict."""
+    prompts = [DEFAULT_PROMPT] * config.batch_size
+
+    llm_args: Dict[str, Any] = {
+        "model": config.model,
+        "max_model_len": config.max_model_len,
+        "max_num_seqs": config.batch_size,
+        "max_num_batched_tokens": config.batch_size * config.max_model_len,
+        "gpu_memory_utilization": config.gpu_memory_utilization,
+        "disable_log_stats": False,
+        "additional_config": dict(config.additional_config),
+    }
+    print(f"Creating vLLM embedding engine for {config.model} ...")
+    print(f"  LLM args: {llm_args}")
+    llm = vllm.LLM(**llm_args)
+
+    if config.warmup_iterations > 0:
+        print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
+        for _ in range(config.warmup_iterations):
+            llm.embed(prompts)
+        print("Warmup complete.")
+
+    print(f"\nStarting benchmark ({config.loop_count} iterations) ...")
+    total_time = 0.0
+    for _ in range(config.loop_count):
+        t0 = time.perf_counter()
+        llm.embed(prompts)
+        total_time += time.perf_counter() - t0
+
+    avg_time = total_time / config.loop_count
+    samples_per_sec = config.batch_size / avg_time
+
+    metadata = get_benchmark_metadata()
+    full_model_name = config.model
+    model_type = "text-embedding"
+    dataset_name = "Random Data"
+    evaluation_score = 0.0
+
+    print_benchmark_results(
+        model_title=full_model_name,
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        date=metadata["date"],
+        machine_name=metadata["machine_name"],
+        total_time=avg_time,
+        total_samples=config.batch_size,
+        samples_per_sec=samples_per_sec,
+        evaluation_score=evaluation_score,
+        batch_size=config.batch_size,
+        input_sequence_length=config.max_model_len,
+    )
+
+    return create_benchmark_result(
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        num_layers=-1,
+        batch_size=config.batch_size,
+        input_size=(config.max_model_len,),
+        loop_count=config.loop_count,
+        data_format="bfloat16",
+        total_time=avg_time,
+        total_samples=config.batch_size,
+        evaluation_score=evaluation_score,
+        optimization_level=config.additional_config.get("optimization_level", 0),
+        program_cache_enabled=True,
+        trace_enabled=config.additional_config.get("enable_trace", True),
+        model_info=full_model_name,
+        display_name=display_name,
+        torch_xla_enabled=True,
+        backend="tt",
+        device_name=socket.gethostname(),
+        arch="wormhole",
+        input_is_image=False,
+        input_sequence_length=config.max_model_len,
+        device_count=1,
         vllm=True,
     )

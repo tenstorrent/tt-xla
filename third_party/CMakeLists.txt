@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "bb1deb417cef0e2c60147072cf7b6926a49ccca7")
+    set(TT_MLIR_VERSION "c5f398432a61100da79b7b9f2941130496092287")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
@@ -31,8 +31,57 @@ else()
     add_subdirectory(pjrt_c_api)
 
     # ----- tt-mlir -----
-    set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
-    set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
+    set(TTMLIR_SOURCE_DIR_OVERRIDE "" CACHE PATH
+        "Path to an existing tt-mlir checkout. When set, bypasses the git clone/update in ExternalProject_Add; the user is responsible for keeping the checkout at a compatible revision.")
+    set(TTMLIR_TTMETAL_SOURCE_DIR "" CACHE PATH
+        "Path to an existing tt-metal checkout. When set, bypasses the git clone/update in ExternalProject_Add; the user is responsible for keeping the checkout at a compatible revision.")
+
+    if(TTMLIR_SOURCE_DIR_OVERRIDE)
+        message(STATUS "Using override tt-mlir source: ${TTMLIR_SOURCE_DIR_OVERRIDE}")
+        set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR_OVERRIDE}/build")
+        set(TTMLIR_SOURCE_ARGS
+            SOURCE_DIR ${TTMLIR_SOURCE_DIR_OVERRIDE}
+            DOWNLOAD_COMMAND ""
+            UPDATE_COMMAND ""
+        )
+
+        # Many scripts (venv/activate, install_ttmlir_requirements.sh, bisect_*.sh,
+        # CI workflows, tracy include path) hardcode third_party/tt-mlir/src/tt-mlir.
+        # Symlink the canonical location to the override so those continue to work.
+        set(TTMLIR_CANONICAL_LINK "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src/tt-mlir")
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir/src")
+        if(IS_SYMLINK "${TTMLIR_CANONICAL_LINK}")
+            file(READ_SYMLINK "${TTMLIR_CANONICAL_LINK}" _existing_link_target)
+            if(NOT "${_existing_link_target}" STREQUAL "${TTMLIR_SOURCE_DIR_OVERRIDE}")
+                file(REMOVE "${TTMLIR_CANONICAL_LINK}")
+                file(CREATE_LINK "${TTMLIR_SOURCE_DIR_OVERRIDE}" "${TTMLIR_CANONICAL_LINK}" SYMBOLIC)
+                message(STATUS "Repointed ${TTMLIR_CANONICAL_LINK} -> ${TTMLIR_SOURCE_DIR_OVERRIDE}")
+            endif()
+        elseif(EXISTS "${TTMLIR_CANONICAL_LINK}")
+            message(FATAL_ERROR
+                "TTMLIR_SOURCE_DIR_OVERRIDE is set, but a real directory exists at\n"
+                "  ${TTMLIR_CANONICAL_LINK}\n"
+                "(likely a leftover clone from a prior non-override configure). "
+                "Remove it so cmake can replace it with a symlink to the override:\n"
+                "  rm -rf ${TTMLIR_CANONICAL_LINK}")
+        else()
+            file(CREATE_LINK "${TTMLIR_SOURCE_DIR_OVERRIDE}" "${TTMLIR_CANONICAL_LINK}" SYMBOLIC)
+            message(STATUS "Symlinked ${TTMLIR_CANONICAL_LINK} -> ${TTMLIR_SOURCE_DIR_OVERRIDE}")
+        endif()
+    else()
+        set(TTMLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tt-mlir")
+        set(TTMLIR_BUILD_DIR "${TTMLIR_SOURCE_DIR}/src/tt-mlir/build")
+        set(TTMLIR_SOURCE_ARGS
+            GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
+            GIT_TAG ${TT_MLIR_VERSION}
+            GIT_PROGRESS ON
+        )
+    endif()
+
+    if(TTMLIR_TTMETAL_SOURCE_DIR)
+      set(TTMLIR_TTMETAL_SOURCE_DIR "-DTTMLIR_TTMETAL_SOURCE_DIR=${TTMLIR_TTMETAL_SOURCE_DIR}")
+    endif()
+
     set(WITH_METAL_RUNTIME_ROOT_SET "")
     if(NOT DEFINED ENV{TT_METAL_RUNTIME_ROOT})
         set(WITH_METAL_RUNTIME_ROOT_SET "TT_METAL_RUNTIME_ROOT=${TTPJRT_SOURCE_DIR}/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal")
@@ -78,10 +127,10 @@ else()
           -DTTMLIR_ENABLE_TESTS=OFF
           -DTTMLIR_ENABLE_TOOLS=${TTXLA_ENABLE_TOOLS}
           -DTTMLIR_ENABLE_DOCS=OFF
+          -DTTMLIR_ENABLE_TTRT=OFF
           -DTT_USE_SYSTEM_SFPI=${TT_USE_SYSTEM_SFPI}
-        GIT_REPOSITORY https://github.com/tenstorrent/tt-mlir.git
-        GIT_TAG ${TT_MLIR_VERSION}
-        GIT_PROGRESS ON
+        ${TTMLIR_TTMETAL_SOURCE_DIR}
+        ${TTMLIR_SOURCE_ARGS}
     )
 
     if(TTXLA_ENABLE_EXPLORER)

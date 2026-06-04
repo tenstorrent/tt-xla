@@ -126,13 +126,15 @@ def _extract_variants_from_dict_node(dict_node: ast.Dict, enum_members: dict) ->
     return variants
 
 
-def _extract_variants_dict_keys(tree: ast.Module, enum_members: dict) -> list:
-    """Extract _VARIANTS dict keys from ModelLoader class, resolving ModelVariant.MEMBER references.
+def _extract_variants_for_class(
+    tree: ast.Module, enum_members: dict, class_name: str
+) -> list:
+    """Extract _VARIANTS dict keys from a given class, resolving ModelVariant.MEMBER references.
 
     Also checks module-level _VARIANTS if the class attribute references a name rather than a dict literal.
 
     Returns:
-        List of variant string values. Empty list if no _VARIANTS found.
+        List of variant string values. Empty list if class or _VARIANTS not found.
     """
     # First, collect any module-level _VARIANTS = {...} dict
     module_level_variants_dict = None
@@ -150,7 +152,7 @@ def _extract_variants_dict_keys(tree: ast.Module, enum_members: dict) -> list:
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
-        if node.name != "ModelLoader":
+        if node.name != class_name:
             continue
 
         for stmt in node.body:
@@ -173,24 +175,71 @@ def _extract_variants_dict_keys(tree: ast.Module, enum_members: dict) -> list:
                     module_level_variants_dict, enum_members
                 )
 
-        # If ModelLoader exists but has no _VARIANTS assignment, return empty
+        # Class exists but has no _VARIANTS assignment
         return []
 
     return []
 
 
-def _has_llm_method(tree: ast.Module, method_name: str) -> bool:
-    """Check if ModelLoader class defines a specific method (e.g. load_inputs_decode)."""
+def _has_method(tree: ast.Module, class_name: str, method_name: str) -> bool:
+    """Check if a given class defines a specific method (e.g. load_inputs_decode).
+
+    Only methods declared directly in the class body are considered; inherited
+    methods are intentionally invisible so a prefill subclass doesn't falsely
+    claim ownership of phases its parent owns (which would duplicate test IDs).
+    """
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
-        if node.name != "ModelLoader":
+        if node.name != class_name:
             continue
         for stmt in node.body:
             if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 if stmt.name == method_name:
                     return True
     return False
+
+
+ADAPTER_SUFFIXES = ("_lora", "_dora")
+
+
+def _adapter_base_loader_path(loader_path: str) -> str:
+    """If *loader_path* is an adapter (LoRA/DoRA) loader, return the base model's loader.py path.
+
+    Adapter loaders live under ``<base>_lora/`` (or ``_dora/``) and inherit
+    the full variant set, ModelVariant enum, and prefill class from the base
+    model loader — they only attach an extra LoRA adapter at load time. So
+    variant / prefill / method discovery should run against the base file
+    directly. Returns an empty string if *loader_path* is not an adapter.
+    """
+    parts = loader_path.split(os.sep)
+    for i, segment in enumerate(parts):
+        for suffix in ADAPTER_SUFFIXES:
+            if segment.endswith(suffix) and segment != suffix:
+                parts[i] = segment[: -len(suffix)]
+                return os.sep.join(parts)
+    return ""
+
+
+def _find_prefill_class_name(tree: ast.Module) -> str:
+    """Return the name of the class that inherits from ForgePrefillModel, if any.
+
+    Detection is by AST base reference (Name or Attribute), so any class whose
+    declared bases include ``ForgePrefillModel`` is recognised regardless of
+    how it's named.
+    """
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for base in node.bases:
+            base_name = None
+            if isinstance(base, ast.Name):
+                base_name = base.id
+            elif isinstance(base, ast.Attribute):
+                base_name = base.attr
+            if base_name == "ForgePrefillModel":
+                return node.name
+    return ""
 
 
 class TestConfigValidator:
@@ -380,16 +429,22 @@ class TestConfigValidator:
                 if parent_dir in TORCH_EXCLUDED_MODEL_DIRS:
                     continue
 
+            # Adapter (LoRA/DoRA) loaders reuse the base model's full variant
+            # set and class hierarchy — variant/prefill/method discovery runs
+            # against the base file, but generated test IDs keep the adapter's
+            # rel_path so they point at the adapter's loader.
+            discovery_path = _adapter_base_loader_path(loader_path) or loader_path
+
             try:
-                with open(loader_path, "r") as f:
+                with open(discovery_path, "r") as f:
                     source = f.read()
-                tree = ast.parse(source, filename=loader_path)
+                tree = ast.parse(source, filename=discovery_path)
             except (SyntaxError, OSError) as e:
-                parse_warnings.append(f"Cannot parse {loader_path}: {e}")
+                parse_warnings.append(f"Cannot parse {discovery_path}: {e}")
                 continue
 
             enum_members = _extract_model_variant_enum(tree)
-            variants = _extract_variants_dict_keys(tree, enum_members)
+            variants = _extract_variants_for_class(tree, enum_members, "ModelLoader")
 
             if is_torch:
                 if variants:
@@ -398,14 +453,38 @@ class TestConfigValidator:
                 else:
                     torch_models.append((rel_path, None))
 
-                # Check for LLM methods
+                # ForgePrefillModel subclasses (e.g. ModelLoaderPrefill) live
+                # alongside ModelLoader and own the prefill phase with their own
+                # _VARIANTS subset; fall back to ModelLoader's variants if not
+                # overridden.
+                prefill_class_name = _find_prefill_class_name(tree)
+                prefill_variants = []
+                if prefill_class_name:
+                    prefill_variants = (
+                        _extract_variants_for_class(
+                            tree, enum_members, prefill_class_name
+                        )
+                        or variants
+                    )
+
                 for method_name, phase_str in LLM_PHASES.items():
-                    if _has_llm_method(tree, method_name):
-                        if variants:
-                            for v in variants:
-                                llm_models.append((rel_path, v, phase_str))
-                        else:
-                            llm_models.append((rel_path, None, phase_str))
+                    if phase_str == "llm_prefill":
+                        # Any ForgePrefillModel subclass owns the prefill phase
+                        # via inherited load_inputs_prefill — mirrors the runtime
+                        # check in test_models.py (_is_prefill_loader).
+                        if not prefill_class_name:
+                            continue
+                        target_variants = prefill_variants
+                    else:
+                        if not _has_method(tree, "ModelLoader", method_name):
+                            continue
+                        target_variants = variants
+
+                    if target_variants:
+                        for v in target_variants:
+                            llm_models.append((rel_path, v, phase_str))
+                    else:
+                        llm_models.append((rel_path, None, phase_str))
             else:
                 # JAX
                 if variants:

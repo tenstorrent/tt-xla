@@ -40,6 +40,7 @@ ALLOWED_FIELDS = {
     "filechecks",
     # Compiler config options
     "enable_weight_bfp8_conversion",
+    "optimization_level",
     # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
     "inject_custom_moe",
     # EmitPy verification: assert exact match between emitpy and flatbuffer results
@@ -73,7 +74,7 @@ LLM_MESH_SHAPES = (
 
 # Run modes
 RUN_MODES_STANDARD = ("inference", "training")
-RUN_MODES_LLM = ("inference",)
+RUN_MODES_LLM = ("inference", "training")
 
 # LLM phases
 LLM_PHASES = {"load_inputs_decode": "llm_decode", "load_inputs_prefill": "llm_prefill"}

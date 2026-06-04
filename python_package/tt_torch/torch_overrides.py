@@ -5,8 +5,52 @@ import torch
 from torch.overrides import TorchFunctionMode
 
 
+def _unflatten_to_shape(
+    input_shape: torch.Size, dim: int, sizes: tuple[int, ...] | list[int] | torch.Size
+) -> tuple:
+    dim = dim if dim >= 0 else len(input_shape) + dim
+    if dim < 0 or dim >= len(input_shape):
+        raise IndexError(f"Dimension out of range: dim={dim}, rank={len(input_shape)}")
+
+    sizes = tuple(sizes)
+    inferred_index = None
+    known_product = 1
+    normalized_sizes = []
+
+    for index, size in enumerate(sizes):
+        if size == -1:
+            if inferred_index is not None:
+                raise ValueError("Only one dimension can be inferred in unflatten")
+            inferred_index = index
+            normalized_sizes.append(size)
+        else:
+            normalized_sizes.append(size)
+            known_product *= size
+
+    if inferred_index is not None:
+        normalized_sizes[inferred_index] = input_shape[dim] // known_product
+
+    return (
+        *input_shape[:dim],
+        *normalized_sizes,
+        *input_shape[dim + 1 :],
+    )
+
+
 class TorchFunctionOverride(TorchFunctionMode):
     def __torch_function__(self, func, types, args, kwargs=None):
+        kwargs = kwargs or {}
+
+        if func.__name__ == "unflatten":
+            tensor = args[0]
+            dim = kwargs.get("dim", args[1])
+            sizes = kwargs.get("sizes", args[2])
+            # Bypass Tensor.unflatten -> super().unflatten(), which Dynamo
+            # cannot trace in fullgraph mode under TorchFunctionMode.
+            return torch.ops.aten.reshape.default(
+                tensor, _unflatten_to_shape(tensor.shape, dim, sizes)
+            )
+
         if (
             func.__name__ == "matmul" or func.__name__ == "linear"
         ) and not torch.compiler.is_compiling():

@@ -201,6 +201,18 @@ class ModelTestConfig:
             "enable_weight_bfp8_conversion", default=False
         )
 
+        # Compiler config: optimization level (0, 1, or 2). None means "not set"
+        # in YAML -> the default CompilerConfig value (0) is used.
+        self.optimization_level = self._resolve("optimization_level", default=None)
+        if self.optimization_level is not None and self.optimization_level not in (
+            0,
+            1,
+            2,
+        ):
+            raise ValueError(
+                f"optimization_level must be 0, 1, or 2 (got {self.optimization_level!r})"
+            )
+
         # Whether to inject a custom MoE implementation in the test (using the sparse_mlp.py in tt_torch).
         self.inject_custom_moe = self._resolve("inject_custom_moe", default=False)
         # EmitPy verification: assert exact match (default True).
