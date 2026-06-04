@@ -195,8 +195,11 @@ TP_CONFIGS = [
 
 
 def _run_vllm_benchmark(config, output_file, request):
-    display_name = "vllm_" + resolve_display_name(
-        request=request, fallback=config.model
+    resolved_display_name = resolve_display_name(request=request, fallback=config.model)
+    display_name = (
+        resolved_display_name
+        if resolved_display_name.startswith("vllm_")
+        else f"vllm_{resolved_display_name}"
     )
 
     print(f"\n{'='*60}")
@@ -206,7 +209,7 @@ def _run_vllm_benchmark(config, output_file, request):
     results = benchmark_vllm(config, display_name)
 
     if output_file:
-        results["project"] = "tt-xla"
+        results["project"] = "tt-forge/tt-xla"
         results["model_rawname"] = config.model
         with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
@@ -233,12 +236,15 @@ def _embedding_config(
 
 
 def _run_vllm_embedding_benchmark(config, output_file, request):
-    display_name = "vllm_" + resolve_display_name(
-        request=request, fallback=config.model
+    resolved_display_name = resolve_display_name(request=request, fallback=config.model)
+    display_name = (
+        resolved_display_name
+        if resolved_display_name.startswith("vllm_")
+        else f"vllm_{resolved_display_name}"
     )
     results = benchmark_vllm_embedding(config, display_name)
     if output_file:
-        results["project"] = "tt-xla"
+        results["project"] = "tt-forge/tt-xla"
         results["model_rawname"] = config.model
         with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
