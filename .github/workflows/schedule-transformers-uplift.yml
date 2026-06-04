@@ -86,7 +86,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: release,manylinux
+      build_types: release
 
   run-uplift:
     needs: [detect, build-image, build-ttxla]

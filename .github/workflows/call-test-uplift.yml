@@ -18,7 +18,8 @@ name: Call - Test + Uplift Fix
 
 permissions:
   contents: write
-  actions: write
+  actions:  write
+  checks:   write   # call-test.yml publishes check runs
 
 on:
   workflow_call:
@@ -130,7 +131,7 @@ jobs:
       docker_image:            ${{ inputs.docker_image }}
       artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
       artifact_suffix:         ${{ inputs.artifact_suffix }}
-      wheel_build:             manylinux
+      wheel_build:             release
     secrets: inherit
 
   # ---------------------------------------------------------------------------
@@ -156,6 +157,15 @@ jobs:
           # (see call-test.yml's "Upload Test Report" step).
           pattern: test-reports-*
 
+      - uses: actions/download-artifact@v4
+        with:
+          path: test-results
+          # call-test.yml also uploads the pytest.log per leg under this
+          # prefix (see "Upload Test Log" step). The extractor falls back
+          # to grepping these when the junit XML doesn't carry the full
+          # context (e.g. C++ stderr or loguru output).
+          pattern: test-log-*
+
       - name: Extract failures
         id: extract
         run: |
@@ -163,7 +173,10 @@ jobs:
             --inputs-dir test-results \
             --out-context failure_context.txt \
             --out-failed-tests "$LAST_FAILED_FILE"
-          COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || echo 0)
+          # `grep -c` prints the count AND exits non-zero when it's 0, so
+          # use `|| true` (not `|| echo 0`) — otherwise we'd append a
+          # second "0" and break the integer comparison below.
+          COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || true)
           echo "failure_count=$COUNT" >> "$GITHUB_OUTPUT"
           if [[ "$COUNT" -eq 0 ]]; then
             echo "has_failures=false" >> "$GITHUB_OUTPUT"
@@ -186,7 +199,9 @@ jobs:
   # ---------------------------------------------------------------------------
   claude-fix:
     needs: extract-failures
-    if: needs.extract-failures.outputs.has_failures == 'true'
+    if: |
+      always()
+      && needs.extract-failures.outputs.has_failures == 'true'
     runs-on: ubuntu-latest
     container:
       image: ${{ inputs.docker_image }}
@@ -203,16 +218,18 @@ jobs:
           submodules: recursive
 
       - name: Download tt-xla wheel
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          WHEEL_ARTIFACT="xla-whl-manylinux${{ inputs.artifact_suffix }}"
+          WHEEL_ARTIFACT="xla-whl-release${{ inputs.artifact_suffix }}"
           gh run download "${{ inputs.artifact_release_run_id }}" \
             --repo "${{ github.repository }}" \
             --dir wheels \
             --name "$WHEEL_ARTIFACT"
 
       - name: Install wheel + uplifted transformers
+        shell: bash
         env:
           TARGET_VERSION: ${{ inputs.target_version }}
         run: |
@@ -229,9 +246,21 @@ jobs:
         with:
           name: uplift-failures-${{ inputs.scope }}-${{ inputs.tag }}-iter-${{ inputs.iteration }}
 
+      - name: Install Claude Code CLI
+        shell: bash
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            claude --version
+            exit 0
+          fi
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
       - name: Invoke Claude fix skill
+        shell: bash
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
           HF_HOME: /mnt/dockercache/huggingface
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           ITERATION: ${{ inputs.iteration }}
@@ -248,6 +277,7 @@ jobs:
         # Run on failure/timeout too so any partial edits Claude made
         # before bailing still get committed.
         if: always()
+        shell: bash
         env:
           BRANCH: ${{ inputs.branch }}
           ITER:   ${{ inputs.iteration }}

@@ -32,30 +32,38 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-LATEST_TAG=$(gh release view --repo huggingface/transformers --json tagName -q .tagName)
-LATEST="${LATEST_TAG#v}"
+# Take the NEXT stable release after the current pin (not the latest),
+# so the uplift advances one release at a time.
+RELEASE_TAGS=$(gh release list --repo huggingface/transformers \
+  --limit 100 --json tagName,isPrerelease \
+  -q '.[] | select(.isPrerelease == false) | .tagName')
 
-if [[ -z "$LATEST" ]]; then
-  echo "::error::failed to resolve latest transformers release tag" >&2
-  exit 1
-fi
-
-HAS_UPDATE=$(python3 - "$CURRENT" "$LATEST" <<'PY'
+LATEST=$(python3 - "$CURRENT" <<PY
 import sys
-from packaging.version import Version
-cur, new = Version(sys.argv[1]), Version(sys.argv[2])
-print("true" if new > cur else "false")
+from packaging.version import Version, InvalidVersion
+cur = Version(sys.argv[1])
+nexts = []
+for t in """$RELEASE_TAGS""".split():
+    try:
+        v = Version(t.lstrip("v"))
+    except InvalidVersion:
+        continue
+    if v > cur:
+        nexts.append(v)
+print(min(nexts) if nexts else "")
 PY
 )
 
+HAS_UPDATE="false"
 NEW_VERSION=""
-if [[ "$HAS_UPDATE" == "true" ]]; then
+if [[ -n "$LATEST" ]]; then
+  HAS_UPDATE="true"
   NEW_VERSION="$LATEST"
 fi
 
-echo "Current pin:           $CURRENT"
-echo "Latest stable on PyPI: $LATEST"
-echo "Update available:      $HAS_UPDATE"
+echo "Current pin:            $CURRENT"
+echo "Next release after pin: $LATEST"
+echo "Update available:       $HAS_UPDATE"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
   {
