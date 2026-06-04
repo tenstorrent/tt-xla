@@ -62,12 +62,14 @@ from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
 from vllm.utils.math_utils import cdiv
 from vllm.utils.platform_utils import is_pin_memory_available
 from vllm.v1.attention.backend import AttentionType
+from vllm.model_executor.layers.mamba.abstract import MambaBase
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
     FullAttentionSpec,
     KVCacheConfig,
     KVCacheGroupSpec,
     KVCacheSpec,
+    MambaSpec,
     MLAAttentionSpec,
     SlidingWindowSpec,
 )
@@ -818,6 +820,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     head_size=attn_module.head_size,
                     dtype=self.kv_cache_dtype,
                     cache_dtype_str=cache_dtype_str,
+                )
+            # Mamba / DeltaNet path: layers carry their own recurrent state
+            # (conv_state, ssm_state) instead of a paged KV cache. MambaBase
+            # already implements get_kv_cache_spec() which returns a MambaSpec
+            # built from get_state_shape() / get_state_dtype() / mamba_type.
+            elif isinstance(attn_module, MambaBase):
+                kv_cache_spec[layer_name] = attn_module.get_kv_cache_spec(
+                    self.vllm_config
                 )
             else:
                 continue
@@ -2156,6 +2166,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
 
                     kv_caches[layer_name] = [k_cache, v_cache]
+                elif isinstance(kv_cache_spec, MambaSpec):
+                    # Mamba/DeltaNet layers carry recurrent state, not paged KV.
+                    # spec.shapes is a tuple of per-request state shapes (e.g.
+                    # (conv_state_shape, ssm_state_shape) for GatedDeltaNet).
+                    # We allocate (num_blocks, *shape) per state tensor; the
+                    # leading dim is the request-slot index.
+                    state_tensors = []
+                    for shape, dtype in zip(
+                        kv_cache_spec.shapes, kv_cache_spec.dtypes
+                    ):
+                        full_shape = (num_blocks, *shape)
+                        t = torch.zeros(full_shape, dtype=dtype).to(self.device)
+                        state_tensors.append(t)
+                    kv_caches[layer_name] = state_tensors
                 else:
                     raise NotImplementedError
 
@@ -2169,10 +2193,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache]
+            # Shard KV Cache — each entry is [k_cache, v_cache] (attention) or
+            # [conv_state, ssm_state] (Mamba/DeltaNet). The attention spec is
+            # 4-D and shards along its num_kv_heads axis. Mamba states are
+            # already TP-sliced in their shape via tp_size, so leave them
+            # replicated for now — skip non-4D tensors.
             for kv_pair in self.kv_caches:
                 for cache in kv_pair:
-                    assert cache.ndim == 4, "KV cache tensor must be 4D."
+                    if cache.ndim != 4:
+                        continue  # Mamba state — already TP-sliced in shape
                     xs.mark_sharding(cache, self.mesh, (None, "batch", None, None))
 
         if has_kv_transfer_group():

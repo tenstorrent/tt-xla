@@ -7,10 +7,17 @@ from typing import OrderedDict
 import torch
 import torch.nn as nn
 from vllm.model_executor.layers.layernorm import RMSNorm
-from vllm.model_executor.layers.rotary_embedding.base import RotaryEmbedding
+from vllm.model_executor.layers.mamba.gdn_linear_attn import (
+    GatedDeltaNetAttention,
+)
+from vllm.model_executor.layers.rotary_embedding.base import (
+    RotaryEmbedding,
+    RotaryEmbeddingBase,
+)
 from vllm.model_executor.layers.rotary_embedding.common import ApplyRotaryEmb
 
 from .logger import tt_init_logger
+from .tt_gated_delta_net import tt_gated_delta_net_module
 
 logger = tt_init_logger(__name__)
 
@@ -98,7 +105,12 @@ class TTRotaryEmbedding(nn.Module):
 
     def __init__(self, layer: nn.Module):
         super().__init__()
-        assert isinstance(layer, RotaryEmbedding)
+        # Accept any RotaryEmbeddingBase subclass — RotaryEmbedding,
+        # Llama3RotaryEmbedding, MRotaryEmbedding, etc. For M-RoPE this
+        # treats positions as 1-D (correct for text-only requests; not
+        # correct if image/video positions were threaded through). M-RoPE
+        # 3-D positions would need a separate TTMRotaryEmbedding override.
+        assert isinstance(layer, RotaryEmbeddingBase)
         self.head_size = layer.head_size
         self.rotary_dim = layer.rotary_dim
         self.is_neox_style = layer.is_neox_style
@@ -152,7 +164,7 @@ def tt_rmsnorm_module(layer: torch.nn.Module) -> torch.nn.Module:
 
 
 def tt_rotary_embedding_module(layer: torch.nn.Module) -> torch.nn.Module:
-    assert isinstance(layer, RotaryEmbedding)
+    assert isinstance(layer, RotaryEmbeddingBase)
     return TTRotaryEmbedding(layer)
 
 
@@ -162,9 +174,12 @@ MODULE_TYPE_TO_TT_OVERRIDE = OrderedDict(
     ]
 )
 
-# isinstance-based overrides for classes where subclasses need the same treatment
+# isinstance-based overrides for classes where subclasses need the same treatment.
+# RotaryEmbeddingBase covers both the standard RotaryEmbedding family and
+# MRotaryEmbedding (multimodal RoPE), which are sibling subclasses.
 ISINSTANCE_OVERRIDES = [
-    (RotaryEmbedding, tt_rotary_embedding_module),
+    (RotaryEmbeddingBase, tt_rotary_embedding_module),
+    (GatedDeltaNetAttention, tt_gated_delta_net_module),
 ]
 
 

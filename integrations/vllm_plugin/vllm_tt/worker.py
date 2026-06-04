@@ -32,7 +32,12 @@ from vllm.tasks import SupportedTask
 from vllm.utils.math_utils import cdiv
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE, set_random_seed
 from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
-from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
+from vllm.v1.kv_cache_interface import (
+    AttentionSpec,
+    KVCacheConfig,
+    KVCacheSpec,
+    MambaSpec,
+)
 from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
@@ -195,6 +200,16 @@ class TTWorker:
                 # it by reference, rather by specializing on the value ``None``.
                 tpu_kv_cache = torch.tensor([0], dtype=dtype).to(self.device)
                 kv_caches[layer_name] = tpu_kv_cache
+            elif isinstance(layer_spec, MambaSpec):
+                # Mamba/DeltaNet layers carry a tuple of state tensors (e.g.
+                # conv_state and ssm_state). For the profile pass we just need
+                # placeholders so dynamo doesn't specialize on None — the real
+                # buffers are allocated by initialize_kv_cache later.
+                placeholders = [
+                    torch.tensor([0], dtype=dtype).to(self.device)
+                    for dtype in layer_spec.dtypes
+                ]
+                kv_caches[layer_name] = placeholders
             else:
                 raise NotImplementedError(
                     f"Unsupported KV cache spec '{type(layer_spec)}'"
