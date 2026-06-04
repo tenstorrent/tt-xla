@@ -608,13 +608,26 @@ def paged_fill_cache(
     cache: torch.Tensor,
     fill_value: torch.Tensor,
     page_table: torch.Tensor,
-    batch_idx: torch.Tensor = None,
+    batch_indices: torch.Tensor = None,
 ) -> torch.Tensor:
+    # Batched prefill KV-cache fill: writes ALL users in a single op.
+    #   cache:        [max_num_blocks, num_heads, block_size, head_dim]
+    #   fill_value:   [num_users, num_heads, fill_seq_len, head_dim]
+    #   page_table:   [num_users, max_num_blocks_per_seq]
+    #   batch_indices:[num_users] int32 -- page-table row (slot) for each
+    #                 fill_value[user]; defaults to arange(num_users).
+    # A single-user fill_value ([1, ...]) preserves the original behavior, so
+    # this is backwards compatible. Replaces the per-user Python loop that
+    # unrolled under torch.export into users*2*num_layers ops + lifted scalar
+    # constants, tripping torch_xla's parameter-wrapping threshold (issue
+    # #5032). Tier 2A keeps the single-user TTNN kernel and loops over users in
+    # the tt-mlir runtime; Tier 2B (future) is a true batched kernel.
     device = cache.device
-    if batch_idx is None:
-        batch_idx = torch.tensor([0], dtype=torch.int32, device=device)
+    num_users = fill_value.shape[0]
+    if batch_indices is None:
+        batch_indices = torch.arange(num_users, dtype=torch.int32, device=device)
     if device.type == "xla":
-        inputs = [cache, fill_value, page_table, batch_idx]
+        inputs = [cache, fill_value, page_table, batch_indices]
         return stablehlo_custom_call.stablehlo_custom_call(
             inputs,
             "tt.paged_fill_cache",
@@ -629,53 +642,57 @@ def paged_fill_cache(
         fill_seq_len = fill_value.shape[-2]
         num_heads = fill_value.shape[-3]
 
-        batch_block_indices = page_table[batch_idx.item()]
-
         num_blocks_to_fill = fill_seq_len // block_size
         part_of_final_block_to_fill = fill_seq_len % block_size
 
-        if num_blocks_to_fill > 0:
-            fill_value_in_blocks_shape = [
-                num_blocks_to_fill,
-                num_heads,
-                block_size,
-                fill_value.shape[-1],
-            ]
-            if part_of_final_block_to_fill > 0:
-                fill_value_first_blocks = fill_value[
-                    :, :, :-part_of_final_block_to_fill, :
-                ]
-                cache[batch_block_indices[:num_blocks_to_fill]] = (
-                    fill_value_first_blocks.reshape(
-                        1,
-                        num_heads,
-                        num_blocks_to_fill,
-                        block_size,
-                        fill_value.shape[-1],
-                    )
-                    .transpose(0, 2)
-                    .reshape(fill_value_in_blocks_shape)
-                )
-            else:
-                cache[batch_block_indices[:num_blocks_to_fill]] = (
-                    fill_value.reshape(
-                        1,
-                        num_heads,
-                        num_blocks_to_fill,
-                        block_size,
-                        fill_value.shape[-1],
-                    )
-                    .transpose(0, 2)
-                    .reshape(fill_value_in_blocks_shape)
-                )
+        for user in range(num_users):
+            batch_block_indices = page_table[batch_indices[user].item()]
+            user_fill = fill_value[user : user + 1]
 
-        if part_of_final_block_to_fill > 0:
-            cache[
-                batch_block_indices[num_blocks_to_fill : num_blocks_to_fill + 1],
-                :,
-                :part_of_final_block_to_fill,
-                :,
-            ] = fill_value[:, :, -part_of_final_block_to_fill:, :]
+            if num_blocks_to_fill > 0:
+                fill_value_in_blocks_shape = [
+                    num_blocks_to_fill,
+                    num_heads,
+                    block_size,
+                    fill_value.shape[-1],
+                ]
+                if part_of_final_block_to_fill > 0:
+                    user_fill_first_blocks = user_fill[
+                        :, :, :-part_of_final_block_to_fill, :
+                    ]
+                    cache[batch_block_indices[:num_blocks_to_fill]] = (
+                        user_fill_first_blocks.reshape(
+                            1,
+                            num_heads,
+                            num_blocks_to_fill,
+                            block_size,
+                            fill_value.shape[-1],
+                        )
+                        .transpose(0, 2)
+                        .reshape(fill_value_in_blocks_shape)
+                    )
+                else:
+                    cache[batch_block_indices[:num_blocks_to_fill]] = (
+                        user_fill.reshape(
+                            1,
+                            num_heads,
+                            num_blocks_to_fill,
+                            block_size,
+                            fill_value.shape[-1],
+                        )
+                        .transpose(0, 2)
+                        .reshape(fill_value_in_blocks_shape)
+                    )
+
+            if part_of_final_block_to_fill > 0:
+                cache[
+                    batch_block_indices[
+                        num_blocks_to_fill : num_blocks_to_fill + 1
+                    ],
+                    :,
+                    :part_of_final_block_to_fill,
+                    :,
+                ] = user_fill[:, :, -part_of_final_block_to_fill:, :]
 
         return cache
     else:
@@ -687,98 +704,7 @@ def paged_fill_cache_fake(
     cache: torch.Tensor,
     fill_value: torch.Tensor,
     page_table: torch.Tensor,
-    batch_idx: torch.Tensor = None,
-) -> torch.Tensor:
-    return torch.zeros_like(cache)
-
-
-@torch.library.custom_op(
-    "tt::paged_fill_cache", mutates_args=[], device_types=["xla", "cpu"]
-)
-def paged_fill_cache(
-    cache: torch.Tensor,
-    fill_value: torch.Tensor,
-    page_table: torch.Tensor,
-    batch_idx: torch.Tensor = None,
-) -> torch.Tensor:
-    device = cache.device
-    if batch_idx is None:
-        batch_idx = torch.tensor([0], dtype=torch.int32, device=device)
-    if device.type == "xla":
-        inputs = [cache, fill_value, page_table, batch_idx]
-        return stablehlo_custom_call.stablehlo_custom_call(
-            inputs,
-            "tt.paged_fill_cache",
-            [cache.shape],
-            [cache.dtype],
-        )
-
-    elif device.type == "cpu":
-        cache = cache.clone()
-
-        block_size = cache.shape[-2]
-        fill_seq_len = fill_value.shape[-2]
-        num_heads = fill_value.shape[-3]
-
-        batch_block_indices = page_table[batch_idx.item()]
-
-        num_blocks_to_fill = fill_seq_len // block_size
-        part_of_final_block_to_fill = fill_seq_len % block_size
-
-        if num_blocks_to_fill > 0:
-            fill_value_in_blocks_shape = [
-                num_blocks_to_fill,
-                num_heads,
-                block_size,
-                fill_value.shape[-1],
-            ]
-            if part_of_final_block_to_fill > 0:
-                fill_value_first_blocks = fill_value[
-                    :, :, :-part_of_final_block_to_fill, :
-                ]
-                cache[batch_block_indices[:num_blocks_to_fill]] = (
-                    fill_value_first_blocks.reshape(
-                        1,
-                        num_heads,
-                        num_blocks_to_fill,
-                        block_size,
-                        fill_value.shape[-1],
-                    )
-                    .transpose(0, 2)
-                    .reshape(fill_value_in_blocks_shape)
-                )
-            else:
-                cache[batch_block_indices[:num_blocks_to_fill]] = (
-                    fill_value.reshape(
-                        1,
-                        num_heads,
-                        num_blocks_to_fill,
-                        block_size,
-                        fill_value.shape[-1],
-                    )
-                    .transpose(0, 2)
-                    .reshape(fill_value_in_blocks_shape)
-                )
-
-        if part_of_final_block_to_fill > 0:
-            cache[
-                batch_block_indices[num_blocks_to_fill : num_blocks_to_fill + 1],
-                :,
-                :part_of_final_block_to_fill,
-                :,
-            ] = fill_value[:, :, -part_of_final_block_to_fill:, :]
-
-        return cache
-    else:
-        raise ValueError(f"Unsupported device type: {device.type}")
-
-
-@paged_fill_cache.register_fake
-def paged_fill_cache_fake(
-    cache: torch.Tensor,
-    fill_value: torch.Tensor,
-    page_table: torch.Tensor,
-    batch_idx: torch.Tensor = None,
+    batch_indices: torch.Tensor = None,
 ) -> torch.Tensor:
     return torch.zeros_like(cache)
 

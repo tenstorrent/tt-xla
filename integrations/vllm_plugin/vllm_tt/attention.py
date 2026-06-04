@@ -487,23 +487,19 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
-            for batch_idx in range(inputs.users):
-                k_cache = torch.ops.tt.paged_fill_cache(
-                    k_cache,
-                    key_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=k_cache.device
-                    ),
-                )
-                v_cache = torch.ops.tt.paged_fill_cache(
-                    v_cache,
-                    value_for_update[batch_idx : batch_idx + 1],
-                    attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=v_cache.device
-                    ),
-                )
+            # Batched fill: write all users' KV in ONE op per K/V (Tier 2).
+            # The batched tt::paged_fill_cache takes fill_value
+            # [num_users, num_heads, seq, head_dim] (= key/value_for_update) and
+            # defaults batch_indices to arange(num_users). This replaces the
+            # per-user Python loop, which torch.export unrolled into
+            # num_users*2*num_layers ops + lifted scalar constants, tripping
+            # torch_xla's parameter-wrapping threshold (issue #5032).
+            k_cache = torch.ops.tt.paged_fill_cache(
+                k_cache, key_for_update, attn_metadata.fill_page_table
+            )
+            v_cache = torch.ops.tt.paged_fill_cache(
+                v_cache, value_for_update, attn_metadata.fill_page_table
+            )
 
         # Preserve tensor identity so XLA reuses the traced graph.
         kv_cache[0].copy_(k_cache)
