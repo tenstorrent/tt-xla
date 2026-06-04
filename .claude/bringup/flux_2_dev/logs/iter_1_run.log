@@ -1,0 +1,169 @@
+2026-06-04 11:11:56.836 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.13.0', 'jaxtyping': '0.3.10', 'split': '0.11.0', 'metadata': '3.1.1', 'forked': '1.6.0', 'json-report': '1.5.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.13.0, jaxtyping-0.3.10, split-0.11.0, metadata-3.1.1, forked-1.6.0, json-report-1.5.0
+collecting ... collected 1 item
+
+tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded FAILED
+
+=================================== FAILURES ===================================
+___________________________ test_transformer_sharded ___________________________
+tests/torch/models/flux_2_dev/test_transformer.py:42: in test_transformer_sharded
+    if xr.global_runtime_device_count() < 2:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/runtime.py:192: in global_runtime_device_count
+    return len(torch_xla._XLAC._xla_get_all_runtime_devices())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: Invalid device ID in TT_VISIBLE_DEVICES: 4.  Valid device identifiers are either integers or part of the BDF string. Valid integer IDs are between 0 and 3.
+E   Location: /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/third_party/umd/device/pcie/pci_device.cpp:322
+E    1. tt::umd::PCIDevice::enumerate_devices_info()
+E    2. tt::umd::TopologyDiscovery::create_topology_discovery(tt::umd::TopologyDiscoveryOptions const&, tt::umd::IODeviceType, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+E    3. tt::umd::TopologyDiscovery::discover(tt::umd::TopologyDiscoveryOptions const&, tt::umd::IODeviceType, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+E    4. tt::umd::Cluster::create_cluster_descriptor(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tt::umd::IODeviceType, tt::umd::TopologyDiscoveryOptions const&)
+E    5. tt::Cluster::get_cluster_type_from_cluster_desc(tt::llrt::RunTimeOptions const&, tt::umd::ClusterDescriptor const*)
+E    6. tt::tt_metal::MetalEnvImpl::initialize_base_objects()
+E    7. tt::tt_metal::MetalEnvImpl::MetalEnvImpl(tt::tt_metal::MetalEnvDescriptor)
+E    8. std::__detail::_MakeUniq<tt::tt_metal::MetalEnvImpl>::__single_object std::make_unique<tt::tt_metal::MetalEnvImpl, tt::tt_metal::MetalEnvDescriptor>(tt::tt_metal::MetalEnvDescriptor&&)
+E    9. tt::tt_metal::MetalEnv::MetalEnv(tt::tt_metal::MetalEnvDescriptor)
+E   10. tt::tt_metal::MetalContext::create_default_instance_implicit_locked()
+E   11. tt::tt_metal::MetalContext::instance(ttsl::StrongType<int, tt::tt_metal::ContextIdTag>)
+E   12. tt::tt_metal::GetClusterType()
+E   13. tt::runtime::system_desc::getCurrentSystemDesc(std::optional<tt::runtime::flatbuffer::DispatchCoreType>, std::optional<tt::runtime::Device>)
+E   14. tt::runtime::getCurrentSystemDesc(std::optional<tt::runtime::flatbuffer::DispatchCoreType>, std::optional<tt::runtime::Device>)
+E   15. tt::pjrt::ClientInstance::populateDevices()
+E   16. tt::pjrt::ClientInstance::initialize()
+E   17. tt::pjrt::GlobalClientInstanceSingleton::initClient()
+E   18. tt::pjrt::internal::onClientCreate(PJRT_Client_Create_Args*)
+E   19. xla::WrapClientAroundCApi(PJRT_Api const*, absl::lts_20230802::flat_hash_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float>, absl::lts_20230802::container_internal::StringHash, absl::lts_20230802::container_internal::StringEq, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float> > > > const&, std::shared_ptr<xla::KeyValueStoreInterface>)
+E   20. xla::GetCApiClient(std::basic_string_view<char, std::char_traits<char> >, absl::lts_20230802::flat_hash_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float>, absl::lts_20230802::container_internal::StringHash, absl::lts_20230802::container_internal::StringEq, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float> > > > const&, std::shared_ptr<xla::KeyValueStoreInterface>)
+E   21. torch_xla::runtime::InitializePjRt(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+E   22. torch_xla::runtime::PjRtComputationClient::Initialize()
+E   23. torch_xla::runtime::PjRtComputationClient::Create()
+E   24. torch_xla::runtime::GetComputationClient()
+E   25. torch_xla::runtime::GetComputationClientOrDie()
+E   26. /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6adc682) [0x7f471d263682]
+E   27. /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6afdce2) [0x7f471d284ce2]
+E   28. _PyObject_MakeTpCall
+E   29. _PyEval_EvalFrameDefault
+E   30. _PyObject_MakeTpCall
+E   31. _PyEval_EvalFrameDefault
+E   32. _PyObject_Call_Prepend
+E   33. _PyObject_MakeTpCall
+E   34. _PyEval_EvalFrameDefault
+E   35. _PyObject_Call_Prepend
+E   36. PyObject_Call
+E   37. _PyEval_EvalFrameDefault
+E   38. _PyObject_Call_Prepend
+E   39. _PyObject_MakeTpCall
+E   40. _PyEval_EvalFrameDefault
+E   41. _PyObject_Call_Prepend
+E   42. _PyObject_MakeTpCall
+E   43. _PyEval_EvalFrameDefault
+E   44. _PyObject_Call_Prepend
+E   45. _PyObject_MakeTpCall
+E   46. _PyEval_EvalFrameDefault
+E   47. PyEval_EvalCode
+E   48. PyObject_Vectorcall
+E   49. _PyEval_EvalFrameDefault
+E   50. Py_RunMain
+E   51. Py_BytesMain
+E   52. /lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca) [0x7f479ed381ca]
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded - RuntimeError: Invalid device ID in TT_VISIBLE_DEVICES: 4.  Valid device identifiers are either integers or part of the BDF string. Valid integer IDs are between 0 and 3.
+Location: /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/third_party/umd/device/pcie/pci_device.cpp:322
+ 1. tt::umd::PCIDevice::enumerate_devices_info()
+ 2. tt::umd::TopologyDiscovery::create_topology_discovery(tt::umd::TopologyDiscoveryOptions const&, tt::umd::IODeviceType, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+ 3. tt::umd::TopologyDiscovery::discover(tt::umd::TopologyDiscoveryOptions const&, tt::umd::IODeviceType, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+ 4. tt::umd::Cluster::create_cluster_descriptor(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, tt::umd::IODeviceType, tt::umd::TopologyDiscoveryOptions const&)
+ 5. tt::Cluster::get_cluster_type_from_cluster_desc(tt::llrt::RunTimeOptions const&, tt::umd::ClusterDescriptor const*)
+ 6. tt::tt_metal::MetalEnvImpl::initialize_base_objects()
+ 7. tt::tt_metal::MetalEnvImpl::MetalEnvImpl(tt::tt_metal::MetalEnvDescriptor)
+ 8. std::__detail::_MakeUniq<tt::tt_metal::MetalEnvImpl>::__single_object std::make_unique<tt::tt_metal::MetalEnvImpl, tt::tt_metal::MetalEnvDescriptor>(tt::tt_metal::MetalEnvDescriptor&&)
+ 9. tt::tt_metal::MetalEnv::MetalEnv(tt::tt_metal::MetalEnvDescriptor)
+10. tt::tt_metal::MetalContext::create_default_instance_implicit_locked()
+11. tt::tt_metal::MetalContext::instance(ttsl::StrongType<int, tt::tt_metal::ContextIdTag>)
+12. tt::tt_metal::GetClusterType()
+13. tt::runtime::system_desc::getCurrentSystemDesc(std::optional<tt::runtime::flatbuffer::DispatchCoreType>, std::optional<tt::runtime::Device>)
+14. tt::runtime::getCurrentSystemDesc(std::optional<tt::runtime::flatbuffer::DispatchCoreType>, std::optional<tt::runtime::Device>)
+15. tt::pjrt::ClientInstance::populateDevices()
+16. tt::pjrt::ClientInstance::initialize()
+17. tt::pjrt::GlobalClientInstanceSingleton::initClient()
+18. tt::pjrt::internal::onClientCreate(PJRT_Client_Create_Args*)
+19. xla::WrapClientAroundCApi(PJRT_Api const*, absl::lts_20230802::flat_hash_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float>, absl::lts_20230802::container_internal::StringHash, absl::lts_20230802::container_internal::StringEq, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float> > > > const&, std::shared_ptr<xla::KeyValueStoreInterface>)
+20. xla::GetCApiClient(std::basic_string_view<char, std::char_traits<char> >, absl::lts_20230802::flat_hash_map<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float>, absl::lts_20230802::container_internal::StringHash, absl::lts_20230802::container_internal::StringEq, std::allocator<std::pair<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const, std::variant<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long, std::vector<long, std::allocator<long> >, float> > > > const&, std::shared_ptr<xla::KeyValueStoreInterface>)
+21. torch_xla::runtime::InitializePjRt(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+22. torch_xla::runtime::PjRtComputationClient::Initialize()
+23. torch_xla::runtime::PjRtComputationClient::Create()
+24. torch_xla::runtime::GetComputationClient()
+25. torch_xla::runtime::GetComputationClientOrDie()
+26. /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6adc682) [0x7f471d263682]
+27. /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6afdce2) [0x7f471d284ce2]
+28. _PyObject_MakeTpCall
+29. _PyEval_EvalFrameDefault
+30. _PyObject_MakeTpCall
+31. _PyEval_EvalFrameDefault
+32. _PyObject_Call_Prepend
+33. _PyObject_MakeTpCall
+34. _PyEval_EvalFrameDefault
+35. _PyObject_Call_Prepend
+36. PyObject_Call
+37. _PyEval_EvalFrameDefault
+38. _PyObject_Call_Prepend
+39. _PyObject_MakeTpCall
+40. _PyEval_EvalFrameDefault
+41. _PyObject_Call_Prepend
+42. _PyObject_MakeTpCall
+43. _PyEval_EvalFrameDefault
+44. _PyObject_Call_Prepend
+45. _PyObject_MakeTpCall
+46. _PyEval_EvalFrameDefault
+47. PyEval_EvalCode
+48. PyObject_Vectorcall
+49. _PyEval_EvalFrameDefault
+50. Py_RunMain
+51. Py_BytesMain
+52. /lib/x86_64-linux-gnu/libc.so.6(+0x2a1ca) [0x7f479ed381ca]
+======================== 1 failed, 18 warnings in 8.05s ========================
+F0604 11:12:09.870769   64307 runtime.cpp:22] Check failed: !g_computation_client_initialized InitializeComputationClient() can only be called once.
+*** Check failure stack trace: ***
+    @     0x7f472819add8  absl::lts_20230802::log_internal::LogMessage::SendToLog()
+    @     0x7f472819b479  absl::lts_20230802::log_internal::LogMessageFatal::~LogMessageFatal()
+    @     0x7f471cca4a52  torch_xla::runtime::GetComputationClient()
+    @     0x7f471d7c13e0  torch_xla::runtime::GetComputationClientOrDie()
+    @     0x7f471d254201  torch_xla::(anonymous namespace)::PrepareToExit()
+    @     0x7f471d24ce8a  pybind11::cpp_function::initialize<>()::{lambda()#3}::_FUN()
+    @     0x7f471d284ce2  pybind11::cpp_function::dispatcher()
+    @           0x5821ef  (unknown)
+    @           0x5492b5  _PyObject_MakeTpCall
+    @           0x5d7389  _PyEval_EvalFrameDefault
+    @           0x6e1f73  (unknown)
+    @           0x6b131e  Py_FinalizeEx
+    @           0x6bcd31  Py_RunMain
+    @           0x6bc94d  Py_BytesMain
+    @     0x7f479ed381ca  (unknown)
+    @     0x7f479ed3828b  __libc_start_main
+    @           0x657b05  _start

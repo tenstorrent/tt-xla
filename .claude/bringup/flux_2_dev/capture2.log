@@ -1,0 +1,13 @@
+2026-06-04 10:39:59.890 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Loading pipeline components...:   0%|          | 0/5 [00:00<?, ?it/s]
+Loading weights:   0%|          | 0/585 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 585/585 [00:00<00:00, 10894.20it/s]
+The tied weights mapping and config for this model specifies to tie model.language_model.embed_tokens.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+Loading pipeline components...:  40%|████      | 2/5 [00:00<00:00,  6.59it/s]Loading pipeline components...:  60%|██████    | 3/5 [00:01<00:01,  1.81it/s]
+Loading checkpoint shards:   0%|          | 0/7 [00:00<?, ?it/s][ALoading checkpoint shards: 100%|██████████| 7/7 [00:00<00:00, 149.45it/s]
+Loading pipeline components...: 100%|██████████| 5/5 [00:01<00:00,  3.45it/s]Loading pipeline components...: 100%|██████████| 5/5 [00:01<00:00,  3.21it/s]
+Kwargs passed to `processor.__call__` have to be in `processor_kwargs` dict, not in `**kwargs`
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [01:21<01:21, 81.50s/it]2026-06-04 10:42:41.673451: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+100%|██████████| 2/2 [02:40<00:00, 80.28s/it]100%|██████████| 2/2 [02:40<00:00, 80.46s/it]
+CAPTURE_OK steps=2 -> /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/flux_2_dev/io_spec_raw.jsonl

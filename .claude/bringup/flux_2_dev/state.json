@@ -1,0 +1,183 @@
+{
+  "model_key": "flux_2_dev/pytorch-Dev-single_device-inference",
+  "arch": "auto",
+  "stage": "escalated",
+  "iteration": 3,
+  "history": [
+    {
+      "stage": "validate",
+      "result": "passed",
+      "details": {
+        "scaffold_variant": "pipeline",
+        "loader_path": "third_party/tt_forge_models/flux_2_dev/pytorch/loader.py",
+        "loader_created": true,
+        "components_scaffolded": [
+          "text_encoder",
+          "transformer",
+          "vae"
+        ],
+        "denoise_steps_observed": 2,
+        "device": "auto",
+        "weight_fit_path": ".claude/bringup/flux_2_dev/weight_fit.json",
+        "io_spec_path": ".claude/bringup/flux_2_dev/scaffold_pipeline.json"
+      }
+    },
+    {
+      "stage": "validate_tp",
+      "result": "passed",
+      "details": {
+        "component": "transformer",
+        "tp_pattern": "A_megatron_1d",
+        "mesh": [
+          1,
+          8
+        ],
+        "chip_count": 8,
+        "shard_tensors": 192,
+        "unresolved": 0
+      }
+    },
+    {
+      "stage": "first_run_tp",
+      "result": "failed",
+      "iteration": 1,
+      "details": {
+        "root_cause": "env_config: TT_VISIBLE_DEVICES board-vs-chip",
+        "error": "Invalid device ID in TT_VISIBLE_DEVICES: 4 (valid 0-3)",
+        "fix": "TT_VISIBLE_DEVICES=0,1,2,3",
+        "shard_spec_ok": true
+      }
+    },
+    {
+      "stage": "first_run_tp",
+      "result": "failed",
+      "iteration": 2,
+      "details": {
+        "root_cause": "oom_dram_execution",
+        "alloc_bytes": 103809024,
+        "per_chip_weight_gb_est": 9.5,
+        "replicated_overhead_gb_per_chip": 1.63,
+        "classification": "weight+activation pressure on maxed 8-chip mesh",
+        "repair": "shard large replicated modulation/context_embedder/norm_out layers"
+      }
+    },
+    {
+      "stage": "repair_shard",
+      "result": "applied",
+      "iteration": 2,
+      "details": {
+        "per_chip_weight_gb": 8.2,
+        "replicated_params": 80000000,
+        "sharded_tensors": 197
+      }
+    },
+    {
+      "stage": "verify_tp",
+      "result": "failed",
+      "iteration": 3,
+      "details": {
+        "root_cause": "oom_activation_peak",
+        "alloc_bytes": 103809024,
+        "buffer_seq_divisible": true,
+        "weight_shard_had_no_effect_on_highwater": true,
+        "largest_free_block": 6894496,
+        "next_lever": "reduce_activation_footprint seq_len 512->128"
+      }
+    },
+    {
+      "stage": "escalated",
+      "result": "handoff",
+      "details": {
+        "reason": "oom_activation_peak_replicated_intermediate",
+        "escalation": ".claude/bringup/flux_2_dev/escalation.json",
+        "user_decision": "stop_and_hand_off"
+      }
+    },
+    {
+      "stage": "first_run_tp",
+      "result": "passed",
+      "component": "text_encoder",
+      "iteration": 1,
+      "details": {
+        "arch": "n300-llmbox",
+        "chip_count": 8,
+        "mesh": [
+          1,
+          8
+        ],
+        "runtime_s": 208,
+        "per_chip_weight_gb_est": 9.1,
+        "key_fix": "logits_to_keep=1 (avoid 134MB logits activation)",
+        "note": "TT-only execution pass (no CPU golden / PCC for 24B); compiles+runs sharded"
+      }
+    }
+  ],
+  "applied_patches": [
+    "shard_transformer_specs: +5 row-parallel conditioning/embedding layers (OOM repair)"
+  ],
+  "failure_reasons": [
+    "iter1 first_run_tp: invalid TT_VISIBLE_DEVICES (0-7); host has 4 boards (0-3)=8 chips. env-config error, not shard/model.",
+    "iter2 first_run_tp: DRAM OOM during execution (alloc 103MB, per-bank free 30MB). Weights ~9.5GB/chip + 1.63GB/chip replication overhead leave too little activation room on 8x12GiB WH.",
+    "iter3 verify_tp: SAME 103MB DRAM OOM after weight-shard repair (per-bank allocated ~1.045GB, unchanged). Limiter is the ACTIVATION peak, not weight residency. Buffer is seq-divisible (51.9M bf16 el = 528*98304) -> reduce_activation_footprint (lower seq_len) is the next lever."
+  ],
+  "details": {
+    "scaffold_variant": "pipeline",
+    "hf_repo": "black-forest-labs/FLUX.2-dev",
+    "family": "flux_2_dev",
+    "pipeline_class": "Flux2Pipeline",
+    "param_estimate": {
+      "text_encoder": 24010000000,
+      "transformer": 32220000000,
+      "vae": 84000000,
+      "total": 56314000000
+    },
+    "param_estimate_source": "safetensors_header_exact",
+    "components": [
+      {
+        "name": "vae",
+        "parallelism_mode": "single_device",
+        "eligible_archs": [
+          "n150",
+          "p150"
+        ],
+        "test_path": "tests/torch/models/flux_2_dev/test_vae_decoder.py::test_vae_decoder",
+        "pcc": 0.99
+      },
+      {
+        "name": "transformer",
+        "parallelism_mode": "tensor_parallel",
+        "eligible_archs": [],
+        "weight_predicted_any": true,
+        "test_path": "tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded"
+      },
+      {
+        "name": "text_encoder",
+        "parallelism_mode": "tensor_parallel",
+        "eligible_archs": [],
+        "weight_predicted_any": true,
+        "test_path": "tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded"
+      }
+    ],
+    "weight_predicted_any": true,
+    "weight_fit_path": ".claude/bringup/flux_2_dev/weight_fit.json",
+    "shard_plan_hint": {
+      "lb-blackhole": "(1,4) chip_count=4",
+      "n300-llmbox": "(1,8) chip_count=8"
+    },
+    "promotion_required_components": [
+      "transformer",
+      "text_encoder"
+    ],
+    "multichip_scaffold_path": ".claude/bringup/flux_2_dev/scaffold_multichip.json",
+    "tp_pattern": "A_megatron_1d",
+    "host_probe": {
+      "device_count": 8,
+      "host_tier": "multichip_fabric",
+      "arch": "n300-llmbox",
+      "can_run_multichip_bringup": true,
+      "tt_visible_devices": "0,1,2,3,4,5,6,7"
+    }
+  },
+  "created_at": 1780570601,
+  "updated_at": 1780587266
+}

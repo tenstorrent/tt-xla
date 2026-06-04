@@ -1,0 +1,104 @@
+--------------------------------------------------------------------------------
+STEP 1P — Pipeline Scaffold (model-bringup-scaffold-pipeline)
+--------------------------------------------------------------------------------
+HF repo            : black-forest-labs/FLUX.2-dev  (GATED — HF token required)
+Family             : flux_2_dev
+Variant prefix     : FLUX2_DEV
+Pipeline class     : Flux2Pipeline
+Total params       : ~56.3 B
+Components         : 3 (compilable) + 2 skipped (scheduler, tokenizer)
+  - text_encoder  class=Mistral3ForConditionalGeneration  params=~24.01B (bf16, 44.72GB)  source=transformers/models/mistral3/modeling_mistral3.py
+  - transformer   class=Flux2Transformer2DModel           params=~32.22B (bf16, 60.02GB)  source=diffusers/models/transformers/transformer_flux2.py
+  - vae           class=AutoencoderKLFlux2                 params=~0.084B (fp32, 0.31GB)   source=diffusers/models/autoencoders/autoencoder_kl_flux2.py
+
+Param source       : EXACT (summed from safetensors shard headers, no weight download for counts)
+Capture pass       : PASS  steps=2  res=64x64  seq=512
+                     log=.claude/bringup/flux_2_dev/capture2.log
+                     raw=.claude/bringup/flux_2_dev/io_spec_raw.jsonl
+                     (first attempt's logging.* calls were swallowed by libs'
+                      root-logger config; re-run wrote structured JSONL directly.)
+
+Captured I/O spec  :
+  text_encoder  IN  input_ids[1,512]i64, attention_mask[1,512]i64, output_hidden_states=True
+                OUT hidden_states = tuple[41] of [1,512,5120] bf16
+  transformer   IN  hidden_states[1,16,128]bf16, encoder_hidden_states[1,512,15360]bf16,
+                    timestep[1]bf16, img_ids[1,16,4]i64, txt_ids[1,512,4]i64, guidance[1]f32
+                OUT [1,16,128] bf16   (called once per denoise step)
+  vae.decode    IN  latent[1,32,8,8] bf16
+                OUT [1,3,64,64] bf16
+
+Device target      : auto
+weight_fit (n150=12GiB / p150=32GiB, 85% budget = 11.0 / 29.2 GB):
+  - vae           bf16=0.2GB  fp32=0.3GB   eligible=[n150,p150]  mode=single_device   (fits single chip)
+  - text_encoder  bf16=48.0GB fp32=96.0GB  eligible=[]           mode=tensor_parallel (weight-bound on BOTH archs)
+  - transformer   bf16=64.4GB fp32=128.9GB eligible=[]           mode=tensor_parallel (weight-bound on BOTH archs)
+
+Chip count         : per-component (NOT uniform on single chip)
+  - vae          : 1  (single_device, runs now)
+  - transformer  : promotion-only (4 on lb-blackhole / 8 on n300-llmbox — ESTIMATE)
+  - text_encoder : promotion-only (2 on lb-blackhole / 8 on n300-llmbox — ESTIMATE)
+TT_VISIBLE_DEVICES : chosen at run time by probe_host.py (single index for VAE; full mesh for TP)
+
+Shard specs (Megatron-1D, PROMOTION-ONLY, refined by /model-bringup-multichip):
+  - transformer  : double-stream attn q/k/v + add_q/k/v col-parallel, to_out/to_add_out row-parallel;
+                   ff/ff_context SwiGLU linear_in col, linear_out row; single-stream to_qkv_mlp_proj col, to_out row
+  - text_encoder : per-layer self_attn q/k/v_proj col, o_proj row; mlp gate/up_proj col, down_proj row (Mistral LM)
+  - vae          : None (single_device; replicate-only on any mesh)
+
+Loader path        : third_party/tt_forge_models/flux_2_dev/pytorch/loader.py
+Helpers            : third_party/tt_forge_models/flux_2_dev/pytorch/src/utils.py
+Variants written   :
+  - FLUX2_DEV_TEXT_ENCODER
+  - FLUX2_DEV_TRANSFORMER
+  - FLUX2_DEV_VAE
+
+Component tests    : tests/torch/models/flux_2_dev/  (NOT in runner YAML; selected by pytest markers)
+  - test_vae_decoder.py::test_vae_decoder            @nightly @model_test @single_device   PCC 0.99 (run_graph_test, real CPU golden)
+  - test_transformer.py::test_transformer_sharded    @nightly @model_test @tensor_parallel @large  (TT-only, promotion; skip if <2 chips)
+  - test_text_encoder.py::test_text_encoder_sharded  @nightly @model_test @tensor_parallel @large  (TT-only, promotion; skip if <2 chips)
+
+YAML entries added : NONE (pipeline components use markers, not test_config_*_single_device.yaml)
+
+Validation         : loader import OK; load_inputs reproduces captured shapes for all 3 variants; pytest collect OK (3 tests)
+
+SCAFFOLD RESULT    : PASSED
+NEXT STAGE         : model-bringup-run on the VAE single_device node first
+                     (tests/torch/models/flux_2_dev/test_vae_decoder.py::test_vae_decoder);
+                     transformer + text_encoder are promotion-only -> /model-bringup-multichip.
+
+--------------------------------------------------------------------------------
+STEP 2M — Multichip TP (model-bringup-multichip)  component=transformer
+--------------------------------------------------------------------------------
+Entry gate         : --force-multichip + weight_predicted on n150 AND p150  (OK)
+Host probe         : device_count=8 (Wormhole_b0), host_tier=multichip_fabric, arch=n300-llmbox
+                     NOTE: 4 boards (TT_VISIBLE_DEVICES IDs 0-3) x 2 chips = 8 chips.
+                     TT_VISIBLE_DEVICES enumerates BOARDS (0-3), NOT chips 0-7.
+
+VALIDATE_TP        : PASSED — Pattern A Megatron-1D, mesh (1,8), shard spec 197 tensors / 0 unresolved
+FIRST_RUN_TP iter1 : FAILED — env: TT_VISIBLE_DEVICES=0..7 invalid ("valid IDs 0-3"). Fixed -> 0,1,2,3
+FIRST_RUN_TP iter2 : FAILED — DRAM OOM 103MB. weights 9.5GB/chip + 1.63GB/chip replication overhead.
+REPAIR_SHARD       : applied — row-parallel on context_embedder, norm_out.linear, and 3 modulation
+                     linears (replicated conditioning/embedding layers). per-chip weight 9.5 -> 8.20GB,
+                     replicated params 0.816B -> 0.080B. shard tensors 192 -> 197.
+VERIFY_TP iter3    : FAILED — SAME 103MB DRAM OOM. Per-bank allocated ~1.045GB (unchanged from iter2),
+                     proving the limiter is the ACTIVATION peak, not weight residency.
+                     Offending buffer: 51.9M bf16 el = total_seq(528) x 98304 (16*6144), FULL-WIDTH
+                     (replicated, not sharded on model axis). Fragmented (largest free block 6.9MB).
+
+RESULT             : ESCALATED  (user decision: stop and hand off)
+Escalation note    : .claude/bringup/flux_2_dev/escalation.json
+Recommended next   : runtime_debug (shard the ~98304-wide replicated intermediate) OR
+                     reduce_activation_footprint (seq_len<=128 for a reduced-seq TP MVP pass).
+Artifacts          : scaffold_multichip.json, host_probe.json, logs/iter_{1,2,3}_run.log, state.json
+
+--------------------------------------------------------------------------------
+STEP 2M-b — Multichip TP (model-bringup-multichip)  component=text_encoder
+--------------------------------------------------------------------------------
+VALIDATE_TP        : PASSED (meta) — Mistral3 Megatron-1D, 95% sharded, per-chip weight ~7.78-9.1GB
+Pre-run fix        : logits_to_keep=1 in load_inputs + test — lm_head on last token only, so logits
+                     is [1,1,131072] not [1,512,131072] (~134MB replicated). hidden_states (what the
+                     FLUX.2 pipeline uses) still produced for every layer. Avoids the transformer-style OOM.
+FIRST_RUN_TP       : PASSED — test_text_encoder_sharded on n300-llmbox, mesh (1,8), TT_VISIBLE_DEVICES=0,1,2,3
+                     runtime 208s (~3.5 min). TT-only execution pass (no CPU golden/PCC for 24B).
+                     log=logs/te_iter_1_run.log
+RESULT             : PASSED

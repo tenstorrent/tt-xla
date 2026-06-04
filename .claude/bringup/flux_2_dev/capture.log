@@ -1,0 +1,13 @@
+2026-06-04 10:30:48.181 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Fetching 31 files:   0%|          | 0/31 [00:00<?, ?it/s]Fetching 31 files:   6%|▋         | 2/31 [00:00<00:01, 15.06it/s]Fetching 31 files:   6%|▋         | 2/31 [00:19<00:01, 15.06it/s]Fetching 31 files:  13%|█▎        | 4/31 [00:31<04:10,  9.28s/it]Fetching 31 files:  16%|█▌        | 5/31 [00:42<04:15,  9.81s/it]Fetching 31 files:  29%|██▉       | 9/31 [00:44<01:26,  3.93s/it]Fetching 31 files:  32%|███▏      | 10/31 [00:44<01:08,  3.26s/it]Fetching 31 files:  39%|███▊      | 12/31 [00:48<00:54,  2.85s/it]Fetching 31 files:  71%|███████   | 22/31 [01:29<00:33,  3.72s/it]Fetching 31 files:  74%|███████▍  | 23/31 [01:49<00:41,  5.19s/it]Fetching 31 files:  81%|████████  | 25/31 [01:49<00:24,  4.16s/it]Fetching 31 files:  84%|████████▍ | 26/31 [01:50<00:18,  3.68s/it]Fetching 31 files: 100%|██████████| 31/31 [01:50<00:00,  3.56s/it]
+Loading pipeline components...:   0%|          | 0/5 [00:00<?, ?it/s]Loading pipeline components...:  40%|████      | 2/5 [00:00<00:00, 16.03it/s]
+Loading weights:   0%|          | 0/585 [00:00<?, ?it/s][ALoading weights: 100%|██████████| 585/585 [00:00<00:00, 7230.17it/s]
+The tied weights mapping and config for this model specifies to tie model.language_model.embed_tokens.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+Loading pipeline components...:  80%|████████  | 4/5 [00:01<00:00,  2.25it/s]
+Loading checkpoint shards:   0%|          | 0/7 [00:00<?, ?it/s][ALoading checkpoint shards: 100%|██████████| 7/7 [00:00<00:00, 156.62it/s]
+Loading pipeline components...: 100%|██████████| 5/5 [00:01<00:00,  3.08it/s]
+Kwargs passed to `processor.__call__` have to be in `processor_kwargs` dict, not in `**kwargs`
+  0%|          | 0/2 [00:00<?, ?it/s] 50%|█████     | 1/2 [01:24<01:24, 84.46s/it]2026-06-04 10:36:05.367898: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+100%|██████████| 2/2 [03:13<00:00, 98.79s/it]100%|██████████| 2/2 [03:13<00:00, 96.64s/it]

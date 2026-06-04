@@ -1,0 +1,52 @@
+{
+  "model_key": "flux_2_dev/pytorch-Dev-transformer",
+  "component": "transformer",
+  "stage": "multichip_tp",
+  "result": "ESCALATED",
+  "reason": "oom_activation_peak_replicated_intermediate",
+  "arch": "n300-llmbox",
+  "device_arch": "Wormhole_b0",
+  "chip_count": 8,
+  "mesh": [
+    1,
+    8
+  ],
+  "tt_visible_devices": "0,1,2,3",
+  "what_works": [
+    "Pattern A Megatron-1D shard spec validated: 197 tensors, 0 unresolved",
+    "TT_VISIBLE_DEVICES=0,1,2,3 (4 boards = 8 chips) \u2014 env fixed",
+    "Weight repair: row-parallel on 5 replicated conditioning/embedding layers; per-chip weight 9.5GB -> 8.20GB",
+    "Run reaches device execution (mesh (1,8) created, weights loaded, graph compiled)"
+  ],
+  "blocker": {
+    "error": "TT_FATAL Out of Memory: allocate 103809024 B (103MB) DRAM buffer; per-bank free ~26MB, largest free block ~6.9MB (fragmentation)",
+    "buffer_shape_hint": "51,904,512 bf16 elements = total_seq(528) x 98304 (=16*6144); FULL-WIDTH i.e. UNSHARDED/REPLICATED on a single chip",
+    "diagnosis": "A large intermediate (~98304 wide) is replicated rather than sharded across the model axis. Weight sharding (iter2->iter3) did NOT change the high-water mark (per-bank allocated ~1.045GB both runs), confirming the limiter is the activation peak, not weight residency. Buffer scales with sequence length.",
+    "iterations": [
+      {
+        "iter": 1,
+        "result": "fail",
+        "cause": "env: invalid TT_VISIBLE_DEVICES 0-7 (boards are 0-3)"
+      },
+      {
+        "iter": 2,
+        "result": "fail",
+        "cause": "DRAM OOM 103MB; weights 9.5GB/chip + 1.63GB/chip replication",
+        "log": "logs/iter_2_run.log"
+      },
+      {
+        "iter": 3,
+        "result": "fail",
+        "cause": "SAME DRAM OOM 103MB after weight-shard repair (8.20GB/chip)",
+        "log": "logs/iter_3_run.log"
+      }
+    ]
+  },
+  "recommended_next_steps": [
+    "runtime_debug: identify the ~98304-wide replicated intermediate (likely a reshape/all-reduce/concat where Shardy sharding propagation drops the model-axis split) and force-shard it or restructure so it stays sharded.",
+    "OR reduce_activation_footprint: run at seq_len<=128 (total 144 tokens -> ~28MB buffer) for a reduced-sequence TP MVP pass (Mochi/Wan reduced-res precedent).",
+    "dram-space-saving optimization already enabled in the test; fragmentation (largest free block 6.9MB) suggests a packing/allocator angle too."
+  ],
+  "owner_handoff": "human / runtime-failure-debugger",
+  "created_at": 1780586360
+}

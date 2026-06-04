@@ -1,0 +1,249 @@
+{
+  "hf_repo": "black-forest-labs/FLUX.2-dev",
+  "family": "flux_2_dev",
+  "variant_prefix": "FLUX2_DEV",
+  "pipeline_class": "Flux2Pipeline",
+  "safe_key": "flux_2_dev",
+  "components": [
+    {
+      "name": "text_encoder",
+      "module": "transformers",
+      "class": "Mistral3ForConditionalGeneration",
+      "params": 24010000000,
+      "stored_dtype": "bfloat16",
+      "stored_bytes": 48022722560,
+      "source_file": "transformers/models/mistral3/modeling_mistral3.py"
+    },
+    {
+      "name": "transformer",
+      "module": "diffusers",
+      "class": "Flux2Transformer2DModel",
+      "params": 32220000000,
+      "stored_dtype": "bfloat16",
+      "stored_bytes": 64446562304,
+      "source_file": "diffusers/models/transformers/transformer_flux2.py"
+    },
+    {
+      "name": "vae",
+      "module": "diffusers",
+      "class": "AutoencoderKLFlux2",
+      "params": 84000000,
+      "stored_dtype": "float32",
+      "stored_bytes": 336185492,
+      "source_file": "diffusers/models/autoencoders/autoencoder_kl_flux2.py"
+    }
+  ],
+  "skipped_components": [
+    "scheduler (FlowMatchEulerDiscreteScheduler)",
+    "tokenizer (PixtralProcessor)"
+  ],
+  "total_params": 56314000000,
+  "denoising_steps_default": 50,
+  "forward_signatures": {
+    "transformer": [
+      "hidden_states",
+      "encoder_hidden_states",
+      "timestep",
+      "img_ids",
+      "txt_ids",
+      "guidance",
+      "joint_attention_kwargs"
+    ],
+    "vae_decode": [
+      "latent_sample"
+    ],
+    "vae_encode": [
+      "sample"
+    ],
+    "text_encoder": [
+      "input_ids",
+      "pixel_values?",
+      "attention_mask"
+    ]
+  },
+  "capture": {
+    "strategy": "runtime_monkeypatch_forward",
+    "log": ".claude/bringup/flux_2_dev/capture.log"
+  },
+  "promotion_hint": {
+    "note": "ESTIMATE ONLY \u2014 do not auto-run multichip; promotion-only after single-chip exhaust.",
+    "lb-blackhole": {
+      "per_device_gib": 32,
+      "transformer_chips": 4,
+      "text_encoder_chips": 2,
+      "uniform_chip_count": 4,
+      "mesh": "(1,4)"
+    },
+    "n300-llmbox": {
+      "per_device_gib": 12,
+      "transformer_chips": 8,
+      "text_encoder_chips": 8,
+      "uniform_chip_count": 8,
+      "mesh": "(1,8)"
+    },
+    "vae": "single_device (replicate on mesh, load_shard_spec -> None)"
+  },
+  "io_spec": {
+    "capture_resolution": {
+      "height": 64,
+      "width": 64,
+      "num_inference_steps": 2,
+      "max_sequence_length": 512
+    },
+    "text_encoder": {
+      "inputs": [
+        {
+          "name": "input_ids",
+          "shape": [
+            1,
+            512
+          ],
+          "dtype": "torch.int64"
+        },
+        {
+          "name": "attention_mask",
+          "shape": [
+            1,
+            512
+          ],
+          "dtype": "torch.int64"
+        },
+        {
+          "name": "output_hidden_states",
+          "value": true
+        }
+      ],
+      "outputs": {
+        "hidden_states": "tuple[41] of [1,512,5120] bf16",
+        "logits": [
+          1,
+          512,
+          131072
+        ]
+      },
+      "called_per_step": false,
+      "embed_dim": 5120,
+      "num_hidden_layers": 40
+    },
+    "transformer": {
+      "inputs": [
+        {
+          "name": "hidden_states",
+          "shape": [
+            1,
+            16,
+            128
+          ],
+          "dtype": "torch.bfloat16"
+        },
+        {
+          "name": "encoder_hidden_states",
+          "shape": [
+            1,
+            512,
+            15360
+          ],
+          "dtype": "torch.bfloat16"
+        },
+        {
+          "name": "timestep",
+          "shape": [
+            1
+          ],
+          "dtype": "torch.bfloat16"
+        },
+        {
+          "name": "img_ids",
+          "shape": [
+            1,
+            16,
+            4
+          ],
+          "dtype": "torch.int64"
+        },
+        {
+          "name": "txt_ids",
+          "shape": [
+            1,
+            512,
+            4
+          ],
+          "dtype": "torch.int64"
+        },
+        {
+          "name": "guidance",
+          "shape": [
+            1
+          ],
+          "dtype": "torch.float32"
+        }
+      ],
+      "outputs": [
+        {
+          "shape": [
+            1,
+            16,
+            128
+          ],
+          "dtype": "torch.bfloat16"
+        }
+      ],
+      "called_per_step": true,
+      "config": {
+        "in_channels": 128,
+        "joint_attention_dim": 15360,
+        "num_attention_heads": 48,
+        "attention_head_dim": 128,
+        "num_layers": 8,
+        "num_single_layers": 48,
+        "axes_dims_rope": [
+          32,
+          32,
+          32,
+          32
+        ],
+        "mlp_ratio": 3.0
+      }
+    },
+    "vae_decode": {
+      "inputs": [
+        {
+          "name": "latent",
+          "shape": [
+            1,
+            32,
+            8,
+            8
+          ],
+          "dtype": "torch.bfloat16"
+        }
+      ],
+      "outputs": [
+        {
+          "shape": [
+            1,
+            3,
+            64,
+            64
+          ],
+          "dtype": "torch.bfloat16"
+        }
+      ],
+      "called_per_step": false,
+      "latent_channels": 32,
+      "vae_scale_factor": 8
+    },
+    "derivation": {
+      "vae_scale_factor": 8,
+      "patch": 2,
+      "latent_channels": 32,
+      "vae_latent": "[1,32,H/8,W/8]",
+      "transformer_tokens": "(H/16)*(W/16)",
+      "transformer_hidden": "[1,tokens,128]",
+      "img_ids": "[1,tokens,4]",
+      "txt_ids": "[1,seq,4]",
+      "encoder_hidden": "[1,seq,15360]"
+    }
+  },
+  "denoise_steps_observed": 2
+}

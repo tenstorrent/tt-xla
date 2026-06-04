@@ -1,0 +1,6 @@
+{
+  "Flux2Transformer2DModel": "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/diffusers/models/transformers/transformer_flux2.py",
+  "AutoencoderKLFlux2": "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/diffusers/models/autoencoders/autoencoder_kl_flux2.py",
+  "Mistral3ForConditionalGeneration": "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/transformers/models/mistral3/modeling_mistral3.py",
+  "Flux2Pipeline": "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/diffusers/pipelines/flux2/pipeline_flux2.py"
+}

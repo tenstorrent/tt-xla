@@ -1,0 +1,49 @@
+2026-06-04 15:25:40.530 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.13.0', 'jaxtyping': '0.3.10', 'split': '0.11.0', 'metadata': '3.1.1', 'forked': '1.6.0', 'json-report': '1.5.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.13.0, jaxtyping-0.3.10, split-0.11.0, metadata-3.1.1, forked-1.6.0, json-report-1.5.0
+collecting ... collected 1 item
+
+tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded 2026-06-04 15:25:46.802943: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 33527.61it/s]
+Loading weights:   0%|          | 0/585 [00:00<?, ?it/s]Loading weights: 100%|██████████| 585/585 [00:00<00:00, 11067.96it/s]
+The tied weights mapping and config for this model specifies to tie model.language_model.embed_tokens.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+Created device mesh: (1, 8) with 8 devices.
+PASSED
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded
+  /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/torch/models/flux_2_dev/test_text_encoder.py:54: DeprecationWarning: Use torch_xla.device instead
+    device = xm.xla_device()
+
+tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded
+tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded
+tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded
+  /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded
+  /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================== 1 passed, 22 warnings in 207.99s (0:03:27) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute

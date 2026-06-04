@@ -1,0 +1,46 @@
+{
+  "component": "transformer",
+  "family": "flux_2_dev",
+  "tp_pattern": "A_megatron_1d",
+  "mesh_names": [
+    null,
+    "model"
+  ],
+  "mesh_shape": [
+    1,
+    8
+  ],
+  "chip_count": 8,
+  "arch": "n300-llmbox",
+  "device_arch": "Wormhole_b0",
+  "tt_visible_devices": "0,1,2,3",
+  "shard_helper": "third_party/tt_forge_models/flux_2_dev/pytorch/src/utils.py::shard_transformer_specs",
+  "test_path": "tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded",
+  "shard_stats": {
+    "sharded_tensors": 197,
+    "unresolved": 0,
+    "column_parallel": 112,
+    "row_parallel": 80,
+    "sharded_params": 31410000000,
+    "replicated_params": 80000000,
+    "per_chip_weight_params_est": 4098000000,
+    "per_chip_weight_bytes_bf16_est": 8200000000
+  },
+  "budget_note": "WH 12GiB/chip, 85%=10.25GB; ~9.5GB weights/chip fits, activation headroom tight (~0.75GB).",
+  "yaml_registration": "SKIPPED \u2014 pipeline component uses pytest markers (@tensor_parallel), not test_config_inference_tensor_parallel.yaml",
+  "spmd_env": {
+    "TT_XLA_ARCH": "n300-llmbox",
+    "TT_VISIBLE_DEVICES": "0,1,2,3",
+    "CONVERT_SHLO_TO_SHARDY": "1",
+    "XLA_USE_SPMD": "1"
+  },
+  "board_chip_note": "n300-llmbox = 4 boards (TT_VISIBLE_DEVICES IDs 0-3), 2 chips/board = 8 chips. TT_VISIBLE_DEVICES enumerates BOARDS (0-3); mesh (1,8) uses all 8 CHIPS.",
+  "repair_history": [
+    {
+      "iter": 2,
+      "fix": "row-parallel shard of replicated conditioning/embedding layers (context_embedder, norm_out.linear, 3x modulation linears)",
+      "freed_gb_per_chip": 1.29,
+      "per_chip_weight_gb_after": 8.2
+    }
+  ]
+}

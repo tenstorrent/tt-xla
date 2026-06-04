@@ -1,0 +1,103 @@
+{
+  "model_key": "flux_2_dev/pytorch-Dev-single_device-inference",
+  "hf_repo": "black-forest-labs/FLUX.2-dev",
+  "param_estimate_source": "safetensors_header_exact",
+  "components": [
+    {
+      "name": "text_encoder",
+      "num_params": 24010000000,
+      "weight_bytes_fp32": 96040000000,
+      "weight_bytes_bf16": 48020000000,
+      "activation_class": "text_encoder",
+      "eligible_archs": [],
+      "p150_only": false,
+      "parallelism_mode": "tensor_parallel",
+      "single_device_only": false,
+      "test_path": "tests/torch/models/flux_2_dev/test_text_encoder.py::test_text_encoder_sharded",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12949672960,
+          "budget_bytes": 11007222016,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        }
+      },
+      "supported_archs": []
+    },
+    {
+      "name": "transformer",
+      "num_params": 32220000000,
+      "weight_bytes_fp32": 128880000000,
+      "weight_bytes_bf16": 64440000000,
+      "activation_class": "image",
+      "eligible_archs": [],
+      "p150_only": false,
+      "parallelism_mode": "tensor_parallel",
+      "single_device_only": false,
+      "test_path": "tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12949672960,
+          "budget_bytes": 11007222016,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        }
+      },
+      "supported_archs": []
+    },
+    {
+      "name": "vae",
+      "num_params": 84000000,
+      "weight_bytes_fp32": 336000000,
+      "weight_bytes_bf16": 168000000,
+      "activation_class": "vae",
+      "eligible_archs": [
+        "n150",
+        "p150"
+      ],
+      "p150_only": false,
+      "parallelism_mode": "single_device",
+      "single_device_only": true,
+      "test_path": "tests/torch/models/flux_2_dev/test_vae_decoder.py::test_vae_decoder",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12949672960,
+          "budget_bytes": 11007222016,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        }
+      },
+      "supported_archs": []
+    }
+  ]
+}

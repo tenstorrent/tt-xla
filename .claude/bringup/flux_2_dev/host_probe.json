@@ -1,0 +1,38 @@
+{
+  "tt_xla_arch_env": "",
+  "tt_visible_devices_env": "",
+  "device_count": 8,
+  "device_arch": "Wormhole_b0",
+  "probe_error": null,
+  "host_tier": "multichip_fabric",
+  "inferred_bringup_arch": "n300-llmbox",
+  "ird_board_count_note": "ird NUM BOARDS (e.g. 4\u00d7 n300 on WH lb) may differ from runtime device_count (e.g. 8 chips). Always use device_count for TT_VISIBLE_DEVICES and mesh.",
+  "recommended_tt_visible_devices": {
+    "single_chip_bringup": "0",
+    "multichip_bringup": "0,1,2,3"
+  },
+  "can_run_single_chip_bringup": false,
+  "single_chip_skip_reason": "single-chip bringup (n150/p150) requires a dedicated single-chip host (runtime device_count=1). This session has device_count=8 (TT_XLA_ARCH='n300-llmbox'). Fabric/multichip boxes (n300-llmbox, qb, galaxy, WH/BH lb with n300 modules) cannot run single-chip bringup even with TT_VISIBLE_DEVICES=0 \u2014 change to a 1-board machine (e.g. nebula_x1(1|1) or p150(1|1)) and re-run /model-bringup.",
+  "can_run_multichip_bringup": true,
+  "multichip_skip_reason": "",
+  "policy": {
+    "single_chip": "Single-chip bringup (n150/p150) runs only on dedicated single-chip hosts (runtime device_count must be 1). Do not run on n300-llmbox, qb, galaxy, or lb/n300 fabric hosts \u2014 pinning TT_VISIBLE_DEVICES=0 does not make bringup valid.",
+    "multichip": "Multichip bringup uses runtime device_count (chips), not ird board count. Confirm count via probe before TP runs; set TT_VISIBLE_DEVICES=0,1,...,N-1."
+  },
+  "planned_arch_queue": [
+    "n150",
+    "p150"
+  ],
+  "runnable_arch_queue": [],
+  "skipped_archs": [
+    {
+      "arch": "n150",
+      "reason": "single-chip bringup (n150/p150) requires a dedicated single-chip host (runtime device_count=1). This session has device_count=8 (TT_XLA_ARCH='n300-llmbox'). Fabric/multichip boxes (n300-llmbox, qb, galaxy, WH/BH lb with n300 modules) cannot run single-chip bringup even with TT_VISIBLE_DEVICES=0 \u2014 change to a 1-board machine (e.g. nebula_x1(1|1) or p150(1|1)) and re-run /model-bringup."
+    },
+    {
+      "arch": "p150",
+      "reason": "single-chip bringup (n150/p150) requires a dedicated single-chip host (runtime device_count=1). This session has device_count=8 (TT_XLA_ARCH='n300-llmbox'). Fabric/multichip boxes (n300-llmbox, qb, galaxy, WH/BH lb with n300 modules) cannot run single-chip bringup even with TT_VISIBLE_DEVICES=0 \u2014 change to a 1-board machine (e.g. nebula_x1(1|1) or p150(1|1)) and re-run /model-bringup."
+    }
+  ],
+  "board_vs_chip_correction": "device_count=8 CHIPS spread over 4 BOARDS; TT_VISIBLE_DEVICES enumerates boards 0-3 (NOT chips 0-7). Setting 0..7 errors: 'Valid integer IDs are between 0 and 3'."
+}

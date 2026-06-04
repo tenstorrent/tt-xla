@@ -1,0 +1,6 @@
+{
+  "text_encoder_bytes": 48022722560,
+  "transformer_bytes": 64446562304,
+  "vae_bytes": 336185492,
+  "vae_params": 84046372
+}
