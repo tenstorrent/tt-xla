@@ -1139,12 +1139,10 @@ def benchmark_llm_torch_xla_prefill(
 
     # Two graphs are compiled (only the first when skip_pcc):
     #   * Perf/warmup graph (return_logits=False) — the timed graph. It outputs only the
-    #     argmax over the last position (tiny), NOT the logits. With return_logits=True the
-    #     lm_head hook forces the full (batch, seq, vocab) logits to be all-gathered /
-    #     replicated as a graph OUTPUT, and at seq=input_sequence_length under SPMD that
-    #     materialization crashes the runtime. Keeping logits off the output also means the
-    #     timed runs never pay the ~GB logits host transfer, so TTFT stays a clean
-    #     device-latency number (see the perf loop below).
+    #     argmax over the last position (tiny), NOT the logits. Keeping the full
+    #     (batch, seq, vocab) logits off the output means the timed runs never pay the
+    #     ~GB logits host transfer, so TTFT stays a clean device-latency number (see the
+    #     perf loop below).
     #   * PCC graph (return_logits=True) — built and run only when not skip_pcc, purely to
     #     pull logits to host for the correctness check.
     perf_wrapper = LLMSamplingWrapper(
@@ -1228,8 +1226,6 @@ def benchmark_llm_torch_xla_prefill(
     # graph, no device run, no logits collection.
     output_logits = None
     if not skip_pcc:
-        # NOTE: this is the full-seq replicated-logits graph that can crash under SPMD at
-        # large input_sequence_length; skip_pcc avoids building/running it at all.
         logits_wrapper = LLMSamplingWrapper(
             model,
             read_logits_fn,

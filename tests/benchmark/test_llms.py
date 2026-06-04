@@ -37,6 +37,30 @@ def default_read_logits_fn(output):
     return output.logits
 
 
+def _apply_ttnn_perf_summary(results, perf_file, num_graphs):
+    """Copy a TTNN perf-metrics JSON's summary into results["config"].
+
+    Reads the per-graph metrics file produced by the compile backend and maps its
+    "summary" block onto the ttnn_* config fields. Always records ttnn_num_graphs.
+    """
+    with open(perf_file, "r") as f:
+        perf_metrics_data = json.load(f)
+
+    summary = perf_metrics_data.get("summary")
+    if isinstance(summary, dict):
+        config = results["config"]
+        config["ttnn_total_ops"] = summary.get("total_ops", 0)
+        config["ttnn_total_shardable_ops"] = summary.get("total_shardable_ops", 0)
+        config["ttnn_effectively_sharded_ops"] = summary.get(
+            "effectively_sharded_ops", 0
+        )
+        config["ttnn_system_memory_ops"] = summary.get("system_memory_ops", 0)
+        config["ttnn_effectively_sharded_percentage"] = summary.get(
+            "effectively_sharded_percentage", 0.0
+        )
+    results["config"]["ttnn_num_graphs"] = num_graphs
+
+
 def test_llm(
     ModelLoaderModule,
     variant,
@@ -106,8 +130,7 @@ def test_llm(
     ttnn_perf_metrics_output_file = f"tt_xla_{display_name}_perf_metrics"
 
     print(f"Running LLM benchmark for variant: {variant}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     batch_size={batch_size}
@@ -121,8 +144,7 @@ def test_llm(
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     # Resolve model name for accuracy testing
     model_name_for_accuracy = None
@@ -189,28 +211,7 @@ def test_llm(
             # Use only the decode graph (second file)
             decode_perf_file = perf_files[1]
             print(f"Using decode graph perf metrics from: {decode_perf_file}")
-
-            with open(decode_perf_file, "r") as f:
-                perf_metrics_data = json.load(f)
-
-            if "summary" in perf_metrics_data and isinstance(
-                perf_metrics_data["summary"], dict
-            ):
-                summary = perf_metrics_data["summary"]
-                results["config"]["ttnn_total_ops"] = summary.get("total_ops", 0)
-                results["config"]["ttnn_total_shardable_ops"] = summary.get(
-                    "total_shardable_ops", 0
-                )
-                results["config"]["ttnn_effectively_sharded_ops"] = summary.get(
-                    "effectively_sharded_ops", 0
-                )
-                results["config"]["ttnn_system_memory_ops"] = summary.get(
-                    "system_memory_ops", 0
-                )
-                results["config"]["ttnn_effectively_sharded_percentage"] = summary.get(
-                    "effectively_sharded_percentage", 0.0
-                )
-                results["config"]["ttnn_num_graphs"] = 2  # prefill + decode
+            _apply_ttnn_perf_summary(results, decode_perf_file, num_graphs=2)
         else:
             logger.warning(
                 f"Expected 2 perf metrics files (prefill + decode) for LLM, but found {len(perf_files)}: {perf_files}. "
@@ -287,9 +288,13 @@ def test_llm_prefill(
         skip_pcc: Log the prefill PCC instead of asserting it (lets the run finish and
             still write its results JSON when PCC is below threshold).
     """
-    # Set default batch size if None
+    # Resolve fixture values that arrive as None (unset CLI options) to their defaults.
     if batch_size is None:
         batch_size = DEFAULT_BATCH_SIZE
+    if optimization_level is None:
+        optimization_level = DEFAULT_OPTIMIZATION_LEVEL
+    if input_sequence_length is None:
+        input_sequence_length = DEFAULT_INPUT_SEQUENCE_LENGTH
 
     model_loader = create_model_loader(
         ModelLoaderModule, num_layers=num_layers, variant=variant
@@ -369,28 +374,9 @@ def test_llm_prefill(
         if perf_files:
             prefill_perf_file = perf_files[0]
             print(f"Using prefill graph perf metrics from: {prefill_perf_file}")
-
-            with open(prefill_perf_file, "r") as f:
-                perf_metrics_data = json.load(f)
-
-            if "summary" in perf_metrics_data and isinstance(
-                perf_metrics_data["summary"], dict
-            ):
-                summary = perf_metrics_data["summary"]
-                results["config"]["ttnn_total_ops"] = summary.get("total_ops", 0)
-                results["config"]["ttnn_total_shardable_ops"] = summary.get(
-                    "total_shardable_ops", 0
-                )
-                results["config"]["ttnn_effectively_sharded_ops"] = summary.get(
-                    "effectively_sharded_ops", 0
-                )
-                results["config"]["ttnn_system_memory_ops"] = summary.get(
-                    "system_memory_ops", 0
-                )
-                results["config"]["ttnn_effectively_sharded_percentage"] = summary.get(
-                    "effectively_sharded_percentage", 0.0
-                )
-            results["config"]["ttnn_num_graphs"] = len(perf_files)
+            _apply_ttnn_perf_summary(
+                results, prefill_perf_file, num_graphs=len(perf_files)
+            )
         else:
             logger.warning(
                 "Expected at least 1 prefill perf metrics file for LLM, but found none. "
@@ -400,6 +386,10 @@ def test_llm_prefill(
 
         with open(output_file, "w") as file:
             json.dump(results, file, indent=2)
+
+
+# Generic driver invoked by the per-model prefill tests, not a test itself.
+test_llm_prefill.__test__ = False
 
 
 def test_llm_tp(
@@ -473,6 +463,9 @@ def test_llm_prefill_tp(
         **kwargs,
     )
 
+
+# Generic driver invoked by the per-model TP prefill tests, not a test itself.
+test_llm_prefill_tp.__test__ = False
 
 def test_llama_3_2_1b(
     output_file,
