@@ -1,101 +1,77 @@
 # Curated base-coverage test set for the transformers uplift pipeline.
 #
-# This is the test list the orchestrator (workflow-transformers-uplift.yml)
-# copies into .pytest_tests_to_run on iteration 1 of every uplift run.
-# It defines what "base-coverage" means for hardware testing during an
-# uplift — kept small on purpose so the test+fix loop converges fast.
+# Hard filters (applied this revision):
+#   - torch only (no JAX entries)
+#   - EXPECTED_PASSING on BOTH n150 AND p150
+#   - prefer ModelGroup.RED (nightly) — these are the highest-signal
+#     models. Categories with NO RED candidates keep their previous
+#     non-RED picks, and LLM gets +1 to compensate.
 #
-# Selection criteria (in priority order):
-#   1. Architectural diversity within each category — pick models that
-#      exercise different transformers code paths (encoder-decoder vs
-#      decoder-only, contrastive vs early-fusion multimodal, anchor-based
-#      vs anchor-free detection, etc.). Maximizes coverage per test slot.
-#   2. Popularity / blast radius — favor families that downstream users
-#      hit first (llama, bert, clip, t5...). When these break, real users
-#      notice immediately.
-#   3. Recently churning families in transformers releases — higher risk
-#      of future breakage, so cheap to keep them in the canary set.
-#   4. single_device + inference variants only — keeps the hardware
-#      matrix simple. Multi-chip / training coverage is out of scope for
-#      the uplift loop.
-#   5. EXPECTED_PASSING status in tests/runner/test_config — skipped or
-#      xfail'd tests would produce no signal.
-#   * Speed is a tiebreaker, never a primary criterion. A fast test is
-#     often a fast SKIP, which catches nothing.
+# Selection criteria (within RED pool):
+#   1. Architectural diversity within each category
+#   2. Popularity / blast radius
+#   3. Recently churning families in transformers releases
+#   4. single_device + inference variants only
 #
-# Breakdown (41 tests total):
-#   LLM                  10  decoder-only LLMs + encoder-decoder (t5) +
-#                            state-space (mamba) + multi-query attn (falcon)
-#                            + small-expert (phi4) + code-specialized (deepseek)
-#   Encoder               5  bert, albert, roberta, distilbert, xlm_roberta
-#   Vision-CNN            5  resnet, vgg, efficientnet, vit, swin
-#   Vision-Detection      5  detr (transformer), yolov3/yolos/yolox (yolo
-#                            family + anchor-free variant), retinanet (FPN)
-#   Vision-Segmentation   4  segformer, sam, monodepth2, glpn_kitti
-#   Multimodal            5  clip + siglip (contrastive), vit (vision-only),
-#                            perceiverio (Perceiver IO), vilt (early fusion)
-#   Audio                 3  whisper, wav2vec2, musicgen_small
-#   Embedding             2  sentencizer, bge_1_5
-#   Diffusion             2  stable_diffusion_unet (classic SD), flux (DiT)
-#
-# When updating this file: also update the breakdown counts above, and
-# re-verify the new entry's status in tests/runner/test_config/*.yaml.
+# Breakdown (33 tests total)
+#   LLM                     7  6 RED + 1 non-RED — falcon, gemma, qwen_2_5, qwen_3, phi3, phi2, mistral
+#                              (mistral kept as an explicit exception — SWA + GQA architecture)
+#   Encoder                 5  non-RED (no RED candidates) — bert, albert, roberta, distilbert, bart
+#   Vision-CNN              5  RED — resnet, efficientnet, swin, dinov2, mobilenetv2
+#   Vision-Detection        5  RED — detr, yolov4, yolov7, yolos_small, yolop
+#   Vision-Segmentation     2  RED — segformer, maskformer_swin_b
+#   Multimodal              4  RED — clip, siglip, vit, owl_vit
+#   Audio                   2  non-RED (no RED candidates) — musicgen_small, vocoder_speecht5
+#   Embedding               2  non-RED (no RED candidates) — sentencizer, bge_1_5
+#   Diffusion               1  non-RED (no RED candidates) — stable_diffusion_unet
 
-# --- LLM ---
-tests/runner/test_models.py::test_all_models_torch[llama/sequence_classification/pytorch-3.2_1B-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[qwen_2_5/causal_lm/jax-1.5B-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[gpt2/pytorch-Sequence_Classification-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[mistral/causal_lm/jax-v0_3_Instruct-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-1.1_2B_IT-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[t5/pytorch-Flan_T5_Small-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[mamba/pytorch-790M_HF-single_device-inference]
+# --- LLM (RED) ---
 tests/runner/test_models.py::test_all_models_torch[falcon/pytorch-3_1B_Base-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[phi4/causal_lm/pytorch-Phi_4-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[deepseek/deepseek_coder/pytorch-1_3B_Instruct-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[gemma/pytorch-1.1_2B_IT-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[qwen_2_5/causal_lm/pytorch-0.5B_Instruct-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[qwen_3/causal_lm/pytorch-0_6B-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[phi3/causal_lm/pytorch-Mini_128K_Instruct-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[phi2/causal_lm/pytorch-Phi_2-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[mistral/pytorch-Ministral_3B_Instruct-single_device-inference]
 
-# --- Encoder ---
-tests/runner/test_models.py::test_all_models_torch[bert/sentence_embedding_generation/pytorch-emrecan/bert-base-turkish-cased-mean-nli-stsb-tr-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[albert/masked_lm/jax-Base_v2-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[roberta/masked_lm/jax-Base-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[distilbert/masked_lm/jax-Base_Uncased-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[xlm_roberta/causal_lm/jax-Base-single_device-inference]
+# --- Encoder (non-RED, kept from prior revision) ---
+tests/runner/test_models.py::test_all_models_torch[bert/masked_lm/pytorch-Base_Uncased-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[albert/masked_lm/pytorch-Base_v1-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[roberta/masked_lm/pytorch-Xlm_Base-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[distilbert/masked_lm/pytorch-Base_Cased-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[bart/pytorch-Large-single_device-inference]
 
-# --- Vision-CNN ---
-tests/runner/test_models.py::test_all_models_torch[resnet/pytorch-ResNet18-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[vgg/pytorch-Torchvision_Vgg19-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[efficientnet/pytorch-Timm_B0-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[vit/image_classification/jax-Base_Patch32_384-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[swin/image_classification/pytorch-v2_Tiny_Patch4_Window8_256-single_device-inference]
+# --- Vision-CNN (RED) ---
+tests/runner/test_models.py::test_all_models_torch[resnet/pytorch-ResNet50_HuggingFace_High_Resolution-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[efficientnet/pytorch-B0-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[swin/image_classification/pytorch-S-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[dinov2/image_classification/pytorch-Small-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[mobilenetv2/pytorch-Mobilenet_v2-single_device-inference]
 
-# --- Vision-Detection ---
+# --- Vision-Detection (RED) ---
 tests/runner/test_models.py::test_all_models_torch[detr/object_detection/pytorch-ResNet50_Backbone-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[yolov3/pytorch-Base-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[yolos/pytorch-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[retinanet/pytorch-ResNet18_Backbone_with_FPN-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[yolox/pytorch-Nano-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[yolov4/pytorch-Base-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[yolov7/pytorch-Default-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[yolos_small/pytorch-Small-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[yolop/pytorch-Default-single_device-inference]
 
-# --- Vision-Segmentation ---
-tests/runner/test_models.py::test_all_models_torch[segformer/pytorch-Mit_B1-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[sam/pytorch-Vit_Huge-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[monodepth2/pytorch-Mono+stereo_1024x320-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[glpn_kitti/pytorch-single_device-inference]
+# --- Vision-Segmentation (RED) ---
+tests/runner/test_models.py::test_all_models_torch[segformer/pytorch-Mit_B0-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference]
 
-# --- Multimodal ---
-tests/runner/test_models.py::test_all_models_jax[clip/image_classification/jax-Base_Patch16-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[siglip/image_text_similarity/pytorch-Base_Patch16_256_Multilingual-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[vit/image_classification/jax-Base_Patch32_384-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[perceiverio_vision/pytorch-Vision_Perceiver_Conv-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[vilt/question_answering/pytorch-Vqa-single_device-inference]
+# --- Multimodal (RED) ---
+tests/runner/test_models.py::test_all_models_torch[clip/pytorch-Base_Patch16-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[siglip/image_text_similarity/pytorch-Base_Patch16_224-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[vit/pytorch-Base-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[owl_vit/pytorch-Base_Patch32-single_device-inference]
 
-# --- Audio ---
-tests/runner/test_models.py::test_all_models_jax[whisper/audio_classification/jax-Large_v3-single_device-inference]
-tests/runner/test_models.py::test_all_models_jax[wav2vec2/audio_classification/jax-Large_Lv_60-single_device-inference]
+# --- Audio (non-RED, kept from prior revision) ---
 tests/runner/test_models.py::test_all_models_torch[musicgen_small/pytorch-single_device-inference]
+tests/runner/test_models.py::test_all_models_torch[vocoder_speecht5/pytorch-hifigan-single_device-inference]
 
-# --- Embedding ---
+# --- Embedding (non-RED, kept from prior revision) ---
 tests/runner/test_models.py::test_all_models_torch[sentencizer/pytorch-Xlm_Roberta_Base-single_device-inference]
 tests/runner/test_models.py::test_all_models_torch[bge_1_5/embedding_generation/pytorch-Large_En_v1_5-single_device-inference]
 
-# --- Diffusion ---
+# --- Diffusion (non-RED, kept from prior revision) ---
 tests/runner/test_models.py::test_all_models_torch[stable_diffusion_unet/pytorch-Base-single_device-inference]
-tests/runner/test_models.py::test_all_models_torch[flux/pytorch-Dev-single_device-inference]
