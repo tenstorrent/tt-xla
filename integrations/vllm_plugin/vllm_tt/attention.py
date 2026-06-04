@@ -487,22 +487,26 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
+            # Build the per-user batch index once (not a fresh torch.tensor per
+            # iteration): a new scalar tensor each loop step inflates the trace
+            # with too many distinct args, which trips a TTNNLayout/trace error
+            # on the full model. Slice this single arange instead (fixed upstream
+            # by PR #5108).
+            fill_batch_idx = torch.arange(
+                inputs.users, dtype=torch.int32, device=k_cache.device
+            )
             for batch_idx in range(inputs.users):
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache,
                     key_for_update[batch_idx : batch_idx + 1],
                     attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=k_cache.device
-                    ),
+                    batch_idx=fill_batch_idx[batch_idx : batch_idx + 1],
                 )
                 v_cache = torch.ops.tt.paged_fill_cache(
                     v_cache,
                     value_for_update[batch_idx : batch_idx + 1],
                     attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=v_cache.device
-                    ),
+                    batch_idx=fill_batch_idx[batch_idx : batch_idx + 1],
                 )
 
         # Preserve tensor identity so XLA reuses the traced graph.
