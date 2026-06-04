@@ -2564,6 +2564,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # all-gather to replicate.
         if self.is_sharded_compute_logits:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
+            # On 1D mesh Shardy may assign "model" to the batch dim of
+            # sampled_tokens ([batch,1]) since batch is divisible by mesh size.
+            # This axis-swap with vocab-sharded logits triggers collective_permute
+            # (tt-mlir#3370) instead of all_gather. Anchor to (None,None) so
+            # Shardy leaves the batch dim unsharded and the logits all-gather
+            # uses the implemented path.
+            if not self.use_2d_mesh:
+                sampled_tokens = sharding_constraint_tensor(
+                    sampled_tokens, self.mesh, (None, None)
+                )
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         logprobs = self.sampler.compute_logprobs(logits)
         logprobTensors = self.sampler.gather_logprobs(
