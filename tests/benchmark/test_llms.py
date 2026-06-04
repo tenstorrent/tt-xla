@@ -2582,6 +2582,7 @@ def test_gpt_oss_20b_tp_qb2(
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
+
 # This test only runs 2 layers so we expect to see incoherent output
 def test_deepseek_v3_1_tp_galaxy_4_layers(
     output_file,
