@@ -174,7 +174,7 @@ TP_CONFIGS = [
             "Qwen/Qwen3-32B",
             32,
             use_2d_mesh=False,
-            enable_trace=False,
+            enable_trace=True,
             # KV-cache budget on TT = device_DRAM (~32 GiB) * gpu_memory_utilization;
             # weights are NOT subtracted (worker.determine_available_memory hardcodes
             # current_mem=0). At batch 32 the _tp_config default of 0.005 (~160 MiB)
