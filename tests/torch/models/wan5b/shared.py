@@ -331,62 +331,174 @@ def shard_vae_decoder_specs(vae) -> dict:
 # DiT sharding
 # ---------------------------------------------------------------------------
 
+# Tensor-parallel axis. The DiT is compute-bound, so it uses pure Megatron
+# column→row tensor parallelism along a single axis; the other matrix dim and
+# all boundary tensors stay replicated.
+TP_AXIS = "model"
+# Sequence-parallel axis for DiT activation sharding (the activation L dim has
+# no analog in any weight, so it is sharded via constraints, not shard_dit_specs).
+SP_AXIS = "batch"
+
+
+def _megatron_linear_pair_specs(linear_1, linear_2) -> dict:
+    """Megatron column→row shard specs for a 2-linear MLP.
+
+    linear_1 is column-parallel (TP shards out-dim); linear_2 is row-parallel
+    (TP shards in-dim) with bias replicated to be added on the TP-replicated
+    activation produced by the post-matmul all-reduce.
+    """
+    return {
+        linear_1.weight: (TP_AXIS, None),
+        linear_1.bias: (TP_AXIS,),
+        linear_2.weight: (None, TP_AXIS),
+        linear_2.bias: (None,),
+    }
+
+
+def _shard_block_specs(block) -> dict:
+    """Per-WanTransformerBlock shard specs.
+
+    Applied to all of the 30 blocks. Three Megatron pairs
+    (attn1, attn2, ffn) plus three norms with parameter sharding chosen to
+    match the activation state at each point.
+    """
+    specs = {}
+
+    # adaLN modulation parameter — replicated; broadcasts against STATE A.
+    specs[block.scale_shift_table] = (None, None, None)
+
+    # norm2 — affine LN on STATE A input; gamma/bias replicated to match.
+    # When cross_attn_norm=False, norm2 is nn.Identity with no params, so
+    # guard the attribute access.
+    if hasattr(block.norm2, "weight"):
+        specs[block.norm2.weight] = (None,)
+        specs[block.norm2.bias] = (None,)
+
+    # Self and cross-attention: identical Megatron column→row pair.
+    for attn in (block.attn1, block.attn2):
+        # to_q / to_k / to_v — column-parallel (TP shards out-dim, = head split).
+        specs[attn.to_q.weight] = (TP_AXIS, None)
+        specs[attn.to_q.bias] = (TP_AXIS,)
+        specs[attn.to_k.weight] = (TP_AXIS, None)
+        specs[attn.to_k.bias] = (TP_AXIS,)
+        specs[attn.to_v.weight] = (TP_AXIS, None)
+        specs[attn.to_v.bias] = (TP_AXIS,)
+        # norm_q / norm_k — gamma matches TP-sharded post-projection activation.
+        specs[attn.norm_q.weight] = (TP_AXIS,)
+        specs[attn.norm_k.weight] = (TP_AXIS,)
+        # to_out — row-parallel (TP shards in-dim); AR after; bias replicated.
+        specs[attn.to_out[0].weight] = (None, TP_AXIS)
+        specs[attn.to_out[0].bias] = (None,)
+
+    # FFN — Megatron col→row pair: net[0].proj (up D→4D), net[2] (down 4D→D).
+    specs.update(_megatron_linear_pair_specs(block.ffn.net[0].proj, block.ffn.net[2]))
+
+    return specs
+
 
 def shard_dit_specs(dit) -> dict:
     """Build shard specs for WanTransformer3DModel weights.
 
-    Mesh axes: ("batch", "model")
-    Column-parallel (QKV, FFN up):  ("model", "batch")
-    Row-parallel   (O, FFN down):   ("batch", "model")
+    Boundary tensors (patch_embedding, proj_out, final scale_shift_table,
+    time_proj) are replicated. Condition embedder uses Megatron column→row
+    pairs for time_embedder and text_embedder.
+
+    patch_embedding is replicated regardless of C_in (= 48 for TI2V-5B).
     """
     specs = {
-        # Patch embedding
-        dit.patch_embedding.weight: ("batch", None, None, None, None),
-        dit.patch_embedding.bias: ("batch",),
-        # Scale-shift table
-        dit.scale_shift_table: (None, None, "batch"),
-        # Output projection
-        dit.proj_out.weight: (None, "batch"),
+        # Boundary tensors — replicated at block-stack entry and exit.
+        dit.patch_embedding.weight: (None, None, None, None, None),
+        dit.patch_embedding.bias: (None,),
+        dit.proj_out.weight: (None, None),
         dit.proj_out.bias: (None,),
+        # Final adaLN modulation parameter — replicated.
+        dit.scale_shift_table: (None, None, None),
     }
 
-    # Condition embedder
+    # Condition embedder — runs once per forward, feeds every block.
     ce = dit.condition_embedder
-    specs[ce.time_embedder.linear_1.weight] = ("model", "batch")
-    specs[ce.time_embedder.linear_1.bias] = ("model",)
-    specs[ce.time_embedder.linear_2.weight] = ("batch", "model")
-    specs[ce.time_embedder.linear_2.bias] = ("batch",)
-    specs[ce.time_proj.weight] = ("batch", None)
-    specs[ce.time_proj.bias] = ("batch",)
-    specs[ce.text_embedder.linear_1.weight] = ("model", "batch")
-    specs[ce.text_embedder.linear_1.bias] = ("model",)
-    specs[ce.text_embedder.linear_2.weight] = ("batch", "model")
-    specs[ce.text_embedder.linear_2.bias] = ("batch",)
+    # time_embedder : Megatron col→row pair (256 → D → D).
+    specs.update(
+        _megatron_linear_pair_specs(
+            ce.time_embedder.linear_1, ce.time_embedder.linear_2
+        )
+    )
+    # time_proj : D → 6·D, replicated (alone col-parallel without a row-parallel
+    # partner would cost an AG before per-block adaLN broadcast).
+    specs[ce.time_proj.weight] = (None, None)
+    specs[ce.time_proj.bias] = (None,)
+    # text_embedder : Megatron col→row pair (4096 → D → D).
+    specs.update(
+        _megatron_linear_pair_specs(
+            ce.text_embedder.linear_1, ce.text_embedder.linear_2
+        )
+    )
 
-    # Per-block sharding
+    # 30 transformer blocks — identical sharding per block.
     for block in dit.blocks:
-        specs[block.scale_shift_table] = (None, None, "batch")
-        specs[block.norm2.weight] = ("batch",)
-        specs[block.norm2.bias] = ("batch",)
-
-        for attn in [block.attn1, block.attn2]:
-            specs[attn.to_q.weight] = ("model", "batch")
-            specs[attn.to_q.bias] = ("model",)
-            specs[attn.to_k.weight] = ("model", "batch")
-            specs[attn.to_k.bias] = ("model",)
-            specs[attn.to_v.weight] = ("model", "batch")
-            specs[attn.to_v.bias] = ("model",)
-            specs[attn.to_out[0].weight] = ("batch", "model")
-            specs[attn.to_out[0].bias] = ("batch",)
-            specs[attn.norm_q.weight] = ("model",)
-            specs[attn.norm_k.weight] = ("model",)
-
-        specs[block.ffn.net[0].proj.weight] = ("model", "batch")
-        specs[block.ffn.net[0].proj.bias] = ("model",)
-        specs[block.ffn.net[2].weight] = ("batch", "model")
-        specs[block.ffn.net[2].bias] = ("batch",)
+        specs.update(_shard_block_specs(block))
 
     return specs
+
+
+def apply_dit_sp_activation_sharding(dit, mesh: Mesh) -> None:
+    """Register forward hooks that introduce SP sharding on DiT activations.
+
+    SP shards the activation L dim (no analog in any weight), so it has to be
+    expressed via sharding_constraints on intermediates rather than via
+    shard_dit_specs. This is the companion to shard_dit_specs: the Megatron TP
+    weight sharding only lowers cleanly when these constraints tame how Shardy
+    propagates shards through the RoPE/block-entry reshapes.
+
+    When a constraint requests an L-shard immediately downstream of a reshape,
+    Shardy back-propagates the shard through the reshape into one of the
+    spatial dims that feed the merged L axis, which is something we don't want.
+    We want the reshape to stay in replicated and let shard happen after the reshape.
+
+    The fix is a back-to-back pair (replicated anchor, then L-sharded)
+    downstream of the reshape: the first constraint terminates the
+    back-propagation at a replicated state (reshape stays in replicated land
+    and isn't partitioned), and the second introduces the shard between two
+    non-reshape ops where Shardy inserts a clean scatter. The reverse
+    direction (sharded → replicated upstream of a reshape, as at proj_out)
+    doesn't trigger this bug - the AG lands before the reshape - so a single
+    constraint suffices there.
+    """
+    from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
+
+    def _block_entry_pre_hook(module, args):
+        hidden_states = args[0]
+        hidden_states = sharding_constraint_tensor(
+            hidden_states, mesh, (None, None, None)
+        )
+        hidden_states = sharding_constraint_tensor(
+            hidden_states, mesh, (None, SP_AXIS, None)
+        )
+        return (hidden_states,) + args[1:]
+
+    dit.blocks[0].register_forward_pre_hook(_block_entry_pre_hook)
+
+    def _rope_hook(module, input, output):
+        freqs_cos, freqs_sin = output
+        freqs_cos = sharding_constraint_tensor(
+            freqs_cos, mesh, (None, None, None, None)
+        )
+        freqs_sin = sharding_constraint_tensor(
+            freqs_sin, mesh, (None, None, None, None)
+        )
+        freqs_cos = sharding_constraint_tensor(
+            freqs_cos, mesh, (None, SP_AXIS, None, None)
+        )
+        freqs_sin = sharding_constraint_tensor(
+            freqs_sin, mesh, (None, SP_AXIS, None, None)
+        )
+        return (freqs_cos, freqs_sin)
+
+    dit.rope.register_forward_hook(_rope_hook)
+
+    # proj_out output: force AG on L before the unpatchify reshape.
+    proj_out_hook = sharding_constraint_hook(dit.proj_out, mesh, (None, None, None))
+    dit.proj_out.register_forward_hook(proj_out_hook)
 
 
 # ---------------------------------------------------------------------------

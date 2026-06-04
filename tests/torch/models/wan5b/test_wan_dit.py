@@ -24,8 +24,18 @@ from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .monkey_patch import _patch_wan_time_embedder_dtype_probe
-from .shared import RESOLUTIONS, WanDiTWrapper, load_dit, shard_dit_specs, wan22_mesh
+from .monkey_patch import (
+    _patch_wan_time_embedder_dtype_probe,
+    torch_function_override_disabled,
+)
+from .shared import (
+    RESOLUTIONS,
+    WanDiTWrapper,
+    apply_dit_sp_activation_sharding,
+    load_dit,
+    shard_dit_specs,
+    wan22_mesh,
+)
 
 # Set to 0 to run the full model, otherwise set to the number of blocks to run.
 MAX_BLOCKS = 0
@@ -53,7 +63,7 @@ def test_wan_dit_720p_sharded():
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.xfail(reason="PCC comparison fails: captured 0.75 on single decoder block")
+@pytest.mark.xfail(reason="PCC comparison fails: ~0.69 on full model (required 0.99)")
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 
@@ -77,11 +87,15 @@ def _run(resolution: str, sharded: bool) -> None:
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
     shard_spec_fn = (lambda m: shard_dit_specs(m.dit)) if sharded else None
 
-    run_graph_test(
-        graph=model,
-        inputs=[hidden_states, timestep, encoder_hidden_states],
-        framework=Framework.TORCH,
-        compiler_config=_COMPILER_CONFIG,
-        mesh=mesh,
-        shard_spec_fn=shard_spec_fn,
-    )
+    if sharded:
+        apply_dit_sp_activation_sharding(model.dit, mesh)
+
+    with torch_function_override_disabled():
+        run_graph_test(
+            graph=model,
+            inputs=[hidden_states, timestep, encoder_hidden_states],
+            framework=Framework.TORCH,
+            compiler_config=_COMPILER_CONFIG,
+            mesh=mesh,
+            shard_spec_fn=shard_spec_fn,
+        )
