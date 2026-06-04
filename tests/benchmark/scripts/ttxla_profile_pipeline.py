@@ -349,6 +349,18 @@ def selected_benchmark_files(repo: Path, values: Iterable[str]) -> list[Path]:
     ]
 
 
+def repo_subprocess_environment(
+    repo: Path, base_env: Optional[dict[str, str]] = None
+) -> dict[str, str]:
+    env = dict(base_env or os.environ.copy())
+    repo_paths = [str(repo / "tests"), str(repo)]
+    existing_pythonpath = env.get("PYTHONPATH")
+    if existing_pythonpath:
+        repo_paths.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(repo_paths)
+    return env
+
+
 def collect_command(python_bin: str, files: Iterable[Path]) -> list[str]:
     return [
         python_bin,
@@ -593,6 +605,7 @@ def discover_models(
         stage="discover",
         command_trace_path=command_trace_path,
         timeout_seconds=timeout_seconds,
+        env=repo_subprocess_environment(repo),
     )
     collected = stdout_path.read_text(encoding="utf-8") if stdout_path.exists() else ""
     entries = parse_collect_output(collected, run_id)
@@ -1310,8 +1323,8 @@ def profile_paths(run_dir: Path, entry: DiscoveryEntry) -> ProfilePaths:
     )
 
 
-def profile_environment(entry: DiscoveryEntry) -> dict[str, str]:
-    env = os.environ.copy()
+def profile_environment(repo: Path, entry: DiscoveryEntry) -> dict[str, str]:
+    env = repo_subprocess_environment(repo)
     env.setdefault("TTMLIR_ENABLE_PERF_TRACE", "1")
     env.setdefault("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
     env["TTXLA_PROFILE_RUN_ID"] = entry.run_identity
@@ -1337,6 +1350,7 @@ def collect_ir_artifacts(
 
 
 def run_tt_perf_report(
+    repo: Path,
     paths: ProfilePaths,
     tt_perf_report_bin: str,
     command_trace_path: Path,
@@ -1377,7 +1391,7 @@ def run_tt_perf_report(
         stage="tt-perf-report",
         command_trace_path=command_trace_path,
         timeout_seconds=min(timeout_seconds, 300),
-        env=os.environ.copy(),
+        env=repo_subprocess_environment(repo),
     )
     reason = ""
     if not result.ok:
@@ -1627,7 +1641,7 @@ def profile_one_model(
         stage="profile",
         command_trace_path=command_trace_path,
         timeout_seconds=timeout_seconds,
-        env=profile_environment(entry),
+        env=profile_environment(repo, entry),
     )
     pruned_raw_artifacts = prune_large_raw_artifacts(
         paths.profile_dir, max_raw_artifact_bytes
@@ -1641,7 +1655,7 @@ def profile_one_model(
         repo, paths, benchmark_model_name, entry
     )
     perf_outcome = run_tt_perf_report(
-        paths, tt_perf_report_bin, command_trace_path, timeout_seconds
+        repo, paths, tt_perf_report_bin, command_trace_path, timeout_seconds
     )
     write_slow_ops_payload(paths, benchmark_model_name, entry, perf_outcome)
     combined_text = profile_log_text(paths)

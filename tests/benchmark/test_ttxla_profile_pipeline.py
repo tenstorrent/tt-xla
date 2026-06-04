@@ -620,6 +620,55 @@ def test_copy_tree_returns_copied_paths(tmp_path):
     assert (target / "nested" / "graph.mlir").read_text(encoding="utf-8") == "module {}"
 
 
+def test_repo_subprocess_environment_prepends_repo_and_tests(tmp_path):
+    pipeline = load_pipeline_module()
+    env = pipeline.repo_subprocess_environment(
+        tmp_path, {"PYTHONPATH": "existing", "OTHER": "value"}
+    )
+
+    parts = env["PYTHONPATH"].split(pipeline.os.pathsep)
+    assert parts[:3] == [str(tmp_path / "tests"), str(tmp_path), "existing"]
+    assert env["OTHER"] == "value"
+
+
+def test_discover_models_sets_repo_pythonpath(monkeypatch, tmp_path):
+    pipeline = load_pipeline_module()
+    captured = {}
+
+    def fake_run_subprocess(**kwargs):
+        captured.update(kwargs)
+        Path(kwargs["stdout_path"]).write_text(
+            "tests/benchmark/test_vision.py::test_mnist\n", encoding="utf-8"
+        )
+        return pipeline.CommandResult(
+            stage=kwargs["stage"],
+            command=kwargs["command"],
+            cwd=str(kwargs["cwd"]),
+            returncode=0,
+            timed_out=False,
+            start_time="2026-06-04T00:00:00+00:00",
+            end_time="2026-06-04T00:00:01+00:00",
+            duration_seconds=1.0,
+            stdout_path=str(kwargs["stdout_path"]),
+            stderr_path=str(kwargs["stderr_path"]),
+        )
+
+    monkeypatch.setattr(pipeline, "run_subprocess", fake_run_subprocess)
+
+    entries, result = pipeline.discover_models(
+        repo=tmp_path,
+        run_id="run-5009-env",
+        python_bin="python",
+        command_trace_path=tmp_path / "command-trace.jsonl",
+        benchmark_paths=[tmp_path / "tests" / "benchmark" / "test_vision.py"],
+    )
+
+    assert result.returncode == 0
+    assert entries[0].model_identity == "test_mnist"
+    pythonpath = captured["env"]["PYTHONPATH"].split(pipeline.os.pathsep)
+    assert pythonpath[:2] == [str(tmp_path / "tests"), str(tmp_path)]
+
+
 def test_run_subprocess_records_missing_command(tmp_path):
     pipeline = load_pipeline_module()
     stdout_path = tmp_path / "stdout.log"
