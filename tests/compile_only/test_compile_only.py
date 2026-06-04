@@ -8,12 +8,11 @@ hardware.
 
 The test compiles a simple model against a checked-in system descriptor
 (`*_system_desc.ttsys`) instead of opening a real chip. Producing a descriptor
-needs hardware (the `save` path reads a live chip); compiling against one does
-not. So a descriptor is generated on each arch's hardware and checked into
+needs hardware (a live chip read); compiling against one does not. So a
+descriptor is generated on each arch's hardware and checked into
 `system_descs/`, and this test compiles against every one of them on CPU.
 
-Regenerate a descriptor by running this file directly on the target hardware:
-    python test_compile_only.py save system_descs/<arch>
+Regenerate a descriptor by running save_system_desc.py on the target hardware.
 """
 
 import os
@@ -27,19 +26,11 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
-from ttxla_tools import save_system_descriptor_to_disk
 
 
 class SimpleModel(nn.Module):
     def forward(self, x, y):
         return x + y
-
-
-def _save_system_desc(output_prefix: str):
-    """Save the system descriptor from live hardware to disk."""
-    xr.set_device_type("TT")
-    xm.xla_device()
-    save_system_descriptor_to_disk(output_prefix)
 
 
 def _compile_only(system_desc_path: str):
@@ -74,37 +65,20 @@ def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
         assert (output_dir / f).exists(), f"Expected {f} was not created{suffix}"
 
 
-def _discover_fixtures():
-    """Parametrize over every checked-in system descriptor.
-
-    Discovered at collection time, so a new arch is picked up automatically
-    once its fixture is checked into system_descs/. If none exist yet, emit a
-    single skipped param so the suite stays green rather than erroring.
-    """
-    # Checked-in `.ttsys` fixtures, one per arch, named `<arch>_system_desc.ttsys`.
-    FIXTURE_DIR = Path(__file__).resolve().parent / "system_descs"
-
-    fixtures = sorted(FIXTURE_DIR.glob("*_system_desc.ttsys"))
-    if not fixtures:
-        return [
-            pytest.param(
-                None,
-                id="no-fixtures",
-                marks=pytest.mark.skip(
-                    reason=f"no *_system_desc.ttsys fixtures in {FIXTURE_DIR}"
-                ),
-            )
-        ]
-    # id = arch name (strip the `_system_desc.ttsys` suffix) for readable test ids.
-    return [
-        pytest.param(f, id=f.name.removesuffix("_system_desc.ttsys")) for f in fixtures
-    ]
-
-
 @pytest.mark.nightly
-@pytest.mark.parametrize("system_desc_path", _discover_fixtures())
-def test_compile_only_per_arch(system_desc_path, tmp_path):
-    """CPU-only: compile a simple model against a checked-in `.ttsys` fixture.
+@pytest.mark.parametrize(
+    # One arch per checked-in descriptor. Each descriptor is generated on real
+    # hardware via save_system_desc.py and committed to system_descs/. Add a new
+    # arch here once its descriptor is committed.
+    "arch",
+    [
+        "n150",
+        "n300",
+        "n300-llmbox",
+    ],
+)
+def test_compile_only_per_arch(arch, tmp_path):
+    """CPU-only: compile a simple model against a checked-in `.ttsys` descriptor.
 
     No TT hardware required -- TT_COMPILE_ONLY_SYSTEM_DESC tells the plugin to
     read the chip spec from a file instead of opening a real chip. Runs the
@@ -114,6 +88,11 @@ def test_compile_only_per_arch(system_desc_path, tmp_path):
     Compiled artifacts land in tmp_path/output and are auto-cleaned by pytest;
     they're disposable, the assertions are what prove the compile succeeded.
     """
+    # Checked-in `<arch>_system_desc.ttsys` descriptors live in system_descs/.
+    system_desc_dir = Path(__file__).resolve().parent / "system_descs"
+    system_desc_path = system_desc_dir / f"{arch}_system_desc.ttsys"
+    assert system_desc_path.exists(), f"missing system descriptor: {system_desc_path}"
+
     script = str(Path(__file__).resolve())
     subprocess.run(
         [sys.executable, script, "compile", str(system_desc_path)],
@@ -121,15 +100,15 @@ def test_compile_only_per_arch(system_desc_path, tmp_path):
         check=True,
     )
 
-    _assert_compiled_artifacts(tmp_path / "output", label=system_desc_path.name)
+    _assert_compiled_artifacts(tmp_path / "output", label=arch)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "save":
-        _save_system_desc(sys.argv[2])
-    elif len(sys.argv) == 3 and sys.argv[1] == "compile":
+    # Entry point for the compile subprocess spawned by the test itself. The
+    # PJRT client can't be reconfigured once initialized, so each compile runs
+    # in a fresh process. To save a descriptor instead, use save_system_desc.py.
+    if len(sys.argv) == 3 and sys.argv[1] == "compile":
         _compile_only(sys.argv[2])
     else:
-        print(f"Usage: {sys.argv[0]} save <output_prefix>")
-        print(f"       {sys.argv[0]} compile <system_desc_path>")
+        print(f"Usage: {sys.argv[0]} compile <system_desc_path>")
         sys.exit(1)
