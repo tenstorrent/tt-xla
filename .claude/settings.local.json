@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /data/gengelage/tt-xla log --oneline -5 -- third_party/tt-mlir)",
+      "Bash(git -C /data/gengelage/tt-xla/third_party/tt-mlir log --oneline -5)",
+      "Bash(git -C /data/gengelage/tt-xla diff HEAD~1 HEAD -- third_party/tt-mlir)",
+      "Bash(git -C /data/gengelage/tt-xla submodule status third_party/tt-mlir)",
+      "Bash(git -C /data/gengelage/tt-xla/third_party/tt-mlir log --oneline -3)",
+      "Bash(git -C /data/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir log --oneline -5)",
+      "Bash(git -C /data/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir log --oneline --all --grep=\"PointToPoint\\\\|point_to_point\\\\|alignment\\\\|sparse_output\")",
+      "Bash(git -C /data/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir log --oneline -30)",
+      "Bash(git -C /data/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir log --oneline --all --grep=\"alignment\\\\|align\")",
+      "Bash(git -C /data/gengelage/tt-xla log --oneline e24a44bef~2..e24a44bef -- python_package/tt_torch/sparse_mlp.py)",
+      "Bash(git -C /data/gengelage/tt-xla show e24a44bef --stat)",
+      "Bash(git -C /data/gengelage/tt-xla log --oneline e24a44bef 470f0fad8 --ancestry-path)",
+      "Bash(python3 *)",
+      "Bash(echo === $model_name === *)"
+    ],
+    "deny": [
+      "Bash(git:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(pytest:*)",
+      "Bash(pip:*)",
+      "Bash(uv:*)"
+    ]
+  }
+}
