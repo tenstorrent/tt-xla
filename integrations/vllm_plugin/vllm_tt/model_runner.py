@@ -1816,6 +1816,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # captured and compiled during warm up.
         self._verify_num_xla_graphs("execute_model")
 
+        # [DIAGNOSTIC for rank-0 KV cache corruption — Fix B from handoff]
+        # Force a blocking sync between decode steps in DP-only mode. If this
+        # makes the "park park park..." repetition go away, it confirms the
+        # root cause is SPMD reconciling a divergent "replicated" KV buffer
+        # between steps (it sees each device's local KV write and either
+        # resets or all-reduces it, wiping rank 0's updates). Production fix
+        # would be Fix C (sharding_constraint on KV) or Fix A (per-device
+        # block pool + KV cache shard along num_blocks).
+        if self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+            torch_xla.sync(wait=True)
+
         return model_runner_output
 
     def update_config(self, overrides: dict[str, Any]) -> None:
