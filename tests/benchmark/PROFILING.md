@@ -192,6 +192,25 @@ When these files are uploaded in a `perf_reports` artifact for the same job, the
 existing collection workflow can publish them through the normal Superset
 benchmark ingestion path.
 
+The manual `TT-XLA Tracy Profile` workflow runs the bounded harness on a TT
+hardware CI runner and uploads both the full profiling run directory and the
+`perf_reports` directory. The repository data collection workflow includes this
+workflow name in its allowlist, so completed runs are eligible for the existing
+Superset/perf publication path.
+
+Use the default dispatch values for a small proof run:
+
+```bash
+gh workflow run manual-tracy-profile.yml \
+  -f runs_on=n150 \
+  -f benchmark_file=tests/benchmark/test_vision.py \
+  -f nodeid_filter=test_mnist \
+  -f max_models=1
+```
+
+If the runner image needs a specific `tt-perf-report` branch or local tool setup,
+set `tt_perf_report_ref` or `extra_setup` in the workflow dispatch inputs.
+
 ### Next steps
 
 #### 1. Compare device and e2e times
