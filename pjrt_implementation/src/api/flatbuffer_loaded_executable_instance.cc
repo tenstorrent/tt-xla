@@ -5,6 +5,9 @@
 
 #include "api/flatbuffer_loaded_executable_instance.h"
 
+// c++ standard library includes
+#include <chrono>
+
 // tracy includes
 #include "tracy/Tracy.hpp"
 #include "tt/runtime/runtime.h"
@@ -56,15 +59,29 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
     std::uint32_t program_index, size_t arg_index) {
   ZoneScoped;
 
+  // Instrumentation helper: accumulates elapsed microseconds since `start` into
+  // the provided per-stage counter. Used to diagnose the delay between the
+  // "getInputRuntimeTensors" and "tt::runtime::submit" logs.
+  using clock = std::chrono::steady_clock;
+  auto accumulate_us = [](std::int64_t &counter, clock::time_point start) {
+    counter += std::chrono::duration_cast<std::chrono::microseconds>(
+                   clock::now() - start)
+                   .count();
+  };
+
   FlatbufferExecutableImage *executable_image =
       static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
 
+  auto t = clock::now();
   tt::runtime::Layout expected_layout = tt::runtime::getLayout(
       executable_image->getFlatbufferBinary(), program_index, arg_index);
+  accumulate_us(m_input_prep_timings.get_layout_us, t);
 
+  t = clock::now();
   mlir::FailureOr<std::unordered_map<std::string, std::string>> strategy =
       fillStrategyMapFromSharding(
           m_executable_image->getInputSharding(arg_index), num_devices);
+  accumulate_us(m_input_prep_timings.fill_strategy_us, t);
 
   if (mlir::failed(strategy)) {
     LOG_F(ERROR, "Failed to fill strategy map from sharding");
@@ -74,13 +91,41 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
                         tt::runtime::HostRuntime::Distributed;
   if (is_distributed) {
+    t = clock::now();
     materializeShellTensors(arg_buffers);
+    accumulate_us(m_input_prep_timings.materialize_shell_us, t);
   }
 
+  t = clock::now();
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
+  accumulate_us(m_input_prep_timings.from_pjrt_buffers_us, t);
 
+  // Capture cumulative layout timings before ensure_layout so we can attribute
+  // this single argument's hasLayout/toLayout cost and correlate it with the
+  // tensor size below.
+  const PjrtTensor::LayoutTimings layout_before = PjrtTensor::getLayoutTimings();
+  t = clock::now();
   tensor.ensure_layout(runtime_device, expected_layout);
+  accumulate_us(m_input_prep_timings.ensure_layout_us, t);
+  const PjrtTensor::LayoutTimings layout_after = PjrtTensor::getLayoutTimings();
+
+  // Per-arg correlation log: tensor size (logical bytes + shape) vs the
+  // hasLayout/toLayout time spent on this specific argument. Lets us see
+  // whether ensure_layout cost scales with tensor size.
+  const std::int64_t this_has_layout_us =
+      layout_after.has_layout_us - layout_before.has_layout_us;
+  const std::int64_t this_to_layout_us =
+      layout_after.to_layout_us - layout_before.to_layout_us;
+  const size_t logical_bytes =
+      arg_buffers.empty() ? 0 : arg_buffers.front()->logicalTensorSize();
+  LOG_F(INFO,
+        "ensure_layout arg #%zu: size=%zu bytes shape=%s | hasLayout=%.3fms "
+        "toLayout=%.3fms",
+        arg_index, logical_bytes,
+        arg_buffers.empty() ? "[]"
+                            : arg_buffers.front()->toShapeStr().c_str(),
+        this_has_layout_us / 1000.0, this_to_layout_us / 1000.0);
 
   return tensor.runtime_tensor();
 }
