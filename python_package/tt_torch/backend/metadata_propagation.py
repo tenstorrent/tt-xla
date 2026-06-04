@@ -317,8 +317,7 @@ def _extract_source_and_module_hierarchy_info(
             # in nn_module_stack; normalise to a qualified name string.
             if isinstance(class_name, type):
                 class_name = f"{class_name.__module__}.{class_name.__qualname__}"
-            else:
-                class_name = str(class_name)
+
             module_class = (
                 class_name.split(".")[-1] if "." in class_name else class_name
             )
