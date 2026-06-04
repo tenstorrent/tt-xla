@@ -201,7 +201,13 @@ def get_torch_device_arch() -> TTArch:
         raise ValueError(f"Unknown TT device architecture: {device_kind}")
 
 
-def parametrize_arch(archs=["single_device"]):
+def parametrize_arch(archs=["single_device"], xfail=None):
+    """Parametrize a test over ``arch``, tagging each case with its arch marker.
+
+    ``xfail``: optional ``{arch: reason}`` mapping; the listed archs are
+    additionally marked ``xfail`` with the given reason (e.g. an arch where the
+    case is a known failure but other archs still run).
+    """
     valid_archs = {"single_device", "dual_chip", "llmbox", "galaxy"}
     invalid_archs = set(archs) - valid_archs
 
@@ -218,7 +224,13 @@ def parametrize_arch(archs=["single_device"]):
         "galaxy": pytest.mark.galaxy,
     }
 
-    params = [pytest.param(arch, marks=arch_marks[arch]) for arch in archs]
+    xfail = xfail or {}
+    params = []
+    for arch in archs:
+        marks = [arch_marks[arch]]
+        if arch in xfail:
+            marks.append(pytest.mark.xfail(reason=xfail[arch]))
+        params.append(pytest.param(arch, marks=marks))
 
     return pytest.mark.parametrize("arch", params)
 
