@@ -71,6 +71,7 @@ on:
 permissions:
   contents: write         # commit + push fixes to the WIP branch
   actions:  write         # self-dispatch the next iteration
+  checks:   write         # call-test.yml publishes check runs
   pull-requests: write    # open the draft tt-xla / tt-forge-models PRs in finalize
 
 concurrency:
@@ -79,7 +80,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MAX_ITERATIONS:        10
+  MAX_ITERATIONS:        1
   MAX_WALLCLOCK_HOURS:   8
   STATE_FILE:            .github/transformers-uplift/state.json
   LAST_FAILED_FILE:      .github/transformers-uplift/last_failed.txt
@@ -177,7 +178,10 @@ jobs:
         run: |
           MATRIX=$(python3 .github/scripts/uplift/transformers/generate-matrix.py "$LAST_FAILED_FILE")
           echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
-          COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || echo 0)
+          # `grep -c` prints the count AND exits non-zero when it's 0, so
+          # use `|| true` (not `|| echo 0`) — otherwise we'd append a
+          # second "0" and break the integer comparison below.
+          COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || true)
           if [[ "$COUNT" -eq 0 ]]; then
             echo "filter_empty=true" >> "$GITHUB_OUTPUT"
           else
@@ -219,7 +223,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          WHEEL_ARTIFACT="xla-whl-manylinux${{ inputs.artifact_suffix }}"
+          WHEEL_ARTIFACT="xla-whl-release${{ inputs.artifact_suffix }}"
           echo "Downloading $WHEEL_ARTIFACT from run ${{ inputs.artifact_release_run_id }}"
           gh run download "${{ inputs.artifact_release_run_id }}" \
             --repo "${{ github.repository }}" \
@@ -240,13 +244,20 @@ jobs:
             "transformers==${TARGET_VERSION}"
           python -c "import transformers; print('transformers', transformers.__version__)"
 
+      - name: Install Claude Code CLI
+        shell: bash
+        run: |
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
       - name: Run api-check with Claude sub-loop
         id: run
         shell: bash
         env:
           ITERATION: ${{ needs.setup.outputs.iteration }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
           HF_HOME: /mnt/dockercache/huggingface
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           TARGET_VERSION: ${{ inputs.target_version }}
@@ -300,97 +311,97 @@ jobs:
           fi
 
   # ===========================================================================
-  # The jobs below are DISABLED for the iterative-test phase that only
-  # exercises setup + api-check. Re-enable in order:
-  #   1. `test-and-fix-base` + `decide` (to exercise the loop)
+  # The jobs below are DISABLED for the iterative-test phase. Re-enable in
+  # order:
+  #   1. `test-and-fix-base` + `decide` (ENABLED — exercises the loop)
   #   2. `test-and-fix-full` + `perf-benchmark`
   #   3. `open-prs`
   # ===========================================================================
 
-  # # ---------------------------------------------------------------------------
-  # # Base coverage stage: narrow hardware matrix + Claude fix pass. All
-  # # three actions (run-tests → extract → claude-fix) live in the shared
-  # # call-test-uplift.yml callable, which humans can also dispatch
-  # # directly during PR review.
-  # # ---------------------------------------------------------------------------
-  # test-and-fix-base:
-  #   needs: [setup, api-check]
-  #   if: ${{ needs.setup.outputs.under_budget == 'true' && needs['api-check'].outputs.passed == 'true' && needs.setup.outputs.filter_empty == 'false' }}
-  #   uses: ./.github/workflows/call-test-uplift.yml
-  #   with:
-  #     test_suite:              Custom
-  #     test_suite_custom:       ${{ needs.setup.outputs.matrix }}
-  #     scope:                   model-test-uplifts
-  #     tag:                     base
-  #     branch:                  ${{ inputs.branch }}
-  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-  #     target_version:          ${{ inputs.target_version }}
-  #     current_version:         ${{ inputs.current_version }}
-  #     artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-  #     artifact_suffix:         ${{ inputs.artifact_suffix }}
-  #     docker_image:            ${{ inputs.docker_image }}
-  #   secrets: inherit
+  # ---------------------------------------------------------------------------
+  # Base coverage stage: narrow hardware matrix + Claude fix pass. All
+  # three actions (run-tests → extract → claude-fix) live in the shared
+  # call-test-uplift.yml callable, which humans can also dispatch
+  # directly during PR review.
+  # ---------------------------------------------------------------------------
+  test-and-fix-base:
+    needs: [setup, api-check]
+    if: ${{ needs.setup.outputs.under_budget == 'true' && needs['api-check'].outputs.passed == 'true' && needs.setup.outputs.filter_empty == 'false' }}
+    uses: ./.github/workflows/call-test-uplift.yml
+    with:
+      test_suite:              Custom
+      test_suite_custom:       ${{ needs.setup.outputs.matrix }}
+      scope:                   model-test-uplifts
+      tag:                     base
+      branch:                  ${{ inputs.branch }}
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+      artifact_suffix:         ${{ inputs.artifact_suffix }}
+      docker_image:            ${{ inputs.docker_image }}
+    secrets: inherit
 
-  # # ---------------------------------------------------------------------------
-  # # Decide: self-dispatch the next iteration, or hand off to finalize.
-  # # ---------------------------------------------------------------------------
-  # decide:
-  #   needs: [setup, api-check, test-and-fix-base]
-  #   if: always() && needs.setup.result == 'success'
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     action: ${{ steps.next.outputs.action }}
-  #     reason: ${{ steps.next.outputs.reason }}
-  #   steps:
-  #     - name: Resolve next action
-  #       id: next
-  #       env:
-  #         ITER:              ${{ needs.setup.outputs.iteration }}
-  #         UNDER_BUDGET:      ${{ needs.setup.outputs.under_budget }}
-  #         API_CHECK_PASSED:  ${{ needs['api-check'].outputs.passed }}
-  #         HAS_FAILURES:      ${{ needs['test-and-fix-base'].outputs.has_failures }}
-  #         FILTER_EMPTY:      ${{ needs.setup.outputs.filter_empty }}
-  #       run: |
-  #         # Terminal conditions -> finalize:
-  #         #   - budget exhausted
-  #         #   - iteration cap reached
-  #         #   - api-check green AND no base-coverage failures
-  #         if [[ "$UNDER_BUDGET" != "true" ]]; then
-  #           echo "action=finalize" >> "$GITHUB_OUTPUT"
-  #           echo "reason=wallclock-budget-exhausted" >> "$GITHUB_OUTPUT"
-  #         elif [[ "$ITER" -ge "$MAX_ITERATIONS" ]]; then
-  #           echo "action=finalize" >> "$GITHUB_OUTPUT"
-  #           echo "reason=iteration-cap" >> "$GITHUB_OUTPUT"
-  #         elif [[ "$API_CHECK_PASSED" == "true" && "$HAS_FAILURES" == "false" && "$FILTER_EMPTY" == "false" ]]; then
-  #           echo "action=finalize" >> "$GITHUB_OUTPUT"
-  #           echo "reason=all-tests-green" >> "$GITHUB_OUTPUT"
-  #         else
-  #           echo "action=redispatch" >> "$GITHUB_OUTPUT"
-  #         fi
-  #
-  #     - name: Self-dispatch next iteration
-  #       if: steps.next.outputs.action == 'redispatch'
-  #       env:
-  #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-  #         NEXT_ITER: ${{ needs.setup.outputs.iteration }}
-  #       run: |
-  #         NEXT=$((NEXT_ITER + 1))
-  #         echo "Re-dispatching as iteration $NEXT"
-  #         gh workflow run workflow-transformers-uplift.yml \
-  #           --ref main \
-  #           -f iteration="$NEXT" \
-  #           -f branch="${{ inputs.branch }}" \
-  #           -f target_version="${{ inputs.target_version }}" \
-  #           -f current_version="${{ inputs.current_version }}" \
-  #           -f artifact_release_run_id="${{ inputs.artifact_release_run_id }}" \
-  #           -f artifact_suffix="${{ inputs.artifact_suffix }}" \
-  #           -f docker_image="${{ inputs.docker_image }}"
-  #
-  #     - name: Log finalize handoff
-  #       if: steps.next.outputs.action == 'finalize'
-  #       run: |
-  #         echo "Loop terminating: ${{ steps.next.outputs.reason }}"
-  #         echo "Finalize jobs will run in this same workflow run."
+  # ---------------------------------------------------------------------------
+  # Decide: self-dispatch the next iteration, or hand off to finalize.
+  # ---------------------------------------------------------------------------
+  decide:
+    needs: [setup, api-check, test-and-fix-base]
+    if: always() && needs.setup.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      action: ${{ steps.next.outputs.action }}
+      reason: ${{ steps.next.outputs.reason }}
+    steps:
+      - name: Resolve next action
+        id: next
+        env:
+          ITER:              ${{ needs.setup.outputs.iteration }}
+          UNDER_BUDGET:      ${{ needs.setup.outputs.under_budget }}
+          API_CHECK_PASSED:  ${{ needs['api-check'].outputs.passed }}
+          HAS_FAILURES:      ${{ needs['test-and-fix-base'].outputs.has_failures }}
+          FILTER_EMPTY:      ${{ needs.setup.outputs.filter_empty }}
+        run: |
+          # Terminal conditions -> finalize:
+          #   - budget exhausted
+          #   - iteration cap reached
+          #   - api-check green AND no base-coverage failures
+          if [[ "$UNDER_BUDGET" != "true" ]]; then
+            echo "action=finalize" >> "$GITHUB_OUTPUT"
+            echo "reason=wallclock-budget-exhausted" >> "$GITHUB_OUTPUT"
+          elif [[ "$ITER" -ge "$MAX_ITERATIONS" ]]; then
+            echo "action=finalize" >> "$GITHUB_OUTPUT"
+            echo "reason=iteration-cap" >> "$GITHUB_OUTPUT"
+          elif [[ "$API_CHECK_PASSED" == "true" && "$HAS_FAILURES" == "false" && "$FILTER_EMPTY" == "false" ]]; then
+            echo "action=finalize" >> "$GITHUB_OUTPUT"
+            echo "reason=all-tests-green" >> "$GITHUB_OUTPUT"
+          else
+            echo "action=redispatch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Self-dispatch next iteration
+        if: steps.next.outputs.action == 'redispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          NEXT_ITER: ${{ needs.setup.outputs.iteration }}
+        run: |
+          NEXT=$((NEXT_ITER + 1))
+          echo "Re-dispatching as iteration $NEXT"
+          gh workflow run workflow-transformers-uplift.yml \
+            --ref ${{ github.ref_name }} \
+            -f iteration="$NEXT" \
+            -f branch="${{ inputs.branch }}" \
+            -f target_version="${{ inputs.target_version }}" \
+            -f current_version="${{ inputs.current_version }}" \
+            -f artifact_release_run_id="${{ inputs.artifact_release_run_id }}" \
+            -f artifact_suffix="${{ inputs.artifact_suffix }}" \
+            -f docker_image="${{ inputs.docker_image }}"
+
+      - name: Log finalize handoff
+        if: steps.next.outputs.action == 'finalize'
+        run: |
+          echo "Loop terminating: ${{ steps.next.outputs.reason }}"
+          echo "Finalize jobs will run in this same workflow run."
 
   # # ===========================================================================
   # # FINALIZE STAGE — only fires when decide picks `action == 'finalize'`.

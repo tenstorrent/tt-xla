@@ -30,47 +30,24 @@ from pathlib import Path
 # .github/workflows/test-matrix-presets/model-test-passing.json so the
 # uplift exercises the same matrix as nightly, just narrowed.
 TEMPLATES = [
-    {
-        "runs-on": "n150",
-        "framework": "torch",
-        "test-mark": "n150 and nightly and inference and expected_passing",
-        "parallel-groups": 3,
-        "forked": True,
-    },
-    {
-        "runs-on": "p150",
-        "framework": "torch",
-        "test-mark": "p150 and nightly and inference and expected_passing",
-        "parallel-groups": 3,
-        "forked": True,
-    },
-    {
-        "runs-on": "n150",
-        "framework": "jax",
-        "test-mark": "n150 and nightly and expected_passing and not large",
-        "parallel-groups": 1,
-        "forked": True,
-    },
+    # base-coverage.txt is curated to torch-only models that pass on
+    # BOTH n150 and p150. We currently only run on p150 since n150 + p150
+    # produce the same signal — uncomment the n150 block below to
+    # re-enable dual-arch coverage.
+    #
+    # {
+    #     "runs-on": "n150",
+    #     "framework": "torch",
+    #     "test-mark": "n150 and inference and expected_passing",
+    #     "parallel-groups": 3,
+    #     "forked": True,
+    # },
     {
         "runs-on": "p150",
-        "framework": "jax",
-        "test-mark": "p150 and nightly and expected_passing and not large",
-        "parallel-groups": 1,
+        "framework": "torch",
+        "test-mark": "p150 and inference and expected_passing",
+        "parallel-groups": 3,
         "forked": True,
-    },
-    {
-        "runs-on": "n300-llmbox",
-        "framework": "torch",
-        "test-mark": "n300-llmbox and nightly and tensor_parallel and expected_passing",
-        "parallel-groups": 4,
-        "forked": False,
-    },
-    {
-        "runs-on": "n300",
-        "framework": "torch",
-        "test-mark": "n300 and nightly and data_parallel and expected_passing",
-        "parallel-groups": 1,
-        "forked": False,
     },
 ]
 
