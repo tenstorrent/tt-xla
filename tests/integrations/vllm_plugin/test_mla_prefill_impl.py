@@ -532,14 +532,11 @@ def test_mla_prefill_and_decode_impl(users, seq_len, arch, deepseek_v3_mla):
     Prefill writes positions ``[0, seq_len)`` for every user via
     ``tt.paged_fill_cache``; decode then appends the token at position
     ``seq_len`` via ``tt.paged_update_cache`` and attends over ``[0, seq_len]``.
-    The device PREFILL is scored here (output + that it fills the paged cache
-    with the exact latent KV at the page-table-mapped slots), and the
-    prefill->decode handoff + decode cache update are validated on the
-    deterministic CPU golden (prefix preserved, new token appended at
-    ``seq_len``). On-device decode output is **not** scored here — see the device
-    section for the program-transition bug that makes a device decode right after
-    a device prefill unreliable; that coverage lives in
-    ``test_paged_mla_decode_impl``.
+    Both stages run on device, chained — decode reads the cache the prefill just
+    produced — and we score each stage's attention output against the CPU golden
+    plus assert the paged cache holds the exact latent KV at the
+    page-table-mapped slots after each stage (prefill fills ``[0, seq_len)``;
+    decode preserves that prefix and appends the new token at ``seq_len``).
 
     ``single_device`` xfails (128 heads exceed one device's L1, see
     ``_SINGLE_DEVICE_L1_XFAIL``); ``llmbox`` runs head-parallel.
@@ -608,28 +605,31 @@ def test_mla_prefill_and_decode_impl(users, seq_len, arch, deepseek_v3_mla):
     golden_prefill, cpu_cache_prefill = _run_impl(
         torch.device("cpu"), params, prefill_inputs
     )
-    golden_decode, cpu_cache_decode = _run_impl(
+    golden_decode, _ = _run_impl(
         torch.device("cpu"), params, _decode_inputs(cpu_cache_prefill)
     )
 
-    # ----- Device: PREFILL only -----
-    # We deliberately do NOT run the decode on device in this test. Under SPMD,
-    # an MLA decode executed right after an MLA prefill *in the same test* (they
-    # share the same params/page_table and run back-to-back with no teardown
-    # between) returns garbage — a tt-mlir/runtime program-transition bug,
-    # distinct from the L1 limit and from the test logic (single_device is
-    # unaffected, and a decode in a fresh test is fine). On-device decode
-    # correctness is therefore covered by `test_paged_mla_decode_impl` (no
-    # preceding prefill). Here we score the device PREFILL (its unique
-    # contribution — filling the paged cache) and validate the prefill->decode
-    # handoff + cache update on the deterministic CPU golden. Score the device
-    # decode here once the program-transition bug is fixed.
+    # ----- Device: prefill, then decode on device right after it -----
+    # The back-to-back on-device prefill->decode used to return garbage under
+    # SPMD; that program-transition bug is now fixed, so we score the on-device
+    # decode. We snapshot the prefill cache to host *before* running decode and
+    # feed that snapshot in: reading `device_cache_prefill` after the decode is
+    # unreliable because XLA may donate the chained input buffer to the decode
+    # graph (it would then show the decode's write). The decode still runs on
+    # device immediately after the prefill graph — the path that used to corrupt.
     device_prefill, device_cache_prefill = _run_impl(
         torch_xla.device(), params, prefill_inputs, mesh=mesh
     )
     torch_xla.sync()
     device_prefill = device_prefill.cpu()
     device_cache_prefill = device_cache_prefill.cpu()
+
+    device_decode, device_cache_decode = _run_impl(
+        torch_xla.device(), params, _decode_inputs(device_cache_prefill), mesh=mesh
+    )
+    torch_xla.sync()
+    device_decode = device_decode.cpu()
+    device_cache_decode = device_cache_decode.cpu()
 
     # ===== Prefill: attention output + cache filled with the prefill tokens ====
     assert device_prefill.shape == golden_prefill.shape == (tokens, N * V)
@@ -637,155 +637,23 @@ def test_mla_prefill_and_decode_impl(users, seq_len, arch, deepseek_v3_mla):
     assert pcc >= REQUIRED_PCC, f"MLA prefill PCC {pcc:.5f} < {REQUIRED_PCC}"
 
     expected_prefill_k = _latent_k(kv_c_p, k_pe_p).view(users, seq_len, head_dim)
-    filled = _gather_cache(cpu_cache_prefill, page_table, seq_len)
+    filled = _gather_cache(device_cache_prefill, page_table, seq_len)
     assert torch.allclose(filled, expected_prefill_k), "prefill cache filled wrong"
     # The decode block (last per user) hasn't been written yet.
     assert (
-        cpu_cache_prefill[page_table[:, -1].long()] == 0
+        device_cache_prefill[page_table[:, -1].long()] == 0
     ).all(), "decode block not zero after prefill"
-    cache_pcc = _pcc(device_cache_prefill, cpu_cache_prefill)
-    assert (
-        cache_pcc >= REQUIRED_PCC
-    ), f"prefill cache PCC {cache_pcc:.5f} < {REQUIRED_PCC}"
 
-    # ===== Decode (CPU golden pipeline): cache appended with the new token =====
-    # The decode consumes the prefill-produced cache (`cpu_cache_prefill`, which
-    # the device prefill above is asserted to reproduce) and appends one token at
-    # position `seq_len`; we check the cache holds the unchanged prefix plus the
-    # new token. (Device decode output PCC lives in `test_paged_mla_decode_impl`.)
-    assert golden_decode.shape == (users, N * V)
+    # ===== Decode: attention output + cache appended with the new token ========
+    assert device_decode.shape == golden_decode.shape == (users, N * V)
+    pcc = _pcc(device_decode, golden_decode)
+    assert pcc >= REQUIRED_PCC, f"MLA decode PCC {pcc:.5f} < {REQUIRED_PCC}"
+
     expected_decode_k = _latent_k(kv_c_d, k_pe_d)  # [users, head_dim]
-    updated = _gather_cache(cpu_cache_decode, page_table, seq_len + 1)
+    updated = _gather_cache(device_cache_decode, page_table, seq_len + 1)
     assert torch.allclose(
         updated[:, :seq_len, :], expected_prefill_k
     ), "decode clobbered prefill context"
     assert torch.allclose(
         updated[:, seq_len, :], expected_decode_k
     ), "decode token not written at seq_len"
-
-
-# Reason for the failing-repro test below. The on-device decode that runs right
-# after the on-device prefill returns garbage under SPMD; on single_device the
-# prefill itself OOMs first (128 heads). Either way the case fails — xfail
-# (strict=False, so an occasional correct decode reports xpass rather than a
-# hard failure).
-_PREFILL_DECODE_CORRUPTION_XFAIL = failed_runtime(
-    "Repro of the SPMD prefill->decode program-transition corruption: an on-device "
-    "MLA decode executed right after an on-device MLA prefill (same test, "
-    "back-to-back) returns garbage (PCC ~0); single_device additionally OOMs at "
-    "128 heads. test_mla_prefill_and_decode_impl sidesteps this by scoring the "
-    "decode on the CPU golden — re-enable on-device decode there once fixed."
-)
-
-
-@pytest.mark.nightly
-@pytest.mark.xfail(reason=_PREFILL_DECODE_CORRUPTION_XFAIL, strict=False)
-@parametrize_arch(["single_device", "llmbox"])
-@pytest.mark.parametrize("users, seq_len", [(1, 64), (2, 64)])
-def test_mla_prefill_and_decode_failing(users, seq_len, arch, deepseek_v3_mla):
-    """xfail repro of the *original* chained prefill->decode flow that produced
-    bad output.
-
-    Identical setup to ``test_mla_prefill_and_decode_impl``, but it runs the
-    decode **on device, right after the on-device prefill** (reading the cache
-    the prefill just produced) and **scores the on-device decode output**. Under
-    SPMD that first decode-after-prefill returns garbage (PCC ~0) — the
-    program-transition corruption (see ``_PREFILL_DECODE_CORRUPTION_XFAIL``).
-    Kept as an xfail so the bug stays tracked and this xpasses (alerting us) once
-    the runtime is fixed, at which point the working test can score on-device
-    decode again. ``single_device`` fails earlier (prefill OOMs at 128 heads).
-    """
-    xr.set_device_type("TT")
-    torch.manual_seed(0)
-
-    params = deepseek_v3_mla
-    cfg = params["cfg"]
-    dtype = params["act_dtype"]
-    N = cfg["num_attention_heads"]
-    L = cfg["kv_lora_rank"]
-    R = cfg["qk_rope_head_dim"]
-    P = cfg["qk_nope_head_dim"]
-    V = cfg["v_head_dim"]
-    head_dim = L + R
-
-    assert seq_len % 32 == 0, "flash_mla_prefill requires seq_len % 32 == 0"
-    mesh = _maybe_mesh(arch, N)
-
-    blocks_per_user = seq_len // BLOCK_SIZE + 1
-    num_blocks = users * blocks_per_user
-    page_table = torch.arange(num_blocks, dtype=torch.int32).view(
-        users, blocks_per_user
-    )
-
-    # ----- Prefill inputs (S = seq_len tokens per user) -----
-    tokens = users * seq_len
-    q_nope_p = torch.randn(tokens, N, P, dtype=dtype)
-    q_pe_p = torch.randn(tokens, N, R, dtype=dtype)
-    kv_c_p = torch.randn(tokens, L, dtype=dtype)
-    k_pe_p = torch.randn(tokens, 1, R, dtype=dtype)
-    kv_cache = torch.zeros(num_blocks, 1, BLOCK_SIZE, head_dim, dtype=dtype)
-    cache_position_p = torch.full((users,), seq_len - 1, dtype=torch.int32)
-    prefill_inputs = (
-        q_nope_p,
-        q_pe_p,
-        kv_c_p,
-        k_pe_p,
-        kv_cache,
-        cache_position_p,
-        page_table,
-    )
-
-    # ----- Decode inputs (S = 1 token per user, written at position seq_len) ---
-    q_nope_d = torch.randn(users, N, P, dtype=dtype)
-    q_pe_d = torch.randn(users, N, R, dtype=dtype)
-    kv_c_d = torch.randn(users, L, dtype=dtype)
-    k_pe_d = torch.randn(users, 1, R, dtype=dtype)
-    cache_position_d = torch.full((users,), seq_len, dtype=torch.int32)
-
-    def _decode_inputs(cache_after_prefill):
-        return (
-            q_nope_d,
-            q_pe_d,
-            kv_c_d,
-            k_pe_d,
-            cache_after_prefill,
-            cache_position_d,
-            page_table,
-        )
-
-    # ----- CPU goldens -----
-    golden_prefill, cpu_cache_prefill = _run_impl(
-        torch.device("cpu"), params, prefill_inputs
-    )
-    golden_decode, _ = _run_impl(
-        torch.device("cpu"), params, _decode_inputs(cpu_cache_prefill)
-    )
-
-    # ----- Device: prefill THEN decode, chained (the original failing flow) ----
-    # The on-device decode reads the cache the on-device prefill just produced and
-    # runs immediately after it — this is what corrupts the decode under SPMD.
-    device_prefill, device_cache_prefill = _run_impl(
-        torch_xla.device(), params, prefill_inputs, mesh=mesh
-    )
-    torch_xla.sync()
-    device_decode, _ = _run_impl(
-        torch_xla.device(), params, _decode_inputs(device_cache_prefill), mesh=mesh
-    )
-    torch_xla.sync()
-    device_prefill = device_prefill.cpu()
-    device_decode = device_decode.cpu()
-    device_cache_prefill = device_cache_prefill.cpu()
-
-    # Prefill is fine (these pass on llmbox)...
-    assert device_prefill.shape == golden_prefill.shape == (tokens, N * V)
-    pcc = _pcc(device_prefill, golden_prefill)
-    assert pcc >= REQUIRED_PCC, f"MLA prefill PCC {pcc:.5f} < {REQUIRED_PCC}"
-    cache_pcc = _pcc(device_cache_prefill, cpu_cache_prefill)
-    assert (
-        cache_pcc >= REQUIRED_PCC
-    ), f"prefill cache PCC {cache_pcc:.5f} < {REQUIRED_PCC}"
-
-    # ...but the on-device decode right after the prefill is garbage (PCC ~0).
-    assert device_decode.shape == golden_decode.shape == (users, N * V)
-    pcc = _pcc(device_decode, golden_decode)
-    assert pcc >= REQUIRED_PCC, f"MLA decode PCC {pcc:.5f} < {REQUIRED_PCC}"
