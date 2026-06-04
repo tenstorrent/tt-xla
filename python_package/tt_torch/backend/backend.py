@@ -353,8 +353,12 @@ def torch_pass_pipeline(
         # Partitioner) can be confused by wrong next-node links.
         legalize_graph(compiled_graph)
 
-        # Extract params and constants from the ExportedProgram so they can be
-        # passed to bridge.extract_compiled_graph later (experimental compile).
+        # compiled_graph above is the *flattened* exported graph_module: its
+        # params, buffers and lifted constants are placeholder inputs, not
+        # attributes (contrast program.module(), which retains them). They must
+        # therefore be re-supplied ahead of the user inputs on every call, in
+        # both the legacy and experimental flows. Extract them here, in
+        # input_specs order, so XLAExecutor can prepend them to the user *args.
         params_and_consts = _extract_params_and_consts(program)
 
         # When torch.compile traces a model, it flattens the module hierarchy and
@@ -423,22 +427,21 @@ class XLAExecutor:
         self.devices = list(self.devices)
 
         # Whether to enable the legacy compile flow.
-        # The following group of fields will only be used if the experimental flow is enabled.
         self.legacy_compile_enabled = legacy_compile_enabled
+        # Lifted params/buffers/constants to prepend to the user inputs on each
+        # call. Empty in the AOT path, where AOTAutograd already lifts them into
+        # the incoming *args. Used by both the legacy and experimental flows.
         self.params_and_consts = params_and_consts
+        # Experimental flow only: cached torch-xla compiled graph.
         self.compiled_graph = None
 
-    def _call_experimental_compile(self, *args):
+    def _call_experimental_compile(self, full_args):
         if self.compiled_graph is None:
             # Use `torch_xla` function to replace the graph module with the `optimized_mod`.
             # This helps us avoid tracing the graph on the subsequent model execution. On the next
             # invocation of forward - `optimized_mod` will just look up in its cache and execute the graph
             # without any tracing.
-            self.compiled_graph = bridge.extract_compiled_graph(
-                self.module, self.params_and_consts + args
-            )
-
-        full_args = self.params_and_consts + args
+            self.compiled_graph = bridge.extract_compiled_graph(self.module, full_args)
 
         return self.compiled_graph(*full_args)
 
@@ -458,8 +461,15 @@ class XLAExecutor:
             moved_args.append(arg)
         args = tuple(moved_args)
 
+        # self.module is the flattened forward graph with params/buffers/consts
+        # lifted to placeholders, so they must be supplied ahead of the user
+        # inputs. In the AOT path params_and_consts is empty because AOTAutograd
+        # already prepends them to the incoming *args. This is the call signature
+        # for both the legacy and experimental flows.
+        full_args = self.params_and_consts + args
+
         if not self.legacy_compile_enabled:
-            return self._call_experimental_compile(*args)
+            return self._call_experimental_compile(full_args)
 
         if self.inject_metadata:
             # Use MetadataInterpreter + MetadataDispatchMode to correctly track metadata
@@ -468,9 +478,9 @@ class XLAExecutor:
             # MetadataDispatchMode reads it to attach the correct metadata to each dispatch.
             with MetadataDispatchMode():
                 interp = MetadataInterpreter(self.module, self.node_info)
-                output = interp.run(*args)
+                output = interp.run(*full_args)
         else:
-            output = self.module(*args)
+            output = self.module(*full_args)
 
         if not self.has_output_mutations:
             # This tells torch-xla to cut the graph at only what is required to
