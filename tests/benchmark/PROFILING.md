@@ -66,9 +66,10 @@ Use `--run-budget-seconds` to keep the nested pipeline inside the scheduler
 reservation window. When the budget is exhausted before a selected benchmark
 starts, the pipeline writes a terminal `status.json` with `taxonomy: not_run`.
 Before rendering the final artifacts, the pipeline also writes
-`pending_terminalization` statuses for any discovered model that does not yet
-have a `status.json`, so partial runs still produce explicit evidence for every
-model in scope.
+`taxonomy: not_started` statuses for any discovered model that does not yet have
+a `status.json`, so partial runs still produce explicit evidence for every model
+in scope. The `not_started` value follows the existing `BringupStatus.NOT_STARTED`
+terminology used by repository model status reporting.
 
 To run the same pipeline on IRD, use `--target ird`. The default mode uses a
 short-lived `ird run` job so the scheduler owns container teardown:

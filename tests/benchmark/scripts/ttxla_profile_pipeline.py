@@ -923,7 +923,7 @@ def infer_taxonomy_from_statuses(
     perf_report_ok: bool,
 ) -> tuple[str, str]:
     if profile_status == "pending" or model_status == "pending":
-        return "pending_terminalization", "timed out before reaching a terminal state"
+        return "not_started", "timed out before reaching a terminal state"
     if model_status == "skipped":
         return "skipped_with_reason", "benchmark entry was skipped"
     if model_status == "not_run" or text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
@@ -992,8 +992,8 @@ def terminal_state_for_taxonomy(taxonomy: str) -> str:
         "environment_failure": "blocked",
         "pipeline_error": "blocked",
         "not_run": "blocked",
+        "not_started": "blocked",
         "skipped_with_reason": "skipped",
-        "pending_terminalization": "pending",
         "compiled_only": "partial",
     }
     return mapping.get(taxonomy, "blocked")
@@ -1008,8 +1008,8 @@ def next_action_for_taxonomy(taxonomy: str) -> str:
         "environment_failure": "Repair the missing dependency or host setup, then rerun.",
         "pipeline_error": "Repair the pipeline or artifact stage, then rerun the profile.",
         "not_run": "Run the model profile or record the owner for the non-run decision.",
+        "not_started": "Run the model profile or collect the missing job state before rerunning.",
         "skipped_with_reason": "Review the skip reason and owner before promoting the model.",
-        "pending_terminalization": "Wait for terminalization or collect the missing job state before rerunning.",
     }
     return mapping.get(
         taxonomy, "Review the run artifacts and determine the next action."
@@ -1058,12 +1058,9 @@ def write_unprofiled_model_status(
     ensure_dir(profile_dir / "tracy")
     slow_ops_path = profile_dir / "slow-ops.json"
     terminal_state = terminal_state_for_taxonomy(taxonomy)
-    if taxonomy == "not_run":
+    if taxonomy in ("not_run", "not_started"):
         profile_status = "not_run"
         model_status = "not_run"
-    elif taxonomy == "pending_terminalization":
-        profile_status = "pending"
-        model_status = "pending"
     else:
         profile_status = "blocked"
         model_status = "unknown"
@@ -1109,7 +1106,7 @@ def write_unprofiled_model_status(
             "profile": {
                 "state": profile_status,
                 "returncode": None,
-                "timed_out": taxonomy == "pending_terminalization",
+                "timed_out": taxonomy == "not_started",
                 "note": reason,
                 "stdout": str(profile_dir / "run.log"),
                 "stderr": str(profile_dir / "compile.log"),
@@ -1169,7 +1166,7 @@ def terminalize_missing_model_statuses(
     entries: list[DiscoveryEntry],
     repo: Path,
     reason: str,
-    taxonomy: str = "pending_terminalization",
+    taxonomy: str = "not_started",
 ) -> list[dict[str, Any]]:
     created = []
     for entry in entries:

@@ -237,7 +237,7 @@ def assert_partial_finalize_outputs(pipeline, run_dir):
     jax_status = json.loads(
         (run_dir / "profiles" / "jax" / "status.json").read_text(encoding="utf-8")
     )
-    assert jax_status["taxonomy"] == "pending_terminalization"
+    assert jax_status["taxonomy"] == "not_started"
     assert (run_dir / "dashboard.html").exists()
     assert (run_dir / "claude-report-packet.html").exists()
     assert (run_dir / "report.html").exists()
@@ -443,7 +443,7 @@ def test_infer_taxonomy_distinguishes_environment_model_and_terminal_states():
     assert "validation failed" in reason
 
     taxonomy, reason = pipeline.infer_taxonomy(1, True, "", {}, False)
-    assert taxonomy == "pending_terminalization"
+    assert taxonomy == "not_started"
     assert "timed out" in reason
 
 
@@ -750,10 +750,10 @@ def test_terminalize_missing_model_statuses_writes_blocker_artifacts(tmp_path):
     status = json.loads(
         (run_dir / "profiles" / "jax" / "status.json").read_text(encoding="utf-8")
     )
-    assert status["profile_status"] == "pending"
-    assert status["model_status"] == "pending"
-    assert status["taxonomy"] == "pending_terminalization"
-    assert status["terminal_state"] == "pending"
+    assert status["profile_status"] == "not_run"
+    assert status["model_status"] == "not_run"
+    assert status["taxonomy"] == "not_started"
+    assert status["terminal_state"] == "blocked"
     assert "before this discovered model emitted status.json" in status["reason"]
     assert (run_dir / "profiles" / "jax" / "slow-ops.json").exists()
 
