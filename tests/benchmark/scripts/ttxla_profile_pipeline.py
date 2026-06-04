@@ -114,6 +114,26 @@ SKIP_HINTS = (
     "xfail",
 )
 
+TAXONOMY_VALIDATED_PASS = "validated_pass"
+TAXONOMY_VALIDATED_FAIL = "validated_fail"
+TAXONOMY_MODEL_FAILURE = "model_failure"
+TAXONOMY_ENVIRONMENT_FAILURE = "environment_failure"
+TAXONOMY_PIPELINE_ERROR = "pipeline_error"
+TAXONOMY_NOT_RUN = "not_run"
+TAXONOMY_NOT_STARTED = "not_started"
+TAXONOMY_SKIPPED_WITH_REASON = "skipped_with_reason"
+TAXONOMY_COMPILED_ONLY = "compiled_only"
+
+TERMINAL_STATE_PASSED = "passed"
+TERMINAL_STATE_FAILED = "failed"
+TERMINAL_STATE_BLOCKED = "blocked"
+TERMINAL_STATE_SKIPPED = "skipped"
+TERMINAL_STATE_PARTIAL = "partial"
+
+RUN_STATUS_NOT_RUN = "not_run"
+RUN_STATUS_BLOCKED = "blocked"
+RUN_STATUS_UNKNOWN = "unknown"
+
 CSV_DURATION_ALIASES = (
     "duration_us",
     "duration_ms",
@@ -909,7 +929,7 @@ def infer_model_status(
     if returncode == 0:
         return "passed"
     if text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
-        return "not_run"
+        return RUN_STATUS_NOT_RUN
     if returncode not in (0, None):
         return "failed" if benchmark_json else "unknown"
     return "unknown"
@@ -923,12 +943,14 @@ def infer_taxonomy_from_statuses(
     perf_report_ok: bool,
 ) -> tuple[str, str]:
     if profile_status == "pending" or model_status == "pending":
-        return "not_started", "timed out before reaching a terminal state"
+        return TAXONOMY_NOT_STARTED, "timed out before reaching a terminal state"
     if model_status == "skipped":
-        return "skipped_with_reason", "benchmark entry was skipped"
-    if model_status == "not_run" or text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
+        return TAXONOMY_SKIPPED_WITH_REASON, "benchmark entry was skipped"
+    if model_status == RUN_STATUS_NOT_RUN or text_has_hint(
+        text, ENVIRONMENT_FAILURE_HINTS
+    ):
         return (
-            "environment_failure",
+            TAXONOMY_ENVIRONMENT_FAILURE,
             "environment or dependency issue blocked profiling",
         )
     if model_status == "failed":
@@ -943,18 +965,21 @@ def taxonomy_for_model_failure(text: str) -> tuple[str, str]:
     if any(
         term in lowered for term in ("pcc comparison failed", "accuracy", "validation")
     ):
-        return "validated_fail", "model compiled but validation failed"
+        return TAXONOMY_VALIDATED_FAIL, "model compiled but validation failed"
     return (
-        "model_failure",
+        TAXONOMY_MODEL_FAILURE,
         "model or runtime behavior failed after environment preconditions passed",
     )
 
 
 def taxonomy_for_successful_model(perf_report_ok: bool) -> tuple[str, str]:
     if perf_report_ok:
-        return "validated_pass", "profiling run completed and perf report was produced"
+        return (
+            TAXONOMY_VALIDATED_PASS,
+            "profiling run completed and perf report was produced",
+        )
     return (
-        "pipeline_error",
+        TAXONOMY_PIPELINE_ERROR,
         "benchmark completed but perf report could not be produced",
     )
 
@@ -964,10 +989,13 @@ def taxonomy_for_pipeline_fallback(
 ) -> tuple[str, str]:
     if benchmark_json:
         return (
-            "pipeline_error",
+            TAXONOMY_PIPELINE_ERROR,
             "pipeline or artifact stage failed after benchmark output was produced",
         )
-    return "pipeline_error", "pipeline did not produce a terminal profiling artifact"
+    return (
+        TAXONOMY_PIPELINE_ERROR,
+        "pipeline did not produce a terminal profiling artifact",
+    )
 
 
 def infer_taxonomy(
@@ -986,30 +1014,30 @@ def infer_taxonomy(
 
 def terminal_state_for_taxonomy(taxonomy: str) -> str:
     mapping = {
-        "validated_pass": "passed",
-        "validated_fail": "failed",
-        "model_failure": "failed",
-        "environment_failure": "blocked",
-        "pipeline_error": "blocked",
-        "not_run": "blocked",
-        "not_started": "blocked",
-        "skipped_with_reason": "skipped",
-        "compiled_only": "partial",
+        TAXONOMY_VALIDATED_PASS: TERMINAL_STATE_PASSED,
+        TAXONOMY_VALIDATED_FAIL: TERMINAL_STATE_FAILED,
+        TAXONOMY_MODEL_FAILURE: TERMINAL_STATE_FAILED,
+        TAXONOMY_ENVIRONMENT_FAILURE: TERMINAL_STATE_BLOCKED,
+        TAXONOMY_PIPELINE_ERROR: TERMINAL_STATE_BLOCKED,
+        TAXONOMY_NOT_RUN: TERMINAL_STATE_BLOCKED,
+        TAXONOMY_NOT_STARTED: TERMINAL_STATE_BLOCKED,
+        TAXONOMY_SKIPPED_WITH_REASON: TERMINAL_STATE_SKIPPED,
+        TAXONOMY_COMPILED_ONLY: TERMINAL_STATE_PARTIAL,
     }
-    return mapping.get(taxonomy, "blocked")
+    return mapping.get(taxonomy, TERMINAL_STATE_BLOCKED)
 
 
 def next_action_for_taxonomy(taxonomy: str) -> str:
     mapping = {
-        "validated_pass": "Review dashboard rankings and choose the next optimization target.",
-        "validated_fail": "Fix the validation mismatch, then rerun the model profile.",
-        "compiled_only": "Collect the missing validation or perf data, then rerun.",
-        "model_failure": "Resolve the model/runtime failure, then rerun the profile.",
-        "environment_failure": "Repair the missing dependency or host setup, then rerun.",
-        "pipeline_error": "Repair the pipeline or artifact stage, then rerun the profile.",
-        "not_run": "Run the model profile or record the owner for the non-run decision.",
-        "not_started": "Run the model profile or collect the missing job state before rerunning.",
-        "skipped_with_reason": "Review the skip reason and owner before promoting the model.",
+        TAXONOMY_VALIDATED_PASS: "Review dashboard rankings and choose the next optimization target.",
+        TAXONOMY_VALIDATED_FAIL: "Fix the validation mismatch, then rerun the model profile.",
+        TAXONOMY_COMPILED_ONLY: "Collect the missing validation or perf data, then rerun.",
+        TAXONOMY_MODEL_FAILURE: "Resolve the model/runtime failure, then rerun the profile.",
+        TAXONOMY_ENVIRONMENT_FAILURE: "Repair the missing dependency or host setup, then rerun.",
+        TAXONOMY_PIPELINE_ERROR: "Repair the pipeline or artifact stage, then rerun the profile.",
+        TAXONOMY_NOT_RUN: "Run the model profile or record the owner for the non-run decision.",
+        TAXONOMY_NOT_STARTED: "Run the model profile or collect the missing job state before rerunning.",
+        TAXONOMY_SKIPPED_WITH_REASON: "Review the skip reason and owner before promoting the model.",
     }
     return mapping.get(
         taxonomy, "Review the run artifacts and determine the next action."
@@ -1058,12 +1086,12 @@ def write_unprofiled_model_status(
     ensure_dir(profile_dir / "tracy")
     slow_ops_path = profile_dir / "slow-ops.json"
     terminal_state = terminal_state_for_taxonomy(taxonomy)
-    if taxonomy in ("not_run", "not_started"):
-        profile_status = "not_run"
-        model_status = "not_run"
+    if taxonomy in (TAXONOMY_NOT_RUN, TAXONOMY_NOT_STARTED):
+        profile_status = RUN_STATUS_NOT_RUN
+        model_status = RUN_STATUS_NOT_RUN
     else:
-        profile_status = "blocked"
-        model_status = "unknown"
+        profile_status = RUN_STATUS_BLOCKED
+        model_status = RUN_STATUS_UNKNOWN
     status_payload = {
         "issue": {
             "number": ISSUE_NUMBER,
@@ -1106,7 +1134,7 @@ def write_unprofiled_model_status(
             "profile": {
                 "state": profile_status,
                 "returncode": None,
-                "timed_out": taxonomy == "not_started",
+                "timed_out": taxonomy == TAXONOMY_NOT_STARTED,
                 "note": reason,
                 "stdout": str(profile_dir / "run.log"),
                 "stderr": str(profile_dir / "compile.log"),
@@ -1166,7 +1194,7 @@ def terminalize_missing_model_statuses(
     entries: list[DiscoveryEntry],
     repo: Path,
     reason: str,
-    taxonomy: str = "not_started",
+    taxonomy: str = TAXONOMY_NOT_STARTED,
 ) -> list[dict[str, Any]]:
     created = []
     for entry in entries:
@@ -3316,7 +3344,7 @@ def profile_selected_entries(
                 entry=entry,
                 repo=context.root,
                 run_dir=context.run_dir,
-                taxonomy="not_run",
+                taxonomy=TAXONOMY_NOT_RUN,
                 reason=(
                     "run budget was exhausted before profiling started for this model"
                 ),
