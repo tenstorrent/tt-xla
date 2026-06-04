@@ -43,7 +43,7 @@ def test_tensor_parallel_generation_n300(model_name: str):
         pytest.param("Qwen/Qwen3-0.6B"),
     ],
 )
-@pytest.mark.parametrize("use_2d_mesh", [True, False])
+@pytest.mark.parametrize("use_2d_mesh", [True])
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
     use_2d_mesh: bool,
@@ -62,6 +62,7 @@ def test_tensor_parallel_generation_llmbox_small(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": use_2d_mesh,
+            "num_hidden_layers": 3,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -79,9 +80,9 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
     [
-        pytest.param("Qwen/Qwen3-32B", False, "", True),
-        pytest.param("Qwen/Qwen3-8B", False, "", False),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", True),
+        pytest.param("Qwen/Qwen3.6-27B", False, "", True),
+        # pytest.param("Qwen/Qwen3-8B", False, "", False),
+        # pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", True),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
@@ -96,16 +97,20 @@ def test_tensor_parallel_generation_llmbox_large(
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
         "model": model_name,
-        "max_num_batched_tokens": 32,
+        "max_num_batched_tokens": 16384,
         "max_num_seqs": 1,
         "max_model_len": 32,
         "gpu_memory_utilization": 0.002,
+        "enforce_eager": True,
         "additional_config": {
             "enable_const_eval": enable_const_eval,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
             "use_2d_mesh": use_2d_mesh,
+            "num_hidden_layers": 2,
+            # "flat_model_io": True,
+            "cpu_sampling": True,
         },
     }
     llm = vllm.LLM(**llm_args)

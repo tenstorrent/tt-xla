@@ -347,8 +347,8 @@ class TTWorker:
         self.model_runner.reload_weights()
 
     def compile_or_warm_up_model(self) -> None:
-        if not self.model_config.enforce_eager:
-            self.model_runner.capture_model()
+        # if not self.model_config.enforce_eager:
+        self.model_runner.capture_model()
 
         # Reset the seed to ensure that the random state is not affected by
         # the model initialization and profiling.

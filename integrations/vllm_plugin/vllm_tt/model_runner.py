@@ -340,11 +340,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY
         self.uses_mrope = model_config.uses_mrope
-        # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
-        #     model_config)
-        self.supports_mm_inputs = False
+        self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
+            model_config
+        )
+        # self.supports_mm_inputs = False
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
-        assert not self.uses_mrope, "TPU does not support M-RoPE yet."
+        # assert not self.uses_mrope, "TPU does not support M-RoPE yet."
+        logger.info(f"Model supports multimodal inputs: {self.supports_mm_inputs}")
 
         self._num_slices_per_kv_cache_update_block = (
             _get_num_slices_per_kv_cache_update_block(
@@ -507,8 +509,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.mm_budget = (
             MultiModalBudget(
-                self.model_config,
-                self.scheduler_config,
+                self.vllm_config,
                 self.mm_registry,
             )
             if self.supports_mm_inputs
@@ -1503,6 +1504,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hidden_states, hidden_state_shape
             )
 
+            logger.info(f"hidden_states: {hidden_states.shape}")
+
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
@@ -2370,6 +2373,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "Hybrid models with more than one KV cache type are not "
                 "supported yet."
             )
+
+        logger.info(f"kv_cache_config: {kv_cache_config}")
+        logger.info(f"shared_kv_cache_layers: {self.shared_kv_cache_layers}")
+        logger.info(
+            f"kv_cache_config kv_cache_groups: {kv_cache_config.kv_cache_groups}"
+        )
+        logger.info(
+            f"kv_cache_config kv_cache_groups: {len(kv_cache_config.kv_cache_groups)}"
+        )
+
+        if len(kv_cache_config.kv_cache_groups) == 0:
+            logger.warning(
+                "No KV cache group found in the config. Skipping KV cache initialization."
+            )
+            return
 
         if (
             kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size

@@ -259,7 +259,19 @@ def partition_column_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    if layer.weight.ndim == 2:
+        safe_mark_sharding(layer.weight, mesh, ("model", None))
+    elif layer.weight.ndim == 3:
+        safe_mark_sharding(layer.weight, mesh, ("model", None, None))
+    else:
+        logger.warning(
+            "Skipping shard of ColumnParallelLinear %s: weight rank %d not in {2, 3} "
+            "(shape %s).",
+            layer,
+            layer.weight.ndim,
+            tuple(layer.weight.shape),
+        )
+        return layer
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
