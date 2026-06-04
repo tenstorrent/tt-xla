@@ -74,7 +74,9 @@ def _make_perf_metrics_dir(request):
     if request is not None:
         base = str(request.getfixturevalue("tmp_path"))
     else:
-        base = os.path.join(".", f"perf_metrics_{os.getpid()}_{int(time.time() * 1000)}")
+        base = os.path.join(
+            ".", f"perf_metrics_{os.getpid()}_{int(time.time() * 1000)}"
+        )
     perf_dir = os.path.join(base, "ttnn_perf_metrics")
     os.makedirs(perf_dir, exist_ok=True)
     return perf_dir
@@ -162,7 +164,8 @@ def test_llm(
     )
 
     print(f"Running LLM benchmark for variant: {variant}")
-    print(f"""Configuration:
+    print(
+        f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     batch_size={batch_size}
@@ -176,7 +179,8 @@ def test_llm(
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """)
+    """
+    )
 
     # Resolve model name for accuracy testing
     model_name_for_accuracy = None
@@ -340,7 +344,8 @@ def test_llm_prefill(
     )
 
     print(f"Running LLM benchmark for variant: {variant}")
-    print(f"""Configuration:
+    print(
+        f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     batch_size={batch_size}
@@ -354,7 +359,8 @@ def test_llm_prefill(
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """)
+    """
+    )
 
     results = benchmark_llm_torch_xla_prefill(
         optimization_level=optimization_level,
