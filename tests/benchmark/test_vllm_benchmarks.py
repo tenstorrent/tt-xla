@@ -230,6 +230,20 @@ TP_CONFIGS = [
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
         id="opt-125m-fused-measure",
     ),
+    # Devstral-2-123B: fp8 checkpoint -> bf16 via the dequant hook, then bfp8.
+    # BASELINE TP config (standard _tp_config => 2D TP), batch 1, 4 layers for
+    # fast bring-up. The BH-galaxy 8x4 DP+TP changes land in a follow-up commit
+    # so the diff shows exactly what we changed on top of the given DP branch.
+    pytest.param(
+        _tp_config(
+            "mistralai/Devstral-2-123B-Instruct-2512",
+            1,
+            experimental_weight_dtype="bfp_bf8",
+            enable_const_eval=True,
+            num_hidden_layers=4,
+        ),
+        id="devstral-123b-tp",
+    ),
 ]
 
 

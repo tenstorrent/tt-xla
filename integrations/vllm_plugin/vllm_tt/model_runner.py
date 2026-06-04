@@ -1865,6 +1865,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def load_model(self) -> None:
         logger.info("CALLING LOAD MODEL")
+        # Install the fp8 -> bf16 dequant hook in THIS (worker) process before
+        # the model is constructed. With spawn workers the monkeypatch from the
+        # main process's check_and_update_config does not carry over, so the
+        # fp8 Fp8Config.get_quant_method must be (re)patched here. Safe at this
+        # point: the platform is already resolved (no early-import break).
+        from .fp8_dequant import install_fp8_dequant_hook
+
+        install_fp8_dequant_hook()
         self.device = self.device_config.device
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
