@@ -26,6 +26,7 @@ from diffusers import UniPCMultistepScheduler
 from .monkey_patch import (
     _patch_wan_resample_avoid_4d_fold,
     _patch_wan_resample_rep_sentinel,
+    _patch_wan_time_embedder_dtype_probe,
     safe_xla_slicing,
     torch_function_override_disabled,
 )
@@ -59,7 +60,7 @@ from .shared import (
 
 SEED = 42
 RESOLUTION = "480p"  # "480p" or "720p"
-NUM_STEPS = 2  # denoising steps
+NUM_STEPS = 40  # denoising steps
 GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
 FPS = 16
 
@@ -218,6 +219,7 @@ def _output_path(mode: str) -> Path:
 
 _patch_wan_resample_rep_sentinel()
 _patch_wan_resample_avoid_4d_fold()
+_patch_wan_time_embedder_dtype_probe()
 
 # ---------------------------------------------------------------------------
 # Test
