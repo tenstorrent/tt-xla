@@ -17,6 +17,9 @@ jobs:
   update_test_durations:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Fetch results
         id: prev-perf-1
         uses: ./.github/actions/superset-api
