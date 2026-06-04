@@ -633,12 +633,6 @@
         "skip-device-perf": true
       },
       {
-        "name": "vllm_gemma_1_1_2b_it",
-        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[gemma-1.1-2b-it]",
-        "vllm": true,
-        "skip-device-perf": true
-      },
-      {
         "name": "vllm_phi_1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_benchmark[phi-1]",
         "vllm": true,
