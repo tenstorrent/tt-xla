@@ -46,10 +46,10 @@ xr.set_device_type("TT")
 
 MIN_STEPS = 16
 
-# Number of times the prefill is re-run (post-warmup) when measuring its latency.
+# Default number of times the prefill is re-run (post-warmup) when measuring its latency.
 # We keep the MINIMUM across runs to report the "happy path" device time, stripping
-# out host-side jitter and one-off noise.
-PREFILL_PERF_RUNS = 30
+# out host-side jitter and one-off noise. Overridable per run via -lp / loop_count.
+DEFAULT_PREFILL_PERF_RUNS = 30
 
 # Seed for the random prefill prompt so a benchmark run is reproducible. Drawn through a
 # local torch.Generator (below) so the global RNG state is left untouched.
@@ -969,11 +969,12 @@ def benchmark_llm_torch_xla_prefill(
     if not model_loader:
         raise ValueError("Model loader must be specified for benchmark. ")
 
-    if loop_count != 1:
-        raise ValueError(
-            f"Loop count must be 1 for llm benchmark (not yet supported). Got: {loop_count}. "
-            "Please use -lp 1"
-        )
+    # loop_count (-lp) sets how many timed prefill runs to do; we report the fastest.
+    # The benchmark-wide default of 1 means "use DEFAULT_PREFILL_PERF_RUNS".
+    if loop_count is None or loop_count <= 1:
+        prefill_perf_runs = DEFAULT_PREFILL_PERF_RUNS
+    else:
+        prefill_perf_runs = loop_count
 
     if not input_sequence_length or input_sequence_length <= 0:
         raise ValueError(
@@ -1187,7 +1188,7 @@ def benchmark_llm_torch_xla_prefill(
 
     tracy.signpost("warmup_complete")
 
-    # Run the perf benchmark: re-run the prefill PREFILL_PERF_RUNS times (the graph is
+    # Run the perf benchmark: re-run the prefill prefill_perf_runs times (the graph is
     # already compiled by warmup, so these are pure device executions) and keep the
     # fastest. The minimum is the cleanest estimate of the prefill's device latency.
     #
@@ -1198,7 +1199,7 @@ def benchmark_llm_torch_xla_prefill(
     print(f"\nStarting performance benchmark...")
     prefill_times_ns = []
     with torch.no_grad():
-        for run_idx in range(PREFILL_PERF_RUNS):
+        for run_idx in range(prefill_perf_runs):
             # Fresh DynamicCache inputs per run (no StaticCache to carry or reset), so each
             # run is a genuine from-scratch first prefill.
             input_args = _make_prefill_inputs_on_device()
@@ -1215,7 +1216,7 @@ def benchmark_llm_torch_xla_prefill(
 
             prefill_times_ns.append(elapsed_ns)
             print(
-                f"  prefill run {run_idx + 1}/{PREFILL_PERF_RUNS}: {elapsed_ns / 1e6:.3f} ms"
+                f"  prefill run {run_idx + 1}/{prefill_perf_runs}: {elapsed_ns / 1e6:.3f} ms"
             )
 
     print("\nPerformance benchmark complete")
@@ -1247,7 +1248,7 @@ def benchmark_llm_torch_xla_prefill(
 
     # Prefill-only: the measured iteration is the prefill forward. TTFT (time to first
     # token) is the prefill latency and is the primary metric. Use the fastest of the
-    # PREFILL_PERF_RUNS runs (the happy path, free of host-side jitter).
+    # prefill_perf_runs runs (the happy path, free of host-side jitter).
     ttft_ns = min(prefill_times_ns)
     ttft_ms = ttft_ns / 1e6
 
