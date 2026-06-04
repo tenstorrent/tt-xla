@@ -178,28 +178,6 @@ def construct_inputs(
     return input_args
 
 
-def make_prefill_inputs(
-    prompt_tokens: torch.Tensor, batch_size: int, device: torch.device
-) -> dict:
-    """Build prefill inputs (no StaticCache) placed on `device`.
-
-    past_key_values=None + use_cache=True makes HF build a DynamicCache internally, so no
-    pre-allocated StaticCache tensors enter the compiled graph as I/O. We still go through
-    the cache-based attention-mask path on purpose: the truly cacheless path
-    (use_cache=False) fails to compile on Blackhole because it emits a UInt8 cumsum that
-    the tt-metal accumulation kernel doesn't support (only Int32/UInt32/UInt16).
-    `prompt_tokens` is a 1D tensor of token IDs, broadcast to `batch_size` rows.
-    """
-    input_ids = prompt_tokens.unsqueeze(0).expand(batch_size, -1).contiguous()
-    cache_position = torch.arange(0, input_ids.shape[1])
-    return {
-        "input_ids": input_ids.to(device),
-        "past_key_values": None,
-        "cache_position": cache_position.to(device),
-        "use_cache": True,
-    }
-
-
 def get_mesh(model_loader, mesh_config_fn):
     num_devices = xr.global_runtime_device_count()
     mesh_shape, mesh_name = mesh_config_fn(model_loader, num_devices)
@@ -926,6 +904,8 @@ def benchmark_llm_torch_xla_prefill(
     experimental_kv_cache_dtype=None,
     weight_dtype_overrides: dict = None,
     input_output_sharding_spec=None,
+    kv_cache_sharding_spec=None,
+    use_mla_cache: bool = False,
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
@@ -946,10 +926,10 @@ def benchmark_llm_torch_xla_prefill(
         model_variant: Specific variant/version of the model to benchmark
         optimization_level: tt-mlir optimization level for compilation
         batch_size: Batch size for text generation
-        loop_count: Number of inference iterations
         task: Task type
         data_format: Data precision format
         input_sequence_length: Length of the prefill prompt (number of tokens processed)
+        loop_count: Number of timed prefill runs (-lp); <=1 uses DEFAULT_PREFILL_PERF_RUNS
         experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
@@ -1027,10 +1007,10 @@ def benchmark_llm_torch_xla_prefill(
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
     # Random prompt of exactly input_sequence_length tokens so the measured prefill
-    # scales with -isl (1D; make_prefill_inputs expands it across the batch). Generated
-    # once and reused by the CPU reference and the device prefill so PCC compares the
-    # same inputs. Seeded via a local generator so runs are reproducible without
-    # perturbing the global RNG state.
+    # scales with -isl (1D; construct_inputs expands it across the batch via
+    # input_prompt_tokens). Generated once and reused by the CPU reference and the device
+    # prefill so PCC compares the same inputs. Seeded via a local generator so runs are
+    # reproducible without perturbing the global RNG state.
     rng = torch.Generator().manual_seed(PREFILL_RANDOM_SEED)
     random_input_tokens = torch.randint(
         0, model.config.vocab_size, (input_sequence_length,), generator=rng
@@ -1048,17 +1028,23 @@ def benchmark_llm_torch_xla_prefill(
             dtype=torch.bfloat16,
         )
 
-    # Run CPU prefill to produce the PCC baseline. Prefill-only: no decode, no StaticCache
-    # (DynamicCache, same as the device path so PCC is apples-to-apples).
+    # Run CPU prefill to produce the PCC baseline. Prefill-only: a single forward over the
+    # full prompt, into a StaticCache (the same cache type the decode benchmark and
+    # deployment prefill into), so PCC is apples-to-apples with the device path below.
     # Skipped entirely when skip_pcc: no PCC is measured, so the reference isn't needed.
     cpu_output_logits = None
     if not skip_pcc:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
         cpu_wrapper.eval()
 
-        # Prefill over the full input_sequence_length prompt.
-        input_args = make_prefill_inputs(
-            random_input_tokens, batch_size, torch.device("cpu")
+        # Prefill over the full input_sequence_length prompt (StaticCache built on CPU).
+        input_args = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            input_prompt_tokens=random_input_tokens,
+            use_mla_cache=use_mla_cache,
         )
         cpu_output_logits, _ = generate_and_benchmark(
             cpu_wrapper,
@@ -1161,11 +1147,22 @@ def benchmark_llm_torch_xla_prefill(
     def _make_prefill_inputs_on_device():
         """Fresh prefill inputs on device for one from-scratch prefill.
 
-        past_key_values=None makes HF build a DynamicCache internally for this single
-        forward, so no pre-allocated StaticCache enters the graph as I/O (see
-        make_prefill_inputs). Rebuilt per call so every run is an independent first prefill.
+        Builds a fresh StaticCache via construct_inputs (the same cache type the decode
+        benchmark and deployment use) and transfers it to device. Rebuilt per call so
+        every run starts from cumulative_length=0 — i.e. a genuine first prefill — instead
+        of accumulating into a carried-over cache.
         """
-        ia = make_prefill_inputs(random_input_tokens, batch_size, device)
+        ia = construct_inputs(
+            tokenizer,
+            model.config,
+            batch_size,
+            max_cache_len,
+            input_prompt_tokens=random_input_tokens,
+            use_mla_cache=use_mla_cache,
+        )
+        ia = transfer_to_device(ia, device)
+        if is_multichip:
+            _shard_kv_cache(ia["past_key_values"], mesh, kv_cache_sharding_spec)
         if input_output_sharding_spec:
             xs.mark_sharding(ia["input_ids"], mesh, input_output_sharding_spec)
         return ia
@@ -1200,8 +1197,9 @@ def benchmark_llm_torch_xla_prefill(
     prefill_times_ns = []
     with torch.no_grad():
         for run_idx in range(prefill_perf_runs):
-            # Fresh DynamicCache inputs per run (no StaticCache to carry or reset), so each
-            # run is a genuine from-scratch first prefill.
+            # Fresh StaticCache inputs per run (rebuilt at cumulative_length=0), so each
+            # run is a genuine from-scratch first prefill rather than appending to a
+            # carried-over cache.
             input_args = _make_prefill_inputs_on_device()
 
             tracy.signpost("prefill_start")
