@@ -243,18 +243,7 @@ class TTPlatform(Platform):
 
     @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
-        # Side-effect import: registers FLASH_ATTN_MLA backend and the OOT
-        # TTMultiHeadLatentAttentionWrapper that replaces vLLM's stock MLA
-        # layer. Deferred to here (not register() and not module top-level)
-        # because attention_mla.py transitively imports vllm.model_executor
-        # modules that re-enter vllm.config — at register() time, vllm.config
-        # is still mid-initialization. By the time check_and_update_config
-        # is called (during vllm.LLM(...) → create_engine_config), vllm is
-        # fully loaded, and the OOT layer registration lands before any
-        # model code instantiates MultiHeadLatentAttentionWrapper.
         from vllm.config import CompilationMode, CUDAGraphMode
-
-        from . import attention_mla  # noqa: F401
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.
@@ -338,6 +327,9 @@ class TTPlatform(Platform):
             scheduler_config.disable_chunked_mm_input = True
 
         if model_config and model_config.use_mla:
+            # The OOT MLA layer (TTMultiHeadLatentAttentionWrapper) is installed
+            # by vllm_tt.register_mla_oot_layer via the vllm.general_plugins
+            # entry point, before any model is built.
             logger.info(
                 "MLA is enabled on a non-GPU platform; forcing chunked "
                 "prefill and prefix caching to be disabled."

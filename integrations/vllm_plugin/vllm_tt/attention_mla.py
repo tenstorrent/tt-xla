@@ -25,7 +25,6 @@ from vllm.model_executor.custom_op import PluggableLayer
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.mla import MultiHeadLatentAttentionWrapper
 from vllm.v1.attention.backend import AttentionBackend, AttentionLayer, MLAAttentionImpl
-from vllm.v1.attention.backends.registry import AttentionBackendEnum, register_backend
 
 from .attention import TTAttentionMetadataBuilder, TTMetadata
 from .logger import tt_init_logger
@@ -544,14 +543,11 @@ class TTMultiHeadLatentAttentionWrapper(MultiHeadLatentAttentionWrapper):
         return out
 
 
-# --------------------------------------------------------------------------- #
-# Register the backend with vLLM's attention registry. Import-time side
-# effect (this module is imported by vllm_tt/__init__.py).
-# --------------------------------------------------------------------------- #
-register_backend(
-    backend=AttentionBackendEnum.FLASH_ATTN_MLA,
-    class_path="vllm_tt.attention_mla.TTMLAAttentionBackend",
-)
+# NOTE: The FLASH_ATTN_MLA backend is registered (lazily, by class-path
+# string) in vllm_tt/__init__.py at plugin-load time, so no register_backend
+# call is needed here. Importing this module exists for one side effect: the
+# @MultiHeadLatentAttentionWrapper.register_oot decorator above, which puts
+# TTMultiHeadLatentAttentionWrapper into vLLM's op_registry_oot.
 
 
 # Silence unused-import lints; nn is kept for future use (e.g. when we

@@ -56,5 +56,11 @@ setup(
     ],
     python_requires=">=3.12, <3.13",
     license="Apache-2.0",
-    entry_points={"vllm.platform_plugins": ["tt = vllm_tt:register"]},
+    entry_points={
+        "vllm.platform_plugins": ["tt = vllm_tt:register"],
+        # General plugin: vLLM calls this (via load_general_plugins) once per
+        # process at a point where vllm.config is fully initialized, to install
+        # the OOT MLA layer (TTMultiHeadLatentAttentionWrapper).
+        "vllm.general_plugins": ["tt_mla = vllm_tt:register_mla_oot_layer"],
+    },
 )

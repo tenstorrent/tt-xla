@@ -31,8 +31,26 @@ def register():
     # while vllm.config itself is still being imported (its model.py
     # imports current_platform at module top-level). attention_mla's
     # import chain reaches back into vllm.config and would hit a
-    # partially-initialized-module ImportError. The MLA registration
-    # (FLASH_ATTN_MLA backend + OOT TTMultiHeadLatentAttentionWrapper)
-    # is triggered from TTPlatform.check_and_update_config, which vLLM
-    # calls only after the config modules are fully loaded.
+    # partially-initialized-module ImportError. The OOT MLA layer is
+    # registered separately from `register_mla_oot_layer` below, which
+    # vLLM invokes via the `vllm.general_plugins` entry point.
     return "vllm_tt.platform.TTPlatform"
+
+
+def register_mla_oot_layer():
+    """`vllm.general_plugins` callback — install the TT OOT MLA layer.
+
+    Importing ``attention_mla`` runs its ``@register_oot`` decorator, which
+    installs ``TTMultiHeadLatentAttentionWrapper`` into vLLM's
+    ``op_registry_oot``. Unlike the FLASH_ATTN_MLA *backend* (registered
+    lazily above by class-path string), the OOT registry holds live class
+    objects, so the module must actually be imported for the layer to
+    register.
+
+    vLLM's ``load_general_plugins()`` invokes this once per process (main,
+    engine-core, and worker) at a point where ``vllm.config`` is fully
+    initialized and before any model is built — so importing ``attention_mla``
+    here is safe even though its import chain re-enters ``vllm.config`` (the
+    partial-init hazard that keeps it out of ``register()``).
+    """
+    from . import attention_mla  # noqa: F401
