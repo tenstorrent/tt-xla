@@ -175,6 +175,61 @@ class IrdReservation:
     raw_stderr: str
 
 
+@dataclass
+class ProfilePaths:
+    profile_dir: Path
+    perf_dir: Path
+    ir_dir: Path
+    trace_dir: Path
+    benchmark_output: Path
+    run_log: Path
+    compile_log: Path
+    perf_output: Path
+    perf_input: Path
+    slow_ops_path: Path
+
+
+@dataclass
+class PerfReportOutcome:
+    result: Optional[CommandResult]
+    ok: bool
+    reason: str
+    command: list[str]
+    csv_source: Optional[Path]
+    csv_recorded: str
+
+
+@dataclass
+class RequirementCoverageContext:
+    run_dir: Path
+    model_manifest_path: Path
+    model_manifest: dict[str, Any]
+    model_count: int
+    status_count: int
+    status_paths: list[Path]
+    status_files_exist: bool
+    perf_report_count: int
+    ir_count: int
+    dashboard_path: Path
+    packet_path: Path
+    report_path: Path
+    dashboard_text: str
+    statuses: list[dict[str, Any]]
+
+
+@dataclass
+class LocalPipelineContext:
+    root: Path
+    run_dir: Path
+    python_bin: str
+    pytest_command: str
+    tracy_bin: str
+    tt_perf_report_bin: str
+    command_trace_path: Path
+    run_deadline: Optional[float]
+    environment: dict[str, Any]
+
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
@@ -754,6 +809,17 @@ def pick_first(row: dict[str, str], aliases: Iterable[str]) -> str:
     return ""
 
 
+def pick_duration(row: dict[str, str]) -> tuple[str, Optional[float]]:
+    for alias in CSV_DURATION_ALIASES:
+        candidate = row.get(alias)
+        if candidate in (None, ""):
+            continue
+        duration_value = parse_duration_value(candidate, alias)
+        if duration_value is not None:
+            return alias, duration_value
+    return "", None
+
+
 def parse_perf_csv(csv_path: Path, model_name: str, model_slug: str) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     total_duration_us = 0.0
@@ -765,15 +831,7 @@ def parse_perf_csv(csv_path: Path, model_name: str, model_slug: str) -> dict[str
         for row in reader:
             op_name = pick_first(row, CSV_OP_ALIASES) or "unknown-op"
             op_type = pick_first(row, CSV_OP_TYPE_ALIASES) or "unknown-type"
-            duration_raw_key = ""
-            duration_value: Optional[float] = None
-            for alias in CSV_DURATION_ALIASES:
-                candidate = row.get(alias)
-                if candidate not in (None, ""):
-                    duration_raw_key = alias
-                    duration_value = parse_duration_value(candidate, alias)
-                    if duration_value is not None:
-                        break
+            duration_raw_key, duration_value = pick_duration(row)
             if duration_value is None:
                 continue
             total_duration_us += duration_value
@@ -864,7 +922,6 @@ def infer_taxonomy_from_statuses(
     benchmark_json: dict[str, Any],
     perf_report_ok: bool,
 ) -> tuple[str, str]:
-    lowered = text.lower()
     if profile_status == "pending" or model_status == "pending":
         return "pending_terminalization", "timed out before reaching a terminal state"
     if model_status == "skipped":
@@ -875,22 +932,36 @@ def infer_taxonomy_from_statuses(
             "environment or dependency issue blocked profiling",
         )
     if model_status == "failed":
-        if any(
-            term in lowered
-            for term in ("pcc comparison failed", "accuracy", "validation")
-        ):
-            return "validated_fail", "model compiled but validation failed"
-        return (
-            "model_failure",
-            "model or runtime behavior failed after environment preconditions passed",
-        )
-    if profile_status == "passed" and model_status == "passed" and perf_report_ok:
+        return taxonomy_for_model_failure(text)
+    if profile_status == "passed" and model_status == "passed":
+        return taxonomy_for_successful_model(perf_report_ok)
+    return taxonomy_for_pipeline_fallback(benchmark_json)
+
+
+def taxonomy_for_model_failure(text: str) -> tuple[str, str]:
+    lowered = text.lower()
+    if any(
+        term in lowered for term in ("pcc comparison failed", "accuracy", "validation")
+    ):
+        return "validated_fail", "model compiled but validation failed"
+    return (
+        "model_failure",
+        "model or runtime behavior failed after environment preconditions passed",
+    )
+
+
+def taxonomy_for_successful_model(perf_report_ok: bool) -> tuple[str, str]:
+    if perf_report_ok:
         return "validated_pass", "profiling run completed and perf report was produced"
-    if profile_status == "passed" and model_status == "passed" and not perf_report_ok:
-        return (
-            "pipeline_error",
-            "benchmark completed but perf report could not be produced",
-        )
+    return (
+        "pipeline_error",
+        "benchmark completed but perf report could not be produced",
+    )
+
+
+def taxonomy_for_pipeline_fallback(
+    benchmark_json: dict[str, Any],
+) -> tuple[str, str]:
     if benchmark_json:
         return (
             "pipeline_error",
@@ -1138,17 +1209,23 @@ def load_discovery_entries_from_manifest(run_dir: Path) -> list[DiscoveryEntry]:
     return entries
 
 
+def manifest_run_value(manifest: dict[str, Any], key: str, default: str) -> str:
+    run = manifest.get("run") or {}
+    return str(run.get(key) or default)
+
+
 def discovery_result_from_manifest(run_dir: Path) -> CommandResult:
     manifest = load_json(run_dir / "manifest.json")
     discovery = manifest.get("discovery") or {}
+    created_at = manifest_run_value(manifest, "created_at", now_iso())
     return CommandResult(
         stage="discover",
         command=shlex.split(str(manifest.get("command") or "")),
-        cwd=str((manifest.get("run") or {}).get("repo_root") or run_dir),
+        cwd=manifest_run_value(manifest, "repo_root", str(run_dir)),
         returncode=discovery.get("returncode"),
         timed_out=bool(discovery.get("timed_out", False)),
-        start_time=str((manifest.get("run") or {}).get("created_at") or now_iso()),
-        end_time=str((manifest.get("run") or {}).get("created_at") or now_iso()),
+        start_time=created_at,
+        end_time=created_at,
         duration_seconds=0.0,
         stdout_path="",
         stderr_path="",
@@ -1185,61 +1262,35 @@ def finalize_partial_run_from_manifest(
     return True
 
 
-def profile_one_model(
-    entry: DiscoveryEntry,
-    repo: Path,
-    run_dir: Path,
-    pytest_command: str,
-    tracy_bin: str,
-    tt_perf_report_bin: str,
-    command_trace_path: Path,
-    timeout_seconds: int,
-    benchmark_kwargs: dict[str, int],
-    max_raw_artifact_bytes: int,
-) -> dict[str, Any]:
+def profile_paths(run_dir: Path, entry: DiscoveryEntry) -> ProfilePaths:
     profile_dir = ensure_dir(run_dir / "profiles" / entry.artifact_slug)
     perf_dir = ensure_dir(profile_dir / "perf-report")
-    ir_dir = ensure_dir(profile_dir / "ir")
-    trace_dir = ensure_dir(profile_dir / "tracy")
-    benchmark_output = profile_dir / "benchmark.json"
-    run_log = profile_dir / "run.log"
-    compile_log = profile_dir / "compile.log"
-    perf_output = perf_dir / "tt-perf-report.txt"
-    perf_input = perf_dir / "tt-perf-report-input.csv"
-    slow_ops_path = profile_dir / "slow-ops.json"
-    profile_command_list = profile_command(
-        tracy_bin=tracy_bin,
-        pytest_command=pytest_command,
-        nodeid=entry.nodeid,
+    return ProfilePaths(
         profile_dir=profile_dir,
-        benchmark_output=benchmark_output,
-        benchmark_args=benchmark_args_for_entry(entry, benchmark_kwargs),
+        perf_dir=perf_dir,
+        ir_dir=ensure_dir(profile_dir / "ir"),
+        trace_dir=ensure_dir(profile_dir / "tracy"),
+        benchmark_output=profile_dir / "benchmark.json",
+        run_log=profile_dir / "run.log",
+        compile_log=profile_dir / "compile.log",
+        perf_output=perf_dir / "tt-perf-report.txt",
+        perf_input=perf_dir / "tt-perf-report-input.csv",
+        slow_ops_path=profile_dir / "slow-ops.json",
     )
 
-    profile_env = os.environ.copy()
-    profile_env.setdefault("TTMLIR_ENABLE_PERF_TRACE", "1")
-    profile_env.setdefault("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
-    profile_env["TTXLA_PROFILE_RUN_ID"] = entry.run_identity
-    profile_env["TTXLA_PROFILE_NODEID"] = entry.nodeid
 
-    profile_result = run_subprocess(
-        command=profile_command_list,
-        cwd=repo,
-        stdout_path=run_log,
-        stderr_path=compile_log,
-        stage="profile",
-        command_trace_path=command_trace_path,
-        timeout_seconds=timeout_seconds,
-        env=profile_env,
-    )
-    pruned_raw_artifacts = prune_large_raw_artifacts(
-        profile_dir, max_raw_artifact_bytes
-    )
+def profile_environment(entry: DiscoveryEntry) -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("TTMLIR_ENABLE_PERF_TRACE", "1")
+    env.setdefault("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
+    env["TTXLA_PROFILE_RUN_ID"] = entry.run_identity
+    env["TTXLA_PROFILE_NODEID"] = entry.nodeid
+    return env
 
-    benchmark_json = load_json(benchmark_output)
-    benchmark_model_name = extract_benchmark_model_name(
-        benchmark_json, entry.model_identity
-    )
+
+def collect_ir_artifacts(
+    repo: Path, paths: ProfilePaths, benchmark_model_name: str, entry: DiscoveryEntry
+) -> tuple[Optional[Path], list[Path]]:
     collected_irs_root = repo / "collected_irs"
     ir_source_candidates = [
         collected_irs_root / benchmark_model_name,
@@ -1250,49 +1301,83 @@ def profile_one_model(
     ir_source = next(
         (candidate for candidate in ir_source_candidates if candidate.exists()), None
     )
-    copied_ir_files = copy_tree(ir_source, ir_dir) if ir_source else []
+    copied_ir_files = copy_tree(ir_source, paths.ir_dir) if ir_source else []
+    return ir_source, copied_ir_files
 
-    perf_csv_source = find_latest_csv(trace_dir)
-    perf_report_result: Optional[CommandResult] = None
-    perf_report_ok = False
+
+def run_tt_perf_report(
+    paths: ProfilePaths,
+    tt_perf_report_bin: str,
+    command_trace_path: Path,
+    timeout_seconds: int,
+) -> PerfReportOutcome:
+    perf_csv_source = find_latest_csv(paths.trace_dir)
     perf_csv_recorded = ""
-    perf_report_reason = ""
     perf_report_command_list: list[str] = []
     if perf_csv_source:
-        perf_csv_recorded = str(perf_input)
-        shutil.copy2(perf_csv_source, perf_input)
-    if perf_csv_source and command_expr_available(tt_perf_report_bin):
-        perf_report_command_list = perf_report_command(tt_perf_report_bin, perf_input)
-        perf_report_result = run_subprocess(
-            command=perf_report_command_list,
-            cwd=profile_dir,
-            stdout_path=perf_output,
-            stderr_path=perf_dir / "tt-perf-report.err",
-            stage="tt-perf-report",
-            command_trace_path=command_trace_path,
-            timeout_seconds=min(timeout_seconds, 300),
-            env=os.environ.copy(),
-        )
-        perf_report_ok = perf_report_result.ok
-        if not perf_report_ok:
-            perf_report_reason = (
-                safe_read_text(perf_dir / "tt-perf-report.err")
-                or "tt-perf-report returned a non-zero exit code"
-            )
-    else:
-        if not perf_csv_source:
-            perf_report_reason = "no ops CSV was produced by the Tracy profile"
-        elif not command_expr_available(tt_perf_report_bin):
-            perf_report_reason = "tt-perf-report binary was not available"
+        perf_csv_recorded = str(paths.perf_input)
+        shutil.copy2(perf_csv_source, paths.perf_input)
 
+    if not perf_csv_source:
+        return PerfReportOutcome(
+            result=None,
+            ok=False,
+            reason="no ops CSV was produced by the Tracy profile",
+            command=[],
+            csv_source=None,
+            csv_recorded=perf_csv_recorded,
+        )
+    if not command_expr_available(tt_perf_report_bin):
+        return PerfReportOutcome(
+            result=None,
+            ok=False,
+            reason="tt-perf-report binary was not available",
+            command=[],
+            csv_source=perf_csv_source,
+            csv_recorded=perf_csv_recorded,
+        )
+
+    perf_report_command_list = perf_report_command(tt_perf_report_bin, paths.perf_input)
+    result = run_subprocess(
+        command=perf_report_command_list,
+        cwd=paths.profile_dir,
+        stdout_path=paths.perf_output,
+        stderr_path=paths.perf_dir / "tt-perf-report.err",
+        stage="tt-perf-report",
+        command_trace_path=command_trace_path,
+        timeout_seconds=min(timeout_seconds, 300),
+        env=os.environ.copy(),
+    )
+    reason = ""
+    if not result.ok:
+        reason = (
+            safe_read_text(paths.perf_dir / "tt-perf-report.err")
+            or "tt-perf-report returned a non-zero exit code"
+        )
+    return PerfReportOutcome(
+        result=result,
+        ok=result.ok,
+        reason=reason,
+        command=perf_report_command_list,
+        csv_source=perf_csv_source,
+        csv_recorded=perf_csv_recorded,
+    )
+
+
+def write_slow_ops_payload(
+    paths: ProfilePaths,
+    benchmark_model_name: str,
+    entry: DiscoveryEntry,
+    perf_outcome: PerfReportOutcome,
+) -> None:
     slow_ops_payload: dict[str, Any] = {
         "model": benchmark_model_name,
         "nodeid": entry.nodeid,
         "source_path": entry.source_path,
-        "profile_dir": str(profile_dir),
-        "ir_dir": str(ir_dir),
-        "perf_csv": perf_csv_recorded,
-        "tt_perf_report": str(perf_output),
+        "profile_dir": str(paths.profile_dir),
+        "ir_dir": str(paths.ir_dir),
+        "perf_csv": perf_outcome.csv_recorded,
+        "tt_perf_report": str(paths.perf_output),
         "rows": [],
         "summary": {
             "row_count": 0,
@@ -1301,31 +1386,108 @@ def profile_one_model(
             "op_name_totals": {},
         },
     }
-    if perf_csv_source and perf_csv_source.exists():
+    if perf_outcome.csv_source and perf_outcome.csv_source.exists():
         parsed = parse_perf_csv(
-            perf_csv_source, benchmark_model_name, entry.artifact_slug
+            perf_outcome.csv_source, benchmark_model_name, entry.artifact_slug
         )
         slow_ops_payload["rows"] = parsed["rows"]
         slow_ops_payload["summary"] = parsed["summary"]
-        write_json(slow_ops_path, slow_ops_payload)
-    else:
-        write_json(slow_ops_path, slow_ops_payload)
+    write_json(paths.slow_ops_path, slow_ops_payload)
 
-    combined_text = "\n".join(
+
+def profile_log_text(paths: ProfilePaths) -> str:
+    return "\n".join(
         text
         for text in (
-            safe_read_text(run_log),
-            safe_read_text(compile_log),
-            safe_read_text(perf_output),
+            safe_read_text(paths.run_log),
+            safe_read_text(paths.compile_log),
+            safe_read_text(paths.perf_output),
         )
         if text
     )
+
+
+def profile_verification_state(
+    terminal_state: str,
+    profile_status: str,
+    model_status: str,
+    perf_report_ok: bool,
+    combined_text: str,
+) -> dict[str, Any]:
+    verified = (
+        terminal_state == "passed"
+        and profile_status == "passed"
+        and model_status == "passed"
+        and perf_report_ok
+        and not text_has_hint(combined_text, MODEL_FAILURE_HINTS)
+    )
+    return {
+        "verified": verified,
+        "state": "verified" if verified else "pending",
+    }
+
+
+def profile_stage_payload(
+    profile_status: str, profile_result: CommandResult, paths: ProfilePaths
+) -> dict[str, Any]:
+    return {
+        "state": profile_status,
+        "returncode": profile_result.returncode,
+        "timed_out": profile_result.timed_out,
+        "note": profile_result.note,
+        "stdout": str(paths.run_log),
+        "stderr": str(paths.compile_log),
+    }
+
+
+def ir_stage_payload(
+    ir_source: Optional[Path], copied_ir_files: list[Path]
+) -> dict[str, Any]:
+    return {
+        "state": "collected" if copied_ir_files else "missing",
+        "source": str(ir_source) if ir_source else "",
+        "count": len(copied_ir_files),
+    }
+
+
+def perf_report_stage_payload(perf_outcome: PerfReportOutcome) -> dict[str, Any]:
+    return {
+        "state": "generated" if perf_outcome.ok else "blocked",
+        "returncode": getattr(perf_outcome.result, "returncode", None),
+        "note": perf_outcome.reason,
+    }
+
+
+def profile_tool_status(
+    copied_ir_files: list[Path], perf_outcome: PerfReportOutcome
+) -> dict[str, str]:
+    return {
+        "tt_perf_report": "generated" if perf_outcome.ok else "blocked",
+        "ir": "collected" if copied_ir_files else "missing",
+    }
+
+
+def build_profile_status_payload(
+    entry: DiscoveryEntry,
+    repo: Path,
+    paths: ProfilePaths,
+    profile_command_list: list[str],
+    profile_result: CommandResult,
+    benchmark_model_name: str,
+    benchmark_json: dict[str, Any],
+    ir_source: Optional[Path],
+    copied_ir_files: list[Path],
+    perf_outcome: PerfReportOutcome,
+    combined_text: str,
+    max_raw_artifact_bytes: int,
+    pruned_raw_artifacts: list[str],
+) -> dict[str, Any]:
     taxonomy, reason = infer_taxonomy(
         returncode=profile_result.returncode,
         timed_out=profile_result.timed_out,
         text=combined_text,
         benchmark_json=benchmark_json,
-        perf_report_ok=perf_report_ok,
+        perf_report_ok=perf_outcome.ok,
     )
     profile_status = infer_profile_status(
         profile_result.returncode, profile_result.timed_out
@@ -1337,9 +1499,7 @@ def profile_one_model(
         benchmark_json,
     )
     terminal_state = terminal_state_for_taxonomy(taxonomy)
-    next_action = next_action_for_taxonomy(taxonomy)
-
-    status_payload = {
+    return {
         "issue": {
             "number": ISSUE_NUMBER,
             "url": ISSUE_URL,
@@ -1368,68 +1528,109 @@ def profile_one_model(
         "commands": {
             "profile": shell_join(profile_command_list),
             "tt_perf_report": (
-                shell_join(perf_report_command_list) if perf_report_command_list else ""
+                shell_join(perf_outcome.command) if perf_outcome.command else ""
             ),
         },
         "artifacts": {
-            **stage_result_paths(profile_dir),
+            **stage_result_paths(paths.profile_dir),
             "ir_source": str(ir_source) if ir_source else "",
             "copied_ir_count": len(copied_ir_files),
-            "perf_csv_source": str(perf_csv_source) if perf_csv_source else "",
+            "perf_csv_source": (
+                str(perf_outcome.csv_source) if perf_outcome.csv_source else ""
+            ),
             "max_raw_artifact_bytes": max_raw_artifact_bytes,
             "pruned_raw_artifacts": pruned_raw_artifacts,
         },
         "stages": {
-            "profile": {
-                "state": profile_status,
-                "returncode": profile_result.returncode,
-                "timed_out": profile_result.timed_out,
-                "note": profile_result.note,
-                "stdout": str(run_log),
-                "stderr": str(compile_log),
-            },
-            "ir": {
-                "state": "collected" if copied_ir_files else "missing",
-                "source": str(ir_source) if ir_source else "",
-                "count": len(copied_ir_files),
-            },
-            "tt_perf_report": {
-                "state": "generated" if perf_report_ok else "blocked",
-                "returncode": getattr(perf_report_result, "returncode", None),
-                "note": perf_report_reason,
-            },
+            "profile": profile_stage_payload(profile_status, profile_result, paths),
+            "ir": ir_stage_payload(ir_source, copied_ir_files),
+            "tt_perf_report": perf_report_stage_payload(perf_outcome),
         },
         "profile_status": profile_status,
         "model_status": model_status,
-        "tool_status": {
-            "tt_perf_report": "generated" if perf_report_ok else "blocked",
-            "ir": "collected" if copied_ir_files else "missing",
-        },
+        "tool_status": profile_tool_status(copied_ir_files, perf_outcome),
         "taxonomy": taxonomy,
         "terminal_state": terminal_state,
         "reason": reason,
-        "next_action": next_action,
-        "status_path": str(profile_dir / "status.json"),
+        "next_action": next_action_for_taxonomy(taxonomy),
+        "status_path": str(paths.profile_dir / "status.json"),
         "benchmark": benchmark_json,
-        "slow_ops": str(slow_ops_path),
-        "verification": {
-            "verified": terminal_state == "passed"
-            and profile_status == "passed"
-            and model_status == "passed"
-            and perf_report_ok
-            and not text_has_hint(combined_text, MODEL_FAILURE_HINTS),
-            "state": (
-                "verified"
-                if terminal_state == "passed"
-                and profile_status == "passed"
-                and model_status == "passed"
-                and perf_report_ok
-                else "pending"
-            ),
-        },
+        "slow_ops": str(paths.slow_ops_path),
+        "verification": profile_verification_state(
+            terminal_state,
+            profile_status,
+            model_status,
+            perf_outcome.ok,
+            combined_text,
+        ),
     }
 
-    write_json(profile_dir / "status.json", status_payload)
+
+def profile_one_model(
+    entry: DiscoveryEntry,
+    repo: Path,
+    run_dir: Path,
+    pytest_command: str,
+    tracy_bin: str,
+    tt_perf_report_bin: str,
+    command_trace_path: Path,
+    timeout_seconds: int,
+    benchmark_kwargs: dict[str, int],
+    max_raw_artifact_bytes: int,
+) -> dict[str, Any]:
+    paths = profile_paths(run_dir, entry)
+    profile_command_list = profile_command(
+        tracy_bin=tracy_bin,
+        pytest_command=pytest_command,
+        nodeid=entry.nodeid,
+        profile_dir=paths.profile_dir,
+        benchmark_output=paths.benchmark_output,
+        benchmark_args=benchmark_args_for_entry(entry, benchmark_kwargs),
+    )
+
+    profile_result = run_subprocess(
+        command=profile_command_list,
+        cwd=repo,
+        stdout_path=paths.run_log,
+        stderr_path=paths.compile_log,
+        stage="profile",
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+        env=profile_environment(entry),
+    )
+    pruned_raw_artifacts = prune_large_raw_artifacts(
+        paths.profile_dir, max_raw_artifact_bytes
+    )
+
+    benchmark_json = load_json(paths.benchmark_output)
+    benchmark_model_name = extract_benchmark_model_name(
+        benchmark_json, entry.model_identity
+    )
+    ir_source, copied_ir_files = collect_ir_artifacts(
+        repo, paths, benchmark_model_name, entry
+    )
+    perf_outcome = run_tt_perf_report(
+        paths, tt_perf_report_bin, command_trace_path, timeout_seconds
+    )
+    write_slow_ops_payload(paths, benchmark_model_name, entry, perf_outcome)
+    combined_text = profile_log_text(paths)
+    status_payload = build_profile_status_payload(
+        entry=entry,
+        repo=repo,
+        paths=paths,
+        profile_command_list=profile_command_list,
+        profile_result=profile_result,
+        benchmark_model_name=benchmark_model_name,
+        benchmark_json=benchmark_json,
+        ir_source=ir_source,
+        copied_ir_files=copied_ir_files,
+        perf_outcome=perf_outcome,
+        combined_text=combined_text,
+        max_raw_artifact_bytes=max_raw_artifact_bytes,
+        pruned_raw_artifacts=pruned_raw_artifacts,
+    )
+
+    write_json(paths.profile_dir / "status.json", status_payload)
     return status_payload
 
 
@@ -1620,91 +1821,106 @@ def render_links(run_dir: Path, path: str, label: str) -> str:
     return f'<a href="{html.escape(rel)}">{html.escape(label)}</a>'
 
 
+def dashboard_filter_values(
+    slow_ops: list[dict[str, Any]], models: list[dict[str, Any]], key: str
+) -> list[str]:
+    return sorted(
+        {row.get(key, "unknown") for row in slow_ops}
+        | {row.get(key, "unknown") for row in models}
+    )
+
+
+def render_slow_op_row(run_dir: Path, row: dict[str, Any]) -> str:
+    return (
+        "<tr "
+        f'data-model="{html.escape(str(row.get("model_identity", "")))}" '
+        f'data-op="{html.escape(str(row.get("op_name", "")))}" '
+        f'data-op-type="{html.escape(str(row.get("op_type", "")))}" '
+        f'data-status="{html.escape(str(row.get("profile_status", "")))}" '
+        f'data-model-status="{html.escape(str(row.get("model_status", "")))}" '
+        f'data-taxonomy="{html.escape(str(row.get("taxonomy", "")))}">'
+        f"<td>{row.get('global_rank', '')}</td>"
+        f"<td>{html.escape(str(row.get('model_identity', '')))}</td>"
+        f"<td>{html.escape(str(row.get('op_name', '')))}</td>"
+        f"<td>{html.escape(str(row.get('op_type', '')))}</td>"
+        f"<td>{float(row.get('duration_us', 0.0)):.2f}</td>"
+        f"<td>{html.escape(str(row.get('profile_status', '')))}</td>"
+        f"<td>{html.escape(str(row.get('model_status', '')))}</td>"
+        f"<td>{html.escape(str(row.get('taxonomy', '')))}</td>"
+        f"<td>{render_links(run_dir, str(row.get('status_path', '')), 'status')}</td>"
+        f"<td>{render_links(run_dir, str(row.get('ir_dir', '')), 'ir')}</td>"
+        f"<td>{render_links(run_dir, str(row.get('perf_report', '')), 'perf')}</td>"
+        "</tr>"
+    )
+
+
+def render_model_row(run_dir: Path, row: dict[str, Any]) -> str:
+    return (
+        "<tr "
+        f'data-model="{html.escape(str(row.get("model_identity", "")))}" '
+        f'data-status="{html.escape(str(row.get("profile_status", "")))}" '
+        f'data-model-status="{html.escape(str(row.get("model_status", "")))}" '
+        f'data-taxonomy="{html.escape(str(row.get("taxonomy", "")))}">'
+        f"<td>{row.get('global_rank', '')}</td>"
+        f"<td>{html.escape(str(row.get('model_identity', '')))}</td>"
+        f"<td>{html.escape(str(row.get('profile_status', '')))}</td>"
+        f"<td>{html.escape(str(row.get('model_status', '')))}</td>"
+        f"<td>{html.escape(str(row.get('taxonomy', '')))}</td>"
+        f"<td>{row.get('row_count', 0)}</td>"
+        f"<td>{row.get('total_duration_us', 0.0):.2f}</td>"
+        f"<td>{html.escape(str(row.get('slowest_op', '')))}</td>"
+        f"<td>{html.escape(str(row.get('slowest_op_type', '')))}</td>"
+        f"<td>{render_links(run_dir, str(row.get('ir_dir', '')), 'ir')}</td>"
+        f"<td>{render_links(run_dir, str(row.get('perf_report', '')), 'perf')}</td>"
+        "</tr>"
+    )
+
+
+def render_op_type_row(row: dict[str, Any]) -> str:
+    return (
+        "<tr "
+        f'data-op-type="{html.escape(str(row.get("op_type", "")))}">'
+        f"<td>{row.get('rank', '')}</td>"
+        f"<td>{html.escape(str(row.get('op_type', '')))}</td>"
+        f"<td>{row.get('count', 0)}</td>"
+        f"<td>{row.get('models', 0)}</td>"
+        f"<td>{row.get('total_duration_us', 0.0):.2f}</td>"
+        f"<td>{html.escape(str(row.get('top_model', '')))}</td>"
+        f"<td>{html.escape(str(row.get('top_op', '')))}</td>"
+        "</tr>"
+    )
+
+
+def dashboard_metric_counts(
+    models: list[dict[str, Any]], slow_ops: list[dict[str, Any]]
+) -> dict[str, int]:
+    return {
+        "total_models": len(models),
+        "total_ops": len(slow_ops),
+        "passed_models": sum(
+            1 for row in models if row.get("profile_status") == "passed"
+        ),
+        "blocked_models": sum(
+            1 for row in models if row.get("profile_status") in ("blocked", "pending")
+        ),
+        "failed_models": sum(
+            1 for row in models if row.get("model_status") == "failed"
+        ),
+    }
+
+
 def render_dashboard_html(
     run_dir: Path, statuses: list[dict[str, Any]], slow_ops: list[dict[str, Any]]
 ) -> str:
     models = aggregate_models(statuses, slow_ops)
     op_types = aggregate_op_types(slow_ops)
-    all_status_values = sorted(
-        {row.get("profile_status", "unknown") for row in slow_ops}
-        | {row.get("profile_status", "unknown") for row in models}
-    )
-    all_model_statuses = sorted(
-        {row.get("model_status", "unknown") for row in slow_ops}
-        | {row.get("model_status", "unknown") for row in models}
-    )
-    all_taxonomies = sorted(
-        {row.get("taxonomy", "unknown") for row in slow_ops}
-        | {row.get("taxonomy", "unknown") for row in models}
-    )
-    html_rows = []
-    for row in slow_ops:
-        html_rows.append(
-            "<tr "
-            f'data-model="{html.escape(str(row.get("model_identity", "")))}" '
-            f'data-op="{html.escape(str(row.get("op_name", "")))}" '
-            f'data-op-type="{html.escape(str(row.get("op_type", "")))}" '
-            f'data-status="{html.escape(str(row.get("profile_status", "")))}" '
-            f'data-model-status="{html.escape(str(row.get("model_status", "")))}" '
-            f'data-taxonomy="{html.escape(str(row.get("taxonomy", "")))}">'
-            f"<td>{row.get('global_rank', '')}</td>"
-            f"<td>{html.escape(str(row.get('model_identity', '')))}</td>"
-            f"<td>{html.escape(str(row.get('op_name', '')))}</td>"
-            f"<td>{html.escape(str(row.get('op_type', '')))}</td>"
-            f"<td>{float(row.get('duration_us', 0.0)):.2f}</td>"
-            f"<td>{html.escape(str(row.get('profile_status', '')))}</td>"
-            f"<td>{html.escape(str(row.get('model_status', '')))}</td>"
-            f"<td>{html.escape(str(row.get('taxonomy', '')))}</td>"
-            f"<td>{render_links(run_dir, str(row.get('status_path', '')), 'status')}</td>"
-            f"<td>{render_links(run_dir, str(row.get('ir_dir', '')), 'ir')}</td>"
-            f"<td>{render_links(run_dir, str(row.get('perf_report', '')), 'perf')}</td>"
-            "</tr>"
-        )
-
-    model_rows = []
-    for row in models:
-        model_rows.append(
-            "<tr "
-            f'data-model="{html.escape(str(row.get("model_identity", "")))}" '
-            f'data-status="{html.escape(str(row.get("profile_status", "")))}" '
-            f'data-model-status="{html.escape(str(row.get("model_status", "")))}" '
-            f'data-taxonomy="{html.escape(str(row.get("taxonomy", "")))}">'
-            f"<td>{row.get('global_rank', '')}</td>"
-            f"<td>{html.escape(str(row.get('model_identity', '')))}</td>"
-            f"<td>{html.escape(str(row.get('profile_status', '')))}</td>"
-            f"<td>{html.escape(str(row.get('model_status', '')))}</td>"
-            f"<td>{html.escape(str(row.get('taxonomy', '')))}</td>"
-            f"<td>{row.get('row_count', 0)}</td>"
-            f"<td>{row.get('total_duration_us', 0.0):.2f}</td>"
-            f"<td>{html.escape(str(row.get('slowest_op', '')))}</td>"
-            f"<td>{html.escape(str(row.get('slowest_op_type', '')))}</td>"
-            f"<td>{render_links(run_dir, str(row.get('ir_dir', '')), 'ir')}</td>"
-            f"<td>{render_links(run_dir, str(row.get('perf_report', '')), 'perf')}</td>"
-            "</tr>"
-        )
-
-    op_type_rows = []
-    for row in op_types:
-        op_type_rows.append(
-            "<tr "
-            f'data-op-type="{html.escape(str(row.get("op_type", "")))}">'
-            f"<td>{row.get('rank', '')}</td>"
-            f"<td>{html.escape(str(row.get('op_type', '')))}</td>"
-            f"<td>{row.get('count', 0)}</td>"
-            f"<td>{row.get('models', 0)}</td>"
-            f"<td>{row.get('total_duration_us', 0.0):.2f}</td>"
-            f"<td>{html.escape(str(row.get('top_model', '')))}</td>"
-            f"<td>{html.escape(str(row.get('top_op', '')))}</td>"
-            "</tr>"
-        )
-
-    total_models = len(models)
-    total_ops = len(slow_ops)
-    passed_models = sum(1 for row in models if row.get("profile_status") == "passed")
-    blocked_models = sum(
-        1 for row in models if row.get("profile_status") in ("blocked", "pending")
-    )
-    failed_models = sum(1 for row in models if row.get("model_status") == "failed")
+    all_status_values = dashboard_filter_values(slow_ops, models, "profile_status")
+    all_model_statuses = dashboard_filter_values(slow_ops, models, "model_status")
+    all_taxonomies = dashboard_filter_values(slow_ops, models, "taxonomy")
+    html_rows = [render_slow_op_row(run_dir, row) for row in slow_ops]
+    model_rows = [render_model_row(run_dir, row) for row in models]
+    op_type_rows = [render_op_type_row(row) for row in op_types]
+    metrics = dashboard_metric_counts(models, slow_ops)
 
     return f"""<!doctype html>
 <html lang="en">
@@ -1742,11 +1958,11 @@ def render_dashboard_html(
   </header>
   <section>
     <div class="summary">
-      <div class="metric"><strong>{total_models}</strong><span>models in scope</span></div>
-      <div class="metric"><strong>{passed_models}</strong><span>passed</span></div>
-      <div class="metric"><strong>{blocked_models}</strong><span>blocked</span></div>
-      <div class="metric"><strong>{failed_models}</strong><span>failed</span></div>
-      <div class="metric"><strong>{total_ops}</strong><span>slow-op rows</span></div>
+      <div class="metric"><strong>{metrics["total_models"]}</strong><span>models in scope</span></div>
+      <div class="metric"><strong>{metrics["passed_models"]}</strong><span>passed</span></div>
+      <div class="metric"><strong>{metrics["blocked_models"]}</strong><span>blocked</span></div>
+      <div class="metric"><strong>{metrics["failed_models"]}</strong><span>failed</span></div>
+      <div class="metric"><strong>{metrics["total_ops"]}</strong><span>slow-op rows</span></div>
     </div>
     <div class="controls">
       <div><label for="search">Search</label><input id="search" type="search" placeholder="model, op, or path" /></div>
@@ -1926,46 +2142,13 @@ def render_report_html(
     packet_path: Path,
 ) -> str:
     coverage = requirement_coverage(run_dir, manifest, environment, statuses, slow_ops)
-    coverage_rows = []
-    for entry in coverage:
-        coverage_rows.append(
-            f"<tr><td>{html.escape(entry['id'])}</td><td>{html.escape(entry['status'])}</td><td>{html.escape(entry['evidence'])}</td></tr>"
-        )
-    counts = {
-        "models": len(statuses),
-        "passed": sum(
-            1 for status in statuses if status.get("terminal_state") == "passed"
-        ),
-        "failed": sum(
-            1 for status in statuses if status.get("terminal_state") == "failed"
-        ),
-        "blocked": sum(
-            1 for status in statuses if status.get("terminal_state") == "blocked"
-        ),
-        "skipped": sum(
-            1 for status in statuses if status.get("terminal_state") == "skipped"
-        ),
-        "ops": len(slow_ops),
-    }
-    model_failures = sum(
-        1 for status in statuses if status.get("model_status") == "failed"
-    )
-    blockers = [
-        status for status in statuses if status.get("terminal_state") != "passed"
+    coverage_rows = [render_coverage_row(entry) for entry in coverage]
+    counts = report_counts(statuses, slow_ops)
+    blocker_rows = [
+        render_blocker_row(status)
+        for status in statuses
+        if status.get("terminal_state") != "passed"
     ]
-    blocker_rows = []
-    for status in blockers:
-        model = status.get("model", {})
-        blocker_rows.append(
-            "<tr>"
-            f"<td>{html.escape(str(model.get('model_identity', '')))}</td>"
-            f"<td>{html.escape(str(status.get('terminal_state', '')))}</td>"
-            f"<td>{html.escape(str(status.get('profile_status', '')))}</td>"
-            f"<td>{html.escape(str(status.get('model_status', '')))}</td>"
-            f"<td>{html.escape(str(status.get('taxonomy', '')))}</td>"
-            f"<td>{html.escape(str(status.get('next_action', '')))}</td>"
-            "</tr>"
-        )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -1998,7 +2181,7 @@ def render_report_html(
       <div class="metric"><strong>{counts['passed']}</strong><span>passed</span></div>
       <div class="metric"><strong>{counts['failed']}</strong><span>failed</span></div>
       <div class="metric"><strong>{counts['blocked']}</strong><span>blocked</span></div>
-      <div class="metric"><strong>{model_failures}</strong><span>model failures</span></div>
+      <div class="metric"><strong>{counts['model_failures']}</strong><span>model failures</span></div>
       <div class="metric"><strong>{counts['ops']}</strong><span>slow-op rows</span></div>
     </div>
     <p class="muted">Source packet: <a href="{html.escape(os.path.relpath(packet_path, run_dir))}">claude-report-packet.html</a> | Dashboard: <a href="{html.escape(os.path.relpath(dashboard_path, run_dir))}">dashboard.html</a></p>
@@ -2032,6 +2215,48 @@ def render_report_html(
 </body>
 </html>
 """
+
+
+def render_coverage_row(entry: dict[str, Any]) -> str:
+    return (
+        "<tr>"
+        f"<td>{html.escape(entry['id'])}</td>"
+        f"<td>{html.escape(entry['status'])}</td>"
+        f"<td>{html.escape(entry['evidence'])}</td>"
+        "</tr>"
+    )
+
+
+def report_counts(
+    statuses: list[dict[str, Any]], slow_ops: list[dict[str, Any]]
+) -> dict[str, int]:
+    return {
+        "models": len(statuses),
+        "passed": count_status_value(statuses, "terminal_state", "passed"),
+        "failed": count_status_value(statuses, "terminal_state", "failed"),
+        "blocked": count_status_value(statuses, "terminal_state", "blocked"),
+        "skipped": count_status_value(statuses, "terminal_state", "skipped"),
+        "model_failures": count_status_value(statuses, "model_status", "failed"),
+        "ops": len(slow_ops),
+    }
+
+
+def count_status_value(statuses: list[dict[str, Any]], key: str, value: str) -> int:
+    return sum(1 for status in statuses if status.get(key) == value)
+
+
+def render_blocker_row(status: dict[str, Any]) -> str:
+    model = status.get("model", {})
+    return (
+        "<tr>"
+        f"<td>{html.escape(str(model.get('model_identity', '')))}</td>"
+        f"<td>{html.escape(str(status.get('terminal_state', '')))}</td>"
+        f"<td>{html.escape(str(status.get('profile_status', '')))}</td>"
+        f"<td>{html.escape(str(status.get('model_status', '')))}</td>"
+        f"<td>{html.escape(str(status.get('taxonomy', '')))}</td>"
+        f"<td>{html.escape(str(status.get('next_action', '')))}</td>"
+        "</tr>"
+    )
 
 
 def coverage_entry(
@@ -2110,13 +2335,10 @@ def report_artifacts_have_requirement_coverage(
     )
 
 
-def requirement_coverage(
+def requirement_coverage_context(
     run_dir: Path,
-    manifest: dict[str, Any],
-    environment: dict[str, Any],
     statuses: list[dict[str, Any]],
-    slow_ops: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+) -> RequirementCoverageContext:
     model_manifest_path = run_dir / "model-manifest.json"
     model_manifest = load_json(model_manifest_path)
     model_count = len(model_manifest.get("models", []))
@@ -2135,81 +2357,149 @@ def requirement_coverage(
     packet_path = run_dir / "claude-report-packet.html"
     report_path = run_dir / "report.html"
     dashboard_text = read_text_if_exists(dashboard_path)
-    coverage = [
-        coverage_entry(
-            0,
-            "passed" if model_count > 0 else "missing",
-            f"{model_count} models recorded in model-manifest.json",
-            existing_path_strings([model_manifest_path]),
+    return RequirementCoverageContext(
+        run_dir=run_dir,
+        model_manifest_path=model_manifest_path,
+        model_manifest=model_manifest,
+        model_count=model_count,
+        status_count=status_count,
+        status_paths=status_paths,
+        status_files_exist=status_files_exist,
+        perf_report_count=perf_report_count,
+        ir_count=ir_count,
+        dashboard_path=dashboard_path,
+        packet_path=packet_path,
+        report_path=report_path,
+        dashboard_text=dashboard_text,
+        statuses=statuses,
+    )
+
+
+def coverage_model_list(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        0,
+        "passed" if ctx.model_count > 0 else "missing",
+        f"{ctx.model_count} models recorded in model-manifest.json",
+        existing_path_strings([ctx.model_manifest_path]),
+    )
+
+
+def coverage_model_identities(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        1,
+        (
+            "passed"
+            if ctx.model_count > 0
+            and model_manifest_has_run_identities(ctx.model_manifest)
+            else "missing"
         ),
-        coverage_entry(
-            1,
-            (
-                "passed"
-                if model_count > 0 and model_manifest_has_run_identities(model_manifest)
-                else "missing"
-            ),
-            "each discovered model carries a run identity and source path",
-            existing_path_strings([model_manifest_path]),
+        "each discovered model carries a run identity and source path",
+        existing_path_strings([ctx.model_manifest_path]),
+    )
+
+
+def coverage_profile_execution(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        2,
+        (
+            "passed"
+            if ctx.status_count == ctx.model_count and ctx.model_count > 0
+            else "partial"
         ),
-        coverage_entry(
-            2,
-            "passed" if status_count == model_count and model_count > 0 else "partial",
-            f"{status_count} status.json files for {model_count} discovered models",
-            existing_path_strings(status_paths),
+        f"{ctx.status_count} status.json files for {ctx.model_count} discovered models",
+        existing_path_strings(ctx.status_paths),
+    )
+
+
+def coverage_ir_artifacts(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        3,
+        "passed" if ctx.ir_count > 0 else "partial",
+        f"{ctx.ir_count} models with copied IR artifacts",
+        status_artifact_paths(ctx.statuses, "ir_dir"),
+    )
+
+
+def coverage_perf_report(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        4,
+        "passed" if ctx.perf_report_count > 0 else "partial",
+        f"{ctx.perf_report_count} models with tt-perf-report output",
+        status_artifact_paths(ctx.statuses, "tt_perf_report"),
+    )
+
+
+def coverage_status_artifacts(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        5,
+        (
+            "passed"
+            if ctx.status_count == ctx.model_count
+            and ctx.model_count > 0
+            and ctx.status_files_exist
+            else "partial"
         ),
-        coverage_entry(
-            3,
-            "passed" if ir_count > 0 else "partial",
-            f"{ir_count} models with copied IR artifacts",
-            status_artifact_paths(statuses, "ir_dir"),
+        "per-model status.json files contain terminal state, taxonomy, commands, artifacts, and next action",
+        existing_path_strings(ctx.status_paths),
+    )
+
+
+def coverage_dashboard_rankings(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        6,
+        "passed" if dashboard_contains_rankings(ctx.dashboard_text) else "missing",
+        "dashboard.html exists and exposes ranked slow-op/model/op-type tables",
+        existing_path_strings([ctx.dashboard_path]),
+    )
+
+
+def coverage_report_artifacts(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        7,
+        (
+            "passed"
+            if report_artifacts_have_requirement_coverage(
+                ctx.packet_path, ctx.report_path
+            )
+            else "missing"
         ),
-        coverage_entry(
-            4,
-            "passed" if perf_report_count > 0 else "partial",
-            f"{perf_report_count} models with tt-perf-report output",
-            status_artifact_paths(statuses, "tt_perf_report"),
+        "claude-report-packet.html and report.html were written",
+        existing_path_strings([ctx.packet_path, ctx.report_path]),
+    )
+
+
+def coverage_dashboard_search(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        8,
+        (
+            "passed"
+            if dashboard_contains_search_controls(ctx.dashboard_text)
+            else "missing"
         ),
-        coverage_entry(
-            5,
-            (
-                "passed"
-                if status_count == model_count
-                and model_count > 0
-                and status_files_exist
-                else "partial"
-            ),
-            "per-model status.json files contain terminal state, taxonomy, commands, artifacts, and next action",
-            existing_path_strings(status_paths),
-        ),
-        coverage_entry(
-            6,
-            "passed" if dashboard_contains_rankings(dashboard_text) else "missing",
-            "dashboard.html exists and exposes ranked slow-op/model/op-type tables",
-            existing_path_strings([dashboard_path]),
-        ),
-        coverage_entry(
-            7,
-            (
-                "passed"
-                if report_artifacts_have_requirement_coverage(packet_path, report_path)
-                else "missing"
-            ),
-            "claude-report-packet.html and report.html were written",
-            existing_path_strings([packet_path, report_path]),
-        ),
-        coverage_entry(
-            8,
-            (
-                "passed"
-                if dashboard_contains_search_controls(dashboard_text)
-                else "missing"
-            ),
-            "dashboard.html includes search and filter controls",
-            existing_path_strings([dashboard_path]),
-        ),
+        "dashboard.html includes search and filter controls",
+        existing_path_strings([ctx.dashboard_path]),
+    )
+
+
+def requirement_coverage(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    environment: dict[str, Any],
+    statuses: list[dict[str, Any]],
+    slow_ops: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    ctx = requirement_coverage_context(run_dir, statuses)
+    return [
+        coverage_model_list(ctx),
+        coverage_model_identities(ctx),
+        coverage_profile_execution(ctx),
+        coverage_ir_artifacts(ctx),
+        coverage_perf_report(ctx),
+        coverage_status_artifacts(ctx),
+        coverage_dashboard_rankings(ctx),
+        coverage_report_artifacts(ctx),
+        coverage_dashboard_search(ctx),
     ]
-    return coverage
 
 
 def write_requirements_json(
@@ -2464,29 +2754,33 @@ def build_ird_reserve_command(args: argparse.Namespace) -> list[str]:
     return [args.ird_bin, "reserve", *ird_option_args(args)]
 
 
-def parse_ird_reservation(stdout: str, stderr: str = "") -> IrdReservation:
-    text = "\n".join(part for part in (stdout, stderr) if part)
+def first_payload_value(payload: dict[str, Any], keys: Iterable[str]) -> str:
+    for key in keys:
+        value = payload.get(key)
+        if value:
+            return str(value)
+    return ""
+
+
+def parse_ird_reservation_json(stdout: str, stderr: str) -> IrdReservation:
     try:
         payload = json.loads(stdout)
     except json.JSONDecodeError:
         payload = {}
     if isinstance(payload, dict):
-        reservation_id = str(
-            payload.get("reservation_id")
-            or payload.get("reservationId")
-            or payload.get("id")
-            or ""
+        reservation_id = first_payload_value(
+            payload, ("reservation_id", "reservationId", "id")
         )
-        target_host = str(
-            payload.get("target_host")
-            or payload.get("targetHost")
-            or payload.get("host")
-            or payload.get("hostname")
-            or ""
+        target_host = first_payload_value(
+            payload, ("target_host", "targetHost", "host", "hostname")
         )
         if reservation_id or target_host:
             return IrdReservation(reservation_id, target_host, stdout, stderr)
+    return IrdReservation("", "", stdout, stderr)
 
+
+def parse_ird_reservation_text(stdout: str, stderr: str) -> IrdReservation:
+    text = "\n".join(part for part in (stdout, stderr) if part)
     id_match = re.search(
         r"(?:reservation(?:[_ -]?id)?|id)\s*[:=]\s*([A-Za-z0-9._:-]+)",
         text,
@@ -2501,6 +2795,13 @@ def parse_ird_reservation(stdout: str, stderr: str = "") -> IrdReservation:
         raw_stdout=stdout,
         raw_stderr=stderr,
     )
+
+
+def parse_ird_reservation(stdout: str, stderr: str = "") -> IrdReservation:
+    parsed = parse_ird_reservation_json(stdout, stderr)
+    if parsed.reservation_id or parsed.target_host:
+        return parsed
+    return parse_ird_reservation_text(stdout, stderr)
 
 
 def run_template_command(
@@ -2560,7 +2861,9 @@ def parse_ird_job_id(stdout: str, stderr: str) -> str:
     return ""
 
 
-def execute_ird_pipeline(args: argparse.Namespace) -> int:
+def initialize_ird_run(
+    args: argparse.Namespace,
+) -> tuple[Path, str, Path, Path, Path, str, dict[str, str], dict[str, Any]]:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
     run_id = args.run_id.strip() if args.run_id else make_run_id()
     run_dir = (
@@ -2595,141 +2898,191 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
         "release": {},
         "timeout_cleanup": {},
     }
+    return (
+        root,
+        run_id,
+        run_dir,
+        ird_dir,
+        command_trace_path,
+        remote_command,
+        variables,
+        lifecycle,
+    )
 
-    for index, template in enumerate(args.ird_pre_cleanup_command or [], start=1):
+
+def run_ird_cleanup_templates(
+    templates: Iterable[str],
+    variables: dict[str, str],
+    root: Path,
+    ird_dir: Path,
+    command_trace_path: Path,
+    timeout_seconds: int,
+    stage_prefix: str,
+) -> list[dict[str, Any]]:
+    results = []
+    for index, template in enumerate(templates, start=1):
         result = run_template_command(
             template,
             variables,
             root,
-            ird_dir / f"pre-cleanup-{index}.out",
-            ird_dir / f"pre-cleanup-{index}.err",
-            f"ird-pre-cleanup-{index}",
+            ird_dir / f"{stage_prefix}-{index}.out",
+            ird_dir / f"{stage_prefix}-{index}.err",
+            f"ird-{stage_prefix}-{index}",
+            command_trace_path,
+            timeout_seconds,
+        )
+        results.append(asdict(result))
+    return results
+
+
+def cleanup_timed_out_ird_run(
+    result: CommandResult,
+    run_dir: Path,
+    root: Path,
+    ird_dir: Path,
+    command_trace_path: Path,
+    timeout_seconds: int,
+) -> dict[str, Any]:
+    nested_returncode, nested_note = infer_nested_ird_returncode(run_dir)
+    if nested_returncode is not None:
+        result.returncode = nested_returncode
+        result.note = f"{result.note}; {nested_note}"
+        return {}
+
+    job_id = parse_ird_job_id(
+        safe_read_text(ird_dir / "ird-run.out"),
+        safe_read_text(ird_dir / "ird-run.err"),
+    )
+    if not job_id:
+        result.note = (
+            f"{result.note}; nested manifest was not terminalized; "
+            "could not find IRD job id for scheduler cleanup"
+        )
+        return {}
+
+    timeout_cleanup = run_subprocess(
+        command=["scancel", job_id],
+        cwd=root,
+        stdout_path=ird_dir / "ird-timeout-cleanup.out",
+        stderr_path=ird_dir / "ird-timeout-cleanup.err",
+        stage="ird-timeout-cleanup",
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+    )
+    result.note = (
+        f"{result.note}; nested manifest was not terminalized; "
+        f"requested scancel for IRD job {job_id}"
+    )
+    return {
+        **asdict(timeout_cleanup),
+        "command": shell_join(timeout_cleanup.command),
+        "job_id": job_id,
+    }
+
+
+def execute_ird_run_mode(
+    args: argparse.Namespace,
+    root: Path,
+    run_dir: Path,
+    ird_dir: Path,
+    remote_command: str,
+    command_trace_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    command = build_ird_run_command(args, remote_command)
+    result = run_subprocess(
+        command=command,
+        cwd=root,
+        stdout_path=ird_dir / "ird-run.out",
+        stderr_path=ird_dir / "ird-run.err",
+        stage="ird-run",
+        command_trace_path=command_trace_path,
+        timeout_seconds=args.ird_job_timeout_seconds,
+    )
+    timeout_cleanup = {}
+    if result.timed_out:
+        timeout_cleanup = cleanup_timed_out_ird_run(
+            result,
+            run_dir,
+            root,
+            ird_dir,
             command_trace_path,
             args.ird_control_timeout_seconds,
         )
-        lifecycle["pre_cleanup"].append(asdict(result))
+    remote_run = asdict(result)
+    remote_run["command"] = shell_join(result.command)
+    return remote_run, timeout_cleanup
 
-    if args.ird_mode == "run":
-        command = build_ird_run_command(args, remote_command)
-        result = run_subprocess(
-            command=command,
-            cwd=root,
-            stdout_path=ird_dir / "ird-run.out",
-            stderr_path=ird_dir / "ird-run.err",
-            stage="ird-run",
-            command_trace_path=command_trace_path,
-            timeout_seconds=args.ird_job_timeout_seconds,
-        )
-        if result.timed_out:
-            nested_returncode, nested_note = infer_nested_ird_returncode(run_dir)
-            if nested_returncode is not None:
-                result.returncode = nested_returncode
-                result.note = f"{result.note}; {nested_note}"
-            else:
-                job_id = parse_ird_job_id(
-                    safe_read_text(ird_dir / "ird-run.out"),
-                    safe_read_text(ird_dir / "ird-run.err"),
-                )
-                if job_id:
-                    timeout_cleanup = run_subprocess(
-                        command=["scancel", job_id],
-                        cwd=root,
-                        stdout_path=ird_dir / "ird-timeout-cleanup.out",
-                        stderr_path=ird_dir / "ird-timeout-cleanup.err",
-                        stage="ird-timeout-cleanup",
-                        command_trace_path=command_trace_path,
-                        timeout_seconds=args.ird_control_timeout_seconds,
-                    )
-                    lifecycle["timeout_cleanup"] = {
-                        **asdict(timeout_cleanup),
-                        "command": shell_join(timeout_cleanup.command),
-                        "job_id": job_id,
-                    }
-                    result.note = (
-                        f"{result.note}; nested manifest was not terminalized; "
-                        f"requested scancel for IRD job {job_id}"
-                    )
-                else:
-                    result.note = (
-                        f"{result.note}; nested manifest was not terminalized; "
-                        "could not find IRD job id for scheduler cleanup"
-                    )
-        lifecycle["remote_run"] = asdict(result)
-        lifecycle["remote_run"]["command"] = shell_join(result.command)
-    else:
-        reserve_result = run_subprocess(
-            command=build_ird_reserve_command(args),
-            cwd=root,
-            stdout_path=ird_dir / "ird-reserve.out",
-            stderr_path=ird_dir / "ird-reserve.err",
-            stage="ird-reserve",
-            command_trace_path=command_trace_path,
-            timeout_seconds=args.ird_control_timeout_seconds,
-        )
-        reservation = parse_ird_reservation(
-            safe_read_text(ird_dir / "ird-reserve.out"),
-            safe_read_text(ird_dir / "ird-reserve.err"),
-        )
-        variables["reservation_id"] = reservation.reservation_id
-        variables["target_host"] = reservation.target_host
-        lifecycle["reservation"] = {
-            **asdict(reserve_result),
-            "command": shell_join(reserve_result.command),
-            "reservation_id": reservation.reservation_id,
-            "target_host": reservation.target_host,
-        }
-        if not reserve_result.ok or not reservation.reservation_id:
-            lifecycle["remote_run"] = {
+
+def execute_ird_reserved_mode(
+    args: argparse.Namespace,
+    variables: dict[str, str],
+    root: Path,
+    ird_dir: Path,
+    command_trace_path: Path,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    reserve_result = run_subprocess(
+        command=build_ird_reserve_command(args),
+        cwd=root,
+        stdout_path=ird_dir / "ird-reserve.out",
+        stderr_path=ird_dir / "ird-reserve.err",
+        stage="ird-reserve",
+        command_trace_path=command_trace_path,
+        timeout_seconds=args.ird_control_timeout_seconds,
+    )
+    reservation = parse_ird_reservation(
+        safe_read_text(ird_dir / "ird-reserve.out"),
+        safe_read_text(ird_dir / "ird-reserve.err"),
+    )
+    variables["reservation_id"] = reservation.reservation_id
+    variables["target_host"] = reservation.target_host
+    reservation_record = {
+        **asdict(reserve_result),
+        "command": shell_join(reserve_result.command),
+        "reservation_id": reservation.reservation_id,
+        "target_host": reservation.target_host,
+    }
+    if not reserve_result.ok or not reservation.reservation_id:
+        return (
+            reservation_record,
+            {
                 "stage": "ird-reserved-run",
                 "returncode": 2,
                 "note": "reservation failed or did not expose a reservation id",
-            }
-        else:
-            run_template = args.ird_reserved_run_command or (
-                "{ird_bin} run --reservation-id {reservation_id} -- {remote_command}"
-            )
-            variables["ird_bin"] = args.ird_bin
-            run_result = run_template_command(
-                run_template,
-                variables,
-                root,
-                ird_dir / "ird-reserved-run.out",
-                ird_dir / "ird-reserved-run.err",
-                "ird-reserved-run",
-                command_trace_path,
-                args.ird_job_timeout_seconds,
-            )
-            lifecycle["remote_run"] = asdict(run_result)
-            release_template = (
-                args.ird_release_command or "{ird_bin} release {reservation_id}"
-            )
-            release_result = run_template_command(
-                release_template,
-                variables,
-                root,
-                ird_dir / "ird-release.out",
-                ird_dir / "ird-release.err",
-                "ird-release",
-                command_trace_path,
-                args.ird_control_timeout_seconds,
-            )
-            lifecycle["release"] = asdict(release_result)
-
-    for index, template in enumerate(args.ird_post_cleanup_command or [], start=1):
-        result = run_template_command(
-            template,
-            variables,
-            root,
-            ird_dir / f"post-cleanup-{index}.out",
-            ird_dir / f"post-cleanup-{index}.err",
-            f"ird-post-cleanup-{index}",
-            command_trace_path,
-            args.ird_control_timeout_seconds,
+            },
+            {},
         )
-        lifecycle["post_cleanup"].append(asdict(result))
 
-    lifecycle["completed_at"] = now_iso()
-    write_json(ird_dir / "ird-lifecycle.json", lifecycle)
+    run_template = args.ird_reserved_run_command or (
+        "{ird_bin} run --reservation-id {reservation_id} -- {remote_command}"
+    )
+    variables["ird_bin"] = args.ird_bin
+    run_result = run_template_command(
+        run_template,
+        variables,
+        root,
+        ird_dir / "ird-reserved-run.out",
+        ird_dir / "ird-reserved-run.err",
+        "ird-reserved-run",
+        command_trace_path,
+        args.ird_job_timeout_seconds,
+    )
+    release_template = args.ird_release_command or "{ird_bin} release {reservation_id}"
+    release_result = run_template_command(
+        release_template,
+        variables,
+        root,
+        ird_dir / "ird-release.out",
+        ird_dir / "ird-release.err",
+        "ird-release",
+        command_trace_path,
+        args.ird_control_timeout_seconds,
+    )
+    return reservation_record, asdict(run_result), asdict(release_result)
+
+
+def capture_ird_environment(
+    args: argparse.Namespace, root: Path, ird_dir: Path
+) -> dict[str, Any]:
     environment = capture_environment(
         root,
         maybe_find_binary("tracy", args.tracy_bin),
@@ -2747,30 +3100,90 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
         "docker_image": args.ird_docker_image,
         "lifecycle": str(ird_dir / "ird-lifecycle.json"),
     }
-    write_json(run_dir / "environment.json", environment)
+    return environment
+
+
+def finalize_partial_ird_run(
+    run_dir: Path, root: Path, environment: dict[str, Any]
+) -> tuple[bool, dict[str, Any]]:
     remote_manifest = load_json(run_dir / "manifest.json")
-    finalized_partial_run = False
     remote_run = remote_manifest.get("run") or {}
     remote_summary = remote_manifest.get("summary") or {}
     model_manifest = load_json(run_dir / "model-manifest.json")
     model_count = len(model_manifest.get("models", []) or [])
     status_count = len(load_model_statuses(run_dir))
-    if model_count > 0 and (
+    needs_finalization = model_count > 0 and (
         not remote_run.get("completed_at")
         or not remote_summary
         or status_count < model_count
         or not (run_dir / "dashboard.html").exists()
-    ):
-        finalized_partial_run = finalize_partial_run_from_manifest(
-            run_dir=run_dir,
-            repo=root,
-            environment=environment,
-            reason=(
-                "IRD wrapper finalized the run after the nested pipeline did not "
-                "complete all per-model statuses or report artifacts"
-            ),
+    )
+    if not needs_finalization:
+        return False, remote_manifest
+
+    finalized = finalize_partial_run_from_manifest(
+        run_dir=run_dir,
+        repo=root,
+        environment=environment,
+        reason=(
+            "IRD wrapper finalized the run after the nested pipeline did not "
+            "complete all per-model statuses or report artifacts"
+        ),
+    )
+    return finalized, load_json(run_dir / "manifest.json")
+
+
+def execute_ird_pipeline(args: argparse.Namespace) -> int:
+    (
+        root,
+        run_id,
+        run_dir,
+        ird_dir,
+        command_trace_path,
+        remote_command,
+        variables,
+        lifecycle,
+    ) = initialize_ird_run(args)
+    lifecycle["pre_cleanup"] = run_ird_cleanup_templates(
+        args.ird_pre_cleanup_command or [],
+        variables,
+        root,
+        ird_dir,
+        command_trace_path,
+        args.ird_control_timeout_seconds,
+        "pre-cleanup",
+    )
+
+    if args.ird_mode == "run":
+        remote_run, timeout_cleanup = execute_ird_run_mode(
+            args, root, run_dir, ird_dir, remote_command, command_trace_path
         )
-        remote_manifest = load_json(run_dir / "manifest.json")
+        lifecycle["remote_run"] = remote_run
+        lifecycle["timeout_cleanup"] = timeout_cleanup
+    else:
+        reservation, remote_run, release = execute_ird_reserved_mode(
+            args, variables, root, ird_dir, command_trace_path
+        )
+        lifecycle["reservation"] = reservation
+        lifecycle["remote_run"] = remote_run
+        lifecycle["release"] = release
+
+    lifecycle["post_cleanup"] = run_ird_cleanup_templates(
+        args.ird_post_cleanup_command or [],
+        variables,
+        root,
+        ird_dir,
+        command_trace_path,
+        args.ird_control_timeout_seconds,
+        "post-cleanup",
+    )
+    lifecycle["completed_at"] = now_iso()
+    write_json(ird_dir / "ird-lifecycle.json", lifecycle)
+    environment = capture_ird_environment(args, root, ird_dir)
+    write_json(run_dir / "environment.json", environment)
+    finalized_partial_run, remote_manifest = finalize_partial_ird_run(
+        run_dir, root, environment
+    )
     ird_summary = {
         "target": "ird",
         "mode": args.ird_mode,
@@ -2788,10 +3201,7 @@ def execute_ird_pipeline(args: argparse.Namespace) -> int:
     return 0 if lifecycle.get("remote_run", {}).get("returncode") == 0 else 2
 
 
-def execute_pipeline(args: argparse.Namespace) -> int:
-    if args.target == "ird":
-        return execute_ird_pipeline(args)
-
+def initialize_local_pipeline(args: argparse.Namespace) -> LocalPipelineContext:
     root = Path(args.repo_root).resolve() if args.repo_root else repo_root()
     run_dir = (
         Path(args.run_dir).resolve()
@@ -2799,110 +3209,184 @@ def execute_pipeline(args: argparse.Namespace) -> int:
         else initialize_run_dir(Path(args.output_root), args.run_id)
     )
     ensure_dir(run_dir)
-    python_bin = sys.executable
     pytest_command = args.pytest_bin or "pytest"
     tracy_bin = maybe_find_binary("tracy", args.tracy_bin)
     tt_perf_report_bin = maybe_find_binary("tt-perf-report", args.tt_perf_report_bin)
-    command_trace_path = run_dir / "command-trace.jsonl"
     run_deadline = (
         time.monotonic() + args.run_budget_seconds
         if args.run_budget_seconds > 0
         else None
     )
-
     environment = capture_environment(
         root, tracy_bin, tt_perf_report_bin, pytest_command
     )
-    readiness_results = run_tool_readiness_checks(
-        repo=root,
+    return LocalPipelineContext(
+        root=root,
         run_dir=run_dir,
-        command_trace_path=command_trace_path,
-        python_bin=python_bin,
+        python_bin=sys.executable,
         pytest_command=pytest_command,
         tracy_bin=tracy_bin,
         tt_perf_report_bin=tt_perf_report_bin,
+        command_trace_path=run_dir / "command-trace.jsonl",
+        run_deadline=run_deadline,
+        environment=environment,
+    )
+
+
+def run_local_readiness(
+    args: argparse.Namespace, context: LocalPipelineContext
+) -> list[CommandResult]:
+    readiness_results = run_tool_readiness_checks(
+        repo=context.root,
+        run_dir=context.run_dir,
+        command_trace_path=context.command_trace_path,
+        python_bin=context.python_bin,
+        pytest_command=context.pytest_command,
+        tracy_bin=context.tracy_bin,
+        tt_perf_report_bin=context.tt_perf_report_bin,
         timeout_seconds=args.readiness_timeout_seconds,
     )
-    environment["readiness"] = readiness_summary(readiness_results)
-    if any(not result.ok for result in readiness_results):
-        write_readiness_blocker_artifacts(run_dir, environment, readiness_results)
-        return 2
+    context.environment["readiness"] = readiness_summary(readiness_results)
+    return readiness_results
 
+
+def discover_selected_entries(
+    args: argparse.Namespace, context: LocalPipelineContext
+) -> tuple[list[DiscoveryEntry], CommandResult]:
     entries, discovery_result = discover_models(
-        repo=root,
-        run_id=run_dir.name,
-        python_bin=python_bin,
-        command_trace_path=command_trace_path,
-        benchmark_paths=selected_benchmark_files(root, args.benchmark_file),
+        repo=context.root,
+        run_id=context.run_dir.name,
+        python_bin=context.python_bin,
+        command_trace_path=context.command_trace_path,
+        benchmark_paths=selected_benchmark_files(context.root, args.benchmark_file),
         timeout_seconds=args.discovery_timeout_seconds,
     )
-    entries = select_discovery_entries(entries, args.nodeid_filter, args.max_models)
-    discover_artifacts(run_dir, entries, discovery_result, environment)
+    return (
+        select_discovery_entries(entries, args.nodeid_filter, args.max_models),
+        discovery_result,
+    )
 
-    if discovery_result.returncode not in (0, None) and not entries:
-        update_manifest_summary(
-            run_dir,
-            {
-                "discovery_failed": True,
-                "returncode": discovery_result.returncode,
-                "note": discovery_result.note,
-                "models": 0,
-                "slow_ops": 0,
-            },
-        )
-        return 2
 
-    benchmark_kwargs = {
+def discovery_failed_without_entries(
+    run_dir: Path, discovery_result: CommandResult, entries: list[DiscoveryEntry]
+) -> bool:
+    if discovery_result.returncode in (0, None) or entries:
+        return False
+    update_manifest_summary(
+        run_dir,
+        {
+            "discovery_failed": True,
+            "returncode": discovery_result.returncode,
+            "note": discovery_result.note,
+            "models": 0,
+            "slow_ops": 0,
+        },
+    )
+    return True
+
+
+def remaining_model_timeout(
+    default_timeout_seconds: int, run_deadline: Optional[float]
+) -> Optional[int]:
+    if run_deadline is None:
+        return default_timeout_seconds
+    remaining_seconds = int(run_deadline - time.monotonic())
+    if remaining_seconds <= 0:
+        return None
+    return min(default_timeout_seconds, remaining_seconds)
+
+
+def benchmark_kwargs_from_args(args: argparse.Namespace) -> dict[str, int]:
+    return {
         "batch_size": args.batch_size,
         "num_layers": args.num_layers,
         "max_output_tokens": args.max_output_tokens,
     }
+
+
+def profile_selected_entries(
+    args: argparse.Namespace,
+    context: LocalPipelineContext,
+    entries: list[DiscoveryEntry],
+) -> None:
+    benchmark_kwargs = benchmark_kwargs_from_args(args)
     for entry in entries:
-        model_timeout_seconds = args.timeout_seconds
-        if run_deadline is not None:
-            remaining_seconds = int(run_deadline - time.monotonic())
-            if remaining_seconds <= 0:
-                write_unprofiled_model_status(
-                    entry=entry,
-                    repo=root,
-                    run_dir=run_dir,
-                    taxonomy="not_run",
-                    reason=(
-                        "run budget was exhausted before profiling started for this model"
-                    ),
-                )
-                continue
-            model_timeout_seconds = min(model_timeout_seconds, remaining_seconds)
+        model_timeout_seconds = remaining_model_timeout(
+            args.timeout_seconds, context.run_deadline
+        )
+        if model_timeout_seconds is None:
+            write_unprofiled_model_status(
+                entry=entry,
+                repo=context.root,
+                run_dir=context.run_dir,
+                taxonomy="not_run",
+                reason=(
+                    "run budget was exhausted before profiling started for this model"
+                ),
+            )
+            continue
         profile_one_model(
             entry=entry,
-            repo=root,
-            run_dir=run_dir,
-            pytest_command=pytest_command,
-            tracy_bin=tracy_bin,
-            tt_perf_report_bin=tt_perf_report_bin,
-            command_trace_path=command_trace_path,
+            repo=context.root,
+            run_dir=context.run_dir,
+            pytest_command=context.pytest_command,
+            tracy_bin=context.tracy_bin,
+            tt_perf_report_bin=context.tt_perf_report_bin,
+            command_trace_path=context.command_trace_path,
             timeout_seconds=model_timeout_seconds,
             benchmark_kwargs=benchmark_kwargs,
             max_raw_artifact_bytes=args.max_raw_artifact_bytes,
         )
 
+
+def write_final_local_artifacts(
+    context: LocalPipelineContext,
+    discovery_result: CommandResult,
+    entries: list[DiscoveryEntry],
+) -> tuple[Path, Path, Path]:
     terminalize_missing_model_statuses(
-        run_dir=run_dir,
+        run_dir=context.run_dir,
         entries=entries,
-        repo=root,
+        repo=context.root,
         reason="pipeline finalized before this discovered model emitted status.json",
     )
-    statuses = load_model_statuses(run_dir)
-    slow_ops = load_slow_ops(run_dir)
-    dashboard_path, packet_path, report_path = write_artifacts(
-        run_dir=run_dir,
-        environment=environment,
+    statuses = load_model_statuses(context.run_dir)
+    slow_ops = load_slow_ops(context.run_dir)
+    artifact_paths = write_artifacts(
+        run_dir=context.run_dir,
+        environment=context.environment,
         discovery_result=discovery_result,
         entries=entries,
         statuses=statuses,
         slow_ops=slow_ops,
     )
-    update_manifest_summary(run_dir, summarize_run(run_dir, statuses, slow_ops))
+    update_manifest_summary(
+        context.run_dir, summarize_run(context.run_dir, statuses, slow_ops)
+    )
+    return artifact_paths
+
+
+def execute_pipeline(args: argparse.Namespace) -> int:
+    if args.target == "ird":
+        return execute_ird_pipeline(args)
+
+    context = initialize_local_pipeline(args)
+    readiness_results = run_local_readiness(args, context)
+    if any(not result.ok for result in readiness_results):
+        write_readiness_blocker_artifacts(
+            context.run_dir, context.environment, readiness_results
+        )
+        return 2
+
+    entries, discovery_result = discover_selected_entries(args, context)
+    discover_artifacts(context.run_dir, entries, discovery_result, context.environment)
+    if discovery_failed_without_entries(context.run_dir, discovery_result, entries):
+        return 2
+
+    profile_selected_entries(args, context, entries)
+    dashboard_path, packet_path, report_path = write_final_local_artifacts(
+        context, discovery_result, entries
+    )
     print(f"dashboard: {dashboard_path}")
     print(f"packet: {packet_path}")
     print(f"report: {report_path}")
