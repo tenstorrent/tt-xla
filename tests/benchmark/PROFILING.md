@@ -168,11 +168,29 @@ The pipeline writes:
 - `profiles/<model-id>/status.json`
 - `profiles/<model-id>/ir/`
 - `profiles/<model-id>/perf-report/`
+- `perf_reports/slow_ops/perf_report_ttxla_slow_op_*_<job-id>.json`
 - `dashboard.html`
 - `claude-report-packet.html`
 - `report.html`
 
 The `dashboard.html` page ranks slow operations globally, by model, and by op type, while `requirements.json`, the HTML source packet, and the final HTML report preserve requirement IDs, evidence paths, and blockers for stakeholder review.
+
+The `perf_reports/slow_ops` JSON files use the same TT-XLA benchmark report
+shape consumed by the shared `workflow-run-collect-data.yml` publication path.
+Each slow-op row is emitted as one benchmark report with `model_type:
+ttxla_slow_op`, `run_type: ttxla_slow_op_profile`, `measurement_name:
+duration_us`, and op metadata in `config`. In GitHub Actions, pass the numeric
+check-run id used by the collector as the trailing report id:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py \
+  --perf-report-job-id "$JOB_ID" \
+  run
+```
+
+When these files are uploaded in a `perf_reports` artifact for the same job, the
+existing collection workflow can publish them through the normal Superset
+benchmark ingestion path.
 
 ### Next steps
 

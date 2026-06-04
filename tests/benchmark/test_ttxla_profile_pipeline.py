@@ -278,7 +278,7 @@ def load_requirement_artifacts(run_dir):
 def assert_requirement_summary(requirements, manifest):
     assert manifest["run"]["status"] == "completed"
     assert requirements["issue"]["number"] == 5009
-    assert requirements["summary"]["total"] == 9
+    assert requirements["summary"]["total"] == 10
 
 
 def assert_requirement_passed(requirements_by_id, requirement_id, expected_paths=None):
@@ -301,6 +301,7 @@ def assert_requirement_coverage(
         [packet_path, report_path],
     )
     assert_requirement_passed(requirements_by_id, "REQ-F-009")
+    assert_requirement_passed(requirements_by_id, "REQ-F-010")
 
 
 def parse_ird_run_args(pipeline):
@@ -567,6 +568,42 @@ def test_parse_perf_csv_and_render_dashboard(tmp_path):
     assert "row.hasAttribute('data-status')" in dashboard_text
     assert "row.hasAttribute('data-model-status')" in dashboard_text
     assert "row.hasAttribute('data-taxonomy')" in dashboard_text
+
+
+def test_superset_perf_reports_use_existing_collector_shape(tmp_path):
+    pipeline = load_pipeline_module()
+    run_dir = tmp_path / "run-5009-superset"
+    pipeline.ensure_dir(run_dir)
+    status = sample_profile_status(run_dir)
+    slow_ops = sample_slow_ops(run_dir, status)
+    environment = {
+        **sample_environment(tmp_path),
+        "target": {
+            "scope": "ird",
+            "arch": "wormhole_b0",
+            "machine": "aus-wh-01",
+            "num_pcie_chips": 1,
+        },
+    }
+
+    export_dir = pipeline.write_superset_perf_reports(
+        run_dir, environment, slow_ops, "job-12345"
+    )
+
+    reports = sorted(export_dir.glob("perf_report_ttxla_slow_op_*.json"))
+    assert len(reports) == 1
+    assert reports[0].name.endswith("_12345.json")
+    payload = json.loads(reports[0].read_text(encoding="utf-8"))
+    assert payload["model"] == "model-a"
+    assert payload["model_type"] == "ttxla_slow_op"
+    assert payload["run_type"] == "ttxla_slow_op_profile"
+    assert payload["perf_analysis"] is True
+    assert payload["measurements"][0]["measurement_name"] == "duration_us"
+    assert payload["measurements"][0]["value"] == 120.5
+    assert payload["config"]["op_name"] == "matmul"
+    assert payload["config"]["op_type"] == "compute"
+    assert payload["config"]["taxonomy"] == "validated_pass"
+    assert payload["device_info"]["arch"] == "wormhole_b0"
 
 
 def test_copy_tree_returns_copied_paths(tmp_path):

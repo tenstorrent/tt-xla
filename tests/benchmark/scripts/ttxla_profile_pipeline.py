@@ -35,6 +35,7 @@ DEFAULT_BATCH_SIZE = 1
 DEFAULT_NUM_LAYERS = 1
 DEFAULT_MAX_RAW_ARTIFACT_BYTES = 100_000_000
 DEFAULT_IRD_RUN_BUDGET_BUFFER_SECONDS = 300
+DEFAULT_COLLECTOR_JOB_ID = "0"
 DEFAULT_BENCHMARK_FILES = [
     Path("tests/benchmark/test_llms.py"),
     Path("tests/benchmark/test_encoders.py"),
@@ -78,6 +79,10 @@ REQS = [
     (
         "REQ-F-009",
         "The dashboard must support searching or filtering by model identity, op type, profile status, and taxonomy classification.",
+    ),
+    (
+        "REQ-F-010",
+        "The pipeline must emit Superset collector-compatible benchmark report artifacts for slow-op rows.",
     ),
 ]
 
@@ -233,6 +238,8 @@ class RequirementCoverageContext:
     packet_path: Path
     report_path: Path
     dashboard_text: str
+    superset_export_dir: Path
+    superset_export_paths: list[Path]
     statuses: list[dict[str, Any]]
 
 
@@ -1756,6 +1763,103 @@ def load_slow_ops(run_dir: Path) -> list[dict[str, Any]]:
     return records
 
 
+def collector_job_id(value: str) -> str:
+    if not value:
+        return DEFAULT_COLLECTOR_JOB_ID
+    digits = "".join(char for char in value if char.isdigit())
+    return digits or DEFAULT_COLLECTOR_JOB_ID
+
+
+def clean_superset_perf_reports(export_dir: Path) -> None:
+    if not export_dir.exists():
+        return
+    for path in export_dir.glob("perf_report_ttxla_slow_op_*.json"):
+        path.unlink()
+
+
+def slow_op_perf_report_measurements(row: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            "iteration": 1,
+            "step_name": "ttxla_slow_op_profile",
+            "step_warm_up_num_iterations": 0,
+            "measurement_name": "duration_us",
+            "value": float(row.get("duration_us", 0.0)),
+            "target": -1,
+            "device_power": -1.0,
+            "device_temperature": -1.0,
+        }
+    ]
+
+
+def slow_op_perf_report_payload(
+    run_dir: Path, environment: dict[str, Any], row: dict[str, Any]
+) -> dict[str, Any]:
+    device_target = environment.get("target", {})
+    config = {
+        "issue": ISSUE_NUMBER,
+        "prd": PRD_ID,
+        "run_id": run_dir.name,
+        "nodeid": row.get("nodeid", ""),
+        "source_path": row.get("source_path", ""),
+        "op_name": row.get("op_name", ""),
+        "op_type": row.get("op_type", ""),
+        "rank": row.get("rank"),
+        "global_rank": row.get("global_rank"),
+        "profile_status": row.get("profile_status", ""),
+        "model_status": row.get("model_status", ""),
+        "taxonomy": row.get("taxonomy", ""),
+        "status_path": row.get("status_path", ""),
+        "ir_dir": row.get("ir_dir", ""),
+        "perf_report": row.get("perf_report", ""),
+        "profile_dir": row.get("profile_dir", ""),
+    }
+    return {
+        "model": row.get("model_identity", row.get("model", "unknown")),
+        "model_type": "ttxla_slow_op",
+        "run_type": "ttxla_slow_op_profile",
+        "config": config,
+        "num_layers": None,
+        "batch_size": None,
+        "precision": "",
+        "dataset_name": row.get("op_type", ""),
+        "profile_name": "tracy_tt_perf_report",
+        "input_sequence_length": None,
+        "output_sequence_length": None,
+        "image_dimension": "",
+        "perf_analysis": True,
+        "measurements": slow_op_perf_report_measurements(row),
+        "device_info": {
+            "device_name": device_target.get("machine", ""),
+            "arch": device_target.get("arch", ""),
+            "device_count": device_target.get("num_pcie_chips"),
+            "mesh_shape": None,
+            "device_type": device_target.get("scope", ""),
+        },
+    }
+
+
+def write_superset_perf_reports(
+    run_dir: Path,
+    environment: dict[str, Any],
+    slow_ops: list[dict[str, Any]],
+    job_id: str,
+) -> Path:
+    export_dir = ensure_dir(run_dir / "perf_reports" / "slow_ops")
+    clean_superset_perf_reports(export_dir)
+    suffix = collector_job_id(job_id)
+    for index, row in enumerate(slow_ops, start=1):
+        payload = slow_op_perf_report_payload(run_dir, environment, row)
+        model_slug = slugify(str(payload["model"]))
+        op_slug = slugify(str(row.get("op_name", "unknown-op")))
+        report_path = (
+            export_dir
+            / f"perf_report_ttxla_slow_op_{index:05d}_{model_slug}_{op_slug}_{suffix}.json"
+        )
+        write_json(report_path, payload)
+    return export_dir
+
+
 def aggregate_models(
     statuses: list[dict[str, Any]], slow_ops: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -2381,6 +2485,8 @@ def requirement_coverage_context(
     packet_path = run_dir / "claude-report-packet.html"
     report_path = run_dir / "report.html"
     dashboard_text = read_text_if_exists(dashboard_path)
+    superset_export_dir = run_dir / "perf_reports" / "slow_ops"
+    superset_export_paths = sorted(superset_export_dir.glob("*.json"))
     return RequirementCoverageContext(
         run_dir=run_dir,
         model_manifest_path=model_manifest_path,
@@ -2395,6 +2501,8 @@ def requirement_coverage_context(
         packet_path=packet_path,
         report_path=report_path,
         dashboard_text=dashboard_text,
+        superset_export_dir=superset_export_dir,
+        superset_export_paths=superset_export_paths,
         statuses=statuses,
     )
 
@@ -2505,6 +2613,19 @@ def coverage_dashboard_search(ctx: RequirementCoverageContext) -> dict[str, Any]
     )
 
 
+def coverage_superset_exports(ctx: RequirementCoverageContext) -> dict[str, Any]:
+    return coverage_entry(
+        9,
+        (
+            "passed"
+            if ctx.superset_export_paths and len(ctx.superset_export_paths) > 0
+            else "partial"
+        ),
+        f"{len(ctx.superset_export_paths)} collector-compatible slow-op perf reports",
+        existing_path_strings(ctx.superset_export_paths),
+    )
+
+
 def requirement_coverage(
     run_dir: Path,
     manifest: dict[str, Any],
@@ -2523,6 +2644,7 @@ def requirement_coverage(
         coverage_dashboard_rankings(ctx),
         coverage_report_artifacts(ctx),
         coverage_dashboard_search(ctx),
+        coverage_superset_exports(ctx),
     ]
 
 
@@ -2582,6 +2704,7 @@ def write_artifacts(
     entries: list[DiscoveryEntry],
     statuses: list[dict[str, Any]],
     slow_ops: list[dict[str, Any]],
+    perf_report_job_id: str = DEFAULT_COLLECTOR_JOB_ID,
 ) -> tuple[Path, Path, Path]:
     manifest = load_json(run_dir / "manifest.json")
     dashboard_path = run_dir / "dashboard.html"
@@ -2623,6 +2746,7 @@ def write_artifacts(
         ),
         encoding="utf-8",
     )
+    write_superset_perf_reports(run_dir, environment, slow_ops, perf_report_job_id)
     write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
     return dashboard_path, packet_path, report_path
 
@@ -2727,6 +2851,8 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         str(args.max_output_tokens),
         "--max-raw-artifact-bytes",
         str(args.max_raw_artifact_bytes),
+        "--perf-report-job-id",
+        args.perf_report_job_id,
     ]
     remote_budget = effective_remote_run_budget_seconds(args)
     if remote_budget > 0:
@@ -3350,6 +3476,7 @@ def write_final_local_artifacts(
     context: LocalPipelineContext,
     discovery_result: CommandResult,
     entries: list[DiscoveryEntry],
+    perf_report_job_id: str,
 ) -> tuple[Path, Path, Path]:
     terminalize_missing_model_statuses(
         run_dir=context.run_dir,
@@ -3366,6 +3493,7 @@ def write_final_local_artifacts(
         entries=entries,
         statuses=statuses,
         slow_ops=slow_ops,
+        perf_report_job_id=perf_report_job_id,
     )
     update_manifest_summary(
         context.run_dir, summarize_run(context.run_dir, statuses, slow_ops)
@@ -3392,7 +3520,7 @@ def execute_pipeline(args: argparse.Namespace) -> int:
 
     profile_selected_entries(args, context, entries)
     dashboard_path, packet_path, report_path = write_final_local_artifacts(
-        context, discovery_result, entries
+        context, discovery_result, entries, args.perf_report_job_id
     )
     print(f"dashboard: {dashboard_path}")
     print(f"packet: {packet_path}")
@@ -3477,6 +3605,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_RAW_ARTIFACT_BYTES,
         help="Prune raw Tracy artifacts larger than this many bytes after each profile; 0 disables pruning.",
+    )
+    parser.add_argument(
+        "--perf-report-job-id",
+        default=os.environ.get("TTXLA_PERF_REPORT_JOB_ID", DEFAULT_COLLECTOR_JOB_ID),
+        help="Numeric GitHub check-run id used as the trailing id in Superset collector perf_report JSON filenames.",
     )
     parser.add_argument(
         "--benchmark-file",
@@ -3669,6 +3802,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         (run_dir / "dashboard.html").write_text(
             render_dashboard_html(run_dir, statuses, slow_ops), encoding="utf-8"
         )
+        write_superset_perf_reports(
+            run_dir, environment, slow_ops, args.perf_report_job_id
+        )
         write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
         return 0
     packet_path = run_dir / "claude-report-packet.html"
@@ -3690,23 +3826,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         ),
         encoding="utf-8",
     )
-    write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
-    packet_path.write_text(
-        render_packet_html(run_dir, manifest, environment, statuses, slow_ops),
-        encoding="utf-8",
-    )
-    report_path.write_text(
-        render_report_html(
-            run_dir,
-            manifest,
-            environment,
-            statuses,
-            slow_ops,
-            dashboard_path,
-            packet_path,
-        ),
-        encoding="utf-8",
-    )
+    write_superset_perf_reports(run_dir, environment, slow_ops, args.perf_report_job_id)
     write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
     return 0
 
