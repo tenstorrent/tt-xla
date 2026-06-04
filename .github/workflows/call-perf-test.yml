@@ -24,11 +24,6 @@ on:
         required: false
         type: string
         default: release
-      use_docker_wheel:
-        description: "Use wheel from docker instead of building a new one"
-        required: false
-        type: boolean
-        default: false
       skip-device-perf:
         description: "Skip device performance measurement"
         required: false
@@ -135,7 +130,6 @@ jobs:
         fi
 
     - name: Download and install wheel
-      if: ${{ !inputs.use_docker_wheel }}
       shell: bash
       run: |
         echo "=== Downloading wheel ==="
@@ -457,6 +451,7 @@ jobs:
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
         echo "device_type=${{ matrix.build.runs-on-original }}" >> $GITHUB_OUTPUT
+        echo "arch=$(jq -r '.device_info.arch // ""' ${{ steps.strings.outputs.perf_report_json_file }})" >> $GITHUB_OUTPUT
 
     - name: Fetch previous perf results
       id: prev-perf
@@ -464,7 +459,7 @@ jobs:
       uses: ./.github/actions/superset-api
       with:
         query: 'benchmarks/last_measurement'
-        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","device_type":"${{ steps.set-query-strings.outputs.device_type }}"}'
+        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}","device_type":"${{ steps.set-query-strings.outputs.device_type }}"}'
 
     - name: Check perf regression
       if: inputs.regression_check

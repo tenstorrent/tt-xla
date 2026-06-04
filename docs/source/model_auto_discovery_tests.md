@@ -19,11 +19,11 @@ git submodule update --init --recursive third_party/tt_forge_models
 ```
 - Device availability matching your chosen parallelism mode (e.g., multiple devices for data/tensor parallel).
 - Optional internet access for per-model pip installs during test execution.
-- env-var `IRD_LF_CACHE` set to point to large file cache / webserver for s3 bucket mirror. Reach out to team for details.
+- Set the `IRD_LF_CACHE` environment variable to point to the large file cache / web server for the S3 bucket mirror. Reach out to the team for details.
 
 ## Quick start / commonly used commands
 
-Warning: Since the number of models and variants supported here is high (1000+), it is a good idea to run with `--collect-only` first to see what will be discovered/collected before running non-targeted pytest commands locally.
+Warning: Because the number of supported models and variants is high (1000+), run `--collect-only` first to see what will be discovered or collected before running non-targeted pytest commands locally.
 
 Also, running the full matrix can collect thousands of tests and may install per-model Python packages during execution. Prefer targeted runs locally using `-m`, `-k`, or an exact node id.
 
@@ -45,7 +45,7 @@ pytest --collect-only -q tests/runner/test_models.py -m "tensor_parallel and exp
 pytest -vv tests/runner/test_models.py::test_all_models[llama/sequence_classification/pytorch-llama_3_2_1b-single_device-inference] |& tee test.log
 ```
 
-- Validate test_config files for typos, model name changes, useful when making updates:
+- Validate test_config files for typos and model name changes (useful when making updates):
 ```bash
 pytest -svv --validate-test-config tests/runner/test_models.py |& tee validate.log
 ```
@@ -225,9 +225,9 @@ pytest -q -m n300_llmbox --arch n300-llmbox tests/runner/test_models.py
 
 ## Adding a new model to run in Nightly CI
 
-It is not difficult, but involves potentially 2 projects (`tt-xla` and `tt-forge-models`). If model is already added to `tt-forge-models` and uplifted to `tt-xla` then skip steps 1-4.
+It is not difficult, but it potentially involves two projects (`tt-xla` and `tt-forge-models`). If the model is already added to `tt-forge-models` and uplifted to `tt-xla`, then skip steps 1-4.
 
-1. In `tt-forge-models/<model>/pytorch/loader.py`, implement a `ModelLoader` if doesn't already exist, exposing:
+1. In `tt-forge-models/<model>/pytorch/loader.py`, implement a `ModelLoader` if one doesn't already exist, exposing:
    - `query_available_variants()` and `get_model_info(variant=...)`
    - `load_model(...)` and `load_inputs(...)`
    - `load_shard_spec(...)` (if needed) and `get_mesh_config(num_devices)` (for tensor parallel)

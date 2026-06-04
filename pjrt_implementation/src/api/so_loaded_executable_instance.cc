@@ -29,7 +29,7 @@
 #include <tools/tt-alchemist/python_runner/python_runner.hpp>
 
 constexpr static char MODULE_NAME[] = "main";
-constexpr static char ENTRYPOINT_NAME[] = "main_for_test";
+constexpr static char ENTRYPOINT_NAME[] = "forward";
 #endif
 
 namespace tt::pjrt {
@@ -196,6 +196,10 @@ SOLoadedExecutableInstance::prepareInputTensor(
 
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
+
+  // SO (Python codegen) execution expects host row-major inputs; the generated
+  // Python takes care of any device transfer and layout conversion itself.
+  tensor.move_to_host();
 
   return tensor.runtime_tensor();
 }

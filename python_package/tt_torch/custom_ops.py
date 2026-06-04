@@ -798,6 +798,7 @@ def paged_scaled_dot_product_attention_decode(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    sliding_window_size: int = None,
 ) -> torch.Tensor:
     device = query.device
 
@@ -819,6 +820,8 @@ def paged_scaled_dot_product_attention_decode(
 
         if scale is not None:
             attrs["scale"] = str(scale)
+        if sliding_window_size is not None:
+            attrs["sliding_window_size"] = str(sliding_window_size)
 
         inputs = [query, key, value, page_table]
         if attn_mask is not None:
@@ -911,6 +914,7 @@ def paged_scaled_dot_product_attention_decode_fake(
     cur_pos_tensor: torch.Tensor = None,
     attention_sink: torch.Tensor = None,
     scale: float = None,
+    sliding_window_size: int = None,
 ) -> torch.Tensor:
     return torch.zeros_like(query)
 
