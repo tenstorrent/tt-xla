@@ -2114,6 +2114,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
+        experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
     )
@@ -2148,6 +2149,7 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
+        experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
     )
@@ -2182,6 +2184,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         use_indexer_cache=True,
+        experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
         required_pcc=-0.92,
