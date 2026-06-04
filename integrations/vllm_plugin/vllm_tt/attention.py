@@ -487,22 +487,31 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
+            # Tier 1: hoist the per-user batch index into a single tensor and
+            # static-slice it per iteration, instead of materializing a fresh
+            # torch.tensor([batch_idx]) constant each loop. torch.export unrolls
+            # this loop, so the old form lifted (users * 2) scalar int32
+            # constants per layer as graph params (users*2*num_layers total),
+            # tripping torch_xla's parameter-wrapping threshold and collapsing
+            # sdy.sharding / ttcore.argument_type on inline (issue #5032). The
+            # static slice fill_batch_idx[i:i+1] lowers to compile-time slice
+            # attributes, not lifted operands. paged_fill_cache is still
+            # single-user per call (see Tier 2 for a batched op).
+            fill_batch_idx = torch.arange(
+                inputs.users, dtype=torch.int32, device=k_cache.device
+            )
             for batch_idx in range(inputs.users):
                 k_cache = torch.ops.tt.paged_fill_cache(
                     k_cache,
                     key_for_update[batch_idx : batch_idx + 1],
                     attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=k_cache.device
-                    ),
+                    batch_idx=fill_batch_idx[batch_idx : batch_idx + 1],
                 )
                 v_cache = torch.ops.tt.paged_fill_cache(
                     v_cache,
                     value_for_update[batch_idx : batch_idx + 1],
                     attn_metadata.fill_page_table,
-                    batch_idx=torch.tensor(
-                        [batch_idx], dtype=torch.int32, device=v_cache.device
-                    ),
+                    batch_idx=fill_batch_idx[batch_idx : batch_idx + 1],
                 )
 
         # Preserve tensor identity so XLA reuses the traced graph.
