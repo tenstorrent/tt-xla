@@ -728,10 +728,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # have low request overlap (e.g., alternating between two distinct
         # sets of requests), this optimization becomes very inefficient.
 
-        for req_id in unscheduled_req_ids:
-            req_index = self.input_batch.remove_request(req_id)
-            assert req_index is not None
-            removed_req_indices.append(req_index)
+        if self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+            # [DP slot-affinity fix] Do NOT remove unscheduled-but-still-running
+            # requests from input_batch. Under DP-only with a replicated KV
+            # cache, a request's KV blocks are only written on the device
+            # corresponding to the slot it was prefilled at. If we remove the
+            # request here and re-add it later, it may land on a different
+            # slot (different DP device) and read empty/stale KV → garbage
+            # output. Keep the slot stable across temporary unschedule.
+            pass
+        else:
+            for req_id in unscheduled_req_ids:
+                req_index = self.input_batch.remove_request(req_id)
+                assert req_index is not None
+                removed_req_indices.append(req_index)
 
         req_ids_to_add: list[str] = []
         # Add new requests to the cached states.
@@ -1022,7 +1032,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i in range(start_index, num_reqs):
             req_id = self.input_batch.req_ids[i]
             assert req_id is not None
-            num_tokens = scheduler_output.num_scheduled_tokens[req_id]
+            # In DP-only mode, unscheduled-but-still-running requests are
+            # kept in input_batch to preserve slot/device affinity. Treat
+            # them as contributing 0 scheduled tokens (their KV is unchanged).
+            num_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
             if (
                 not use_max_model_len
                 and self.most_model_len is not None
@@ -1744,11 +1757,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for i, req_id in zip(range(num_reqs), self.input_batch.req_ids):
             assert req_id is not None
             req_state = self.requests[req_id]
-            seq_len = (
-                req_state.num_computed_tokens
-                + scheduler_output.num_scheduled_tokens[req_id]
-            )
-            if seq_len >= req_state.num_tokens:
+            num_sched = scheduler_output.num_scheduled_tokens.get(req_id, 0)
+            seq_len = req_state.num_computed_tokens + num_sched
+            if num_sched == 0:
+                # DP-only: unscheduled-but-running request kept in
+                # input_batch. Discard its sampled token (it had no real
+                # forward this step).
+                discard_sampled_tokens_req_indices.append(i)
+            elif seq_len >= req_state.num_tokens:
                 request_seq_lens.append((i, req_state, seq_len))
             else:
                 # Ignore the sampled token from the partial request.
@@ -1815,17 +1831,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
         self._verify_num_xla_graphs("execute_model")
-
-        # [DIAGNOSTIC for rank-0 KV cache corruption — Fix B from handoff]
-        # Force a blocking sync between decode steps in DP-only mode. If this
-        # makes the "park park park..." repetition go away, it confirms the
-        # root cause is SPMD reconciling a divergent "replicated" KV buffer
-        # between steps (it sees each device's local KV write and either
-        # resets or all-reduces it, wiping rank 0's updates). Production fix
-        # would be Fix C (sharding_constraint on KV) or Fix A (per-device
-        # block pool + KV cache shard along num_blocks).
-        if self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
-            torch_xla.sync(wait=True)
 
         return model_runner_output
 
