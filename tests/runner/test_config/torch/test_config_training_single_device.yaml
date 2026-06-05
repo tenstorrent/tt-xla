@@ -187,7 +187,7 @@ test_config:
   ssdlite320_mobilenetv3/pytorch-Ssdlite320_Mobilenet_v3_Large-single_device-training:
     status: KNOWN_FAILURE_XFAIL
     bringup_status: FAILED_TTMLIR_COMPILATION
-    reason: "Statically allocated circular buffers on core range [0-0 - 0-0] grow to 4819840 B which is beyond max L1 size of 1572864 B (assert.hpp:104)"
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration on output dimension 3 (assert.hpp:104)"
   resnext/pytorch-101_64x4d-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
@@ -249,9 +249,9 @@ test_config:
     bringup_status: FAILED_FE_COMPILATION
     reason: "ModuleNotFoundError: No module named 'segmentation_models_pytorch'"
   mobilenetv2/pytorch-Deeplabv3_Mobilenet_v2_1.0_513-single_device-training:
-    status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Timeout"
+    status: KNOWN_FAILURE_XFAIL
+    bringup_status: FAILED_TTMLIR_COMPILATION
+    reason: "TT_FATAL: DRAM Auto slice could not find valid slice configuration on output dimension 3 (assert.hpp:104)"
   bge_m3/encode/pytorch-Base-single_device-training:
     status: NOT_SUPPORTED_SKIP
     bringup_status: FAILED_FE_COMPILATION
