@@ -249,6 +249,8 @@ class Sampler(nn.Module):
         logprobs: torch.Tensor,
         num_logprobs: int,
         token_ids: torch.Tensor,
+        *,
+        replicate_anchor_mesh=None,
     ) -> LogprobsTensors:
         """
         Gather logprobs for topk and sampled/prompt token.
@@ -261,28 +263,51 @@ class Sampler(nn.Module):
                      or sampled tokens (if sampled
                      logprobs); 1D token ID tensor
                      with (num tokens) elements
+          replicate_anchor_mesh: when set, anchor the shape-changed
+                     intermediates (unsqueeze, topk, gather, cat) to
+                     replicated on this mesh. Callers pass the mesh on
+                     1D-mesh TP setups where Shardy otherwise re-infers
+                     "model"-axis shardings on these fresh tensors and
+                     emits a collective_permute that tt-mlir cannot
+                     lower (tt-mlir#3370).
 
         Returns:
           Top-k int indices tensor, (num tokens) x (num_logprobs + 1)
           Top-k float logprobs tensor, (num tokens) x (num_logprobs + 1)
           Sampled token rank tensor, (num tokens)
         """
+        if replicate_anchor_mesh is not None:
+            from tt_torch.sharding import sharding_constraint_tensor
+
+            def _anchor(t, spec):
+                return sharding_constraint_tensor(t, replicate_anchor_mesh, spec)
+        else:
+            def _anchor(t, spec):
+                return t
+
         # Find the topK values.
         topk_logprobs, topk_indices = torch.topk(logprobs, num_logprobs, dim=-1)
+        topk_logprobs = _anchor(topk_logprobs, (None, None))
+        topk_indices = _anchor(topk_indices, (None, None))
 
         # Get the logprob of the prompt or sampled token.
         token_ids = token_ids.unsqueeze(-1)
+        token_ids = _anchor(token_ids, (None, None))
         token_logprobs = logprobs.gather(-1, token_ids)
+        token_logprobs = _anchor(token_logprobs, (None, None))
 
         token_ranks = count_tokens_ge(logprobs, token_logprobs)
+        token_ranks = _anchor(token_ranks, (None,))
 
         # Cast to int32 for LogprobsTensors (vLLM convention).
         indices = torch.cat(
             (token_ids.to(torch.int32), topk_indices.to(torch.int32)),
             dim=1,
         )
+        indices = _anchor(indices, (None, None))
         token_ranks = token_ranks.to(torch.int32)
         logprobs = torch.cat((token_logprobs, topk_logprobs), dim=1)
+        logprobs = _anchor(logprobs, (None, None))
 
         return LogprobsTensors(indices, logprobs, token_ranks)
 

@@ -2580,18 +2580,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         logprobs = self.sampler.compute_logprobs(logits)
         token_ids = sampled_tokens.squeeze(-1)
-        # The squeeze produces a fresh [batch] tensor whose sharding Shardy is
-        # free to re-infer — on 1D mesh it picks "model" on batch again, and
-        # the unsqueeze inside sampler.gather_logprobs then creates a reshape
-        # that needs collective_permute against replicated logprobs. Anchor
-        # both sides of that reshape to replicated.
+        # On 1D mesh, Shardy keeps re-inferring "model" on the batch dim of
+        # every freshly-shaped tensor inside sampler.gather_logprobs (the
+        # unsqueeze, topk, gather, cat outputs) and emits a collective_permute
+        # at one of those reshapes (tt-mlir#3370). Anchor our two inputs to
+        # the sampler here, and pass the mesh so the sampler can anchor its
+        # internal intermediates too.
+        replicate_anchor_mesh = None
         if self.is_sharded_compute_logits and not self.use_2d_mesh:
             logprobs = sharding_constraint_tensor(logprobs, self.mesh, (None, None))
             token_ids = sharding_constraint_tensor(token_ids, self.mesh, (None,))
+            replicate_anchor_mesh = self.mesh
         logprobTensors = self.sampler.gather_logprobs(
             logprobs,
             self.model_config.max_logprobs,
             token_ids=token_ids,
+            replicate_anchor_mesh=replicate_anchor_mesh,
         )
 
         return LogprobsTensors(
