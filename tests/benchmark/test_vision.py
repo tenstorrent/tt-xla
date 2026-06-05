@@ -542,6 +542,6 @@ def test_sam_vit_large(output_file, request):
         batch_size=batch_size,
         input_size=input_size,
         data_format=data_format,
-        optimization_level=1,
-        trace_enabled=True,
+        optimization_level=2,
+        trace_enabled=False,
     )
