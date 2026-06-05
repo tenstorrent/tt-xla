@@ -1,112 +1,183 @@
-name: Update Test Durations
+name: Compile Only
 
-# This workflow updates test durations based on the latest nightly, weekly, weekly training and push workflow runs.
-# It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
-# calculates the test durations, and creates a pull request to update the `.test_durations` file.
+# Draft of workflow for testing the CPU compile-only feature.
+# TODO: Review other ways to integrate into already made infra
+# Things to consider
 
 on:
   workflow_dispatch:
 
 permissions:
-  actions: read
-  contents: write
-  issues: write
-  pull-requests: write
+  actions: write
+  packages: write
+  checks: write
+  contents: read
 
 jobs:
-  update_test_durations:
-    runs-on: ubuntu-latest
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      dockbuild: ci
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: release
+
+  generate:
+    # Consider checking schema hash of system descriptors against latest commits for updating static files
+    needs: [ build-image, build-ttxla ]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ n150, n300, n300-llmbox ] # TODO: add p150 static file
+    runs-on: [ "${{ matrix.arch }}", "in-service" ]
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
     steps:
+      - name: Mark repo as safe for git
+        run: git config --global --add safe.directory /__w/tt-xla/tt-xla
+
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
-          # ref: main
-      - uses: actions/setup-python@v6
-      - name: Process test durations from latest workflows
-        id: get-test-durations
+          submodules: recursive
+
+      - name: Download and install wheel
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          repo="tenstorrent/tt-xla"
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          source venv/activate
+          uv pip install wheels/*.whl
 
-          get_test_results_from_wf() {
-            local wf_name="$1"
-            local conclusions="$2"
-            local num=5
+      - name: Save system descriptor
+        shell: bash
+        run: |
+          source venv/activate
+          cd tests/cpu_compile_only
+          python save_system_desc.py save system_descs/${{ matrix.arch }}
+          ls -la system_descs/
 
-            # get json of the last $num workflow runs
-            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
-
-            counter=0
-            while true; do
-              # Check the status of 'conclusion'
-              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
-
-              if echo "$conclusions" | grep -q -w "$conclusion"; then
-                break
-              else
-                ((++counter))
-
-                # Exit if the counter reaches $num
-                if [ $counter -ge $num ]; then
-                  echo "ERROR: Did not found good workflow within last $num. Exiting."
-                  exit 1
-                fi
-              fi
-            done
-            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
-            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
-            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
-            rm -f runs.json
-
-            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
-          }
-
-          # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
-
-          # get test results from the last successful push
-          get_test_results_from_wf "push-main.yml" "success" "push"
-
-          # get test results from the last weekly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
-
-          # get test results from the last weekly training that was success or failure
-          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
-
-          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
-          echo "" >> .test_durations
-          echo "----- NEW DURATIONS"
-          cat .test_durations
-
-          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8
-        id: create-pr
+      - name: Upload descriptor
+        uses: actions/upload-artifact@v4
         with:
-          branch: test-durations-update
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          base: main
-          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
-          labels: tooling
-          delete-branch: true
-          token: ${{ github.token }}
+          name: system-desc-${{ matrix.arch }}
+          path: tests/cpu_compile_only/system_descs/${{ matrix.arch }}_system_desc.ttsys
 
-      - name: Enable Pull Request Automerge
-        if: ${{ steps.create-pr.outputs.pull-request-number }}
-        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+  test-compile-cpu:
+    needs: [ build-image, build-ttxla, generate ]
+    runs-on: n150 # TODO: Move to CPU-Only when ready
+    container:
+      image: harbor.ci.tenstorrent.net/${{ needs.build-image.outputs.docker-image-base }}
+    steps:
+      - name: Mark repo as safe for git
+        run: git config --global --add safe.directory /__w/tt-xla/tt-xla
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Download and install wheel
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-
-      - name: Generate Summary
         run: |
-          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
-          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          source venv/activate
+          uv pip install wheels/*.whl
+
+      - name: Download generated descriptors
+        uses: actions/download-artifact@v4
+        with:
+          pattern: system-desc-*
+          merge-multiple: true
+          path: tests/cpu_compile_only/system_descs
+
+      - name: Run cpu-compile-only test 
+        shell: bash
+        run: |
+          source venv/activate
+          ls -la tests/cpu_compile_only/system_descs/
+          pytest -svv tests/cpu_compile_only
+
+# name: Update Test Durations
+# 
+# # This workflow updates test durations based on the latest nightly, weekly, weekly training and push workflow runs.
+# # It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
+# # calculates the test durations, and creates a pull request to update the `.test_durations` file.
+# 
+# on:
+#   workflow_dispatch:
+# 
+# permissions:
+#   actions: read
+#   contents: write
+#   issues: write
+#   pull-requests: write
+# 
+# jobs:
+#   update_test_durations:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v6
+#         with:
+#           fetch-depth: 0
+#           # ref: main
+#       - uses: actions/setup-python@v6
+#       - name: Process test durations from latest workflows
+#         id: get-test-durations
+#         env:
+#           GH_TOKEN: ${{ github.token }}
+#         run: |
+# 
+#       - name: Create Pull Request
+#         uses: peter-evans/create-pull-request@v8
+#         id: create-pr
+#         with:
+#           branch: test-durations-update
+#           committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
+#           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+#           base: main
+#           commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+#           title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
+#           body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+#           labels: tooling
+#           delete-branch: true
+#           token: ${{ github.token }}
+# 
+#       - name: Enable Pull Request Automerge
+#         if: ${{ steps.create-pr.outputs.pull-request-number }}
+#         run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+#         env:
+#           GH_TOKEN: ${{ github.token }}
+# 
+#       - name: Generate Summary
+#         run: |
+#           echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
+#           echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+#           echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
+#           echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
+#           echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
+#           echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+# 
+# 
