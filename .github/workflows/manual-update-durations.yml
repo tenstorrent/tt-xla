@@ -85,7 +85,7 @@ jobs:
     needs: [ build-image, build-ttxla, generate ]
     runs-on: n150 # TODO: Move to CPU-Only when ready
     container:
-      image: harbor.ci.tenstorrent.net/${{ needs.build-image.outputs.docker-image-base }}
+      image: ${{ needs.build-image.outputs.docker-image-base }}
     steps:
       - name: Mark repo as safe for git
         run: git config --global --add safe.directory /__w/tt-xla/tt-xla
