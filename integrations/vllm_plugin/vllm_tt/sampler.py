@@ -281,7 +281,9 @@ class Sampler(nn.Module):
 
             def _anchor(t, spec):
                 return sharding_constraint_tensor(t, replicate_anchor_mesh, spec)
+
         else:
+
             def _anchor(t, spec):
                 return t
 
