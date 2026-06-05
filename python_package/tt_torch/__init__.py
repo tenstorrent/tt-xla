@@ -19,7 +19,21 @@ import tt_torch.custom_ops
 import tt_torch.torch_overrides
 from ttxla_tools import save_system_descriptor_to_disk
 
+# HF transformers attention backend that lowers to torch.ops.tt.scaled_dot_product_attention
+from .attention_backend import (
+    TT_ATTENTION_BACKEND_NAME,
+    register_tt_attention_backend,
+    tt_sdpa_attention_forward,
+)
 from .codegen import codegen_cpp, codegen_py
+
+# HF transformers MoE experts backend that lowers to torch.ops.tt.sparse_matmul
+from .moe_backend import (
+    TT_MOE_BACKEND_NAME,
+    get_tt_moe_shard_specs,
+    register_tt_moe_backend,
+    tt_experts_forward,
+)
 from .serialization import (
     parse_compiled_artifacts_from_cache,
     parse_compiled_artifacts_from_cache_to_disk,
