@@ -35,6 +35,10 @@
         "pytest": "tests/benchmark/test_vision.py::test_mobilenetv2"
       },
       {
+        "name": "mobilenetv2_035_96",
+        "pytest": "tests/benchmark/test_vision.py::test_mobilenetv2_035_96"
+      },
+      {
         "name": "efficientnet",
         "pytest": "tests/benchmark/test_vision.py::test_efficientnet"
       },
