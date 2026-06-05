@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 import torch
 from torch_xla.experimental import stablehlo_custom_call
@@ -1187,6 +1187,113 @@ def sparse_matmul_fake(
 
 
 @torch.library.custom_op(
+    "tt::stream_experts_matmul", mutates_args=[], device_types=["xla", "cpu"]
+)
+def stream_experts_matmul(
+    input_tensor: torch.Tensor,
+    expert_weights: torch.Tensor,
+    top_k_index: torch.Tensor,
+    selected_experts_k: int,
+    per_expert_input: bool = False,
+) -> torch.Tensor:
+    """Stream only the router-selected experts' weights and matmul (low-batch MoE).
+
+    Logical op behind the ``tt_moe_stream`` backend: for each token and each of its
+    top-k selected experts, compute ``act @ W_e`` — so only ``selected_experts_k`` of
+    the ``E`` experts are touched (the memory-bound win at batch=1). The b1-style
+    physical realization (per-expert DRAM-offset gather, WIDTH_SHARDED bfp4 weights,
+    column-major tile shuffle) is entirely a tt-mlir lowering concern; this op stays a
+    plain selective matmul so it is framework- and kernel-agnostic.
+
+    Args:
+        input_tensor: ``[T, K]`` shared per token (gate_up) when ``per_expert_input``
+            is False, or ``[T, k, K]`` one input per selected expert (down) when True.
+            K is the contraction dim.
+        expert_weights: ``[E, K, N]`` stacked expert weights (K = contraction dim, no
+            transpose); the kernel addresses expert e at ``base + e``.
+        top_k_index: ``[T, k]`` selected expert indices (k == selected_experts_k).
+        selected_experts_k: experts selected per token (top-k).
+        per_expert_input: False = one shared input per token; True = one per expert.
+
+    Returns:
+        ``[T, k, N]`` — per token, per selected expert, the matmul result.
+    """
+    device = input_tensor.device
+    T = top_k_index.shape[0]
+    k = selected_experts_k
+    N = expert_weights.shape[-1]
+
+    if device.type == "xla":
+        # Route through the tt-lang generic-op path (#4712): emit @tt.tt_lang_op with the
+        # interleaved-DRAM selective-experts kernel (Path A). Reshape so every output row
+        # (token x selected-expert) is its own [1, .] tile-group -> the M=1 activation
+        # sits in tile row 0 and the matmul result lands in row 0, no sub-tile packing.
+        from . import stream_experts_kernel as sek
+
+        sek.register()
+        K = input_tensor.shape[-1]
+        R = T * k
+        if per_expert_input:  # down: [T, k, K] -> one activation per output row
+            in0 = input_tensor.reshape(R, 1, K)
+        else:  # gate_up: [T, 1, K] -- one activation per TOKEN; the kernel reuses it
+            in0 = input_tensor.reshape(T, 1, K)  # across the token's k experts (no broadcast)
+        idx = top_k_index.reshape(1, R).to(torch.int32)
+        # Stream the expert weights at a reduced dtype (bfp8/bfp4) -> less DRAM
+        # traffic, the memory-bound win. Artifact reads in1 at the matching format.
+        in1 = expert_weights
+        if sek.WEIGHT_DTYPE_OVERRIDE is not None:
+            in1 = torch.ops.tt.weight_dtype_override(expert_weights, sek.WEIGHT_DTYPE_OVERRIDE)
+        # Distinct output buffer per call: derive it from in0 (the per-layer hidden,
+        # already bf16) so XLA CSE doesn't merge the identical zero buffers across
+        # layers (the kernel aliases its result onto `out`; a CSE-shared buffer is
+        # consumed by the first op and missing -- "Tensor not found in tensor pool" --
+        # for the next layer). Stay on a single bf16 broadcast (no typecast) so the op
+        # is trace-hoistable. gate_up's in0 has T rows -> broadcast to R = T*k.
+        if per_expert_input:
+            out = (in0[:, :, :1] * 0).expand(R, 1, N).contiguous()
+        else:
+            out = (in0[:, :, :1] * 0).expand(T, k, N).reshape(R, 1, N).contiguous()
+        results = torch.ops.tt.tt_lang_op(
+            [in0, in1, idx, out],
+            sek.STREAM_EXPERTS_KERNEL_ID,
+            "in,in,in,out",
+            sek.STREAM_EXPERTS_VERSION,
+            "",  # shard_spec (compiler shards from the func arg shardings)
+            [3],  # out_indices
+        )
+        return results[0].reshape(T, k, N)
+    elif device.type == "cpu":
+        out = torch.zeros(T, k, N, dtype=torch.float32, device=device)
+        weights = expert_weights.float()
+        idx = top_k_index.long()
+        for t in range(T):
+            for i in range(k):
+                e = int(idx[t, i])
+                a = input_tensor[t] if not per_expert_input else input_tensor[t, i]
+                out[t, i] = a.float() @ weights[e]
+        return out.to(input_tensor.dtype)
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@stream_experts_matmul.register_fake
+def stream_experts_matmul_fake(
+    input_tensor: torch.Tensor,
+    expert_weights: torch.Tensor,
+    top_k_index: torch.Tensor,
+    selected_experts_k: int,
+    per_expert_input: bool = False,
+) -> torch.Tensor:
+    """FakeTensor implementation of stream_experts_matmul for torch dynamo tracing."""
+    T = top_k_index.shape[0]
+    return torch.zeros(
+        [T, selected_experts_k, expert_weights.shape[-1]],
+        dtype=input_tensor.dtype,
+        device=input_tensor.device,
+    )
+
+
+@torch.library.custom_op(
     "tt::all_to_all_dispatch", mutates_args=[], device_types=["xla", "cpu"]
 )
 def all_to_all_dispatch(
@@ -1737,6 +1844,134 @@ def sampling_fake(
 ) -> torch.Tensor:
     batch = input_values.shape[0]
     return torch.zeros(batch, dtype=torch.int32, device=input_values.device)
+
+
+# ---------------------------------------------------------------------------
+# tt::tt_lang_op -- variadic dispatcher for @tt_torch.kernel
+# ---------------------------------------------------------------------------
+
+# The op carries the metadata the plugin needs to find the live kernel at
+# runtime; outputs are materialized from the user's pre-allocated "out"
+# operands so post-Shardy shape/dtype/layout is observable.
+
+
+def _validate_tt_lang_op_out_indices(
+    out_indices: Sequence[int], num_tensors: int
+) -> None:
+    if not out_indices:
+        raise ValueError("tt::tt_lang_op requires at least one 'out' operand.")
+    seen: set = set()
+    for idx in out_indices:
+        if not 0 <= idx < num_tensors:
+            raise ValueError(
+                f"out index {idx} is out of range for {num_tensors} operands."
+            )
+        if idx in seen:
+            raise ValueError(f"out index {idx} appears more than once.")
+        seen.add(idx)
+
+
+@torch.library.custom_op("tt::tt_lang_op", mutates_args=[], device_types=["xla"])
+def tt_lang_op(
+    tensors: List[torch.Tensor],
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    """``torch.ops.tt.tt_lang_op`` implementation (XLA-only).
+
+    Emits ``stablehlo.custom_call @tt.tt_lang_op`` with
+    ``kernel_id`` / ``arg_roles`` / ``version_tag`` / ``shard_spec`` in
+    ``frontend_attributes``. The custom call's results mirror the
+    ``out``-tagged input tensors in shape and dtype, so the plugin sees
+    the real (post-Shardy) types.
+
+    The op is registered only for the XLA dispatch key; calling it on a
+    CPU tensor raises a PyTorch dispatch error. ``@tt_torch.kernel``
+    refuses non-XLA tensors at the wrapper level for the same reason,
+    so this dispatch error should only be reachable via direct calls
+    to ``torch.ops.tt.tt_lang_op``. Fake-tensor / Dynamo tracing goes
+    through ``_tt_lang_op_fake`` below.
+    """
+    if not tensors:
+        raise ValueError("tt::tt_lang_op requires at least one tensor operand.")
+    _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+
+    output_shapes = [list(tensors[i].shape) for i in out_indices]
+    output_dtypes = [tensors[i].dtype for i in out_indices]
+
+    frontend_attributes = {
+        "kernel_id": kernel_id,
+        "arg_roles": arg_roles,
+        "version_tag": version_tag,
+    }
+    if shard_spec:
+        frontend_attributes["shard_spec"] = shard_spec
+
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        list(tensors),
+        "tt.tt_lang_op",
+        output_shapes,
+        output_dtypes,
+        frontend_attributes=frontend_attributes,
+    )
+    if isinstance(result, torch.Tensor):
+        return [result]
+    return list(result)
+
+
+@tt_lang_op.register_fake
+def _tt_lang_op_fake(
+    tensors: List[torch.Tensor],
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    _validate_tt_lang_op_out_indices(out_indices, len(tensors))
+    return [tensors[i].clone() for i in out_indices]
+
+
+@tt_lang_op.register_autograd
+def _tt_lang_op_autograd(ctx, grad_outputs):
+    """Autograd for tt-lang kernels is not yet supported.
+
+    Returning ``None`` per input would silently produce wrong gradients;
+    raising preserves correctness. Wrap the kernel call in ``torch.no_grad``
+    or register an explicit backward kernel as a separate @tt_torch.kernel.
+    """
+    raise NotImplementedError(
+        "Autograd for tt-lang custom kernels is not yet supported. Wrap "
+        "the kernel call in torch.no_grad() or register an explicit "
+        "backward kernel."
+    )
+
+
+def tt_lang_op_dispatch(
+    tensors: Sequence[torch.Tensor],
+    *,
+    kernel_id: str,
+    arg_roles: str,
+    version_tag: str,
+    shard_spec: str,
+    out_indices: Sequence[int],
+) -> List[torch.Tensor]:
+    """Keyword-only wrapper around ``torch.ops.tt.tt_lang_op``.
+
+    Lets @tt_torch.kernel call sites read cleanly without remembering the
+    positional argument order.
+    """
+    return torch.ops.tt.tt_lang_op(
+        list(tensors),
+        kernel_id,
+        arg_roles,
+        version_tag,
+        shard_spec,
+        list(out_indices),
+    )
 
 
 # Allow the torch dynamo to trace our custom operation(s). This will allow

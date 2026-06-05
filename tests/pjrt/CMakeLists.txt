@@ -46,6 +46,20 @@ if(API_UNIT_TESTS_DIR)
         PRIVATE
             ${API_UNIT_TESTS_DIR}/inc
     )
+
+    # tt_lang_bridge_tests.cc embeds Python via pybind11 (scoped_interpreter),
+    # which requires RTTI. The rest of TTPJRTTests inherits -fno-rtti from
+    # LLVM/MLIR, so we apply -frtti only to this one TU -- mirroring the
+    # carve-out for tt_lang_bridge.cc in pjrt_implementation/src/api/.
+    set(_TT_LANG_BRIDGE_TEST_SRC
+        "${API_UNIT_TESTS_DIR}/tt_lang_bridge_tests.cc")
+    if(EXISTS "${_TT_LANG_BRIDGE_TEST_SRC}")
+        set_source_files_properties(
+            "${_TT_LANG_BRIDGE_TEST_SRC}"
+            TARGET_DIRECTORY TTPJRTTests
+            PROPERTIES COMPILE_OPTIONS "-frtti"
+        )
+    endif()
 endif()
 
 get_target_property(UTILS_UNIT_TESTS_DIR TTPJRTUtils UNIT_TESTS_DIR)

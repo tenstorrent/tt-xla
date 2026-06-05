@@ -17,6 +17,10 @@ import tt_torch.custom_ops
 
 # Import torch overrides so they are registered
 import tt_torch.torch_overrides
+
+# Import tt-lang integration; this also registers torch.ops.tt.tt_lang_op
+import tt_torch.tt_lang
+from tt_torch.tt_lang import kernel  # re-exported as `tt_torch.kernel`
 from ttxla_tools import save_system_descriptor_to_disk
 
 from .codegen import codegen_cpp, codegen_py
@@ -38,6 +42,7 @@ from .weight_dtype import (
 _HF_BACKEND_EXPORTS = {
     "TT_MOE_BACKEND_NAME": "moe_backend",
     "TT_DENSE_EXPERTS_BACKEND_NAME": "moe_backend",
+    "TT_MOE_STREAM_BACKEND_NAME": "moe_backend",
     "get_tt_moe_shard_specs": "moe_backend",
     "register_tt_moe_backend": "moe_backend",
     "tt_experts_forward": "moe_backend",

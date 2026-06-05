@@ -4,11 +4,13 @@
 """
 Tenstorrent MoE experts backend for HuggingFace transformers.
 
-Registers two ``ExpertsInterface`` backends selectable via
+Registers three ``ExpertsInterface`` backends selectable via
 ``experts_implementation=`` at ``from_pretrained`` time:
 
-  - ``tt_moe``   — multi-chip EP via all_to_all_dispatch / sparse_matmul / all_to_all_combine.
-  - ``tt_dense`` — dense bmm across all experts, single-device-friendly.
+  - ``tt_moe``        — multi-chip EP via all_to_all_dispatch / sparse_matmul / all_to_all_combine.
+  - ``tt_dense``      — dense bmm across all experts, single-device-friendly.
+  - ``tt_moe_stream`` — low-batch: stream only the top-k selected experts (b1-style),
+                        computing k of E instead of all E (memory-bound decode win).
 
 Works with any ``@use_experts_implementation`` Experts module that exposes
 ``gate_up_proj``, ``down_proj``, and ``_apply_gate``.
@@ -29,6 +31,7 @@ from . import custom_ops  # noqa: F401
 
 TT_MOE_BACKEND_NAME = "tt_moe"
 TT_DENSE_EXPERTS_BACKEND_NAME = "tt_dense"
+TT_MOE_STREAM_BACKEND_NAME = "tt_moe_stream"
 REDUCTION_SIZE = 32
 
 # HF built-in backend keys — patched validator falls through for these.
@@ -488,6 +491,63 @@ def tt_dense_experts_forward(
     return weighted.sum(dim=0).to(dtype)
 
 
+def tt_stream_experts_forward(
+    self: torch.nn.Module,
+    hidden_states: torch.Tensor,
+    top_k_index: torch.Tensor,
+    top_k_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Low-batch MoE forward: stream only the top-k selected experts (b1-style)
+    instead of computing all E. Requires fused gate_up_proj / down_proj.
+
+    Mathematically identical to ``tt_dense_experts_forward`` (same weighted sum over
+    the selected experts), but only ``k`` of ``E`` expert weights are read — the
+    memory-bound win at batch=1 decode. Each ``stream_experts_matmul`` lowers to b1's
+    DRAM-streaming generic_op (in-kernel ``base + expert_idx`` gather).
+    """
+    if not (hasattr(self, "gate_up_proj") and hasattr(self, "down_proj")):
+        raise RuntimeError(
+            f"{TT_MOE_STREAM_BACKEND_NAME} requires fused gate_up_proj/down_proj "
+            f"experts; got {type(self).__name__} which does not expose them. "
+            "Use a built-in HF backend (batched_mm/grouped_mm) for separate "
+            "gate/up experts."
+        )
+
+    k = top_k_index.shape[-1]
+    dtype = hidden_states.dtype
+    is_transposed = bool(getattr(self, "is_transposed", False))
+
+    # Normalize fused weights to [E, K, N] with K the contraction dim.
+    gate_up_w = (
+        self.gate_up_proj if is_transposed else self.gate_up_proj.transpose(-1, -2)
+    )
+    down_w = self.down_proj if is_transposed else self.down_proj.transpose(-1, -2)
+
+    # gate_up: one shared activation per token, b1 DRAM-streamed over the k selected
+    # experts (reads k of E expert weights -> the batch=1 memory-bound win). Lowers to
+    # b1's DRAM streaming-experts generic_op via the tt_lang_op path.
+    gate_up = torch.ops.tt.stream_experts_matmul(
+        hidden_states, gate_up_w, top_k_index, k, per_expert_input=False
+    )  # [T, k, 2*inter]
+    gate_up_bias = getattr(self, "gate_up_proj_bias", None)
+    if gate_up_bias is not None:
+        gate_up = gate_up + gate_up_bias[top_k_index]
+
+    activated = self._apply_gate(gate_up)  # [T, k, inter]
+
+    # down: per-expert activation, streamed over the same k selected experts.
+    down_out = torch.ops.tt.stream_experts_matmul(
+        activated, down_w, top_k_index, k, per_expert_input=True
+    )  # [T, k, H]
+    down_bias = getattr(self, "down_proj_bias", None)
+    if down_bias is not None:
+        down_out = down_out + down_bias[top_k_index]
+
+    # Combine: weighted sum over the k selected experts.
+    weighted = down_out * top_k_weights.to(down_out.dtype).unsqueeze(-1)
+    return weighted.sum(dim=1).to(dtype)
+
+
 _original_validator: Optional[Callable] = None
 
 
@@ -502,6 +562,9 @@ def register_tt_moe_backend(cluster_axis: Optional[int] = None) -> None:
     ExpertsInterface.register(TT_DENSE_EXPERTS_BACKEND_NAME, tt_dense_experts_forward)
     if TT_DENSE_EXPERTS_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
         raise RuntimeError(f"{TT_DENSE_EXPERTS_BACKEND_NAME} registration failed")
+    ExpertsInterface.register(TT_MOE_STREAM_BACKEND_NAME, tt_stream_experts_forward)
+    if TT_MOE_STREAM_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
+        raise RuntimeError(f"{TT_MOE_STREAM_BACKEND_NAME} registration failed")
 
     if _original_validator is not None:
         return  # already patched
