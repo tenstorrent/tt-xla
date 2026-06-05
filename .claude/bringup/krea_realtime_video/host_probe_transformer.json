@@ -1,0 +1,61 @@
+{
+  "tt_xla_arch_env": "",
+  "tt_visible_devices_env": "",
+  "runtime_chip_count": 8,
+  "device_arch": "Wormhole_b0",
+  "probe_error": null,
+  "device_count": 8,
+  "tt_smi": {
+    "available": true,
+    "visible_board_count": 12,
+    "resettable_umd_ids": [],
+    "all_umd_ids": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      0,
+      1,
+      2,
+      3
+    ],
+    "error": null,
+    "source": "tt-smi -ls"
+  },
+  "host_tier": "multichip_fabric",
+  "inferred_bringup_arch": "n300-llmbox",
+  "visible_board_count": 4,
+  "mesh_chip_count": 8,
+  "chips_per_board": null,
+  "board_vs_chip_note": "runtime_chip_count=8 (XLA mesh / SPMD). visible_board_count=12 \u2192 TT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11. These differ on n300 llmbox (e.g. 8 chips, 4 boards). Provenance: tt-smi -ls resettable boards (12).",
+  "recommended_tt_visible_devices": {
+    "single_chip_bringup": "0",
+    "multichip_bringup": "0,1,2,3"
+  },
+  "policy": {
+    "single_chip": "Single-chip bringup (n150/p150) requires runtime_chip_count==1 on a dedicated host. Do not run on n300-llmbox / qb / galaxy / lb fabric \u2014 TT_VISIBLE_DEVICES=0 is not valid bringup.",
+    "multichip": "Multichip: mesh uses runtime_chip_count (XLA). TT_VISIBLE_DEVICES uses visible_board_count (tt-smi resettable boards). On n300 llmbox often chip_count=8, TT_VISIBLE_DEVICES=0,1,2,3."
+  },
+  "can_run_single_chip_bringup": false,
+  "single_chip_skip_reason": "single-chip bringup requires runtime_chip_count==1 (dedicated host). This session has runtime_chip_count=8 (TT_XLA_ARCH='n300-llmbox'). Fabric hosts (n300-llmbox, qb, galaxy, lb) cannot run n150/p150 bringup \u2014 change to a 1-board machine and re-run /model-bringup.",
+  "can_run_multichip_bringup": true,
+  "multichip_skip_reason": "",
+  "tt_visible_devices_env_valid": true,
+  "tt_visible_devices_env_skip_reason": "",
+  "valid_tp_degrees": [
+    2,
+    4,
+    8
+  ],
+  "expected_mesh_chip_count": 8,
+  "mesh_chip_count_matches_expected": true,
+  "parallelism_mode_checked": "tensor_parallel",
+  "can_run_component": true,
+  "component_skip_reason": "",
+  "visible_board_count_probe_raw": 12,
+  "board_vs_chip_correction": "4 n300 boards (reset IDs 0-3), 2 chips each = 8 chips. probe count was double-count. Use TT_VISIBLE_DEVICES=0,1,2,3."
+}

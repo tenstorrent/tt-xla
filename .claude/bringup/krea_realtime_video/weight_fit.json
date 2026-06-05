@@ -1,0 +1,111 @@
+{
+  "model_key": "krea_realtime_video/pytorch-RealtimeVideo14B-tensor_parallel-inference",
+  "hf_repo": "krea/krea-realtime-video",
+  "note_reuse": "text_encoder/vae/tokenizer/scheduler reused from Wan-AI/Wan2.1-T2V-14B-Diffusers; only transformer from krea",
+  "param_estimate_source": "safetensors_header_exact",
+  "components": [
+    {
+      "name": "text_encoder",
+      "num_params": 5680910336,
+      "weight_bytes_fp32": 22723641344,
+      "weight_bytes_bf16": 11361820672,
+      "activation_class": "text_encoder",
+      "eligible_archs": [
+        "p150"
+      ],
+      "p150_only": true,
+      "parallelism_mode": "tensor_parallel",
+      "single_device_only": false,
+      "test_path": "tests/torch/models/krea_realtime/test_text_encoder.py::test_text_encoder_sharded",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12884901888,
+          "budget_bytes": 10952166604,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        }
+      },
+      "supported_archs": [],
+      "note": "bf16 10.58GiB exceeds n150 budget (10.2GiB); fits p150 weight-only. Sharded onto the uniform krea pipeline mesh alongside the TP transformer."
+    },
+    {
+      "name": "transformer",
+      "num_params": 14288491584,
+      "weight_bytes_fp32": 57153966336,
+      "weight_bytes_bf16": 28576983168,
+      "activation_class": "video",
+      "eligible_archs": [
+        "p150"
+      ],
+      "p150_only": true,
+      "parallelism_mode": "tensor_parallel",
+      "single_device_only": false,
+      "test_path": "tests/torch/models/krea_realtime/test_transformer.py::test_transformer_sharded",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12884901888,
+          "budget_bytes": 10952166604,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": false,
+          "fits_bf16": true,
+          "weight_predicted": false
+        }
+      },
+      "supported_archs": [],
+      "note": "bf16 26.61GiB fits p150 weight-budget by only ~0.6GiB; video-DiT activations leave no single-chip headroom -> weight+activation bound -> TP. Confirmed single-device OOM in prior bringup."
+    },
+    {
+      "name": "vae",
+      "num_params": 126892531,
+      "weight_bytes_fp32": 507570124,
+      "weight_bytes_bf16": 253785062,
+      "activation_class": "vae",
+      "eligible_archs": [
+        "n150",
+        "p150"
+      ],
+      "p150_only": false,
+      "parallelism_mode": "single_device",
+      "single_device_only": true,
+      "test_path": "tests/torch/models/krea_realtime/test_vae_decoder.py::test_vae_decoder",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12884901888,
+          "budget_bytes": 10952166604,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        }
+      },
+      "supported_archs": [],
+      "note": "0.13B fits both archs comfortably; replicate-only on any pipeline mesh."
+    }
+  ]
+}

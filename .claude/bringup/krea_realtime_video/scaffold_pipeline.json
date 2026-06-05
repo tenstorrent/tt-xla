@@ -1,0 +1,69 @@
+{
+  "scaffold_variant": "pipeline",
+  "hf_repo": "krea/krea-realtime-video",
+  "pipeline_class": "WanModularPipeline",
+  "family": "krea_realtime_video",
+  "variant_prefix": "RealtimeVideo14B",
+  "reuse_repo": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+  "reuse_note": "text_encoder, vae, tokenizer, scheduler reused from Wan 2.1 14B base; only the transformer weights come from krea (see modular_model_index.json).",
+  "total_params": 20096000000,
+  "denoise_steps_default": 2,
+  "denoise_steps_observed": null,
+  "components": [
+    {
+      "name": "text_encoder",
+      "class": "UMT5EncoderModel",
+      "module": "transformers",
+      "params": 5681000000,
+      "source_file": "venv/lib/python3.12/site-packages/transformers/models/umt5/modeling_umt5.py",
+      "subfolder": "text_encoder",
+      "repo": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+      "weight_fit": {"eligible_archs": ["p150"], "p150_only": true, "parallelism_mode": "tensor_parallel"}
+    },
+    {
+      "name": "transformer",
+      "class": "CausalWanModel",
+      "module": "diffusers.AutoModel (trust_remote_code)",
+      "params": 14288000000,
+      "source_file": "~/.cache/huggingface/hub/models--krea--krea-realtime-video/snapshots/<rev>/transformer/causal_model.py",
+      "source_aux": "transformer/model.py (sinusoidal_embedding_1d, CUDA-hardcoded line 33)",
+      "subfolder": "transformer",
+      "repo": "krea/krea-realtime-video",
+      "wrapper": "CausalWanWrapper",
+      "weight_fit": {"eligible_archs": ["p150"], "p150_only": true, "parallelism_mode": "tensor_parallel"}
+    },
+    {
+      "name": "vae",
+      "class": "AutoencoderKLWan",
+      "module": "diffusers",
+      "params": 127000000,
+      "source_file": "venv/lib/python3.12/site-packages/diffusers/models/autoencoders/autoencoder_kl_wan.py",
+      "subfolder": "vae",
+      "repo": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+      "wrapper": "VAEDecoderWrapper",
+      "weight_fit": {"eligible_archs": ["n150", "p150"], "p150_only": false, "parallelism_mode": "single_device"}
+    }
+  ],
+  "capture": {
+    "strategy": "individual-component load + runtime forward-method I/O logging (no installed-source mutation); modular Wan pipeline does not load via DiffusionPipeline.from_pretrained",
+    "device": "cpu",
+    "dtype": "torch.bfloat16",
+    "log": ".claude/bringup/krea_realtime_video/capture.log",
+    "io_spec_path": ".claude/bringup/krea_realtime_video/io_spec.json",
+    "result": "PASS",
+    "transformer_forward_seconds": 253
+  },
+  "transformer_arch": {
+    "dim": 5120, "num_layers": 40, "num_heads": 40, "head_dim": 128,
+    "ffn_dim": 13824, "in_dim": 16, "out_dim": 16, "text_len": 512,
+    "seq_length": 32760, "frame_seq_length": 1560, "kv_cache_num_frames": 3,
+    "num_frames_per_block": 3
+  },
+  "io_spec": {
+    "text_encoder": {"inputs": "[input_ids (1,512) int64, attention_mask (1,512) int64]", "output": "(1,512,4096) bf16", "called_per_step": false},
+    "transformer": {"inputs": "[x (1,16,3,60,104) bf16, t (1,3) f32, context (1,512,4096) bf16]", "output": "(1,16,3,60,104) bf16", "called_per_step": true},
+    "vae": {"inputs": "[z (1,16,3,60,104) bf16]", "output": "(1,3,9,480,832) bf16", "called_per_step": false}
+  },
+  "device_target": "n150 (single-device vae); p150/multichip for TP text_encoder + transformer",
+  "promotion_hint": {"text_encoder": "mesh>=2 (p150 weight-feasible single-chip; sharded for uniform pipeline mesh)", "transformer": "mesh>=4 (video-DiT, weight+activation bound)"}
+}

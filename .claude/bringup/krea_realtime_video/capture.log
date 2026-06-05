@@ -1,0 +1,46 @@
+2026-06-04 18:44:45,442 capture loading text_encoder (UMT5EncoderModel) ...
+2026-06-04 18:44:45,525 httpx HTTP Request: HEAD https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-Diffusers/resolve/main/text_encoder/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:44:45,526 huggingface_hub.utils._http Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-06-04 18:44:45,532 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Wan-AI/Wan2.1-T2V-14B-Diffusers/38ec498cb3208fb688890f8cc7e94ede2cbd7f68/text_encoder%2Fconfig.json "HTTP/1.1 200 OK"
+2026-06-04 18:44:45,579 httpx HTTP Request: HEAD https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-Diffusers/resolve/main/text_encoder/adapter_config.json "HTTP/1.1 404 Not Found"
+2026-06-04 18:44:45,615 httpx HTTP Request: HEAD https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-Diffusers/resolve/main/text_encoder/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:44:45,622 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Wan-AI/Wan2.1-T2V-14B-Diffusers/38ec498cb3208fb688890f8cc7e94ede2cbd7f68/text_encoder%2Fconfig.json "HTTP/1.1 200 OK"
+2026-06-04 18:44:45,663 httpx HTTP Request: HEAD https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-Diffusers/resolve/main/text_encoder/model.safetensors "HTTP/1.1 404 Not Found"
+2026-06-04 18:44:45,700 httpx HTTP Request: HEAD https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-Diffusers/resolve/main/text_encoder/model.safetensors.index.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:44:45,705 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Wan-AI/Wan2.1-T2V-14B-Diffusers/38ec498cb3208fb688890f8cc7e94ede2cbd7f68/text_encoder%2Fmodel.safetensors.index.json "HTTP/1.1 200 OK"
+2026-06-04 18:44:45,747 httpx HTTP Request: GET https://huggingface.co/api/models/Wan-AI/Wan2.1-T2V-14B-Diffusers/revision/main "HTTP/1.1 200 OK"
+2026-06-04 18:44:47,226 capture text_encoder FWD_IN [{'shape': (1, 512), 'dtype': 'torch.int64'}, {'shape': (1, 512), 'dtype': 'torch.int64'}]
+2026-06-04 18:44:58,924 capture text_encoder FWD_OUT last_hidden_state {'shape': (1, 512, 4096), 'dtype': 'torch.bfloat16'}
+2026-06-04 18:44:59,731 capture WROTE /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/krea_realtime_video/io_spec.json components=['text_encoder']
+2026-06-04 18:46:16,229 capture loading vae (AutoencoderKLWan) ...
+2026-06-04 18:46:16,309 httpx HTTP Request: HEAD https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-Diffusers/resolve/main/vae/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:46:16,316 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Wan-AI/Wan2.1-T2V-14B-Diffusers/38ec498cb3208fb688890f8cc7e94ede2cbd7f68/vae%2Fconfig.json "HTTP/1.1 200 OK"
+2026-06-04 18:46:16,353 httpx HTTP Request: HEAD https://huggingface.co/Wan-AI/Wan2.1-T2V-14B-Diffusers/resolve/38ec498cb3208fb688890f8cc7e94ede2cbd7f68/vae/diffusion_pytorch_model.safetensors.index.json "HTTP/1.1 404 Not Found"
+2026-06-04 18:46:16,483 capture vae FWD_IN z {'shape': (1, 16, 3, 60, 104), 'dtype': 'torch.bfloat16'}
+2026-06-04 18:47:36,336 capture vae FWD_OUT {'shape': (1, 3, 9, 480, 832), 'dtype': 'torch.bfloat16'}
+2026-06-04 18:47:36,608 capture WROTE /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/krea_realtime_video/io_spec.json components=['text_encoder', 'vae']
+2026-06-04 18:48:19,474 capture loading transformer (CausalWanModel, trust_remote_code) ...
+2026-06-04 18:48:19,616 httpx HTTP Request: HEAD https://huggingface.co/krea/krea-realtime-video/resolve/main/model_index.json "HTTP/1.1 404 Not Found"
+2026-06-04 18:48:19,652 httpx HTTP Request: HEAD https://huggingface.co/krea/krea-realtime-video/resolve/main/transformer/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:48:19,657 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/krea/krea-realtime-video/6b5d204f9d14c3c3a59608e49d1da7fad90daf8d/transformer%2Fconfig.json "HTTP/1.1 200 OK"
+2026-06-04 18:48:19,696 httpx HTTP Request: HEAD https://huggingface.co/krea/krea-realtime-video/resolve/main/transformer/causal_model.py "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:48:19,696 huggingface_hub.utils._http Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-06-04 18:48:19,701 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/krea/krea-realtime-video/6b5d204f9d14c3c3a59608e49d1da7fad90daf8d/transformer%2Fcausal_model.py "HTTP/1.1 200 OK"
+2026-06-04 18:48:20,092 httpx HTTP Request: GET https://huggingface.co/api/models/krea/krea-realtime-video "HTTP/1.1 200 OK"
+2026-06-04 18:48:20,166 httpx HTTP Request: HEAD https://huggingface.co/krea/krea-realtime-video/resolve/main/transformer/model.py "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:48:20,172 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/krea/krea-realtime-video/6b5d204f9d14c3c3a59608e49d1da7fad90daf8d/transformer%2Fmodel.py "HTTP/1.1 200 OK"
+2026-06-04 18:48:20,228 httpx HTTP Request: GET https://huggingface.co/api/models/krea/krea-realtime-video "HTTP/1.1 200 OK"
+2026-06-04 18:48:20,268 httpx HTTP Request: HEAD https://huggingface.co/krea/krea-realtime-video/resolve/main/transformer/attention.py "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:48:20,272 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/krea/krea-realtime-video/6b5d204f9d14c3c3a59608e49d1da7fad90daf8d/transformer%2Fattention.py "HTTP/1.1 200 OK"
+2026-06-04 18:48:20,315 httpx HTTP Request: GET https://huggingface.co/api/models/krea/krea-realtime-video "HTTP/1.1 200 OK"
+2026-06-04 18:48:20,353 httpx HTTP Request: HEAD https://huggingface.co/krea/krea-realtime-video/resolve/main/transformer/attention.py "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:48:20,359 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/krea/krea-realtime-video/6b5d204f9d14c3c3a59608e49d1da7fad90daf8d/transformer%2Fattention.py "HTTP/1.1 200 OK"
+2026-06-04 18:48:20,401 httpx HTTP Request: GET https://huggingface.co/api/models/krea/krea-realtime-video "HTTP/1.1 200 OK"
+2026-06-04 18:48:56,142 httpx HTTP Request: HEAD https://huggingface.co/krea/krea-realtime-video/resolve/main/transformer/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-06-04 18:48:56,146 httpx HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/krea/krea-realtime-video/6b5d204f9d14c3c3a59608e49d1da7fad90daf8d/transformer%2Fconfig.json "HTTP/1.1 200 OK"
+2026-06-04 18:48:56,217 httpx HTTP Request: GET https://huggingface.co/api/models/krea/krea-realtime-video "HTTP/1.1 200 OK"
+2026-06-04 18:48:56,257 httpx HTTP Request: GET https://huggingface.co/api/models/krea/krea-realtime-video/revision/main "HTTP/1.1 200 OK"
+2026-06-04 18:48:59,936 capture transformer blocks=40 heads=40 head_dim=128
+2026-06-04 18:49:00,409 capture transformer FWD_IN [{'shape': (1, 16, 3, 60, 104), 'dtype': 'torch.bfloat16'}, {'shape': (1, 3), 'dtype': 'torch.float32'}, {'shape': (1, 512, 4096), 'dtype': 'torch.bfloat16'}]
+2026-06-04 18:53:13,978 capture transformer FWD_OUT {'shape': (1, 16, 3, 60, 104), 'dtype': 'torch.bfloat16'}
+2026-06-04 18:53:16,013 capture WROTE /proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/krea_realtime_video/io_spec.json components=['text_encoder', 'vae', 'transformer']

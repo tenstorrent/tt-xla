@@ -1,0 +1,114 @@
+{
+  "text_encoder": {
+    "class": "UMT5EncoderModel",
+    "inputs": [
+      {
+        "name": "input_ids",
+        "shape": [
+          1,
+          512
+        ],
+        "dtype": "torch.int64"
+      },
+      {
+        "name": "attention_mask",
+        "shape": [
+          1,
+          512
+        ],
+        "dtype": "torch.int64"
+      }
+    ],
+    "outputs": [
+      {
+        "shape": [
+          1,
+          512,
+          4096
+        ],
+        "dtype": "torch.bfloat16"
+      }
+    ],
+    "called_per_step": false
+  },
+  "vae": {
+    "class": "AutoencoderKLWan",
+    "wrapper": "VAEDecoderWrapper",
+    "inputs": [
+      {
+        "name": "z",
+        "shape": [
+          1,
+          16,
+          3,
+          60,
+          104
+        ],
+        "dtype": "torch.bfloat16"
+      }
+    ],
+    "outputs": [
+      {
+        "shape": [
+          1,
+          3,
+          9,
+          480,
+          832
+        ],
+        "dtype": "torch.bfloat16"
+      }
+    ],
+    "called_per_step": false
+  },
+  "transformer": {
+    "class": "CausalWanModel",
+    "wrapper": "CausalWanWrapper",
+    "inputs": [
+      {
+        "name": "x",
+        "shape": [
+          1,
+          16,
+          3,
+          60,
+          104
+        ],
+        "dtype": "torch.bfloat16"
+      },
+      {
+        "name": "t",
+        "shape": [
+          1,
+          3
+        ],
+        "dtype": "torch.float32"
+      },
+      {
+        "name": "context",
+        "shape": [
+          1,
+          512,
+          4096
+        ],
+        "dtype": "torch.bfloat16"
+      }
+    ],
+    "outputs": [
+      {
+        "shape": [
+          1,
+          16,
+          3,
+          60,
+          104
+        ],
+        "dtype": "torch.bfloat16"
+      }
+    ],
+    "called_per_step": true,
+    "num_blocks": 40,
+    "num_heads": 40,
+    "head_dim": 128
+  }
+}

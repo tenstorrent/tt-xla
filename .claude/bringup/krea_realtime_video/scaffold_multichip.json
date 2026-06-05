@@ -1,0 +1,22 @@
+{
+  "component": "text_encoder",
+  "model_key": "krea_realtime_video/pytorch-RealtimeVideo14B-tensor_parallel-inference",
+  "tp_pattern": "B_fsdp_2d",
+  "arch": "n300-llmbox",
+  "mesh_shape": [2, 4],
+  "mesh_names": ["batch", "model"],
+  "chip_count": 8,
+  "tt_visible_devices": "0,1,2,3",
+  "test_path": "tests/torch/models/krea_realtime/test_text_encoder.py::test_text_encoder_sharded",
+  "validate_tp": {
+    "result": "PASS",
+    "named_params_total": 242,
+    "sharded": 218,
+    "replicated": 24,
+    "replicated_kind": "per-layer relative_attention_bias (32,64) — small, intentionally replicated",
+    "problems": 0,
+    "checks": ["rank-match", "axis-validity", "mesh-divisibility"]
+  },
+  "force_multichip": true,
+  "entry_gate_note": "weight_predicted True on n150/n300 (12GiB wormhole); p150 (32GiB) fits weights. Target n300-llmbox is weight-bound -> TP justified; promotion forced via --force-multichip."
+}
