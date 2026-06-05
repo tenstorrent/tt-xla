@@ -30,15 +30,13 @@ from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
     _disable_tt_torch_function_override,
-    _patch_adaln_modulation_bf16,
-    _patch_apply_rotary_emb_stack_form,
-    _patch_patchify_ndhwc_aware,
     _patch_wan_time_embedder_dtype_probe,
 )
 from .shared import (
     LATENT_CHANNELS,
     RESOLUTIONS,
     WanDiTWrapper,
+    apply_dit_sp_activation_sharding,
     load_dit,
     shard_dit_specs,
     wan22_mesh,
@@ -97,6 +95,15 @@ def _run(resolution: str, sharded: bool) -> None:
 
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
     shard_spec_fn = (lambda m: shard_dit_specs(m.dit)) if sharded else None
+
+    # SP activation sharding is the companion to shard_dit_specs (weights): its
+    # forward hooks constrain how Shardy propagates shards through the RoPE /
+    # block-entry reshapes. Registered here on the model so the hooks survive
+    # the runner's model.to(device) move. The tt_torch matmul/linear override is
+    # already popped above via _disable_tt_torch_function_override(), so the lazy
+    # trace inside run_graph_test sees the RoPE unflatten without it.
+    if sharded:
+        apply_dit_sp_activation_sharding(model.dit, mesh)
 
     run_graph_test(
         graph=model,
