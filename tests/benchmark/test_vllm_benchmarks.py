@@ -37,6 +37,8 @@ _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 _BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
 _BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
 _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
+_BENCH_P150_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_P150_MAX_MODEL_LEN", "8192"))
+_BENCH_P150_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_P150_KV_CACHE_DTYPE", "bfp_bf8")
 
 
 def _config(
@@ -314,3 +316,71 @@ def test_vllm_benchmark(config, output_file, request):
 @pytest.mark.parametrize("config", TP_CONFIGS)
 def test_vllm_tp_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
+
+
+
+# ---------------------------------------------------------------------------
+# P150 (Blackhole) benchmarks — BFP8 weights, batch sweep, env-var driven
+#   TT_BENCHMARK_P150_MAX_MODEL_LEN=<int>  default 8192
+#   TT_BENCHMARK_P150_KV_CACHE_DTYPE=<str> default bfp_bf8
+#   _BENCH_OPTIMIZATION_LEVEL=<int>        default 0 (override to 1 or 2)
+# ---------------------------------------------------------------------------
+
+def _p150_config(
+    model: str,
+    batch_size: int,
+    *,
+    gpu_memory_utilization: float = 0.3,
+    optimization_level: int = 0,
+    **additional_config_extra,
+):
+    if _BENCH_OPTIMIZATION_LEVEL is not None:
+        optimization_level = int(_BENCH_OPTIMIZATION_LEVEL)
+    additional = {
+        "enable_trace": True,
+        "experimental_weight_dtype": "bfp_bf8",
+        "min_context_len": _BENCH_P150_MAX_MODEL_LEN,
+        "experimental_kv_cache_dtype": _BENCH_P150_KV_CACHE_DTYPE,
+    }
+    if optimization_level > 0:
+        additional["optimization_level"] = optimization_level
+        additional["cpu_sampling"] = True
+    if _BENCH_CPU_SAMPLING:
+        additional["cpu_sampling"] = True
+    if _BENCH_TRACE is not None:
+        additional["enable_trace"] = _BENCH_TRACE == "1"
+    additional.update(additional_config_extra)
+    return VLLMBenchmarkConfig(
+        model=model,
+        batch_size=batch_size,
+        max_model_len=_BENCH_P150_MAX_MODEL_LEN,
+        gpu_memory_utilization=gpu_memory_utilization,
+        temperature=_BENCH_TEMPERATURE,
+        additional_config=additional,
+    )
+
+
+_P150_MODELS = [
+    ("meta-llama/Llama-3.2-3B-Instruct", 0.3),
+    ("meta-llama/Llama-3.1-8B-Instruct", 0.2),
+    ("tiiuae/Falcon3-7B-Base", 0.2),
+    ("Qwen/Qwen3-4B", 0.25),
+    ("Qwen/Qwen3-8B", 0.2),
+]
+
+_P150_BATCH_SIZES = [1, 4, 8, 16, 32]
+
+P150_CONFIGS = [
+    pytest.param(
+        _p150_config(model, batch, gpu_memory_utilization=util),
+        id=f"p150-{model.split('/')[-1].lower()}-batch{batch}",
+    )
+    for model, util in _P150_MODELS
+    for batch in _P150_BATCH_SIZES
+]
+
+
+@pytest.mark.parametrize("config", P150_CONFIGS)
+def test_vllm_p150_benchmark(config, output_file, request):
+    _run_vllm_benchmark(config, output_file, request)
+
