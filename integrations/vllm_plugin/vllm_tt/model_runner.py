@@ -343,8 +343,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
         #     model_config)
         self.supports_mm_inputs = False
-        # TODO: Support M-RoPE (e.g, Qwen2-VL)
-        assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
         self._num_slices_per_kv_cache_update_block = (
             _get_num_slices_per_kv_cache_update_block(
@@ -445,7 +443,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for n in self.num_tokens_paddings
         }
         self._position_ids_dev = {
-            n: _alloc_dev((self.max_num_reqs, n), torch.int32)
+            n: _alloc_dev(
+                (
+                    (3, self.max_num_reqs, n)
+                    if self.uses_mrope
+                    else (self.max_num_reqs, n)
+                ),
+                torch.int32,
+            )
             for n in self.num_tokens_paddings
         }
         self._logits_indices_dev = _alloc_dev((self.max_num_reqs,), torch.int32)
@@ -507,8 +512,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.mm_budget = (
             MultiModalBudget(
-                self.model_config,
-                self.scheduler_config,
+                self.vllm_config,
                 self.mm_registry,
             )
             if self.supports_mm_inputs
@@ -1012,12 +1016,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.num_tokens_paddings, max_num_scheduled_tokens_all_reqs
         )
 
-        # Allocate a zero-initialized position tensor of shape
-        # [max_num_reqs, padded_total_num_scheduled_tokens]. Entries beyond the
-        # actual number of scheduled tokens per request remain zero (padding).
-        arange = torch.zeros(
-            (self.max_num_reqs, padded_total_num_scheduled_tokens), dtype=torch.int32
+        # Allocate a zero-initialized position tensor. For MRoPE models, keep
+        # three identical position planes [3, max_num_reqs, padded_tokens] to
+        # match the runtime input convention; otherwise use [max_num_reqs,
+        # padded_tokens]. Entries beyond the actual number of scheduled tokens
+        # per request remain zero (padding).
+        # NOTE: When M-RoPE is enabled, position ids are 3D regardless of the
+        # modality of inputs. For text-only inputs, each dimension has identical
+        # position IDs, making M-RoPE functionally equivalent to 1D-RoPE.
+        # See page 5 of https://arxiv.org/abs/2409.12191
+
+        arange_shape = (
+            (3, self.max_num_reqs, padded_total_num_scheduled_tokens)
+            if self.uses_mrope
+            else (self.max_num_reqs, padded_total_num_scheduled_tokens)
         )
+        arange = torch.zeros(arange_shape, dtype=torch.int32)
 
         # Populate position ids for each request.
         # For request i with n scheduled tokens, positions are computed as:
@@ -1040,10 +1054,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #    [10,11,12,13,14],
         #    [5, 6, 7, 0, 0]]
         for i, n in enumerate(num_scheduled_tokens_per_req):
-            arange[i, :n] = (
+            positions = (
                 torch.arange(n, dtype=torch.int32)
                 + self.input_batch.num_computed_tokens_cpu[i]
             )
+            if self.uses_mrope:
+                arange[:, i, :n] = positions
+            else:
+                arange[i, :n] = positions
 
         # Allocate a zero-padded input_ids tensor of shape
         # [max_num_reqs, padded_total_num_scheduled_tokens].
@@ -1065,6 +1083,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Move input_ids and position_ids to the target device for execution.
         # Reuse persistent device buffers and update in place via copy_ to
         # avoid issuing a fresh H2D transfer (and on-device alloc) per step.
+        # 'padded_total_num_scheduled_tokens' is used as the key into the
+        # preallocated buffer dictionaries (self._input_ids_dev and
+        # self._position_ids_dev) to select the buffer whose second dimension
+        # matches this step's padded token width.
         input_ids_dev = self._input_ids_dev[padded_total_num_scheduled_tokens]
         input_ids_dev.copy_(input_ids_cpu)
         self.input_ids = input_ids_dev
@@ -1885,6 +1907,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
         )
+        if self.uses_mrope:
+            position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
         with (
             torch_dynamo_tt_device_compatibility(),
