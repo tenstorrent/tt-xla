@@ -48,9 +48,14 @@ tt-mlir passes / emitter / pjrt C++.
 |--------|----------|------------------|
 | **dense baseline** | 83.296 | 11.435 |
 | stream bf16 | 83.311 (PCC .9994) | — |
-| stream bfp8 | 85.837 (.9994) | **11.790** (+3.1%, PCC .999) |
-| stream bfp4 | 86.054 (.9947) | (run in progress) |
+| stream bfp8 | 85.837 (.9994) | **11.790** (+3.1%, PCC .999) ✅ |
+| stream bfp4 | 86.054 (.9947) | 13.309 (+16%) but **PCC 0.821 FAIL** ❌ |
 | **stream bfp4 + cap=12 + in0-reuse** | **88.984 (+6.8%)** | — |
+
+**dtype vs depth — IMPORTANT:** bfp4 holds accuracy at 2 layers (PCC .9947) but
+**FAILS the full 24-layer model (PCC 0.821 < 0.94)** — the 4-bit quantization error
+accumulates over depth. **Use bfp8 for the full model** (24L bfp8 = 11.790, PCC .999,
++3.1%). bfp4 is only safe for shallow / 2-layer perf experiments.
 
 The end-to-end edge is only ~3–7% because (a) attention/LM-head dominate decode and
 the MoE is a small slice, and (b) dense ALSO uses bfp8 experts so the win is purely
