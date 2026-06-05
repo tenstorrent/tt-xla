@@ -4,7 +4,7 @@
     "test-defaults": {
       "runs-on": [
         "n150",
-        "p150"
+        "p150-perf"
       ],
       "dir": "",
       "bs": 12,

@@ -61,7 +61,7 @@ jobs:
 
     runs-on: ${{ !inputs.sh-runner && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) }}
 
-    name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on }})"
+    name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on-original || matrix.build.runs-on }})"
 
     container:
       image: ${{ !inputs.sh-runner && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
