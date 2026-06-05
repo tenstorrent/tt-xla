@@ -2384,6 +2384,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "supported yet."
             )
 
+        # This may be a valid config if full model is not being compiled; for
+        # example, using num_hidden_layers override to compile only a subset of
+        # layers. In that case, we should not raise an error but just skip the
+        # KV cache initialization.
+        if len(kv_cache_config.kv_cache_groups) == 0:
+            logger.warning(
+                "No KV cache group found in the config. Skipping KV cache initialization."
+            )
+            return
+
         if (
             kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
             != self.block_size
