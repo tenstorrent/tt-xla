@@ -89,7 +89,7 @@ class XlaMergedColumnParallelLinear(nn.Module):
     def _shard_weight(self, mesh: "xs.Mesh"):
         for i in range(self.num_outputs):
             self.weights[i] = Parameter(self.weights[i].to("xla"), requires_grad=False)
-            safe_mark_sharding(self.weights[i], mesh, (None, "model"))
+            safe_mark_sharding(self.weights[i], mesh, ("model", "batch"))
 
             if self.biases[i] is not None:
                 self.biases[i] = Parameter(
@@ -174,9 +174,9 @@ class XlaQKVParallelLinear(nn.Module):
         self.q_weight = Parameter(self.q_weight.to("xla"), requires_grad=False)
         self.k_weight = Parameter(self.k_weight.to("xla"), requires_grad=False)
         self.v_weight = Parameter(self.v_weight.to("xla"), requires_grad=False)
-        safe_mark_sharding(self.q_weight, mesh, (None, "model"))
-        safe_mark_sharding(self.k_weight, mesh, (None, "model"))
-        safe_mark_sharding(self.v_weight, mesh, (None, "model"))
+        safe_mark_sharding(self.q_weight, mesh, ("model", "batch"))
+        safe_mark_sharding(self.k_weight, mesh, ("model", "batch"))
+        safe_mark_sharding(self.v_weight, mesh, ("model", "batch"))
         if self.q_bias is not None:
             assert (
                 self.k_bias is not None and self.v_bias is not None
@@ -277,7 +277,7 @@ def partition_row_parallel_linear(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    safe_mark_sharding(layer.weight, mesh, ("batch", "model"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 

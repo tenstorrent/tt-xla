@@ -791,11 +791,13 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
     const mlir::sdy::MeshAttr &shardy_mesh,
     std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
+  // An empty shardy_mesh (e.g. single-chip programs that still emit an
+  // sdy.mesh op with no axes) makes the post-#8380 generate() error out
+  // with "Empty meshAttr: manual_computation requires a mesh." In that
+  // case there is no sharding to extract; treat every result as Replicate.
+  const bool mesh_is_empty = !shardy_mesh || shardy_mesh.getAxes().empty();
   for (const mlir::sdy::TensorShardingAttr &shardy_attr : shardy_attributes) {
-
-    // If there is no sharding attribute, we put the default sharding,
-    // which means there is no sharding.
-    if (!shardy_attr) {
+    if (!shardy_attr || mesh_is_empty) {
       shardings.emplace_back(
           mlir::tt::ttcore::MeshShardDirection::FullToShard,
           mlir::tt::ttcore::MeshShardType::Replicate,
