@@ -1,0 +1,53 @@
+{
+  "component": "transformer",
+  "model_key": "hunyuan_image_2_1",
+  "params": 17453334976,
+  "weight_bytes_bf16": 34906669952,
+  "arch": "n300-llmbox (Wormhole, 12 GiB DRAM/chip)",
+  "classification": "weight_bound / arch_insufficient_at_max_valid_tp",
+  "verdict": "ESCALATE — blocked on upstream tt-mlir #3370 + 28-head TP constraint",
+  "diagnosed_at": "2026-06-05",
+  "iterations": [
+    {
+      "iter": 1,
+      "mesh": [2, 4],
+      "dtype": "fp32",
+      "stage": "compile",
+      "fail": "sdy.collective_permute not lowerable (ShardyToStableHLO) + 'op requires same type for all operands and results'",
+      "root_cause": "2D batch+model reshard emits CollectivePermuteOp; not implemented in tt-mlir",
+      "ref": "https://github.com/tenstorrent/tt-mlir/issues/3370"
+    },
+    {
+      "iter": 2,
+      "mesh": [1, 8],
+      "dtype": "fp32",
+      "stage": "compile",
+      "fail": "reshape.568: number of output elements (14680064) doesn't match expected (1835008) [ratio 8x]",
+      "root_cause": "8-way model-axis sharding invalid: num_attention_heads=28 not divisible by 8"
+    },
+    {
+      "iter": 3,
+      "mesh": [1, 4],
+      "dtype": "bf16",
+      "stage": "runtime_execution",
+      "fail": "TT_FATAL Out of Memory: 771162112 B DRAM buffer, free 72122304 B (chip ~full)",
+      "root_cause": "Compiled + ran. Per-chip weights = 34.9GB/4 = 8.73 GiB of 12 GiB; ~2-3 GiB headroom insufficient for runtime buffers. OOM on a ttnn.add (binary_ng).",
+      "note": "Captured inputs are tiny (hidden_states [1,64,2,2]); OOM is weight-pressure, NOT reducible input-activation size."
+    }
+  ],
+  "memory_math": {
+    "chip_dram_gib": 12,
+    "weight_per_chip_4way_bf16_gib": 8.73,
+    "headroom_gib": "~2-3",
+    "weight_per_chip_8way_bf16_gib": 4.36,
+    "fits_at_8way": true
+  },
+  "why_blocked": "Only pure model-axis TP degree that (a) divides num_attention_heads=28 and (b) fits <= 8 chips is 4. 4-way leaves insufficient DRAM for runtime buffers. 8-way would fit weights (4.36 GiB/chip) but is invalid (28 % 8 != 0). 2D FSDP-style reshard (e.g. (2,4)) would shard weights further but emits collective_permute -> blocked by tt-mlir #3370.",
+  "options": [
+    {"option": "8-way pure model TP", "viable": false, "reason": "28 heads not divisible by 8"},
+    {"option": "2D FSDP (2,4) weight sharding", "viable": false, "reason": "tt-mlir #3370 collective_permute not lowered"},
+    {"option": "7-way TP mesh (1,7)", "viable": "theoretical", "reason": "28/7=4 heads/chip valid; 34.9/7=4.99 GiB/chip fits. Untested: non-power-of-2 mesh, 1 idle chip, collective topology mapping risk"},
+    {"option": "wait for tt-mlir #3370 fix then (2,4)", "viable": "future", "reason": "unblocks 2D weight sharding -> halves per-chip weight"}
+  ],
+  "recommendation": "Mark transformer ESCALATED (upstream-blocked). Best near-term experiment if pursued: 7-way mesh (1,7) bf16 — head-valid and weight-fits, but mesh/topology support unverified. Otherwise revisit when tt-mlir #3370 lands."
+}

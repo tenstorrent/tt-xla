@@ -1,0 +1,56 @@
+{
+  "model_key": "hunyuan_image_2_1",
+  "component": "transformer",
+  "arch": "n300-llmbox",
+  "chip_count": 4,
+  "mesh_shape": [
+    1,
+    4
+  ],
+  "mesh_names": [
+    "batch",
+    "model"
+  ],
+  "shard_pattern": "Megatron 1D (Pattern A; model axis only, batch replicated)",
+  "tt_visible_devices": "0,1",
+  "valid_tp_degrees": [
+    2,
+    4,
+    8
+  ],
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded",
+  "loader_get_mesh_config": "MESH_SHAPES[4] = (1, 4)",
+  "load_shard_spec_entries": 964,
+  "source": "model-bringup-multichip VALIDATE_TP (--force-multichip; weight_fit transformer weight_predicted on n150+p150)",
+  "repair_history": [
+    {
+      "iteration": 1,
+      "strategy": "fix_mesh_shape",
+      "from": [
+        2,
+        4
+      ],
+      "to": [
+        1,
+        8
+      ],
+      "reason": "sdy.collective_permute not lowerable (tt-mlir #3370) from 2D batch+model reshard"
+    },
+    {
+      "iteration": 2,
+      "strategy": "fix_mesh_shape+dtype",
+      "from_mesh": [
+        1,
+        8
+      ],
+      "to_mesh": [
+        1,
+        4
+      ],
+      "dtype": "fp32->bf16",
+      "reason": "reshape mismatch: 28 heads not divisible by 8; bf16 to fit 4-way (fp32 OOM #4780)"
+    }
+  ],
+  "dtype": "bfloat16",
+  "head_constraint": "TP degree must divide num_attention_heads=28; {2,4} valid on n300-llmbox, 8 invalid (28/8 non-integer)"
+}

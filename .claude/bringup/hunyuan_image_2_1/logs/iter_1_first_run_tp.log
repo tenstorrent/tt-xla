@@ -1,0 +1,176 @@
+ENV TT_XLA_ARCH=n300-llmbox TT_VISIBLE_DEVICES=0,1,2,3 TT_XLA_SPMD=1 CONVERT_SHLO_TO_SHARDY=1
+2026-06-04 20:10:02.548 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-141-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'split': '0.11.0', 'anyio': '4.13.0', 'forked': '1.6.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.10'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, split-0.11.0, anyio-4.13.0, forked-1.6.0, metadata-3.1.1, jaxtyping-0.3.10
+collecting ... collected 1 item
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 51463.85it/s]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:01<00:03,  1.28s/it]Loading checkpoint shards:  50%|█████     | 2/4 [00:02<00:02,  1.32s/it]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:04<00:01,  1.36s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.08s/it]Loading checkpoint shards: 100%|██████████| 4/4 [00:04<00:00,  1.17s/it]
+2026-06-04 20:10:37.811270: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+loc("slice.225"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.221"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.91"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.87"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.64"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.811"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.56"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.52"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.855"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.992"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.847"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.843"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.225"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.221"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.91"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.87"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.64"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.811"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.56"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.52"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.855"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.992"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.847"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.843"): error: ShardyToStableHLO lowering for CollectivePermuteOp is not implemented yet: https://github.com/tenstorrent/tt-mlir/issues/3370.
+loc("slice.225"): error: 'sdy.collective_permute' op requires the same type for all operands and results
+2026-06-04 20:19:31.437 ( 568.888s) [        5FA09140]      module_builder.cc:884    ERR| Failed to run stablehlo pipeline
+Created device mesh: (2, 4) with 8 devices.
+FAILED
+
+=================================== FAILURES ===================================
+___________________________ test_transformer_sharded ___________________________
+tests/torch/models/HunyuanImage_2_1/test_transformer.py:48: in test_transformer_sharded
+    _run(sharded=True)
+tests/torch/models/HunyuanImage_2_1/test_transformer.py:70: in _run
+    run_graph_test(
+tests/infra/testers/single_chip/graph/graph_tester.py:74: in run_graph_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:73: in test
+    tt_res = self._device_runner.run_on_tt_device(tt_workload)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:30: in run_on_tt_device
+    return self.run_on_device(workload, DeviceType.TT, device_num)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:40: in run_on_device
+    return self._run_on_device(device_workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:136: in _run_on_device
+    return workload.execute()
+           ^^^^^^^^^^^^^^^^^^
+tests/infra/workloads/workload.py:71: in execute
+    return self.compiled_executable(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:465: in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:953: in compile_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+third_party/tt_forge_models/hunyuan_image_2_1/pytorch/loader.py:291: in forward
+    return self.transformer(
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/diffusers/utils/peft_utils.py:315: in wrapper
+    result = forward_fn(self, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/diffusers/models/transformers/transformer_hunyuanimage.py:844: in forward
+    hidden_states, encoder_hidden_states = block(
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/diffusers/models/transformers/transformer_hunyuanimage.py:573: in forward
+    def forward(
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:1181: in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:226: in __call__
+    return self._call_experimental_compile(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:201: in _call_experimental_compile
+    self.compiled_graph = bridge.extract_compiled_graph(
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:737: in extract_compiled_graph
+    return extract_compiled_graph_helper(xla_model, xla_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:859: in extract_compiled_graph_helper
+    return partition_fx_graph_for_cpu_fallback(xla_model, xla_args,
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:804: in partition_fx_graph_for_cpu_fallback
+    extract_internal(fused_module), node.args, None)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:539: in extract_internal
+    xla_args_need_update) = extract_graph_helper(xla_model,
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:483: in extract_graph_helper
+    torch_xla._XLAC._xla_warm_up_cache(args_and_out_tensor_only, [])
+E   ValueError: Error code: 13
+------------------------------ Captured log call -------------------------------
+WARNING  huggingface_hub.utils._http:_http.py:904 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+    warnings.warn(
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch_xla/runtime.py:213: UserWarning: XLA_USE_SPMD is being deprecated. Use torch_xla.runtime.use_spmd() without setting XLA_USE_SPMD env-var.
+    warnings.warn("XLA_USE_SPMD is being deprecated. "
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:2056: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+    torch._dynamo.utils.warn_once(msg)
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded - ValueError: Error code: 13
+================== 1 failed, 27 warnings in 566.78s (0:09:26) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+PYTEST_EXIT=1

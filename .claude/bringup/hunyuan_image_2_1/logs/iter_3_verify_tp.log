@@ -1,0 +1,188 @@
+ENV TT_XLA_ARCH=n300-llmbox TT_VISIBLE_DEVICES=0,1 TT_XLA_SPMD=1 CONVERT_SHLO_TO_SHARDY=1
+2026-06-04 20:36:22.385 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-141-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'split': '0.11.0', 'anyio': '4.13.0', 'forked': '1.6.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.10'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, split-0.11.0, anyio-4.13.0, forked-1.6.0, metadata-3.1.1, jaxtyping-0.3.10
+collecting ... collected 1 item
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files: 100%|██████████| 4/4 [00:00<00:00, 50686.45it/s]
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  75%|███████▌  | 3/4 [00:00<00:00, 25.68it/s]Loading checkpoint shards: 100%|██████████| 4/4 [00:00<00:00, 28.75it/s]
+2026-06-04 20:36:52.389 | critical |          Always | TT_FATAL: Chip 0 logical eth core 0-7 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-7) on chip 0
+2026-06-04 20:36:52.423 | critical |          Always | TT_FATAL: Chip 0 logical eth core 0-6 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-6) on chip 0
+2026-06-04 20:36:52.456 | critical |          Always | TT_FATAL: Chip 1 logical eth core 0-1 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-1) on chip 1
+2026-06-04 20:36:52.489 | critical |          Always | TT_FATAL: Chip 1 logical eth core 0-0 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-0) on chip 1
+2026-06-04 20:36:52.947207: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-06-04 20:51:56.334 | critical |          Always | TT_FATAL: Out of Memory: Not enough space to allocate 771162112 B DRAM buffer across 12 banks, where each bank needs to store 64266240 B, but bank size is 1071821792 B (allocated: 999699488 B, free: 72122304 B, largest free block: 49191520 B) (assert.hpp:104)
+2026-06-04 20:51:56.363 ( 933.978s) [        D0F276C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/impl/allocator/bank_manager.cpp:462: false
+info:
+Out of Memory: Not enough space to allocate 771162112 B DRAM buffer across 12 banks, where each bank needs to store 64266240 B, but bank size is 1071821792 B (allocated: 999699488 B, free: 72122304 B, largest free block: 49191520 B)
+backtrace:
+ --- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x889241) [0x7f1fbb6d1241]
+ --- tt::tt_metal::BankManager::allocate_buffer(unsigned long, unsigned long, bool, tt::tt_metal::CoreRangeSet const&, std::optional<unsigned int>, ttsl::StrongType<unsigned int, tt::tt_metal::AllocatorIDTag>, std::vector<std::pair<unsigned long, unsigned long>, std::allocator<std::pair<unsigned long, unsigned long> > > const&)
+ --- tt::tt_metal::AllocatorImpl::allocate_buffer(tt::tt_metal::Buffer*)
+ --- tt::tt_metal::Buffer::allocate_impl()
+ --- tt::tt_metal::Buffer::create(tt::tt_metal::IDevice*, unsigned long, unsigned long, tt::tt_metal::BufferType, tt::tt_metal::BufferShardingArgs const&, std::optional<bool>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> >)
+ --- tt::tt_metal::distributed::MeshBuffer::create(std::variant<tt::tt_metal::distributed::ReplicatedBufferConfig, tt::tt_metal::distributed::ShardedBufferConfig> const&, tt::tt_metal::distributed::DeviceLocalBufferConfig const&, tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned long>)
+ --- tt::tt_metal::tensor_impl::allocate_device_buffer(tt::tt_metal::distributed::MeshDevice*, tt::tt_metal::TensorSpec const&)
+ --- tt::tt_metal::MeshTensor::allocate_on_device(tt::tt_metal::distributed::MeshDevice&, tt::tt_metal::TensorSpec const&, tt::tt_metal::TensorTopology const&)
+ --- tt::tt_metal::create_device_tensor(tt::tt_metal::TensorSpec const&, tt::tt_metal::distributed::MeshDevice*, std::optional<tt::tt_metal::TensorTopology>)
+ --- ttnn::operations::binary_ng::BinaryNgDeviceOperation::create_output_tensors(ttnn::operations::binary_ng::BinaryNgDeviceOperation::operation_attributes_t const&, ttnn::operations::binary_ng::BinaryNgDeviceOperation::tensor_args_t const&)
+ --- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn16device_operation6detail6launchITkNS0_22DeviceOperationConceptENS_10operations9binary_ng23BinaryNgDeviceOperationEEENT_21tensor_return_value_tERKNS6_22operation_attributes_tERKNS6_13tensor_args_tE+0x15d) [0x7f1fb9e3cddd]
+ --- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn4prim9binary_ngERKN2tt8tt_metal6TensorES5_NS_10operations6binary12BinaryOpTypeERKSt8optionalIKNS2_8DataTypeEERKS9_INS2_12MemoryConfigEERKS9_IS3_ERKS9_IbESt4spanIKNS6_5unary19BasicUnaryWithParamIJfijEEELm18446744073709551615EESU_SU_S9_ISt7variantIJjifEEERKS9_INS2_12CoreRangeSetEERKS9_IN4ttsl10StrongTypeIhNS2_14SubDeviceIdTagEEEEffb+0xb93) [0x7f1fb9e2b443]
+ --- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(+0xc3f812) [0x7f1fb9e10812]
+ --- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn3addERKN2tt8tt_metal6TensorES4_RKSt8optionalIKNS1_8DataTypeEERKS5_INS1_12MemoryConfigEERKS5_IS2_ESt4spanIKNS_10operations5unary19BasicUnaryWithParamIJfijEEELm18446744073709551615EESO_SO_RKS5_INS1_12CoreRangeSetEERKS5_IN4ttsl10StrongTypeIhNS1_14SubDeviceIdTagEEEE+0x53) [0x7f1fb9dfc3d3]
+ --- tt::runtime::ttnn::operations::eltwise::binary::run(tt::target::ttnn::EltwiseBinaryOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > std::__invoke_impl<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&>(std::__invoke_other, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::optional<std::conditional<std::is_same_v<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, void>, std::monostate, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >::type> tt::pjrt::utils::invoke_noexcept<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >(std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::Execute(absl::lts_20230802::Span<std::vector<xla::PjRtBuffer*, std::allocator<xla::PjRtBuffer*> > const>, xla::ExecuteOptions const&, std::optional<std::vector<xla::PjRtFuture<void>, std::allocator<xla::PjRtFuture<void> > > >&)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteReplicated(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, absl::lts_20230802::Span<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const>, torch_xla::runtime::ComputationClient::ExecuteReplicatedOptions const&)
+ --- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6dff5bc) [0x7f20432835bc]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x116a4c12) [0x7f204db28c12]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x9caa4) [0x7f20c4b3daa4]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x129c6c) [0x7f20c4bcac6c]
+}
+
+Created device mesh: (1, 4) with 4 devices.
+FAILED
+
+=================================== FAILURES ===================================
+___________________________ test_transformer_sharded ___________________________
+tests/torch/models/HunyuanImage_2_1/test_transformer.py:48: in test_transformer_sharded
+    _run(sharded=True)
+tests/torch/models/HunyuanImage_2_1/test_transformer.py:73: in _run
+    run_graph_test(
+tests/infra/testers/single_chip/graph/graph_tester.py:74: in run_graph_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:73: in test
+    tt_res = self._device_runner.run_on_tt_device(tt_workload)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:30: in run_on_tt_device
+    return self.run_on_device(workload, DeviceType.TT, device_num)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:40: in run_on_device
+    return self._run_on_device(device_workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:136: in _run_on_device
+    return workload.execute()
+           ^^^^^^^^^^^^^^^^^^
+tests/infra/workloads/workload.py:71: in execute
+    return self.compiled_executable(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:465: in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:953: in compile_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+third_party/tt_forge_models/hunyuan_image_2_1/pytorch/loader.py:295: in forward
+    return self.transformer(
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/diffusers/utils/peft_utils.py:315: in wrapper
+    result = forward_fn(self, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/diffusers/models/transformers/transformer_hunyuanimage.py:853: in forward
+    hidden_states, encoder_hidden_states = block(
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/diffusers/models/transformers/transformer_hunyuanimage.py:492: in forward
+    def forward(
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:1181: in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:226: in __call__
+    return self._call_experimental_compile(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+python_package/tt_torch/backend/backend.py:201: in _call_experimental_compile
+    self.compiled_graph = bridge.extract_compiled_graph(
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:737: in extract_compiled_graph
+    return extract_compiled_graph_helper(xla_model, xla_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:826: in extract_compiled_graph_helper
+    torch_xla.sync(reset_scope=False)
+venv/lib/python3.12/site-packages/torch_xla/torch_xla.py:87: in sync
+    torch_xla._XLAC._xla_step_marker(
+E   RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+------------------------------ Captured log call -------------------------------
+WARNING  huggingface_hub.utils._http:_http.py:904 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+    warnings.warn(
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch_xla/runtime.py:213: UserWarning: XLA_USE_SPMD is being deprecated. Use torch_xla.runtime.use_spmd() without setting XLA_USE_SPMD env-var.
+    warnings.warn("XLA_USE_SPMD is being deprecated. "
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py: 38 warnings
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:2056: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+    torch._dynamo.utils.warn_once(msg)
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded - RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+================== 1 failed, 59 warnings in 946.53s (0:15:46) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+PYTEST_EXIT=1

@@ -1,0 +1,432 @@
+{
+  "components": {
+    "text_encoder": {
+      "inputs": {
+        "args": [],
+        "kwargs": {
+          "input_ids": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              1034
+            ],
+            "dtype": "torch.int64"
+          },
+          "attention_mask": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              1034
+            ],
+            "dtype": "torch.int64"
+          },
+          "output_hidden_states": {
+            "kind": "bool",
+            "repr": "True"
+          }
+        }
+      },
+      "outputs": {
+        "kind": "dict",
+        "fields": {
+          "logits": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              1034,
+              152064
+            ],
+            "dtype": "torch.bfloat16"
+          },
+          "past_key_values": {
+            "kind": "DynamicCache",
+            "repr": "DynamicCache(layers=[DynamicLayer, DynamicLayer, DynamicLayer, DynamicLayer, Dyn"
+          },
+          "hidden_states": {
+            "kind": "seq",
+            "items": [
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              },
+              {
+                "kind": "tensor",
+                "shape": [
+                  1,
+                  1034,
+                  3584
+                ],
+                "dtype": "torch.bfloat16"
+              }
+            ]
+          }
+        }
+      },
+      "calls": 1,
+      "params": 8292166656,
+      "class": "Qwen2_5_VLForConditionalGeneration"
+    },
+    "text_encoder_2": {
+      "inputs": null,
+      "outputs": null,
+      "calls": 0,
+      "params": 219314944,
+      "class": "T5EncoderModel"
+    },
+    "transformer": {
+      "inputs": {
+        "args": [],
+        "kwargs": {
+          "hidden_states": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              64,
+              2,
+              2
+            ],
+            "dtype": "torch.bfloat16"
+          },
+          "timestep": {
+            "kind": "tensor",
+            "shape": [
+              1
+            ],
+            "dtype": "torch.bfloat16"
+          },
+          "timestep_r": {
+            "kind": "tensor",
+            "shape": [
+              1
+            ],
+            "dtype": "torch.bfloat16"
+          },
+          "guidance": {
+            "kind": "tensor",
+            "shape": [
+              1
+            ],
+            "dtype": "torch.bfloat16"
+          },
+          "attention_kwargs": {
+            "kind": "dict",
+            "fields": {}
+          },
+          "return_dict": {
+            "kind": "bool",
+            "repr": "False"
+          },
+          "encoder_hidden_states": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              1000,
+              3584
+            ],
+            "dtype": "torch.bfloat16"
+          },
+          "encoder_attention_mask": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              1000
+            ],
+            "dtype": "torch.int64"
+          },
+          "encoder_hidden_states_2": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              128,
+              1472
+            ],
+            "dtype": "torch.bfloat16"
+          },
+          "encoder_attention_mask_2": {
+            "kind": "tensor",
+            "shape": [
+              1,
+              128
+            ],
+            "dtype": "torch.int64"
+          }
+        }
+      },
+      "outputs": {
+        "kind": "seq",
+        "items": [
+          {
+            "kind": "tensor",
+            "shape": [
+              1,
+              64,
+              2,
+              2
+            ],
+            "dtype": "torch.bfloat16"
+          }
+        ]
+      },
+      "calls": 2,
+      "params": 17453334976,
+      "class": "HunyuanImageTransformer2DModel"
+    },
+    "vae": {
+      "inputs": null,
+      "outputs": null,
+      "calls": 0,
+      "params": 405575491,
+      "class": "AutoencoderKLHunyuanImage"
+    }
+  },
+  "denoise_steps_observed": 2,
+  "errors": []
+}

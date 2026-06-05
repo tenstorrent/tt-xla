@@ -1,0 +1,39 @@
+{
+  "component": "text_encoder",
+  "model": "Qwen2.5-VL-7B language_model (Qwen2_5_VLTextModel, model_type=qwen2_5_vl_text)",
+  "arch": "n300-llmbox (Wormhole), mesh (1,4), fp32, 7.07 GiB/chip",
+  "memory_fit": "PASS — compiles + executes end-to-end, no OOM",
+  "diagnosed_at": "2026-06-05",
+  "verdict": "Shard spec is CORRECT & complete. Catastrophic PCC is caused by SHARDED ATTENTION under SPMD, not the partition_spec. Not a loader-fixable bug — needs a compiler/SPMD fix for head-sharded repeat_kv + M-RoPE reshapes, OR ship MLP-only TP (~0.96).",
+  "experiments": [
+    {
+      "id": "iter_1_full_megatron",
+      "spec": "q/k/v/gate/up=(model,batch); o/down=(batch,model); norms=(batch,)",
+      "pcc": 0.27736377316915883,
+      "log": "logs/text_encoder_iter_1_first_run_tp.log"
+    },
+    {
+      "id": "iter_2_mlp_only",
+      "spec": "attention q/k/v/o REPLICATED; only MLP gate/up/down sharded (env HUNYUAN_TE_MLP_ONLY=1)",
+      "pcc": 0.9637695434799857,
+      "log": "logs/text_encoder_iter_2_mlp_only.log",
+      "interpretation": "PCC recovers from 0.277 -> 0.964 -> attention sharding is the dominant corruption; MLP sharding is correct."
+    }
+  ],
+  "spec_validation": "shard_text_encoder_specs is byte-for-byte identical to the known-good llama/causal_lm and qwen_3/causal_lm Megatron specs. Divisibility OK at 4-way: 28 q heads/4=7, 4 kv heads/4=1, hidden 3584/4=896, intermediate 18944/4=4736. GQA groups align contiguously (chip i: q heads 7i..7i+6 + kv head i).",
+  "root_cause": {
+    "summary": "torch-xla/Shardy mispropagates sharding through two attention reshapes on the head-sharded q/k tensors.",
+    "ops": [
+      {"fn": "repeat_kv", "file": "transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py:170", "issue": "expand+reshape [bs,4,seq,d]->[bs,28,seq,d] on the SPMD-sharded kv-head dim; sharding not tracked through expand/merge."},
+      {"fn": "apply_multimodal_rotary_pos_emb", "file": "transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py:627", "issue": "M-RoPE split/cat on head_dim with mrope_section [16,24,24]; cos/sin broadcast over sharded head dim."}
+    ],
+    "why_not_llama": "llama/qwen3 references use standard RoPE (rope_scaling=None) and pass with the identical spec. This model adds M-RoPE (mrope_section [16,24,24]) + GQA — the qwen2_5_vl-specific attention path."
+  },
+  "residual_gap": "Even MLP-only lands at 0.9637 < 0.99. Remaining ~0.026 is device fp32 matmul/all-reduce numerics (down_proj cross-shard sum) + baseline device PCC of the replicated attention stack — an op-level/runtime-numeric issue, NOT shard spec.",
+  "recommendations": [
+    {"option": "Escalate full attention TP", "action": "File torch-xla/tt-mlir SPMD issue: head-sharded repeat_kv (expand+reshape) + M-RoPE reshape mispropagation for qwen2_5_vl. Blocks correct 4-way attention TP."},
+    {"option": "Ship MLP-only TP", "action": "Replicate q/k/v/o, shard MLP only (HUNYUAN_TE_MLP_ONLY=1). Fits memory (~9 GiB/chip fp32). Currently 0.9637 — still under 0.99 bar; needs the residual numeric gap closed (runtime-failure-debugger, op-level PCC) before it passes."},
+    {"option": "Move to p150 single-device", "action": "weight_fit: text_encoder fits single-chip on p150 (Blackhole, 32 GiB) at fp32/bf16 — sidesteps all TP sharding. Original eligible_arch. Test already skips TP on that path (test_text_encoder)."}
+  ],
+  "loader_change": "Added env-gated DIAGNOSTIC branch HUNYUAN_TE_MLP_ONLY in shard_text_encoder_specs (default off = original full Megatron spec). Reversible; no change to default behavior."
+}

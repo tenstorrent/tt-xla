@@ -1,0 +1,139 @@
+{
+  "model_key": "hunyuan_image_2_1 (pipeline components)",
+  "hf_repo": "hunyuanvideo-community/HunyuanImage-2.1-Distilled-Diffusers",
+  "param_estimate_source": "loader",
+  "components": [
+    {
+      "name": "text_encoder",
+      "num_params": 7070619136,
+      "weight_bytes_fp32": 28282476544,
+      "weight_bytes_bf16": 14141238272,
+      "activation_class": "text_encoder",
+      "eligible_archs": [
+        "p150"
+      ],
+      "p150_only": true,
+      "parallelism_mode": "single_device",
+      "single_device_only": false,
+      "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12884901888,
+          "budget_bytes": 10952166604,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        }
+      },
+      "supported_archs": []
+    },
+    {
+      "name": "text_encoder_2",
+      "num_params": 219314944,
+      "weight_bytes_fp32": 877259776,
+      "weight_bytes_bf16": 438629888,
+      "activation_class": "text_encoder",
+      "eligible_archs": [
+        "n150",
+        "p150"
+      ],
+      "p150_only": false,
+      "parallelism_mode": "single_device",
+      "single_device_only": true,
+      "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder_2.py::test_text_encoder_2",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12884901888,
+          "budget_bytes": 10952166604,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        }
+      },
+      "supported_archs": []
+    },
+    {
+      "name": "transformer",
+      "num_params": 17453334976,
+      "weight_bytes_fp32": 69813339904,
+      "weight_bytes_bf16": 34906669952,
+      "activation_class": "image",
+      "eligible_archs": [],
+      "p150_only": false,
+      "parallelism_mode": "tensor_parallel",
+      "single_device_only": false,
+      "test_path": "tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12884901888,
+          "budget_bytes": 10952166604,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": false,
+          "fits_bf16": false,
+          "weight_predicted": true
+        }
+      },
+      "supported_archs": []
+    },
+    {
+      "name": "vae",
+      "num_params": 405575491,
+      "weight_bytes_fp32": 1622301964,
+      "weight_bytes_bf16": 811150982,
+      "activation_class": "vae",
+      "eligible_archs": [
+        "n150",
+        "p150"
+      ],
+      "p150_only": false,
+      "parallelism_mode": "single_device",
+      "single_device_only": true,
+      "test_path": "tests/torch/models/HunyuanImage_2_1/test_vae_decoder.py::test_vae_decoder",
+      "per_arch": {
+        "n150": {
+          "dram_gib": 12,
+          "dram_bytes": 12884901888,
+          "budget_bytes": 10952166604,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        },
+        "p150": {
+          "dram_gib": 32,
+          "dram_bytes": 34359738368,
+          "budget_bytes": 29205777612,
+          "fits_fp32": true,
+          "fits_bf16": true,
+          "weight_predicted": false
+        }
+      },
+      "supported_archs": []
+    }
+  ]
+}

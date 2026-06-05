@@ -1,0 +1,85 @@
+ENV TT_XLA_ARCH=n300-llmbox TT_VISIBLE_DEVICES=0,1 TT_XLA_SPMD=1 CONVERT_SHLO_TO_SHARDY=1
+2026-06-05 09:23:36.589 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-141-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'split': '0.11.0', 'anyio': '4.13.0', 'forked': '1.6.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.10'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, split-0.11.0, anyio-4.13.0, forked-1.6.0, metadata-3.1.1, jaxtyping-0.3.10
+collecting ... collected 1 item
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/728 [00:00<?, ?it/s]Loading weights:   0%|          | 1/728 [00:00<01:45,  6.89it/s]Loading weights:   9%|▊         | 63/728 [00:00<00:02, 291.16it/s]Loading weights:  14%|█▎        | 99/728 [00:00<00:02, 306.50it/s]Loading weights:  18%|█▊        | 132/728 [00:00<00:01, 310.26it/s]Loading weights:  23%|██▎       | 165/728 [00:00<00:01, 312.93it/s]Loading weights:  27%|██▋       | 198/728 [00:00<00:01, 295.43it/s]Loading weights:  32%|███▏      | 231/728 [00:00<00:01, 297.16it/s]Loading weights:  37%|███▋      | 267/728 [00:00<00:01, 309.29it/s]Loading weights:  41%|████      | 299/728 [00:01<00:01, 302.28it/s]Loading weights:  45%|████▌     | 330/728 [00:01<00:01, 285.17it/s]Loading weights:  84%|████████▍ | 610/728 [00:01<00:00, 979.10it/s]Loading weights: 100%|██████████| 728/728 [00:01<00:00, 559.01it/s]
+[1mQwen2_5_VLModel LOAD REPORT[0m from: hunyuanvideo-community/HunyuanImage-2.1-Distilled-Diffusers
+Key            | Status     |  | 
+---------------+------------+--+-
+lm_head.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+2026-06-05 09:23:45.356 | critical |          Always | TT_FATAL: Chip 0 logical eth core 0-7 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-7) on chip 0
+2026-06-05 09:23:45.390 | critical |          Always | TT_FATAL: Chip 0 logical eth core 0-6 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-6) on chip 0
+2026-06-05 09:23:45.425 | critical |          Always | TT_FATAL: Chip 1 logical eth core 0-1 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-1) on chip 1
+2026-06-05 09:23:45.459 | critical |          Always | TT_FATAL: Chip 1 logical eth core 0-0 connects to a remote mmio device (assert.hpp:104)
+[32m                 Always[0m | [1m[38;5;208m WARNING[0m | Skipping ethernet core (0-0) on chip 1
+2026-06-05 09:23:45.921761: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Created device mesh: (1, 4) with 4 devices.
+FAILED
+
+=================================== FAILURES ===================================
+__________________________ test_text_encoder_sharded ___________________________
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py:50: in test_text_encoder_sharded
+    _run(sharded=True)
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py:72: in _run
+    run_graph_test(
+tests/infra/testers/single_chip/graph/graph_tester.py:74: in run_graph_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:73: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.27736377316915883. Required: pcc=0.99.
+------------------------------ Captured log call -------------------------------
+WARNING  huggingface_hub.utils._http:_http.py:904 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch_xla/runtime.py:213: UserWarning: XLA_USE_SPMD is being deprecated. Use torch_xla.runtime.use_spmd() without setting XLA_USE_SPMD env-var.
+    warnings.warn("XLA_USE_SPMD is being deprecated. "
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.27736377316915883. Required: pcc=0.99.
+================== 1 failed, 20 warnings in 288.96s (0:04:48) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+PYTEST_EXIT=1

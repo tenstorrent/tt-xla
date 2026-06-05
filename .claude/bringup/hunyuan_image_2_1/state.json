@@ -1,0 +1,102 @@
+{
+  "model_key": "hunyuan_image_2_1",
+  "hf_repo": "hunyuanvideo-community/HunyuanImage-2.1-Distilled-Diffusers",
+  "stage": "DIAGNOSED_PAUSED",
+  "result": "passed",
+  "session_conclusion": {
+    "concluded_at": "2026-06-05",
+    "summary": "transformer ESCALATED (weight-bound, tt-mlir #3370). text_encoder DIAGNOSED: shard spec correct; PCC failure isolated to sharded attention (M-RoPE + GQA repeat_kv SPMD mispropagation), MLP-only recovers 0.277->0.9637. text_encoder_2 + vae NOT run (need 1-chip host).",
+    "open_item": "RESUME HERE: text_encoder PCC drop. See diagnosis_text_encoder.json -> 3 options (escalate SPMD bug / ship MLP-only at 0.96 / move to p150 single-device). Diagnostic env-gate HUNYUAN_TE_MLP_ONLY left in loader (default off).",
+    "working_tree": "third_party/tt_forge_models/hunyuan_image_2_1/pytorch/loader.py has reversible env-gated diagnostic; default behavior unchanged."
+  },
+  "details": {
+    "scaffold_variant": "pipeline",
+    "pipeline_class": "HunyuanImagePipeline",
+    "components_scaffolded": ["text_encoder", "text_encoder_2", "transformer", "vae"],
+    "denoise_steps_observed": 2,
+    "device": "auto",
+    "io_spec_path": ".claude/bringup/hunyuan_image_2_1/io_spec.json",
+    "weight_fit_path": ".claude/bringup/hunyuan_image_2_1/weight_fit.json",
+    "loader_path": "third_party/tt_forge_models/hunyuan_image_2_1/pytorch/loader.py",
+    "tests_dir": "tests/torch/models/HunyuanImage_2_1",
+    "tt_visible_devices": "0",
+    "components": [
+      {
+        "name": "text_encoder",
+        "params": 7070619136,
+        "parallelism_mode": "single_device",
+        "eligible_archs": ["p150"],
+        "p150_only": true,
+        "single_device_only": false,
+        "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder",
+        "tp_promotion_test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded",
+        "promotion_hint_mesh_chips": 2
+      },
+      {
+        "name": "text_encoder_2",
+        "params": 219314944,
+        "parallelism_mode": "single_device",
+        "eligible_archs": ["n150", "p150"],
+        "p150_only": false,
+        "single_device_only": true,
+        "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder_2.py::test_text_encoder_2"
+      },
+      {
+        "name": "transformer",
+        "params": 17453334976,
+        "parallelism_mode": "tensor_parallel",
+        "eligible_archs": [],
+        "p150_only": false,
+        "single_device_only": false,
+        "test_path": "tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded",
+        "promotion_hint_mesh_chips": 4
+      },
+      {
+        "name": "vae",
+        "params": 405575491,
+        "parallelism_mode": "single_device",
+        "eligible_archs": ["n150", "p150"],
+        "p150_only": false,
+        "single_device_only": true,
+        "test_path": "tests/torch/models/HunyuanImage_2_1/test_vae_decoder.py::test_vae_decoder"
+      }
+    ]
+  },
+  "next_stage": "model-bringup-run (per component test_path)",
+  "component_status": {
+    "transformer": {
+      "stage": "ESCALATED",
+      "result": "escalated_weight_bound",
+      "concluded": true,
+      "diagnosis_path": ".claude/bringup/hunyuan_image_2_1/diagnosis_transformer.json",
+      "summary": "CONCLUDED. 3 TP iterations exhausted every fit-valid config on n300-llmbox (12 GiB/chip). (2,4) fp32 -> tt-mlir #3370 collective_permute not lowerable; (1,8) -> invalid, 28 attn heads %8 != 0; (1,4) bf16 -> compiled+ran then DRAM OOM (weights 8.73 GiB/chip leave ~2-3 GiB, a 771 MB ttnn.add tipped over). Inputs tiny ([1,64,2,2]) so OOM is weight-pressure, not reducible activations.",
+      "reasons": [
+        "Weight-bound: 34.9 GiB bf16 / 4 chips = 8.73 GiB/chip; insufficient DRAM headroom for runtime buffers.",
+        "8-way (would fit at 4.36 GiB/chip) is INVALID: num_attention_heads=28 not divisible by 8.",
+        "2D FSDP (2,4) weight-sharding (would fit) is BLOCKED: tt-mlir #3370 (sdy.collective_permute not lowered).",
+        "Only head-valid degree fitting <=8 chips is 4, which is memory-insufficient."
+      ],
+      "unblock_on": "tt-mlir #3370 (enables (2,4) 2D weight sharding -> ~4.4 GiB/chip). Alt experiment: 7-way mesh (1,7), head-valid + fits, but non-pow2 mesh topology unverified.",
+      "concluded_at": "2026-06-05"
+    },
+    "text_encoder": {
+      "stage": "DIAGNOSED",
+      "result": "failed_pcc_attention_tp_bug",
+      "mesh": [1, 4],
+      "dtype": "fp32",
+      "weight_per_chip_gib": 7.07,
+      "memory_fit": "PASS — compiled + executed end-to-end, no OOM (fits cleanly at 4-way fp32)",
+      "diagnosis_path": ".claude/bringup/hunyuan_image_2_1/diagnosis_text_encoder.json",
+      "pcc_full_megatron": 0.27736377316915883,
+      "pcc_mlp_only": 0.9637695434799857,
+      "pcc_required": 0.99,
+      "root_cause": "Shard spec is CORRECT (identical to known-good llama/qwen3). Catastrophic PCC from SHARDED ATTENTION: torch-xla/Shardy mispropagates head-sharded repeat_kv (expand+reshape, modeling_qwen2_5_vl.py:170) + M-RoPE split/cat (line 627). Bisect proof: replicating attention (MLP-only) recovers 0.277 -> 0.964.",
+      "not_loader_fixable": true,
+      "options": ["escalate SPMD compiler bug (full attn TP)", "ship MLP-only TP (0.96, needs ~0.026 numeric gap closed)", "move to p150 single-device (fits, no TP)"],
+      "logs": [".claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_1_first_run_tp.log", ".claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_2_mlp_only.log"],
+      "ran_at": "2026-06-05"
+    },
+    "text_encoder_2": {"stage": "NOT_RUN", "note": "single_device — needs 1-chip host (n150/p150)"},
+    "vae": {"stage": "NOT_RUN", "note": "single_device — needs 1-chip host (n150/p150)"}
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "scaffold_variant": "pipeline",
+  "hf_repo": "hunyuanvideo-community/HunyuanImage-2.1-Distilled-Diffusers",
+  "family": "hunyuan_image_2_1",
+  "tests_dir": "tests/torch/models/HunyuanImage_2_1",
+  "variant_prefix": "",
+  "pipeline_class": "HunyuanImagePipeline",
+  "denoising_steps_default": 50,
+  "capture": {
+    "strategy": "runtime forward hooks (register_forward_pre_hook/forward_hook with_kwargs) + vae.decode wrapper; no installed-package source mutation",
+    "log": ".claude/bringup/hunyuan_image_2_1/capture.log",
+    "io_spec": ".claude/bringup/hunyuan_image_2_1/io_spec.json",
+    "resolution": "64x64 (shapes only); production latent derived as image/32"
+  },
+  "components": [
+    {
+      "name": "text_encoder",
+      "class": "Qwen2_5_VLForConditionalGeneration",
+      "returns": "language_model (Qwen2.5-VL text stack; vision tower dropped)",
+      "params_estimate": 7600000000,
+      "source": "transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py",
+      "subfolder": "text_encoder"
+    },
+    {
+      "name": "text_encoder_2",
+      "class": "T5EncoderModel",
+      "returns": "ByT5 glyph encoder",
+      "params_estimate": 220000000,
+      "source": "transformers/models/t5/modeling_t5.py",
+      "subfolder": "text_encoder_2"
+    },
+    {
+      "name": "transformer",
+      "class": "HunyuanImageTransformer2DModel",
+      "returns": "hybrid MM-DiT (20 dual-stream + 40 single-stream blocks, hidden 3584)",
+      "params_estimate": 17450000000,
+      "source": "diffusers/models/transformers/transformer_hunyuanimage.py",
+      "subfolder": "transformer"
+    },
+    {
+      "name": "vae",
+      "class": "AutoencoderKLHunyuanImage",
+      "returns": "32x spatial-compression image VAE (decoder used)",
+      "params_estimate": 410000000,
+      "source": "diffusers/models/autoencoders/autoencoder_kl_hunyuanimage.py",
+      "subfolder": "vae"
+    }
+  ],
+  "total_params_estimate": 25680000000,
+  "transformer_forward_signature": "(hidden_states, timestep, encoder_hidden_states, encoder_attention_mask, timestep_r=None, encoder_hidden_states_2=None, encoder_attention_mask_2=None, guidance=None, attention_kwargs=None, return_dict=True)",
+  "note": "params_estimate values are refined to exact numel counts from capture (io_spec.json) before weight_fit.json is finalized."
+}
