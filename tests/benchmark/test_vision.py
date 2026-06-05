@@ -466,7 +466,7 @@ def test_mobilenetv2_035_96(output_file, request):
 
     # Configuration
     data_format = torch.bfloat16
-    batch_size = 4
+    batch_size = 8
     input_size = (3, 96, 96)
 
     # Load model
