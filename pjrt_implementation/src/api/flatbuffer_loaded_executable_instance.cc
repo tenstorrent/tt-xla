@@ -9,6 +9,7 @@
 #include "tracy/Tracy.hpp"
 
 // tt-mlir includes
+#include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 
 // tt-xla includes
@@ -126,6 +127,22 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return tt_pjrt_status::kInternal;
   }
 
+  FlatbufferExecutableImage *executable_image =
+      static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+
+  // Set the device runtime based on the flatbuffer binary format so the
+  // runtime dispatches to the correct backend (TTNN vs TTMetal). Only do this
+  // for the TTMetal path: the default runtime is already TTNN, and calling
+  // `setCompatibleDeviceRuntime` on a binary whose identifier is not plain
+  // TTNN/TTMetal (e.g. in distributed mode where
+  // `TT_RUNTIME_ENABLE_DISTRIBUTED=1` is set) would `LOG_FATAL` and abort the
+  // subprocess, surfacing as a SIGSEGV in the multi-host pytest runner.
+  if (executable_image->getCompileOptions().backend ==
+      BackendRuntime::TTMetalFlatbuffer) {
+    tt::runtime::setCompatibleDeviceRuntime(
+        executable_image->getFlatbufferBinary());
+  }
+
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
@@ -148,9 +165,6 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
       return status;
     }
   } else {
-    FlatbufferExecutableImage *executable_image =
-        static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
-
     auto r = utils::invoke_noexcept(tt::runtime::submit, *runtime_device,
                                     executable_image->getFlatbufferBinary(),
                                     program_index, input_tensors);

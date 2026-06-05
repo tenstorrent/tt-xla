@@ -9,7 +9,8 @@
 
 # ----- TTPJRTApi -----
 # Static lib containing core PJRT API implementation: handling device/client/buffer/etc.
-# Depends on: TTMLIRCompiler, TTMLIRRuntime, TTPJRTUtils, coverage_config, protobuf::libprotobuf
+# Depends on: TTMLIRCompiler, TTMLIRRuntime, MLIRD2MPipelines,
+# TTPJRTUtils, coverage_config, protobuf::libprotobuf
 
 find_package(Protobuf REQUIRED)
 
@@ -60,6 +61,7 @@ PRIVATE
     protobuf::libprotobuf
     TTMLIRCompiler
     TTMLIRRuntime
+    MLIRD2MPipelines
 PUBLIC
     TTPJRTUtils
 )

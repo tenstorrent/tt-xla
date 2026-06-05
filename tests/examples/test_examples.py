@@ -28,6 +28,8 @@ XFAIL_FILES: dict[str, str] = {
     "jax/codegen/python/emitpy_execute.py": "Broken by a change in EmitPy, fix tracked at https://github.com/tenstorrent/tt-mlir/issues/8325",
     "pytorch/olmo3_1025_7b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
     "pytorch/mistral_8b.py": "Failing with Device count mismatch: 1 vs 2 - Related #4624",
+    "pytorch/d2m/add_smoke.py": "D2M / TTMetal backend bringup demo, not yet stable in CI",
+    "pytorch/d2m/mlp_mixer_e2e.py": "D2M / TTMetal backend bringup demo, not yet stable in CI",
 }
 
 

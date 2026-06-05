@@ -65,6 +65,9 @@ class TTConfig:
     # Optimization level for tt-mlir compilation.
     optimization_level: int = 0
 
+    # Optional compiler backend override, e.g. "ttmetal_flatbuffer" for D2M.
+    backend: str = ""
+
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
@@ -132,6 +135,8 @@ class TTConfig:
             "enable_trace": "true" if self.enable_trace else "false",
             "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
+        if self.backend:
+            cfg["backend"] = self.backend
         if self.export_path:
             cfg["export_path"] = self.export_path
         if self.export_model_name:

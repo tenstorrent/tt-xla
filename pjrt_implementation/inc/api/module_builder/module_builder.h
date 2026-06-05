@@ -223,8 +223,25 @@ private:
       const CompileOptions &compile_options, ClientInstance *client_instance,
       std::vector<std::uint32_t> devices_mesh_shape, std::string &ttnn_code);
 
+  // Converts TTIR module to TTMetal module.
+  tt_pjrt_status
+  convertFromTTIRToTTMetal(const std::string &system_descriptor_path,
+                           mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+                           const CompileOptions &compile_options,
+                           std::vector<std::uint32_t> devices_mesh_shape,
+                           std::string &ttmetal_code);
+
   // Creates flatbuffer binary from the built TTNN module.
   tt_pjrt_status createFlatbufferBinary(
+      const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &input_shardings,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings,
+      tt::runtime::Binary &flatbuffer_binary);
+
+  // Creates flatbuffer binary from the built TTMetal module.
+  tt_pjrt_status createTTMetalFlatbufferBinary(
       const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<mlir::tt::sharding_utils::MeshSharding>
           &input_shardings,
@@ -295,6 +312,7 @@ private:
   // the vector of tt_mlir Sharding with the appropriate corresponding values.
   static mlir::LogicalResult createShardingsFromGSPMD(
       const std::vector<mlir::StringAttr> &gspmd_attributes,
+      mlir::tt::ttcore::MeshShardDirection shard_direction,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Takes a vector of Shardy sharding attributes, the overall Shardy mesh and
@@ -303,6 +321,7 @@ private:
   static mlir::LogicalResult createShardingsFromShardy(
       std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
       const mlir::sdy::MeshAttr &shardy_mesh,
+      mlir::tt::ttcore::MeshShardDirection shard_direction,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings);
 
   // Collects memory kinds for output buffers.
@@ -320,6 +339,24 @@ private:
       mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       std::string &&original_mlir_code, std::string &&ttir_mlir,
       std::string &&ttnn_mlir, std::string &&executable_name,
+      NumArgumentsResult &&num_arguments,
+      const NumDevicesResult &num_devices_result,
+      const std::vector<std::uint32_t> &mesh_shape,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &input_shardings,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings,
+      const std::vector<PJRT_Buffer_Type> &output_types,
+      std::vector<const char *> &&output_memory_kinds,
+      std::vector<size_t> &&output_memory_kinds_sizes,
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
+
+  // Builds module for TTMetal Flatbuffer backend runtime.
+  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
+  buildModuleForTTMetalRuntime(
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      std::string &&original_mlir_code, std::string &&ttir_mlir,
+      std::string &&ttmetal_mlir, std::string &&executable_name,
       NumArgumentsResult &&num_arguments,
       const NumDevicesResult &num_devices_result,
       const std::vector<std::uint32_t> &mesh_shape,

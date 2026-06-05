@@ -17,6 +17,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.debug.profiler as xp
 import torch_xla.runtime as xr
 import vllm.envs as envs
+from pjrt_plugin_tt import set_backend
 from vllm.config import VllmConfig, set_current_vllm_config
 from vllm.distributed import (
     ensure_model_parallel_initialized,
@@ -66,6 +67,9 @@ class TTWorker:
         self.parallel_config = vllm_config.parallel_config
 
         self.tt_config = TTConfig(**vllm_config.additional_config)
+        if self.tt_config.backend == "ttmetal_flatbuffer":
+            set_backend("ttmetal")
+
         enable_data_parallel = self.tt_config.enable_data_parallel
         enable_tensor_parallel = self.tt_config.enable_tensor_parallel
 

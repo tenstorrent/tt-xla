@@ -189,17 +189,20 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     input_tensors.push_back(*prepared_tensor);
 
-    // Safety check to ensure no input tensor can be accidentally
-    //  deallocated during execution, as it may be reused in a future graph.
-    if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
-                   "be deallocated during execution.");
-      return tt_pjrt_status::kInternal;
-    }
-    if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
-                   "means it was deallocated by a previous operation.");
-      return tt_pjrt_status::kInternal;
+    // Safety checks that rely on TTNN-specific runtime APIs (retain tracking
+    // and allocation status). Skip for runtimes that don't implement them.
+    if (tt::runtime::getCurrentDeviceRuntime() ==
+        tt::runtime::DeviceRuntime::TTNN) {
+      if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
+                     "be deallocated during execution.");
+        return tt_pjrt_status::kInternal;
+      }
+      if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
+        LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
+                     "means it was deallocated by a previous operation.");
+        return tt_pjrt_status::kInternal;
+      }
     }
   }
   return tt_pjrt_status::kSuccess;
@@ -213,7 +216,7 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) const {
       m_executable_image->getOutputSharding(output_index);
 
   if (output_sharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Identity ||
+          mlir::tt::ttcore::MeshShardType::Maximal ||
       output_sharding.getShardType() ==
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return output_shape;
@@ -259,6 +262,11 @@ tt_pjrt_status LoadedExecutableInstance::createDefaultOutputBuffers(
         data_type_utils::convertPJRTToRuntimeDataType(output_type);
     std::uint32_t element_size =
         tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+    size_t output_volume =
+        std::accumulate(output_shape->begin(), output_shape->end(), size_t(1),
+                        std::multiplies<>());
+    size_t output_size_bytes = output_volume * element_size;
+    std::vector<std::byte> zero_data(output_size_bytes);
 
     // Row-major strides: last stride is 1, each preceding stride is the
     // product of all following dimension sizes.
@@ -271,7 +279,8 @@ tt_pjrt_status LoadedExecutableInstance::createDefaultOutputBuffers(
     std::optional<tt::runtime::Tensor> host_tensor;
     if (!isCompileOnly()) {
       host_tensor = tt::runtime::createOwnedHostTensor(
-          nullptr, *output_shape, strides, element_size, runtime_data_type);
+          zero_data.data(), *output_shape, strides, element_size,
+          runtime_data_type);
     }
 
     std::vector<BufferInstance *> shards;
@@ -373,7 +382,7 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
       strategy["mesh_shape_y"] = std::to_string(mesh_shape_data[0]);
       strategy["mesh_shape_x"] = std::to_string(mesh_shape_data[1]);
     }
-  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
+  } else if (meshType == mlir::tt::ttcore::MeshShardType::Maximal) {
     strategy["strategy"] = "identity";
   } else {
     return mlir::failure();
