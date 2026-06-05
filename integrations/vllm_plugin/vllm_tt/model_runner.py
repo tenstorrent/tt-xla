@@ -18,7 +18,7 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
-from tt_torch.composite_ops import composite_topk
+from tt_torch.composite_ops import composite_topk, composite_topk_indices
 from tt_torch.sharding import sharding_constraint_tensor
 from tt_torch.utils import torch_dynamo_tt_device_compatibility
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
@@ -2439,7 +2439,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_generators
         ):
             if self.is_sharded_compute_logits:
-                _, out_tokens = composite_topk(
+                # Use indices-only variant: the two-output composite_topk with
+                # a discarded values output crashes torch_xla's
+                # BuildStableHLOCompositePass.
+                out_tokens = composite_topk_indices(
                     logits, k=1, dim=-1, largest=True, sorted=False
                 )
             else:
