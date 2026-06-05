@@ -237,8 +237,8 @@ def test_mobilenetv2_035_96_hf(output_file, request):
         batch_size=batch_size,
         input_size=input_size,
         data_format=data_format,
-        optimization_level=0,
-        trace_enabled=False,
+        optimization_level=2,
+        trace_enabled=True,
     )
 
 
