@@ -1746,6 +1746,34 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+def _gpt_oss_20b_tp_stream_shard_spec_fn(model_loader, model):
+    # TP (tensor-parallel) expert MLP for the streaming backend: keep ALL experts on
+    # every device (expert dim replicated) and slice each expert's weights instead --
+    # gate_up column-parallel (2*intermediate output), down row-parallel (intermediate
+    # input) with an all-reduce after down. This lets the DRAM-streaming kernel select
+    # the global top-k on each device with no per-device expert selection. Attention
+    # sharding is unchanged from the dense baseline.
+    # Zero-pad the expert intermediate so the TP weight-slice tile-aligns (2880 -> 3072
+    # for 8 devices); must run before sharding since SPMD can't make a non-tile-aligned
+    # shard. Padding contributes 0 through the clamped-GLU, so no masking.
+    from tt_torch.moe_stream import pad_gptoss_experts_for_tp_stream
+
+    pad_gptoss_experts_for_tp_stream(model, num_model_devices=8)
+    shard_specs = {}
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = (None,)
+        shard_specs[layer.mlp.router.weight] = (None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj] = (None, None, "model")
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (None, "model")
+        shard_specs[layer.mlp.experts.down_proj] = (None, "model", None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = (None, None)
+    return shard_specs
+
+
 # Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/issues/4192)
 def test_gpt_oss_20b_tp(
     output_file,
@@ -1854,6 +1882,47 @@ def test_gpt_oss_20b_tp_batch_size_1(
         batch_size=batch_size if batch_size is not None else 1,
         optimization_level=1,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+    )
+
+
+def test_gpt_oss_20b_tp_batch_size_1_stream(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    # Low-batch streaming MoE: streams only the top-k selected experts per token
+    # (b1-style DRAM streaming) instead of computing all 32. Uses the TP expert-MLP
+    # sharding so every device holds all experts (weights sliced) and the streaming
+    # kernel selects the global top-k. Target: beat the dense baseline's decode
+    # samples/s (same fixed comparison point).
+    from tt_torch import TT_MOE_STREAM_BACKEND_NAME
+
+    from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GPT_OSS_20B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
+        shard_spec_fn=_gpt_oss_20b_tp_stream_shard_spec_fn,
+        batch_size=batch_size if batch_size is not None else 1,
+        optimization_level=1,
+        experts_implementation=TT_MOE_STREAM_BACKEND_NAME,
+        trace_enabled=True,
     )
 
 

@@ -74,6 +74,7 @@
 #include "api/module_builder/frontend_passes/shlo_clean_for_xla_ingestion.h"
 #include "api/module_builder/frontend_passes/shlo_input_role_propagation.h"
 #include "api/module_builder/frontend_passes/shlo_set_proper_sdy_mesh_attribute.h"
+#include "api/module_builder/tt_lang_bridge.h"
 #include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
@@ -376,6 +377,61 @@ ModuleBuilder::buildModule(
     }
   }
 
+  // tt-lang/torch-xla fix: collectResultPresharded() marks these outputs as
+  // pre-sharded (always so for torch-xla) and the stablehlo pipeline stamps the
+  // IR with ttcore.shard_status<presharded>, but collectOutputShardings() builds
+  // the MeshSharding objects with ShardStatus::Unsharded. That inconsistency
+  // makes checkOutputShardingShapes() divide a per-device (local) output shape
+  // by the global shard grid (e.g. KV-cache dim 1: local 1 vs grid 8) and
+  // wrongly reject batch=1 TP runs; it would also gather presharded outputs at
+  // runtime. Reconcile the status so the verifier and the runtime both treat
+  // these outputs as already per-device.
+  if (output_shardings.size() == result_presharded.size()) {
+    for (size_t i = 0; i < output_shardings.size(); ++i) {
+      if (!result_presharded[i]) {
+        continue;
+      }
+      const mlir::tt::sharding_utils::MeshSharding sharding = output_shardings[i];
+      // (1) Mark the output pre-sharded so checkOutputShardingShapes() and the
+      // runtime (loaded_executable_instance) treat it as already per-device
+      // instead of dividing a per-device shape by the global shard grid.
+      if (sharding.getShardStatus() !=
+          mlir::tt::ttcore::ShardStatus::Presharded) {
+        output_shardings[i] = mlir::tt::sharding_utils::MeshSharding(
+            sharding.getShardDirection(), sharding.getShardType(),
+            sharding.getShardShape(), sharding.getShardDims(),
+            sharding.getMeshShape(), sharding.getDeviceIds(),
+            mlir::tt::ttcore::ShardStatus::Presharded);
+      }
+      // (2) The compiled flatbuffer (forward_device func) emits per-device
+      // output shapes, so the dimensions reported to PJRT must be per-device
+      // too. collectNumArguments() ran before the sharding pipeline and recorded
+      // the global shape, so divide each dim by the shard-grid extent here. This
+      // keeps output_dimensions consistent with the flatbuffer output specs
+      // (checked in executable_image.cc) and with what the runtime returns.
+      const llvm::SmallVector<int64_t> &shard_shape = sharding.getShardShape();
+      if (i < num_arguments.output_dimensions.size() &&
+          shard_shape.size() == num_arguments.output_dimensions[i].size()) {
+        for (size_t d = 0; d < shard_shape.size(); ++d) {
+          std::uint32_t extent = static_cast<std::uint32_t>(shard_shape[d]);
+          if (extent > 0 &&
+              num_arguments.output_dimensions[i][d] % extent == 0) {
+            num_arguments.output_dimensions[i][d] /= extent;
+          }
+        }
+      }
+    }
+    // Rebuild the flattened view so it matches the adjusted per-output dims.
+    num_arguments.output_dimensions_flat.clear();
+    for (const std::vector<std::uint32_t> &dims :
+         num_arguments.output_dimensions) {
+      for (std::uint32_t dim : dims) {
+        num_arguments.output_dimensions_flat.push_back(
+            static_cast<std::int64_t>(dim));
+      }
+    }
+  }
+
   // Sanitize the module for XLA ingestion operating on a clone of the base
   // module.
   mlir::OwningOpRef<mlir::ModuleOp> sanitized_module = mlir_module->clone();
@@ -414,6 +470,19 @@ ModuleBuilder::buildModule(
   status = convertFromTTIRToTTNN(system_descriptor_path, mlir_module,
                                  compile_options, client_instance, mesh_shape,
                                  ttnn_mlir);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  // Resolve any deferred tt-lang kernels embedded in the post-TTNN module.
+  // This is the compile-time hook for `stablehlo.custom_call @tt.tt_lang_op`:
+  // tt-mlir lowers the custom call to a TTNN op carrying a `tt_lang_kernel_id`
+  // attribute with the kernels region left deferred; this call walks those
+  // ops, asks the tt-lang bridge to compile each kernel against its now-final
+  // (post-Shardy, post-TTIR-to-TTNN) operand signature, and attaches the
+  // resolved artifact bytes back as an attribute. A no-op when no such ops
+  // are present.
+  status = resolveTtLangKernels(mlir_module, mesh_shape);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -758,17 +827,18 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
 
   for (const mlir::StringAttr &gspmd_attr : gspmd_attributes) {
 
-    // If there is no sharding attribute, we put the default sharding,
-    // which means there is no sharding.
+    // If there is no sharding attribute, we put the default sharding, which
+    // means there is no sharding. tt-mlir dropped the dedicated Identity shard
+    // type, so mirror its canonical "no sharding" default of a replicated,
+    // unsharded tensor.
     if (!gspmd_attr) {
-      llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
-          default_mesh_sharding_result =
-              mlir::tt::gspmd_utils::GSPMDMeshSharding::generateDefault();
-      if (default_mesh_sharding_result.takeError()) {
-        LOG_F(ERROR, "Failed to generate default mesh sharding");
-        return llvm::LogicalResult::failure();
-      }
-      shardings.push_back(*default_mesh_sharding_result);
+      shardings.emplace_back(mlir::tt::ttcore::MeshShardDirection::FullToShard,
+                             mlir::tt::ttcore::MeshShardType::Replicate,
+                             /*shardShape=*/llvm::SmallVector<int64_t>{},
+                             /*shardDims=*/llvm::SmallVector<int64_t>{},
+                             /*meshShape=*/llvm::SmallVector<int64_t>{},
+                             /*deviceIds=*/llvm::SmallVector<int64_t>{},
+                             mlir::tt::ttcore::ShardStatus::Unsharded);
       continue;
     }
     llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
@@ -795,17 +865,18 @@ mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
     std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
   for (const mlir::sdy::TensorShardingAttr &shardy_attr : shardy_attributes) {
 
-    // If there is no sharding attribute, we put the default sharding,
-    // which means there is no sharding.
+    // If there is no sharding attribute, we put the default sharding, which
+    // means there is no sharding. tt-mlir dropped the dedicated Identity shard
+    // type, so mirror its canonical "no sharding" default of a replicated,
+    // unsharded tensor.
     if (!shardy_attr) {
-      llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding>
-          default_mesh_sharding_result =
-              mlir::tt::shardy_utils::ShardyMeshSharding::generateDefault();
-      if (llvm::Error e = default_mesh_sharding_result.takeError()) {
-        LOG_F(ERROR, "Failed to generate default mesh sharding");
-        return llvm::LogicalResult::failure();
-      }
-      shardings.push_back(*default_mesh_sharding_result);
+      shardings.emplace_back(mlir::tt::ttcore::MeshShardDirection::FullToShard,
+                             mlir::tt::ttcore::MeshShardType::Replicate,
+                             /*shardShape=*/llvm::SmallVector<int64_t>{},
+                             /*shardDims=*/llvm::SmallVector<int64_t>{},
+                             /*meshShape=*/llvm::SmallVector<int64_t>{},
+                             /*deviceIds=*/llvm::SmallVector<int64_t>{},
+                             mlir::tt::ttcore::ShardStatus::Unsharded);
       continue;
     }
 
@@ -1189,6 +1260,15 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   return tt_pjrt_status::kSuccess;
 }
 
+tt_pjrt_status ModuleBuilder::resolveTtLangKernels(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const std::vector<std::uint32_t> &mesh_shape) {
+  // Delegated to tt_lang_bridge.cc so that this translation unit can keep
+  // building with -fno-rtti. The bridge is compiled with -frtti to satisfy
+  // pybind11.
+  return tt_lang_bridge::resolveKernels(mlir_module.get(), mesh_shape);
+}
+
 tt_pjrt_status ModuleBuilder::createFlatbufferBinary(
     const mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
@@ -1248,8 +1328,12 @@ tt_pjrt_status ModuleBuilder::checkOutputShardingShapes(
        ++output_index) {
     const mlir::tt::sharding_utils::MeshSharding &output_sharding =
         output_shardings[output_index];
-    if (output_sharding.getShardType() ==
-            mlir::tt::ttcore::MeshShardType::Identity ||
+    // Pre-sharded outputs already carry their per-device shard and replicated
+    // outputs are identical across devices, so the per-device shape matches the
+    // full output shape and no divisibility check against a shard shape
+    // applies.
+    if (output_sharding.getShardStatus() ==
+            mlir::tt::ttcore::ShardStatus::Presharded ||
         output_sharding.getShardType() ==
             mlir::tt::ttcore::MeshShardType::Replicate) {
       continue;

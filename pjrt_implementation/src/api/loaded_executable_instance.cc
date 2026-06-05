@@ -212,8 +212,11 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) const {
   const mlir::tt::sharding_utils::MeshSharding &output_sharding =
       m_executable_image->getOutputSharding(output_index);
 
-  if (output_sharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Identity ||
+  // A pre-sharded output already holds its per-device shard, and a replicated
+  // output is identical on every device; in both cases the per-device shape is
+  // the full output shape and must not be divided by the shard shape.
+  if (output_sharding.getShardStatus() ==
+          mlir::tt::ttcore::ShardStatus::Presharded ||
       output_sharding.getShardType() ==
           mlir::tt::ttcore::MeshShardType::Replicate) {
     return output_shape;
@@ -349,6 +352,13 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
     const mlir::tt::sharding_utils::MeshSharding &meshSharding,
     size_t num_devices) {
   std::unordered_map<std::string, std::string> strategy;
+  // A pre-sharded tensor already lives on the devices in its final layout, so
+  // no host-side resharding is performed regardless of the shard type.
+  if (meshSharding.getShardStatus() ==
+      mlir::tt::ttcore::ShardStatus::Presharded) {
+    strategy["strategy"] = "identity";
+    return strategy;
+  }
   mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
   if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
     // If there is only one device, the output will be replicated, but there is
@@ -373,8 +383,6 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
       strategy["mesh_shape_y"] = std::to_string(mesh_shape_data[0]);
       strategy["mesh_shape_x"] = std::to_string(mesh_shape_data[1]);
     }
-  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
-    strategy["strategy"] = "identity";
   } else {
     return mlir::failure();
   }
