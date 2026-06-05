@@ -203,6 +203,45 @@ def test_mobilenetv2(output_file, request):
     )
 
 
+def test_mobilenetv2_035_96_hf(output_file, request):
+    from third_party.tt_forge_models.mobilenetv2.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = torch.bfloat16
+    batch_size = 8
+    input_size = (3, 96, 96)
+
+    # Load model
+    variant = ModelVariant.MOBILENET_V2_035_96_HF
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model(dtype_override=data_format)
+    model = model.eval()
+
+    def load_inputs_fn(batch_size, dtype):
+        return loader.load_inputs(dtype_override=dtype, batch_size=batch_size)
+
+    def extract_output_tensor_fn(output):
+        return output.logits
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        input_size=input_size,
+        data_format=data_format,
+        optimization_level=0,
+        trace_enabled=False,
+    )
+
+
 def test_resnet50(output_file, request):
     from third_party.tt_forge_models.resnet.pytorch.loader import (
         ModelLoader,
