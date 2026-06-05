@@ -491,3 +491,57 @@ def test_vovnet(output_file, request):
         batch_size=batch_size,
         data_format=data_format,
     )
+
+
+# Trace disabled: SAM takes multiple inputs; wrapping pixel_values only for benchmark
+def test_sam_vit_large(output_file, request):
+    import torch.nn as nn
+
+    from third_party.tt_forge_models.sam.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = torch.bfloat16
+    batch_size = 1
+    input_size = (3, 1024, 1024)  # SAM processes 1024x1024 images
+
+    # Load model
+    variant = ModelVariant.LARGE
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    base_model = loader.load_model(dtype_override=data_format)
+    base_model = base_model.eval()
+
+    # SAM accepts pixel_values + optional prompts; wrap to pixel_values-only for benchmark
+    class SamWrapper(nn.Module):
+        def __init__(self, sam):
+            super().__init__()
+            self.sam = sam
+
+        def forward(self, pixel_values):
+            return self.sam(pixel_values=pixel_values)
+
+    model = SamWrapper(base_model)
+
+    def load_inputs_fn(batch_size, dtype):
+        pixel_values, _ = loader.load_inputs(dtype_override=dtype, batch_size=batch_size)
+        return pixel_values
+
+    def extract_output_tensor_fn(output):
+        return output.pred_masks
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        input_size=input_size,
+        data_format=data_format,
+        optimization_level=0,
+        trace_enabled=False,
+    )

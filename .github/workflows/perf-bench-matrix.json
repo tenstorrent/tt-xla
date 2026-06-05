@@ -63,6 +63,10 @@
         "pytest": "tests/benchmark/test_vision.py::test_vovnet"
       },
       {
+        "name": "sam_vit_large",
+        "pytest": "tests/benchmark/test_vision.py::test_sam_vit_large"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
