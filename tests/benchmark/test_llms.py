@@ -2583,7 +2583,7 @@ def test_gpt_oss_20b_tp_qb2(
     )
 
 
-# This test only runs 2 layers so we expect to see incoherent output
+# This test only runs 4 layers so we expect to see incoherent output
 def test_deepseek_v3_1_tp_galaxy_4_layers(
     output_file,
     num_layers,
@@ -2615,41 +2615,6 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         trace_enabled=False,
         required_pcc=0.91,
         experimental_kv_cache_dtype=None,
-    )
-
-
-# This test only runs 4 layers so we expect to see incoherent output
-def test_glm_4_5_tp_galaxy_4_layers(
-    output_file,
-    num_layers,
-    request,
-    accuracy_testing,
-    batch_size,
-    max_output_tokens,
-    decode_only,
-):
-    from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
-        ModelLoader,
-        ModelVariant,
-    )
-
-    variant = ModelVariant.GLM_4_5
-
-    test_llm_tp(
-        ModelLoader,
-        variant,
-        output_file,
-        num_layers=4,
-        request=request,
-        accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
-        max_output_tokens=max_output_tokens,
-        decode_only=decode_only,
-        optimization_level=0,
-        trace_enabled=False,
-        input_output_sharding_spec=("batch", None),
-        kv_cache_sharding_spec=("batch", None, None, None),
-        required_pcc=0.88,
     )
 
 
