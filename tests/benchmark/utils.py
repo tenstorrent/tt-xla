@@ -151,7 +151,16 @@ def create_model_loader(ModelLoader, num_layers: Optional[int] = None, *args, **
 
 def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
     """
-    Aggregate TTNN performance metrics from multiple graph files and update results.
+    Aggregate TTNN performance metrics from per-graph files and update results.
+
+    In addition to the op-count summary, this surfaces the tt-mlir perf_targets
+    roofline (matmul + conv families) the same way the LLM benchmark does: every
+    perf_targets field is carried through per graph, both nested and flattened
+    by name. For single-forward models (vision / encoder) it also records a
+    throughput target and the fraction of that top perf achieved:
+        target_samples_per_sec = batch_size * 1000 / sum(top_perf_estimate_ms)
+        top_perf_samples_per_sec_percentage = actual / target * 100
+    When tt-mlir emits no perf_targets, behaviour is unchanged (summary only).
 
     Parameters:
     ----------
@@ -160,49 +169,122 @@ def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
     results: dict
         Results dictionary to update with aggregated metrics. Modified in place.
     """
-    # If the perf_metrics report files exist, load and aggregate results from all graphs
     base_name = os.path.basename(ttnn_perf_metrics_output_file)
-    perf_files = [
+    perf_files = sorted(
         f for f in os.listdir(".") if f.startswith(base_name) and f.endswith(".json")
-    ]
+    )
+    if not perf_files:
+        return
 
-    if perf_files:
-        # Initialize aggregated metrics
-        total_ops = 0
-        total_shardable_ops = 0
-        effectively_sharded_ops = 0
-        system_memory_ops = 0
-        num_graphs_with_metrics = 0
+    total_ops = 0
+    total_shardable_ops = 0
+    effectively_sharded_ops = 0
+    system_memory_ops = 0
+    num_graphs_with_metrics = 0
 
-        for perf_file in sorted(perf_files):
-            with open(perf_file, "r") as f:
-                perf_metrics_data = json.load(f)
+    per_graph_perf_targets = []
+    total_top_perf_estimate_ms = 0.0
+    any_perf_targets = False
 
-            if "summary" in perf_metrics_data and isinstance(
-                perf_metrics_data["summary"], dict
-            ):
-                summary = perf_metrics_data["summary"]
-                total_ops += summary.get("total_ops", 0)
-                total_shardable_ops += summary.get("total_shardable_ops", 0)
-                effectively_sharded_ops += summary.get("effectively_sharded_ops", 0)
-                system_memory_ops += summary.get("system_memory_ops", 0)
-                num_graphs_with_metrics += 1
+    for graph_idx, perf_file in enumerate(perf_files):
+        with open(perf_file, "r") as f:
+            perf_metrics_data = json.load(f)
 
-        if num_graphs_with_metrics > 0:
-            results["config"]["ttnn_total_ops"] = total_ops
-            results["config"]["ttnn_total_shardable_ops"] = total_shardable_ops
-            results["config"]["ttnn_effectively_sharded_ops"] = effectively_sharded_ops
-            results["config"]["ttnn_system_memory_ops"] = system_memory_ops
+        summary = (
+            perf_metrics_data.get("summary")
+            if isinstance(perf_metrics_data, dict)
+            else None
+        )
+        if isinstance(summary, dict):
+            total_ops += summary.get("total_ops", 0)
+            total_shardable_ops += summary.get("total_shardable_ops", 0)
+            effectively_sharded_ops += summary.get("effectively_sharded_ops", 0)
+            system_memory_ops += summary.get("system_memory_ops", 0)
+            num_graphs_with_metrics += 1
 
-            # Calculate aggregated percentage
-            if total_shardable_ops > 0:
-                results["config"]["ttnn_effectively_sharded_percentage"] = (
-                    effectively_sharded_ops / total_shardable_ops
-                ) * 100
-            else:
-                results["config"]["ttnn_effectively_sharded_percentage"] = 0.0
+        # Flat perf_targets object emitted by tt-mlir TTNNCollectPerfMetrics.
+        # Carry every field through per graph, nested and flattened by name
+        # (same convention as the LLM benchmark).
+        perf_targets = (
+            perf_metrics_data.get("perf_targets")
+            if isinstance(perf_metrics_data, dict)
+            else None
+        )
+        pt = perf_targets if isinstance(perf_targets, dict) else {}
 
-            results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
+        graph_entry = {"graph_index": graph_idx, "perf_metrics_file": perf_file}
+        if isinstance(summary, dict):
+            graph_entry["graph_summary"] = summary
+        if pt:
+            any_perf_targets = True
+            graph_entry["perf_targets"] = pt
+            for key, value in pt.items():
+                graph_entry[key] = value
+            total_top_perf_estimate_ms += pt.get("top_perf_estimate_ms", 0.0)
+        per_graph_perf_targets.append(graph_entry)
+
+    if num_graphs_with_metrics > 0:
+        results["config"]["ttnn_total_ops"] = total_ops
+        results["config"]["ttnn_total_shardable_ops"] = total_shardable_ops
+        results["config"]["ttnn_effectively_sharded_ops"] = effectively_sharded_ops
+        results["config"]["ttnn_system_memory_ops"] = system_memory_ops
+        results["config"]["ttnn_effectively_sharded_percentage"] = (
+            (effectively_sharded_ops / total_shardable_ops) * 100
+            if total_shardable_ops > 0
+            else 0.0
+        )
+        results["config"]["ttnn_num_graphs"] = num_graphs_with_metrics
+
+    if not any_perf_targets:
+        return
+
+    results["config"]["per_graph_perf_targets"] = per_graph_perf_targets
+
+    # One full forward processes batch_size samples in sum(top_perf_estimate_ms)
+    # across graphs -> estimated top-perf throughput.
+    batch_size = results.get("batch_size") or 0
+    target_samples_per_sec = (
+        batch_size * 1000.0 / total_top_perf_estimate_ms
+        if total_top_perf_estimate_ms and batch_size
+        else 0.0
+    )
+
+    # Actual measured throughput (total_samples / total_time).
+    def _measured(name):
+        for measurement in results.get("measurements", []):
+            if measurement.get("measurement_name") == name:
+                return measurement.get("value")
+        return None
+
+    total_samples = _measured("total_samples")
+    total_time = _measured("total_time")
+    actual_samples_per_sec = (
+        total_samples / total_time if total_samples is not None and total_time else None
+    )
+    top_perf_samples_per_sec_percentage = (
+        actual_samples_per_sec / target_samples_per_sec * 100.0
+        if actual_samples_per_sec is not None and target_samples_per_sec
+        else 0.0
+    )
+
+    results["config"]["target_samples_per_sec"] = target_samples_per_sec
+    results["config"][
+        "top_perf_samples_per_sec_percentage"
+    ] = top_perf_samples_per_sec_percentage
+
+    step_name = results.get("model", "")
+    results.setdefault("measurements", []).extend(
+        [
+            create_measurement(
+                "target_samples_per_sec", target_samples_per_sec, step_name
+            ),
+            create_measurement(
+                "top_perf_samples_per_sec_percentage",
+                top_perf_samples_per_sec_percentage,
+                step_name,
+            ),
+        ]
+    )
 
 
 def compute_pcc(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
