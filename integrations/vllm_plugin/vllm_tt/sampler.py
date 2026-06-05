@@ -107,13 +107,18 @@ class Sampler(nn.Module):
         self, logits: torch.Tensor, *, vocab_sharded: bool = False
     ) -> torch.Tensor:
         if vocab_sharded:
-            from tt_torch.composite_ops import composite_topk
+            from tt_torch.composite_ops import composite_topk_indices
 
             # argmax over a vocab-sharded tensor would return shard-local
-            # indices. composite_topk(k=1) is sharding-aware via the
-            # tenstorrent.topk custom sharding rule — local topk + all-gather
-            # + shard-offset + merge — and returns the global argmax.
-            _, indices = composite_topk(logits, k=1, dim=-1, largest=True, sorted=False)
+            # indices. composite_topk_indices(k=1) is sharding-aware via the
+            # tenstorrent.topk_indices custom sharding rule — local topk +
+            # all-gather + shard-offset + merge — and returns the global
+            # argmax. We use the indices-only variant because the two-output
+            # `composite_topk` with a discarded `values` output crashes
+            # torch_xla's BuildStableHLOCompositePass.
+            indices = composite_topk_indices(
+                logits, k=1, dim=-1, largest=True, sorted=False
+            )
             return indices.squeeze(-1)
         return logits.argmax(dim=-1).view(-1)
 
