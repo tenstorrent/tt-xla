@@ -72,7 +72,7 @@ jobs:
         run: |
           source venv/activate
           cd tests/cpu_compile_only
-          python save_system_desc.py save system_descs/${{ matrix.arch }}
+          python save_system_desc.py system_descs/${{ matrix.arch }}
           ls -la system_descs/
 
       - name: Upload descriptor

@@ -7,7 +7,7 @@ Save a system descriptor from live hardware to disk.
 
 Producing a descriptor needs hardware (it reads a live chip); compiling against
 one does not. Run this on the target arch's hardware to regenerate the checked-in
-`<arch>_system_desc.ttsys` used by test_compile_only.py:
+`<arch>_system_desc.ttsys` used by test_cpu_compile_only.py:
 
     python save_system_desc.py system_descs/<arch>
 """

@@ -33,7 +33,7 @@ class SimpleModel(nn.Module):
         return x + y
 
 
-def _compile_only(system_desc_path: str):
+def _cpu_compile_only(system_desc_path: str):
     """Compile for a target system using a saved system descriptor (no hardware needed)."""
     os.environ["TT_COMPILE_ONLY_SYSTEM_DESC"] = system_desc_path
 
@@ -65,7 +65,8 @@ def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
         assert (output_dir / f).exists(), f"Expected {f} was not created{suffix}"
 
 
-@pytest.mark.nightly
+@pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize(
     # One arch per checked-in descriptor. Each descriptor is generated on real
     # hardware via save_system_desc.py and committed to system_descs/. Add a new
@@ -74,10 +75,10 @@ def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
     [
         "n150",
         "n300",
-        "n300-llmbox",
+        "n300-llmbox"
     ],
 )
-def test_compile_only_per_arch(arch, tmp_path):
+def test_cpu_compile_only_per_arch(arch, tmp_path):
     """CPU-only: compile a simple model against a checked-in `.ttsys` descriptor.
 
     No TT hardware required -- TT_COMPILE_ONLY_SYSTEM_DESC tells the plugin to
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     # PJRT client can't be reconfigured once initialized, so each compile runs
     # in a fresh process. To save a descriptor instead, use save_system_desc.py.
     if len(sys.argv) == 3 and sys.argv[1] == "compile":
-        _compile_only(sys.argv[2])
+        _cpu_compile_only(sys.argv[2])
     else:
         print(f"Usage: {sys.argv[0]} compile <system_desc_path>")
         sys.exit(1)
