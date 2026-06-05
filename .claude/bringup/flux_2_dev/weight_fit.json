@@ -97,7 +97,9 @@
           "weight_predicted": false
         }
       },
-      "supported_archs": []
+      "supported_archs": [
+        "p150"
+      ]
     }
   ]
 }

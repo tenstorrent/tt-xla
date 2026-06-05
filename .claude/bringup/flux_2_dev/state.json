@@ -1,7 +1,7 @@
 {
   "model_key": "flux_2_dev/pytorch-Dev-single_device-inference",
   "arch": "auto",
-  "stage": "escalated",
+  "stage": "passed",
   "iteration": 3,
   "history": [
     {
@@ -110,6 +110,60 @@
         "key_fix": "logits_to_keep=1 (avoid 134MB logits activation)",
         "note": "TT-only execution pass (no CPU golden / PCC for 24B); compiles+runs sharded"
       }
+    },
+    {
+      "stage": "overview",
+      "timestamp": 1780652282,
+      "result": "passed",
+      "component": "vae",
+      "details": {
+        "overview_md": "model_overview.md",
+        "cpu_sanity": "cpu_sanity.log",
+        "golden": "golden.pt",
+        "golden_meta": "golden_meta.json",
+        "n_params": 84046115,
+        "modality": "vision",
+        "output_shape": [
+          1,
+          3,
+          64,
+          64
+        ],
+        "output_dtype": "torch.float32"
+      }
+    },
+    {
+      "stage": "first_run",
+      "timestamp": 1780653873,
+      "arch": "p150",
+      "result": "passed",
+      "component": "vae",
+      "details": {
+        "dtype": "fp32",
+        "log": "logs/iter_p150_0_run.log",
+        "json_report": "logs/iter_p150_0_result.json",
+        "returncode": 0,
+        "duration_seconds": 267.4,
+        "timeout_seconds": 1200,
+        "pcc": ">=0.99 (run_graph_test asserted required_pcc=0.99; pass)",
+        "last_stage": "RUNTIME_EXECUTION",
+        "test_path": "tests/torch/models/flux_2_dev/test_vae_decoder.py::test_vae_decoder"
+      }
+    },
+    {
+      "stage": "config_update",
+      "timestamp": 1780654843,
+      "result": "passed",
+      "component": "vae",
+      "details": {
+        "supported_archs": [
+          "p150"
+        ],
+        "bringup_status": "PASSED",
+        "test_file": "tests/torch/models/flux_2_dev/test_vae_decoder.py",
+        "applied": true,
+        "finalize": "skipped (user: apply only)"
+      }
     }
   ],
   "applied_patches": [
@@ -171,13 +225,51 @@
     "multichip_scaffold_path": ".claude/bringup/flux_2_dev/scaffold_multichip.json",
     "tp_pattern": "A_megatron_1d",
     "host_probe": {
-      "device_count": 8,
-      "host_tier": "multichip_fabric",
-      "arch": "n300-llmbox",
-      "can_run_multichip_bringup": true,
-      "tt_visible_devices": "0,1,2,3,4,5,6,7"
-    }
+      "runtime_chip_count": 1,
+      "device_arch": "Blackhole",
+      "host_tier": "dedicated_single_chip",
+      "can_run_single_chip_bringup": true,
+      "can_run_component": true,
+      "runnable_arch_queue": [
+        "p150"
+      ],
+      "skipped_archs": [
+        {
+          "arch": "n150",
+          "reason": "blackhole host; n150 needs Wormhole"
+        }
+      ],
+      "tt_visible_devices": "0"
+    },
+    "overview": {
+      "n_params": 84046115,
+      "output_shape": [
+        1,
+        3,
+        64,
+        64
+      ],
+      "output_dtype": "torch.float32"
+    },
+    "last_stage": "RUNTIME_EXECUTION",
+    "supported_archs": [
+      "p150"
+    ]
   },
   "created_at": 1780570601,
-  "updated_at": 1780587266
+  "updated_at": 1780654843,
+  "pipeline_start_ts": 1780652010,
+  "pipeline_start_iso": "2026-06-05T09:33:30+0000",
+  "mode": "bringup",
+  "active_component": "vae",
+  "current_arch": "p150",
+  "arch_queue": [
+    "p150"
+  ],
+  "arch_results": {
+    "p150": "passed"
+  },
+  "pipeline_end_ts": 1780654843,
+  "pipeline_end_iso": "2026-06-05T10:20:43+0000",
+  "total_elapsed_seconds": 2833
 }

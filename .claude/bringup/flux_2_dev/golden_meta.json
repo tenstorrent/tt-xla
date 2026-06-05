@@ -1,0 +1,13 @@
+{
+  "shape": [
+    1,
+    3,
+    64,
+    64
+  ],
+  "dtype": "torch.float32",
+  "n_elements": 12288,
+  "rng_seed": null,
+  "input_hash": "8cdb0afdcd4282a6",
+  "size_bytes": 49152
+}

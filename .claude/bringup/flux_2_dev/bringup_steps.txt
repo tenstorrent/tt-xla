@@ -102,3 +102,79 @@ FIRST_RUN_TP       : PASSED — test_text_encoder_sharded on n300-llmbox, mesh (
                      runtime 208s (~3.5 min). TT-only execution pass (no CPU golden/PCC for 24B).
                      log=logs/te_iter_1_run.log
 RESULT             : PASSED
+
+--------------------------------------------------------------------------------
+STEP — VAE component bringup resume (orchestrator)
+--------------------------------------------------------------------------------
+Start    : 2026-06-05T09:33:30+0000
+Component: vae (single_device, ~84M params, fits fp32/bf16 on n150 & p150)
+Host     : dedicated single-chip Blackhole (p100a, /dev/tenstorrent/0)
+Submodule: tt_forge_models synced to 092701d87 (flux branch) — loader restored
+Host probe: runtime_chip_count=1; can_run_single_chip_bringup=true; can_run_component=true
+Arch     : requested n150 NOT runnable on Blackhole host -> per-arch filter drops it.
+           runnable_arch_queue=[p150]; proceeding on p150 (documented fallback).
+Test     : tests/torch/models/flux_2_dev/test_vae_decoder.py::test_vae_decoder (PCC 0.99, fp32, opt_level=1)
+Result   : host gate PASSED -> proceed to OVERVIEW
+
+--------------------------------------------------------------------------------
+STEP — Overview / CPU Sanity / Golden (model-bringup-overview)
+--------------------------------------------------------------------------------
+Overview MD   : .claude/bringup/flux_2_dev/model_overview.md
+CPU sanity    : .claude/bringup/flux_2_dev/cpu_sanity.log -> PASS (CPU_SANITY_OK)
+Golden tensor : .claude/bringup/flux_2_dev/golden.pt ((1,3,64,64), fp32, 49152 B)
+Model snapshot:
+  class       : VAEDecoderWrapper (AutoencoderKLFlux2 decode)
+  n_params    : 84,046,115 (~0.084 B)
+  modality    : vision
+  input keys  : [z] (1,32,8,8) fp32
+  out shape   : (1,3,64,64)
+OVERVIEW RESULT: PASSED
+
+--------------------------------------------------------------------------------
+STEP — First Run (model-bringup-run, iteration 0, arch p150)
+--------------------------------------------------------------------------------
+Test     : tests/torch/models/flux_2_dev/test_vae_decoder.py::test_vae_decoder
+Command  : ENABLE_BRINGUP_STAGE_LOGGING=1 TT_XLA_ARCH=p150 TT_VISIBLE_DEVICES=0 timeout 1200 pytest -svv ...
+Log      : .claude/bringup/flux_2_dev/logs/iter_p150_0_run.log
+JSON     : .claude/bringup/flux_2_dev/logs/iter_p150_0_result.json
+Duration : 267.4s (pytest)  | wall ~4:28
+Exit     : 0
+Stage    : RUNTIME_EXECUTION
+
+Test result summary:
+  ================== 1 passed, 20 warnings in 268.17s (0:04:28) ==================
+  PCC: run_graph_test asserted required_pcc=0.99 -> PASS (>=0.99)
+
+RUN RESULT: PASSED
+
+--------------------------------------------------------------------------------
+STEP — Config Update (model-bringup-config-update, --apply)
+--------------------------------------------------------------------------------
+Result        : PASSED  (arch p150; supported_archs=[p150])
+Test surface  : pipeline component -> component test file only (no runner YAML)
+
+bringup_status updated:
+  File : tests/torch/models/flux_2_dev/test_vae_decoder.py
+  Added: @pytest.mark.record_test_properties(..., bringup_status=BringupStatus.PASSED)
+  Imports: + RunMode (infra), + BringupStatus, Category (utils)
+  Collect: 1 test collected (clean)
+
+weight_fit.json: vae.supported_archs = ["p150"]
+state.json     : stage=passed; details.supported_archs=["p150"]
+Finalize       : SKIPPED (user choice: apply only) — no pre-commit / PR-body / branch
+
+CONFIG UPDATE RESULT: PASSED
+
+================================================================================
+FINAL RESULT
+================================================================================
+✓ flux_2_dev/vae (Dev-Vae) — PASSED after 0 repair iteration(s)
+  Loader created  : already present (submodule 092701d87)
+  Applied patches : none (passed first run)
+  Last stage      : RUNTIME_EXECUTION
+  Arch verified   : p150  (n150 skipped: Blackhole host)
+  Start time      : 2026-06-05T09:33:30+0000
+  Total elapsed   : 47m 13s  (2833s)
+  Test file       : tests/torch/models/flux_2_dev/test_vae_decoder.py (bringup_status=PASSED)
+  YAML entry      : none (pipeline component test)
+================================================================================
