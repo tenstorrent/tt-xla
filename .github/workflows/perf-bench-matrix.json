@@ -63,6 +63,11 @@
         "pytest": "tests/benchmark/test_vision.py::test_vovnet"
       },
       {
+        "name": "sensetime_deformable_detr",
+        "pytest": "tests/benchmark/test_vision.py::test_deformable_detr",
+        "runs-on": "p150"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"

@@ -491,3 +491,43 @@ def test_vovnet(output_file, request):
         batch_size=batch_size,
         data_format=data_format,
     )
+
+
+def test_deformable_detr(output_file, request):
+    from third_party.tt_forge_models.deformable_detr.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = torch.bfloat16
+    batch_size = 1
+    input_size = (3, 512, 512)
+
+    # Load model
+    variant = ModelVariant.DEFORMABLE_DETR
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model(dtype_override=data_format)
+    model = model.eval()
+
+    # Pass pixel_values only; pixel_mask defaults to all-ones for uniform-size inputs
+    def load_inputs_fn(batch_size, dtype):
+        return torch.zeros(batch_size, *input_size, dtype=dtype)
+
+    def extract_output_tensor_fn(output):
+        return output.logits
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        input_size=input_size,
+        data_format=data_format,
+        optimization_level=0,
+        trace_enabled=False,
+    )
