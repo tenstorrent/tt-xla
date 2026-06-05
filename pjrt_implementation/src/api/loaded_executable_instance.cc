@@ -213,9 +213,7 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) const {
       m_executable_image->getOutputSharding(output_index);
 
   if (output_sharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Identity ||
-      output_sharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Replicate) {
+      mlir::tt::ttcore::MeshShardType::Replicate) {
     return output_shape;
   }
 
@@ -373,8 +371,6 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
       strategy["mesh_shape_y"] = std::to_string(mesh_shape_data[0]);
       strategy["mesh_shape_x"] = std::to_string(mesh_shape_data[1]);
     }
-  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
-    strategy["strategy"] = "identity";
   } else {
     return mlir::failure();
   }

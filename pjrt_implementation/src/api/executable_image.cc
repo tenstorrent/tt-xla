@@ -241,6 +241,23 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
       expected_shape.push_back(2);
     }
 
+    // getOutputDimensions() collects from the StableHLO-level function result
+    // type, which is the global (pre-retype) shape. The flatbuffer carries the
+    // per-device local shape since tt-mlir #8380 retyped sharded results to
+    // local in SHLO -> TTIR conversion. Convert global to local using the
+    // sharding info before comparing.
+    const auto &sharding = output_sharding[output_index];
+    const auto &shard_shape = sharding.getShardShape();
+    if (sharding.getShardType() ==
+            mlir::tt::ttcore::MeshShardType::Devices &&
+        shard_shape.size() == expected_shape.size()) {
+      for (size_t dim = 0; dim < expected_shape.size(); ++dim) {
+        if (shard_shape[dim] > 0) {
+          expected_shape[dim] /= static_cast<std::uint32_t>(shard_shape[dim]);
+        }
+      }
+    }
+
     TT_FATAL(expected_shape == output_specs[output_index].shape,
              "Output shape from flatbuffer binary does not match the one "
              "collected from the MLIR module: output_index={}",
