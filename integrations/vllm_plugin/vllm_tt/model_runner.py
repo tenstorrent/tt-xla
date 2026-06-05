@@ -97,6 +97,7 @@ from .attention import (
     TTMetadata,
     get_page_size_bytes,
 )
+from .attention_mla import TTMLAAttentionBackend
 from .input_batch import CachedRequestState, InputBatch
 from .logger import tt_init_logger
 from .metadata import XLASupportedSamplingMetadata
@@ -2810,7 +2811,20 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
-                if isinstance(kv_cache_spec, AttentionSpec):
+                if isinstance(kv_cache_spec, MLAAttentionSpec):
+                    # MLA stores a SINGLE concatenated latent KV tensor per
+                    # slot (num_kv_heads == 1, head_size == kv_lora_rank +
+                    # qk_rope_head_dim).
+                    kv_cache_shape = TTMLAAttentionBackend.get_kv_cache_shape(
+                        num_blocks,
+                        kv_cache_spec.block_size,
+                        kv_cache_spec.num_kv_heads,
+                        kv_cache_spec.head_size,
+                    )
+                    dtype = kv_cache_spec.dtype
+                    mla_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
+                    kv_caches[layer_name] = mla_cache
+                elif isinstance(kv_cache_spec, AttentionSpec):
                     if self.enable_tensor_parallel:
                         num_kv_heads = kv_cache_spec.num_kv_heads
                         assert self.original_parallel_config is not None
@@ -2851,9 +2865,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache].
             for kv_pair in self.kv_caches:
-                for cache in kv_pair:
+                is_pair = isinstance(entry, (list, tuple))
+                caches = entry if is_pair else [entry]
+                for cache in caches:
                     assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    safe_mark_sharding(cache, self.mesh, (None, "model", None, None))
+                    if is_pair:
+                        safe_mark_sharding(
+                            cache, self.mesh, (None, "model", None, None)
+                        )
+                    else:
+                        # Replicate the MLA latent KV cache tensor
+                        xs.mark_sharding(cache, self.mesh, (None, None, None, None))
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
