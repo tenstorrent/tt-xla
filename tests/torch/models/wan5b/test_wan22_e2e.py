@@ -59,10 +59,14 @@ from .shared import (
 
 
 SEED = 42
-RESOLUTION = "480p"  # "480p" or "720p"
 NUM_STEPS = 40  # denoising steps
 GUIDANCE_SCALE = 5.0  # matches diffusers / Wan repo default; CFG on
 FPS = 16
+
+PROMPT_T2V = "A red apple on a white table"
+NEG_T2V = "low quality, blurry, distorted, watermark, text"
+PROMPT_I2V = "smiling and jumping into camera for a hug"
+NEG_I2V = "distorted face, bad hands, extra limbs, blurry, low quality"
 
 TT_TEXT_ENCODER = True
 TT_VAE_ENCODER = True  # only used when mode == "i2v"
@@ -201,16 +205,16 @@ def _devtag(mode: str) -> str:
     return "tt-" + "-".join(on)
 
 
-def _stem(mode: str) -> str:
-    base = f"wan22_{mode}_{RESOLUTION}_steps{NUM_STEPS}_{_devtag(mode)}"
+def _stem(mode: str, resolution: str) -> str:
+    base = f"wan22_{mode}_{resolution}_steps{NUM_STEPS}_{_devtag(mode)}"
     if mode == "i2v":
         base += f"_{IMAGE_PATH.stem}"
     return base
 
 
-def _output_path(mode: str) -> Path:
+def _output_path(mode: str, resolution: str) -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return _OUT_DIR / f"{_stem(mode)}_{ts}.mp4"
+    return _OUT_DIR / f"{_stem(mode, resolution)}_{ts}.mp4"
 
 
 # ---------------------------------------------------------------------------
@@ -226,24 +230,33 @@ _patch_wan_time_embedder_dtype_probe()
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.nightly
-@pytest.mark.model_test
-@pytest.mark.qb2_blackhole
-@pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
-def test_wan22_t2v_e2e():
-    prompt = "A red apple on a white table"
-    negative_prompt = "low quality, blurry, distorted, watermark, text"
-
-    mode = "t2v"
-    out_path = _output_path(mode)
+def _run_e2e(mode: str, resolution: str, prompt: str, negative_prompt: str) -> None:
+    out_path = _output_path(mode, resolution)
     _OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     components = _build_components(mode)
     timings = _Timings()
     try:
-        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=True)
-        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=False)
+        _run(
+            components,
+            timings,
+            out_path,
+            mode,
+            resolution,
+            prompt,
+            negative_prompt,
+            warmup=True,
+        )
+        _run(
+            components,
+            timings,
+            out_path,
+            mode,
+            resolution,
+            prompt,
+            negative_prompt,
+            warmup=False,
+        )
     finally:
         _print_perf_summary(timings)
 
@@ -253,21 +266,35 @@ def test_wan22_t2v_e2e():
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-def test_wan22_i2v_e2e():
-    prompt = "smiling and jumping into camera for a hug"
-    negative_prompt = "distorted face, bad hands, extra limbs, blurry, low quality"
+def test_wan22_t2v_480p_e2e():
+    _run_e2e("t2v", "480p", PROMPT_T2V, NEG_T2V)
 
-    mode = "i2v"
-    out_path = _output_path(mode)
-    _OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    components = _build_components(mode)
-    timings = _Timings()
-    try:
-        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=True)
-        _run(components, timings, out_path, mode, prompt, negative_prompt, warmup=False)
-    finally:
-        _print_perf_summary(timings)
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
+@pytest.mark.bh_galaxy
+def test_wan22_t2v_720p_e2e():
+    _run_e2e("t2v", "720p", PROMPT_T2V, NEG_T2V)
+
+
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
+@pytest.mark.bh_galaxy
+def test_wan22_i2v_480p_e2e():
+    _run_e2e("i2v", "480p", PROMPT_I2V, NEG_I2V)
+
+
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
+@pytest.mark.bh_galaxy
+def test_wan22_i2v_720p_e2e():
+    _run_e2e("i2v", "720p", PROMPT_I2V, NEG_I2V)
 
 
 # ---------------------------------------------------------------------------
@@ -483,6 +510,7 @@ def _run(
     timings: _Timings,
     out_path: Path,
     mode: str,
+    resolution: str,
     prompt: str,
     negative_prompt: str,
     warmup: bool,
@@ -503,10 +531,10 @@ def _run(
 
     t_total = time.perf_counter()
     _log(
-        f"phase={phase} mode={mode} res={RESOLUTION} steps={num_steps} "
+        f"phase={phase} mode={mode} res={resolution} steps={num_steps} "
         f"guidance={GUIDANCE_SCALE} device={_devtag(mode)} seed={SEED}"
     )
-    shapes = RESOLUTIONS[RESOLUTION]
+    shapes = RESOLUTIONS[resolution]
     _log(
         f"shapes: video={shapes['video_h']}x{shapes['video_w']} "
         f"frames={shapes['num_frames']} "
