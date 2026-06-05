@@ -188,17 +188,6 @@ jobs:
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
         source venv/activate
-
-        # p150-perf is a single-chip workload that physically runs on a multi-chip
-        # qb2-blackhole box. Pin it to one chip so the UMD enumerates a single device
-        # (global_runtime_device_count()==1): genuine single-chip, no 1-vs-N device
-        # mismatches, and no multi-chip fabric init. Real qb2-blackhole TP tests do not
-        # set this and keep all chips visible.
-        if [ "${{ matrix.build.runs-on-original }}" = "p150-perf" ]; then
-          export TT_VISIBLE_DEVICES=0
-          echo "p150-perf: exported TT_VISIBLE_DEVICES=0 (single Blackhole chip)"
-        fi
-
         pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} ${{ inputs.check_fusions && '--check-fusions' || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
