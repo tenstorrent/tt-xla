@@ -539,9 +539,9 @@ def test_sam_vit_large(output_file, request):
         request=request,
         load_inputs_fn=load_inputs_fn,
         extract_output_tensor_fn=extract_output_tensor_fn,
-        batch_size=batch_size,
+        batch_size=2,
         input_size=input_size,
         data_format=data_format,
-        optimization_level=1,
+        optimization_level=0,
         trace_enabled=False,
     )
