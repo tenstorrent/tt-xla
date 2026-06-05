@@ -45,6 +45,10 @@ xr.set_device_type("TT")
 
 MIN_STEPS = 16
 
+# Number of decode steps to PCC-check on top of the prefill. So the total number
+# of PCC checkpoints (logit PCC + KV-cache PCC) is 1 + NUM_PCC_DECODE_STEPS.
+NUM_PCC_DECODE_STEPS = 1
+
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
     "Here is an exaustive list of the best practices for writing clean code:"
@@ -384,24 +388,36 @@ def benchmark_llm_torch_xla(
             dtype=torch.bfloat16,
         )
 
+    prompt_len = input_args["input_ids"].shape[1]
+
     # Limit maximum generation count to fit within preallocated static cache
     if max_output_tokens is None:
-        max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
+        max_output_tokens = max_cache_len - prompt_len
 
     # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
+    cpu_output_logits: list = []
+    cpu_output_tokens: Optional[torch.Tensor] = None
     if not accuracy_testing:
-        cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
+        cpu_wrapper = LLMSamplingWrapper(
+            model, read_logits_fn, return_logits=True, return_kv_cache=True
+        )
         cpu_wrapper.eval()
 
         # Iter 0: prefill. After this, input_args holds the post-prefill decode
         # state (input_ids=next_token_0, cache_position=[prompt_len]).
-        cpu_prefill_logits, _ = generate_and_benchmark(
+        (
+            cpu_prefill_logits,
+            cpu_prefill_tokens,
+            cpu_prefill_kv,
+            _,
+        ) = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
             1,
             verbose=False,
             collect_logits=True,
+            collect_kv_cache=True,
         )
 
         # Snapshot first-decode inputs before CPU iter 1 advances them.
@@ -409,17 +425,31 @@ def benchmark_llm_torch_xla(
         decode_only_cache_position = input_args["cache_position"].clone()
         decode_only_cache = input_args["past_key_values"]
 
-        # Iter 1: first decode. Provides the PCC reference for device first decode.
-        cpu_decode_logits, _ = generate_and_benchmark(
+        (
+            cpu_decode_logits,
+            cpu_decode_tokens,
+            cpu_decode_kv,
+            _,
+        ) = generate_and_benchmark(
             cpu_wrapper,
             input_args,
             torch.device("cpu"),
-            1,
+            NUM_PCC_DECODE_STEPS,
             verbose=False,
             collect_logits=True,
+            collect_kv_cache=True,
         )
 
         cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
+        cpu_output_kv_cache = cpu_prefill_kv + cpu_decode_kv
+
+        # CPU output tokens, used to teacher-force the device PCC run for the
+        # first len(cpu_output_logits) steps.
+        cpu_output_token_tensors = cpu_prefill_tokens + cpu_decode_tokens
+        cpu_output_tokens = torch.tensor(
+            [int(t[0, 0]) for t in cpu_output_token_tensors],
+            dtype=torch.long,
+        )
 
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
@@ -518,7 +548,7 @@ def benchmark_llm_torch_xla(
                 )
         print("Warming up...")
         warmup_tokens = min(MIN_STEPS, max_output_tokens)
-        _, _ = generate_and_benchmark(
+        _, _, _, _ = generate_and_benchmark(
             compiled_perf_model,
             input_args,
             device,
@@ -572,7 +602,7 @@ def benchmark_llm_torch_xla(
 
     # Run perf benchmark
     print(f"\nStarting performance benchmark...")
-    _, iteration_times = generate_and_benchmark(
+    _, _, _, iteration_times = generate_and_benchmark(
         compiled_perf_model,
         input_args,
         device,
@@ -593,6 +623,7 @@ def benchmark_llm_torch_xla(
         model,
         read_logits_fn,
         return_logits=True,
+        return_kv_cache=True,
         mesh=mesh,
         output_sharding_spec=input_output_sharding_spec,
     )
@@ -626,57 +657,28 @@ def benchmark_llm_torch_xla(
 
     print("\nStarting PCC/TOPK benchmark...")
 
-    device_prefill_logits = []
-    if not decode_only:
-        device_prefill_logits, _ = generate_and_benchmark(
-            compiled_logits,
-            input_args,
-            device,
-            1,
-            verbose=False,
-            ground_truth_tokens=ground_truth_for_benchmark,
-            collect_logits=True,
-        )
+    # Teacher-force device decode steps with the grpund truth CPU output tokens
+    # (or reference tokens for accuracy testing).
+    if accuracy_testing:
+        device_gt = ground_truth_for_benchmark
+    elif decode_only:
+        device_gt = None
+    else:
+        device_gt = cpu_output_tokens
 
-        device_prefill_output_ids = input_args["input_ids"].to("cpu")
-
-        # Override device's first-decode input with CPU's prefill output when they
-        # diverge, so the decode PCC reference is comparing apples to apples
-        # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
-        if not accuracy_testing and not torch.equal(
-            device_prefill_output_ids, first_decode_input_ids.cpu()
-        ):
-            logger.warning(
-                "Device prefill produced different tokens than CPU prefill; "
-                "using CPU prefill output as decode PCC reference."
-            )
-            input_args["input_ids"] = first_decode_input_ids.to(device)
-            if input_output_sharding_spec:
-                xs.mark_sharding(
-                    input_args["input_ids"], mesh, input_output_sharding_spec
-                )
-
-    # The prefill call above already consumed gt[0] as teacher-forced input for
-    # the first decode step, so the decode call must start its ground-truth
-    # window at gt[1] to stay aligned. It also consumed one of the logits_steps
-    # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
-    decode_ground_truth = (
-        ground_truth_for_benchmark[1:]
-        if ground_truth_for_benchmark is not None and not decode_only
-        else ground_truth_for_benchmark
-    )
-    decode_steps = logits_steps if decode_only else logits_steps - 1
-    device_decode_logits, _ = generate_and_benchmark(
+    # logits_steps counts prefill (when present) as one of the total iterations,
+    # so the unified call runs exactly logits_steps iters in both decode_only
+    # and prefill+decode modes.
+    output_logits, _, output_kv_cache, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
         device,
-        decode_steps,
+        logits_steps,
         verbose=False,
-        ground_truth_tokens=decode_ground_truth,
+        ground_truth_tokens=device_gt,
         collect_logits=True,
+        collect_kv_cache=True,
     )
-
-    output_logits = device_prefill_logits + device_decode_logits
 
     print("\nPCC/TOPK benchmark complete")
 
@@ -798,35 +800,65 @@ def benchmark_llm_torch_xla(
             ]
         )
     elif decode_only:
-        decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
-        assert (
-            decode_pcc_value >= required_pcc
-        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
-        print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+        # decode_only skips device prefill, so device step k matches CPU step k+1.
+        for step in range(NUM_PCC_DECODE_STEPS):
+            label = "First decode" if step == 0 else f"Decode step {step + 1}"
+            decode_pcc_value = compute_pcc(
+                output_logits[step][0], cpu_output_logits[step + 1][0]
             )
-        )
+            assert decode_pcc_value >= required_pcc, (
+                f"{label} PCC failed. PCC={decode_pcc_value:.6f}, "
+                f"Required={required_pcc}"
+            )
+            print(f"{label} PCC verification passed with PCC={decode_pcc_value:.6f}")
     else:
-        # Check PCC for prefill
-        pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
         assert (
-            pcc_value >= required_pcc
-        ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
-        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
-        # Check PCC for first decode token
-        assert (
-            len(output_logits) > 1 and len(cpu_output_logits) > 1
-        ), "Not enough logits to check PCC"
-        decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
-        assert (
-            decode_pcc_value >= required_pcc
-        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
-        print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            len(output_logits) >= 1 + NUM_PCC_DECODE_STEPS
+            and len(cpu_output_logits) >= 1 + NUM_PCC_DECODE_STEPS
+            and len(output_kv_cache) >= 1 + NUM_PCC_DECODE_STEPS
+            and len(cpu_output_kv_cache) >= 1 + NUM_PCC_DECODE_STEPS
+        ), "Not enough logits/kv-cache snapshots to check PCC"
+
+        # Logit PCC + KV-cache PCC.
+        for step in range(1 + NUM_PCC_DECODE_STEPS):
+            if step == 0:
+                label = "Prefill"
+            elif step == 1:
+                label = "First decode"
+            else:
+                label = f"Decode step {step}"
+
+            pcc_value = compute_pcc(output_logits[step][0], cpu_output_logits[step][0])
+            assert pcc_value >= required_pcc, (
+                f"{label} PCC failed. PCC={pcc_value:.6f}, " f"Required={required_pcc}"
             )
-        )
+            print(f"{label} PCC verification passed with PCC={pcc_value:.6f}")
+
+            end_position = prompt_len + step
+            dev_layers = output_kv_cache[step]
+            cpu_layers = cpu_output_kv_cache[step]
+            for layer_idx, (
+                (cpu_k_full, cpu_v_full),
+                (dev_k_full, dev_v_full),
+            ) in enumerate(zip(cpu_layers, dev_layers)):
+                cpu_k = cpu_k_full[:, :, :end_position, :]
+                cpu_v = cpu_v_full[:, :, :end_position, :]
+                dev_k = dev_k_full[:, :, :end_position, :]
+                dev_v = dev_v_full[:, :, :end_position, :]
+                pcc_k = compute_pcc(cpu_k, dev_k)
+                pcc_v = compute_pcc(cpu_v, dev_v)
+                assert pcc_k >= required_pcc, (
+                    f"KV cache keys PCC failed at {label} layer {layer_idx}: "
+                    f"PCC={pcc_k:.6f}, Required={required_pcc}"
+                )
+                assert pcc_v >= required_pcc, (
+                    f"KV cache values PCC failed at {label} layer {layer_idx}: "
+                    f"PCC={pcc_v:.6f}, Required={required_pcc}"
+                )
+            print(
+                f"KV cache PCC after {label} passed for all "
+                f"{len(cpu_layers)} layers"
+            )
 
     # Get device count and mesh info for metrics
     arch = get_xla_device_arch()

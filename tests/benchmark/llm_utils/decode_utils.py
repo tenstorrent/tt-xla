@@ -33,6 +33,9 @@ class LLMSamplingWrapper(torch.nn.Module):
         read_logits_fn: Function to extract logits from model output.
         return_logits: If True, forward() returns (next_token_ids, next_cache_position, logits).
             If False, returns (next_token_ids, next_cache_position) only.
+        return_kv_cache: If True, forward() additionally returns per-layer
+            (keys, values) tensors extracted from model output.past_key_values.
+            Requires return_logits=True.
         mesh: Optional SPMD mesh for sharding constraints.
         output_sharding_spec: Optional sharding spec for output token ids.
             When both mesh and output_sharding_spec are provided, applies a
@@ -44,13 +47,17 @@ class LLMSamplingWrapper(torch.nn.Module):
         model: torch.nn.Module,
         read_logits_fn,
         return_logits: bool = True,
+        return_kv_cache: bool = False,
         mesh=None,
         output_sharding_spec=None,
     ):
         super().__init__()
+        if return_kv_cache and not return_logits:
+            raise ValueError("return_kv_cache=True requires return_logits=True")
         self.model = model
         self.read_logits_fn = read_logits_fn
         self.return_logits = return_logits
+        self.return_kv_cache = return_kv_cache
         self.mesh = mesh
         self.output_sharding_spec = output_sharding_spec
 
@@ -89,6 +96,25 @@ class LLMSamplingWrapper(torch.nn.Module):
                 replicate_spec = tuple(None for _ in range(logits_out.dim()))
                 logits_out = sharding_constraint_tensor(
                     logits, self.mesh, replicate_spec
+                )
+            if self.return_kv_cache:
+                # Surface per-layer K/V from model output. Replicate when sharded
+                # so the consumer can transfer to CPU.
+                kv_cache_out = []
+                for layer in output.past_key_values.layers:
+                    k, v = layer.keys, layer.values
+                    if self.mesh and self.output_sharding_spec:
+                        k_replicate = tuple(None for _ in range(k.dim()))
+                        v_replicate = tuple(None for _ in range(v.dim()))
+                        k = sharding_constraint_tensor(k, self.mesh, k_replicate)
+                        v = sharding_constraint_tensor(v, self.mesh, v_replicate)
+                    kv_cache_out.append((k, v))
+                return (
+                    next_token_ids,
+                    next_token_ids_replicated,
+                    next_cache_position,
+                    logits_out,
+                    kv_cache_out,
                 )
             return (
                 next_token_ids,
@@ -267,8 +293,14 @@ def generate_and_benchmark(
     verbose: bool = True,
     ground_truth_tokens: Optional[torch.Tensor] = None,
     collect_logits: bool = True,
+    collect_kv_cache: bool = False,
     tokenizer=None,
-) -> tuple[list[torch.Tensor], list[int]]:
+) -> tuple[
+    list[torch.Tensor],
+    list[torch.Tensor],
+    list[list[tuple[torch.Tensor, torch.Tensor]]],
+    list[int],
+]:
     """On-device decode loop for benchmarks and accuracy testing.
 
     Args:
@@ -278,19 +310,30 @@ def generate_and_benchmark(
         max_tokens_to_generate: Number of decode steps to run
         verbose: Print per-iteration timing
         ground_truth_tokens: 1D tensor of ground truth token IDs for teacher forcing.
-                           None = autoregressive mode.
+                           None = autoregressive mode. If shorter than
+                           max_tokens_to_generate, the loop teacher-forces while
+                           the gt window has tokens and autoregresses afterward.
         collect_logits: Whether to collect logits.
-            True: Model must return (next_token_ids, next_cache_position, logits)
+            True: Model must return (next_token_ids, next_cache_position, logits[, kv_cache])
                   and logits are moved to CPU each step (for PCC/accuracy).
             False: Model must return (next_token_ids, next_cache_position) only
                   (for performance benchmarking without OOM risk).
+        collect_kv_cache: If True, also collect per-step per-layer (keys, values)
+            tensors surfaced by the wrapper. Requires collect_logits=True and a
+            wrapper built with return_kv_cache=True.
         tokenizer: Optional tokenizer for decoding generated token IDs to text.
 
     Returns:
-        (output_logits, iteration_times)
+        (output_logits, output_tokens, output_kv_cache, iteration_times)
         - output_logits: List of logit tensors per step (empty if collect_logits=False)
+        - output_tokens: List of per-step next_token_ids tensors (shape [batch_size, 1])
+                         moved to CPU.
+        - output_kv_cache: List per step of [(keys_cpu, values_cpu)] per layer
+                           (empty if collect_kv_cache=False).
         - iteration_times: List of iteration times in nanoseconds
     """
+    if collect_kv_cache and not collect_logits:
+        raise ValueError("collect_kv_cache=True requires collect_logits=True")
 
     if ground_truth_tokens is not None:
         assert (
@@ -302,6 +345,8 @@ def generate_and_benchmark(
     batch_size = input_args["input_ids"].shape[0]
 
     output_logits: list[torch.Tensor] = []
+    output_tokens: list[torch.Tensor] = []
+    output_kv_cache: list[list[tuple[torch.Tensor, torch.Tensor]]] = []
     iteration_times: list[int] = []
     generated_texts: list[str] = [""] * batch_size
 
@@ -324,17 +369,30 @@ def generate_and_benchmark(
             output = model(**input_args)
 
             if collect_logits:
-                (
-                    next_token_ids,
-                    next_token_ids_replicated,
-                    next_cache_position,
-                    logits,
-                ) = output
+                if collect_kv_cache:
+                    (
+                        next_token_ids,
+                        next_token_ids_replicated,
+                        next_cache_position,
+                        logits,
+                        kv_cache,
+                    ) = output
+                    output_kv_cache.append(
+                        [(k.to("cpu"), v.to("cpu")) for k, v in kv_cache]
+                    )
+                else:
+                    (
+                        next_token_ids,
+                        next_token_ids_replicated,
+                        next_cache_position,
+                        logits,
+                    ) = output
                 output_logits.append(logits.to("cpu"))
+                output_tokens.append(next_token_ids_replicated.to("cpu"))
             else:
                 next_token_ids, next_token_ids_replicated, next_cache_position = output
 
-            if ground_truth_tokens is not None:
+            if gt_cpu is not None and step < gt_cpu.shape[0]:
                 input_args["input_ids"] = gt_cpu[step].to(device)
             else:
                 input_args["input_ids"] = next_token_ids
@@ -359,7 +417,7 @@ def generate_and_benchmark(
         for i in range(batch_size):
             print(f"User {i}: {generated_texts[i]}")
 
-    return output_logits, iteration_times
+    return output_logits, output_tokens, output_kv_cache, iteration_times
 
 
 def init_accuracy_testing(
