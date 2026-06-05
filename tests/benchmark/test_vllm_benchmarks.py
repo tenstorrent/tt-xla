@@ -91,7 +91,7 @@ def _tp_config(
     model: str,
     batch_size: int,
     *,
-    gpu_memory_utilization: float = 0.005,
+    gpu_memory_utilization: float = 0.1,
     **additional_config_extra,
 ):
     tp_defaults = {
@@ -181,53 +181,45 @@ SINGLE_DEVICE_CONFIGS = [
 
 
 TP_CONFIGS = [
-    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 1), id="falcon3-7b-tp"),
-    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 1), id="falcon3-10b-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-8B", 1), id="qwen3-8b-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 32), id="falcon3-7b-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 32), id="falcon3-10b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-8B", 32), id="qwen3-8b-tp"),
     pytest.param(
-        _tp_config("Qwen/Qwen3-8B", 1, optimization_level=1),
+        _tp_config("Qwen/Qwen3-8B", 32, optimization_level=1),
         id="qwen3-8b-tp-opt1",
     ),
-    pytest.param(_tp_config("Qwen/Qwen3-14B", 1), id="qwen3-14b-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-32B", 1), id="qwen3-32b-tp"),
-    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 1), id="gemma4-31b-it-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-14B", 32), id="qwen3-14b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-tp"),
+    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
     pytest.param(
         # batch 32 on the 1x4 QB2 mesh. The @main-wrapper sharding collapse
-        # (issue #5032) is fixed by the frontend propagateShardyArgShardings
-        # pass in this branch. Trace stays disabled because trace capture needs
-        # all intermediates resident at once, which OOMs DRAM at full depth.
+        # (issue #5032) is fixed on this branch by the Tier 1 KV-fill batch-index
+        # hoist (propagateShardyArgShardings is disabled). Trace stays ON.
         _tp_config(
             "Qwen/Qwen3-32B",
             32,
             use_2d_mesh=False,
             enable_trace=True,
-            # KV-cache budget on TT = device_DRAM (~32 GiB) * gpu_memory_utilization;
-            # weights are NOT subtracted (worker.determine_available_memory hardcodes
-            # current_mem=0). At batch 32 the _tp_config default of 0.005 (~160 MiB)
-            # is too small -> preemptions (KV needs ~256 MiB/device: 64 layers x 8
-            # kv-heads x 128 head_dim x 2 x bf16 / 4-way TP x 32 seq x 128 tokens).
-            # 0.1 matches the same-size gemma4-31b-it TP config (same 1x4 mesh, fits)
-            # and leaves ~10x headroom; comfortably fits beside ~16 GiB bf16 weights.
             gpu_memory_utilization=0.1,
         ),
         id="qwen3-32b-qb2-tp",
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
+        _tp_config("Qwen/Qwen2.5-14B-Instruct", 32), id="qwen2.5-14b-instruct-tp"
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 1),
+        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32),
         id="qwen2.5-coder-32b-instruct-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Ministral-8B-Instruct-2410", 1), id="ministral-8b-tp"
+        _tp_config("mistralai/Ministral-8B-Instruct-2410", 32), id="ministral-8b-tp"
     ),
     pytest.param(
-        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 1),
+        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 32),
         id="mistral-nemo-instruct-2407-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 1),
+        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32),
         id="mistral-small-24b-instruct-2501-tp",
     ),
     pytest.param(
