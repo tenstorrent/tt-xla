@@ -64,7 +64,7 @@ def _tp_config(
 ):
     tp_defaults = {
         "enable_tensor_parallel": True,
-        "use_2d_mesh": True,
+        "use_2d_mesh": False,
         "min_context_len": 32,
     }
     tp_defaults.update(additional_config_extra)
@@ -86,7 +86,7 @@ def _gemma4_tp_config(model: str, batch_size: int):
     cfg = _config(
         model,
         batch_size,
-        gpu_memory_utilization=0.1,
+        gpu_memory_utilization=0.2,
         enable_tensor_parallel=True,
         use_2d_mesh=False,
         min_context_len=32,
