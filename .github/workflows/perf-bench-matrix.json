@@ -840,6 +840,11 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "smollm2_360m",
+        "pytest": "tests/benchmark/test_llms.py::test_smollm2_360m",
+        "runs-on": "n150"
       }
     ]
   }
