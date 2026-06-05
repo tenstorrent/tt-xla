@@ -204,6 +204,19 @@ TP_CONFIGS = [
         _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 1),
         id="mistral-small-24b-instruct-2501-tp",
     ),
+    pytest.param(
+        _tp_config("meta-llama/Llama-3.1-8B-Instruct", 1),
+        id="llama-3.1-8b-tp",
+    ),
+    pytest.param(
+        _tp_config(
+            "meta-llama/Llama-3.1-70B-Instruct",
+            1,
+            enable_const_eval=True,
+            experimental_weight_dtype="bfp_bf8",
+        ),
+        id="llama-3.1-70b-tp",
+    ),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
