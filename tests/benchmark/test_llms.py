@@ -87,7 +87,6 @@ def test_llm(
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
     """
-    # Set default batch size if None
     if batch_size is None:
         batch_size = DEFAULT_BATCH_SIZE
 
@@ -168,6 +167,9 @@ def test_llm(
         enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
     )
 
+    # Raise AFTER the JSON write so bad-PCC tests still record metrics.
+    pcc_failures = results.pop("_pcc_failures", [])
+
     if output_file:
         results["project"] = "tt-forge/tt-xla"
         results["model_rawname"] = model_info_name
@@ -218,6 +220,9 @@ def test_llm(
 
         with open(output_file, "w") as file:
             json.dump(results, file, indent=2)
+
+    if pcc_failures:
+        raise AssertionError("; ".join(pcc_failures))
 
 
 def test_llm_tp(
