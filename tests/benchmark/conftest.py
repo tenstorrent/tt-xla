@@ -111,6 +111,16 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+        "--enable-trace",
+        action="store",
+        default=None,
+        choices=["on", "off"],
+        help="Override device trace for prefill benchmarks ('on' or 'off'). When unset, "
+        "each test's built-in default is used. Lets a single sweep run trace vs no-trace "
+        "without editing the tests.",
+    )
+
+    parser.addoption(
         "--check-fusions",
         action="store_true",
         default=False,
@@ -164,6 +174,15 @@ def skip_pcc(request):
 @pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def trace_override(request):
+    """Resolved --enable-trace override: True/False when set, None to use the test default."""
+    val = request.config.getoption("--enable-trace")
+    if val is None:
+        return None
+    return val == "on"
 
 
 @pytest.fixture

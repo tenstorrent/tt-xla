@@ -3,10 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Built-in modules
+import bz2
 import os
 import socket
 import sys
 import time
+from pathlib import Path
 from typing import Optional, Union
 
 import numpy as np
@@ -46,14 +48,15 @@ xr.set_device_type("TT")
 
 MIN_STEPS = 16
 
-# Default number of times the prefill is re-run (post-warmup) when measuring its latency.
-# We keep the MINIMUM across runs to report the "happy path" device time, stripping
-# out host-side jitter and one-off noise. Overridable per run via -lp / loop_count.
-DEFAULT_PREFILL_PERF_RUNS = 30
+DEFAULT_PREFILL_LOOP_COUNT = 10
 
-# Seed for the random prefill prompt so a benchmark run is reproducible. Drawn through a
-# local torch.Generator (below) so the global RNG state is left untouched.
 PREFILL_RANDOM_SEED = 0
+
+PREFILL_CORPUS_FILE = (
+    Path(__file__).resolve().parent.parent
+    / "reference_outputs"
+    / "tale-of-two-cities.txt.bz2"
+)
 
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
@@ -61,6 +64,44 @@ DEFAULT_INPUT_PROMPT = (
 )
 
 MODULE_EXPORT_PATH = "modules"
+
+
+def load_prefill_input_tokens(tokenizer, num_tokens: int, vocab_size: int) -> torch.Tensor:
+    """Build a 1D tensor of exactly `num_tokens` input tokens for the prefill benchmark.
+
+    Uses real text from the Tale of Two Cities corpus, tokenized and truncated to
+    `num_tokens`, so the decoded input is human-readable and has a realistic token
+    distribution. Prefill latency is data-independent (the same fixed-length forward
+    runs regardless of token values), so this does not change the measured TTFT.
+
+    Falls back to deterministic random tokens if the corpus is missing or too short.
+    """
+    if PREFILL_CORPUS_FILE.exists():
+        with bz2.open(PREFILL_CORPUS_FILE, "rt", encoding="utf-8") as f:
+            text = f.read()
+        # Only tokenize as much text as we need. ~8 chars/token is a safe upper bound
+        # for English, so this slice yields >= num_tokens tokens while avoiding both the
+        # cost and the "sequence longer than max length" warning from encoding the whole
+        # corpus. truncation caps the result at exactly num_tokens.
+        encoded = tokenizer.encode(
+            text[: num_tokens * 8],
+            add_special_tokens=True,
+            truncation=True,
+            max_length=num_tokens,
+        )
+        if len(encoded) >= num_tokens:
+            return torch.tensor(encoded[:num_tokens])
+        logger.warning(
+            f"Prefill corpus tokenized to only {len(encoded)} tokens (< {num_tokens}); "
+            "falling back to random prefill tokens."
+        )
+    else:
+        logger.warning(
+            f"Prefill corpus not found at {PREFILL_CORPUS_FILE}; "
+            "falling back to random prefill tokens."
+        )
+    rng = torch.Generator().manual_seed(PREFILL_RANDOM_SEED)
+    return torch.randint(0, vocab_size, (num_tokens,), generator=rng)
 
 
 def setup_model_and_tokenizer(
@@ -299,7 +340,6 @@ def benchmark_llm_torch_xla(
     Returns:
         Benchmark result containing token generation performance metrics and model information
     """
-    # Enforce bfloat16 only
     if data_format != "bfloat16":
         raise ValueError(
             f"Only bfloat16 data format is supported for llm benchmark. Got: {data_format}. "
@@ -353,10 +393,8 @@ def benchmark_llm_torch_xla(
     # Changing this value requires regenerating ALL reference outputs (*.refpt files).
     max_cache_len: int = input_sequence_length
 
-    # Connect the device
     device: torch.device = torch_xla.device()
 
-    # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
@@ -431,10 +469,8 @@ def benchmark_llm_torch_xla(
 
         cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
-    # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
 
-    # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
@@ -652,7 +688,7 @@ def benchmark_llm_torch_xla(
 
         # Override device's first-decode input with CPU's prefill output when they
         # diverge, so the decode PCC reference is comparing apples to apples
-        # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
+        # (otherwise a poor prefill PCC compounds into the decode PCC - see #4614).
         if not accuracy_testing and not torch.equal(
             device_prefill_output_ids, first_decode_input_ids.cpu()
         ):
@@ -723,7 +759,6 @@ def benchmark_llm_torch_xla(
         "Tale of Two Cities (Reference Data)" if accuracy_testing else "Random Data"
     )
 
-    # Extract number of layers from model config if available
     num_layers = (
         model.config.num_hidden_layers
         if hasattr(model.config, "num_hidden_layers")
@@ -775,10 +810,10 @@ def benchmark_llm_torch_xla(
         num_users = len(all_top1)
         print(
             f"Token accuracy over {num_users} users:\n"
-            f"  TOP1 — min={all_top1.min()*100:.2f}%  p5={top1_p5*100:.2f}%  "
+            f"  TOP1 - min={all_top1.min()*100:.2f}%  p5={top1_p5*100:.2f}%  "
             f"median={np.median(all_top1)*100:.2f}%  mean={all_top1.mean()*100:.2f}%  "
             f"max={all_top1.max()*100:.2f}%\n"
-            f"  TOP5 — min={all_top5.min()*100:.2f}%  p5={top5_p5*100:.2f}%  "
+            f"  TOP5 - min={all_top5.min()*100:.2f}%  p5={top5_p5*100:.2f}%  "
             f"median={np.median(all_top5)*100:.2f}%  mean={all_top5.mean()*100:.2f}%  "
             f"max={all_top5.max()*100:.2f}%"
         )
@@ -882,35 +917,35 @@ def benchmark_llm_torch_xla(
     return result
 
 
-def benchmark_llm_torch_xla_prefill(
+def benchmark_llm_prefill_torch_xla(
     model_loader,
     model_variant,
     display_name,
-    optimization_level,
-    trace_enabled,
-    batch_size,
-    loop_count,
     task,
     data_format,
+    batch_size,
     input_sequence_length,
+    loop_count,
+    optimization_level,
+    trace_enabled,
     experimental_weight_dtype,
     experimental_enable_permute_matmul_fusion,
-    ttnn_perf_metrics_output_file,
-    read_logits_fn,
     mesh_config_fn,
     shard_spec_fn,
+    read_logits_fn,
+    ttnn_perf_metrics_output_file,
     required_pcc,
     fp32_dest_acc_en=None,
-    experimental_kv_cache_dtype=None,
+    enable_create_d2m_subgraphs: bool = False,
     weight_dtype_overrides: dict = None,
+    do_apply_weight_dtype_overrides: bool = False,
+    experimental_kv_cache_dtype=None,
+    use_mla_cache: bool = False,
+    use_indexer_cache: bool = False,
     input_output_sharding_spec=None,
     kv_cache_sharding_spec=None,
-    use_mla_cache: bool = False,
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
-    use_indexer_cache: bool = False,
-    enable_create_d2m_subgraphs: bool = False,
-    do_apply_weight_dtype_overrides: bool = False,
     skip_pcc: bool = False,
 ):
     """
@@ -929,7 +964,7 @@ def benchmark_llm_torch_xla_prefill(
         task: Task type
         data_format: Data precision format
         input_sequence_length: Length of the prefill prompt (number of tokens processed)
-        loop_count: Number of timed prefill runs (-lp); <=1 uses DEFAULT_PREFILL_PERF_RUNS
+        loop_count: Number of timed prefill runs (-lp); <=1 uses DEFAULT_PREFILL_LOOP_COUNT
         experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
@@ -939,7 +974,6 @@ def benchmark_llm_torch_xla_prefill(
     Returns:
         Benchmark result containing prefill latency (TTFT) and model information
     """
-    # Enforce bfloat16 only
     if data_format != "bfloat16":
         raise ValueError(
             f"Only bfloat16 data format is supported for llm benchmark. Got: {data_format}. "
@@ -950,9 +984,9 @@ def benchmark_llm_torch_xla_prefill(
         raise ValueError("Model loader must be specified for benchmark. ")
 
     # loop_count (-lp) sets how many timed prefill runs to do; we report the fastest.
-    # The benchmark-wide default of 1 means "use DEFAULT_PREFILL_PERF_RUNS".
+    # The benchmark-wide default of 1 means "use DEFAULT_PREFILL_LOOP_COUNT".
     if loop_count is None or loop_count <= 1:
-        prefill_perf_runs = DEFAULT_PREFILL_PERF_RUNS
+        prefill_perf_runs = DEFAULT_PREFILL_LOOP_COUNT
     else:
         prefill_perf_runs = loop_count
 
@@ -993,27 +1027,22 @@ def benchmark_llm_torch_xla_prefill(
             os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
             xr.use_spmd()
     else:
+        assert (
+            mesh_config_fn is None and shard_spec_fn is None
+        ), "mesh_config_fn and shard_spec_fn must be None if not multi-chip"
         is_multichip = False
 
     # The prefill prompt has exactly input_sequence_length tokens, so the KV cache only
     # needs to hold that many positions.
     max_cache_len: int = input_sequence_length
 
-    # Connect the device
     device: torch.device = torch_xla.device()
 
-    # Instantiate model and tokenizer
     model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
-    # Random prompt of exactly input_sequence_length tokens so the measured prefill
-    # scales with -isl (1D; construct_inputs expands it across the batch via
-    # input_prompt_tokens). Generated once and reused by the CPU reference and the device
-    # prefill so PCC compares the same inputs. Seeded via a local generator so runs are
-    # reproducible without perturbing the global RNG state.
-    rng = torch.Generator().manual_seed(PREFILL_RANDOM_SEED)
-    random_input_tokens = torch.randint(
-        0, model.config.vocab_size, (input_sequence_length,), generator=rng
+    prefill_input_tokens = load_prefill_input_tokens(
+        tokenizer, input_sequence_length, model.config.vocab_size
     )
 
     # Initialize indexer cache if enabled (needs to be done before model.to(device))
@@ -1043,7 +1072,7 @@ def benchmark_llm_torch_xla_prefill(
             model.config,
             batch_size,
             max_cache_len,
-            input_prompt_tokens=random_input_tokens,
+            input_prompt_tokens=prefill_input_tokens,
             use_mla_cache=use_mla_cache,
         )
         cpu_output_logits, _ = generate_and_benchmark(
@@ -1055,10 +1084,8 @@ def benchmark_llm_torch_xla_prefill(
             collect_logits=True,
         )
 
-    # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
 
-    # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
@@ -1089,10 +1116,7 @@ def benchmark_llm_torch_xla_prefill(
         "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
         "experimental_enable_permute_matmul_fusion": experimental_enable_permute_matmul_fusion,
     }
-    # Prefill runs in bf16 (experimental_weight_dtype=""). Only pass the option when a
-    # real block format is requested: feeding an empty string into the compile options
-    # crashes the tt-mlir backend during lowering (segfault in the warmup compile). The
-    # working decode path only ever passes a valid format (e.g. "bfp_bf8").
+
     if experimental_weight_dtype:
         options["experimental_weight_dtype"] = experimental_weight_dtype
     if fp32_dest_acc_en is not None:
@@ -1124,14 +1148,6 @@ def benchmark_llm_torch_xla_prefill(
     # PERFORMANCE + PCC BENCHMARK
     # ========================================================
 
-    # Two graphs are compiled (only the first when skip_pcc):
-    #   * Perf/warmup graph (return_logits=False) — the timed graph. It outputs only the
-    #     argmax over the last position (tiny), NOT the logits. Keeping the full
-    #     (batch, seq, vocab) logits off the output means the timed runs never pay the
-    #     ~GB logits host transfer, so TTFT stays a clean device-latency number (see the
-    #     perf loop below).
-    #   * PCC graph (return_logits=True) — built and run only when not skip_pcc, purely to
-    #     pull logits to host for the correctness check.
     perf_wrapper = LLMSamplingWrapper(
         model,
         read_logits_fn,
@@ -1139,7 +1155,7 @@ def benchmark_llm_torch_xla_prefill(
         mesh=mesh,
         output_sharding_spec=input_output_sharding_spec,
     )
-    # Eval mode (inference path). The wrapper also passes no explicit position_ids — see
+    # Eval mode (inference path). The wrapper also passes no explicit position_ids - see
     # LLMSamplingWrapper.forward for why that matters under SPMD.
     perf_wrapper.eval()
     compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
@@ -1149,7 +1165,7 @@ def benchmark_llm_torch_xla_prefill(
 
         Builds a fresh StaticCache via construct_inputs (the same cache type the decode
         benchmark and deployment use) and transfers it to device. Rebuilt per call so
-        every run starts from cumulative_length=0 — i.e. a genuine first prefill — instead
+        every run starts from cumulative_length=0 - i.e. a genuine first prefill - instead
         of accumulating into a carried-over cache.
         """
         ia = construct_inputs(
@@ -1157,7 +1173,7 @@ def benchmark_llm_torch_xla_prefill(
             model.config,
             batch_size,
             max_cache_len,
-            input_prompt_tokens=random_input_tokens,
+            input_prompt_tokens=prefill_input_tokens,
             use_mla_cache=use_mla_cache,
         )
         ia = transfer_to_device(ia, device)
@@ -1167,14 +1183,12 @@ def benchmark_llm_torch_xla_prefill(
             xs.mark_sharding(ia["input_ids"], mesh, input_output_sharding_spec)
         return ia
 
-    # Warmup compiles the prefill graph, so the measured runs below are pure device
-    # executions of the same graph.
     input_args = _make_prefill_inputs_on_device()
 
     print("Warming up...")
     _, _ = generate_and_benchmark(
         compiled_perf_model,
-        input_args,
+        dict(input_args),
         device,
         1,  # only need to warm up for prefill
         verbose=False,
@@ -1185,14 +1199,6 @@ def benchmark_llm_torch_xla_prefill(
 
     tracy.signpost("warmup_complete")
 
-    # Run the perf benchmark: re-run the prefill prefill_perf_runs times (the graph is
-    # already compiled by warmup, so these are pure device executions) and keep the
-    # fastest. The minimum is the cleanest estimate of the prefill's device latency.
-    #
-    # The model is called directly here (not through generate_and_benchmark) so the
-    # device sync can be forced via the tiny next_token_ids tensor instead of copying the
-    # full ~GB logits to host every run. The graph still computes logits on device (TTFT
-    # reflects that compute); we just don't pay the host transfer inside the timed region.
     print(f"\nStarting performance benchmark...")
     prefill_times_ns = []
     with torch.no_grad():
@@ -1219,10 +1225,7 @@ def benchmark_llm_torch_xla_prefill(
 
     print("\nPerformance benchmark complete")
 
-    # PCC: build and run a separate return_logits=True graph to pull the prefill logits to
-    # host and compare against the CPU reference. Inputs are identical to the timed runs,
-    # so it validates the same prefill output. Skipped entirely when skip_pcc: no extra
-    # graph, no device run, no logits collection.
+    # PCC: separate return_logits=True graph to pull the logits to host.
     output_logits = None
     if not skip_pcc:
         logits_wrapper = LLMSamplingWrapper(
@@ -1244,13 +1247,9 @@ def benchmark_llm_torch_xla_prefill(
             collect_logits=True,
         )
 
-    # Prefill-only: the measured iteration is the prefill forward. TTFT (time to first
-    # token) is the prefill latency and is the primary metric. Use the fastest of the
-    # prefill_perf_runs runs (the happy path, free of host-side jitter).
     ttft_ns = min(prefill_times_ns)
     ttft_ms = ttft_ns / 1e6
 
-    # No decode loop in prefill-only mode, so throughput is not measured here.
     prefill_total_time = ttft_ns / 1e9
     prefill_total_samples = 0
     tokens_per_second = 0.0
@@ -1260,7 +1259,6 @@ def benchmark_llm_torch_xla_prefill(
     model_type = "text-generation"
     dataset_name = "Random Data"
 
-    # Extract number of layers from model config if available
     num_layers = (
         model.config.num_hidden_layers
         if hasattr(model.config, "num_hidden_layers")
@@ -1293,7 +1291,7 @@ def benchmark_llm_torch_xla_prefill(
     ]
 
     # Prefill-only: verify the prefill logits against the CPU reference. Skipped entirely
-    # when skip_pcc (no CPU reference, no device PCC run) — perf is still reported.
+    # when skip_pcc (no CPU reference, no device PCC run) - perf is still reported.
     if skip_pcc:
         logger.warning("skip_pcc set: prefill PCC not measured.")
     else:

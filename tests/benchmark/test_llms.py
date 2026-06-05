@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from benchmarks.llm_benchmark import (
     benchmark_llm_torch_xla,
-    benchmark_llm_torch_xla_prefill,
+    benchmark_llm_prefill_torch_xla,
 )
 from llm_utils.token_accuracy import TokenAccuracy
 from loguru import logger
@@ -363,7 +363,7 @@ def test_llm_prefill(
     """
     )
 
-    results = benchmark_llm_torch_xla_prefill(
+    results = benchmark_llm_prefill_torch_xla(
         optimization_level=optimization_level,
         trace_enabled=trace_enabled,
         model_loader=model_loader,
@@ -399,7 +399,7 @@ def test_llm_prefill(
 
         # Prefill-only: there is no decode graph. One perf-metrics file is produced under
         # skip_pcc (perf graph only); otherwise two (perf graph + PCC logits graph). The
-        # perf graph compiles first, so sorted()[0] is the timed graph — use it for the
+        # perf graph compiles first, so sorted()[0] is the timed graph - use it for the
         # TTNN op metrics. ttnn_num_graphs records how many were found. perf_dir is unique
         # to this run, so the glob only ever sees this run's files (no pollution from
         # previous runs).
@@ -551,6 +551,7 @@ def test_llama_3_2_1b_prefill(
     optimization_level,
     input_sequence_length,
     skip_pcc,
+    trace_override,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -578,7 +579,7 @@ def test_llama_3_2_1b_prefill(
         ),
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
-        trace_enabled=False,
+        trace_enabled=(trace_override if trace_override is not None else True),
         skip_pcc=skip_pcc,
     )
 
@@ -730,6 +731,7 @@ def test_phi1_prefill(
     optimization_level,
     input_sequence_length,
     skip_pcc,
+    trace_override,
 ):
     from third_party.tt_forge_models.phi1.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -757,7 +759,7 @@ def test_phi1_prefill(
         ),
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
-        trace_enabled=False,
+        trace_enabled=(trace_override if trace_override is not None else True),
         skip_pcc=skip_pcc,
     )
 
@@ -1157,6 +1159,7 @@ def test_qwen_3_8b_prefill(
     optimization_level,
     input_sequence_length,
     skip_pcc,
+    trace_override,
 ):
     from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1184,7 +1187,7 @@ def test_qwen_3_8b_prefill(
         ),
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
-        trace_enabled=False,
+        trace_enabled=(trace_override if trace_override is not None else True),
         skip_pcc=skip_pcc,
     )
 
@@ -1474,6 +1477,7 @@ def test_llama_3_1_8b_prefill(
     optimization_level,
     input_sequence_length,
     skip_pcc,
+    trace_override,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -1502,7 +1506,7 @@ def test_llama_3_1_8b_prefill(
         required_pcc=0.90,
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
-        trace_enabled=False,
+        trace_enabled=(trace_override if trace_override is not None else True),
         skip_pcc=skip_pcc,
     )
 
@@ -2137,6 +2141,7 @@ def test_llama_3_1_70b_tp_prefill(
     optimization_level,
     input_sequence_length,
     skip_pcc,
+    trace_override,
 ):
     from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
         ModelLoader,
@@ -2163,7 +2168,7 @@ def test_llama_3_1_70b_tp_prefill(
         required_pcc=0.90,
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
-        trace_enabled=False,
+        trace_enabled=(trace_override if trace_override is not None else True),
         skip_pcc=skip_pcc,
     )
 
@@ -2373,7 +2378,7 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
 
     shard_specs[model.model.embed_tokens.weight] = (None, None)
     shard_specs[model.model.norm.weight] = (None,)
-    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device — see tt-metal_galaxy_parallelism
+    # HF [vocab, hidden]: TP shard vocab (first dim); tt-metal transposes/pads on device - see tt-metal_galaxy_parallelism
     shard_specs[model.lm_head.weight] = (None, None)
 
     for layer in model.model.layers:
@@ -2472,7 +2477,7 @@ def _gpt_oss_120b_qb2_mesh_config_fn(model_loader, num_devices):
 
 
 def _gpt_oss_120b_qb2_shard_spec_fn(model_loader, model):
-    """QB2 (1,4) mesh shard specs — model-axis-only, no batch sharding."""
+    """QB2 (1,4) mesh shard specs - model-axis-only, no batch sharding."""
     shard_specs = {}
     shard_specs[model.model.embed_tokens.weight] = (None, None)
     shard_specs[model.model.norm.weight] = (None,)
