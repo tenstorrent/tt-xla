@@ -88,6 +88,7 @@ def test_llm(
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
+        expert_implementation: Expert implementation type
     """
     # Set default batch size if None
     if batch_size is None:
