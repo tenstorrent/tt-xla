@@ -148,6 +148,16 @@ class DynamicTorchModelTester(TorchModelTester):
             batch_size=batch_size,
         )
 
+        # Loaders expose `requires_model_rewrites` to request TT-friendly
+        # in-place model rewrites (e.g. sliding-window mask patches). Querying
+        # the loader property keeps the inputs dict free of non-model keys.
+        if getattr(self.dynamic_loader.loader, "requires_model_rewrites", False):
+            from tt_torch.transformers_overrides import (
+                override_model_sliding_window_causal_mask,
+            )
+
+            override_model_sliding_window_causal_mask(self._model)
+
         if self.parallelism == Parallelism.DATA_PARALLEL:
             num_devices = xr.global_runtime_device_count()
             if isinstance(inputs, collections.abc.Mapping):
