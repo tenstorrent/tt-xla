@@ -63,3 +63,37 @@ RESUME: text_encoder PCC. Options: (1) escalate torch-xla/tt-mlir SPMD bug for f
   (3) move to p150 single-device (fits, no TP) — recommended cleanest pass.
 Run env: TT_XLA_ARCH=n300-llmbox TT_VISIBLE_DEVICES=0,1 TT_XLA_SPMD=1 CONVERT_SHLO_TO_SHARDY=1
 Scripts: run_text_encoder_tp.sh, run_te_mlp_only.sh
+
+=== SESSION 2026-06-06 — single-device components run on p150 (PAUSED on failures) ===
+Host: dedicated single-chip Blackhole p100a -> p150 (n150 skipped: needs Wormhole). TT_VISIBLE_DEVICES=0.
+Host probe: .claude/bringup/hunyuan_image_2_1/host_probe_singledev.json (can_run_component=true, runnable=[p150]).
+
+Ran all 3 single-device component tests (fp32, opt_level=1, run_graph_test PCC 0.99):
+
+  text_encoder_2 (ByT5 0.22B)  -> FAILED PCC 0.9816 < 0.99 (compiles+executes; 150s)
+     log: logs/te2_iter_1_p150.log
+     Cause: T5/ByT5 device fp32 numeric gap (no q-scaling, large dynamic range). No obvious loader fix.
+     Next: runtime-failure-debugger op-level PCC bisect.
+
+  vae (0.41B)  -> FAILED OOM (activation; 32 GiB single buffer at 2048x2048 decode; 677s)
+     log: logs/vae_iter_1_p150.log
+     Error: TT_FATAL Out of Memory: 34359738368 B DRAM buffer across 7 banks.
+     Fix (APPLIED, UNVERIFIED): load_vae() enable_tiling(tile_sample_min_size=512) + VAE_TILE_SAMPLE_MIN_SIZE=512.
+       Tiled decode (512px tile -> 16x16 latent) caps peak activation ~1/16; matches real 2048^2 pipeline.
+       Both CPU golden + TT run same tiled module -> PCC apples-to-apples.
+     Next: CPU sanity + TT re-run; if tiled path won't compile on TT, try tile=256.
+
+  text_encoder (Qwen2.5-VL 7B)  -> FAILED PCC 0.9527 < 0.99 (single_device, no sharding; fp32 fits, no OOM; 328s)
+     log: logs/te_iter_1_p150.log
+     KEY FINDING: single-device (replicated) PCC 0.9527 is WORSE than TP MLP-only 0.9637.
+       => the M-RoPE + GQA attention PCC gap is a DEVICE op-level numeric issue, NOT a sharding bug.
+       Single-device does NOT rescue PCC (refutes the "move to p150 single-device" recommendation as a pass path).
+     Next: runtime-failure-debugger op-level bisect on apply_multimodal_rotary_pos_emb (:627) + repeat_kv (:170).
+
+Working-tree change: third_party/tt_forge_models/hunyuan_image_2_1/pytorch/loader.py (vae enable_tiling; UNVERIFIED).
+All other components unchanged. transformer remains ESCALATED (weight-bound). text_encoder TP diagnostic env-gate untouched.
+RESUME: see state.json session_2026_06_06.resume_next.
+
+--- 2026-06-06 follow-up: reverted unverified loader edit ---
+The vae enable_tiling(512) edit in loader.py was REVERTED per user; working tree is clean.
+The tiling fix remains the recommended vae OOM fix (see state.json) but must be RE-APPLIED on resume.

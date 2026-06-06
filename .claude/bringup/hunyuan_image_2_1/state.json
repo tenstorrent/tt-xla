@@ -1,7 +1,7 @@
 {
   "model_key": "hunyuan_image_2_1",
   "hf_repo": "hunyuanvideo-community/HunyuanImage-2.1-Distilled-Diffusers",
-  "stage": "DIAGNOSED_PAUSED",
+  "stage": "SINGLEDEV_RUNS_DONE_PAUSED",
   "result": "passed",
   "session_conclusion": {
     "concluded_at": "2026-06-05",
@@ -12,7 +12,12 @@
   "details": {
     "scaffold_variant": "pipeline",
     "pipeline_class": "HunyuanImagePipeline",
-    "components_scaffolded": ["text_encoder", "text_encoder_2", "transformer", "vae"],
+    "components_scaffolded": [
+      "text_encoder",
+      "text_encoder_2",
+      "transformer",
+      "vae"
+    ],
     "denoise_steps_observed": 2,
     "device": "auto",
     "io_spec_path": ".claude/bringup/hunyuan_image_2_1/io_spec.json",
@@ -25,7 +30,9 @@
         "name": "text_encoder",
         "params": 7070619136,
         "parallelism_mode": "single_device",
-        "eligible_archs": ["p150"],
+        "eligible_archs": [
+          "p150"
+        ],
         "p150_only": true,
         "single_device_only": false,
         "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder",
@@ -36,7 +43,10 @@
         "name": "text_encoder_2",
         "params": 219314944,
         "parallelism_mode": "single_device",
-        "eligible_archs": ["n150", "p150"],
+        "eligible_archs": [
+          "n150",
+          "p150"
+        ],
         "p150_only": false,
         "single_device_only": true,
         "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder_2.py::test_text_encoder_2"
@@ -55,7 +65,10 @@
         "name": "vae",
         "params": 405575491,
         "parallelism_mode": "single_device",
-        "eligible_archs": ["n150", "p150"],
+        "eligible_archs": [
+          "n150",
+          "p150"
+        ],
         "p150_only": false,
         "single_device_only": true,
         "test_path": "tests/torch/models/HunyuanImage_2_1/test_vae_decoder.py::test_vae_decoder"
@@ -82,21 +95,117 @@
     "text_encoder": {
       "stage": "DIAGNOSED",
       "result": "failed_pcc_attention_tp_bug",
-      "mesh": [1, 4],
+      "mesh": [
+        1,
+        4
+      ],
       "dtype": "fp32",
       "weight_per_chip_gib": 7.07,
-      "memory_fit": "PASS — compiled + executed end-to-end, no OOM (fits cleanly at 4-way fp32)",
+      "memory_fit": "PASS \u2014 compiled + executed end-to-end, no OOM (fits cleanly at 4-way fp32)",
       "diagnosis_path": ".claude/bringup/hunyuan_image_2_1/diagnosis_text_encoder.json",
       "pcc_full_megatron": 0.27736377316915883,
       "pcc_mlp_only": 0.9637695434799857,
       "pcc_required": 0.99,
       "root_cause": "Shard spec is CORRECT (identical to known-good llama/qwen3). Catastrophic PCC from SHARDED ATTENTION: torch-xla/Shardy mispropagates head-sharded repeat_kv (expand+reshape, modeling_qwen2_5_vl.py:170) + M-RoPE split/cat (line 627). Bisect proof: replicating attention (MLP-only) recovers 0.277 -> 0.964.",
       "not_loader_fixable": true,
-      "options": ["escalate SPMD compiler bug (full attn TP)", "ship MLP-only TP (0.96, needs ~0.026 numeric gap closed)", "move to p150 single-device (fits, no TP)"],
-      "logs": [".claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_1_first_run_tp.log", ".claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_2_mlp_only.log"],
+      "options": [
+        "escalate SPMD compiler bug (full attn TP)",
+        "ship MLP-only TP (0.96, needs ~0.026 numeric gap closed)",
+        "move to p150 single-device (fits, no TP)"
+      ],
+      "logs": [
+        ".claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_1_first_run_tp.log",
+        ".claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_2_mlp_only.log"
+      ],
       "ran_at": "2026-06-05"
     },
-    "text_encoder_2": {"stage": "NOT_RUN", "note": "single_device — needs 1-chip host (n150/p150)"},
-    "vae": {"stage": "NOT_RUN", "note": "single_device — needs 1-chip host (n150/p150)"}
+    "text_encoder_2": {
+      "stage": "NOT_RUN",
+      "note": "single_device \u2014 needs 1-chip host (n150/p150)"
+    },
+    "vae": {
+      "stage": "NOT_RUN",
+      "note": "single_device \u2014 needs 1-chip host (n150/p150)"
+    }
+  },
+  "singledev_runs": {
+    "text_encoder_2": {
+      "arch": "p150",
+      "stage": "FIRST_RUN",
+      "result": "failed_pcc",
+      "compiled": true,
+      "executed": true,
+      "pcc": 0.9815547776590103,
+      "required_pcc": 0.99,
+      "duration_s": 150.49,
+      "note": "compiles+executes; borderline numeric PCC gap (~0.0084 under bar)",
+      "log": ".claude/bringup/hunyuan_image_2_1/logs/te2_iter_1_p150.log"
+    },
+    "vae": {
+      "arch": "p150",
+      "stage": "FIRST_RUN",
+      "result": "failed_oom",
+      "compiled": true,
+      "executed": false,
+      "oom_class": "activation",
+      "oom_bytes": 34359738368,
+      "error": "TT_FATAL Out of Memory: 32GiB DRAM buffer across 7 banks (activation blowup at 2048x2048 decode)",
+      "duration_s": 676.96,
+      "candidate_fix": "enable VAE tiling (tiled decode) to cap peak activation memory",
+      "log": ".claude/bringup/hunyuan_image_2_1/logs/vae_iter_1_p150.log"
+    },
+    "text_encoder": {
+      "arch": "p150",
+      "stage": "FIRST_RUN",
+      "result": "failed_pcc",
+      "compiled": true,
+      "executed": true,
+      "pcc": 0.9526958834781238,
+      "required_pcc": 0.99,
+      "duration_s": 328.04,
+      "parallelism": "single_device (no sharding)",
+      "note": "fp32 weights fit p150 (no OOM). PCC gap confirms Qwen2.5-VL attention (M-RoPE+GQA) is a DEVICE op-level numeric issue, not a sharding bug (matches diagnosis_text_encoder.json residual_gap).",
+      "log": ".claude/bringup/hunyuan_image_2_1/logs/te_iter_1_p150.log"
+    }
+  },
+  "session_2026_06_06": {
+    "host": "dedicated single-chip Blackhole p100a -> p150 (n150 skipped: needs Wormhole); TT_VISIBLE_DEVICES=0",
+    "summary": "Ran all 3 single-device components on p150. None pass yet: vae OOM (activation), te2 + text_encoder borderline-numeric PCC. Fixes identified; paused before applying/verifying per user.",
+    "results": {
+      "text_encoder_2": {
+        "result": "failed_pcc",
+        "pcc": 0.9815547776590103,
+        "required": 0.99,
+        "status": "compiles+executes; ~0.0084 under bar",
+        "recommended_fix": "op-level PCC bisect (runtime-failure-debugger) \u2014 T5/ByT5 device fp32 numeric gap (no q-scaling, large dynamic range). No obvious loader fix.",
+        "log": "logs/te2_iter_1_p150.log"
+      },
+      "vae": {
+        "result": "failed_oom",
+        "oom_bytes": 34359738368,
+        "oom_class": "activation",
+        "status": "single-shot 2048x2048 decode needs ~32GiB intermediate -> p150 DRAM overflow",
+        "recommended_fix": "enable VAE tiling (tiled_decode): load_vae() -> vae.enable_tiling(tile_sample_min_size=512). Proposed, NOT applied (reverted; working tree clean). 512px tile -> 16x16 latent caps peak ~1/16; CPU golden + TT run same tiled module. Needs CPU sanity + TT re-run.",
+        "log": "logs/vae_iter_1_p150.log"
+      },
+      "text_encoder": {
+        "result": "failed_pcc",
+        "pcc": 0.9526958834781238,
+        "required": 0.99,
+        "parallelism": "single_device (no sharding)",
+        "status": "fp32 weights fit p150, no OOM; PCC 0.9527",
+        "key_finding": "Single-device (replicated) PCC 0.9527 < TP MLP-only 0.9637 -> the Qwen2.5-VL attention (M-RoPE + GQA) PCC gap is a DEVICE op-level numeric issue, NOT a sharding bug. Confirms diagnosis_text_encoder.json residual_gap. Single-device does NOT rescue PCC.",
+        "recommended_fix": "op-level PCC bisect (runtime-failure-debugger) on M-RoPE (apply_multimodal_rotary_pos_emb) + GQA repeat_kv; candidate: force fp32 accumulation / decompose M-RoPE split-cat.",
+        "log": "logs/te_iter_1_p150.log"
+      }
+    },
+    "working_tree_changes": [
+      "none (vae tiling edit reverted per user; working tree clean)"
+    ],
+    "resume_next": [
+      "vae: RE-APPLY enable_tiling(512) in load_vae (was reverted), CPU-sanity tiled decode (shape (1,3,2048,2048), finite), then TT re-run test_vae_decoder on p150; if tiled path fails to compile on TT, try tile=256 or opt_level adjust.",
+      "text_encoder_2 + text_encoder: invoke runtime-failure-debugger for op-level PCC bisect (heavy; needs tt_metal machine/repo/branch for Phase 5). Both are attention-numeric gaps.",
+      "Decision pending per component: ship at measured PCC w/ xfail vs close numeric gap."
+    ]
   }
 }

@@ -1,0 +1,80 @@
+start: 2026-06-06T18:22:34+00:00
+2026-06-06 18:23:07.760 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/bin/python3
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-136-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'split': '0.11.0', 'anyio': '4.13.0', 'forked': '1.6.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.10'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, split-0.11.0, anyio-4.13.0, forked-1.6.0, metadata-3.1.1, jaxtyping-0.3.10
+collecting ... collected 1 item
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder 2026-06-06 18:23:12.582500: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+`torch_dtype` is deprecated! Use `dtype` instead!
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Fetching 4 files:  25%|██▌       | 1/4 [01:04<03:14, 64.82s/it]Fetching 4 files:  50%|█████     | 2/4 [01:12<01:02, 31.02s/it]Fetching 4 files: 100%|██████████| 4/4 [01:12<00:00, 18.04s/it]
+Loading weights:   0%|          | 0/728 [00:00<?, ?it/s]Loading weights:   0%|          | 1/728 [00:00<08:37,  1.41it/s]Loading weights:   4%|▍         | 29/728 [00:00<00:15, 46.52it/s]Loading weights:   6%|▌         | 43/728 [00:01<00:19, 34.60it/s]Loading weights:   7%|▋         | 52/728 [00:02<00:27, 24.45it/s]Loading weights:   9%|▊         | 63/728 [00:02<00:24, 27.54it/s]Loading weights:   9%|▉         | 69/728 [00:02<00:23, 28.21it/s]Loading weights:  10%|█         | 75/728 [00:02<00:28, 23.23it/s]Loading weights:  11%|█         | 79/728 [00:03<00:26, 24.09it/s]Loading weights:  12%|█▏        | 87/728 [00:03<00:21, 29.24it/s]Loading weights:  14%|█▎        | 99/728 [00:03<00:19, 32.99it/s]Loading weights:  15%|█▌        | 111/728 [00:03<00:17, 34.78it/s]Loading weights:  17%|█▋        | 123/728 [00:04<00:15, 38.76it/s]Loading weights:  19%|█▊        | 135/728 [00:04<00:13, 45.19it/s]Loading weights:  19%|█▉        | 140/728 [00:04<00:13, 42.11it/s]Loading weights:  20%|██        | 147/728 [00:04<00:13, 44.17it/s]Loading weights:  21%|██        | 152/728 [00:04<00:13, 44.11it/s]Loading weights:  22%|██▏       | 159/728 [00:04<00:11, 47.53it/s]Loading weights:  23%|██▎       | 164/728 [00:04<00:11, 47.47it/s]Loading weights:  25%|██▌       | 183/728 [00:05<00:10, 53.49it/s]Loading weights:  27%|██▋       | 195/728 [00:05<00:10, 52.15it/s]Loading weights:  28%|██▊       | 207/728 [00:05<00:09, 54.62it/s]Loading weights:  29%|██▉       | 213/728 [00:05<00:09, 51.91it/s]Loading weights:  30%|███       | 219/728 [00:05<00:10, 49.93it/s]Loading weights:  31%|███       | 224/728 [00:06<00:10, 49.63it/s]Loading weights:  32%|███▏      | 231/728 [00:06<00:10, 47.55it/s]Loading weights:  32%|███▏      | 236/728 [00:06<00:10, 46.01it/s]Loading weights:  33%|███▎      | 243/728 [00:06<00:10, 46.85it/s]Loading weights:  35%|███▌      | 255/728 [00:06<00:09, 47.81it/s]Loading weights:  37%|███▋      | 267/728 [00:06<00:09, 50.78it/s]Loading weights:  38%|███▊      | 279/728 [00:07<00:08, 51.11it/s]Loading weights:  40%|███▉      | 291/728 [00:07<00:08, 53.80it/s]Loading weights:  42%|████▏     | 303/728 [00:07<00:07, 59.45it/s]Loading weights:  43%|████▎     | 315/728 [00:07<00:06, 60.89it/s]Loading weights:  45%|████▍     | 327/728 [00:07<00:06, 59.63it/s]Loading weights:  55%|█████▌    | 402/728 [00:08<00:01, 181.53it/s]Loading weights:  63%|██████▎   | 462/728 [00:08<00:01, 264.73it/s]Loading weights:  72%|███████▏  | 522/728 [00:08<00:00, 338.96it/s]Loading weights:  80%|███████▉  | 582/728 [00:08<00:00, 389.82it/s]Loading weights:  88%|████████▊ | 644/728 [00:08<00:00, 437.53it/s]Loading weights:  98%|█████████▊| 714/728 [00:08<00:00, 499.32it/s]Loading weights: 100%|██████████| 728/728 [00:08<00:00, 84.67it/s] 
+[1mQwen2_5_VLModel LOAD REPORT[0m from: hunyuanvideo-community/HunyuanImage-2.1-Distilled-Diffusers
+Key            | Status     |  | 
+---------------+------------+--+-
+lm_head.weight | UNEXPECTED |  | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+FAILED
+
+=================================== FAILURES ===================================
+______________________________ test_text_encoder _______________________________
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py:43: in test_text_encoder
+    _run(sharded=False)
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py:72: in _run
+    run_graph_test(
+tests/infra/testers/single_chip/graph/graph_tester.py:74: in run_graph_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:73: in evaluate
+    ComparisonEvaluator._assert_on_results(_comparison_result)
+tests/infra/evaluators/evaluator.py:72: in _assert_on_results
+    assert False, "\n".join(error_messages)
+           ^^^^^
+E   AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9526958834781238. Required: pcc=0.99.
+------------------------------ Captured log call -------------------------------
+WARNING  huggingface_hub.utils._http:_http.py:904 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/file_download.py:1856: DeprecationWarning: hf_xet.download_files() is deprecated. Use XetSession().new_file_download_group().start_download_file() instead.
+    xet_get(
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder
+  /proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder - AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9526958834781238. Required: pcc=0.99.
+================== 1 failed, 23 warnings in 328.04s (0:05:28) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+EXIT=1 end: 2026-06-06T18:28:43+00:00
