@@ -36,7 +36,11 @@ _IN1_DF = {"bf16": _DF_FLOAT16_B, "bfp8": _DF_BFP8_B, "bfp4": _DF_BFP4_B}[_IN1_D
 _IN1_PAGE = {"bf16": _BF16_TILE_BYTES, "bfp8": _BFP8_TILE_BYTES, "bfp4": _BFP4_TILE_BYTES}[_IN1_DTYPE]
 _IN1_CB_FMT = {"bf16": "BFloat16", "bfp8": "BFP_BFloat8", "bfp4": "BFP_BFloat4"}[_IN1_DTYPE]
 WEIGHT_DTYPE_OVERRIDE = {"bf16": None, "bfp8": "bfp_bf8", "bfp4": "bfp_bf4"}[_IN1_DTYPE]
-_MAX_CORES = 12                      # cap; pick the largest divisor of Nt <= this
+# Core cap for the non-bank-local op (down, Nt=90): 18 cores measured best on WH
+# (10 -> 45us, 18 -> 38us, 30 -> 44us; >18 hits DRAM-bank contention). The bank-local
+# op (gate_up) ignores this and always uses one core per DRAM bank (see below).
+_MAX_CORES = 18
+_WH_DRAM_BANKS = 12                  # Wormhole DRAM bank count (NOT a power of 2)
 
 KERNEL_PATH = (
     "models/demos/deepseek_v3_b1/micro_ops/dram_streaming_experts_matmul/kernels/"
@@ -98,8 +102,30 @@ def build_stream_experts_artifact(
     assert N % TILE == 0, f"N({N}) not tile-aligned"
     Kt, Nt = K // TILE, N // TILE
     idx_tiles = (R + TILE - 1) // TILE
-    num_cores = _pick_num_cores(Nt)
+    # Bank-local eligible (Nt a multiple of the bank count) -> force one core per DRAM
+    # bank so each core streams a single bank with no cross-core contention. Otherwise
+    # pick the largest core count (divisor of Nt) under the cap.
+    if Nt % _WH_DRAM_BANKS == 0 and Nt >= _WH_DRAM_BANKS:
+        num_cores = _WH_DRAM_BANKS
+    else:
+        num_cores = _pick_num_cores(Nt)
     per_core_n = Nt // num_cores
+
+    # When Nt is a multiple of the DRAM bank count, every K-tile of a given output
+    # column lands in the SAME bank (stride Nt -> bank index constant in kt). The
+    # kernel can then stream a column with one address computation + a fixed in-bank
+    # offset step, skipping the per-tile (non-pow2) bank division. step is in tiles;
+    # 0 disables the fast path (e.g. down, Nt=90).
+    in1_bank_step = (Nt // _WH_DRAM_BANKS) if (Nt % _WH_DRAM_BANKS == 0) else 0
+
+    # Bank-local core->column assignment: when columns are bank-grouped (same-bank
+    # case) and we run one core per DRAM bank, give core c the columns that live in
+    # bank c (nt = c, c+num_cores, ...). Each core then hits exactly ONE bank, so no
+    # two cores contend on the same bank (the interleaved-read bottleneck). Otherwise
+    # use the contiguous slice (col_first = c*per_core_n, stride 1).
+    bank_local = in1_bank_step != 0 and num_cores == _WH_DRAM_BANKS
+    col_first_mul = 1 if bank_local else per_core_n
+    col_stride = num_cores if bank_local else 1
 
     ct = [
         _ct("iem_cb_in0", _CB_IN0), _ct("iem_cb_in1", _CB_IN1),
@@ -112,6 +138,9 @@ def build_stream_experts_artifact(
         _ct("iem_out_df", _DF_FLOAT16_B), _ct("iem_index_df", _DF_INT32),
         _ct("iem_per_core_n", per_core_n),  # index 16
         _ct("iem_k_reuse", k_reuse),        # index 17
+        _ct("iem_in1_bank_step", in1_bank_step),  # index 18 (0 = per-tile path)
+        _ct("iem_col_first_mul", col_first_mul),  # index 19
+        _ct("iem_col_stride", col_stride),        # index 20
     ]
 
     # Compute cores: row-major on the 8-wide Tensix grid. core_id = list position.

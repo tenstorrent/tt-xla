@@ -14,7 +14,7 @@ if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     # ShardStatus-based mesh-sharding API); requires SFPI 7.52+ on the
     # host -- install via
     #   sudo $TTPJRT/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/install_dependencies.sh --sfpi
-    set(TT_MLIR_VERSION "97cfe193bb7f4dfd4599a4da3318c0f6eb46b05f")
+    set(TT_MLIR_VERSION "sshon/wip-1batch-moe")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
