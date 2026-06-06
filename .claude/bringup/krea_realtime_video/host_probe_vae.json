@@ -1,0 +1,60 @@
+{
+  "tt_xla_arch_env": "",
+  "tt_visible_devices_env": "",
+  "runtime_chip_count": 1,
+  "device_arch": "Blackhole",
+  "probe_error": null,
+  "device_count": 1,
+  "tt_smi": {
+    "available": true,
+    "visible_board_count": 1,
+    "resettable_umd_ids": [
+      0
+    ],
+    "all_umd_ids": [
+      0
+    ],
+    "error": null,
+    "source": "tt-smi -ls",
+    "note": "resettable board IDs from tt-smi -ls"
+  },
+  "host_tier": "dedicated_single_chip",
+  "inferred_bringup_arch": "p150",
+  "visible_board_count": 1,
+  "mesh_chip_count": 1,
+  "chips_per_board": 1,
+  "board_vs_chip_note": "runtime_chip_count=1 (XLA mesh / SPMD). visible_board_count=1 \u2192 TT_VISIBLE_DEVICES=0. These differ on n300 llmbox (e.g. 8 chips, 4 boards). Provenance: tt-smi -ls resettable boards (1).",
+  "recommended_tt_visible_devices": {
+    "single_chip_bringup": "0",
+    "multichip_bringup": "0"
+  },
+  "policy": {
+    "single_chip": "Single-chip bringup (n150/p150) requires runtime_chip_count==1 on a dedicated host. Do not run on n300-llmbox / qb / galaxy / lb fabric \u2014 TT_VISIBLE_DEVICES=0 is not valid bringup.",
+    "multichip": "Multichip: mesh uses runtime_chip_count (XLA). TT_VISIBLE_DEVICES uses visible_board_count (tt-smi resettable boards). On n300 llmbox often chip_count=8, TT_VISIBLE_DEVICES=0,1,2,3."
+  },
+  "can_run_single_chip_bringup": true,
+  "single_chip_skip_reason": "",
+  "can_run_multichip_bringup": false,
+  "multichip_skip_reason": "multichip bringup requires runtime_chip_count>=2 (got 1). Switch to a multichip host and re-probe.",
+  "tt_visible_devices_env_valid": true,
+  "tt_visible_devices_env_skip_reason": "",
+  "valid_tp_degrees": [],
+  "expected_mesh_chip_count": 1,
+  "mesh_chip_count_matches_expected": true,
+  "parallelism_mode_checked": "single_device",
+  "can_run_component": true,
+  "component_skip_reason": "",
+  "planned_arch_queue": [
+    "n150",
+    "p150"
+  ],
+  "runnable_arch_queue": [
+    "p150"
+  ],
+  "skipped_archs": [
+    {
+      "arch": "n150",
+      "reason": "blackhole host; n150 needs Wormhole"
+    }
+  ]
+}

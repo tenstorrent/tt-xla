@@ -1,0 +1,9 @@
+2026-06-05 11:18:52.165 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+loading VAE (bf16) on CPU...
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+input shapes: [(1, 16, 3, 60, 104)] [torch.bfloat16]
+output shape: (1, 3, 9, 480, 832) dtype: torch.bfloat16
+finite: True min: -1.0 max: 1.0 mean: -0.25502049922943115
