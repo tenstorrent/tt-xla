@@ -24,6 +24,10 @@ from transformers import (
 from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_outputs import CausalLMOutputWithPast
+
+# Importing this name also imports tt_torch.moe_backend, which registers the
+# "tt_dense"/"tt_moe" HF experts backends via register_tt_moe_backend().
+from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
 from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.transformers_overrides import (
     override_cache_sliding_window_layers,
@@ -144,13 +148,21 @@ def setup_model_and_tokenizer(
     Returns:
         Tuple of (model, tokenizer)
     """
+    # Use the static dense experts forward (tt_dense) instead of HF's default
+    # experts path. The default path has data-dependent loops and falls back to
+    # CPU ops (e.g. _grouped_mm) that crash during StableHLO conversion. The
+    # #4988 MoE-backend change removed the GptOss forward monkey-patches, so the
+    # backend must now be selected explicitly here (the benchmark does the same).
     model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
         model_name,
         dtype=torch.bfloat16,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
         attn_implementation="eager",
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
+    if hasattr(model.config, "_experts_implementation"):
+        model.config._experts_implementation = TT_DENSE_EXPERTS_BACKEND_NAME
     # Override the gpt_oss model to use the TT-friendly sliding window causal mask
     override_model_sliding_window_causal_mask(model)
     model = model.eval()
