@@ -100,14 +100,18 @@ def _tp_config(
         "min_context_len": 32,
     }
     tp_defaults.update(additional_config_extra)
+    # Allow callers to override weight dtype without passing the same keyword
+    # twice to _config (once explicitly and once via **tp_defaults).
+    experimental_weight_dtype = tp_defaults.pop("experimental_weight_dtype", "")
+    fp32_dest_acc_en = tp_defaults.pop("fp32_dest_acc_en", None)
     return _config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
         # Keep TP configs as-is: the single-device alignment defaults
         # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
-        experimental_weight_dtype="",
-        fp32_dest_acc_en=None,
+        experimental_weight_dtype=experimental_weight_dtype,
+        fp32_dest_acc_en=fp32_dest_acc_en,
         **tp_defaults,
     )
 
