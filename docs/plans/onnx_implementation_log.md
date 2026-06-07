@@ -284,13 +284,37 @@ pytest -svv tests/onnx/test_mlp_e2e.py tests/onnx/test_op_matrix_seed.py
 | 4 | ONNX Slice: onnx-mlir SIGABRT *"Axes must be known at compile time"* | **Fixture:** slice params as graph **initializers** (not runtime inputs) ✅ |
 | 5 | ONNX Slice: `failed to legalize stablehlo.real_dynamic_slice` at SHLO→TTIR | **`mlir_utils`:** static `real_dynamic_slice` → `stablehlo.slice` (PyTorch/JAX path; tt-mlir supported op) ✅ |
 | 6 | M1.8 full matrix (17 ops): 10 pass / 7 fail on reservation host | **Open:** reduce_mean/sum (`shape.get_extent`), conv (`onnx.NoValue` leak), layer_norm/softmax (onnx-mlir gap), gather (`torch_index_select`) — resume triage |
+| 7 | Resume triage (2026-06-07) | **Fixture fixes:** conv explicit zero bias; reduce_sum opset-11 static axes; layer_norm/softmax decomposed graphs. **Tooling:** `tools/onnx_spike/triage_op.py`. |
+| 8 | gather compile_fail | **`mlir_utils`:** `stablehlo.torch_index_select` → `stablehlo.gather` (onnx-mlir Gather lowering; tt-mlir has gather only) |
 
 **M1.8 pass rate (2026-05-31):** seed 5/5 ✅; full 11/17 after slice fix (was 10/17). Remaining failures documented above.
 
 ### Next (resume)
 
-- M1.8: triage remaining 6 ops (`reduce_mean`, `reduce_sum`, `conv`, `layer_norm`, `softmax`, `gather`)
-- M1.9–M1.11: ResNet, BERT/RoBERTa, UNet via `tt_forge_models`
+Run on reservation host, one failing op at a time:
+
+```bash
+cd /path/to/tt-xla
+source venv/activate
+source tools/onnx/env.sh
+
+# Regenerate fixtures after gen_op_onnx.py changes
+python tools/onnx/gen_op_onnx.py --all --full
+
+# Triage remaining ops (expected order)
+python tools/onnx_spike/triage_op.py reduce_mean
+python tools/onnx_spike/triage_op.py reduce_sum
+python tools/onnx_spike/triage_op.py conv
+python tools/onnx_spike/triage_op.py layer_norm
+python tools/onnx_spike/triage_op.py softmax
+python tools/onnx_spike/triage_op.py gather
+
+# Full matrix + pytest
+python tools/onnx_spike/run_op_matrix.py --full
+pytest -svv tests/onnx/test_op_matrix_full.py -m push
+```
+
+Paste `*.stablehlo.raw.mlir` / compile errors from `triage_op.py` for ops still failing after fixture fixes.
 
 ---
 

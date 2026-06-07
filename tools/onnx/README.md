@@ -166,6 +166,10 @@ Seed ops: `add`, `mul`, `matmul`, `relu`, `reshape`.
 python tools/onnx/gen_op_onnx.py --all --full
 python tools/onnx_spike/run_op_matrix.py --full
 pytest -svv tests/onnx/test_op_matrix_full.py -m push
+
+# One-op triage (bridge → canonical MLIR → compile → e2e)
+python tools/onnx_spike/triage_op.py reduce_mean
+python tools/onnx_spike/triage_op.py gather --bridge-only
 ```
 
 Full ops add: `sub`, `div`, `sigmoid`, `reduce_mean`, `reduce_sum`, `transpose`, `concat`, `slice`, `conv`, `layer_norm`, `softmax`, `gather`. Report: `tools/onnx/build/tt_onnx/op_matrix_full/report.json`.

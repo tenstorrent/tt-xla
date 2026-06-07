@@ -142,21 +142,22 @@ def build_reduce_mean_model() -> onnx.ModelProto:
 def build_reduce_sum_model() -> onnx.ModelProto:
     input_x = helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 4])
     output_y = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 1])
-    # ReduceSum-13: axes moved from attribute to optional input.
-    axes = numpy_helper.from_array(np.array([1], dtype=np.int64), name="axes")
+    # Static axes attribute (opset 11) — avoids onnx-mlir shape-dialect axes input
+    # that can leak shape.get_extent into StableHLO (see onnx_implementation_log).
     node = helper.make_node(
         "ReduceSum",
-        ["X", "axes"],
+        ["X"],
         ["Y"],
         name="reduce_sum0",
+        axes=[1],
         keepdims=1,
     )
     return _model(
         [node],
         [input_x],
         [output_y],
-        initializers=[axes],
         name="reduce_sum_graph",
+        opset=11,
     )
 
 
@@ -205,44 +206,76 @@ def build_conv_model() -> onnx.ModelProto:
         np.ones((1, 1, 3, 3), dtype=np.float32) / 9.0,
         name="W",
     )
+    # Explicit zero bias — omitting bias makes onnx-mlir emit onnx.NoValue in SHLO.
+    bias = numpy_helper.from_array(np.zeros((1,), dtype=np.float32), name="B")
     node = helper.make_node(
         "Conv",
-        ["X", "W"],
+        ["X", "W", "B"],
         ["Y"],
         name="conv0",
         kernel_shape=[3, 3],
         pads=[1, 1, 1, 1],
     )
-    return _model([node], [input_x], [output_y], initializers=[weight], name="conv_graph")
+    return _model(
+        [node],
+        [input_x],
+        [output_y],
+        initializers=[weight, bias],
+        name="conv_graph",
+    )
 
 
 def build_layer_norm_model() -> onnx.ModelProto:
+    """Decomposed LayerNorm (M1.8 allows decomposed form; onnx-mlir SHLO gap on op)."""
+    eps = 1e-5
     input_x = helper.make_tensor_value_info("X", TensorProto.FLOAT, [2, 4])
     input_scale = helper.make_tensor_value_info("scale", TensorProto.FLOAT, [4])
     input_bias = helper.make_tensor_value_info("bias", TensorProto.FLOAT, [4])
     output_y = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 4])
-    node = helper.make_node(
-        "LayerNormalization",
-        ["X", "scale", "bias"],
-        ["Y"],
-        name="layer_norm0",
-        axis=-1,
-        epsilon=1e-5,
-    )
+    eps_init = numpy_helper.from_array(np.array(eps, dtype=np.float32), name="eps")
+    nodes = [
+        helper.make_node(
+            "ReduceMean", ["X"], ["mean"], name="mean", axes=[1], keepdims=1
+        ),
+        helper.make_node("Sub", ["X", "mean"], ["centered"], name="sub"),
+        helper.make_node("Mul", ["centered", "centered"], ["sq"], name="sq"),
+        helper.make_node(
+            "ReduceMean", ["sq"], ["var"], name="var", axes=[1], keepdims=1
+        ),
+        helper.make_node("Add", ["var", "eps"], ["var_eps"], name="var_eps"),
+        helper.make_node("Sqrt", ["var_eps"], ["std"], name="std"),
+        helper.make_node("Div", ["centered", "std"], ["norm"], name="norm"),
+        helper.make_node("Mul", ["norm", "scale"], ["scaled"], name="scale"),
+        helper.make_node("Add", ["scaled", "bias"], ["Y"], name="bias"),
+    ]
     return _model(
-        [node],
+        nodes,
         [input_x, input_scale, input_bias],
         [output_y],
+        initializers=[eps_init],
         name="layer_norm_graph",
-        opset=17,
+        opset=13,
     )
 
 
 def build_softmax_model() -> onnx.ModelProto:
+    """Decomposed Softmax on axis=1 (onnx-mlir stablehlo gap on single Softmax op)."""
     input_x = helper.make_tensor_value_info("X", TensorProto.FLOAT, [1, 4])
     output_y = helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 4])
-    node = helper.make_node("Softmax", ["X"], ["Y"], name="softmax0", axis=1)
-    return _model([node], [input_x], [output_y], name="softmax_graph")
+    nodes = [
+        helper.make_node(
+            "ReduceMax", ["X"], ["xmax"], name="xmax", axes=[1], keepdims=1
+        ),
+        helper.make_node("Sub", ["X", "xmax"], ["shifted"], name="shift"),
+        helper.make_node("Exp", ["shifted"], ["exp"], name="exp"),
+        helper.make_node(
+            "ReduceSum", ["exp"], ["sum"], name="sum", axes=[1], keepdims=1
+        ),
+        helper.make_node("Div", ["exp", "sum"], ["Y"], name="softmax"),
+    ]
+    # Opset 11: ReduceSum/ReduceMax use static axes attributes (opset 13+ moves
+    # ReduceSum axes to an input, which onnx-mlir lowers with shape dialect).
+    return _model(nodes, [input_x], [output_y], name="softmax_graph", opset=11)
 
 
 def build_gather_model() -> onnx.ModelProto:

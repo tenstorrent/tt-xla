@@ -278,6 +278,7 @@ See [onnx_implementation_log.md](onnx_implementation_log.md) for blockers, fixes
 | `python_package/tt_onnx/op_matrix.py` | Op matrix runner + JSON report |
 | `tools/onnx_spike/compile_mlp.py` | MLP e2e spike script |
 | `tools/onnx_spike/run_op_matrix.py` | Seed/full op matrix CLI + JSON report |
+| `tools/onnx_spike/triage_op.py` | One-op bridge/canonicalize/compile/e2e triage (M1.8 resume) |
 | `tests/onnx/onnx_e2e_utils.py` | Shared e2e helpers |
 | `tests/onnx/test_mlp_e2e.py` | Pytest: MLP on TT vs ORT |
 | `tests/onnx/test_op_matrix_seed.py` | Pytest: 5 seed ops parametrized |

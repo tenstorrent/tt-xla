@@ -15,6 +15,7 @@ if str(REPO_ROOT / "python_package") not in sys.path:
 from tt_onnx.mlir_utils import (  # noqa: E402
     _rewrite_dots_to_dot_general,
     _rewrite_real_dynamic_slice_to_slice,
+    _rewrite_torch_index_select_to_gather,
 )
 
 
@@ -48,8 +49,47 @@ def test_rewrite_static_real_dynamic_slice_to_slice():
     %out = stablehlo.real_dynamic_slice %arg0, %starts, %limits, %strides : (tensor<1x4xf32>, tensor<2xi64>, tensor<2xi64>, tensor<2xi64>) -> tensor<1x2xf32>
 """
     after = _rewrite_real_dynamic_slice_to_slice(before)
-    assert "stablehlo.slice %arg0, [0, 1], [1, 3], [1, 1]" in after
+    assert "stablehlo.slice %arg0 [0:1:1, 1:3:1]" in after
     assert "real_dynamic_slice" not in after
+
+
+def test_strip_onnx_no_value_lines():
+    from tt_onnx.mlir_utils import _strip_onnx_entry_point  # noqa: PLC0415
+
+    before = """
+    %bias = "onnx.NoValue"() : () -> none
+    %0 = stablehlo.add %arg0, %arg1 : tensor<1x4xf32>
+    """
+    after = _strip_onnx_entry_point(before)
+    assert "NoValue" not in after
+    assert "stablehlo.add" in after
+
+
+def test_rewrite_torch_index_select_to_gather_axis0():
+    before = (
+        '    %5 = "stablehlo.torch_index_select"(%arg0, %4) '
+        "{batch_dims = 0 : i64, dim = 0 : i64} "
+        ": (tensor<3x4xf32>, tensor<2xi64>) -> tensor<2x4xf32>"
+    )
+    after = _rewrite_torch_index_select_to_gather(before)
+    assert "torch_index_select" not in after
+    assert "stablehlo.gather %arg0" in after
+    assert "stablehlo.reshape %4" in after
+    assert "offset_dims = [1]" in after
+    assert "collapsed_slice_dims = [0]" in after
+    assert "start_index_map = [0]" in after
+    assert "slice_sizes = dense<[1, 4]>" in after
+
+
+def test_rewrite_onnx_mlir_gather_full_chain():
+    # From tools/onnx/build/tt_onnx/triage/gather/gather.stablehlo.raw.mlir
+    before = """
+    %4 = stablehlo.select %2, %3, %arg1 : tensor<2xi1>, tensor<2xi64>
+    %5 = "stablehlo.torch_index_select"(%arg0, %4) {batch_dims = 0 : i64, dim = 0 : i64} : (tensor<3x4xf32>, tensor<2xi64>) -> tensor<2x4xf32>
+"""
+    after = _rewrite_torch_index_select_to_gather(before)
+    assert "torch_index_select" not in after
+    assert "stablehlo.gather %arg0, %gather_indices" in after
 
 
 def test_rewrite_onnx_mlir_slice_select_chain():
@@ -77,4 +117,4 @@ def test_rewrite_onnx_mlir_slice_select_chain():
     %out = stablehlo.real_dynamic_slice %arg0, %start_indices, %limit_indices, %stride_indices : (tensor<1x4xf32>, tensor<2xi64>, tensor<2xi64>, tensor<2xi64>) -> tensor<1x2xf32>
 """
     after = _rewrite_real_dynamic_slice_to_slice(before)
-    assert "stablehlo.slice %arg0, [0, 1], [1, 3], [1, 1]" in after
+    assert "stablehlo.slice %arg0 [0:1:1, 1:3:1]" in after

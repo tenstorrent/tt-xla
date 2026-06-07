@@ -38,7 +38,7 @@ def _strip_onnx_entry_point(mlir_text: str) -> str:
     lines = [
         line
         for line in mlir_text.splitlines()
-        if "onnx.EntryPoint" not in line
+        if "onnx.EntryPoint" not in line and "onnx.NoValue" not in line
     ]
     return "\n".join(lines).strip() + "\n"
 
@@ -183,7 +183,144 @@ def _rewrite_dots_to_dot_general(mlir_text: str) -> str:
 
 def _apply_stablehlo_rewrites(mlir_text: str) -> str:
     mlir_text = _rewrite_dots_to_dot_general(mlir_text)
-    return _rewrite_real_dynamic_slice_to_slice(mlir_text)
+    mlir_text = _rewrite_real_dynamic_slice_to_slice(mlir_text)
+    mlir_text = _rewrite_torch_index_select_to_gather(mlir_text)
+    mlir_text = _rewrite_dynamic_reshape_to_static(mlir_text)
+    mlir_text = _rewrite_dynamic_broadcast_to_static(mlir_text)
+    return _strip_shape_dialect_lines(mlir_text)
+
+
+def _parse_static_tensor_type(tensor_type: str) -> tuple[list[int], str] | None:
+    match = re.match(r"tensor<((?:\d+x)+)(\w+)>", tensor_type.strip())
+    if not match:
+        return None
+    dims = [int(d) for d in match.group(1).rstrip("x").split("x") if d]
+    return dims, match.group(2)
+
+
+_TORCH_INDEX_SELECT_RE = re.compile(
+    r"^(?P<prefix>\s*(?P<result>%[\w.]+)\s*=\s*)"
+    r'"stablehlo\.torch_index_select"\('
+    r"(?P<operand>%[\w.]+),\s*(?P<indices>%[\w.]+)\)\s*"
+    r"\{\s*batch_dims\s*=\s*(?P<batch>\d+)\s*:\s*i64,\s*"
+    r"dim\s*=\s*(?P<dim>\d+)\s*:\s*i64\s*\}\s*"
+    r":\s*\((?P<operand_ty>tensor<[^>]+>),\s*(?P<indices_ty>tensor<[^>]+>)\)\s*->\s*"
+    r"(?P<out_ty>tensor<[^>]+>)"
+    r"(?P<suffix>\s*)$",
+    re.MULTILINE,
+)
+
+
+def _rewrite_torch_index_select_to_gather(mlir_text: str) -> str:
+    """Rewrite stablehlo.torch_index_select to stablehlo.gather for tt-mlir."""
+
+    def _replace(match: re.Match[str]) -> str:
+        if int(match.group("batch")) != 0:
+            return match.group(0)
+
+        operand_parsed = _parse_static_tensor_type(match.group("operand_ty"))
+        indices_parsed = _parse_static_tensor_type(match.group("indices_ty"))
+        if operand_parsed is None or indices_parsed is None:
+            return match.group(0)
+
+        operand_shape, _ = operand_parsed
+        indices_shape, index_elem = indices_parsed
+        if len(indices_shape) != 1:
+            return match.group(0)
+
+        rank = len(operand_shape)
+        dim = int(match.group("dim"))
+        if dim < 0:
+            dim += rank
+        if dim < 0 or dim >= rank:
+            return match.group(0)
+
+        n_indices = indices_shape[0]
+        slice_sizes = [1 if i == dim else operand_shape[i] for i in range(rank)]
+        offset_dims_attr = ", ".join(str(i) for i in range(rank) if i != dim)
+
+        idx_ssa = "%gather_indices"
+        indices_reshaped_ty = f"tensor<{n_indices}x1x{index_elem}>"
+        indent = re.match(r"^(\s*)", match.group("prefix")).group(1)
+        slice_sizes_attr = ", ".join(str(v) for v in slice_sizes)
+
+        reshape_line = (
+            f"{indent}{idx_ssa} = stablehlo.reshape {match.group('indices')} "
+            f": ({match.group('indices_ty')}) -> {indices_reshaped_ty}"
+        )
+        gather_line = (
+            f"{match.group('prefix')}stablehlo.gather {match.group('operand')}, "
+            f"{idx_ssa}, offset_dims = [{offset_dims_attr}], "
+            f"collapsed_slice_dims = [{dim}], start_index_map = [{dim}], "
+            f"index_vector_dim = 1, indices_are_sorted = false, "
+            f"slice_sizes = dense<[{slice_sizes_attr}]> : tensor<{rank}xi64> "
+            f": ({match.group('operand_ty')}, {indices_reshaped_ty}) -> "
+            f"{match.group('out_ty')}{match.group('suffix') or ''}"
+        )
+        return f"{reshape_line}\n{gather_line}"
+
+    return _TORCH_INDEX_SELECT_RE.sub(_replace, mlir_text)
+
+
+_DYNAMIC_RESHAPE_RE = re.compile(
+    r"^(?P<prefix>\s*(?P<result>%[\w.]+)\s*=\s*)stablehlo\.dynamic_reshape\s+"
+    r"(?P<val>%[\w.]+),\s*%[\w.]+\s*"
+    r":\s*\((?P<in_ty>tensor<[^>]+>),\s*tensor<\d+xindex>\)\s*->\s*(?P<out_ty>tensor<[^>]+>)"
+    r"(?P<suffix>\s*)$",
+    re.MULTILINE,
+)
+
+
+def _rewrite_dynamic_reshape_to_static(mlir_text: str) -> str:
+    def _replace(match: re.Match[str]) -> str:
+        out_ty = match.group("out_ty")
+        if "?" in out_ty or not _parse_static_tensor_type(out_ty):
+            return match.group(0)
+        return (
+            f"{match.group('prefix')}stablehlo.reshape {match.group('val')} "
+            f": ({match.group('in_ty')}) -> {out_ty}{match.group('suffix') or ''}"
+        )
+
+    return _DYNAMIC_RESHAPE_RE.sub(_replace, mlir_text)
+
+
+_DYNAMIC_BROADCAST_RE = re.compile(
+    r"^(?P<prefix>\s*(?P<result>%[\w.]+)\s*=\s*)stablehlo\.dynamic_broadcast_in_dim\s+"
+    r"(?P<val>%[\w.]+),\s*%[\w.]+\s*,\s*dims\s*=\s*(?P<dims>\[[^\]]*\])\s*"
+    r":\s*\((?P<in_ty>tensor<[^>]+>),\s*tensor<\d+xindex>\)\s*->\s*(?P<out_ty>tensor<[^>]+>)"
+    r"(?P<suffix>\s*)$",
+    re.MULTILINE,
+)
+
+
+def _rewrite_dynamic_broadcast_to_static(mlir_text: str) -> str:
+    def _replace(match: re.Match[str]) -> str:
+        out_ty = match.group("out_ty")
+        if "?" in out_ty or not _parse_static_tensor_type(out_ty):
+            return match.group(0)
+        in_parsed = _parse_static_tensor_type(match.group("in_ty"))
+        out_parsed = _parse_static_tensor_type(out_ty)
+        if in_parsed is None or out_parsed is None:
+            return match.group(0)
+        if in_parsed[0] == out_parsed[0]:
+            return f"{match.group('prefix')}{match.group('val')}{match.group('suffix') or ''}"
+        return (
+            f"{match.group('prefix')}stablehlo.broadcast_in_dim {match.group('val')}, "
+            f"dims = {match.group('dims')} "
+            f": ({match.group('in_ty')}) -> {out_ty}{match.group('suffix') or ''}"
+        )
+
+    return _DYNAMIC_BROADCAST_RE.sub(_replace, mlir_text)
+
+
+def _strip_shape_dialect_lines(mlir_text: str) -> str:
+    lines = [
+        line
+        for line in mlir_text.splitlines()
+        if not re.search(r"\bshape\.", line)
+        and not (re.search(r"arith\.constant\b", line) and ": index" in line)
+    ]
+    return "\n".join(lines).strip() + "\n"
 
 
 _SSA_DEF_RE = re.compile(r"^\s*(%[\w.]+)\s*=\s*(.+)$")
@@ -410,12 +547,12 @@ def _rewrite_real_dynamic_slice_to_slice(mlir_text: str) -> str:
         strides = _eval_i64_tensor(defs, match.group("strides"), memo, set())
         if starts is None or limits is None or strides is None:
             return match.group(0)
-        start_s = ", ".join(str(v) for v in starts)
-        limit_s = ", ".join(str(v) for v in limits)
-        stride_s = ", ".join(str(v) for v in strides)
+        slice_ranges = ", ".join(
+            f"{starts[i]}:{limits[i]}:{strides[i]}" for i in range(len(starts))
+        )
         return (
-            f"{match.group('prefix')}stablehlo.slice {match.group('operand')}, "
-            f"[{start_s}], [{limit_s}], [{stride_s}] "
+            f"{match.group('prefix')}stablehlo.slice {match.group('operand')} "
+            f"[{slice_ranges}] "
             f": ({operand_ty}) -> {match.group('out_ty')}"
             f"{match.group('suffix')}"
         )
