@@ -2864,7 +2864,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache].
-            for kv_pair in self.kv_caches:
+            for entry in self.kv_caches:
                 is_pair = isinstance(entry, (list, tuple))
                 caches = entry if is_pair else [entry]
                 for cache in caches:
