@@ -2564,39 +2564,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # logsoftmax sees the full vocab. Only paid when logprobs are requested.
         # Two constraints: the first annotates the input as sharded (establishing
         # the mesh reference in the compiled graph), the second triggers the
-        # all-gather to replicate.
+        # all-gather to replicate. Everything downstream of the all-gather is
+        # already on a replicated tensor — we leave Shardy to propagate that
+        # forward instead of forcing per-op (None, ...) anchors, which on 1D
+        # mesh have been triggering collective_permute insertions Shardy then
+        # cannot lower (tt-mlir#3370).
         if self.is_sharded_compute_logits:
             logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
-            # On 1D mesh Shardy may assign "model" to the batch dim of
-            # sampled_tokens ([batch,1]) since batch is divisible by mesh size.
-            # This axis-swap with vocab-sharded logits triggers collective_permute
-            # (tt-mlir#3370) instead of all_gather. Anchor to (None,None) so
-            # Shardy leaves the batch dim unsharded and the logits all-gather
-            # uses the implemented path.
-            if not self.use_2d_mesh:
-                sampled_tokens = sharding_constraint_tensor(
-                    sampled_tokens, self.mesh, (None, None)
-                )
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         logprobs = self.sampler.compute_logprobs(logits)
-        # Pass sampled_tokens as [batch, 1] straight through to the sampler.
-        # On 1D mesh, squeezing here and unsqueezing inside the sampler
-        # produces a reshape that Shardy materializes as collective_permute
-        # (tt-mlir#3370). Anchor the inputs to the sampler in (None, None)
-        # form and pass the mesh so the sampler can anchor its internal
-        # intermediates (topk, gather, cat outputs) too.
-        replicate_anchor_mesh = None
-        if self.is_sharded_compute_logits and not self.use_2d_mesh:
-            logprobs = sharding_constraint_tensor(logprobs, self.mesh, (None, None))
-            sampled_tokens = sharding_constraint_tensor(
-                sampled_tokens, self.mesh, (None, None)
-            )
-            replicate_anchor_mesh = self.mesh
         logprobTensors = self.sampler.gather_logprobs(
             logprobs,
             self.model_config.max_logprobs,
             token_ids=sampled_tokens,
-            replicate_anchor_mesh=replicate_anchor_mesh,
         )
 
         return LogprobsTensors(
