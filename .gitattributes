@@ -1,0 +1,1 @@
+tests/torch/models/hunyuan_video/hidden_states_hunyuan.pt filter=lfs diff=lfs merge=lfs -text
