@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -320,9 +321,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Compute token padding sizes needed to align inputs to supported context
         # lengths, from the minimum context length up to the model's maximum length.
+        # EXPERIMENT (chunked-prefill / OOM dig, #4986): cap the prefill precompile
+        # bucket ceiling at TTXLA_PREFILL_BUCKET_CAP instead of max_model_len. Safe
+        # only when no single request's scheduled tokens exceed the cap (e.g. short
+        # prompts); real chunked prefill is what makes this generally safe.
+        prefill_bucket_cap = int(os.environ.get("TTXLA_PREFILL_BUCKET_CAP", "0"))
+        prefill_max_token_size = self.max_model_len
+        if prefill_bucket_cap > 0:
+            prefill_max_token_size = min(prefill_max_token_size, prefill_bucket_cap)
+            logger.warning(
+                "TTXLA_PREFILL_BUCKET_CAP=%d: capping prefill token paddings at %d "
+                "(max_model_len=%d)",
+                prefill_bucket_cap,
+                prefill_max_token_size,
+                self.max_model_len,
+            )
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
-            max_token_size=self.max_model_len,
+            max_token_size=prefill_max_token_size,
         )
         if self.tt_config.decode_only:
             # Restrict all num_tokens bucketing to the decode shape so every
