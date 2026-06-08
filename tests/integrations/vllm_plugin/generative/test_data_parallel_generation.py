@@ -147,7 +147,6 @@ def test_data_parallel_generation_llmbox_padding(model_name: str):
     check_host_memory(model_name)
 
 
-@pytest.mark.push
 @pytest.mark.data_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize("model_name", ["Qwen/Qwen3-0.6B"])
