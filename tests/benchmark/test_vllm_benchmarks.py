@@ -230,22 +230,25 @@ TP_CONFIGS = [
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
         id="opt-125m-fused-measure",
     ),
-    # Devstral-2-123B: fp8 checkpoint -> bf16 via the dequant hook, then bfp8.
-    # BH-galaxy 8x4 DP+TP: enable_data_parallel + use_2d_mesh (default) ->
-    # DATA_TENSOR_PRALLEL -> mesh (8,4) (dp=8, tp=4) on 32 chips. tp=4 divides
-    # Devstral's 8 KV heads (2/device). Run with TT_RUNTIME_USING_BH_GALAXY=1.
-    # (At batch 1, DP auto-disables -> 2D TP; batch>1 engages real 8x4.)
-    # 4 layers for fast bring-up.
+    # Qwen3-32B on the BH-galaxy 8x4 pure-DP+TP layout: enable_data_parallel +
+    # use_2d_mesh (default) -> DATA_TENSOR_PRALLEL -> mesh (8,4) (dp=8, tp=4) on
+    # 32 chips. Qwen3-32B has 8 KV heads, so tp=4 -> 2/device (SDPA-decode stays
+    # under the cores/head cap), and the full model fits in a TP-4 weight slice
+    # replicated across the 8 DP replicas -- the pure-DP layout's target case
+    # (the 123B needs more TP to fit, so it uses 4x8 instead). bf16 checkpoint
+    # stored as bfp8; no fp8 dequant hook needed. Run with
+    # TT_RUNTIME_USING_BH_GALAXY=1. (At batch 1, DP auto-disables -> 2D TP;
+    # batch>1 engages real 8x4.) 4 layers for fast bring-up.
     pytest.param(
         _tp_config(
-            "mistralai/Devstral-2-123B-Instruct-2512",
+            "Qwen/Qwen3-32B",
             32,
             experimental_weight_dtype="bfp_bf8",
             enable_const_eval=True,
             enable_data_parallel=True,
             num_hidden_layers=4,
         ),
-        id="devstral-123b-tp",
+        id="qwen3-32b-galaxy-tp",
     ),
 ]
 
