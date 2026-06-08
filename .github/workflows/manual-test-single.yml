@@ -31,7 +31,7 @@ jobs:
     secrets: inherit
     with:
       test_suite: 'Custom'
-      test_suite_custom: '[{"runs-on": "cpu", "name": "cpu-compile-only", "dir": "./tests/cpu_compile_only", "test-mark": "", "shared-runners": "true", "parallel-groups": 1}]'
+      test_suite_custom: '[{"runs-on": "cpu", "name": "cpu-compile-only", "dir": "./tests/cpu_compile_only", "test-mark": "nightly and cpu", "shared-runners": "true", "parallel-groups": 1}]'
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
