@@ -16,6 +16,7 @@ from third_party.tt_forge_models.sdxl_lightning.pytorch import ModelLoader, Mode
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_text_encoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)

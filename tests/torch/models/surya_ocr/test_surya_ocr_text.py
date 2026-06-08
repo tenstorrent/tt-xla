@@ -65,6 +65,7 @@ def test_torch_surya_ocr_text_inference():
 )
 @pytest.mark.skip(reason="Support for training not implemented")
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_torch_surya_ocr_text_training():
     loader_path = inspect.getsourcefile(surya_loader)
     with RequirementsManager.for_loader(loader_path):

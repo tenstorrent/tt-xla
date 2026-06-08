@@ -41,6 +41,7 @@ class _GeluModel(torch.nn.Module):
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_handle_composite_ops_gelu_no_multi_output():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_GeluModel(), x)
@@ -55,6 +56,7 @@ def test_handle_composite_ops_gelu_no_multi_output():
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_handle_composite_ops_selects_indices():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKIndices(), x)
@@ -69,6 +71,7 @@ def test_handle_composite_ops_selects_indices():
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_handle_composite_ops_selects_values():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKValues(), x)
@@ -82,6 +85,7 @@ def test_handle_composite_ops_selects_values():
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_handle_composite_ops_selects_both():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKBoth(), x)

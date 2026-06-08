@@ -23,6 +23,7 @@ def test_vae_encoder():
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
+@pytest.mark.testing
 def test_vae_encoder_sharded():
     _run(sharded=True)
 

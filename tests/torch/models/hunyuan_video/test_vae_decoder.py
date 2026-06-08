@@ -26,6 +26,7 @@ def test_vae_decoder():
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
+@pytest.mark.testing
 def test_vae_decoder_sharded():
     _run(sharded=True)
 

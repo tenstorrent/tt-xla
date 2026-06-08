@@ -36,6 +36,7 @@ class _TopKIndicesMethod(torch.nn.Module):
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_handle_composite_ops_method_selects_both():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKBothMethod(), x)
@@ -49,6 +50,7 @@ def test_handle_composite_ops_method_selects_both():
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_handle_composite_ops_method_selects_values():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKValuesMethod(), x)
@@ -62,6 +64,7 @@ def test_handle_composite_ops_method_selects_values():
 
 @pytest.mark.push
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_handle_composite_ops_method_selects_indices():
     x = torch.randn(1, 10)
     gm = capture_gm_via_compile(_TopKIndicesMethod(), x)

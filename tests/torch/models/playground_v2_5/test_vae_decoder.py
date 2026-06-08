@@ -20,6 +20,7 @@ from third_party.tt_forge_models.playground_v2_5.pytorch import (
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.single_device
+@pytest.mark.testing
 def test_vae_decoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)

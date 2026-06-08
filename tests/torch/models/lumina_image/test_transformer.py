@@ -26,6 +26,7 @@ def test_transformer():
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
+@pytest.mark.testing
 def test_transformer_sharded():
     _run(sharded=True)
 
