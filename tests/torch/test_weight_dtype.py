@@ -63,6 +63,7 @@ class NestedModel(nn.Module):
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 class TestWeightDtypeParametrization:
 
     def test_forward(self):
@@ -76,6 +77,7 @@ class TestWeightDtypeParametrization:
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 class TestApplyWeightDtypeOverrides:
     def test_dict_config(self):
         model = SimpleModel()
@@ -129,6 +131,7 @@ class TestApplyWeightDtypeOverrides:
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 class TestRemoveWeightDtypeOverrides:
     def test_remove(self):
         model = SimpleModel()
@@ -142,6 +145,7 @@ class TestRemoveWeightDtypeOverrides:
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 class TestDumpWeightNames:
     def test_simple_model(self):
         model = SimpleModel()

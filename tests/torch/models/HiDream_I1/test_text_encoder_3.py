@@ -26,6 +26,7 @@ def test_text_encoder_3():
 )
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.llmbox
 def test_text_encoder_3_sharded():
     _run(sharded=True)
 
