@@ -336,6 +336,8 @@ def _p150_config(
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
         optimization_level = int(_BENCH_OPTIMIZATION_LEVEL)
+    if _BENCH_GMU is not None:
+        gpu_memory_utilization = float(_BENCH_GMU)
     additional = {
         "enable_trace": True,
         "experimental_weight_dtype": "bfp_bf8",
