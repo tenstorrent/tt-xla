@@ -54,7 +54,6 @@ class TTConfig:
     enable_precompile_all: bool = True
 
     # Flag to enable data parallel execution of a model. It will require
-    # - batch_size > 1
     # - max_num_seqs > 1
     # Only supported for pooling/embedding models.
     enable_data_parallel: bool = False
@@ -68,6 +67,24 @@ class TTConfig:
 
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
+
+    # Per-tensor weight dtype overrides for mixed precision. Either a dict
+    # mapping fnmatch globs over (vLLM) parameter names to dtype strings
+    # ("bfp_bf4"/"bfp_bf8"/"bf16"), with an optional "default" key for
+    # unmatched weights, or a path to a JSON file of the same shape. Takes
+    # precedence over experimental_weight_dtype for matched tensors. None
+    # disables.
+    weight_dtype_overrides: Optional[Union[dict, str]] = None
+
+    # Toggle the tt-mlir permute+matmul fusion optimization. Mirrors the PJRT
+    # compile option; defaults to True to match the PJRT default.
+    experimental_enable_permute_matmul_fusion: bool = True
+
+    # Enable fp32 destination accumulation in matmul/reduction kernels.
+    fp32_dest_acc_en: Optional[bool] = None
+
+    # Override the on-device KV cache element dtype.
+    experimental_kv_cache_dtype: Optional[str] = None
 
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
@@ -94,7 +111,15 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    # Flatten model I/O to a flat token stream at the model-call boundary
+    # (needed by HF forwards like Gemma-4's PLE path).
+    flat_model_io: bool = False
+
     enable_trace: bool = False
+
+    # PJRT IR export — when set, MLIR is dumped to `export_path` keyed by `export_model_name`.
+    export_path: Optional[str] = None
+    export_model_name: Optional[str] = None
 
     def __post_init__(self):
         # tt::sampling + enable_trace + optimization_level >= 1 hits a
@@ -113,13 +138,26 @@ class TTConfig:
             )
 
     def get_pjrt_compile_config(self) -> dict:
-        return {
+        cfg = {
             "enable_const_eval": self.enable_const_eval,
             "enable_const_eval_on_cpu": self.enable_const_eval_on_cpu,
             "optimization_level": self.optimization_level,
             "experimental_weight_dtype": self.experimental_weight_dtype,
             "enable_trace": "true" if self.enable_trace else "false",
+            "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
+        if self.fp32_dest_acc_en is not None:
+            cfg["fp32_dest_acc_en"] = self.fp32_dest_acc_en
+        if self.experimental_kv_cache_dtype is not None:
+            cfg["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
+        if self.export_path:
+            cfg["export_path"] = self.export_path
+        if self.export_model_name:
+            name = self.export_model_name
+            if self.enable_tensor_parallel:
+                name = f"{name}_g{xrt.global_ordinal()}"
+            cfg["export_model_name"] = name
+        return cfg
 
 
 class TTPlatform(Platform):
@@ -233,6 +271,13 @@ class TTPlatform(Platform):
     @classmethod
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
+
+        additional_config = vllm_config.additional_config or {}
+        if "batch_size" in additional_config:
+            logger.warning(
+                "additional_config['batch_size'] is deprecated and will be removed "
+                "in a future release. Use max_num_seqs instead."
+            )
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.

@@ -63,8 +63,11 @@ jobs:
           if [ "$NEEDS_UPLIFT" = "true" ]; then
             echo "Uplift needed: v$LOCAL_MAJOR.$LOCAL_MINOR -> v$UPSTREAM_MAJOR.$UPSTREAM_MINOR"
 
-            OLD_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$LOCAL_FILE" | sort -u)
-            NEW_API_FIELDS=$(grep -oP '_PJRT_API_STRUCT_FIELD\(\K[^)]+' "$UPSTREAM_FILE" | sort -u)
+            # Join lines before matching so macro invocations split across
+            # multiple lines are still captured
+            # (clang-format wraps long identifiers.)
+            OLD_API_FIELDS=$(tr '\n' ' ' < "$LOCAL_FILE" | grep -oP '_PJRT_API_STRUCT_FIELD\(\s*\K\w+' | sort -u)
+            NEW_API_FIELDS=$(tr '\n' ' ' < "$UPSTREAM_FILE" | grep -oP '_PJRT_API_STRUCT_FIELD\(\s*\K\w+' | sort -u)
 
             # Update stubs.inc file with new API entries
             STUBS_FILE="pjrt_implementation/src/stubs.inc"

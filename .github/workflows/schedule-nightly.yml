@@ -89,10 +89,99 @@ jobs:
       sh-runner: false
       skip-device-perf: true
       regression_check: true
-      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"} ]'
+      adv_filter: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "p150-perf"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"}, {"runs-on": "qb2-blackhole"} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
+
+  nightly-benchmark-report:
+    name: "Nightly benchmark report"
+    needs: [ build-image, build-ttxla, perf-benchmark ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Run ci-benchmark-analyzer skill via Claude
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
+        run: |
+          # NOTE: `--allowed-tools` is variadic and would absorb the prompt arg;
+          # use `--` to terminate options before the positional prompt.
+          # `< /dev/null` suppresses the 3s stdin-wait warning when running headless.
+          claude --print \
+                 --permission-mode bypassPermissions \
+                 --model claude-opus-4-7 \
+                 --max-turns 60 \
+                 --allowed-tools "Bash(gh api:*),Bash(gh run download:*),Bash(python:*),Bash(python3:*),Bash(mkdir:*),Bash(ls:*),Bash(jq:*),Read,Write,Edit,Glob,Grep,Agent" \
+                 -- \
+                 "$(cat <<'PROMPT'
+          Use the `ci-benchmark-analyzer` skill at
+          `.claude/skills/ci-benchmark-analyzer/SKILL.md` to produce a
+          nightly report for workflow run ID `${{ github.run_id }}`.
+
+          Read the SKILL.md and follow it exactly. The skill will:
+            - read run metadata + jobs via `gh api`
+            - resolve the tt-mlir / tt-metal dependency chain
+            - run `.claude/skills/ci-benchmark-analyzer/scripts/fetch_perf_reports.py`
+              and `compare_nightlies.py`
+            - write `nightly-reports/nightly_${{ github.run_id }}_*.md`
+
+          Do NOT use the Glean MCP — it is not available in this CI
+          environment. Skip the "Context" enrichment and explicitly note
+          "Glean unavailable in CI" wherever the skill would have used it.
+
+          After the report file is written, stop. Do NOT post GitHub
+          comments, create issues, or modify any files outside
+          `nightly-reports/`.
+
+          Use parallel subagents (via the Agent tool) wherever there is
+          independent I/O to speed up the report. Two natural fan-out points:
+            - Fetching failed-job logs: one subagent per failed job's
+              `gh api .../jobs/<id>/logs` call when there are 3+ failures.
+            - Running `fetch_perf_reports.py` (current run) and
+              `compare_nightlies.py` (current vs. previous run) concurrently
+              — they're independent and each does its own gh downloads.
+          Ask each subagent for a terse structured result (raw error label,
+          metric JSON path) rather than prose, so your context stays small.
+          PROMPT
+          )" < /dev/null
+
+      - name: Append report to job summary
+        run: |
+          REPORT=$(ls nightly-reports/nightly_${{ github.run_id }}_*.md 2>/dev/null | head -1)
+          if [ -z "$REPORT" ]; then
+            echo "::error::No nightly report was produced"
+            exit 1
+          fi
+          cat "$REPORT" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: nightly-report-${{ github.run_id }}
+          path: nightly-reports/
+          retention-days: 90
 
   release:
     uses: ./.github/workflows/call-release.yml

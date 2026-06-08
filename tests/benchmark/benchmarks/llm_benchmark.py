@@ -15,7 +15,6 @@ import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import tracy
-import transformers
 from fusion_check import check_fusions
 from infra import MLACache, MLAStaticLayer
 from llm_utils import (
@@ -36,6 +35,7 @@ from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
     build_xla_export_name,
     compute_pcc,
+    compute_rel_l2,
     create_benchmark_result,
     get_benchmark_metadata,
     get_xla_device_arch,
@@ -45,6 +45,7 @@ from utils import (
 xr.set_device_type("TT")
 
 MIN_STEPS = 16
+DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
 
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
@@ -55,7 +56,7 @@ MODULE_EXPORT_PATH = "modules"
 
 
 def setup_model_and_tokenizer(
-    model_loader, model_variant
+    model_loader, model_variant, experts_implementation: Optional[str] = None
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
     """
     Instantiate model and tokenizer.
@@ -69,13 +70,18 @@ def setup_model_and_tokenizer(
     """
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
-    model = model_loader.load_model(dtype_override=torch.bfloat16)
+    model_kwargs = {}
+    if experts_implementation is not None:
+        model_kwargs["experts_implementation"] = experts_implementation
+    model = model_loader.load_model(dtype_override=torch.bfloat16, **model_kwargs)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
-        model.config._experts_implementation = "dense"
+        model.config._experts_implementation = (
+            experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
+        )
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -199,6 +205,13 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
         else:
             layer.keys = layer.keys.to(device)
             layer.values = layer.values.to(device)
+            # CL must be on device: StaticLayer.update() does
+            # torch.arange(kv_length, device=self.device) + self.cumulative_length,
+            # which fails if CL is on CPU and self.device is XLA.
+            # Zero before moving so the fresh cache starts at position 0.
+            layer.cumulative_length.zero_()
+            layer.cumulative_length = layer.cumulative_length.to(device)
+            layer.device = device
     input_args["input_ids"] = input_args["input_ids"].to(device)
     input_args["cache_position"] = input_args["cache_position"].to(device)
     return input_args
@@ -219,23 +232,6 @@ def _shard_kv_cache(past_key_values, mesh, kv_cache_sharding_spec):
             xs.mark_sharding(layer.values, mesh, kv_spec)
 
 
-def check_transformers_version():
-    """
-    Check that transformers version is = 5.2.0.
-    Raises RuntimeError if version is incompatible.
-    """
-    import packaging.version
-
-    current_version = packaging.version.parse(transformers.__version__)
-    max_version = packaging.version.parse("5.2.0")
-
-    if current_version != max_version:
-        raise RuntimeError(
-            f"Transformers version {transformers.__version__} is not supported. "
-            f"Please use version 5.2.0"
-        )
-
-
 def benchmark_llm_torch_xla(
     model_loader,
     model_variant,
@@ -253,7 +249,6 @@ def benchmark_llm_torch_xla(
     read_logits_fn,
     mesh_config_fn,
     shard_spec_fn,
-    arch,
     required_pcc,
     fp32_dest_acc_en=None,
     experimental_kv_cache_dtype=None,
@@ -269,6 +264,8 @@ def benchmark_llm_torch_xla(
     expected_ops: list = None,
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
+    enable_create_d2m_subgraphs: bool = False,
+    experts_implementation: Optional[str] = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -331,8 +328,11 @@ def benchmark_llm_torch_xla(
             "Please use -t text-generation"
         )
 
-    # Check transformers version
-    check_transformers_version()
+    if enable_create_d2m_subgraphs and optimization_level < 1:
+        raise ValueError(
+            f"optimization_level must be >= 1 when enable_create_d2m_subgraphs "
+            f"is enabled, got optimization_level={optimization_level}"
+        )
 
     xr.set_device_type("TT")
 
@@ -355,7 +355,11 @@ def benchmark_llm_torch_xla(
     device: torch.device = torch_xla.device()
 
     # Instantiate model and tokenizer
-    model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    model, tokenizer = setup_model_and_tokenizer(
+        model_loader,
+        model_variant,
+        experts_implementation=experts_implementation,
+    )
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
     # Initialize accuracy testing if enabled
@@ -396,7 +400,9 @@ def benchmark_llm_torch_xla(
     if max_output_tokens is None:
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
+    # Run CPU prefill (used as PCC baseline, or as decode-only prefill).
+    # tt_* experts/attention backends auto-fall-back to HF builtins for CPU
+    # tensors, so no backend swap is needed here.
     if not accuracy_testing:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
         cpu_wrapper.eval()
@@ -468,6 +474,8 @@ def benchmark_llm_torch_xla(
         options["fp32_dest_acc_en"] = fp32_dest_acc_en
     if experimental_kv_cache_dtype is not None:
         options["experimental-kv-cache-dtype"] = experimental_kv_cache_dtype
+    if enable_create_d2m_subgraphs:
+        options["enable_create_d2m_subgraphs"] = enable_create_d2m_subgraphs
 
     torch_xla.set_custom_compile_options(options)
 
@@ -538,13 +546,24 @@ def benchmark_llm_torch_xla(
 
         tracy.signpost("warmup_complete")
 
-    # Reconstruct inputs for the perf benchmark run
+    # Reconstruct inputs for the perf benchmark run.
+    existing_cache = (
+        input_args["past_key_values"] if not decode_only else decode_only_cache
+    )
+
+    # Reset cumulative_length to 0 on CPU
+    for layer in existing_cache.layers:
+        if hasattr(layer, "cumulative_length"):
+            if layer.cumulative_length.device.type != "cpu":
+                layer.cumulative_length = layer.cumulative_length.cpu()
+            layer.cumulative_length.zero_()
+
     input_args = construct_inputs(
         tokenizer,
         model.config,
         batch_size,
         max_cache_len,
-        past_key_values=(decode_only_cache if decode_only else warmup_kv_cache),
+        past_key_values=existing_cache,
         input_prompt=custom_input_prompt,
         input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
         use_mla_cache=use_mla_cache,
@@ -653,17 +672,19 @@ def benchmark_llm_torch_xla(
 
     # The prefill call above already consumed gt[0] as teacher-forced input for
     # the first decode step, so the decode call must start its ground-truth
-    # window at gt[1] to stay aligned.
+    # window at gt[1] to stay aligned. It also consumed one of the logits_steps
+    # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
     decode_ground_truth = (
         ground_truth_for_benchmark[1:]
         if ground_truth_for_benchmark is not None and not decode_only
         else ground_truth_for_benchmark
     )
+    decode_steps = logits_steps if decode_only else logits_steps - 1
     device_decode_logits, _ = generate_and_benchmark(
         compiled_logits,
         input_args,
         device,
-        logits_steps,
+        decode_steps,
         verbose=False,
         ground_truth_tokens=decode_ground_truth,
         collect_logits=True,
@@ -792,36 +813,48 @@ def benchmark_llm_torch_xla(
         )
     elif decode_only:
         decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
+        decode_rel_l2_value = compute_rel_l2(
+            cpu_output_logits[1][0], output_logits[0][0]
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                decode_pcc_value, decode_rel_l2_value
             )
         )
     else:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+        rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
         assert (
             pcc_value >= required_pcc
         ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
-        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
+        print(
+            "Prefill PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                pcc_value, rel_l2_value
+            )
+        )
         # Check PCC for first decode token
         assert (
             len(output_logits) > 1 and len(cpu_output_logits) > 1
         ), "Not enough logits to check PCC"
         decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+        decode_rel_l2_value = compute_rel_l2(
+            cpu_output_logits[1][0], output_logits[1][0]
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                decode_pcc_value, decode_rel_l2_value
             )
         )
 
     # Get device count and mesh info for metrics
+    arch = get_xla_device_arch()
     device_count = xr.global_runtime_device_count()
     mesh_shape = tuple(mesh.shape()) if mesh is not None else None
 
@@ -847,7 +880,7 @@ def benchmark_llm_torch_xla(
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
-        arch=arch or get_xla_device_arch(),
+        arch=arch,
         input_is_image=False,
         input_sequence_length=input_sequence_length,
         device_count=device_count,

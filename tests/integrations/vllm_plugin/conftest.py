@@ -11,9 +11,15 @@ holding the TT device outlives the test — hanging the next one. Shut
 them down explicitly on failure.
 """
 import gc
+import os
 
 import pytest
 import vllm
+
+
+def pytest_configure(config):
+    del config
+    os.environ.setdefault("TTXLA_LOGGER_LEVEL", "INFO")
 
 
 @pytest.hookimpl(hookwrapper=True)

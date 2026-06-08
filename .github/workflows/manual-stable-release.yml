@@ -76,3 +76,10 @@ jobs:
       tag_name: ${{ needs.release.outputs.release_tag }}
       is_nightly: false
       target_repo: tenstorrent/tt-forge
+
+  update-version-in-inference-server:
+    needs: [ release-forge, release ]
+    uses: ./.github/workflows/call-update-inference-server-version.yml
+    secrets: inherit
+    with:
+      release_tag: ${{ needs.release.outputs.release_tag }}
