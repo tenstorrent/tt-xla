@@ -16,5 +16,6 @@
   {"runs-on": "qb2-blackhole",       "name": "run_vllm_bhqb_tests",    "dir": "./tests/integrations/vllm_plugin",         "test-mark": "nightly and bhqb",                        "extra-wheel": "vllm"},
   { "runs-on": "galaxy-wh-6u",       "name": "run_torch_galaxy",       "dir": "./tests/torch",                            "test-mark": "nightly and galaxy" },
   { "runs-on": "galaxy-wh-6u",        "name": "run_vllm_galaxy_wh_6u_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and tensor_parallel and galaxy_wh_6u", "extra-wheel": "vllm" },
-  { "runs-on": "galaxy-bh",           "name": "run_torch_bh_galaxy",   "dir": "./tests/torch",                            "test-mark": "nightly and bh_galaxy" }
+  { "runs-on": "galaxy-bh",           "name": "run_torch_bh_galaxy",   "dir": "./tests/torch",                            "test-mark": "nightly and bh_galaxy" },
+  { "runs-on": "cpu", "name": "run_cpu_compile_only", "dir": "./tests/cpu_compile_only", "test-mark": "nightly and cpu", "shared-runners": "true" }
 ]

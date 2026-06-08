@@ -72,12 +72,7 @@ def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
     # hardware via save_system_desc.py and committed to system_descs/. Add a new
     # arch here once its descriptor is committed.
     "arch",
-    [
-        "n150",
-        "n300",
-        "n300-llmbox",
-        "p150"
-    ],
+    ["n150", "n300", "n300-llmbox", "p150"],
 )
 def test_cpu_compile_only_per_arch(arch, tmp_path):
     """CPU-only: compile a simple model against a checked-in `.ttsys` descriptor.
