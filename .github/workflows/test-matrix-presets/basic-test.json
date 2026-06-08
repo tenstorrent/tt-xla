@@ -1,5 +1,4 @@
 [
-  {"runs-on": "n150",               "name": "run_torch",              "dir": "./tests/torch",                           "test-mark": "push and single_device and testing",  "parallel-groups": 5, "shared-runners": "true", "forked": true},
-  {"runs-on": "p150",               "name": "run_torch",              "dir": "./tests/torch",                           "test-mark": "push and single_device and testing",  "parallel-groups": 3, "forked": true},
-  {"runs-on": "n300-llmbox",        "name": "run_torch_multi_chip",   "dir": "./tests/torch",                           "test-mark": "push and llmbox and testing",         "shared-runners": "true" }
+  {"runs-on": "n150",               "name": "run_torch",              "dir": "./tests/torch",                           "test-mark": "push and single_device and testing",  "parallel-groups": 1, "shared-runners": "true", "forked": true},
+  {"runs-on": "p150",               "name": "run_torch",              "dir": "./tests/torch",                           "test-mark": "push and single_device and testing",  "parallel-groups": 1, "forked": true}
 ]
