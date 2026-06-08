@@ -112,7 +112,12 @@ def filter_matrix_adv(matrix, adv_filter):
 
 def update_runners(matrix, sh_runner):
     """Update runner names based on shared runner flag."""
-    runner_map = {"p150": "p150b"} if sh_runner else {"n150": "n150-perf"}
+    # "p150-perf" is a logical single-chip Blackhole perf label that always maps to
+    # the physical qb2-blackhole box (kept distinct from the multi-chip qb2-blackhole
+    # tests so the runs-on filter can separate them). The shared-runner-mode remap is
+    # layered on top.
+    runner_map = {"p150-perf": "qb2-blackhole"}
+    runner_map.update({"p150": "p150b"} if sh_runner else {"n150": "n150-perf"})
 
     for item in matrix:
         item["runs-on-original"] = item.get("runs-on")
