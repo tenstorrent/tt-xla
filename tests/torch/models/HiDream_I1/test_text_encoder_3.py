@@ -21,9 +21,6 @@ def test_text_encoder_3():
     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="AssertionError: Evaluation result 0 failed: PCC comparison failed. Calculated: pcc=0.9873067700897922. Required: pcc=0.99. - https://github.com/tenstorrent/tt-xla/issues/4847"
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
