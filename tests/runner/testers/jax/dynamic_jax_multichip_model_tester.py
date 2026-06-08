@@ -152,7 +152,7 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
     def _test_training(self) -> Tuple[ComparisonResult, ...]:
         """Training is not supported through the multichip JAX model tester."""
         raise NotImplementedError(
-            "Training is not supported for multichip JAX models yet."
+            "Training is not supported for Easydel JAX models yet."
         )
 
     # @override
