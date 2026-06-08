@@ -54,12 +54,12 @@ def _tp_config(
     model: str,
     batch_size: int,
     *,
-    gpu_memory_utilization: float = 0.005,
+    gpu_memory_utilization: float = 0.1,
     **additional_config_extra,
 ):
     tp_defaults = {
         "enable_tensor_parallel": True,
-        "use_2d_mesh": True,
+        "use_2d_mesh": False,
         "min_context_len": 32,
     }
     tp_defaults.update(additional_config_extra)
@@ -123,31 +123,37 @@ SINGLE_DEVICE_CONFIGS = [
 
 
 TP_CONFIGS = [
-    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 1), id="falcon3-7b-tp"),
-    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 1), id="falcon3-10b-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-8B", 1), id="qwen3-8b-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 32), id="falcon3-7b-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 32), id="falcon3-10b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-8B", 32), id="qwen3-8b-tp"),
     pytest.param(
-        _tp_config("Qwen/Qwen3-8B", 1, optimization_level=1),
+        _tp_config("Qwen/Qwen3-8B", 32, optimization_level=1),
         id="qwen3-8b-tp-opt1",
     ),
-    pytest.param(_tp_config("Qwen/Qwen3-14B", 1), id="qwen3-14b-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-32B", 1), id="qwen3-32b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-14B", 32), id="qwen3-14b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-tp"),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
+        _tp_config(
+            "Qwen/Qwen3-32B", 32, use_2d_mesh=False, gpu_memory_utilization=0.1
+        ),
+        id="qwen3-32b-qb2-tp",
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 1),
+        _tp_config("Qwen/Qwen2.5-14B-Instruct", 32), id="qwen2.5-14b-instruct-tp"
+    ),
+    pytest.param(
+        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32),
         id="qwen2.5-coder-32b-instruct-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Ministral-8B-Instruct-2410", 1), id="ministral-8b-tp"
+        _tp_config("mistralai/Ministral-8B-Instruct-2410", 32), id="ministral-8b-tp"
     ),
     pytest.param(
-        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 1),
+        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 32),
         id="mistral-nemo-instruct-2407-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 1),
+        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32),
         id="mistral-small-24b-instruct-2501-tp",
     ),
 ]
