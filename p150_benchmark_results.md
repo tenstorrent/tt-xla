@@ -1,9 +1,10 @@
 # P150 vLLM Benchmark Results
 
-**Machine**:  (P150b Blackhole, 32 GB DRAM)
-**tt-xla branch**: kmabee-setup (= origin/kmabee/llm_kv_cache_seq_len_work @ c8cc0e739)
-**tt-mlir**: kmabee/mlir_525_opt1_improvements @ 66d2edc34
-**Config**: opt-1, BFP8 weights, BFP8 KV cache, cpu_sampling=True, enable_trace=True
+**Dates**: 2026-06-05 (initial 8k sweep on bh-38-special), 2026-06-08 (16k sweep, GMU experiments, trace investigation on bh-30-special)
+**Hardware**: P150b Blackhole, 32 GB DRAM, single chip
+**tt-xla branch**: `akhan/p150-vllm-benchmarks` (= origin/kmabee/llm_kv_cache_seq_len_work @ c8cc0e739 + benchmark commits)
+**tt-mlir**: target pin is `kmabee/mlir_525_opt1_improvements @ 66d2edc34`; today's session built against `c5f398432a` because the branch-pinned SHA's transitive `tt-umd` dep (`8aa688168e1b`) has been force-pushed off origin. BFP8 KV cache path still functional on `c5f398432a`.
+**Config**: opt-1, BFP8 weights, BFP8 KV cache, cpu_sampling=True, enable_trace=True (unless noted otherwise)
 
 ## Results Matrix (8k seq len)
 
