@@ -89,11 +89,15 @@ def _config(
 
 def _tp_config(
     model: str,
-    batch_size: int,
+    batch_size: int = 32,
     *,
-    gpu_memory_utilization: float = 0.005,
+    gpu_memory_utilization: float = 0.05,
     **additional_config_extra,
 ):
+    # Multichip TP configs are aligned with the single-device benchmark:
+    # batch_size=32, bfp_bf8 weights, fp32_dest_acc. (#5051) We deliberately
+    # run every multichip model at bs=32 even though it is flagged for some
+    # models (#5083) — the point is to gather data on which actually break.
     tp_defaults = {
         "enable_tensor_parallel": True,
         "use_2d_mesh": True,
@@ -102,14 +106,12 @@ def _tp_config(
     tp_defaults.update(additional_config_extra)
     # Allow callers to override weight dtype without passing the same keyword
     # twice to _config (once explicitly and once via **tp_defaults).
-    experimental_weight_dtype = tp_defaults.pop("experimental_weight_dtype", "")
-    fp32_dest_acc_en = tp_defaults.pop("fp32_dest_acc_en", None)
+    experimental_weight_dtype = tp_defaults.pop("experimental_weight_dtype", "bfp_bf8")
+    fp32_dest_acc_en = tp_defaults.pop("fp32_dest_acc_en", False)
     return _config(
         model,
         batch_size,
         gpu_memory_utilization=gpu_memory_utilization,
-        # Keep TP configs as-is: the single-device alignment defaults
-        # (bfp_bf8, fp32_dest_acc_en=False) do not apply here.
         experimental_weight_dtype=experimental_weight_dtype,
         fp32_dest_acc_en=fp32_dest_acc_en,
         **tp_defaults,
@@ -181,50 +183,106 @@ SINGLE_DEVICE_CONFIGS = [
 
 
 TP_CONFIGS = [
-    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base", 1), id="falcon3-7b-tp"),
-    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base", 1), id="falcon3-10b-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-8B", 1), id="qwen3-8b-tp"),
+    # n300-llmbox TP configs (2D mesh)
+    pytest.param(_tp_config("tiiuae/Falcon3-7B-Base"), id="falcon3-7b-tp"),
+    pytest.param(_tp_config("tiiuae/Falcon3-10B-Base"), id="falcon3-10b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-8B"), id="qwen3-8b-tp"),
     pytest.param(
-        _tp_config("Qwen/Qwen3-8B", 1, optimization_level=1),
+        _tp_config("Qwen/Qwen3-8B", optimization_level=1),
         id="qwen3-8b-tp-opt1",
     ),
-    pytest.param(_tp_config("Qwen/Qwen3-14B", 1), id="qwen3-14b-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-32B", 1), id="qwen3-32b-tp"),
-    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 1), id="gemma4-31b-it-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-14B"), id="qwen3-14b-tp"),
+    pytest.param(_tp_config("Qwen/Qwen3-32B"), id="qwen3-32b-tp"),
     pytest.param(
-        _tp_config("Qwen/Qwen3-32B", 1, use_2d_mesh=False), id="qwen3-32b-qb2-tp"
+        _tp_config("Qwen/Qwen2.5-14B-Instruct"), id="qwen2.5-14b-instruct-tp"
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
-    ),
-    pytest.param(
-        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 1),
+        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct"),
         id="qwen2.5-coder-32b-instruct-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Ministral-8B-Instruct-2410", 1), id="ministral-8b-tp"
+        _tp_config("mistralai/Ministral-8B-Instruct-2410"), id="ministral-8b-tp"
     ),
     pytest.param(
-        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", 1),
+        _tp_config("mistralai/Mistral-Nemo-Instruct-2407"),
         id="mistral-nemo-instruct-2407-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 1),
+        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501"),
         id="mistral-small-24b-instruct-2501-tp",
     ),
     pytest.param(
-        _tp_config("meta-llama/Llama-3.1-8B-Instruct", 1),
+        _tp_config("meta-llama/Llama-3.1-8B-Instruct"),
         id="llama-3.1-8b-tp",
     ),
     pytest.param(
-        _tp_config(
-            "meta-llama/Llama-3.1-70B-Instruct",
-            1,
-            enable_const_eval=True,
-            experimental_weight_dtype="bfp_bf8",
-        ),
+        _tp_config("meta-llama/Llama-3.1-70B-Instruct", enable_const_eval=True),
         id="llama-3.1-70b-tp",
     ),
+    pytest.param(_tp_config("openai/gpt-oss-20b"), id="gpt-oss-20b-tp"),
+    # QB2-Blackhole TP configs (1D mesh: use_2d_mesh=False)
+    pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 1), id="gemma4-31b-it-tp"),
+    pytest.param(
+        _tp_config("Qwen/Qwen3-32B", use_2d_mesh=False), id="qwen3-32b-qb2-tp"
+    ),
+    pytest.param(
+        _tp_config("tiiuae/Falcon3-7B-Base", use_2d_mesh=False), id="falcon3-7b-qb2-tp"
+    ),
+    pytest.param(
+        _tp_config("tiiuae/Falcon3-10B-Base", use_2d_mesh=False),
+        id="falcon3-10b-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("meta-llama/Llama-3.1-8B-Instruct", use_2d_mesh=False),
+        id="llama-3.1-8b-qb2-tp",
+    ),
+    pytest.param(_tp_config("Qwen/Qwen3-8B", use_2d_mesh=False), id="qwen3-8b-qb2-tp"),
+    pytest.param(
+        _tp_config("Qwen/Qwen3-14B", use_2d_mesh=False), id="qwen3-14b-qb2-tp"
+    ),
+    pytest.param(
+        _tp_config("Qwen/Qwen2.5-14B-Instruct", use_2d_mesh=False),
+        id="qwen2.5-14b-instruct-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", use_2d_mesh=False),
+        id="qwen2.5-coder-32b-instruct-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("mistralai/Ministral-8B-Instruct-2410", use_2d_mesh=False),
+        id="ministral-8b-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("mistralai/Mistral-Nemo-Instruct-2407", use_2d_mesh=False),
+        id="mistral-nemo-instruct-2407-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", use_2d_mesh=False),
+        id="mistral-small-24b-instruct-2501-qb2-tp",
+    ),
+    pytest.param(
+        _tp_config("openai/gpt-oss-20b", use_2d_mesh=False), id="gpt-oss-20b-qb2-tp"
+    ),
+    pytest.param(
+        _tp_config("openai/gpt-oss-120b", use_2d_mesh=False), id="gpt-oss-120b-qb2-tp"
+    ),
+    # galaxy-wh-6u TP configs (32 devices -> (4,8) 2D mesh)
+    pytest.param(
+        _tp_config("meta-llama/Llama-3.1-70B-Instruct", enable_const_eval=True),
+        id="llama-3.1-70b-galaxy-tp",
+    ),
+    pytest.param(_tp_config("openai/gpt-oss-20b"), id="gpt-oss-20b-galaxy-tp"),
+    pytest.param(_tp_config("openai/gpt-oss-120b"), id="gpt-oss-120b-galaxy-tp"),
+    pytest.param(
+        _tp_config("deepseek-ai/DeepSeek-V3.1"), id="deepseek-v3.1-galaxy-tp"
+    ),
+    pytest.param(
+        _tp_config("deepseek-ai/DeepSeek-V3.2-Exp"),
+        id="deepseek-v3.2-exp-galaxy-tp",
+    ),
+    pytest.param(_tp_config("zai-org/GLM-4.7"), id="glm-4.7-galaxy-tp"),
+    pytest.param(_tp_config("moonshotai/Kimi-K2-Instruct"), id="kimi-k2-galaxy-tp"),
+    pytest.param(_tp_config("moonshotai/Kimi-K2.5"), id="kimi-k2.5-galaxy-tp"),
     # Verify fused decode_postprocess compiles to expected graph count (cpu_sampling=False path)
     pytest.param(
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),

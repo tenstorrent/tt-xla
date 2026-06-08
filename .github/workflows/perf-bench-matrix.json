@@ -793,6 +793,155 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_falcon3_7b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-7b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_falcon3_10b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-10b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_qwen3_8b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-8b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_qwen3_14b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-14b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_qwen2_5_14b_instruct_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-14b-instruct-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_qwen2_5_coder_32b_instruct_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-coder-32b-instruct-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_ministral_8b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[ministral-8b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_mistral_nemo_instruct_2407_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-nemo-instruct-2407-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_mistral_small_24b_instruct_2501_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-small-24b-instruct-2501-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_gpt_oss_20b_tp",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gpt-oss-20b-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "vllm_llama_3_1_8b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-8b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_gpt_oss_20b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gpt-oss-20b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_gpt_oss_120b_tp_qb2",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gpt-oss-120b-qb2-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "qb2-blackhole"
+      },
+      {
+        "name": "vllm_llama_3_1_70b_tp_galaxy",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-70b-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "vllm_gpt_oss_20b_tp_galaxy",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gpt-oss-20b-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "vllm_gpt_oss_120b_tp_galaxy",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[gpt-oss-120b-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "vllm_deepseek_v3_1_tp_galaxy",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[deepseek-v3.1-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "vllm_deepseek_v3_2_exp_tp_galaxy",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[deepseek-v3.2-exp-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "vllm_glm_4_7_tp_galaxy",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[glm-4.7-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "vllm_kimi_k2_tp_galaxy",
+        "pyreq": "tiktoken",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[kimi-k2-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "vllm_kimi_k2_5_tp_galaxy",
+        "pyreq": "tiktoken",
+        "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_tp_benchmark[kimi-k2.5-galaxy-tp]",
+        "vllm": true,
+        "skip-device-perf": true,
+        "runs-on": "galaxy-wh-6u"
       }
     ]
   }
