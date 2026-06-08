@@ -1,7 +1,6 @@
 # P150 vLLM Benchmark Results
 
-**Date**: 2026-06-05
-**Machine**: bh-38-special (P150b Blackhole, 32 GB DRAM)
+**Machine**:  (P150b Blackhole, 32 GB DRAM)
 **tt-xla branch**: kmabee-setup (= origin/kmabee/llm_kv_cache_seq_len_work @ c8cc0e739)
 **tt-mlir**: kmabee/mlir_525_opt1_improvements @ 66d2edc34
 **Config**: opt-1, BFP8 weights, BFP8 KV cache, cpu_sampling=True, enable_trace=True
@@ -55,6 +54,10 @@
 
 **Pattern**: 3-4B models fit batch=16, 7-8B models max at batch=8. batch=32 OOMs on ALL models at 8k seq (activation memory exceeds free DRAM).
 
+**With GMU=0.05 tuning**: Qwen3-8B unlocks b16/s8k (+60% aggregate TPS over b8). Llama-3.1-8B and Falcon3-7B still OOM at b16 even with GMU=0.05 — Llama-3.1-8B fits in total free DRAM but the heap is fragmented; Falcon3-7B doesn't free meaningful DRAM by lowering GMU. Different memory profiles across the 7-8B class — per-model tuning is required.
+
+**Max batch at 16k seq (b8 only)**: only 3-4B models (Llama-3.2-3B, Qwen3-4B) fit. All 7-8B models OOM.
+
 ## OOM Root Cause
 
 The bottleneck is **prefill activation memory**, not KV cache. batch × seq_len tokens are processed in one matmul during prefill. For batch=32 × 8192:
@@ -67,7 +70,9 @@ Kyle's upcoming "prefill simplification" changes (splitting prefill into smaller
 
 ## Trace Error Investigation (enable_trace=True + cpu_sampling=True)
 
-The compiler emits `from_device` on the sampled-token tensor `[batch, seq]` uint32, which violates trace's "all outputs on device" rule. **Failure depends on total token count (batch × seq), not seq length alone.**
+**Filed as tt-xla #5130.**
+
+The compiler emits `from_device` on the model's `[batch, seq]` uint32 output tensor in `_precompile_backbone`, which violates trace's "all outputs on device" rule. **Failure depends on total token count (batch × seq), not seq length alone.**
 
 | Config | b × s tokens | Trace |
 |---|---|---|
@@ -85,18 +90,19 @@ error: 'ttnn.capture_or_execute_trace' op All output tensors of trace function m
 %2 = "ttnn.from_device"(%1) : tensor<B×S×ui32> → ..., system_memory
 ```
 
-Kyle earlier note: "trace doesn't work with opt-level=1 and cpu_sampling=False anyways (a preferred combo) I care less right now" — but now seq-dependence (actually token-count-dependence) suggests this may be a compiler heuristic, not a hard incompatibility.
+Distinct from tt-xla #4570 (`cpu_sampling=False` path fails in the sampler op `OpModel<SamplingOp>::getOpConstraints` regardless of size). Same end symptom (`from_device` → trace verifier reject), different op and different trigger. The `cpu_sampling=True` combination broken here is the workaround #4570 currently recommends.
 
 ## Environment Notes
 - Board was hung from a prior crashed process; `tt-smi -r` fixed it
 - `tt-smi` installed in venv: `pip install tt-smi`
 - Each test must run in its own pytest invocation (InitializeComputationClient crash)
-- gpu_memory_utilization: 0.3 for 3B, 0.25 for 4B, 0.2 for 7B/8B
-- Fixed `_p150_config()` to respect `TT_BENCHMARK_TRACE` env var
+- Per-model default `gpu_memory_utilization`: 0.3 for 3B, 0.25 for 4B, 0.2 for 7B/8B
+- `_p150_config()` respects `TT_BENCHMARK_TRACE` (0/1 override) and `TT_BENCHMARK_GMU` (float override). The GMU env var was wired through in this session's commit (`49b53f4f2`).
 
 ## Runner Commands
 ```bash
 source venv/activate
+
 # batch=8, 8k seq, opt-1
 _BENCH_OPTIMIZATION_LEVEL=1 TT_BENCHMARK_P150_MAX_MODEL_LEN=8192 pytest -sv \
   "tests/benchmark/test_vllm_benchmarks.py::test_vllm_p150_benchmark[p150-llama-3.2-3b-instruct-batch8]"
@@ -104,4 +110,8 @@ _BENCH_OPTIMIZATION_LEVEL=1 TT_BENCHMARK_P150_MAX_MODEL_LEN=8192 pytest -sv \
 # batch=8, 16k seq, opt-1
 _BENCH_OPTIMIZATION_LEVEL=1 TT_BENCHMARK_P150_MAX_MODEL_LEN=16384 pytest -sv \
   "tests/benchmark/test_vllm_benchmarks.py::test_vllm_p150_benchmark[p150-llama-3.2-3b-instruct-batch8]"
+
+# batch=16 with lowered GMU=0.05 (e.g. Qwen3-8B which only fits this way)
+_BENCH_OPTIMIZATION_LEVEL=1 TT_BENCHMARK_P150_MAX_MODEL_LEN=8192 TT_BENCHMARK_GMU=0.05 pytest -sv \
+  "tests/benchmark/test_vllm_benchmarks.py::test_vllm_p150_benchmark[p150-qwen3-8b-batch16]"
 ```
