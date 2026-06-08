@@ -366,12 +366,6 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
-        # TEMP: dump StableHLO at each pipeline stage on the n300 TP job
-        # to diagnose the sdy.collective_permute on reshape.6 in
-        # _precompile_gather_logprobs (tt-mlir#3370). Remove once fixed.
-        # NOTE: runs-on gets remapped to tt-ubuntu-2204-n300-stable when
-        # shared-runners is true; match against name + test-mark instead.
-        TTXLA_LOGGER_LEVEL: ${{ (matrix.build.name == 'run_vllm_n300_tests' && contains(matrix.build.test-mark, 'tensor_parallel')) && 'DEBUG' || '' }}
       shell: bash
       run: |
         source venv/activate

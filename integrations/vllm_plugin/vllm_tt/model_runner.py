@@ -2562,15 +2562,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         # logits enter vocab-sharded from compute_logits; replicate here so
         # logsoftmax sees the full vocab. Only paid when logprobs are requested.
-        # Two constraints: the first annotates the input as sharded (establishing
-        # the mesh reference in the compiled graph), the second triggers the
-        # all-gather to replicate. Everything downstream of the all-gather is
-        # already on a replicated tensor — we leave Shardy to propagate that
-        # forward instead of forcing per-op (None, ...) anchors, which on 1D
-        # mesh have been triggering collective_permute insertions Shardy then
-        # cannot lower (tt-mlir#3370).
+        #
+        # Single constraint: just the (None, None) all-gather request. The
+        # vocab-sharded function-arg annotation already declares the input
+        # layout to Shardy — adding our own redundant (None, "model")
+        # constraint at function entry is a trap: torch_xla canonicalizes
+        # the input via a no-op reshape pair ([1,V] → [1,1,V] → [1,V]), and
+        # the inner reshape gives Shardy freedom to pick *any* sharding on
+        # the squeezed result. Whenever it picks something other than
+        # (None, "model"), reconciling to our explicit (None, "model")
+        # constraint requires a collective_permute (tt-mlir#3370). Removing
+        # the redundant constraint lets Shardy all-gather from whatever
+        # layout it chose, which is always implementable.
         if self.is_sharded_compute_logits:
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         logprobs = self.sampler.compute_logprobs(logits)
         logprobTensors = self.sampler.gather_logprobs(
