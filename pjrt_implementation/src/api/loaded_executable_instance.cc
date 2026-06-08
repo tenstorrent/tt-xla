@@ -347,7 +347,6 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
     const mlir::tt::sharding_utils::MeshSharding &meshSharding,
     size_t num_devices) {
   std::unordered_map<std::string, std::string> strategy;
-
   mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
   if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
     // If there is only one device, the output will be replicated, but there is
