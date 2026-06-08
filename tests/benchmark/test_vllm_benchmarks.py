@@ -231,15 +231,18 @@ TP_CONFIGS = [
         id="opt-125m-fused-measure",
     ),
     # Devstral-2-123B: fp8 checkpoint -> bf16 via the dequant hook, then bfp8.
-    # BASELINE TP config (standard _tp_config => 2D TP), batch 1, 4 layers for
-    # fast bring-up. The BH-galaxy 8x4 DP+TP changes land in a follow-up commit
-    # so the diff shows exactly what we changed on top of the given DP branch.
+    # BH-galaxy 8x4 DP+TP: enable_data_parallel + use_2d_mesh (default) ->
+    # DATA_TENSOR_PRALLEL -> mesh (8,4) (dp=8, tp=4) on 32 chips. tp=4 divides
+    # Devstral's 8 KV heads (2/device). Run with TT_RUNTIME_USING_BH_GALAXY=1.
+    # (At batch 1, DP auto-disables -> 2D TP; batch>1 engages real 8x4.)
+    # 4 layers for fast bring-up.
     pytest.param(
         _tp_config(
             "mistralai/Devstral-2-123B-Instruct-2512",
             1,
             experimental_weight_dtype="bfp_bf8",
             enable_const_eval=True,
+            enable_data_parallel=True,
             num_hidden_layers=4,
         ),
         id="devstral-123b-tp",

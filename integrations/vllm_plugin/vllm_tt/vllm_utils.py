@@ -25,7 +25,8 @@ def determine_mesh_shape(
         ParallelismMode.TENSOR_PARALLEL_ONLY_2D,
         ParallelismMode.DATA_TENSOR_PRALLEL,
     ):
-        # Use predefined mesh shapes based on number of devices
+        # Use predefined mesh shapes based on number of devices.
+        # For DATA_TENSOR_PRALLEL the axes are (data_parallel, tensor_parallel).
         mesh_shapes = {
             2: (1, 2),
             4: (2, 2),
@@ -33,6 +34,11 @@ def determine_mesh_shape(
             16: (4, 4),
             32: (4, 8),
         }
+        if parallel_mode == ParallelismMode.DATA_TENSOR_PRALLEL:
+            # BH galaxy (32 chips): 8x4 = 8 data-parallel replicas x 4-way TP.
+            # tp=4 divides Devstral's 8 KV heads (2/device); the default (4,8)
+            # would be dp4/tp8.
+            mesh_shapes[32] = (8, 4)
         if num_devices in mesh_shapes:
             mesh_shape = mesh_shapes[num_devices]
             logger.info(
