@@ -11,7 +11,6 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
-#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -70,16 +69,7 @@ void deallocateHostSourceTensor(tt::runtime::Tensor &tensor) {
   });
 }
 
-// Process-wide ensure_layout timing accumulators (see tensor.h).
-PjrtTensor::LayoutTimings g_layout_timings;
-
 } // namespace
-
-void PjrtTensor::resetLayoutTimings() { g_layout_timings = LayoutTimings{}; }
-
-PjrtTensor::LayoutTimings PjrtTensor::getLayoutTimings() {
-  return g_layout_timings;
-}
 
 // Initializes pjrt tensor from pjrt buffers.
 //
@@ -151,17 +141,7 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   TT_FATAL(m_runtime_tensor.has_value(),
            "Cannot ensure layout for shell-only PjrtTensor");
 
-  using clock = std::chrono::steady_clock;
-  const auto has_layout_start = clock::now();
-  const bool already_has_layout =
-      tt::runtime::hasLayout(*m_runtime_tensor, layout);
-  g_layout_timings.has_layout_us +=
-      std::chrono::duration_cast<std::chrono::microseconds>(
-          clock::now() - has_layout_start)
-          .count();
-  ++g_layout_timings.has_layout_calls;
-
-  if (already_has_layout)
+  if (tt::runtime::hasLayout(*m_runtime_tensor, layout))
     return;
 
   const bool dealloc_host_inputs = deallocHostInputsAfterMigrationEnabled();
@@ -174,14 +154,8 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   }
 
   const bool retain = tt::runtime::getTensorRetain(*m_runtime_tensor);
-  const auto to_layout_start = clock::now();
   m_runtime_tensor =
       tt::runtime::toLayout(*m_runtime_tensor, device, layout, retain);
-  g_layout_timings.to_layout_us +=
-      std::chrono::duration_cast<std::chrono::microseconds>(
-          clock::now() - to_layout_start)
-          .count();
-  ++g_layout_timings.to_layout_calls;
 
   // Notify each shard so the host-buffer-done event fires now and the
   // framework releases its source reference, instead of holding it for

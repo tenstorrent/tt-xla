@@ -12,7 +12,6 @@
 #include "tt/runtime/types.h"
 
 // c++ standard library includes
-#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -201,14 +200,6 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     size_t num_devices, const tt::runtime::Device &runtime_device,
     std::uint32_t program_index,
     std::vector<tt::runtime::Tensor> &input_tensors) {
-  // Instrumentation: reset per-stage timers and time the whole preparation
-  // loop, so we can attribute the delay between the "getInputRuntimeTensors"
-  // and "tt::runtime::submit" logs to a specific stage.
-  m_input_prep_timings.reset();
-  PjrtTensor::resetLayoutTimings();
-  const auto loop_start = std::chrono::steady_clock::now();
-  std::int64_t prepare_input_tensor_us = 0;
-
   for (size_t arg_index = 0; arg_index < num_args; ++arg_index) {
     std::vector<BufferInstance *> arg_buffers;
     arg_buffers.reserve(num_devices);
@@ -219,18 +210,8 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       arg_buffers.push_back(buffer);
     }
 
-    const auto prepare_start = std::chrono::steady_clock::now();
     std::optional<tt::runtime::Tensor> prepared_tensor = prepareInputTensor(
         arg_buffers, runtime_device, num_devices, program_index, arg_index);
-    const std::int64_t this_arg_us =
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - prepare_start)
-            .count();
-    prepare_input_tensor_us += this_arg_us;
-    if (this_arg_us > m_input_prep_timings.slowest_arg_us) {
-      m_input_prep_timings.slowest_arg_us = this_arg_us;
-      m_input_prep_timings.slowest_arg_index = static_cast<std::int64_t>(arg_index);
-    }
 
     if (!prepared_tensor.has_value()) {
       // Error is reported in `prepareInputTensor`.
@@ -256,43 +237,6 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       }
     }
   }
-
-  const std::int64_t loop_total_us =
-      std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::steady_clock::now() - loop_start)
-          .count();
-  const PjrtTensor::LayoutTimings layout_timings =
-      PjrtTensor::getLayoutTimings();
-  LOG_F(INFO,
-        "getInputRuntimeTensors timing: num_args=%zu total=%.3fms "
-        "prepareInputTensor=%.3fms (avg/arg=%.3fms) | stages: "
-        "getLayout=%.3fms fillStrategy=%.3fms materializeShell=%.3fms "
-        "from_pjrt_buffers=%.3fms ensure_layout=%.3fms | slowest_arg #%lld=%.3fms",
-        num_args, loop_total_us / 1000.0, prepare_input_tensor_us / 1000.0,
-        num_args ? (prepare_input_tensor_us / 1000.0 / num_args) : 0.0,
-        m_input_prep_timings.get_layout_us / 1000.0,
-        m_input_prep_timings.fill_strategy_us / 1000.0,
-        m_input_prep_timings.materialize_shell_us / 1000.0,
-        m_input_prep_timings.from_pjrt_buffers_us / 1000.0,
-        m_input_prep_timings.ensure_layout_us / 1000.0,
-        static_cast<long long>(m_input_prep_timings.slowest_arg_index),
-        m_input_prep_timings.slowest_arg_us / 1000.0);
-  LOG_F(INFO,
-        "ensure_layout breakdown: hasLayout=%.3fms over %lld calls "
-        "(avg=%.3fms/call) | toLayout=%.3fms over %lld calls (avg=%.3fms/call)",
-        layout_timings.has_layout_us / 1000.0,
-        static_cast<long long>(layout_timings.has_layout_calls),
-        layout_timings.has_layout_calls
-            ? (layout_timings.has_layout_us / 1000.0 /
-               layout_timings.has_layout_calls)
-            : 0.0,
-        layout_timings.to_layout_us / 1000.0,
-        static_cast<long long>(layout_timings.to_layout_calls),
-        layout_timings.to_layout_calls
-            ? (layout_timings.to_layout_us / 1000.0 /
-               layout_timings.to_layout_calls)
-            : 0.0);
-
   return tt_pjrt_status::kSuccess;
 }
 

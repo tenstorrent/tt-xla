@@ -12,7 +12,6 @@
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_LOADED_EXECUTABLE_INSTANCE_H_
 
 // c++ standard library includes
-#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -137,24 +136,6 @@ protected:
                          const tt::runtime::Device &runtime_device,
                          std::uint32_t program_index,
                          std::vector<tt::runtime::Tensor> &input_tensors);
-
-  // Instrumentation: per-stage timings (in microseconds) for input tensor
-  // preparation. `prepareInputTensor` accumulates into these counters and
-  // `getInputRuntimeTensors` resets them before the loop and logs a breakdown
-  // afterwards. Used to diagnose where time is spent between the
-  // "getInputRuntimeTensors" and "tt::runtime::submit" logs.
-  struct InputPrepTimings {
-    std::int64_t get_layout_us = 0;
-    std::int64_t fill_strategy_us = 0;
-    std::int64_t materialize_shell_us = 0;
-    std::int64_t from_pjrt_buffers_us = 0;
-    std::int64_t ensure_layout_us = 0;
-    // Tracks the single slowest argument so we can spot per-arg outliers.
-    std::int64_t slowest_arg_us = -1;
-    std::int64_t slowest_arg_index = -1;
-    void reset() { *this = InputPrepTimings{}; }
-  };
-  InputPrepTimings m_input_prep_timings;
 
   // Returns an input tensor constructed from the provided buffer instances,
   // prepared for execution. This must be implemented by derived classes.

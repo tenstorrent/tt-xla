@@ -12,7 +12,6 @@
 #define TT_XLA_PJRT_IMPLEMENTATION_INC_API_TENSOR_H_
 
 // c++ standard library includes
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -120,21 +119,6 @@ public: // Constructors needs to be public for std::shared_ptr.
   // Changes runtime tensor layout if it differs from provided layout.
   void ensure_layout(const tt::runtime::Device &device,
                      const tt::runtime::Layout &layout);
-
-  // Instrumentation: process-wide accumulated timings for the two parts of
-  // ensure_layout. `hasLayout` can be a synchronous controller<->worker
-  // round-trip in the distributed runtime, while `toLayout` performs the
-  // actual (possibly no-op) migration. Counters are global because
-  // ensure_layout has no per-call context; callers reset before a batch and
-  // read afterwards. Not thread-safe; intended for single-threaded execute().
-  struct LayoutTimings {
-    std::int64_t has_layout_us = 0;
-    std::int64_t to_layout_us = 0;
-    std::int64_t has_layout_calls = 0;
-    std::int64_t to_layout_calls = 0;
-  };
-  static void resetLayoutTimings();
-  static LayoutTimings getLayoutTimings();
 
   // Removes shard from shards (by setting shard to nullptr).
   void remove_shard(const BufferInstance *shard) noexcept;
