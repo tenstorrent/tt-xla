@@ -351,9 +351,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multi-modal data support
         self.mm_registry = MULTIMODAL_REGISTRY
         self.uses_mrope = model_config.uses_mrope
-        # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
-        #     model_config)
-        self.supports_mm_inputs = False
+        self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
+            model_config
+        )
         # TODO: Support M-RoPE (e.g, Qwen2-VL)
         assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
@@ -518,8 +518,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.mm_budget = (
             MultiModalBudget(
-                self.model_config,
-                self.scheduler_config,
+                self.vllm_config,
                 self.mm_registry,
             )
             if self.supports_mm_inputs
@@ -1225,8 +1224,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not scheduled_encoder_inputs:
             return
 
-        # Batch the multi-modal inputs.
-        mm_kwargs = list[MultiModalKwargsItem]()
+        # Batch the multi-modal inputs as (modality, item) pairs for
+        # group_mm_kwargs_by_modality.
+        mm_kwargs: list[tuple[str, MultiModalKwargsItem]] = []
         # List of tuple (mm_hash, pos_info)
         mm_hashes_pos = list[tuple[str, PlaceholderRange]]()
         for req_id, encoder_input_ids in scheduled_encoder_inputs.items():
@@ -1237,7 +1237,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if mm_feature.data is None:
                     continue
                 mm_hash = mm_feature.identifier
-                mm_kwargs.append(mm_feature.data)
+                mm_kwargs.append((mm_feature.modality, mm_feature.data))
                 mm_hashes_pos.append((mm_hash, mm_feature.mm_position))
 
         # Batch mm inputs as much as we can: if a request in the batch has
@@ -1277,14 +1277,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 for output in curr_group_outputs:
                     encoder_outputs.append(output)
 
-        # Cache the encoder outputs.
-        # NOTE (NickLucche) here we diverge from logic in other runners, as we
-        # assume to only have whole mm items to process. Hence we avoid the
-        # intrinsic dynamism that `scatter_mm_placeholders` introduces.
+        # Store the raw encoder output; models with an is_embed mask
+        # (interleaved marker tokens) are handled in _gather_mm_embeddings.
         for (mm_hash, pos_info), output in zip(mm_hashes_pos, encoder_outputs):
-            assert pos_info.is_embed is None, (
-                "Expected all positions to be" " contiguous and embeddings."
-            )
             self.encoder_cache[mm_hash] = output
 
     def _gather_mm_embeddings(
@@ -1338,15 +1333,33 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 encoder_output = self.encoder_cache.get(mm_hash, None)
                 assert encoder_output is not None, f"Encoder cache miss for {mm_hash}."
 
-                assert pos_info.is_embed is None, (
-                    "Expected all positions to" " be contiguous and embeddings."
-                )
-
+                # Some models interleave special marker tokens (e.g. image
+                # begin/end) with the actual embedding slots inside a single
+                # placeholder range; pos_info.is_embed is then a bool mask
+                # flagging the real embedding positions. Slice encoder_output by
+                # those positions (mirrors upstream gpu_model_runner). When
+                # is_embed is None the whole range is contiguous embeddings.
                 req_start_pos = req_start_idx + start_pos - num_computed_tokens
-                is_mm_embed[req_start_pos + start_idx : req_start_pos + end_idx] = True
+                if pos_info.is_embed is not None:
+                    embed_mask = pos_info.is_embed[start_idx:end_idx]
+                    # encoder_output is indexed only by embedding positions;
+                    # count how many True entries precede start_idx to find
+                    # the correct slice into the encoder output.
+                    embeds_before = int(pos_info.is_embed[:start_idx].sum().item())
+                    embeds_in = int(embed_mask.sum().item())
+                    mm_embeds_item = encoder_output[
+                        embeds_before : embeds_before + embeds_in
+                    ]
+                    is_mm_embed[
+                        req_start_pos + start_idx : req_start_pos + end_idx
+                    ] |= embed_mask
+                else:
+                    mm_embeds_item = encoder_output[start_idx:end_idx]
+                    is_mm_embed[req_start_pos + start_idx : req_start_pos + end_idx] = (
+                        True
+                    )
 
-                # Only whole mm items are processed
-                mm_embeds.append(encoder_output)
+                mm_embeds.append(mm_embeds_item)
 
             req_start_idx += num_scheduled_tokens
 
@@ -1944,9 +1957,42 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_budget = self.mm_budget
         assert mm_budget is not None
 
-        max_items_per_seq_by_modality = (
-            mm_budget.max_items_per_batch_by_modality
-        )  # noqa: E501
+        max_items_per_seq_by_modality = mm_budget.mm_max_items_per_batch
+
+        # `image_token_id` was renamed from `image_token_index` in newer
+        # transformers; fall back for older configs.
+        image_token_id = getattr(
+            hf_config,
+            "image_token_id",
+            getattr(hf_config, "image_token_index", None),
+        )
+
+        def _compile_embed(num_tokens, mm_embeds_list, items_size):
+            # Mirror the live sample_tokens input-prep so the precompiled graph
+            # cache-hits at runtime: fill the persistent (max_num_reqs, n)
+            # _input_ids_dev / _position_ids_dev buffers via copy_ (a fresh
+            # zeros().to(device) const-folds to a different graph) and run
+            # _prepare_model_call_tensors so the same reshape ops are traced.
+            ids_cpu = torch.zeros(
+                (self.max_num_reqs, num_tokens), dtype=torch.int32, device="cpu"
+            )
+            mask_cpu = torch.zeros(
+                self.max_num_reqs * num_tokens, dtype=torch.bool, device="cpu"
+            )
+            if items_size:
+                ids_cpu[0, :items_size] = image_token_id
+                mask_cpu[:items_size] = True
+            ids = self._input_ids_dev[num_tokens]
+            ids.copy_(ids_cpu)
+            pos = self._position_ids_dev[num_tokens]
+            pos.copy_(torch.zeros_like(ids_cpu))
+            a, b = self._get_model_inputs(
+                ids, mm_embed_inputs=(mm_embeds_list, mask_cpu.to(self.device))
+            )
+            assert a is None
+            mi, mp, me, _ = self._prepare_model_call_tensors(a, pos, b)
+            torch_xla.sync(wait=False)
+            del mi, mp, me
 
         for mode, max_items_per_seq in max_items_per_seq_by_modality.items():
             logger.info(
@@ -1967,47 +2013,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 num_patches = mm_embeds[0].shape[0]
                 items_size = num_patches * num_items
 
-                # NOTE (NickLucche) pre-compile `embed_input_ids` when mm
-                # embeddings are present. We assume `--disable-mm-chunked`,
-                # hence only whole items can be scheduled. This implies we just
-                # need to compile when `num_items` fit the (padded) `input_ids`
+                # Precompile embed_input_ids for each padding bucket that fits
+                # the items (assumes --disable-mm-chunked: only whole items).
                 for num_tokens in self.num_tokens_paddings:
                     if num_tokens >= items_size:
-                        # XLA Workaround: if torch.zeros(..device) is used, XLA
-                        # compiles a scalar+expansion op, which won't match
-                        # the graph generated at runtime. CPU->TPU must be used
-                        placeholders_ids = torch.zeros(
-                            num_tokens, dtype=torch.int32, device="cpu"
-                        )
-                        # Align placeholders and actual num mm_embeddings.
-                        placeholders_ids[:items_size] = hf_config.image_token_index
+                        _compile_embed(num_tokens, [mm_embeds], items_size)
 
-                        placeholders_ids = placeholders_ids.to(self.device)
-
-                        mm_mask = torch.tensor([False] * num_tokens)
-                        mm_mask[:items_size] = True
-                        mm_mask = mm_mask.to(self.device)
-                        # Assign outputs or the graph will be cut short.
-                        a, b = self._get_model_inputs(
-                            placeholders_ids,
-                            mm_embed_inputs=([mm_embeds], mm_mask),
-                        )
-                        assert a is None
-                        torch_xla.sync(wait=False)
-
-            # Pre-compile `embed_input_ids` when mm_embeddings are not
-            # present. Chunk is only made of text, no mm_placeholders.
+            # Decode steps pass (empty, all-False-mask) from
+            # _gather_mm_embeddings (never None); mirror that here.
             for num_tokens in self.num_tokens_paddings:
-                placeholders_ids = torch.zeros(
-                    num_tokens, dtype=torch.int32, device="cpu"
-                )
-                placeholders_ids = placeholders_ids.to(self.device)
-                a, b = self._get_model_inputs(
-                    placeholders_ids,
-                    mm_embed_inputs=None,
-                )
-                assert a is None
-                torch_xla.sync(wait=False)
+                _compile_embed(num_tokens, [], 0)
 
             xm.wait_device_ops()
             end = time.perf_counter()
@@ -2313,7 +2328,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # modality with the max possible input tokens even when
                     # it supports multiple.
                     dummy_modality = mm_budget.get_modality_with_max_tokens()
-                    max_mm_items_per_batch = mm_budget.max_items_per_batch_by_modality[
+                    max_mm_items_per_batch = mm_budget.mm_max_items_per_batch[
                         dummy_modality
                     ]
 
@@ -2937,17 +2952,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Dummy data for profiling and precompiling multimodal models."""
         assert self.mm_budget is not None
 
-        dummy_decoder_data = self.mm_registry.get_decoder_dummy_data(
+        dummy_mm_inputs = self.mm_registry.get_dummy_mm_inputs(
             model_config=self.model_config,
-            seq_len=self.max_num_tokens,
             mm_counts={modality: 1},
             cache=self.mm_budget.cache,
         )
-        dummy_mm_data = dummy_decoder_data.multi_modal_data
-
-        # Result in the maximum GPU consumption of the model
-        dummy_mm_item = dummy_mm_data[modality][0]
-        dummy_mm_items = [dummy_mm_item] * max_items_per_batch
+        dummy_mm_item = dummy_mm_inputs["mm_kwargs"][modality][0]
+        dummy_mm_items = [(modality, dummy_mm_item)] * max_items_per_batch
 
         return next(
             grouped_mm_kwargs
