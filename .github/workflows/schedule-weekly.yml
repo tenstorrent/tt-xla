@@ -51,11 +51,29 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
 
+  # Prefill perf sweep. These tests are marked "perf-prefill" and are skipped
+  # in nightly; the {"perf-prefill": true} filter runs only them here, so the
+  # regular perf tests (already covered nightly) are not re-run.
+  perf-benchmark:
+    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    needs: [ build-image, build-ttxla ]
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      sh-runner: false
+      skip-device-perf: true
+      regression_check: true
+      adv_filter: '[ {"perf-prefill": true}, {"runs-on": "n150"}, {"runs-on": "p150"}, {"runs-on": "n300-llmbox"}, {"runs-on": "galaxy-wh-6u"}, {"runs-on": "qb2-blackhole"} ]'
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
+
   fail-notify:
     if: always()
     needs:
       - test_forge_models_passing
       - test_forge_models_xfail
+      - perf-benchmark
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
