@@ -2604,7 +2604,7 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         ModelLoader,
         variant,
         output_file,
-        num_layers=4,
+        num_layers=4 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
@@ -2640,7 +2640,7 @@ def test_glm_4_7_tp_galaxy_4_layers(
         ModelLoader,
         variant,
         output_file,
-        num_layers=4,
+        num_layers=4 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
