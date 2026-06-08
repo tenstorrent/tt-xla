@@ -2614,7 +2614,7 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         use_mla_cache=True,
         optimization_level=0,
         trace_enabled=False,
-        required_pcc=0.91,
+        required_pcc=0.96,
         experimental_kv_cache_dtype=None,
     )
 
