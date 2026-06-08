@@ -24,9 +24,6 @@ def test_text_encoder():
     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 271581184 B DRAM buffer across 12 banks, where each bank needs to store 22657024 B, but bank size is 1071821792 B — https://github.com/tenstorrent/tt-xla/issues/4779"
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.llmbox
