@@ -73,7 +73,6 @@ jobs:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       adv_filter: '[
         { "accuracy-testing": false },
-        { "exclude-filter": "prefill" },
         { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
         { "runs-on": "n300-llmbox", "filter": ["llama_3_1_70b_tp", "gpt_oss_20b_tp"] },
         { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'

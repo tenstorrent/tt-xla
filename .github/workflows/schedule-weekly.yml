@@ -51,30 +51,11 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
 
-  # Prefill benchmark sweep (batch x seq-len x opt-level). Runs weekly rather than
-  # nightly because it is a large matrix; the entries are excluded from the nightly
-  # perf run via {"exclude-filter": "prefill"} in schedule-nightly.yml.
-  prefill-benchmark:
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
-    needs: [ build-image, build-ttxla ]
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      sh-runner: false
-      skip-device-perf: true
-      regression_check: true
-      # Single-chip prefill on p150 only; 70B TP needs the llmbox.
-      adv_filter: '[ {"runs-on": "p150", "filter": "prefill"}, {"runs-on": "n300-llmbox", "filter": "prefill"} ]'
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      wheel_build: manylinux
-
   fail-notify:
     if: always()
     needs:
       - test_forge_models_passing
       - test_forge_models_xfail
-      - prefill-benchmark
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest

@@ -36,7 +36,6 @@ def filter_matrix_adv(matrix, adv_filter):
     Each condition might have elements:
       - "runs-on": machine(s) on which the test should run. If ommited, condition will be applied to all unskipped machines. Parameter can be string or array of strings.
       - "filter": string that should be present in the test name.
-      - "exclude-filter": string that must NOT be present in the test name (test is dropped if it matches). String or array of strings.
       - "accuracy-testing": whether to include accuracy testing or not.
       - "skip": whether to skip tests matching the condition or not. If ommited, it is assumed to be true.
     """
@@ -82,18 +81,6 @@ def filter_matrix_adv(matrix, adv_filter):
                     runner_conditions[runner]["filter"].extend(
                         f.lower() for f in filter_value.split(",")
                     )
-            if condition.get("exclude-filter") is not None:
-                if "exclude_filter" not in runner_conditions[runner]:
-                    runner_conditions[runner]["exclude_filter"] = []
-                exclude_value = condition["exclude-filter"]
-                if isinstance(exclude_value, list):
-                    runner_conditions[runner]["exclude_filter"].extend(
-                        f.lower() for f in exclude_value
-                    )
-                else:
-                    runner_conditions[runner]["exclude_filter"].extend(
-                        f.lower() for f in exclude_value.split(",")
-                    )
             if condition.get("accuracy-testing") is not None:
                 runner_conditions[runner]["accuracy-testing"] = condition[
                     "accuracy-testing"
@@ -112,12 +99,6 @@ def filter_matrix_adv(matrix, adv_filter):
             if "filter" in conditions and conditions["filter"]:
                 if not any(
                     f in item.get("name", "").lower() for f in conditions["filter"]
-                ):
-                    continue
-            if "exclude_filter" in conditions and conditions["exclude_filter"]:
-                if any(
-                    f in item.get("name", "").lower()
-                    for f in conditions["exclude_filter"]
                 ):
                     continue
             if "accuracy-testing" in conditions and conditions[
