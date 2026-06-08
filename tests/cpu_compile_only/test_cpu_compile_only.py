@@ -65,8 +65,8 @@ def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
         assert (output_dir / f).exists(), f"Expected {f} was not created{suffix}"
 
 
-@pytest.mark.push
-@pytest.mark.single_device
+@pytest.mark.nightly
+@pytest.mark.cpu
 @pytest.mark.parametrize(
     # One arch per checked-in descriptor. Each descriptor is generated on real
     # hardware via save_system_desc.py and committed to system_descs/. Add a new
@@ -75,7 +75,8 @@ def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
     [
         "n150",
         "n300",
-        "n300-llmbox"
+        "n300-llmbox",
+        "p150"
     ],
 )
 def test_cpu_compile_only_per_arch(arch, tmp_path):
