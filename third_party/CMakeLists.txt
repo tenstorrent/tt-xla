@@ -5,16 +5,15 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    # Tip of tenstorrent/tt-mlir jackzhang/tt_lang_integration. Adds
-    # ttir.tt_lang_op / ttnn.tt_lang_op definitions, StableHLO -> TTIR
-    # and TTIR -> TTNN conversions, and the TtLangOp -> GenericOp
-    # flatbuffer emitter that consumes the `kernel_artifact` attribute
-    # populated by tt-xla's embedded-Python tt-lang bridge. Rebased onto
-    # current tt-mlir main (adopts the OpModelExempt trait and the
-    # ShardStatus-based mesh-sharding API); requires SFPI 7.52+ on the
-    # host -- install via
+    # tt-xla main's tt-mlir pin (c5f398432a61) with the 7 tt_lang_op commits
+    # cherry-picked on top: ttir.tt_lang_op / ttnn.tt_lang_op definitions,
+    # StableHLO -> TTIR and TTIR -> TTNN conversions, and the TtLangOp ->
+    # GenericOp flatbuffer emitter that consumes the `kernel_artifact` attribute
+    # populated by tt-xla's embedded-Python tt-lang bridge. The pinned tt-metal
+    # (d97c2c10b8f) is that base's tt-metal pin plus the interleaved-experts
+    # kernel commit. Requires SFPI 7.52+ on the host -- install via
     #   sudo $TTPJRT/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/install_dependencies.sh --sfpi
-    set(TT_MLIR_VERSION "97cfe193bb7f4dfd4599a4da3318c0f6eb46b05f")
+    set(TT_MLIR_VERSION "3d06ecd47a61ead82a7f0210e9333647ae9781cb")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
