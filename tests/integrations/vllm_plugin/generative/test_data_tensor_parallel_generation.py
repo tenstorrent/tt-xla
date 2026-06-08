@@ -74,7 +74,7 @@ def test_data_tensor_parallel_generation_push(model_name: str):
     check_host_memory(model_name)
 
 
-@pytest.mark.push
+@pytest.mark.nightly
 @pytest.mark.data_parallel
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
