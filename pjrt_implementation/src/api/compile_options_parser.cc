@@ -4,6 +4,9 @@
 
 #include "api/compile_options_parser.h"
 
+// PJRT implementation headers
+#include "api/compile_options.h"
+
 // third-party includes
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -191,13 +194,32 @@ tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
   // options map entry.
   constexpr int kMapValueFieldNumber = 2;
 
+  // ExecutableBuildOptionsProto is field #3 in CompileOptionsProto.
+  constexpr int kExecutableBuildOptionsFieldNumber = 3;
+
+  // Optimization level is field #24 inside ExecutableBuildOptionsProto.
+  constexpr int kOptimizationLevelFieldNumber = 24;
+
   for (int i = 0; i < unknown_fields.field_count(); ++i) {
     const google::protobuf::UnknownField &field = unknown_fields.field(i);
 
-    // Currently, we only support custom compiler options serialized in the
-    // `kCustomCompilerOptionsFieldNumber` field. In case we encounter
-    // options being serialized into some other field we will need to update
-    // this to support them.
+    if (field.number() == kExecutableBuildOptionsFieldNumber) {
+      google::protobuf::UnknownFieldSet exec_build_fields;
+      if (parseNestedProtobufField(field, exec_build_fields)) {
+        for (int j = 0; j < exec_build_fields.field_count(); ++j) {
+          const google::protobuf::UnknownField &exec_field =
+              exec_build_fields.field(j);
+          if (exec_field.number() == kOptimizationLevelFieldNumber &&
+              exec_field.type() ==
+                  google::protobuf::UnknownField::TYPE_VARINT) {
+            out_compile_options.emplace(CompileOptions::optimization_level_key,
+                                        std::to_string(exec_field.varint()));
+          }
+        }
+      }
+      continue;
+    }
+
     if (field.number() != kCustomCompilerOptionsFieldNumber ||
         field.type() != google::protobuf::UnknownField::TYPE_LENGTH_DELIMITED) {
       continue;
