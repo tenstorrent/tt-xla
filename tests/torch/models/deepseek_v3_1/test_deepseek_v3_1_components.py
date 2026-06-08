@@ -56,6 +56,9 @@ from third_party.tt_forge_models.deepseek.deepseek_v3_1.pytorch.loader import (
 
 NUM_LAYERS = 4
 BATCH_SIZE = 64
+# The MoE block allocates a per-token x 256-expert dispatch buffer; BATCH_SIZE=64
+# OOMs (3.7 GB DRAM buffer). 8 fits and stays divisible by the mesh "batch" dim (4).
+MOE_BATCH_SIZE = 8
 PREFILL_LEN = 128
 MAX_CACHE_LEN = 256
 DTYPE = torch.bfloat16
@@ -215,12 +218,16 @@ def loaded_model():
     return loader, model
 
 
-def _realistic_hidden_states(model, tokenizer, norm: nn.Module) -> torch.Tensor:
-    """(BATCH_SIZE, PREFILL_LEN, hidden) post-RMSNorm hidden states from a prompt.
+def _realistic_hidden_states(
+    model, tokenizer, norm: nn.Module, batch_size: int = BATCH_SIZE
+) -> torch.Tensor:
+    """(batch_size, PREFILL_LEN, hidden) post-RMSNorm hidden states from a prompt.
 
     Embeds a real prompt and applies ``norm`` (the block's pre-block RMSNorm), so
     the magnitudes match what the block sees in the full model. The PCC compares
     identical math on TT vs CPU, so this only needs to be representative in scale.
+    ``batch_size`` is overridable for memory-heavy blocks (the MoE block OOMs at
+    BATCH_SIZE=64); per-token numerics are independent so PCC stays representative.
     """
     encoded = tokenizer(
         PROMPT,
@@ -229,7 +236,7 @@ def _realistic_hidden_states(model, tokenizer, norm: nn.Module) -> torch.Tensor:
         truncation=True,
         padding="max_length",
     )
-    input_ids = encoded["input_ids"][:, :PREFILL_LEN].repeat(BATCH_SIZE, 1)
+    input_ids = encoded["input_ids"][:, :PREFILL_LEN].repeat(batch_size, 1)
     with torch.no_grad():
         embeds = model.model.embed_tokens(input_ids)
         hidden = norm(embeds)
@@ -376,7 +383,10 @@ def test_deepseek_v3_1_moe(loaded_model):
     moe = layer.mlp  # A2aSparseMLPWithSharedExperts after enable_sparse_mlp
 
     hidden_states = _realistic_hidden_states(
-        model, loader.tokenizer, layer.post_attention_layernorm
+        model,
+        loader.tokenizer,
+        layer.post_attention_layernorm,
+        batch_size=MOE_BATCH_SIZE,
     )
 
     mesh = _mesh(loader)
@@ -389,7 +399,7 @@ def test_deepseek_v3_1_moe(loaded_model):
     import chisel
 
     with chisel.session(
-        results_path="deepseek_v3_1_attention_decode_report.jsonl",
+        results_path="deepseek_v3_1_moe_report.jsonl",
         checks_config=chisel.ChiselChecksConfig(isolation=True, accumulation=True),
     ) as report:
 

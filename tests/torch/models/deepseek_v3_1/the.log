@@ -1,0 +1,154 @@
+[bfp8-blindspot] matmul[attn.q_a_proj|bfp_bf8]: pcc=0.999904
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.q_a_proj-bf16]
+[bfp8-blindspot] matmul[attn.q_a_proj|bf16]: pcc=0.999904
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.q_b_proj-bfp_bf8] 2026-06-05 18:15:40.162 (  17.148s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:15:40.162 (  17.148s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:15:40.162 (  17.148s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:15:40.187 (  17.174s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[attn.q_b_proj|bfp_bf8]: pcc=0.999863
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.q_b_proj-bf16]
+[bfp8-blindspot] matmul[attn.q_b_proj|bf16]: pcc=0.999863
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.kv_a_proj_mqa-bfp_bf8] 2026-06-05 18:15:53.423 (  30.409s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:15:53.423 (  30.409s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:15:53.423 (  30.409s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:15:53.448 (  30.435s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[attn.kv_a_proj_mqa|bfp_bf8]: pcc=0.999906
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.kv_a_proj_mqa-bf16]
+[bfp8-blindspot] matmul[attn.kv_a_proj_mqa|bf16]: pcc=0.999906
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.kv_b_proj-bfp_bf8] 2026-06-05 18:15:58.028 (  35.014s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:15:58.028 (  35.014s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:15:58.028 (  35.014s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:15:58.053 (  35.039s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[attn.kv_b_proj|bfp_bf8]: pcc=1.000000
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.kv_b_proj-bf16]
+[bfp8-blindspot] matmul[attn.kv_b_proj|bf16]: pcc=1.000000
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.o_proj-bfp_bf8] 2026-06-05 18:16:08.428 (  45.414s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:16:08.428 (  45.414s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:16:08.428 (  45.414s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:16:08.453 (  45.440s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[attn.o_proj|bfp_bf8]: pcc=0.999643
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[attn.o_proj-bf16]
+[bfp8-blindspot] matmul[attn.o_proj|bf16]: pcc=0.999643
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[mlp.gate_proj-bfp_bf8] 2026-06-05 18:16:44.221 (  81.208s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:16:44.221 (  81.208s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:16:44.221 (  81.208s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:16:44.247 (  81.233s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[mlp.gate_proj|bfp_bf8]: pcc=1.000000
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[mlp.gate_proj-bf16]
+[bfp8-blindspot] matmul[mlp.gate_proj|bf16]: pcc=1.000000
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[mlp.up_proj-bfp_bf8]
+[bfp8-blindspot] matmul[mlp.up_proj|bfp_bf8]: pcc=1.000000
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[mlp.up_proj-bf16]
+[bfp8-blindspot] matmul[mlp.up_proj|bf16]: pcc=1.000000
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[mlp.down_proj-bfp_bf8] 2026-06-05 18:17:57.379 ( 154.365s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:17:57.379 ( 154.365s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:17:57.379 ( 154.365s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:17:57.404 ( 154.390s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[mlp.down_proj|bfp_bf8]: pcc=0.999604
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[mlp.down_proj-bf16]
+[bfp8-blindspot] matmul[mlp.down_proj|bf16]: pcc=0.999604
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[moe.expert.gate_proj-bfp_bf8] 2026-06-05 18:18:31.820 ( 188.807s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:18:31.821 ( 188.807s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:18:31.821 ( 188.807s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:18:31.846 ( 188.832s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[moe.expert.gate_proj|bfp_bf8]: pcc=0.999904
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[moe.expert.gate_proj-bf16]
+[bfp8-blindspot] matmul[moe.expert.gate_proj|bf16]: pcc=0.999904
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[moe.expert.up_proj-bfp_bf8]
+[bfp8-blindspot] matmul[moe.expert.up_proj|bfp_bf8]: pcc=0.999904
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[moe.expert.up_proj-bf16]
+[bfp8-blindspot] matmul[moe.expert.up_proj|bf16]: pcc=0.999904
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[moe.expert.down_proj-bfp_bf8] 2026-06-05 18:18:43.774 ( 200.761s) [        66C17140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:18:43.774 ( 200.761s) [        66C17140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:18:43.774 ( 200.761s) [        66C17140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:18:43.800 ( 200.786s) [        66C17140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] matmul[moe.expert.down_proj|bfp_bf8]: pcc=0.999979
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_matmul_per_projection[moe.expert.down_proj-bf16]
+[bfp8-blindspot] matmul[moe.expert.down_proj|bf16]: pcc=0.999979
+PASSED
+
+
+[bfp8-blindspot] tower[d=01|bfp_bf8]: pcc=0.999901
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[1-bf16]
+[bfp8-blindspot] tower[d=01|bf16]: pcc=0.999901
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[2-bfp_bf8] 2026-06-05 18:22:06.713 (  24.252s) [        3D799140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:22:06.713 (  24.252s) [        3D799140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:22:06.713 (  24.252s) [        3D799140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:22:06.765 (  24.303s) [        3D799140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] tower[d=02|bfp_bf8]: pcc=0.999811
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[2-bf16]
+[bfp8-blindspot] tower[d=02|bf16]: pcc=0.999811
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[4-bfp_bf8] 2026-06-05 18:22:26.479 (  44.018s) [        3D799140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:22:26.479 (  44.018s) [        3D799140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:22:26.479 (  44.018s) [        3D799140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:22:26.556 (  44.095s) [        3D799140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] tower[d=04|bfp_bf8]: pcc=0.999642
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[4-bf16]
+[bfp8-blindspot] tower[d=04|bf16]: pcc=0.999642
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[8-bfp_bf8] 2026-06-05 18:23:05.357 (  82.896s) [        3D799140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:23:05.357 (  82.896s) [        3D799140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:23:05.357 (  82.896s) [        3D799140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:23:05.489 (  83.028s) [        3D799140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] tower[d=08|bfp_bf8]: pcc=0.999316
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[8-bf16]
+[bfp8-blindspot] tower[d=08|bf16]: pcc=0.999316
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[16-bfp_bf8] 2026-06-05 18:24:21.519 ( 159.057s) [        3D799140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:24:21.519 ( 159.057s) [        3D799140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:24:21.519 ( 159.057s) [        3D799140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:24:21.770 ( 159.308s) [        3D799140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] tower[d=16|bfp_bf8]: pcc=0.998617
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[16-bf16]
+[bfp8-blindspot] tower[d=16|bf16]: pcc=0.998617
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[30-bfp_bf8] 2026-06-05 18:26:51.286 ( 308.824s) [        3D799140]      module_builder.cc:981   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-05 18:26:51.286 ( 308.824s) [        3D799140]      module_builder.cc:995   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-05 18:26:51.286 ( 308.824s) [        3D799140]      module_builder.cc:1005  WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-05 18:26:51.746 ( 309.285s) [        3D799140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+
+[bfp8-blindspot] tower[d=30|bfp_bf8]: pcc=0.997287
+PASSED
+tests/torch/models/deepseek_v3_1/test_deepseek_v3_1_bfp8_blindspot.py::test_bfp8_mlp_tower_depth[30-bf16]
+[bfp8-blindspot] tower[d=30|bf16]: pcc=0.997287
+PASSED

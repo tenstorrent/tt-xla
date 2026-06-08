@@ -40,6 +40,12 @@ A failure's identity is the tuple
 `device_id`, so PCC varies per device → report **min and max** across devices.
 Default PCC pass threshold is `0.99` (see chisel `validators.py`).
 
+## Output location
+
+**All artifacts go under `chisel_analysis/`** (created in the repo root) — keep the repo root and
+the tt-mlir tree clean. Reports, the filtered/summary JSONL, and any generated repro tests live
+here. Create it once with `mkdir -p chisel_analysis chisel_analysis/repros`.
+
 ## Workflow
 
 ### 1. Collapse the report (deterministic)
@@ -49,17 +55,19 @@ Derive a `<model-tag>` from the report filename (e.g.
 helper — never hand-parse the raw JSONL (it can be 100k+ lines):
 
 ```bash
+mkdir -p chisel_analysis
 python3 .claude/skills/chisel-pcc-report/scripts/collapse_minmax.py <report.jsonl> \
-    --filtered-out pcc_filtered_<model-tag>.jsonl \
-    --summary-out  pcc_summary_<model-tag>.json
+    --filtered-out chisel_analysis/pcc_filtered_<model-tag>.jsonl \
+    --summary-out  chisel_analysis/pcc_summary_<model-tag>.json
 ```
 
 > Python must run inside the project's docker container — if a bare
 > `python3 …` is refused or fails to import, run it inside the container.
 
 This keeps only `numerics_fail` + `isolated` records, groups by identity, and
-emits: `pcc_filtered_<model-tag>.jsonl` (verbatim min/max lines, for reference)
-and `pcc_summary_<model-tag>.json` — a compact, **worst-first** summary with
+emits: `chisel_analysis/pcc_filtered_<model-tag>.jsonl` (verbatim min/max lines,
+for reference) and `chisel_analysis/pcc_summary_<model-tag>.json` — a compact,
+**worst-first** summary with
 per-op `min`/`max` `{pcc, atol, rtol, device_id}`, `num_devices`,
 `binary_ids_with_failures`, and a separate `harness_issues` list
 (`shape_mismatch` / `dtype_mismatch` / `chisel_bug`). Read the summary JSON.
@@ -118,11 +126,67 @@ Give **one short line** per issue from simple heuristics — do not deep-dive:
 
 ### 7. Write outputs
 
-Write the markdown report `pcc_report_<model-tag>.md` and print a concise
-console summary (total failing ops/issues, worst PCC, top offending op types,
-and any binary_ids left un-enriched). Artifacts produced:
-`pcc_report_<model-tag>.md`, `pcc_filtered_<model-tag>.jsonl`,
+Write the markdown report `chisel_analysis/pcc_report_<model-tag>.md` and print a
+concise console summary (total failing ops/issues, worst PCC, top offending op
+types, and any binary_ids left un-enriched). Artifacts produced (all under
+`chisel_analysis/`): `pcc_report_<model-tag>.md`, `pcc_filtered_<model-tag>.jsonl`,
 `pcc_summary_<model-tag>.json`.
+
+## Drill-down: generate a tt-mlir op repro (on request)
+
+This is **not** part of the default report. Do it only when the user asks to dig into a
+**specific op** AND the evidence points at the **op kernel itself** being buggy. The decisive
+signal is **isolated‑mode** failure: chisel's isolated mode feeds the *same device input tensor*
+into both the device op and the torch golden, so an isolated PCC failure means the op and
+`torch` disagree on identical input — i.e. a kernel bug, not an upstream/mask/golden problem.
+(If the op is an index output like `topk`, a pure data‑movement op, or a near‑constant reduction,
+suspect a metric artifact instead — say so rather than generating a repro.)
+
+When that bar is met, write a standalone tt-mlir golden test the user can drop into a tt-mlir
+checkout. **You only author the file and give instructions — the user copies it in, builds, and
+runs.** Do not try to run it here, and **do not write it into the tt-mlir tree.**
+
+**Where you write it:** `chisel_analysis/repros/test_<op>_<symptom>_repro.py` (alongside the other
+analysis artifacts). **Where the user copies it:** into their cloned tt-mlir at
+`test/python/golden/` (sibling of `test_compute_kernel_config.py`). Tell them this path explicitly.
+
+tt-xla vendors tt-mlir at `third_party/tt-mlir/src/tt-mlir/`, so read existing tests *there* for the
+current API before writing (verify `builder.<op>` signature and `compile_and_execute_ttir` kwargs —
+they drift) — but **save your generated file under `chisel_analysis/repros/`, not in that tree.**
+
+**How to author it (pattern):**
+1. Enrich the failing op from the graph (shapes, dtype, config) as in steps 3–4.
+2. Reconstruct the **input distribution that triggers the failure** — in isolated mode the input
+   is what matters. If the op consumes a masked/special tensor, replicate it exactly (e.g. the
+   `softmax` case: masked entries == the model's `ttnn.full` sentinel value, traced from the graph).
+3. Inject the input verbatim and provide a torch golden via `builder.set_goldens({in0: data},
+   {out: golden})` inside a `@builder.func([shape], [dtype])` module; call `compile_and_execute_ttir(
+   module, **get_request_kwargs(request), device=device, pipeline_options=[...], target="ttnn")`.
+   PCC is checked by default (`pcc=0.99`); a divergent kernel makes the test fail.
+4. Mirror the model's compute config via `pipeline_options`, e.g.
+   `["compute-cfg-math-fidelity=hifi4", "compute-cfg-fp32-dest-acc-en=true"]`.
+5. **Parametrize a control** that isolates the hypothesis (e.g. the suspected sentinel value vs a
+   milder one), so a pass/fail split confirms root cause. Document expected pass/fail per param in
+   the docstring.
+6. **Scope = single chip** unless the failing op has a CCL/all‑reduce/`mesh_shard` on its
+   reduction axis. Check the per‑device graph: if the op's layout is local (`<1x1>` grid, reduction
+   dim fully on-device) the bug reproduces single‑chip and the default mesh is correct — failures
+   across many `device_id`s just mean the same local kernel ran on every shard. Only build a
+   multi‑device variant if the op genuinely depends on cross‑chip data.
+
+**Tell the user how to run it** (put these in the test docstring too):
+```bash
+# copy the generated repro into your cloned + built tt-mlir checkout, then:
+cp chisel_analysis/repros/test_<op>_<symptom>_repro.py <tt-mlir>/test/python/golden/
+cd <tt-mlir>
+source env/activate
+ttrt query --save-artifacts
+export SYSTEM_DESC_PATH=$(pwd)/ttrt-artifacts/system_desc.ttsys
+pytest -svv test/python/golden/test_<op>_<symptom>_repro.py --sys-desc=$SYSTEM_DESC_PATH
+```
+State plainly that you have not executed it (no built tt-mlir + silicon here), and what result
+confirms vs refutes the hypothesis (e.g. "the `bf16_min` params fail with low PCC while the milder
+control passes → kernel bug on the sentinel").
 
 ## Report template (`pcc_report_<model-tag>.md`)
 
@@ -172,6 +236,8 @@ precision; verify fp32 dest accumulation and `numericStable` are effective.
 ## Drill down
 Ask me to dig deeper on any op (by SSA or name) and I'll trace its inputs through
 the graph, compare isolated vs accumulated PCC, or inspect per-device behavior.
+For an op whose kernel looks buggy (isolated-mode divergence), I can also generate
+a standalone tt-mlir repro test for you to run.
 ```
 
 ## Notes

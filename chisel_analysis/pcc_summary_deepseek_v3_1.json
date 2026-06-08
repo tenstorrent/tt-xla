@@ -1,0 +1,1036 @@
+{
+  "input": "llm_benchmark_deepseek_v3_1_report.jsonl",
+  "totals": {
+    "isolated_numerics_failures": 41,
+    "accumulated_numerics_failures": 9853,
+    "harness_issues": 285
+  },
+  "failures": [
+    {
+      "op": "ttnn.topk",
+      "ssa": "%indices_3",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": -0.6666666666666666,
+        "atol": 62.0,
+        "rtol": 0.2683982683982684,
+        "device_id": 8
+      },
+      "max": {
+        "pcc": 0.5531830831424316,
+        "atol": 241.0,
+        "rtol": null,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.topk",
+      "ssa": "%indices_3",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": -0.6666666666666666,
+        "atol": 62.0,
+        "rtol": 0.2683982683982684,
+        "device_id": 8
+      },
+      "max": {
+        "pcc": 0.5699680682641479,
+        "atol": 91.0,
+        "rtol": 2.1666666666666665,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.all_to_all_dispatch",
+      "ssa": "%dispatched",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": -0.004608428059884604,
+        "atol": 4.15625,
+        "rtol": null,
+        "device_id": 23
+      },
+      "max": {
+        "pcc": 0.865971921552275,
+        "atol": 2.71875,
+        "rtol": null,
+        "device_id": 28
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%377",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": -0.0007871564923494146,
+        "atol": 0.995671808719635,
+        "rtol": null,
+        "device_id": 25
+      },
+      "max": {
+        "pcc": 0.34159045489409545,
+        "atol": 0.9178184270858765,
+        "rtol": null,
+        "device_id": 4
+      }
+    },
+    {
+      "op": "ttnn.all_to_all_dispatch",
+      "ssa": "%dispatched",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": -0.0003749420404073137,
+        "atol": 211.0,
+        "rtol": null,
+        "device_id": 17
+      },
+      "max": {
+        "pcc": 0.11026114315674083,
+        "atol": 149.0,
+        "rtol": null,
+        "device_id": 28
+      }
+    },
+    {
+      "op": "ttnn.moe_expert_token_remap",
+      "ssa": "%mapping",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.0,
+        "atol": 0.65234375,
+        "rtol": null,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 0.65234375,
+        "rtol": null,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%91",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 24,
+      "min": {
+        "pcc": 0.0,
+        "atol": 7.62939453125e-06,
+        "rtol": 0.00439453125,
+        "device_id": 2
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 7.62939453125e-06,
+        "rtol": 0.00439453125,
+        "device_id": 2
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%183",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 20,
+      "min": {
+        "pcc": 0.0,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.007293701171875,
+        "device_id": 2
+      },
+      "max": {
+        "pcc": 0.9415544714433868,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.0045166015625,
+        "device_id": 7
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%209",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 8,
+      "min": {
+        "pcc": 0.0,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.006591796875,
+        "device_id": 2
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.006591796875,
+        "device_id": 2
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%389",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 10,
+      "min": {
+        "pcc": 0.0,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.006988525390625,
+        "device_id": 8
+      },
+      "max": {
+        "pcc": 0.8017837257372733,
+        "atol": 3.0517578125e-05,
+        "rtol": 0.006256103515625,
+        "device_id": 31
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%415",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 4,
+      "min": {
+        "pcc": 0.0,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.00750732421875,
+        "device_id": 13
+      },
+      "max": {
+        "pcc": 0.9816160794855358,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.00408935546875,
+        "device_id": 23
+      }
+    },
+    {
+      "op": "ttnn.rsqrt",
+      "ssa": "%497",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.006103515625,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.006103515625,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.moe_expert_token_remap",
+      "ssa": "%mapping",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 17,
+      "min": {
+        "pcc": 0.0,
+        "atol": 0.38671875,
+        "rtol": null,
+        "device_id": 2
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 0.38671875,
+        "rtol": null,
+        "device_id": 2
+      }
+    },
+    {
+      "op": "ttnn.rsqrt",
+      "ssa": "%213",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.0059814453125,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.0059814453125,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%286",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 4,
+      "min": {
+        "pcc": 0.0,
+        "atol": 7.62939453125e-06,
+        "rtol": 0.00396728515625,
+        "device_id": 5
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 7.62939453125e-06,
+        "rtol": 0.00396728515625,
+        "device_id": 5
+      }
+    },
+    {
+      "op": "ttnn.rsqrt",
+      "ssa": "%393",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 24,
+      "min": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.006256103515625,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.006256103515625,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%493",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 10,
+      "min": {
+        "pcc": 0.0,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.00750732421875,
+        "device_id": 4
+      },
+      "max": {
+        "pcc": 0.9635460822563595,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.005462646484375,
+        "device_id": 31
+      }
+    },
+    {
+      "op": "ttnn.rsqrt",
+      "ssa": "%644",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 24,
+      "min": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.006134033203125,
+        "device_id": 8
+      },
+      "max": {
+        "pcc": 0.0,
+        "atol": 0.125,
+        "rtol": 0.006134033203125,
+        "device_id": 8
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%470",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.0052150663333184,
+        "atol": 0.990766167640686,
+        "rtol": null,
+        "device_id": 17
+      },
+      "max": {
+        "pcc": 0.18822424145723268,
+        "atol": 0.9708685874938965,
+        "rtol": null,
+        "device_id": 20
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%274",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.013106918566072198,
+        "atol": 0.9776007533073425,
+        "rtol": null,
+        "device_id": 13
+      },
+      "max": {
+        "pcc": 0.2986512054683005,
+        "atol": 0.7641820907592773,
+        "rtol": null,
+        "device_id": 23
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%335",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.03782079345937116,
+        "atol": 0.9757517576217651,
+        "rtol": null,
+        "device_id": 29
+      },
+      "max": {
+        "pcc": 0.1719478058126116,
+        "atol": 0.9985110759735107,
+        "rtol": null,
+        "device_id": 14
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%480",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.07439478383960484,
+        "atol": 0.9962997436523438,
+        "rtol": null,
+        "device_id": 29
+      },
+      "max": {
+        "pcc": 0.237411186951709,
+        "atol": 0.9497827291488647,
+        "rtol": null,
+        "device_id": 12
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%605",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.08392204271228647,
+        "atol": 0.980624258518219,
+        "rtol": null,
+        "device_id": 7
+      },
+      "max": {
+        "pcc": 0.18405220818557155,
+        "atol": 0.98007732629776,
+        "rtol": null,
+        "device_id": 9
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%640",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 8,
+      "min": {
+        "pcc": 0.14285714285714288,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.00616455078125,
+        "device_id": 6
+      },
+      "max": {
+        "pcc": 0.9688639316269663,
+        "atol": 3.0517578125e-05,
+        "rtol": 0.0078125,
+        "device_id": 7
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%171",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.15761358951840362,
+        "atol": 0.9806846976280212,
+        "rtol": null,
+        "device_id": 7
+      },
+      "max": {
+        "pcc": 0.3743621027384204,
+        "atol": 0.9682122468948364,
+        "rtol": null,
+        "device_id": 5
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%247",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.16044536211540836,
+        "atol": 5.96875,
+        "rtol": null,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.1796167466745028,
+        "atol": 5.15625,
+        "rtol": null,
+        "device_id": 24
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%140",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.18795006065375477,
+        "atol": 2.578125,
+        "rtol": null,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.19318807785830433,
+        "atol": 2.8125,
+        "rtol": null,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%453",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.18795779248731137,
+        "atol": 4.8125,
+        "rtol": null,
+        "device_id": 8
+      },
+      "max": {
+        "pcc": 0.19240162317669776,
+        "atol": 5.15625,
+        "rtol": null,
+        "device_id": 16
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%350",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.20772928326558188,
+        "atol": 7.71875,
+        "rtol": null,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.2171025837557436,
+        "atol": 7.8125,
+        "rtol": null,
+        "device_id": 8
+      }
+    },
+    {
+      "op": "ttnn.softmax",
+      "ssa": "%200",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.23306857978730003,
+        "atol": 0.9814692735671997,
+        "rtol": null,
+        "device_id": 7
+      },
+      "max": {
+        "pcc": 0.29956987763380516,
+        "atol": 0.9965084791183472,
+        "rtol": null,
+        "device_id": 6
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%160",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.2475185819478372,
+        "atol": 1.59375,
+        "rtol": null,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.2499246408569094,
+        "atol": 2.03125,
+        "rtol": null,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%369",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.2481345018988913,
+        "atol": 4.09375,
+        "rtol": null,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.24860474473773397,
+        "atol": 4.34375,
+        "rtol": null,
+        "device_id": 16
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%266",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.2486920525255489,
+        "atol": 7.21875,
+        "rtol": null,
+        "device_id": 24
+      },
+      "max": {
+        "pcc": 0.24989635565294868,
+        "atol": 6.625,
+        "rtol": null,
+        "device_id": 16
+      }
+    },
+    {
+      "op": "ttnn.to_memory_config",
+      "ssa": "%472",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.2490164419311704,
+        "atol": 6.09375,
+        "rtol": null,
+        "device_id": 24
+      },
+      "max": {
+        "pcc": 0.24994057379981713,
+        "atol": 5.625,
+        "rtol": null,
+        "device_id": 24
+      }
+    },
+    {
+      "op": "ttnn.topk",
+      "ssa": "%indices",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.3271677444917417,
+        "atol": 23.0,
+        "rtol": null,
+        "device_id": 16
+      },
+      "max": {
+        "pcc": 0.6577153366232649,
+        "atol": 16.0,
+        "rtol": 7.5,
+        "device_id": 16
+      }
+    },
+    {
+      "op": "ttnn.topk",
+      "ssa": "%indices_1",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.37863523039604857,
+        "atol": 7.0,
+        "rtol": null,
+        "device_id": 8
+      },
+      "max": {
+        "pcc": 0.41350633606441234,
+        "atol": 7.0,
+        "rtol": null,
+        "device_id": 24
+      }
+    },
+    {
+      "op": "ttnn.topk",
+      "ssa": "%indices_1",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 64,
+      "min": {
+        "pcc": 0.47809144373375745,
+        "atol": 6.0,
+        "rtol": null,
+        "device_id": 0
+      },
+      "max": {
+        "pcc": 0.6201736729460423,
+        "atol": 4.0,
+        "rtol": null,
+        "device_id": 0
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%417",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 16,
+      "min": {
+        "pcc": 0.5773502691896258,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.00653076171875,
+        "device_id": 24
+      },
+      "max": {
+        "pcc": 0.6,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.00653076171875,
+        "device_id": 16
+      }
+    },
+    {
+      "op": "ttnn.topk",
+      "ssa": "%indices",
+      "check": "numerics",
+      "binary_id": 1,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 32,
+      "min": {
+        "pcc": 0.6391855182814655,
+        "atol": 29.0,
+        "rtol": null,
+        "device_id": 16
+      },
+      "max": {
+        "pcc": 0.6500474069987532,
+        "atol": 29.0,
+        "rtol": null,
+        "device_id": 8
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%642",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 8,
+      "min": {
+        "pcc": 0.7745966692414835,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.006439208984375,
+        "device_id": 24
+      },
+      "max": {
+        "pcc": 0.7745966692414835,
+        "atol": 1.52587890625e-05,
+        "rtol": 0.006439208984375,
+        "device_id": 24
+      }
+    },
+    {
+      "op": "ttnn.mean",
+      "ssa": "%312",
+      "check": "numerics",
+      "binary_id": 3,
+      "program_name": "main",
+      "program_index": 0,
+      "num_devices": 4,
+      "min": {
+        "pcc": 0.8824975032927699,
+        "atol": 3.0517578125e-05,
+        "rtol": 0.0059814453125,
+        "device_id": 23
+      },
+      "max": {
+        "pcc": 0.9400193421607683,
+        "atol": 3.0517578125e-05,
+        "rtol": 0.0059814453125,
+        "device_id": 7
+      }
+    }
+  ],
+  "harness_issues": [
+    {
+      "op": "ttnn.matmul",
+      "check": "_default_pre_op",
+      "status": "chisel_bug",
+      "count": 102,
+      "example": {
+        "op": "ttnn.matmul",
+        "check": "_default_pre_op",
+        "op_asm": "%98 = \"ttnn.matmul\"(%97, %21) <{compute_config = #ttnn.device_compute_kernel_config<math_fidelity = hifi4, fp32_dest_acc_en = true>, transpose_a = false, transpose_b = false}> : (tensor<256x896xbf16, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<8x28x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<896x1536x!ttcore.tile<32x32, bfp_bf8>, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<28x48x!ttcore.tile<32x32, bfp_bf8>, #ttnn.buffer_type<dram>>, <interleaved>>>) -> tensor<256x1536xbf16, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<8x48x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>> loc(\"dot.308\")",
+        "binary_id": 1,
+        "program_name": "main",
+        "program_index": 0,
+        "payload": {
+          "status": "chisel_bug",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/safety.py\", line 27, in wrapper\n    fn(*args, **kwargs)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 111, in _default_pre_op\n    tensor = _validate_and_retrieve_tensor(ctx, mlir_input, rt_tensor_ref)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 84, in _validate_and_retrieve_tensor\n    check_shape_dtype(op, \"mlir_vs_tensor_ref\", mlir_value, rt_tensor_ref)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/validators.py\", line 78, in check_shape_dtype\n    exp_shape, exp_dtype = _extract_shape_dtype(expected)\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/validators.py\", line 67, in _extract_shape_dtype\n    mlir_type_to_torch_dtype(source.type.element_type),\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/golden/mapping.py\", line 459, in mlir_type_to_torch_dtype\n    raise TypeError(f\"Unsupported MLIR type: {mlir_type}\")\nTypeError: Unsupported MLIR type: !ttcore.tile<32x32, bfp_bf8>\n"
+        }
+      }
+    },
+    {
+      "op": "ttnn.to_device",
+      "check": "mlir_vs_runtime_tensor",
+      "status": "shape_mismatch",
+      "count": 47,
+      "example": {
+        "op": "ttnn.to_device",
+        "check": "mlir_vs_runtime_tensor",
+        "op_asm": "%1 = \"ttnn.to_device\"(%arg0, %0) : (tensor<129280x7168xbf16, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<129280x7168xbf16, #ttnn.buffer_type<system_memory>>>>, !ttnn.device) -> tensor<129280x7168xbf16, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<129280x7168xbf16, #ttnn.buffer_type<dram>>, <interleaved>>> loc(unknown)",
+        "binary_id": 1,
+        "program_name": "main_const_eval_0",
+        "program_index": 1,
+        "payload": {
+          "status": "shape_mismatch",
+          "expected_shape": [
+            129280,
+            7168
+          ],
+          "actual_shape": [
+            129280,
+            896
+          ]
+        }
+      }
+    },
+    {
+      "op": "ttnn.to_layout",
+      "check": "mlir_vs_runtime_tensor",
+      "status": "shape_mismatch",
+      "count": 47,
+      "example": {
+        "op": "ttnn.to_layout",
+        "check": "mlir_vs_runtime_tensor",
+        "op_asm": "%2 = \"ttnn.to_layout\"(%1) <{layout = #ttnn.layout<tile>}> : (tensor<129280x7168xbf16, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<129280x7168xbf16, #ttnn.buffer_type<dram>>, <interleaved>>>) -> tensor<129280x7168xbf16, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<4040x224x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>> loc(unknown)",
+        "binary_id": 1,
+        "program_name": "main_const_eval_0",
+        "program_index": 1,
+        "payload": {
+          "status": "shape_mismatch",
+          "expected_shape": [
+            129280,
+            7168
+          ],
+          "actual_shape": [
+            129280,
+            896
+          ]
+        }
+      }
+    },
+    {
+      "op": "ttnn.typecast",
+      "check": "_default_post_op",
+      "status": "chisel_bug",
+      "count": 37,
+      "example": {
+        "op": "ttnn.typecast",
+        "check": "_default_post_op",
+        "op_asm": "%6 = \"ttnn.typecast\"(%5) <{dtype = #ttcore.supportedDataTypes<bfp_bf8>}> : (tensor<1536x3072xbf16, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<48x96x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<system_memory>>>>) -> tensor<1536x3072x!ttcore.tile<32x32, bfp_bf8>, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<48x96x!ttcore.tile<32x32, bfp_bf8>, #ttnn.buffer_type<system_memory>>>> loc(\"dot.344\")",
+        "binary_id": 1,
+        "program_name": "main_const_eval_6",
+        "program_index": 7,
+        "payload": {
+          "status": "chisel_bug",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/safety.py\", line 27, in wrapper\n    fn(*args, **kwargs)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 169, in _default_post_op\n    iso_outs = execute_golden_with_ssa_inputs(op, ctx.stashed_inputs, asm_state)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/executor.py\", line 113, in execute_golden_with_ssa_inputs\n    return execute_golden(op, role_inputs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/executor.py\", line 80, in execute_golden\n    result = golden_fn(op, golden_inputs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/golden/mapping.py\", line 8085, in chisel_ttnn_typecast\n    return ttnn_typecast_golden(\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/golden/mapping.py\", line 6526, in ttnn_typecast_golden\n    dtype = mlir_type_to_torch_dtype(output_type_mlir)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/golden/mapping.py\", line 459, in mlir_type_to_torch_dtype\n    raise TypeError(f\"Unsupported MLIR type: {mlir_type}\")\nTypeError: Unsupported MLIR type: !ttcore.tile<32x32, bfp_bf8>\n"
+        }
+      }
+    },
+    {
+      "op": "ttnn.to_device",
+      "check": "_default_pre_op",
+      "status": "chisel_bug",
+      "count": 37,
+      "example": {
+        "op": "ttnn.to_device",
+        "check": "_default_pre_op",
+        "op_asm": "%7 = \"ttnn.to_device\"(%6, %0) : (tensor<1536x3072x!ttcore.tile<32x32, bfp_bf8>, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<48x96x!ttcore.tile<32x32, bfp_bf8>, #ttnn.buffer_type<system_memory>>>>, !ttnn.device) -> tensor<1536x3072x!ttcore.tile<32x32, bfp_bf8>, #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, memref<48x96x!ttcore.tile<32x32, bfp_bf8>, #ttnn.buffer_type<dram>>, <interleaved>>> loc(\"dot.344\")",
+        "binary_id": 1,
+        "program_name": "main_const_eval_6",
+        "program_index": 7,
+        "payload": {
+          "status": "chisel_bug",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/safety.py\", line 27, in wrapper\n    fn(*args, **kwargs)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 111, in _default_pre_op\n    tensor = _validate_and_retrieve_tensor(ctx, mlir_input, rt_tensor_ref)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 84, in _validate_and_retrieve_tensor\n    check_shape_dtype(op, \"mlir_vs_tensor_ref\", mlir_value, rt_tensor_ref)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/validators.py\", line 78, in check_shape_dtype\n    exp_shape, exp_dtype = _extract_shape_dtype(expected)\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/validators.py\", line 67, in _extract_shape_dtype\n    mlir_type_to_torch_dtype(source.type.element_type),\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/golden/mapping.py\", line 459, in mlir_type_to_torch_dtype\n    raise TypeError(f\"Unsupported MLIR type: {mlir_type}\")\nTypeError: Unsupported MLIR type: !ttcore.tile<32x32, bfp_bf8>\n"
+        }
+      }
+    },
+    {
+      "op": "ttnn.sparse_matmul",
+      "check": "_default_pre_op",
+      "status": "chisel_bug",
+      "count": 9,
+      "example": {
+        "op": "ttnn.sparse_matmul",
+        "check": "_default_pre_op",
+        "op_asm": "%767 = \"ttnn.sparse_matmul\"(%763, %47, %766) <{is_input_a_sparse = false, is_input_b_sparse = true, program_config = #ttnn.matmul_multi_core_reuse_multi_cast_1d_program_config<compute_with_storage_grid_size = #ttnn.core_coord<8, 9>, in0_block_w = 1, out_subblock_h = 1, out_subblock_w = 1, out_block_h = 1, out_block_w = 1, per_core_m = 1, per_core_n = 8, fuse_batch = false, mcast_in0 = true, gather_in0 = false, hop_cores = #ttnn.core_range_set<>, num_global_cb_receivers = 0, untilize_out = false>}> : (tensor<8x16x32x7168xbf16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 512 + d1 * 32 + d2, d3), <1x1>, memref<128x224x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<1x8x7168x2048x!ttcore.tile<32x32, bfp_bf8>, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 57344 + d1 * 7168 + d2, d3), <1x1>, memref<1792x64x!ttcore.tile<32x32, bfp_bf8>, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<8x16x1x8xbf16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 16 + d1 + d2, d3), <1x1>, memref<128x8xbf16, #ttnn.buffer_type<dram>>, <interleaved>>>) -> tensor<8x16x1x8x32x2048xbf16, #ttnn.ttnn_layout<(d0, d1, d2, d3, d4, d5) -> (d0 * 4096 + d1 * 256 + d2 * 256 + d3 * 32 + d4, d5), <1x1>, memref<1024x64x!ttcore.tile<32x32, bf16>, #ttnn.buffer_type<dram>>, <interleaved>>> loc(\"custom-call.1906\")",
+        "binary_id": 1,
+        "program_name": "main",
+        "program_index": 0,
+        "payload": {
+          "status": "chisel_bug",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/safety.py\", line 27, in wrapper\n    fn(*args, **kwargs)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 111, in _default_pre_op\n    tensor = _validate_and_retrieve_tensor(ctx, mlir_input, rt_tensor_ref)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 84, in _validate_and_retrieve_tensor\n    check_shape_dtype(op, \"mlir_vs_tensor_ref\", mlir_value, rt_tensor_ref)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/validators.py\", line 78, in check_shape_dtype\n    exp_shape, exp_dtype = _extract_shape_dtype(expected)\n                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/validators.py\", line 67, in _extract_shape_dtype\n    mlir_type_to_torch_dtype(source.type.element_type),\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/golden/mapping.py\", line 459, in mlir_type_to_torch_dtype\n    raise TypeError(f\"Unsupported MLIR type: {mlir_type}\")\nTypeError: Unsupported MLIR type: !ttcore.tile<32x32, bfp_bf8>\n"
+        }
+      }
+    },
+    {
+      "op": "ttnn.moe_expert_token_remap",
+      "check": "mlir_vs_golden",
+      "status": "dtype_mismatch",
+      "count": 3,
+      "example": {
+        "op": "ttnn.moe_expert_token_remap",
+        "check": "mlir_vs_golden",
+        "op_asm": "%mapping, %reduced = \"ttnn.moe_expert_token_remap\"(%753, %66, %757) <{reduction_size = 32 : i64}> : (tensor<1x1x4096x256xbf16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 4096 + d1 * 4096 + d2, d3), <1x1>, memref<4096x256xbf16, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<1x1x256x32xui16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 256 + d1 * 256 + d2, d3), <1x1>, memref<256x32xui16, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<1x1x4096x8xui16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 4096 + d1 * 4096 + d2, d3), <1x1>, memref<4096x8xui16, #ttnn.buffer_type<dram>>, <interleaved>>>) -> (tensor<1x1x4096x8xbf16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 4096 + d1 * 4096 + d2, d3), <1x1>, memref<4096x8xbf16, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<1x1x128x8xui16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 128 + d1 * 128 + d2, d3), <1x1>, memref<128x8xui16, #ttnn.buffer_type<dram>>, <interleaved>>>) loc(\"custom-call.1886\")",
+        "binary_id": 1,
+        "program_name": "main",
+        "program_index": 0,
+        "payload": {
+          "status": "dtype_mismatch",
+          "expected_dtype": "torch.uint16",
+          "actual_dtype": "torch.bfloat16"
+        }
+      }
+    },
+    {
+      "op": "ttnn.all_to_all_combine",
+      "check": "_default_post_op",
+      "status": "chisel_bug",
+      "count": 3,
+      "example": {
+        "op": "ttnn.all_to_all_combine",
+        "check": "_default_post_op",
+        "op_asm": "%780 = \"ttnn.all_to_all_combine\"(%779, %757, %66) <{cluster_axis = 0 : i64, num_devices = 4 : i64, num_experts_per_tok = 8 : i64, output_shard_dim = 2 : i64}> : (tensor<8x1x4096x7168xbf16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 4096 + d1 * 4096 + d2, d3), <1x1>, memref<32768x7168xbf16, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<1x1x4096x8xui16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 4096 + d1 * 4096 + d2, d3), <1x1>, memref<4096x8xui16, #ttnn.buffer_type<dram>>, <interleaved>>>, tensor<1x1x256x32xui16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 256 + d1 * 256 + d2, d3), <1x1>, memref<256x32xui16, #ttnn.buffer_type<dram>>, <interleaved>>>) -> tensor<8x1x1024x7168xbf16, #ttnn.ttnn_layout<(d0, d1, d2, d3) -> (d0 * 1024 + d1 * 1024 + d2, d3), <1x1>, memref<8192x7168xbf16, #ttnn.buffer_type<dram>>, <interleaved>>> loc(\"custom-call.1917\")",
+        "binary_id": 1,
+        "program_name": "main",
+        "program_index": 0,
+        "payload": {
+          "status": "chisel_bug",
+          "traceback": "Traceback (most recent call last):\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/safety.py\", line 27, in wrapper\n    fn(*args, **kwargs)\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/callbacks.py\", line 169, in _default_post_op\n    iso_outs = execute_golden_with_ssa_inputs(op, ctx.stashed_inputs, asm_state)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/executor.py\", line 113, in execute_golden_with_ssa_inputs\n    return execute_golden(op, role_inputs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/chisel/executor.py\", line 80, in execute_golden\n    result = golden_fn(op, golden_inputs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/home/gengelage/tt-xla/third_party/tt-mlir/src/tt-mlir/build/python_packages/golden/mapping.py\", line 8872, in chisel_ttnn_all_to_all_combine\n    return all_to_all_combine_golden(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\nNameError: name 'all_to_all_combine_golden' is not defined\n"
+        }
+      }
+    }
+  ],
+  "binary_ids_with_failures": [
+    1,
+    3
+  ]
+}
