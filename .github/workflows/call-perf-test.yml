@@ -24,6 +24,11 @@ on:
         required: false
         type: string
         default: release
+      torchxla_build_run_id:
+        description: 'Manual torch-xla build run ID'
+        required: false
+        type: string
+        default: ''
       skip-device-perf:
         description: "Skip device performance measurement"
         required: false
@@ -61,7 +66,7 @@ jobs:
 
     runs-on: ${{ !inputs.sh-runner && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) }}
 
-    name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on }})"
+    name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on-original || matrix.build.runs-on }})"
 
     container:
       image: ${{ !inputs.sh-runner && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
@@ -166,6 +171,16 @@ jobs:
         if [ -n "${{ matrix.build.pyreq }}" ]; then
           pip install ${{ matrix.build.pyreq }}
         fi
+
+    - name: Install custom torch_xla from workflow run
+      if: ${{ inputs.torchxla_build_run_id != '' }}
+      shell: bash
+      run: |
+        echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
+        gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
+        source venv/activate
+        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
+        uv pip show torch_xla
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
