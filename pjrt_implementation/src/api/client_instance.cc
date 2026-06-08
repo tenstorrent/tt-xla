@@ -971,7 +971,7 @@ onCreateUninitializedBuffer(PJRT_Client_CreateUninitializedBuffer_Args *args) {
   }
 
   if (num_byte_strides != 0 && num_byte_strides != args->shape_num_dims) {
-    LOG_F(ERROR, "Invalid `num_byte_strides` argument");
+    LOG_F(ERROR, "Invalid value of num_byte_strides argument");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
@@ -983,16 +983,16 @@ onCreateUninitializedBuffer(PJRT_Client_CreateUninitializedBuffer_Args *args) {
   // otherwise we copy data to `memory`."
   if (memory_instance) {
     if (device_instance && device_instance != memory_instance->getDevice()) {
-      LOG_F(ERROR, "Device set in `device` arg is different from the memory "
-                   "space device set in `memory` arg");
+      LOG_F(ERROR, "Device set in the device argument is different from the "
+                   "memory space device set in the memory argument");
       return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                   .release();
     }
     device_instance = memory_instance->getDevice();
   } else {
     if (!device_instance) {
-      LOG_F(ERROR, "Device is not set either in `device` arg nor in device "
-                   "from `memory` arg");
+      LOG_F(ERROR, "Device is not set either in the device argument nor in "
+                   "device from the memory argument");
       return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                   .release();
     }
@@ -1000,13 +1000,13 @@ onCreateUninitializedBuffer(PJRT_Client_CreateUninitializedBuffer_Args *args) {
   }
 
   if (!memory_instance) {
-    LOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
-                 "device from `device` arg");
+    LOG_F(ERROR, "Memory space is not set either in the memory argument nor in "
+                 "device from the device argument");
     return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
                 .release();
   }
   if (memory_instance->isHostMemory()) {
-    LOG_F(ERROR, "We only support creating buffers on device memory");
+    LOG_F(ERROR, "Buffer creation is supported only in device memory");
     return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
   }
 
@@ -1016,16 +1016,14 @@ onCreateUninitializedBuffer(PJRT_Client_CreateUninitializedBuffer_Args *args) {
           device_instance, memory_instance);
 
   if (client_instance->isCompileOnly()) {
-    // No tt::runtime / host tensor work: compile-only clients must not execute.
     DLOG_F(LOG_DEBUG,
-           "Compile-only mode: PJRT_Client_CreateUninitializedBuffer no-op "
-           "(TT_COMPILE_ONLY_SYSTEM_DESC)");
+           "Compile-only mode: PJRT_Client_CreateUninitializedBuffer no-op ");
     buffer->markAsDataReady();
   } else {
     buffer->allocateUninitialized(byte_strides, num_byte_strides);
   }
 
-  // Releasing the ownership to the PJRT API caller since the caller is
+  // Releasing the ownership to the caller since the caller is
   // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
   args->buffer = *buffer.release();
 

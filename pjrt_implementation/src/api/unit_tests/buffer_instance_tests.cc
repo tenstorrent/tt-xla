@@ -111,10 +111,6 @@ TEST_F(BufferInstanceUnitTests, deleteData_multipleCallsSafe) {
 
 // Tests the data-ready contract that allocateUninitialized fulfills: once a
 // buffer is marked ready, a freshly created data-ready event fires immediately.
-// DEVNOTE: allocateUninitialized() itself allocates a runtime host tensor via
-// tt::runtime::createOwnedHostTensor, which requires runtime initialization and
-// thus cannot be exercised in this hardware-free unit suite. The full
-// allocation path is covered by device-backed tests.
 TEST_F(BufferInstanceUnitTests, markAsDataReady_firesDataReadyEvent) {
   m_buffer->markAsDataReady();
 

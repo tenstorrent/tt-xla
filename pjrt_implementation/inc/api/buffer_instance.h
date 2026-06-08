@@ -141,10 +141,10 @@ public:
 
   // Allocates an uninitialized owned host runtime tensor for this buffer and
   // marks it as ready. No host data is copied in; the contents are written
-  // later by a compiled program (e.g. KV caches, scratch space). Optional
-  // `byte_strides` (with `num_byte_strides` either 0 or equal to the number of
-  // dimensions) describe the layout; passing `nullptr, 0` yields a dense
-  // major-to-minor layout.
+  // later by a compiled program. Optional byte_strides parameter
+  // (with num_byte_strides either 0 or equal to the number of dimensions)
+  // describe the layout; passing nullptr, 0 requests a dense major-to-minor
+  // layout.
   void allocateUninitialized(const std::int64_t *byte_strides,
                              size_t num_byte_strides);
 

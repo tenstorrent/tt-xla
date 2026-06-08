@@ -330,9 +330,9 @@ void BufferInstance::allocateUninitialized(const std::int64_t *byte_strides,
 
   // Allocate an owned host tensor without copying any data in. The contents are
   // written later by a compiled program (the runtime transfers it to device
-  // during execution). Passing `data=nullptr` allocates uninitialized storage.
+  // during execution). Passing nullptr as data allocates uninitialized storage.
   tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
-      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+      /*data=*/nullptr, shape, strides, element_size, runtime_data_type);
 
   PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 
