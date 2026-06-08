@@ -149,6 +149,13 @@ class DynamicJaxMultiChipModelTester(JaxModelTester):
         return (self._compare(tt_res, cpu_res),), tt_res
 
     # @override
+    def _test_training(self) -> Tuple[ComparisonResult, ...]:
+        """Training is not supported through the multichip JAX model tester."""
+        raise NotImplementedError(
+            "Training is not supported for multichip JAX models yet."
+        )
+
+    # @override
     def _compile_for_cpu(self, workload: Workload) -> None:
         # Compile options are not used for CPU compilation since they are TT backend specific.
         self._compile(workload, compiler_options={})

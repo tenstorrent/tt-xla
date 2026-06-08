@@ -171,6 +171,7 @@ def _run_model_test_impl(
                             # In EasyDel, single-device models use multi-chip setup with (1,1) mesh
                             tester = DynamicJaxMultiChipModelTester(
                                 model_loader=loader,
+                                run_mode=run_mode,
                                 comparison_config=comparison_config,
                                 num_devices=1,
                                 compiler_config=compiler_config,

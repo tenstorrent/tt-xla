@@ -143,23 +143,25 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
 
   gpt2/causal_lm/jax-Base-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel Training is yet not supported"
 
   gpt2/causal_lm/jax-Large-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel Training is yet not supported"
 
   gpt2/causal_lm/jax-Medium-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel Training is yet not supported"
 
   gpt2/causal_lm/jax-Xl-single_device-training:
-    status: EXPECTED_PASSING
+    status: NOT_SUPPORTED_SKIP
+    reason: "EasyDel Training is yet not supported"
     markers: [large, nightly]
 
   gpt_j/causal_lm/jax-6B-single_device-training:
     status: NOT_SUPPORTED_SKIP
-    bringup_status: FAILED_RUNTIME
-    reason: "Out of Memory"
-    execution_pass: FORWARD
+    reason: "EasyDel Training is yet not supported"
 
   gpt_neo/causal_lm/jax-125M-single_device-training:
     status: KNOWN_FAILURE_XFAIL
