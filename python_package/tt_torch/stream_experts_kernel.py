@@ -29,9 +29,9 @@ _DF_BFP4_B = 7                       # tt::DataFormat::Bfp4_b
 _DF_INT32 = 8                        # tt::DataFormat::Int32
 
 # Expert-weight streaming dtype. "bfp8"/"bfp4" -> the custom op applies the matching
-# weight_dtype_override and the artifact reads in1 at this format. bfp8 first (the
-# standard tt dtype, used by the dense linears), then bfp4 for max memory savings.
-_IN1_DTYPE = "bfp4"
+# weight_dtype_override and the artifact reads in1 at this format. Keep bfp8 (matches
+# the dense linears): bfp4 saves DRAM but halves decode top-1 (39% vs 80%) for ~2ms.
+_IN1_DTYPE = "bfp8"
 _IN1_DF = {"bf16": _DF_FLOAT16_B, "bfp8": _DF_BFP8_B, "bfp4": _DF_BFP4_B}[_IN1_DTYPE]
 _IN1_PAGE = {"bf16": _BF16_TILE_BYTES, "bfp8": _BFP8_TILE_BYTES, "bfp4": _BFP4_TILE_BYTES}[_IN1_DTYPE]
 _IN1_CB_FMT = {"bf16": "BFloat16", "bfp8": "BFP_BFloat8", "bfp4": "BFP_BFloat4"}[_IN1_DTYPE]
@@ -46,7 +46,7 @@ _TT_METAL_HOME_FALLBACK = (
     "/localdev/sshon/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal"
 )
 STREAM_EXPERTS_KERNEL_ID = "tt_interleaved_experts_matmul"
-STREAM_EXPERTS_VERSION = "wh-interleaved-mc-bfp4-v1"
+STREAM_EXPERTS_VERSION = "wh-interleaved-mc-bfp8-v1"
 
 # CB indices (working L1 scratch).
 _CB_IN0, _CB_IN1, _CB_INDEX, _CB_OUT = 0, 1, 2, 16
