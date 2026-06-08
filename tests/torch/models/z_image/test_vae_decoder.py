@@ -13,12 +13,12 @@ from third_party.tt_forge_models.z_image.pytorch import ModelLoader, ModelVarian
 from third_party.tt_forge_models.z_image.pytorch.src.model_utils import SEED
 
 @pytest.mark.model_test
-@pytest.mark.skip(
-    reason=(
-        "TT DRAM OOM at pipeline 1280x720 — "
-        "https://github.com/tenstorrent/tt-xla/issues/4755"
-    )
-)
+# @pytest.mark.skip(
+#     reason=(
+#         "TT DRAM OOM at pipeline 1280x720 — "
+#         "https://github.com/tenstorrent/tt-xla/issues/4755"
+#     )
+# )
 def test_vae_decoder():
     xr.set_device_type("TT")
     torch.manual_seed(SEED)

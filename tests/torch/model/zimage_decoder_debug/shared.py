@@ -17,6 +17,8 @@ from typing import Callable
 
 import torch
 
+from tt_torch.composite_ops import composite_group_norm
+
 from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
     DTYPE,
     SEED,
@@ -81,6 +83,26 @@ class GroupNormOnlyWrapper(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.norm(x)
+
+
+def _composite_group_norm_forward(
+    x: torch.Tensor, norm: torch.nn.GroupNorm
+) -> torch.Tensor:
+    """Route GroupNorm through ``tenstorrent.group_norm`` StableHLO composite."""
+    weight = norm.weight if norm.affine else None
+    bias = norm.bias if norm.affine else None
+    return composite_group_norm(x, norm.num_groups, weight, bias, norm.eps)
+
+
+class CompositeGroupNormOnlyWrapper(torch.nn.Module):
+    """Isolate GroupNorm via explicit ``composite_group_norm`` (Phase 2A)."""
+
+    def __init__(self, norm: torch.nn.GroupNorm):
+        super().__init__()
+        self.norm = norm
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return _composite_group_norm_forward(x, self.norm)
 
 
 class DecoderPrefixWrapper(torch.nn.Module):
@@ -272,7 +294,7 @@ RESNET0_CUMULATIVE_STOPS = (
 class ResnetBlock2DPartialWrapper(torch.nn.Module):
     """Run ResnetBlock2D forward through ``stop`` (inclusive endpoint)."""
 
-    def __init__(self, resnet: torch.nn.Module, stop: str):
+    def __init__(self, resnet: torch.nn.Module, stop: str, *, composite_norm2: bool = False):
         super().__init__()
         if stop not in (
             RESNET0_STOP_NORM1,
@@ -284,6 +306,7 @@ class ResnetBlock2DPartialWrapper(torch.nn.Module):
             raise ValueError(f"Unknown stop: {stop}")
         self.resnet = resnet
         self.stop = stop
+        self.composite_norm2 = composite_norm2
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         r = self.resnet
@@ -302,7 +325,10 @@ class ResnetBlock2DPartialWrapper(torch.nn.Module):
         if self.stop == RESNET0_STOP_CONV1:
             return hidden_states
 
-        hidden_states = r.norm2(hidden_states)
+        if self.composite_norm2:
+            hidden_states = _composite_group_norm_forward(hidden_states, r.norm2)
+        else:
+            hidden_states = r.norm2(hidden_states)
         if self.stop == RESNET0_STOP_NORM2:
             return hidden_states
 
@@ -323,6 +349,7 @@ class DecoderPrefixThenUpBlock3Wrapper(torch.nn.Module):
         *,
         num_resnets: int,
         resnet0_stop: str = RESNET0_STOP_FULL,
+        composite_norm2: bool = False,
     ):
         super().__init__()
         up3 = decoder.up_blocks[UP_BLOCK_NORM_BISECT_INDEX]
@@ -336,13 +363,16 @@ class DecoderPrefixThenUpBlock3Wrapper(torch.nn.Module):
         self.up3 = up3
         self.num_resnets = num_resnets
         self.resnet0_stop = resnet0_stop
+        self.composite_norm2 = composite_norm2
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         h = self.prefix(z)
         for i in range(self.num_resnets):
             resnet = self.up3.resnets[i]
             if i == RESNET_NORM_BISECT_INDEX and self.resnet0_stop != RESNET0_STOP_FULL:
-                h = ResnetBlock2DPartialWrapper(resnet, self.resnet0_stop)(h)
+                h = ResnetBlock2DPartialWrapper(
+                    resnet, self.resnet0_stop, composite_norm2=self.composite_norm2
+                )(h)
             else:
                 h = resnet(h, temb=None)
         return h
@@ -354,11 +384,17 @@ def build_d3_prefix_up3_then_norm1(decoder: torch.nn.Module) -> torch.nn.Module:
 
 
 def build_d3b_prefix_up3_resnet0_stop(
-    decoder: torch.nn.Module, stop: str
+    decoder: torch.nn.Module,
+    stop: str,
+    *,
+    composite_norm2: bool = False,
 ) -> torch.nn.Module:
     """Prefix + resnet[0] through ``stop`` (conv1, norm2, or full)."""
     return DecoderPrefixThenUpBlock3Wrapper(
-        decoder, num_resnets=1, resnet0_stop=stop
+        decoder,
+        num_resnets=1,
+        resnet0_stop=stop,
+        composite_norm2=composite_norm2,
     )
 
 
@@ -399,6 +435,14 @@ def build_norm2_only(decoder: torch.nn.Module) -> torch.nn.Module:
     return GroupNormOnlyWrapper(norm2)
 
 
+def build_composite_norm2_only(decoder: torch.nn.Module) -> torch.nn.Module:
+    """Isolated norm2 via ``composite_group_norm`` @ 1280×720."""
+    norm2 = decoder.up_blocks[UP_BLOCK_NORM_BISECT_INDEX].resnets[
+        RESNET_NORM_BISECT_INDEX
+    ].norm2
+    return CompositeGroupNormOnlyWrapper(norm2)
+
+
 def build_confirm_prefix_through_conv1(decoder: torch.nn.Module) -> torch.nn.Module:
     """Cumulative through conv1 (gate before norm2); must PASS."""
     return build_d3b_prefix_up3_resnet0_stop(decoder, RESNET0_STOP_CONV1)
@@ -407,6 +451,78 @@ def build_confirm_prefix_through_conv1(decoder: torch.nn.Module) -> torch.nn.Mod
 def build_confirm_prefix_through_norm2(decoder: torch.nn.Module) -> torch.nn.Module:
     """Cumulative through norm2; must OOM (minimal repro for full decoder failure)."""
     return build_d3b_prefix_up3_resnet0_stop(decoder, RESNET0_STOP_NORM2)
+
+
+def build_confirm_prefix_through_norm2_composite(
+    decoder: torch.nn.Module,
+) -> torch.nn.Module:
+    """Cumulative through norm2 with composite norm2 — Phase 2A fix candidate."""
+    return build_d3b_prefix_up3_resnet0_stop(
+        decoder, RESNET0_STOP_NORM2, composite_norm2=True
+    )
+
+
+def _patch_groupnorm_module(
+    parent: torch.nn.Module, name: str, norm: torch.nn.Module
+) -> bool:
+    """Wrap one GroupNorm child with composite if not already wrapped."""
+    if isinstance(norm, CompositeGroupNormOnlyWrapper):
+        return False
+    if not isinstance(norm, torch.nn.GroupNorm):
+        return False
+    setattr(parent, name, CompositeGroupNormOnlyWrapper(norm))
+    return True
+
+
+def patch_decoder_norm2_composite(decoder: torch.nn.Module) -> None:
+    """Replace ``up_blocks[3].resnets[0].norm2`` with composite GroupNorm (idempotent)."""
+    resnet = decoder.up_blocks[UP_BLOCK_NORM_BISECT_INDEX].resnets[
+        RESNET_NORM_BISECT_INDEX
+    ]
+    _patch_groupnorm_module(resnet, "norm2", resnet.norm2)
+
+
+def _patch_groupnorms_recursive(module: torch.nn.Module) -> int:
+    """Walk decoder tree; wrap each ``nn.GroupNorm`` leaf (skip already-wrapped)."""
+    patched = 0
+    for name, child in list(module.named_children()):
+        if isinstance(child, CompositeGroupNormOnlyWrapper):
+            continue
+        if isinstance(child, torch.nn.GroupNorm):
+            if _patch_groupnorm_module(module, name, child):
+                patched += 1
+        else:
+            patched += _patch_groupnorms_recursive(child)
+    return patched
+
+
+def patch_decoder_all_groupnorms_composite(decoder: torch.nn.Module) -> int:
+    """Replace every ``nn.GroupNorm`` under decoder with composite (idempotent)."""
+    return _patch_groupnorms_recursive(decoder)
+
+
+def _build_vae_decoder_with_composite_groupnorm(
+    vae: torch.nn.Module, *, all_groupnorms: bool
+) -> torch.nn.Module:
+    from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
+        VAEDecoderWrapper,
+    )
+
+    if all_groupnorms:
+        patch_decoder_all_groupnorms_composite(vae.decoder)
+    else:
+        patch_decoder_norm2_composite(vae.decoder)
+    return VAEDecoderWrapper(vae).eval()
+
+
+def build_vae_decoder_composite_norm2(vae: torch.nn.Module) -> torch.nn.Module:
+    """Full ``VAEDecoderWrapper`` with the single OOMing norm2 swapped to composite."""
+    return _build_vae_decoder_with_composite_groupnorm(vae, all_groupnorms=False)
+
+
+def build_vae_decoder_all_composite_groupnorm(vae: torch.nn.Module) -> torch.nn.Module:
+    """Full ``VAEDecoderWrapper`` with every decoder GroupNorm swapped to composite."""
+    return _build_vae_decoder_with_composite_groupnorm(vae, all_groupnorms=True)
 
 
 def norm2_isolated_input_key() -> str:
