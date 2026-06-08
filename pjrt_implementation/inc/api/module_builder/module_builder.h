@@ -176,6 +176,19 @@ private:
       const mlir::OwningOpRef<mlir::ModuleOp> &module,
       std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
 
+  // Re-collects output shardings from the module-level
+  // `mhlo.spmd_output_sharding` attribute, which is only populated after the
+  // SHLO compiler pipeline runs (Shardy propagation derives output shardings
+  // and `cleanForXlaIngestion` materializes them as this GSPMD tuple string).
+  // `collectOutputShardings` runs before the pipeline and therefore yields
+  // Replicate for Shardy inputs that don't carry per-result shardings yet; this
+  // overrides those with the correct post-propagation shardings. No-op when the
+  // attribute is absent or fails to parse (leaves `output_shardings`
+  // untouched).
+  static tt_pjrt_status recollectOutputShardingsFromModuleAttr(
+      const mlir::OwningOpRef<mlir::ModuleOp> &cleaned_module,
+      std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings);
+
   // Collects result presharding status for the StableHLO pipeline.
   // Returns a vector of int64_t (1 = presharded, 0 = unsharded) per result.
   // torch_xla always expects all results to be presharded; JAX only expects
