@@ -1,9 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
-from .vllm_distributed_utils import ParallelismMode
-
 from .logger import tt_init_logger
+from .vllm_distributed_utils import ParallelismMode
 
 logger = tt_init_logger(__name__)
 

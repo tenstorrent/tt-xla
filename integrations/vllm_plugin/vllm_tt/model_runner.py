@@ -302,9 +302,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_data_parallel and self.dp_size > 1:
             remainder = self.max_num_reqs % self.dp_size
             if remainder != 0:
-                adjusted_max_num_reqs = (
-                    self.max_num_reqs + self.dp_size - remainder
-                )
+                adjusted_max_num_reqs = self.max_num_reqs + self.dp_size - remainder
                 logger.warning(
                     "Data parallel requires max_num_reqs divisible by dp_size. "
                     "Adjusting max_num_reqs from %d to %d.",
@@ -1374,9 +1372,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         req_start_idx = 0
 
         for req_id in self.input_batch.req_ids:
-            num_scheduled_tokens = scheduler_output.num_scheduled_tokens.get(
-                req_id, 0
-            )
+            num_scheduled_tokens = scheduler_output.num_scheduled_tokens.get(req_id, 0)
             req_state = self.requests[req_id]
             num_computed_tokens = req_state.num_computed_tokens
 
@@ -1900,7 +1896,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
-                    shard_model(model, self.mesh)
+                    shard_model(
+                        model,
+                        self.mesh,
+                        self.tt_config.shard_weights_on_batch_axis,
+                    )
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -2656,7 +2656,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def select_hidden_states(self, hidden_states, indices_do_sample):
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
-        if (self.enable_tensor_parallel and self.use_2d_mesh) or self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+        if (
+            self.enable_tensor_parallel and self.use_2d_mesh
+        ) or self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
             result = sharding_constraint_tensor(result, self.mesh, (None, None))
         return result
 

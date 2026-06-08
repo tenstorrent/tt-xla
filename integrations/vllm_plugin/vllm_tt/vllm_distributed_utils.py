@@ -69,7 +69,12 @@ class ParallelismMode(Enum):
 
 class XlaMergedColumnParallelLinear(nn.Module):
 
-    def __init__(self, merged_column_parallel_linear: nn.Module, mesh: "xs.Mesh"):
+    def __init__(
+        self,
+        merged_column_parallel_linear: nn.Module,
+        mesh: "xs.Mesh",
+        shard_weights_on_batch_axis: bool = True,
+    ):
         super().__init__()
         assert isinstance(merged_column_parallel_linear, MergedColumnParallelLinear)
         self.skip_bias_add = merged_column_parallel_linear.skip_bias_add
@@ -84,12 +89,13 @@ class XlaMergedColumnParallelLinear(nn.Module):
             merged_column_parallel_linear
         )
         if mesh is not None:
-            self._shard_weight(mesh)
+            self._shard_weight(mesh, shard_weights_on_batch_axis)
 
-    def _shard_weight(self, mesh: "xs.Mesh"):
+    def _shard_weight(self, mesh: "xs.Mesh", shard_weights_on_batch_axis: bool):
+        batch_axis = "batch" if shard_weights_on_batch_axis else None
         for i in range(self.num_outputs):
             self.weights[i] = Parameter(self.weights[i].to("xla"), requires_grad=False)
-            safe_mark_sharding(self.weights[i], mesh, ("model", "batch"))
+            safe_mark_sharding(self.weights[i], mesh, ("model", batch_axis))
 
             if self.biases[i] is not None:
                 self.biases[i] = Parameter(
@@ -154,7 +160,12 @@ class XlaMergedColumnParallelLinear(nn.Module):
 
 class XlaQKVParallelLinear(nn.Module):
 
-    def __init__(self, qkv_linear: nn.Module, mesh: "xs.Mesh"):
+    def __init__(
+        self,
+        qkv_linear: nn.Module,
+        mesh: "xs.Mesh",
+        shard_weights_on_batch_axis: bool = True,
+    ):
         super().__init__()
         assert isinstance(qkv_linear, QKVParallelLinear)
         self.skip_bias_add = qkv_linear.skip_bias_add
@@ -168,15 +179,16 @@ class XlaQKVParallelLinear(nn.Module):
         self.k_bias: Optional[Parameter]
         self.v_bias: Optional[Parameter]
         self._load_weights_from_qkv_linear(qkv_linear)
-        self._shard_weight(mesh)
+        self._shard_weight(mesh, shard_weights_on_batch_axis)
 
-    def _shard_weight(self, mesh: "xs.Mesh"):
+    def _shard_weight(self, mesh: "xs.Mesh", shard_weights_on_batch_axis: bool):
+        batch_axis = "batch" if shard_weights_on_batch_axis else None
         self.q_weight = Parameter(self.q_weight.to("xla"), requires_grad=False)
         self.k_weight = Parameter(self.k_weight.to("xla"), requires_grad=False)
         self.v_weight = Parameter(self.v_weight.to("xla"), requires_grad=False)
-        safe_mark_sharding(self.q_weight, mesh, ("model", "batch"))
-        safe_mark_sharding(self.k_weight, mesh, ("model", "batch"))
-        safe_mark_sharding(self.v_weight, mesh, ("model", "batch"))
+        safe_mark_sharding(self.q_weight, mesh, ("model", batch_axis))
+        safe_mark_sharding(self.k_weight, mesh, ("model", batch_axis))
+        safe_mark_sharding(self.v_weight, mesh, ("model", batch_axis))
         if self.q_bias is not None:
             assert (
                 self.k_bias is not None and self.v_bias is not None
@@ -247,25 +259,25 @@ class XlaQKVParallelLinear(nn.Module):
 
 
 def partition_merged_column_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, MergedColumnParallelLinear)
-    xla_layer = XlaMergedColumnParallelLinear(layer, mesh)
+    xla_layer = XlaMergedColumnParallelLinear(layer, mesh, shard_weights_on_batch_axis)
     logger.debug("Applied parallel sharding to %s", layer)
     return xla_layer
 
 
 def partition_qkv_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, QKVParallelLinear)
-    xla_layer = XlaQKVParallelLinear(layer, mesh)
+    xla_layer = XlaQKVParallelLinear(layer, mesh, shard_weights_on_batch_axis)
     logger.debug("Applied parallel sharding to %s", layer)
     return xla_layer
 
 
 def partition_column_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
     safe_mark_sharding(layer.weight, mesh, ("model", None))
@@ -274,16 +286,17 @@ def partition_column_parallel_linear(
 
 
 def partition_row_parallel_linear(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, RowParallelLinear)
-    safe_mark_sharding(layer.weight, mesh, ("batch", "model"))
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, (batch_axis, "model"))
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
 
 def partition_parallel_lm_head(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
     logger.debug("Applied parallel sharding to %s", layer)
@@ -292,7 +305,7 @@ def partition_parallel_lm_head(
 
 
 def partition_vocab_parallel_embedding(
-    layer: torch.nn.Module, mesh: xs.Mesh
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
@@ -320,7 +333,11 @@ def get_fqn(module):
     return module.__class__.__qualname__
 
 
-def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
+def shard_model(
+    model: torch.nn.Module,
+    mesh: "xs.Mesh",
+    shard_weights_on_batch_axis: bool = True,
+) -> None:
     """
     Recursively check a PyTorch model and apply appropriate sharding based on
     the MODULE_TYPE_TO_WRAPPING_FUNC mapping.
@@ -328,13 +345,18 @@ def shard_model(model: torch.nn.Module, mesh: "xs.Mesh") -> None:
     Args:
         model: torch.nn.Module to process
         mesh: An XLA SPMD mesh object used for sharding
+        shard_weights_on_batch_axis: When True, weight partition specs include
+            the "batch" (DP) axis (FSDP-style). When False, weights are only
+            sharded on "model" (TP) axis and replicated across DP replicas.
     """
     logger.info("Applying parallel sharding to the model...")
 
     def _process_module(module, name=None, parent=None):
         for module_type, wrapping_func in MODULE_TYPE_TO_WRAPPING_FUNC.items():
             if get_fqn(module) == module_type:
-                wrapped_module = wrapping_func(module, mesh)
+                wrapped_module = wrapping_func(
+                    module, mesh, shard_weights_on_batch_axis
+                )
 
                 assert (
                     parent is not None and name is not None
