@@ -1625,6 +1625,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hidden_states, hidden_state_shape
             )
 
+            if self.parallel_mode == ParallelismMode.DATA_TENSOR_PRALLEL:
+                # Pure DP+TP runs the backbone data-parallel, so hidden_states
+                # leaves the decoder sharded on the "batch" (DP) axis. Sampling
+                # needs the full batch on every replica (logits_indices and the
+                # select index the global batch), and a batch-sharded input
+                # makes the separately-traced sampling graph bake in the local
+                # shard shape, mismatching the global tensor at execution. Gather
+                # to the full replicated batch here (one all_gather of the tiny
+                # decode-step hidden) before the sampling path.
+                hidden_states = sharding_constraint_tensor(
+                    hidden_states, self.mesh, (None, None, None)
+                )
+
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
             # them, keyed by batch index, so we never copy the full
@@ -1678,7 +1691,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     hidden_states = hidden_states[
                         batch_idx, logits_indices, :
                     ].unsqueeze(1)
-                    if self.enable_tensor_parallel and self.use_2d_mesh:
+                    if self.parallel_mode == ParallelismMode.DATA_TENSOR_PRALLEL:
+                        # Hidden was already gathered to the full replicated
+                        # batch above; keep it replicated for sampling.
+                        xs.mark_sharding(
+                            hidden_states, self.mesh, (None, None, None)
+                        )
+                    elif self.enable_tensor_parallel and self.use_2d_mesh:
                         xs.mark_sharding(
                             hidden_states, self.mesh, (None, None, "model")
                         )
@@ -2174,7 +2193,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Mark dummy inputs to match the generated hidden_states shardings
             # (during execution) to avoid re-compilation of select_hidden_states
             # graph later.
-            if self.enable_tensor_parallel:
+            if self.parallel_mode == ParallelismMode.DATA_TENSOR_PRALLEL:
+                # Pure DP+TP: hidden states are gathered to the full batch
+                # (replicated on both axes) before sampling — see the
+                # sharding_constraint in sample_tokens. A batch-sharded input
+                # makes the separately-traced sampling graph bake in the local
+                # shard shape (num_reqs/dp_size), which mismatches the global
+                # tensor at execution. Mark the dummy fully replicated to match.
+                safe_mark_sharding(dummy_hidden, self.mesh, (None, None, None))
+            elif self.enable_tensor_parallel:
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
             elif self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
                 safe_mark_sharding(dummy_hidden, self.mesh, ("batch", None, None))
@@ -2346,7 +2373,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     (self.max_num_reqs, num_tokens, hsize),
                     dtype=self._hidden_states_dtype,
                 ).to(self.device)
-                if self.enable_tensor_parallel and self.use_2d_mesh:
+                if self.parallel_mode == ParallelismMode.DATA_TENSOR_PRALLEL:
+                    # Pure DP+TP: hidden is gathered to the full replicated
+                    # batch before sampling (see _precompile_select_hidden_states).
+                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, None))
+                elif self.enable_tensor_parallel and self.use_2d_mesh:
                     xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
                 sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                     self.input_batch,
