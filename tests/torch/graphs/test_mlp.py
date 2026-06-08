@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 import torch
 import torch_xla
+import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
@@ -19,6 +20,7 @@ from transformers.models.llama.modeling_llama import LlamaMLP
 from transformers.models.mistral.modeling_mistral import MistralMLP
 from transformers.models.qwen2.modeling_qwen2 import Qwen2MLP
 from transformers.models.qwen3.modeling_qwen3 import Qwen3MLP
+from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME, TT_MOE_BACKEND_NAME
 from tt_torch.sparse_mlp import (
     ACTIVATION_DEEPSEEK,
     A2aSparseMLP,
@@ -76,6 +78,7 @@ MODEL_LOADER_MAP = {
     "falcon": FalconModelLoader,
     "gpt_oss": GPTOSSModelLoader,
 }
+
 
 AVAILABLE_VARIANT_MAP = {
     "llama": [
@@ -480,7 +483,9 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
 
 
 @pytest.mark.nightly
-@pytest.mark.parametrize("mlp_type", ["standard", "sparse"])
+@pytest.mark.parametrize(
+    "mlp_type", [TT_DENSE_EXPERTS_BACKEND_NAME, TT_MOE_BACKEND_NAME]
+)
 @parametrize_arch(["single_device", "llmbox", "galaxy"])
 @pytest.mark.parametrize(
     "variant,variant_config",
@@ -488,12 +493,13 @@ def test_falcon_mlp(seq_len, variant, variant_config, arch):
     ids=[str(k) for k in get_available_variants("gpt_oss").keys()],
 )
 def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
-    if mlp_type == "sparse" and arch != "llmbox":
-        # Cannot run sparse MLP on galaxy due to hang: https://github.com/tenstorrent/tt-xla/issues/3941
-        pytest.skip("Sparse MLP test only supported on llmbox arch")
+    if mlp_type == TT_MOE_BACKEND_NAME and arch != "llmbox":
+        # tt_moe requires a multi-chip SPMD mesh with an EP axis larger than 1;
+        # galaxy currently hangs (https://github.com/tenstorrent/tt-xla/issues/3941).
+        pytest.skip("tt_moe HF backend requires llmbox arch")
     if variant == GPTOSSModelVariant.GPT_OSS_120B and arch == "single_device":
         pytest.skip("120B model too large for single device")
-    if mlp_type != "sparse":
+    if mlp_type == TT_DENSE_EXPERTS_BACKEND_NAME:
         request.node.add_marker(
             pytest.mark.filecheck(["matmul_with_activation_silu.ttnn.mlir"])
         )
@@ -508,6 +514,9 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
     model = AutoModelForCausalLM.from_config(
         config, trust_remote_code=True, torch_dtype=torch.bfloat16
     )
+    # Route GptOssExperts through the chosen HF backend. tt_dense replaces the
+    # legacy torch_overrides.py monkey patch; tt_moe replaces enable_sparse_mlp.
+    model.config._experts_implementation = mlp_type
     model.eval()
     mlp = model.model.layers[0].mlp
 
@@ -521,8 +530,10 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         mesh_shape = (batch_size, num_devices // batch_size)
         device_ids = np.array(range(num_devices))
         mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
-        if mlp_type == "sparse":
-            mlp = enable_sparse_mlp(mlp, mesh=mesh_shape, cluster_axis=0)
+        if mlp_type == TT_MOE_BACKEND_NAME:
+            # tt_moe HF backend reads the global SPMD mesh inside its forward to
+            # pick the EP cluster axis; run_graph_test doesn't set it for us.
+            xs.set_global_mesh(mesh)
 
         def get_shard_spec(mlp, args, kwargs):
             shard_specs = {}
@@ -532,12 +543,12 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
             shard_specs[mlp.router.bias] = (None,)
 
             # Shard experts across devices.
-            if mlp_type == "standard":
+            if mlp_type == TT_DENSE_EXPERTS_BACKEND_NAME:
                 shard_specs[mlp.experts.gate_up_proj] = ("model", "batch", None)
                 shard_specs[mlp.experts.gate_up_proj_bias] = ("model", None)
                 shard_specs[mlp.experts.down_proj] = ("model", None, "batch")
                 shard_specs[mlp.experts.down_proj_bias] = ("model", "batch")
-            elif mlp_type == "sparse":
+            elif mlp_type == TT_MOE_BACKEND_NAME:
                 shard_specs[mlp.experts.gate_up_proj] = (("batch", "model"), None, None)
                 shard_specs[mlp.experts.gate_up_proj_bias] = (("batch", "model"), None)
                 shard_specs[mlp.experts.down_proj] = (("batch", "model"), None, None)
@@ -550,7 +561,11 @@ def test_gpt_oss_mlp(variant, variant_config, arch, mlp_type, request):
         get_shard_spec = None
 
     comparison_config = ComparisonConfig()
-    if variant == "120B" and arch == "single_device" and mlp_type == "standard":
+    if (
+        variant == "120B"
+        and arch == "single_device"
+        and mlp_type == TT_DENSE_EXPERTS_BACKEND_NAME
+    ):
         comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.985))
 
     run_graph_test(

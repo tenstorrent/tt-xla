@@ -282,6 +282,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.kv_cache_dtype = model_dtype
         else:
             self.kv_cache_dtype = TPU_STR_DTYPE_TO_TORCH_DTYPE[cache_config.cache_dtype]
+        if self.tt_config.experimental_kv_cache_dtype == "bfp_bf8":
+            # uint8: a 1-byte stand-in so vLLM budgets blocks for the BFP8
+            # on-device footprint. The staged buffer stays bf16 (see below).
+            self.kv_cache_spec_dtype = torch.uint8
+        elif self.tt_config.experimental_kv_cache_dtype == "bfp_bf4":
+            raise NotImplementedError(
+                "experimental_kv_cache_dtype='bfp_bf4' is not yet supported; "
+                "see tt-xla #5011."
+            )
+        else:
+            self.kv_cache_spec_dtype = self.kv_cache_dtype
         self._hidden_states_dtype = self.dtype
 
         self.sliding_window = model_config.get_sliding_window()
@@ -851,7 +862,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             block_size=block_size,
                             num_kv_heads=attn_module.num_kv_heads,
                             head_size=attn_module.head_size,
-                            dtype=self.kv_cache_dtype,
+                            dtype=self.kv_cache_spec_dtype,
                             sliding_window=attn_module.sliding_window,
                         )
                     else:
@@ -859,7 +870,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             block_size=block_size,
                             num_kv_heads=attn_module.num_kv_heads,
                             head_size=attn_module.head_size,
-                            dtype=self.kv_cache_dtype,
+                            dtype=self.kv_cache_spec_dtype,
                         )
                 elif attn_module.attn_type in (
                     AttentionType.ENCODER,
@@ -879,7 +890,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     block_size=block_size,
                     num_kv_heads=1,
                     head_size=attn_module.head_size,
-                    dtype=self.kv_cache_dtype,
+                    dtype=self.kv_cache_spec_dtype,
                     cache_dtype_str=cache_dtype_str,
                 )
             else:
@@ -1828,6 +1839,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             isinstance(m, ParallelLMHead) for m in self.model.modules()
         )
 
+        # Per-tensor weight dtype overrides (mixed precision), mirroring the
+        # torch-xla benchmark's apply_weight_dtype_overrides. Registered after
+        # weight load and before compile so the tt.weight_dtype_override custom
+        # call is captured in the traced graph. Patterns must match vLLM's
+        # (often fused) parameter names, e.g. "*.mlp.down_proj.weight".
+        if self.tt_config.weight_dtype_overrides is not None:
+            from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+            applied = apply_weight_dtype_overrides(
+                self.model, self.tt_config.weight_dtype_overrides
+            )
+            logger.info("Applied %d per-tensor weight dtype override(s)", len(applied))
+
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
         logger.info(f"Compiled model: \n{self.model}")
@@ -2384,6 +2408,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "supported yet."
             )
 
+        # This may be a valid config if full model is not being compiled; for
+        # example, using num_hidden_layers override to compile only a subset of
+        # layers. In that case, we should not raise an error but just skip the
+        # KV cache initialization.
+        if len(kv_cache_config.kv_cache_groups) == 0:
+            logger.warning(
+                "No KV cache group found in the config. Skipping KV cache initialization."
+            )
+            return
+
         if (
             kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
             != self.block_size
@@ -2441,7 +2475,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         kv_cache_spec.num_kv_heads,
                         kv_cache_spec.head_size,
                     )
-                    dtype = kv_cache_spec.dtype
+                    # spec.dtype may be a 1-byte accounting dtype; the staged
+                    # buffer uses the real transfer dtype (converted on device).
+                    dtype = self.kv_cache_dtype
 
                     # Allocate separate K and V cache tensors to avoid
                     # slice/concat copies in the compiled decode graph.

@@ -18,7 +18,7 @@ CompileOptions CompileOptions::parse(
   CompileOptions options;
 
   options.optimization_level =
-      internal::parseIntOption(compile_options, "optimization_level")
+      internal::parseIntOption(compile_options, optimization_level_key)
           .value_or(options.optimization_level);
   options.experimental_weight_dtype =
       internal::parseStringOption(compile_options, "experimental_weight_dtype")
