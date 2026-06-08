@@ -408,6 +408,22 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
+  // Resolve any deferred tt-lang kernels embedded in the post-TTNN module.
+  // This is the compile-time hook for `stablehlo.custom_call @tt.tt_lang_op`:
+  // tt-mlir lowers the custom call to a TTNN op carrying a `kernel_id`
+  // attribute with the kernel body left deferred; the tt-mlir
+  // `--ttnn-resolve-tt-lang-kernels` pass walks those ops, asks the
+  // tt-lang Python compiler (`tt_torch.tt_lang.resolve_kernel`) to
+  // compile each kernel against its now-final (post-Shardy,
+  // post-TTIR-to-TTNN) operand signature, and attaches the resolved
+  // artifact bytes back as the `kernel_artifact` attribute. A no-op
+  // when no such ops are present. tt-mlir owns the pybind11
+  // dependency; this plugin keeps its TU `-fno-rtti`.
+  status = resolveTtLangKernels(mlir_module, mesh_shape);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
   // tt-xla creates 1D mesh by default, so if compiler determines a different
   // mesh shape, we need to update the mesh in the client instance to match the
   // compiler determined mesh shape.
@@ -1040,6 +1056,46 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   printModule(mlir_module, compile_options.export_path, "ttnn",
               compile_options.export_model_name);
 
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status ModuleBuilder::resolveTtLangKernels(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    const std::vector<std::uint32_t> &mesh_shape) {
+  // Drive the tt-mlir `--ttnn-resolve-tt-lang-kernels` pass via a
+  // standalone PassManager. tt-mlir owns the embedded-Python
+  // dependency; running the pass from here keeps the plugin's TU
+  // `-fno-rtti` and lets generic tt-mlir consumers reuse the same
+  // resolver semantics for any frontend that emits `ttnn.tt_lang_op`.
+  //
+  // We use a fresh PassManager rather than appending to the
+  // TTIRToTTNN common pipeline so that the existing pipeline stays
+  // pybind11-free for downstream consumers that don't need
+  // `tt_lang_op` resolution; tt-xla pays for the dependency
+  // explicitly, here, at the moment it needs it.
+  mlir::PassManager resolve_pm(mlir_module->getContext());
+  mlir::tt::ttnn::TTNNResolveTtLangKernelsOptions options;
+  // The pass takes mesh-shape as a comma-separated string so the
+  // pipeline-options machinery (which doesn't natively support
+  // `std::vector<uint32_t>`) can round-trip it. Empty -> the pass
+  // defaults to `[1]`.
+  {
+    std::string mesh_csv;
+    for (size_t i = 0; i < mesh_shape.size(); ++i) {
+      if (i != 0) {
+        mesh_csv.push_back(',');
+      }
+      mesh_csv += std::to_string(mesh_shape[i]);
+    }
+    options.meshShape = std::move(mesh_csv);
+  }
+  resolve_pm.addPass(mlir::tt::ttnn::createTTNNResolveTtLangKernels(options));
+
+  if (mlir::failed(resolve_pm.run(mlir_module.get()))) {
+    LOG_F(ERROR, "Failed to run --ttnn-resolve-tt-lang-kernels pass. "
+                 "See preceding diagnostics for the failing kernel.");
+    return tt_pjrt_status::kInternal;
+  }
   return tt_pjrt_status::kSuccess;
 }
 
