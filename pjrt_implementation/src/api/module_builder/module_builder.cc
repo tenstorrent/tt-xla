@@ -369,6 +369,16 @@ ModuleBuilder::buildModule(
   printModule(sanitized_module, compile_options.export_path,
               "shlo_compiler_cleaned");
 
+  // Output shardings collected before the SHLO compiler pipeline are Replicate
+  // for Shardy inputs (the output sharding is only derived during propagation).
+  // Now that the pipeline has run and `cleanForXlaIngestion` has materialized
+  // `mhlo.spmd_output_sharding`, override them with the correct shardings.
+  status = recollectOutputShardingsFromModuleAttr(sanitized_module,
+                                                  output_shardings);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
   status =
@@ -524,6 +534,71 @@ tt_pjrt_status ModuleBuilder::collectOutputShardings(
     output_shardings.insert(output_shardings.end(), collected->begin(),
                             collected->end());
   }
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status ModuleBuilder::recollectOutputShardingsFromModuleAttr(
+    const mlir::OwningOpRef<mlir::ModuleOp> &cleaned_module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings) {
+  // The attribute matches the string built by `cleanForXlaIngestion`: a tuple
+  // wrapping one GSPMD sharding per output, e.g. "{{devices=[1,2]<=[2]}}" for a
+  // single output, or "{{...},{...}}" for several.
+  auto tuple_attr = cleaned_module.get()->getAttrOfType<mlir::StringAttr>(
+      "mhlo.spmd_output_sharding");
+  if (!tuple_attr) {
+    // Nothing to override (e.g. no sharded outputs); keep what we have.
+    return tt_pjrt_status::kSuccess;
+  }
+
+  llvm::StringRef tuple = tuple_attr.getValue();
+  if (!tuple.consume_front("{") || !tuple.consume_back("}")) {
+    LOG_F(ERROR, "Malformed mhlo.spmd_output_sharding (no tuple braces): %s",
+          tuple_attr.getValue().str().c_str());
+    return tt_pjrt_status::kInternal;
+  }
+
+  // Split into per-output "{...}" elements at brace depth 0. A naive comma
+  // split would break on commas inside a sharding (e.g. "devices=[1,2]").
+  std::vector<llvm::StringRef> element_strings;
+  int depth = 0;
+  size_t token_start = 0;
+  for (size_t i = 0; i < tuple.size(); ++i) {
+    char c = tuple[i];
+    if (c == '{') {
+      ++depth;
+    } else if (c == '}') {
+      --depth;
+    } else if (c == ',' && depth == 0) {
+      element_strings.push_back(tuple.slice(token_start, i).trim());
+      token_start = i + 1;
+    }
+  }
+  element_strings.push_back(tuple.slice(token_start, tuple.size()).trim());
+
+  std::vector<mlir::tt::sharding_utils::MeshSharding> parsed;
+  parsed.reserve(element_strings.size());
+  for (llvm::StringRef element : element_strings) {
+    auto generated = mlir::tt::gspmd_utils::GSPMDMeshSharding::generate(
+        element, element, mlir::tt::ttcore::ShardStatus::Presharded,
+        mlir::tt::ttcore::MeshShardDirection::ShardToFull);
+    if (auto err = generated.takeError()) {
+      LOG_F(ERROR, "Failed to parse output sharding '%s' from %s: %s",
+            element.str().c_str(), tuple_attr.getValue().str().c_str(),
+            llvm::toString(std::move(err)).c_str());
+      return tt_pjrt_status::kInternal;
+    }
+    parsed.emplace_back(*generated);
+  }
+
+  if (!output_shardings.empty() && parsed.size() != output_shardings.size()) {
+    LOG_F(ERROR,
+          "Parsed output sharding count (%zu) doesn't match collected count "
+          "(%zu); keeping the original shardings",
+          parsed.size(), output_shardings.size());
+    return tt_pjrt_status::kInternal;
+  }
+
+  output_shardings = std::move(parsed);
   return tt_pjrt_status::kSuccess;
 }
 
