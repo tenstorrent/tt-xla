@@ -149,7 +149,7 @@ class TestRemoveWeightDtypeOverrides:
 class TestDumpWeightNames:
     def test_simple_model(self):
         model = SimpleModel()
-        result = dump_weight_names(model)
+        result = dump_weight_names(model, "test_model")
         assert "linear1.weight" in result
         assert "linear2.weight" in result
         assert len(result) == 2
@@ -157,7 +157,7 @@ class TestDumpWeightNames:
 
     def test_nested_model(self):
         model = NestedModel()
-        result = dump_weight_names(model, default_dtype="bfp_bf4")
+        result = dump_weight_names(model, "test_model", default_dtype="bfp_bf4")
         # 2 layers x (2 MLP + 2 attn) = 8 weight parameters
         assert len(result) == 8
         assert all(v == "bfp_bf4" for v in result.values())
