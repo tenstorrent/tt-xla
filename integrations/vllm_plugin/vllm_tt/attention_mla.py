@@ -204,8 +204,8 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         device = q_nope.device
         q_nope_lat = torch.einsum(
             "bsnp,npl->bsnl",
-            q_nope.to(torch.float32),
-            layer.W_UK_T.to(device=device, dtype=torch.float32),
+            q_nope,
+            layer.W_UK_T.to(device=device),
         ).to(act_dtype)
 
         # -- 3. Build concatenated latent Q / K ---------------------------
@@ -282,8 +282,8 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         # Expand latent output back to v_head_dim
         out = torch.einsum(
             "bnsl,nlv->bnsv",
-            out_lat.to(torch.float32),
-            layer.W_UV.to(device=device, dtype=torch.float32),
+            out_lat,
+            layer.W_UV.to(device=device),
         ).to(
             act_dtype
         )  # [b, N, S, V]
@@ -371,8 +371,8 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         out_lat = out_lat.reshape(users, self.num_heads, self.kv_lora_rank)
         out = torch.einsum(
             "bnl,nlv->bnv",
-            out_lat.to(torch.float32),
-            layer.W_UV.to(device=device, dtype=torch.float32),
+            out_lat,
+            layer.W_UV.to(device=device),
         ).to(
             act_dtype
         )  # [users, N, V]
