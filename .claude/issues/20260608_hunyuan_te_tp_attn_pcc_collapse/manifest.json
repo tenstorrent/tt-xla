@@ -1,0 +1,33 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "pcc",
+  "arch": "n300-llmbox",
+  "model_key": "hunyuan_image_2_1/text_encoder",
+  "branch": "akannan/hunyuan_image_e2e_pipeline",
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded",
+  "pcc_observed": 0.27736377316915883,
+  "pcc_required": 0.99,
+  "suggested_labels": ["bug"],
+  "upstream_issues": ["tenstorrent/tt-mlir#6313", "tenstorrent/tt-mlir#5290"],
+  "related_issues": ["tenstorrent/tt-xla#4581", "tenstorrent/tt-xla#4780"],
+  "log_paths": [
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_1_first_run_tp.log",
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_2_mlp_only.log",
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/te_iter_1_p150.log"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "recommended_next_steps": [
+    "Escalate SPMD/Shardy reshape-propagation bug upstream (tt-mlir) for head-sharded repeat_kv expand+reshape and M-RoPE split/cat on the qwen2_5_vl attention path; cross-link #6313/#5290.",
+    "Op-level PCC bisect (runtime-failure-debugger) on apply_multimodal_rotary_pos_emb (modeling_qwen2_5_vl.py:627) and repeat_kv (:170).",
+    "Interim MLP-only TP (HUNYUAN_TE_MLP_ONLY=1, ~0.964) only after closing residual ~0.026 device-numeric gap; single-device p150 (0.9527) is NOT a passing fallback."
+  ],
+  "notes": "Two stacked problems: (1) TP head-sharded attention collapse 0.277 (suspected Shardy reshape mispropagation, upstream tt-mlir); (2) baseline replicated device-numeric gap (single-device p150 = 0.9527). Shard spec proven correct (== llama/qwen3 Megatron). MLP-only TP recovers to 0.9637.",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker (link to HunyuanImage-2.1 bringup tracker alongside #4780)",
+    "Type: Bug (tt-xla UI field — gh CLI cannot set)"
+  ]
+}

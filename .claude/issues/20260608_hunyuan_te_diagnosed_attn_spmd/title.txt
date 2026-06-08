@@ -1,0 +1,1 @@
+HunyuanImage 2.1 text_encoder (Qwen2.5-VL-7B): 4-way Megatron TP collapses PCC to 0.277 from SPMD mispropagation through head-sharded repeat_kv + M-RoPE reshapes; residual device numeric gap caps replicated/MLP-only at ~0.95-0.96

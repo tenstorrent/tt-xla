@@ -1,0 +1,34 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "oom",
+  "arch": "n300-llmbox",
+  "model_key": "hunyuan_image_2_1/transformer",
+  "branch": "akannan/hunyuan_image_e2e_pipeline",
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded",
+  "is_duplicate_of": "tenstorrent/tt-xla#4780",
+  "action": "comment_on_existing",
+  "suggested_labels": ["bug"],
+  "upstream_issues": ["tenstorrent/tt-mlir#3370"],
+  "related_issues": [
+    "tenstorrent/tt-xla#4780",
+    "tenstorrent/tt-xla#5040",
+    "tenstorrent/tt-xla#4761"
+  ],
+  "log_paths": [
+    ".claude/bringup/hunyuan_image_2_1/logs/iter_3_verify_tp.log",
+    ".claude/bringup/hunyuan_image_2_1/diagnosis_transformer.json"
+  ],
+  "recommended_next_steps": [
+    "Do NOT file new — post draft.md as a comment on #4780 (gh issue comment 4780).",
+    "Reconcile internal diagnosis_transformer.json (weight-bound) with #4780's finding: 771 MB buffer is the unfused-SDPA [1,7,5224,5224] f32 score matrix, a reducible activation.",
+    "Track 2D (2,4) weight-sharding path on tt-mlir#3370 (collective_permute lowering)."
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "dev_adds_manually": [
+    "DUPLICATE: do not run gh issue create — post as comment on #4780 (gh-command.sh uses gh issue comment)",
+    "decide whether the TP-mesh matrix belongs in #4780 or a tracking sub-issue"
+  ],
+  "notes": "Duplicate of #4780 (same 771162112 B OOM). #4780's root-cause analysis (unfused native-SDPA score matrix [1,7,5224,5224] f32; bool attn_mask skips the SDPA composite) supersedes our bringup diagnosis_transformer.json, which called it weight-bound. Our iter-3 backtrace (BinaryNgDeviceOperation/ttnn::add = scores+mask add) corroborates #4780. Drafted as a comment, not a new issue."
+}

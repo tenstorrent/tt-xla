@@ -1,0 +1,46 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "oom",
+  "arch": "n300-llmbox",
+  "device_arch": "Wormhole_b0",
+  "chip_count": 8,
+  "mesh": [1, 8],
+  "model_key": "flux_2_dev/pytorch-Dev-transformer",
+  "hf_repo": "black-forest-labs/FLUX.2-dev",
+  "component": "transformer",
+  "tp_pattern": "A_megatron_1d",
+  "branch": "akannan/test_flux2_e2e_pipeline",
+  "test_path": "tests/torch/models/flux_2_dev/test_transformer.py::test_transformer_sharded",
+  "suggested_labels": ["bug", "multichip", "bringup"],
+  "alloc_bytes": 103809024,
+  "offending_buffer_elems": 51904512,
+  "offending_buffer_shape_hint": "total_seq(528) x 98304 (=16*6144), bf16, full-width/replicated",
+  "per_bank_allocated_bytes": 1045427008,
+  "largest_free_block_bytes": 6894496,
+  "upstream_issues": ["tenstorrent/tt-mlir#3370"],
+  "related_issues": [
+    "tenstorrent/tt-xla#4705",
+    "tenstorrent/tt-xla#4969",
+    "tenstorrent/tt-xla#5040",
+    "tenstorrent/tt-xla#5039",
+    "tenstorrent/tt-xla#4943"
+  ],
+  "log_paths": [
+    "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/flux_2_dev/logs/iter_3_run.log",
+    "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/flux_2_dev/logs/iter_2_run.log"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "recommended_next_steps": [
+    "runtime_debug: identify the ~98304-wide replicated intermediate (likely reshape/all-reduce/concat where Shardy sharding propagation drops the model-axis split) and force-shard it or restructure so it stays sharded.",
+    "OR reduce_activation_footprint: run at seq_len<=128 (total 144 tokens -> ~28MB buffer) for a reduced-sequence TP MVP pass (Mochi/Wan reduced-res precedent).",
+    "dram-space-saving optimization already enabled; fragmentation (largest free block 6.9MB) suggests a packing/allocator angle too."
+  ],
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker (link to #4705 in GitHub UI)",
+    "Type: Bug (tt-xla UI field — gh CLI cannot set)"
+  ]
+}

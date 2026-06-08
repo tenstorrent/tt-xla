@@ -1,0 +1,1 @@
+HunyuanImage-2.1 text_encoder (Qwen2.5-VL-7B): 4-way tensor-parallel PCC collapses to 0.277 from sharded M-RoPE + GQA repeat_kv attention reshapes

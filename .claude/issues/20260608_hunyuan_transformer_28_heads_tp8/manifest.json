@@ -1,0 +1,32 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "compile",
+  "arch": "n300-llmbox",
+  "model_key": "hunyuan_image_2_1",
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded",
+  "branch": "akannan/hunyuan_image_e2e_pipeline",
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "related_issues": ["tenstorrent/tt-mlir#3370"],
+  "related_issue_search": "tensor parallel num_attention_heads divisible; reshape number of output elements doesn't match; invalid sharding tensor parallel error — no tt-xla hits",
+  "log_paths": [
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/iter_2_verify_tp.log",
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/diagnosis_transformer.json"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "recommended_next_steps": [
+    "Validate TP degree against shardable dims (num_attention_heads) in get_mesh_config/load_shard_spec; reject indivisible degrees up front",
+    "Improve compiler diagnostic: annotate reshape element-count mismatch with offending dim + TP degree",
+    "Constrain HunyuanImage transformer mesh to head-divisible degrees (2/4/7); never emit (1,8)"
+  ],
+  "notes": "(1,8) is an invalid TP config: num_attention_heads=28 not divisible by 8. Underlying compile failure is expected; actionable bug is diagnostic quality / front-end validation. Consider 'enhancement' label instead of 'bug'. Companion (2,4) path tracked by tt-mlir#3370.",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker",
+    "Type: Bug (tt-xla UI field — gh CLI cannot set)",
+    "DECIDE: label as enhancement (input validation / error quality) vs bug"
+  ]
+}

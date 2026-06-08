@@ -1,0 +1,33 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "oom",
+  "arch": "p150",
+  "model_key": "hunyuan_image_2_1/vae",
+  "branch": "akannan/hunyuan_image_e2e_pipeline",
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_vae_decoder.py::test_vae_decoder",
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "related_issues": [
+    "tenstorrent/tt-xla#4755",
+    "tenstorrent/tt-xla#4780",
+    "tenstorrent/tt-xla#4252"
+  ],
+  "log_paths": [
+    ".claude/bringup/hunyuan_image_2_1/logs/vae_iter_1_p150.log"
+  ],
+  "recommended_next_steps": [
+    "tiled decode (applied, unverified): enable_tiling(tile_sample_min_size=512); verify CPU sanity then TT re-run; fall back to tile=256 if it won't compile",
+    "investigate the 32 GiB ttnn.permute output: smaller-footprint layout / sharded memory config to avoid full DRAM materialization",
+    "if single-device tiled still won't fit, evaluate tensor-parallel multi-chip decode (cf. #4252)"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker",
+    "Type: Bug (tt-xla UI field — gh CLI cannot set)"
+  ],
+  "notes": "Activation-bound OOM (0.41B weights fit easily). Single 32 GiB DRAM buffer for a ttnn.permute output during 2048x2048 decode; bank size only ~3.98 GiB. Sibling of #4755 (Z-Image VAE OOM). Tiling fix applied to loader but UNVERIFIED on device."
+}

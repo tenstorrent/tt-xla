@@ -1,0 +1,1 @@
+HunyuanImage 2.1 text_encoder_2 (ByT5): single-device fp32 PCC=0.9816 < 0.99 from T5 attention numeric gap

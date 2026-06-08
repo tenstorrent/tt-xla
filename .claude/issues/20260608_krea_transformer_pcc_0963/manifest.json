@@ -1,0 +1,37 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "pcc",
+  "arch": "n300-llmbox",
+  "model_key": "krea_realtime_video/pytorch-RealtimeVideo14B-tensor_parallel-inference",
+  "branch": "akannan/krea_e2e_pipeline",
+  "test_path": "tests/torch/models/krea_realtime/test_transformer.py::test_transformer_sharded",
+  "pcc_observed": 0.9630219547073653,
+  "pcc_required": 0.99,
+  "suggested_labels": ["bug", "model-bringup", "tensor-parallel"],
+  "upstream_issues": [],
+  "related_issues": [
+    "tenstorrent/tt-xla#4462",
+    "tenstorrent/tt-xla#4465",
+    "tenstorrent/tt-xla#4464",
+    "tenstorrent/tt-xla#3587"
+  ],
+  "recommended_next_steps": [
+    "A/B the qk-norm sharding: replicate norm_q/norm_k vs current ('model',) sharding; compare PCC",
+    "Run an fp32 golden/compute path for attention norm + RoPE to bound the bf16 accumulation contribution",
+    "Verify the complex128 RoPE path keeps precision on TT after self.freqs is force-moved to XLA"
+  ],
+  "log_paths": [
+    "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/krea_realtime_video/logs/iter_3_transformer_verify.log",
+    "/proj_sw/user_dev/ctr-akannan/2_jun_yyz/tt-xla/.claude/bringup/krea_realtime_video/logs/iter_2_transformer_repair.log"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "notes": "Numerical accuracy gap; TT TP path functionally green. In-band with repo's large bf16 thresholds (0.95-0.98) but threshold intentionally kept at 0.99 per bringup policy. Test marked xfail(strict=False).",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker (link under #4462)",
+    "Type: Bug (tt-xla UI field — gh CLI cannot set)"
+  ]
+}

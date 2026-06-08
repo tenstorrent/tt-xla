@@ -1,0 +1,1 @@
+HunyuanImage 2.1 transformer: 2D (2,4) tensor-parallel reshard emits sdy.collective_permute — ShardyToStableHLO lowering not implemented (#3370) + "requires same type for all operands and results"

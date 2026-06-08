@@ -1,0 +1,1 @@
+FLUX.2-dev transformer (TP, mesh 1×8): runtime DRAM OOM from a ~98304-wide replicated activation intermediate, not weight residency

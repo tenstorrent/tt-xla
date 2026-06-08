@@ -1,0 +1,31 @@
+{
+  "repo": "tenstorrent/tt-mlir",
+  "type": "investigated",
+  "category": "compile",
+  "arch": "n300-llmbox",
+  "model_key": "hunyuan_image_2_1",
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_transformer.py::test_transformer_sharded",
+  "branch": "akannan/hunyuan_image_e2e_pipeline",
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "related_issues": ["tenstorrent/tt-mlir#3370"],
+  "log_paths": [
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/iter_1_first_run_tp.log",
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/diagnosis_transformer.json"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "recommended_next_steps": [
+    "Implement/complete ShardyToStableHLO lowering for CollectivePermuteOp (#3370)",
+    "Investigate verifier error 'sdy.collective_permute op requires the same type for all operands and results' separately",
+    "After #3370 lands, re-run (2,4) bf16 config; verify weights fit (~4.4 GiB/chip) and PCC >= 0.99"
+  ],
+  "notes": "Compiler error string already links tt-mlir#3370 (OPEN enhancement). This is likely a duplicate of #3370 for the lowering gap — primary value is the concrete HunyuanImage 2.1 transformer repro + a possibly-distinct verifier error. Developer should decide: comment on #3370 vs file fresh.",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker",
+    "Type field (Bug) in tt-mlir UI — gh CLI cannot set",
+    "DECIDE: comment on #3370 instead of filing duplicate (lowering gap is already tracked)"
+  ]
+}

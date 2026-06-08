@@ -1,0 +1,1 @@
+HunyuanImage 2.1 transformer: 8-way (1,8) tensor-parallel fails to compile — num_attention_heads=28 not divisible by 8 surfaces as cryptic "reshape.568 number of output elements doesn't match" (8x)

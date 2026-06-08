@@ -1,0 +1,1 @@
+[HunyuanImage-2.1] VAE decoder: TT DRAM OOM allocating 32 GiB ttnn.permute buffer at 2048×2048 decode

@@ -1,0 +1,38 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "pcc",
+  "arch": "p150",
+  "model_key": "hunyuan_image_2_1/text_encoder_2",
+  "branch": "akannan/hunyuan_image_e2e_pipeline",
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder_2.py::test_text_encoder_2",
+  "pcc_observed": 0.9815547776590103,
+  "pcc_required": 0.99,
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "related_issues": [
+    "tenstorrent/tt-xla#4784",
+    "tenstorrent/tt-xla#4773",
+    "tenstorrent/tt-xla#4779",
+    "tenstorrent/tt-xla#4780",
+    "tenstorrent/tt-xla#4781"
+  ],
+  "log_paths": [
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/te2_iter_1_p150.log"
+  ],
+  "recommended_next_steps": [
+    "runtime_debug: op-level PCC bisect on T5Attention matmul(Q,Kᵀ)+softmax to localize the device-numeric drift",
+    "force fp32 accumulation on attention matmul/softmax and re-measure PCC",
+    "decide per component: ship at measured PCC with xfail vs close the ~0.0084 numeric gap"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "notes": "LIKELY DUPLICATE of #4784 (same component, PCC 0.9827, empty-body bare tracker). Prefer updating #4784 in place over filing a new issue. Sibling text_encoder (Qwen2.5-VL) PCC 0.9527 is the same op-level device-numeric class, not yet filed.",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker (#4773)",
+    "Type: Bug (tt-xla UI field — gh CLI cannot set)",
+    "DECIDE: update #4784 in place vs file new issue (likely duplicate)"
+  ]
+}

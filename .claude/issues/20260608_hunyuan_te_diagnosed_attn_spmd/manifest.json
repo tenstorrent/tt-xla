@@ -1,0 +1,42 @@
+{
+  "repo": "tenstorrent/tt-xla",
+  "type": "investigated",
+  "category": "pcc",
+  "arch": "n300-llmbox",
+  "model_key": "hunyuan_image_2_1",
+  "test_path": "tests/torch/models/HunyuanImage_2_1/test_text_encoder.py::test_text_encoder_sharded",
+  "branch": "akannan/hunyuan_image_e2e_pipeline",
+  "pcc_observed": 0.27736377316915883,
+  "pcc_required": 0.99,
+  "suggested_labels": ["bug"],
+  "upstream_issues": [],
+  "related_issues": [
+    "tenstorrent/tt-mlir#6313",
+    "tenstorrent/tt-mlir#5290",
+    "tenstorrent/tt-xla#3508",
+    "tenstorrent/tt-mlir#3370"
+  ],
+  "related_issue_search": "qwen2_5_vl attention sharding PCC; repeat_kv GQA tensor parallel; M-RoPE SPMD sharding propagation — no direct tt-xla hits",
+  "log_paths": [
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_1_first_run_tp.log",
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/text_encoder_iter_2_mlp_only.log",
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/logs/te_iter_1_p150.log",
+    "/proj_sw/user_dev/ctr-akannan/3_jun_yyz/tt-xla/.claude/bringup/hunyuan_image_2_1/diagnosis_text_encoder.json"
+  ],
+  "draft_body": "draft.md",
+  "title_file": "title.txt",
+  "recommended_next_steps": [
+    "Escalate SPMD attention-TP bug: head-sharded repeat_kv (expand+reshape, :170) + M-RoPE reshape (:627) mispropagation for qwen2_5_vl",
+    "Op-level PCC bisect (runtime-failure-debugger) on M-RoPE + repeat_kv + down_proj all-reduce to close residual ~0.04-0.05 numeric gap",
+    "Interim MLP-only TP (HUNYUAN_TE_MLP_ONLY=1) at 0.9637 — ships only after residual gap closed",
+    "p150 single-device is NOT a pass path: replicated PCC 0.9527 < MLP-only 0.9637 (gap is op-level numerics)"
+  ],
+  "notes": "Two root causes: (1) catastrophic SPMD attention-sharding mispropagation -> PCC 0.277; (2) residual device fp32 op-level numeric gap caps replicated/MLP-only at ~0.95-0.96. Fixing sharding alone will NOT reach 0.99. Consider splitting into two issues (SPMD/compiler vs op-numerics) if owners differ. Diagnosis dated 2026-06-05 framed it as sharding-only; 2026-06-06 single-device run (0.9527) refines that.",
+  "dev_adds_manually": [
+    "milestone",
+    "assignee",
+    "parent_tracker",
+    "Type: Bug (tt-xla UI field — gh CLI cannot set)",
+    "DECIDE: file as one issue or split SPMD-sharding vs op-level-numeric into two"
+  ]
+}

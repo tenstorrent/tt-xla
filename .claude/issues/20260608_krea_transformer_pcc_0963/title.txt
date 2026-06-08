@@ -1,0 +1,1 @@
+[krea-realtime-video] CausalWanModel transformer (TP): sharded PCC 0.963 < 0.99 on n300-llmbox 8-chip mesh
