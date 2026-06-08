@@ -26,19 +26,22 @@ def determine_mesh_shape(
         ParallelismMode.DATA_TENSOR_PRALLEL,
     ):
         # Use predefined mesh shapes based on number of devices.
-        # For DATA_TENSOR_PRALLEL the axes are (data_parallel, tensor_parallel).
+        # Axes are (batch, model): "model" is the tensor-parallel axis (and for
+        # DATA_TENSOR_PRALLEL "batch" is the data-parallel axis).
+        #
+        # BH galaxy (32 chips) is forced to 8x4 = (batch=8, model=4) for BOTH
+        # TENSOR_PARALLEL_ONLY_2D and DATA_TENSOR_PRALLEL. The model (TP) axis = 4
+        # divides Devstral's 8 KV heads evenly (2 heads/device), so SDPA-decode
+        # uses ~60 cores/head and stays under tt-metal's 64-cores/head tree-
+        # reduction cap. The natural (4,8) instead gives model=8 -> 1 head/device
+        # -> 120 cores/head -> TT_FATAL in sdpa_decode_program_factory.
         mesh_shapes = {
             2: (1, 2),
             4: (2, 2),
             8: (2, 4),
             16: (4, 4),
-            32: (4, 8),
+            32: (8, 4),
         }
-        if parallel_mode == ParallelismMode.DATA_TENSOR_PRALLEL:
-            # BH galaxy (32 chips): 8x4 = 8 data-parallel replicas x 4-way TP.
-            # tp=4 divides Devstral's 8 KV heads (2/device); the default (4,8)
-            # would be dp4/tp8.
-            mesh_shapes[32] = (8, 4)
         if num_devices in mesh_shapes:
             mesh_shape = mesh_shapes[num_devices]
             logger.info(
