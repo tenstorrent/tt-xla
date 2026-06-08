@@ -261,8 +261,14 @@ class Sampler(nn.Module):
                         retain per token
           token_ids: prompt tokens (if prompt logprobs)
                      or sampled tokens (if sampled
-                     logprobs); 1D token ID tensor
-                     with (num tokens) elements
+                     logprobs); either a 1D tensor of
+                     (num tokens) elements or a 2D
+                     [num tokens, 1] tensor. The 2D form
+                     lets compiled callers skip a
+                     squeeze/unsqueeze pair around this
+                     call — important on 1D-mesh TP where
+                     that reshape triggers an unlowered
+                     collective_permute (tt-mlir#3370).
           replicate_anchor_mesh: when set, anchor the shape-changed
                      intermediates (unsqueeze, topk, gather, cat) to
                      replicated on this mesh. Callers pass the mesh on
@@ -292,8 +298,12 @@ class Sampler(nn.Module):
         topk_logprobs = _anchor(topk_logprobs, (None, None))
         topk_indices = _anchor(topk_indices, (None, None))
 
-        # Get the logprob of the prompt or sampled token.
-        token_ids = token_ids.unsqueeze(-1)
+        # Get the logprob of the prompt or sampled token. Accept 2D
+        # [num_tokens, 1] from compiled callers as-is to avoid a
+        # squeeze/unsqueeze reshape that Shardy materializes as
+        # collective_permute on 1D-mesh TP.
+        if token_ids.ndim == 1:
+            token_ids = token_ids.unsqueeze(-1)
         token_ids = _anchor(token_ids, (None, None))
         token_logprobs = logprobs.gather(-1, token_ids)
         token_logprobs = _anchor(token_logprobs, (None, None))
