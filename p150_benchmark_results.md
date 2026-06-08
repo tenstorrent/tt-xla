@@ -28,11 +28,19 @@
 | Model | Batch | Seq Len | Status | Time | TTFT (ms) | Decode TPS/req | Notes |
 |-------|-------|---------|--------|------|-----------|----------------|-------|
 | Llama-3.2-3B-Instruct | 8 | 16384 | PASS | 9:27 | 88,454 | 22.0 | |
-| Llama-3.2-3B-Instruct | 16 | 16384 | | | | | |
-| Llama-3.1-8B-Instruct | 8 | 16384 | | | | | |
-| Falcon3-7B-Base | 8 | 16384 | | | | | |
-| Qwen3-4B | 8 | 16384 | | | | | |
-| Qwen3-8B | 8 | 16384 | | | | | |
+| Llama-3.2-3B-Instruct | 16 | 16384 | **TRACE ERROR** | 3:47 | - | - | `from_device` on tensor[16, 16384] (262K tokens) — **same trigger as b32×s8k** (262K tokens). Trace fails by total-token-count threshold, not seq-length alone |
+| Llama-3.1-8B-Instruct | 8 | 16384 | **OOM** | 5:52 | - | - | 3.75 GB needed, 0.54 GB free/bank, 0.35 GB largest (fragmented) |
+| Falcon3-7B-Base | 8 | 16384 | **OOM** | 5:21 | - | - | 6.04 GB needed, 0.56 GB free/bank, 0.27 GB largest |
+| Qwen3-4B | 8 | 16384 | PASS | 15:12 | 148,769 | 17.1 | req 0 outlier (TTFT 77.8s, decode_tps 1.4); reqs 1-7 uniform |
+| Qwen3-8B | 8 | 16384 | **OOM** | 6:27 | - | - | 3.22 GB needed, 0.72 GB free/bank, 0.35 GB largest |
+
+## Results Matrix (8k seq len, batch=16, GMU=0.05)
+
+| Model | Batch | Seq Len | Status | Time | TTFT (ms) | Decode TPS/req | Notes |
+|-------|-------|---------|--------|------|-----------|----------------|-------|
+| Llama-3.1-8B-Instruct | 16 | 8192 | **OOM** | 8:05 | - | - | 3.76 GB needed, 1.01 GB free/bank (2× default), 0.40 GB largest — **fragmentation**, not capacity |
+| Falcon3-7B-Base | 16 | 8192 | **OOM** | 5:03 | - | - | 6.04 GB needed, 0.49 GB free/bank — **lower GMU didn't help Falcon** (vs 2× help for Llama-3.1-8B) |
+| Qwen3-8B | 16 | 8192 | **PASS** | 14:49 | 128,233 | 11.2 | **GMU=0.05 unlocked b16 for Qwen3-8B** (aggregate TPS 180 vs 112 at b8 — +60%) |
 
 ## Summary
 
@@ -57,14 +65,27 @@ The bottleneck is **prefill activation memory**, not KV cache. batch × seq_len 
 
 Kyle's upcoming "prefill simplification" changes (splitting prefill into smaller chunks) should fix this by reducing peak activation memory.
 
-## Batch=32 Trace Error (with enable_trace=True)
+## Trace Error Investigation (enable_trace=True + cpu_sampling=True)
 
-Even before OOM, batch=32 hits a compiler error with trace:
+The compiler emits `from_device` on the sampled-token tensor `[batch, seq]` uint32, which violates trace's "all outputs on device" rule. **Failure depends on total token count (batch × seq), not seq length alone.**
+
+| Config | b × s tokens | Trace |
+|---|---|---|
+| b8 × s16k | 131,072 | PASS |
+| b16 × s8k | 131,072 | PASS |
+| b32 × s4k | 131,072 | **PASS** |
+| b16 × s16k | 262,144 | **FAIL** (this session) |
+| b32 × s8k | 262,144 | **FAIL** (original) |
+
+Threshold sits somewhere in (131K, 262K). Mid-point bracket attempt b32 × s6k (= 196,608) hit a different error first (`paged_fill_cache` validation: `input_shape[2] <= effective_block_size * page_table_shape[1]`), so s=6144 max_model_len is likely page-size-misaligned — does not narrow the trace boundary.
+
+Error format:
 ```
 error: 'ttnn.capture_or_execute_trace' op All output tensors of trace function must be on device.
-%2 = "ttnn.from_device"(%1) : (tensor<32x8192xui32, ...>) -> tensor<32x8192xui32, ..., system_memory>
+%2 = "ttnn.from_device"(%1) : tensor<B×S×ui32> → ..., system_memory
 ```
-Kyle confirmed: "trace doesn't work with opt-level=1 and cpu_sampling=False anyways (a preferred combo) I care less right now"
+
+Kyle earlier note: "trace doesn't work with opt-level=1 and cpu_sampling=False anyways (a preferred combo) I care less right now" — but now seq-dependence (actually token-count-dependence) suggests this may be a compiler heuristic, not a hard incompatibility.
 
 ## Environment Notes
 - Board was hung from a prior crashed process; `tt-smi -r` fixed it
