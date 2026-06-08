@@ -248,8 +248,7 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
     // sharding info before comparing.
     const auto &sharding = output_sharding[output_index];
     const auto &shard_shape = sharding.getShardShape();
-    if (sharding.getShardType() ==
-            mlir::tt::ttcore::MeshShardType::Devices &&
+    if (sharding.getShardType() == mlir::tt::ttcore::MeshShardType::Devices &&
         shard_shape.size() == expected_shape.size()) {
       for (size_t dim = 0; dim < expected_shape.size(); ++dim) {
         if (shard_shape[dim] > 0) {
