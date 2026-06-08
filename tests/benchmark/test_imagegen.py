@@ -58,7 +58,8 @@ def test_imagegen(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running image-gen benchmark for model: {model_info_name}")
-    print(f"""Configuration:
+    print(
+        f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     prompt={prompt!r}
@@ -66,7 +67,8 @@ def test_imagegen(
     height={height}
     width={width}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """)
+    """
+    )
 
     results = benchmark_imagegen_torch_xla(
         build_pipeline_fn=build_pipeline_fn,
