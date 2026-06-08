@@ -19,7 +19,6 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
-from tt_torch.utils import torch_dynamo_tt_device_compatibility
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -1892,7 +1891,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         with (
-            torch_dynamo_tt_device_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_tokens], dtype=np.int32)
             ),
@@ -2058,8 +2056,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.enable_tensor_parallel:
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
 
-            with torch_dynamo_tt_device_compatibility():
-                self.select_hidden_states(dummy_hidden, indices)
+            self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2079,8 +2076,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel and self.is_sharded_compute_logits:
             safe_mark_sharding(dummy_hidden, self.mesh, (None, None))
 
-        with torch_dynamo_tt_device_compatibility():
-            self.compute_logits(dummy_hidden)
+        self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2109,13 +2105,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # mark_dynamic because some operations in structured_decode require
         # them to be static.
         bitmasks = self.structured_decode_bitmasks.to(self.device)
-        with torch_dynamo_tt_device_compatibility():
-            self.structured_decode(
-                dummy_require_struct_decoding,
-                dummy_grammar_bitmask,
-                dummy_logits,
-                bitmasks,
-            )
+        self.structured_decode(
+            dummy_require_struct_decoding,
+            dummy_grammar_bitmask,
+            dummy_logits,
+            bitmasks,
+        )
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2148,7 +2143,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             sampling_metadata.all_greedy = all_greedy
             with (
-                torch_dynamo_tt_device_compatibility(),
                 self.maybe_select_dummy_loras(
                     self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
                 ),
@@ -2182,7 +2176,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         with (
-            torch_dynamo_tt_device_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
             ),
