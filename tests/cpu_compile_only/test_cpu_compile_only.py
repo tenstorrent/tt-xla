@@ -78,10 +78,12 @@ def test_cpu_compile_only_per_arch(arch, tmp_path, monkeypatch):
     """CPU-only: compile a simple model against a checked-in `.ttsys` descriptor.
 
     No TT hardware required -- TT_COMPILE_ONLY_SYSTEM_DESC tells the plugin to
-    read the chip spec from a file instead of opening a real chip. The PJRT
-    client cannot be reconfigured once initialized (one client per process), so
-    each arch must run in its own process. This suite is therefore run with
-    --forked (see "forked": true on its nightly matrix entry).
+    read the chip spec from a file instead of opening a real chip.
+
+    This test suite is run with --forked (one process per arch).
+    The compile-only feature relies on torch_xla's singleton compilation cache,
+    which does not permit output folder relocation or reuse in-process, so
+    multiple archs are not able to be compiled in a single process.
 
     Compiled artifacts land in tmp_path/output and are auto-cleaned by pytest;
     they're disposable, the assertions are what prove the compile succeeded.
