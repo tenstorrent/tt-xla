@@ -96,7 +96,7 @@ def apply_xla_dynamo_guard_repr_patch() -> None:
             )
 
         ref = self.arg_ref(guard)
-        val = self.get(guard.name)
+        val = self.get(guard)
         id_val = self.id_ref(val, guard.name)
 
         # Generate safe string representation without materializing XLA tensors
