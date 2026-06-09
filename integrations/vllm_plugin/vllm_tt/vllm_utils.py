@@ -1,6 +1,8 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+from typing import Any
+
 from .logger import tt_init_logger
 from .vllm_distributed_utils import ParallelismMode
 
@@ -62,3 +64,53 @@ def determine_mesh_shape(
 def prev_power_of_2(n: int) -> int:
     """The previous power of 2 (inclusive)"""
     return 0 if n <= 0 else 1 << (n.bit_length() - 1)
+
+
+def apply_hidden_layer_override(
+    hf_config: Any,
+    target_num_layers: int,
+) -> tuple[int | None, int | None]:
+    """Apply decoder hidden-layer override for root or text sub-config.
+
+    Plain LM configs expose num_hidden_layers attribute on the root config,
+    while multimodal model configs uses text_config for num_hidden_layers.
+    This helper resolves the right config object and applies the override only
+    when 0 < target_num_layers < original_num_layers.
+
+    Returns:
+        A tuple (original_num_layers, target_num_layers) when an override
+        is applied; otherwise (None, None).
+    """
+    if target_num_layers == 0:
+        return None, None
+
+    if target_num_layers < 0:
+        logger.warning(
+            "Ignoring num_hidden_layers override: expected non-negative value, got %d.",
+            target_num_layers,
+        )
+        return None, None
+
+    if hasattr(hf_config, "num_hidden_layers"):
+        original_num_layers = hf_config.num_hidden_layers
+        decoder_cfg = hf_config
+    else:
+        text_cfg = getattr(hf_config, "text_config", None)
+        if text_cfg is None or not hasattr(text_cfg, "num_hidden_layers"):
+            raise AttributeError(
+                f"{type(hf_config).__name__} has no decoder num_hidden_layers "
+                "(expected on config or text_config)"
+            )
+        original_num_layers = text_cfg.num_hidden_layers
+        decoder_cfg = text_cfg
+
+    if target_num_layers < original_num_layers:
+        decoder_cfg.num_hidden_layers = target_num_layers
+        logger.info(
+            "Overriding num_hidden_layers from %d to %d for debugging and testing purposes.",
+            original_num_layers,
+            target_num_layers,
+        )
+        return original_num_layers, target_num_layers
+
+    return None, None

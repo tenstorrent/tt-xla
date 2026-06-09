@@ -168,11 +168,6 @@
         "runs-on": "n300-llmbox"
       },
       {
-        "name": "gpt_oss_20b_tp_d2m",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_d2m",
-        "runs-on": "n300-llmbox"
-      },
-      {
         "name": "gpt_oss_20b_tp_batch_size_1",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1",
         "runs-on": "n300-llmbox"
@@ -342,8 +337,18 @@
         "pytest": "tests/benchmark/test_encoders.py::test_unet_for_conditional_generation"
       },
       {
+        "name": "deepseek_v3_1_tp_galaxy_4_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_1_tp_galaxy_4_layers",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
         "name": "deepseek_v3_2_exp_tp_galaxy_2_layers",
         "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_2_exp_tp_galaxy_2_layers",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "glm_4_7_tp_galaxy_4_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_glm_4_7_tp_galaxy_4_layers",
         "runs-on": "galaxy-wh-6u"
       },
       {
