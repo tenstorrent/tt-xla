@@ -37,7 +37,7 @@ def filter_matrix_adv(matrix, adv_filter):
       - "runs-on": machine(s) on which the test should run. If ommited, condition will be applied to all unskipped machines. Parameter can be string or array of strings.
       - "filter": string that should be present in the test name.
       - "accuracy-testing": whether to include accuracy testing or not.
-      - "perf-prefill": match tests by their "perf-prefill" property. Tests marked "perf-prefill": true are the prefill perf sweep, run only weekly (not nightly). Set this to false in the nightly filter to exclude them, or true in the weekly filter to include only them. Tests default to "perf-prefill": false.
+      - "perf-prefill": wether to include perf prefill or not.
       - "skip": whether to skip tests matching the condition or not. If ommited, it is assumed to be true.
     """
     # Create initial structure with all runners marked as skip=True
