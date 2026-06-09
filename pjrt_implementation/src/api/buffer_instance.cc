@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -229,57 +230,72 @@ void BufferInstance::copyFromHost(
 
   tt::runtime::Tensor runtime_tensor;
 
-  // In distributed runtime, we always create owned host tensor because we
-  // cannot alias the host buffer.
+  // In distributed runtime, we defer host tensor materialization until
+  // prepareInputTensor and keep only shell metadata in PjrtTensor.
   //
-  // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
-  // we are not allowed to alias it directly, so we have to create owned host
-  // tensor which copies buffer data. In JAX this semantic is used only for
-  // copying scalars and numpy arrays, so the copy shouldn't take long. We can
-  // mark the event as ready since we don't need the original host buffer
-  // anymore.
-  //
-  // If the runtime data type which has been inferred from m_data_type is not
-  // supported by runtime/ttnn, then we must create an owned tensor as runtime
-  // must case the data inside the host buffer into a supported data type. Thus,
-  // the buffer cannot be borrowed.
-  if (::tt::runtime::getCurrentHostRuntime() ==
-          tt::runtime::HostRuntime::Distributed ||
+  // In non-distributed runtime:
+  // - For `ImmutableOnlyDuringCall` semantics we are not allowed to alias the
+  //   host buffer directly, so we create an owned host tensor which copies
+  //   buffer data. In JAX this semantic is used only for copying scalars and
+  //   numpy arrays, so the copy shouldn't take long.
+  // - For unsupported runtime dtypes, we must create an owned tensor as runtime
+  //   must cast the data into a supported data type; the buffer cannot be
+  //   borrowed.
+
+  bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
+                        tt::runtime::HostRuntime::Distributed;
+
+  bool cannot_borrow_host_buffer =
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type);
 
-    runtime_tensor = tt::runtime::createOwnedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
-
-    // Memory is copied, we don't need host buffer anymore.
-    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
-                                          tt_pjrt_status::kSuccess);
-  }
-  // Otherwise when input host buffer has other semantic we are allowed to alias
-  // it, so we can create borrowed host which doesn't copy any data and instead
-  // uses direct pointer to existing data. Since we are holding a pointer to the
-  // original data we can't mark the event as ready yet, so we remember it and
-  // mark it as ready once the buffer is destroyed.
-  else {
-    // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
-    // so we have to const cast here.
-    // https://github.com/tenstorrent/tt-metal/issues/20622
-    runtime_tensor = tt::runtime::createBorrowedHostTensor(
-        const_cast<void *>(host_buffer), shape, strides, element_size,
-        runtime_data_type);
-
-    // Memory is aliased, we need to hold on to host buffer until this buffer is
-    // deleted.
+  if (is_distributed) {
+    TT_ASSERT(host_buffer_semantics !=
+                  PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+              "In distributed mode we unsafely borrow data from host_buffer; "
+              "this is okay iff caller guarantees that host_buffer lifetime is "
+              "safe until execution.");
+    PjrtTensor::HostTensorShell host_tensor_shell = PjrtTensor::HostTensorShell{
+        host_buffer, shape, strides, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
-
-    // TODO(mrakita): This is a major hack that we currently have to do because
-    // XLA PJRT client destroys event immediately after it sets callback on it.
-    // https://github.com/openxla/xla/issues/25172
     m_done_with_host_buffer_event->setIndestructible();
-  }
+    PjrtTensor::from_host_tensor_shell({this}, std::move(host_tensor_shell));
+  } else {
+    if (cannot_borrow_host_buffer) {
+      runtime_tensor = tt::runtime::createOwnedHostTensor(
+          host_buffer, shape, strides, element_size, runtime_data_type);
+      // Memory is copied, we don't need host buffer anymore.
+      EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                            tt_pjrt_status::kSuccess);
+      PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+    }
 
-  PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
+    // Otherwise when input host buffer has other semantic we are allowed to
+    // alias it, so we can create borrowed host which doesn't copy any data and
+    // instead uses direct pointer to existing data. Since we are holding a
+    // pointer to the original data we can't mark the event as ready yet, so we
+    // remember it and mark it as ready once the buffer is destroyed.
+    else {
+      // TODO(mrakita): Metal doesn't have a read-only version of borrowed
+      // buffer so we have to const cast here.
+      // https://github.com/tenstorrent/tt-metal/issues/20622
+      runtime_tensor = tt::runtime::createBorrowedHostTensor(
+          const_cast<void *>(host_buffer), shape, strides, element_size,
+          runtime_data_type);
+
+      // Memory is aliased, we need to hold on to host buffer until this buffer
+      // is deleted.
+      m_done_with_host_buffer_event = done_with_host_buffer_event.get();
+
+      // TODO(mrakita): This is a major hack that we currently have to do
+      // because XLA PJRT client destroys event immediately after it sets
+      // callback on it. https://github.com/openxla/xla/issues/25172
+      m_done_with_host_buffer_event->setIndestructible();
+
+      PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+    }
+  }
 
   markAsDataReady();
 
