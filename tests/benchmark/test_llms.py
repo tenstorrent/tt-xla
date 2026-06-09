@@ -298,7 +298,7 @@ def test_llm_prefill(
         optimization_level: tt-mlir optimization level (0, 1, or 2).
         trace_enabled: Enable device trace.
         batch_size: Batch size (rows the prefill prompt is broadcast across).
-        loop_count: Number of benchmark iterations (must be 1).
+        loop_count: Number of timed prefill runs; <=1 uses DEFAULT_PREFILL_LOOP_COUNT.
         input_sequence_length: Input sequence length (number of prefill tokens).
         data_format: Data format (must be "bfloat16").
         task: Task type (must be "text-generation").
