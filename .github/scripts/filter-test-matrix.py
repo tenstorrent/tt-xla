@@ -108,9 +108,9 @@ def filter_matrix_adv(matrix, adv_filter):
                 "accuracy-testing"
             ] != item.get("accuracy-testing", False):
                 continue
-            if "perf-prefill" in conditions and conditions[
-                "perf-prefill"
-            ] != item.get("perf-prefill", False):
+            if "perf-prefill" in conditions and conditions["perf-prefill"] != item.get(
+                "perf-prefill", False
+            ):
                 continue
             filtered_matrix.append(item)
 

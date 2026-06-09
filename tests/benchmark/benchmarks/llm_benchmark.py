@@ -68,7 +68,9 @@ DEFAULT_INPUT_PROMPT = (
 MODULE_EXPORT_PATH = "modules"
 
 
-def load_prefill_input_tokens(tokenizer, num_tokens: int, vocab_size: int) -> torch.Tensor:
+def load_prefill_input_tokens(
+    tokenizer, num_tokens: int, vocab_size: int
+) -> torch.Tensor:
     """Build a 1D tensor of exactly `num_tokens` input tokens for the prefill benchmark.
 
     Uses real text from the Tale of Two Cities corpus, tokenized and truncated to
