@@ -1204,8 +1204,8 @@ def benchmark_llm_prefill_torch_xla(
         ia = transfer_to_device(ia, device)
         if is_multichip:
             _shard_kv_cache(ia["past_key_values"], mesh, kv_cache_sharding_spec)
-        if input_output_sharding_spec:
-            xs.mark_sharding(ia["input_ids"], mesh, input_output_sharding_spec)
+            if input_output_sharding_spec:
+                xs.mark_sharding(ia["input_ids"], mesh, input_output_sharding_spec)
         return ia
 
     input_args = _make_prefill_inputs_on_device()
@@ -1341,7 +1341,7 @@ def benchmark_llm_prefill_torch_xla(
         num_layers=num_layers,
         batch_size=batch_size,
         input_size=(input_sequence_length,),
-        loop_count=loop_count,
+        loop_count=prefill_perf_runs,
         data_format=data_format,
         total_time=prefill_total_time,
         total_samples=prefill_total_samples,
