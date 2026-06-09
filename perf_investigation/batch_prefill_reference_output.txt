@@ -1,0 +1,63 @@
+Reference output for the batched-prefill divergence repro
+(Llama-3.2-3B-Instruct, 32 identical prompts, greedy, max_tokens=1).
+
+==============================================================================
+Minimal snippet (additional_config={"fp32_dest_acc_en": False}) -- THE BUG
+==============================================================================
+row  0: token 720
+row  1: token 720
+row  2: token 720
+row  3: token 720
+row  4: token 320
+row  5: token 320
+row  6: token 320
+row  7: token 320
+row  8: token 320
+row  9: token 320
+row 10: token 320
+row 11: token 320
+row 12: token 320
+row 13: token 320
+row 14: token 320
+row 15: token 320
+row 16: token 320
+row 17: token 320
+row 18: token 320
+row 19: token 320
+row 20: token 320
+row 21: token 320
+row 22: token 320
+row 23: token 320
+row 24: token 320
+row 25: token 320
+row 26: token 320
+row 27: token 320
+row 28: token 320
+row 29: token 320
+row 30: token 320
+row 31: token 320
+unique tokens: 2
+
+  -> 32 identical prompts produce 2 distinct first tokens. Deterministic
+     (byte-identical across repeated runs). Here the batch splits into a
+     contiguous group [0..3] vs [4..31].
+
+==============================================================================
+Control: additional_config={"fp32_dest_acc_en": True} -- FIXED
+==============================================================================
+All 32 rows emit token 720.  unique tokens: 1
+
+==============================================================================
+Boundary index is prefill-shape dependent
+==============================================================================
+The split is always a contiguous batch-prefix grouping, but where it falls
+depends on the prefill shape (the program-config / core-grid the batched ops
+get). Same model/prompt/batch:
+
+  additional_config                                  first divergent row
+  {fp32_dest_acc_en: False}                          4   (group 0..3 vs 4..31)
+  {fp32_dest_acc_en: False, min_context_len: 32}     16  (group 0..15 vs 16..31)
+
+i.e. forcing a 32-token minimum prefill context moves the boundary to 16. This
+is consistent with the cause being the batch grouping of the runtime-selected
+program-config under bf16 destination accumulation, not a fixed magic number.

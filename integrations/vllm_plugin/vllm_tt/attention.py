@@ -177,6 +177,11 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    # Chunked-prefill prefix offset (tt-xla #4986): device [1] int32 tensor =
+    # num_computed (shared across users by the same-stage-batching invariant).
+    # Set only on a cached-prefix prefill chunk; consumed by the on-device
+    # chunked_scaled_dot_product_attention op (the no-gather path).
+    chunk_start_idx: torch.Tensor
 
     def __init__(
         self,
@@ -185,6 +190,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        chunk_start_idx: torch.Tensor | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +199,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.chunk_start_idx = chunk_start_idx
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -525,12 +532,39 @@ class TTAttentionBackendImpl(AttentionImpl):
         2. Pooling models: For the entire attention computation, as these models
            process all tokens in a single pass without a decode phase or KV cache.
         """
-        shared_kv_mode = (
-            self.kv_sharing_target_layer_name is not None
-            and isinstance(kv_cache, (list, tuple))
+        has_paged_cache = (
+            isinstance(kv_cache, (list, tuple))
             and len(kv_cache) >= 2
             and kv_cache[0].numel() > 0
         )
+        shared_kv_mode = (
+            self.kv_sharing_target_layer_name is not None and has_paged_cache
+        )
+        # Cached-prefix path (tt-xla #4986): a prefill chunk whose prefix is
+        # already in the paged cache attends over it on device via
+        # chunked_scaled_dot_product_attention (page_table + chunk_start_idx;
+        # causal mask + prefix offset handled inside the op — no host mask, no
+        # dense gather, trace-compatible). chunk_start_idx is set by the model
+        # runner only when chunking actually occurs AND the kernel supports the
+        # page-table layout (_chunked_sdpa_active); otherwise it stays None and
+        # we take the standard path. The trigger is Python-level, so it traces as
+        # a distinct graph from the fast path — no data-dependent control flow.
+        chunked_prefix = (
+            attn_metadata.chunk_start_idx is not None
+            and has_paged_cache
+            and not shared_kv_mode
+        )
+        if chunked_prefix:
+            chunked_out = torch.ops.tt.chunked_scaled_dot_product_attention(
+                inputs.query.transpose(-3, -2),  # [users, n_heads, chunk_len, head]
+                kv_cache[0],
+                kv_cache[1],
+                attn_metadata.page_table,
+                attn_metadata.chunk_start_idx,
+                scale=self.scale,
+            )
+            # Back to [users, tokens, num_heads, head_size].
+            return chunked_out.transpose(-3, -2)
 
         if shared_kv_mode:
             # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]

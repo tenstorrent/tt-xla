@@ -30,6 +30,9 @@ from utils import resolve_display_name, sanitize_model_name
 _BENCH_TEMPERATURE = float(os.environ.get("TT_BENCHMARK_TEMPERATURE", "0.0"))
 _BENCH_CPU_SAMPLING = os.environ.get("TT_BENCHMARK_CPU_SAMPLING", "0") == "1"
 _BENCH_MAX_MODEL_LEN = int(os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN", "128"))
+_BENCH_MAX_NUM_BATCHED_TOKENS = os.environ.get("TT_BENCHMARK_MAX_NUM_BATCHED_TOKENS")
+# Opt in to chunked prefill (tt-xla #4986): set the chunk size. Unset = off.
+_BENCH_PREFILL_CHUNK_SIZE = os.environ.get("TT_BENCHMARK_PREFILL_CHUNK_SIZE")
 _BENCH_KV_CACHE_DTYPE = os.environ.get("TT_BENCHMARK_KV_CACHE_DTYPE", "")
 _BENCH_OPTIMIZATION_LEVEL = os.environ.get("_BENCH_OPTIMIZATION_LEVEL")
 _BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
@@ -37,6 +40,7 @@ _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 _BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
 _BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
 _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
+_BENCH_FP32_DEST_ACC = os.environ.get("TT_BENCHMARK_FP32_DEST_ACC")
 
 
 def _config(
@@ -77,10 +81,19 @@ def _config(
         additional["weight_dtype_overrides"] = _BENCH_WEIGHT_OVERRIDES
     if _BENCH_TRACE is not None:
         additional["enable_trace"] = _BENCH_TRACE == "1"
+    if _BENCH_FP32_DEST_ACC is not None:
+        additional["fp32_dest_acc_en"] = _BENCH_FP32_DEST_ACC == "1"
+    if _BENCH_PREFILL_CHUNK_SIZE is not None:
+        additional["prefill_chunk_size"] = int(_BENCH_PREFILL_CHUNK_SIZE)
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
         max_model_len=_BENCH_MAX_MODEL_LEN,
+        max_num_batched_tokens=(
+            int(_BENCH_MAX_NUM_BATCHED_TOKENS)
+            if _BENCH_MAX_NUM_BATCHED_TOKENS is not None
+            else None
+        ),
         gpu_memory_utilization=gpu_memory_utilization,
         temperature=_BENCH_TEMPERATURE,
         additional_config=additional,
