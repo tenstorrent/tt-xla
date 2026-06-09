@@ -335,6 +335,13 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
         ("FusedMoE", partition_fused_moe),
         ("TTFusedMoE", partition_fused_moe),
+        # Models with shared experts (e.g. DeepSeek-V2) instantiate
+        # SharedFusedMoE, replaced OOT by TTSharedFusedMoE. These stack expert
+        # weights the same way (w13_weight / w2_weight), so they shard along the
+        # expert dim identically. Without these entries the expert weights stay
+        # replicated on every device and OOM the chip.
+        ("SharedFusedMoE", partition_fused_moe),
+        ("TTSharedFusedMoE", partition_fused_moe),
     ]
 )
 

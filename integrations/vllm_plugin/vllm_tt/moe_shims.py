@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+from vllm.model_executor.layers.fused_moe.shared_fused_moe import SharedFusedMoE
 
 
 @CustomOp.register_oot(name="FusedMoE")
@@ -92,6 +93,29 @@ class TTFusedMoE(FusedMoE):
         else:
             out_flat = tt_dense_experts_forward(self, h_flat, topk_ids, topk_weights)
         return out_flat.view(orig_shape)
+
+
+@CustomOp.register_oot(name="SharedFusedMoE")
+class TTSharedFusedMoE(SharedFusedMoE, TTFusedMoE):
+    """OOT SharedFusedMoE for models with shared experts (e.g. DeepSeek-V2).
+
+    ``SharedFusedMoE`` is a distinct class from ``FusedMoE``, so the
+    ``TTFusedMoE`` OOT registration (keyed by class name) doesn't cover it and
+    the routed experts would fall back to vLLM's ``moe_forward_shared`` custom
+    op, which doesn't functionalize on XLA. We register this subclass so the
+    routed path uses ``TTFusedMoE.forward_native`` (dense bmm) instead.
+
+    We also force the non-overlapped path (``use_overlapped = False``): the
+    overlapped path fuses the shared experts into the routed custom op and
+    expects ``super().forward()`` to return a ``(shared, fused)`` tuple, but our
+    ``forward_native`` returns only the routed output. With overlap disabled the
+    shared experts run as a plain MLP and the routed experts go through our
+    dense-bmm ``forward_native``.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_overlapped = False
 
 
 def _move_stale_closure_tensors_to_device(model: torch.nn.Module) -> None:

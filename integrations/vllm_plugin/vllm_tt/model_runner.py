@@ -246,7 +246,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         parallel_config = self.parallel_config
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
-        self.use_flat_model_io = self.tt_config.flat_model_io
+        # MLA models (e.g. DeepSeek-V2) use vLLM-native forwards whose MoE
+        # blocks unpack a flat ``(num_tokens, hidden)`` tensor
+        # (``num_tokens, hidden_dim = hidden_states.shape``), so the model must
+        # be called with a flat token stream rather than the default
+        # ``(batch, seq, hidden)`` layout.
+        self.use_flat_model_io = self.tt_config.flat_model_io or bool(
+            getattr(model_config, "use_mla", False)
+        )
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
@@ -1761,6 +1768,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def load_model(self) -> None:
         logger.info("CALLING LOAD MODEL")
         self.device = self.device_config.device
+
+        # Importing moe_shims runs the @CustomOp.register_oot decorators that
+        # substitute FusedMoE / SharedFusedMoE with their TT variants. This must
+        # happen *before* the model is built below, since the OOT replacement is
+        # resolved at module instantiation time (CustomOp.__new__). The later
+        # install_moe_shims() call only repairs routing closures post-load.
+        from . import moe_shims  # noqa: F401
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
         # process, the ranks can be different from the ranks internally assigned

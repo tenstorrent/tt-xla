@@ -355,9 +355,15 @@ class TTPlatform(Platform):
             )
             vllm_config.scheduler_config.enable_chunked_prefill = False
             vllm_config.scheduler_config.chunked_prefill_enabled = False
+            # With chunked prefill disabled a full prompt must fit in a single
+            # batch, so max_num_batched_tokens must be at least max_model_len.
+            # Preserve the user-configured value (only raising it when needed)
+            # rather than forcing it up to DEFAULT_MAX_NUM_BATCHED_TOKENS, which
+            # would inflate padded prefill/sampling shapes and can OOM the device
+            # for small-context runs.
             vllm_config.scheduler_config.max_num_batched_tokens = max(
+                vllm_config.scheduler_config.max_num_batched_tokens,
                 vllm_config.model_config.max_model_len,
-                vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
 
     @classmethod
