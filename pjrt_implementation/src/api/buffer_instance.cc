@@ -246,7 +246,7 @@ void BufferInstance::copyFromHost(
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape =
       calculateShape(dims, num_dims, m_data_type);
-  std::vector<std::int64_t> strides =
+  std::vector<std::int64_t> strides_int64 =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
   // A buffer is treated as contiguous if it is a complex dtype (its `shape`
@@ -285,6 +285,9 @@ void BufferInstance::copyFromHost(
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type) ||
       !is_contiguous;
 
+  std::vector<std::uint32_t> strides_uint32(strides_int64.begin(),
+                                            strides_int64.end());
+
   if (is_distributed) {
     TT_ASSERT(host_buffer_semantics !=
                   PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
@@ -292,14 +295,14 @@ void BufferInstance::copyFromHost(
               "this is okay iff caller guarantees that host_buffer lifetime is "
               "safe until execution.");
     PjrtTensor::HostTensorShell host_tensor_shell = PjrtTensor::HostTensorShell{
-        host_buffer, shape, strides, element_size, runtime_data_type};
+        host_buffer, shape, strides_uint32, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
     m_done_with_host_buffer_event->setIndestructible();
     PjrtTensor::from_host_tensor_shell({this}, std::move(host_tensor_shell));
   } else {
     if (cannot_borrow_host_buffer) {
       runtime_tensor = tt::runtime::createOwnedHostTensor(
-          host_buffer, shape, strides, element_size, runtime_data_type);
+          host_buffer, shape, strides_uint32, element_size, runtime_data_type);
       // Memory is copied, we don't need host buffer anymore.
       EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                             tt_pjrt_status::kSuccess);
@@ -316,7 +319,7 @@ void BufferInstance::copyFromHost(
       // buffer so we have to const cast here.
       // https://github.com/tenstorrent/tt-metal/issues/20622
       runtime_tensor = tt::runtime::createBorrowedHostTensor(
-          const_cast<void *>(host_buffer), shape, strides, element_size,
+          const_cast<void *>(host_buffer), shape, strides_uint32, element_size,
           runtime_data_type);
 
       // Memory is aliased, we need to hold on to host buffer until this buffer
@@ -352,11 +355,14 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   std::vector<std::uint32_t> shape = calculateShape(
       src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions(),
       src_buffer->getDataType());
-  std::vector<std::int64_t> strides = calculateStrides(
+  std::vector<std::int64_t> strides_int64_2 = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
+  std::vector<std::uint32_t> strides_uint32_2(strides_int64_2.begin(),
+                                              strides_int64_2.end());
 
   tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
-      /* data= */ nullptr, shape, strides, element_size, runtime_data_type);
+      /* data= */ nullptr, shape, strides_uint32_2, element_size,
+      runtime_data_type);
 
   src_buffer->getPjrtTensor()->move_to_host();
   tt::runtime::memcpy(runtime_tensor, src_buffer->runtimeTensor());
