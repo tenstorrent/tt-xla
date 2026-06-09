@@ -435,6 +435,23 @@ def benchmark_llm_torch_xla(
 
         cpu_output_logits = cpu_prefill_logits + cpu_decode_logits
 
+    # Preprocess fused MoE decode weights on CPU before device transfer (so the
+    # transform runs on the full expert weights without replicating them
+    # on-device) and before sharding (so the new fused_w0_w1/fused_w2 params can
+    # be sharded by shard_spec_fn). Without these, ttir.moe_gpt_decode binds
+    # zero-filled placeholder weights instead of the real expert weights.
+    from tt_torch import TT_MOE_GPT_BACKEND_NAME, preprocess_tt_moe_gpt_fused_weights
+
+    if is_multichip and experts_implementation == TT_MOE_GPT_BACKEND_NAME:
+        _moe_gpt_mesh_shape, _ = mesh_config_fn(
+            model_loader, xr.global_runtime_device_count()
+        )
+        preprocess_tt_moe_gpt_fused_weights(model, mesh_shape=_moe_gpt_mesh_shape)
+        print(
+            f"[tt_moe_gpt-diag] preprocessed fused weights mesh_shape="
+            f"{_moe_gpt_mesh_shape}"
+        )
+
     # Transfer model to device
     model = model.to(device, dtype=torch.bfloat16)
 
@@ -451,6 +468,26 @@ def benchmark_llm_torch_xla(
         if hasattr(model, "lm_head") and model.lm_head is not None:
             hook = sharding_constraint_hook(model.lm_head, mesh, (None, None, None))
             model.lm_head.register_forward_hook(hook)
+
+    # The tt_moe_gpt experts backend fuses decode (S==1) through the
+    # moe_gpt_decode composite and falls back to the dense path for prefill.
+    # The HF ExpertsInterface forward only sees flattened [T, H] tokens (T=B*S),
+    # so stamp the global batch size + mesh shape as module-level globals (read
+    # by the experts forward under torch.compile, where get_global_mesh() is
+    # None): with S==1 the token count T == batch -> moe_gpt_decode composite.
+    # No forward is replaced, so the HF interface stays intact.
+    from tt_torch import TT_MOE_GPT_BACKEND_NAME, register_tt_moe_gpt_decode_hooks
+
+    if experts_implementation == TT_MOE_GPT_BACKEND_NAME:
+        mesh_shape = (
+            tuple(int(d) for d in mesh.mesh_shape) if mesh is not None else None
+        )
+        register_tt_moe_gpt_decode_hooks(
+            model, batch_size=batch_size, mesh_shape=mesh_shape
+        )
+        print(
+            f"[tt_moe_gpt-diag] stamped batch_size={batch_size} mesh_shape={mesh_shape}"
+        )
 
     # Set XLA compilation options
     num_layers_override = getattr(model_loader, "num_layers", None)

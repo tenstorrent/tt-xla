@@ -1965,6 +1965,57 @@ def _moe_throughput_galaxy_shard_spec_fn(model_loader, model):
     return shard_specs
 
 
+def _moe_gpt_galaxy_shard_spec_fn(model_loader, model):
+    """Sharding specs for the tt_moe_gpt fused-decode backend on a 4x8 galaxy mesh.
+    TP - 8 : DP - 4 : EP - 32.
+    Same as _moe_throughput_galaxy_shard_spec_fn, but the experts are
+    compound-sharded across BOTH mesh axes (EP - 32): the expert dimension
+    carries ("batch", "model") so each of the 32 devices owns a unique expert
+    slab. This matches the moe_gpt_decode composite's expert-parallel layout
+    (see build_expert_mapping_linearized) and the moe_gpt sharding rule, which
+    divides the global expert count by the compound EP factor.
+    """
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+    shard_specs[model.lm_head.weight] = (None, None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", None)
+        shard_specs[layer.self_attn.o_proj.weight] = (None, "model")
+        shard_specs[layer.self_attn.sinks] = ("model",)
+        shard_specs[layer.mlp.router.weight] = (None, None)
+        # EP - 32: compound-shard the expert dimension across both mesh axes.
+        shard_specs[layer.mlp.experts.gate_up_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.gate_up_proj_bias] = (("batch", "model"), None)
+        shard_specs[layer.mlp.experts.down_proj] = (("batch", "model"), None, None)
+        shard_specs[layer.mlp.experts.down_proj_bias] = (("batch", "model"), None)
+        # Preprocessed 6D fused decode kernel weights (stamped by
+        # preprocess_tt_moe_gpt_fused_weights before this runs). Shape
+        # (ring*12, cols, E_local, 4|2, K|N+32, 128): shard dim 0 on the ring
+        # (batch) axis and dim 1 on the model axis -> per-device
+        # [12, 1, E_local, 4|2, K|N+32, 128], the layout the kernel expects.
+        experts = layer.mlp.experts
+        if hasattr(experts, "fused_w0_w1") and hasattr(experts, "fused_w2"):
+            shard_specs[experts.fused_w0_w1] = (
+                "batch",
+                "model",
+                None,
+                None,
+                None,
+                None,
+            )
+            shard_specs[experts.fused_w2] = ("batch", "model", None, None, None, None)
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+    return shard_specs
+
+
 def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     output_file,
     num_layers,
@@ -1975,7 +2026,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     decode_only,
     optimization_level,
 ):
-    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+    from tt_torch import TT_MOE_GPT_BACKEND_NAME
 
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
@@ -1995,12 +2046,16 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         batch_size=128,
         optimization_level=1,
         mesh_config_fn=_galaxy_mesh_config_fn,
-        shard_spec_fn=_moe_throughput_galaxy_shard_spec_fn,
+        shard_spec_fn=_moe_gpt_galaxy_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
-        trace_enabled=True,
+        # TODO: trace requires all ops on device, but the moe decode path needs a
+        # host untilize (tt-mlir always untilizes tile->row_major on host) to feed
+        # the dispatch/moe_gpt kernels their row-major uint16 indices. Disable
+        # trace until that host round-trip is removed (device untilize).
+        trace_enabled=False,
         experimental_kv_cache_dtype=None,
-        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+        experts_implementation=TT_MOE_GPT_BACKEND_NAME,
     )
 
 

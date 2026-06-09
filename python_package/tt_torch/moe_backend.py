@@ -29,7 +29,59 @@ from . import custom_ops  # noqa: F401
 
 TT_MOE_BACKEND_NAME = "tt_moe"
 TT_DENSE_EXPERTS_BACKEND_NAME = "tt_dense"
+TT_MOE_GPT_BACKEND_NAME = "tt_moe_gpt"
 REDUCTION_SIZE = 32
+
+# Global batch size used by the experts-level tt_moe_gpt forward to tell decode
+# (S==1) from prefill (S>1). The HF ExpertsInterface forward only receives
+# flattened [T, H] tokens (T=B*S), so it cannot see S directly; with S==1 the
+# token count T == batch. It is stored as a MODULE-LEVEL GLOBAL (not an
+# nn.Module instance attribute) because torch.compile/Dynamo does not resolve
+# arbitrary instance attributes during tracing, but does read module globals as
+# guarded constants — so ``T == _tt_moe_gpt_decode_batch`` is a clean
+# compile-time-constant branch. Set once before compile by
+# register_tt_moe_gpt_decode_hooks.
+_tt_moe_gpt_decode_batch: Optional[int] = None
+_TT_MOE_GPT_BATCH_ATTR = "_tt_moe_gpt_batch"
+
+# Buffer names for the dispatch/moe_gpt expert mappings, registered on each
+# experts module at setup so they enter the graph as replicated parameters
+# (not inline const-eval constants). See register_tt_moe_gpt_decode_hooks.
+_TT_DISPATCH_MAPPING_ATTR = "_tt_dispatch_mapping"
+_TT_MOE_GPT_MAPPING_ATTR = "_tt_moe_gpt_mapping"
+
+# Parameter names for the preprocessed 6D fused kernel weights, stamped on each
+# experts module before device transfer (CPU preprocessing) and sharded with a
+# 6D ("batch","model",...) spec. See preprocess_tt_moe_gpt_fused_weights.
+_TT_FUSED_W0_W1_ATTR = "fused_w0_w1"
+_TT_FUSED_W2_ATTR = "fused_w2"
+
+# The SPMD mesh shape/cluster_axis, also stored as module-level globals set once
+# before compile. ``get_global_mesh()`` returns None during the torch.compile
+# trace of the experts forward, so the live mesh must be captured at setup time
+# and read here as Dynamo-readable constants.
+_tt_moe_gpt_mesh_shape: Optional[Tuple[int, ...]] = None
+_tt_moe_gpt_cluster_axis: Optional[int] = None
+
+
+def _tt_moe_gpt_mesh_info() -> Tuple[int, int, Tuple[int, ...], int]:
+    """Mesh info for the tt_moe_gpt forward, preferring the globals stashed at
+    setup over ``get_global_mesh()`` (which is None under torch.compile)."""
+    mesh_shape = _tt_moe_gpt_mesh_shape
+    if mesh_shape is not None and len(mesh_shape) >= 1:
+        total = 1
+        for d in mesh_shape:
+            total *= int(d)
+        axis = _tt_moe_gpt_cluster_axis
+        if axis is None:
+            axis = next(
+                (i for i, d in enumerate(mesh_shape) if int(d) > 1),
+                0,
+            )
+        dispatch = int(mesh_shape[axis]) if 0 <= axis < len(mesh_shape) else 1
+        return total, dispatch, tuple(int(d) for d in mesh_shape), int(axis)
+    return _mesh_info()
+
 
 # HF built-in backend keys — patched validator falls through for these.
 _HF_BUILTIN_EXPERTS_KEYS = frozenset({"eager", "grouped_mm", "batched_mm", "deepgemm"})
@@ -488,6 +540,542 @@ def tt_dense_experts_forward(
     return weighted.sum(dim=0).to(dtype)
 
 
+# ---------------------------------------------------------------------------
+# GPT-OSS fused decode backend (tt_moe_gpt).
+#
+# Emits the ``tenstorrent.moe_gpt_decode`` StableHLO composite — whose body is
+# the all_to_all_dispatch_metadata -> moe_gpt -> selective_reduce_combine chain
+# — which tt-MLIR legalizes to ``ttir.moe_gpt_decode``. Decode-only (S==1);
+# prefill (S>1) falls back to the dense backend. The HF ExpertsInterface
+# contract is preserved: the router still runs as plain HF ops, so this backend
+# never uses tt.topk_router_gpt.
+# ---------------------------------------------------------------------------
+
+
+def build_expert_mapping_linearized(
+    num_experts: int,
+    num_mesh_devices: int,
+    mesh_shape: Tuple[int, int],
+    cluster_axis: int,
+) -> torch.Tensor:
+    """Build the ``[1, 1, D_total, E]`` linearized expert-to-device mapping.
+
+    Matches tt-metal's ``gen_expert_mapping`` for the fused decode path: every
+    mesh device holds an identical copy of the mapping (a broadcast of a single
+    row), and ``mapping[0, 0, d, e]`` stores the linearized global device id
+    (``row_id * mesh_cols + col_id``) that owns expert ``e``.
+
+    ``cluster_axis`` selects which mesh axis is the dispatch ring:
+      - 0: ring runs down rows; each column holds a distinct expert group.
+      - 1: ring runs across columns; experts distributed as ``e // E_per_dev``.
+
+    The last dim is ``num_experts`` and ``shape[2]`` (``D_total``) is the full
+    mesh device count — tt-MLIR's ``ttir.moe_gpt_decode`` verifier requires
+    ``D_total`` to be a positive multiple of ``num_devices`` (the ring size).
+    """
+    assert (
+        num_experts % num_mesh_devices == 0
+    ), f"num_experts ({num_experts}) must be divisible by num_mesh_devices ({num_mesh_devices})"
+    rows, cols = mesh_shape
+    assert (
+        rows * cols == num_mesh_devices
+    ), f"mesh_shape {mesh_shape} does not match num_mesh_devices {num_mesh_devices}"
+    assert cluster_axis in (0, 1), f"cluster_axis must be 0 or 1, got {cluster_axis}"
+
+    experts_per_device = num_experts // num_mesh_devices
+    num_replicated_devices = cols if cluster_axis == 0 else rows
+    experts_per_cluster = num_experts // num_replicated_devices
+
+    # Build the per-expert device id as a plain python list so the tensor is a
+    # single traced constant (no in-graph scatter).
+    row = []
+    for e in range(num_experts):
+        if cluster_axis == 0:
+            cluster_id = e // experts_per_cluster
+            within = e % experts_per_cluster
+            dev_in_cluster = within // experts_per_device
+            linear = dev_in_cluster * num_replicated_devices + cluster_id
+        else:
+            linear = e // experts_per_device
+        row.append(linear)
+
+    # The dispatch / moe_gpt kernels read the mapping as uint16 (the tilize
+    # reader casts the buffer to uint16_t*). Emit it as uint16 from the start so
+    # no si32->u16 typecast is inserted on the way into the kernels: that
+    # typecast would tilize the mapping and then host-untilize + to_device it,
+    # reloading the (ROW_MAJOR) mapping as TILE and tripping the runtime layout
+    # check. Device ids fit in uint16 (mesh size << 65536).
+    mapping = torch.tensor(row, dtype=torch.int64).view(1, 1, 1, num_experts)
+    return (
+        mapping.expand(1, 1, num_mesh_devices, num_experts)
+        .contiguous()
+        .to(torch.uint16)
+    )
+
+
+def _moe_gpt_decode_fallback(
+    hidden_states: torch.Tensor,
+    topk_indices: torch.Tensor,
+    topk_scores: torch.Tensor,
+    dispatch_mapping: torch.Tensor,
+    moe_gpt_mapping: torch.Tensor,
+    gate_up_proj: torch.Tensor,
+    gate_up_proj_bias: torch.Tensor,
+    down_proj: torch.Tensor,
+    down_proj_bias: torch.Tensor,
+    num_devices: int,
+    cluster_axis: int,
+    num_experts_per_tok: int,
+    fused_w0_w1: Optional[torch.Tensor] = None,
+    fused_w2: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
+    """Decode-only GPT-OSS decomposition expressed with the SHLO custom ops.
+
+    Expects 4D inputs: hidden_states ``[B, 1, S, H]``, topk_indices/scores
+    ``[B, 1, S, K]``. Returns the unweighted combine output ``[K, S, B, H]``
+    (output_shard_dim=2); the weighted sum is applied by the caller.
+
+    When ``fused_w0_w1`` / ``fused_w2`` (preprocessed 6D kernel weights) are
+    supplied, ``moe_gpt`` consumes those directly; otherwise the tt-MLIR
+    decomposition substitutes zero placeholders for the fused weights.
+    """
+    dispatched, metadata_indices, metadata_scores = (
+        torch.ops.tt.all_to_all_dispatch_metadata(
+            hidden_states,
+            topk_indices,
+            topk_scores,
+            dispatch_mapping,
+            num_devices=num_devices,
+            cluster_axis=cluster_axis,
+        )
+    )
+
+    # Mirror tt-metal's fused decode sequence:
+    # dispatch_metadata -> moe_gpt(metadata bundle) -> selective_reduce_combine.
+    moe_gpt_outputs = torch.ops.tt.moe_gpt(
+        dispatched,
+        metadata_indices,
+        metadata_scores,
+        moe_gpt_mapping,
+        gate_up_proj,
+        gate_up_proj_bias,
+        down_proj,
+        down_proj_bias,
+        num_experts_per_tok=num_experts_per_tok,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+        fused_w0_w1=fused_w0_w1,
+        fused_w2=fused_w2,
+    )
+
+    combined = torch.ops.tt.selective_reduce_combine(
+        moe_gpt_outputs[4],
+        moe_gpt_outputs[1],
+        moe_gpt_outputs[2],
+        moe_gpt_outputs[0],
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+        num_experts_per_tok=num_experts_per_tok,
+        output_shard_dim=2,
+    )
+    return combined
+
+
+def _composite_moe_gpt_decode(
+    hidden_states: torch.Tensor,
+    topk_indices: torch.Tensor,
+    topk_scores: torch.Tensor,
+    dispatch_mapping: torch.Tensor,
+    moe_gpt_mapping: torch.Tensor,
+    gate_up_proj: torch.Tensor,
+    gate_up_proj_bias: torch.Tensor,
+    down_proj: torch.Tensor,
+    down_proj_bias: torch.Tensor,
+    num_devices: int,
+    cluster_axis: int,
+    num_experts: int,
+    num_experts_per_tok: int,
+    intermediate_size: int,
+    alpha: float,
+    limit: float,
+    fused_w0_w1: torch.Tensor,
+    fused_w2: torch.Tensor,
+) -> torch.Tensor:
+    """Wrap the GPT-OSS decode expert flow into a ``tenstorrent.moe_gpt_decode``
+    StableHLO composite. tt-MLIR legalizes the composite to a placeholder
+    ``ttir.moe_gpt_decode`` op, while the embedded decomposition exposes the
+    constituent custom calls for sharding propagation.
+
+    The preprocessed 6D ``fused_w0_w1`` / ``fused_w2`` kernel weights are marked
+    as the trailing two composite operands (operands 9, 10) so the composite
+    re-forms with 11 operands and ``ttir.moe_gpt_decode`` binds the real fused
+    weights instead of zero placeholders.
+    """
+    from torch_xla.experimental.mark_pattern_utils import StableHLOCompositeBuilder
+
+    builder = StableHLOCompositeBuilder(
+        name="tenstorrent.moe_gpt_decode",
+        attr={
+            "num_devices": num_devices,
+            "cluster_axis": cluster_axis,
+            "num_experts": num_experts,
+            "num_experts_per_tok": num_experts_per_tok,
+            "intermediate_size": intermediate_size,
+            "alpha": alpha,
+            "limit": limit,
+        },
+    )
+
+    (
+        hidden_states,
+        topk_indices,
+        topk_scores,
+        dispatch_mapping,
+        moe_gpt_mapping,
+        gate_up_proj,
+        gate_up_proj_bias,
+        down_proj,
+        down_proj_bias,
+        fused_w0_w1,
+        fused_w2,
+    ) = builder.mark_inputs(
+        hidden_states,
+        topk_indices,
+        topk_scores,
+        dispatch_mapping,
+        moe_gpt_mapping,
+        gate_up_proj,
+        gate_up_proj_bias,
+        down_proj,
+        down_proj_bias,
+        fused_w0_w1,
+        fused_w2,
+    )
+
+    output = _moe_gpt_decode_fallback(
+        hidden_states=hidden_states,
+        topk_indices=topk_indices,
+        topk_scores=topk_scores,
+        dispatch_mapping=dispatch_mapping,
+        moe_gpt_mapping=moe_gpt_mapping,
+        gate_up_proj=gate_up_proj,
+        gate_up_proj_bias=gate_up_proj_bias,
+        down_proj=down_proj,
+        down_proj_bias=down_proj_bias,
+        num_devices=num_devices,
+        cluster_axis=cluster_axis,
+        num_experts_per_tok=num_experts_per_tok,
+        fused_w0_w1=fused_w0_w1,
+        fused_w2=fused_w2,
+    )
+    return builder.mark_outputs(output)
+
+
+def _tt_moe_gpt_decode_forward(
+    self: torch.nn.Module,
+    hidden_states: torch.Tensor,
+    top_k_index: torch.Tensor,
+    top_k_weights: torch.Tensor,
+    total_devices: int,
+    dispatch_devices: int,
+    mesh_shape: Tuple[int, ...],
+    cluster_axis: int,
+) -> torch.Tensor:
+    """GPT-OSS fused decode (S==1) via the moe_gpt_decode composite.
+
+    ``hidden_states`` arrives flattened as ``[T, H]`` with T == B (S==1), and
+    ``top_k_index`` / ``top_k_weights`` as ``[T, K]``. We frame each token as a
+    batch element with S=1, build the linearized expert mapping from the live
+    SPMD mesh, emit the composite, then apply the top-k weighted sum.
+    """
+    if not (hasattr(self, "gate_up_proj") and hasattr(self, "down_proj")):
+        raise RuntimeError(
+            f"{TT_MOE_GPT_BACKEND_NAME} requires fused gate_up_proj/down_proj "
+            f"experts; got {type(self).__name__}."
+        )
+
+    T, H = hidden_states.shape
+    K = top_k_index.shape[-1]
+    E = int(self.num_experts)
+    dtype = hidden_states.dtype
+    device = hidden_states.device
+
+    if len(mesh_shape) != 2:
+        raise RuntimeError(
+            f"{TT_MOE_GPT_BACKEND_NAME} expects a 2D mesh (rows, cols), got "
+            f"mesh_shape={mesh_shape}."
+        )
+
+    # Prefer the replicated mapping buffers stashed on the experts module at
+    # setup. As registered buffers they enter the graph as parameters (runtime
+    # inputs), so the moe_gpt op's mapping reshape/to_layout are not const-eval
+    # candidates (inline-constant mappings get hoisted into L1 and fail
+    # ConstEvalHoistTransform). They are also two DISTINCT operands, so
+    # ReoutlineComposite keeps the full 9-operand composite (no dedup). Fall back
+    # to inline builds only if the hooks were not registered.
+    if hasattr(self, _TT_DISPATCH_MAPPING_ATTR) and hasattr(
+        self, _TT_MOE_GPT_MAPPING_ATTR
+    ):
+        dispatch_mapping = getattr(self, _TT_DISPATCH_MAPPING_ATTR)
+        moe_gpt_mapping = getattr(self, _TT_MOE_GPT_MAPPING_ATTR)
+    else:
+        dispatch_mapping = build_expert_mapping_linearized(
+            E, total_devices, (int(mesh_shape[0]), int(mesh_shape[1])), cluster_axis
+        ).to(device)
+        moe_gpt_mapping = build_expert_mapping_linearized(
+            E, total_devices, (int(mesh_shape[0]), int(mesh_shape[1])), cluster_axis
+        ).to(device)
+
+    # Preprocessed 6D fused kernel weights, stashed on the experts module at
+    # setup. Without them ``ttir.moe_gpt_decode`` binds zero-filled placeholder
+    # weights (see TTIRToTTIRDecomposition), so they are mandatory for decode.
+    if not (hasattr(self, _TT_FUSED_W0_W1_ATTR) and hasattr(self, _TT_FUSED_W2_ATTR)):
+        raise RuntimeError(
+            f"{TT_MOE_GPT_BACKEND_NAME} decode requires preprocessed fused "
+            f"weights ('{_TT_FUSED_W0_W1_ATTR}'/'{_TT_FUSED_W2_ATTR}') on the "
+            f"experts module; call preprocess_tt_moe_gpt_fused_weights(model, "
+            f"...) before torch.compile."
+        )
+    fused_w0_w1 = getattr(self, _TT_FUSED_W0_W1_ATTR)
+    fused_w2 = getattr(self, _TT_FUSED_W2_ATTR)
+
+    # Frame tokens as [B, 1, S, H] with B=T, S=1 (decode).
+    hidden_4d = hidden_states.view(T, 1, 1, H)
+    indices_4d = top_k_index.view(T, 1, 1, K)
+    scores_4d = top_k_weights.to(dtype).view(T, 1, 1, K)
+
+    intermediate_size = int(self.down_proj.shape[1])
+    alpha = float(getattr(self, "alpha", 1.702))
+    limit = float(getattr(self, "limit", 7.0))
+
+    combined = _composite_moe_gpt_decode(
+        hidden_states=hidden_4d,
+        topk_indices=indices_4d,
+        topk_scores=scores_4d,
+        dispatch_mapping=dispatch_mapping,
+        moe_gpt_mapping=moe_gpt_mapping,
+        gate_up_proj=self.gate_up_proj,
+        gate_up_proj_bias=self.gate_up_proj_bias,
+        down_proj=self.down_proj,
+        down_proj_bias=self.down_proj_bias,
+        num_devices=dispatch_devices,
+        cluster_axis=cluster_axis,
+        num_experts=E,
+        num_experts_per_tok=K,
+        intermediate_size=intermediate_size,
+        alpha=alpha,
+        limit=limit,
+        fused_w0_w1=fused_w0_w1,
+        fused_w2=fused_w2,
+    )  # combined: [K, S=1, B=T, H]
+
+    # Top-k weighted sum (done outside the composite so batch-sharded weights
+    # are not pulled into the dispatch-replicated composite body).
+    weights_k = top_k_weights.permute(1, 0).view(K, T, 1).to(combined.dtype)
+    output = (combined.squeeze(1) * weights_k).sum(dim=0)  # [T, H]
+    return output.to(dtype)
+
+
+def _tt_moe_gpt_is_decode(self: torch.nn.Module, hidden_states: torch.Tensor) -> bool:
+    """Decode (S==1) ⇔ flattened token count equals the global batch size.
+
+    Reads the batch size from the module-level global (Dynamo-readable) so the
+    comparison is a compile-time-constant branch under torch.compile. Falls back
+    to the per-module attribute for eager execution.
+    """
+    batch = _tt_moe_gpt_decode_batch
+    if batch is None:
+        batch = getattr(self, _TT_MOE_GPT_BATCH_ATTR, None)
+    return batch is not None and int(hidden_states.shape[0]) == int(batch)
+
+
+def tt_moe_gpt_experts_forward(
+    self: torch.nn.Module,
+    hidden_states: torch.Tensor,
+    top_k_index: torch.Tensor,
+    top_k_weights: torch.Tensor,
+) -> torch.Tensor:
+    """GPT-OSS experts backend that fuses decode through ``moe_gpt_decode``.
+
+    Routing decision:
+      - CPU tensors -> HF ``batched_mm`` reference.
+      - prefill (S>1) or no SPMD mesh -> dense ``tt_dense`` fallback.
+      - decode (S==1) on a multi-chip mesh -> moe_gpt_decode composite.
+
+    Decode is detected from the token count: with S==1 the flattened token axis
+    T == batch size, which is stamped on the module before compile (see
+    ``register_tt_moe_gpt_decode_hooks``). When the batch size is unknown we
+    conservatively fall back to the dense path so the HF interface still works.
+    """
+    if hidden_states.device.type == "cpu":
+        return ALL_EXPERTS_FUNCTIONS["batched_mm"](
+            self, hidden_states, top_k_index, top_k_weights
+        )
+
+    total_devices, dispatch_devices, mesh_shape, cluster_axis = _tt_moe_gpt_mesh_info()
+    is_decode = _tt_moe_gpt_is_decode(self, hidden_states)
+
+    if (
+        is_decode
+        and total_devices > 1
+        and dispatch_devices > 1
+        and len(mesh_shape) == 2
+    ):
+        return _tt_moe_gpt_decode_forward(
+            self,
+            hidden_states,
+            top_k_index,
+            top_k_weights,
+            total_devices,
+            dispatch_devices,
+            mesh_shape,
+            cluster_axis,
+        )
+
+    # Prefill (S>1), single device, or unknown batch size: dense fallback.
+    return tt_dense_experts_forward(self, hidden_states, top_k_index, top_k_weights)
+
+
+def preprocess_tt_moe_gpt_fused_weights(
+    model: nn.Module,
+    mesh_shape: Optional[Tuple[int, ...]] = None,
+    cluster_axis: Optional[int] = None,
+) -> list:
+    """Preprocess each experts module's weights into the 6D fused decode kernel
+    layout and stamp them as ``fused_w0_w1`` / ``fused_w2`` parameters.
+
+    ``ttir.moe_gpt_decode`` binds these preprocessed weights directly; without
+    them the tt-MLIR decomposition substitutes zero-filled placeholders, so the
+    kernel computes on zero weights.
+
+    MUST be called:
+      - BEFORE ``model.to(device)`` — the transform runs on the full (global)
+        expert weights, so doing it on CPU avoids replicating them on-device.
+      - BEFORE ``shard_spec_fn`` — so the new parameters exist and can be sharded
+        with a 6D ``("batch","model",None,None,None,None)`` spec.
+
+    Returns the list of experts modules that were stamped.
+    """
+    from .fused_moe_weights import preprocess_fused_moe_weights
+
+    if mesh_shape is None or len(mesh_shape) != 2:
+        return []
+    mesh_shape = (int(mesh_shape[0]), int(mesh_shape[1]))
+    num_devices = mesh_shape[0] * mesh_shape[1]
+    if cluster_axis is None:
+        cluster_axis = next((i for i, d in enumerate(mesh_shape) if int(d) > 1), 0)
+
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if layers is None:
+        return []
+
+    stamped = []
+    for layer in layers:
+        mlp = getattr(layer, "mlp", None)
+        experts = getattr(mlp, "experts", None) if mlp is not None else None
+        if experts is None or not hasattr(experts, "gate_up_proj"):
+            continue
+        E = int(getattr(experts, "num_experts", experts.gate_up_proj.shape[0]))
+        fused_w0_w1, fused_w2 = preprocess_fused_moe_weights(
+            gate_up_proj=experts.gate_up_proj.data,
+            gate_up_proj_bias=experts.gate_up_proj_bias.data,
+            down_proj=experts.down_proj.data,
+            down_proj_bias=experts.down_proj_bias.data,
+            num_experts=E,
+            num_devices=num_devices,
+            cluster_axis=int(cluster_axis),
+            mesh_shape=mesh_shape,
+        )
+        setattr(
+            experts,
+            _TT_FUSED_W0_W1_ATTR,
+            nn.Parameter(fused_w0_w1, requires_grad=False),
+        )
+        setattr(experts, _TT_FUSED_W2_ATTR, nn.Parameter(fused_w2, requires_grad=False))
+        stamped.append(experts)
+    return stamped
+
+
+def register_tt_moe_gpt_decode_hooks(
+    model: nn.Module,
+    batch_size: Optional[int] = None,
+    mesh_shape: Optional[Tuple[int, ...]] = None,
+    cluster_axis: Optional[int] = None,
+) -> list:
+    """Prepare GPT-OSS MoE modules so ``tt_moe_gpt`` can detect + run the decode step.
+
+    The HF ExpertsInterface forward only receives flattened ``[T, H]`` tokens
+    (T=B*S), so it cannot tell decode (S==1) from prefill (S>1) on its own. We
+    stamp the global ``batch_size`` as an immutable constant on each experts
+    submodule: since S==1 makes T==batch, the experts forward detects decode
+    with a compile-time-constant comparison that survives torch.compile/Dynamo.
+
+    The ``mesh_shape``/``cluster_axis`` are captured too, because
+    ``get_global_mesh()`` returns None during the torch.compile trace of the
+    experts forward. All three are stored as module-level globals (read by the
+    experts forward under torch.compile) and the batch is also stamped on each
+    experts module (eager fallback). Set ONCE before compile (no per-forward
+    mutation, no forward replacement), so the HF interface stays intact. Returns
+    the list of experts modules that were stamped.
+    """
+    global _tt_moe_gpt_decode_batch, _tt_moe_gpt_mesh_shape, _tt_moe_gpt_cluster_axis
+    if mesh_shape is not None:
+        _tt_moe_gpt_mesh_shape = tuple(int(d) for d in mesh_shape)
+    _tt_moe_gpt_cluster_axis = cluster_axis
+
+    if batch_size is None:
+        return []
+    _tt_moe_gpt_decode_batch = int(batch_size)
+
+    layers = getattr(getattr(model, "model", None), "layers", None)
+    if layers is None:
+        return []
+
+    # Resolve the dispatch (cluster) axis + device count the same way the forward
+    # does, so the stashed mapping buffers match what the moe_gpt op expects.
+    have_mesh = mesh_shape is not None and len(mesh_shape) == 2
+    resolved_axis = cluster_axis
+    if resolved_axis is None and have_mesh:
+        resolved_axis = next((i for i, d in enumerate(mesh_shape) if int(d) > 1), 0)
+    total_devices = 1
+    if have_mesh:
+        for d in mesh_shape:
+            total_devices *= int(d)
+
+    stamped = []
+    for layer in layers:
+        mlp = getattr(layer, "mlp", None)
+        experts = getattr(mlp, "experts", None) if mlp is not None else None
+        if experts is None:
+            continue
+        setattr(experts, _TT_MOE_GPT_BATCH_ATTR, int(batch_size))
+        # Stash the dispatch/moe_gpt expert mappings as two DISTINCT replicated
+        # buffers (graph parameters), not inline constants. As parameters they
+        # become runtime inputs, so the moe_gpt op's mapping reshape/to_layout
+        # are NOT const-eval candidates (inline-constant mappings get hoisted by
+        # ConstEvalHoistTransform, land in L1, and fail the const-eval check).
+        # Two separate buffers also keep them as distinct composite operands so
+        # ReoutlineComposite does not dedup them into an 8-operand composite.
+        if have_mesh and hasattr(experts, "gate_up_proj"):
+            E = int(getattr(experts, "num_experts", experts.gate_up_proj.shape[0]))
+            dev = experts.gate_up_proj.device
+            ms = (int(mesh_shape[0]), int(mesh_shape[1]))
+            dispatch_map = build_expert_mapping_linearized(
+                E, total_devices, ms, int(resolved_axis)
+            ).to(dev)
+            moe_gpt_map = build_expert_mapping_linearized(
+                E, total_devices, ms, int(resolved_axis)
+            ).to(dev)
+            experts.register_buffer(
+                _TT_DISPATCH_MAPPING_ATTR, dispatch_map, persistent=False
+            )
+            experts.register_buffer(
+                _TT_MOE_GPT_MAPPING_ATTR, moe_gpt_map, persistent=False
+            )
+        stamped.append(experts)
+    return stamped
+
+
 _original_validator: Optional[Callable] = None
 
 
@@ -502,6 +1090,9 @@ def register_tt_moe_backend(cluster_axis: Optional[int] = None) -> None:
     ExpertsInterface.register(TT_DENSE_EXPERTS_BACKEND_NAME, tt_dense_experts_forward)
     if TT_DENSE_EXPERTS_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
         raise RuntimeError(f"{TT_DENSE_EXPERTS_BACKEND_NAME} registration failed")
+    ExpertsInterface.register(TT_MOE_GPT_BACKEND_NAME, tt_moe_gpt_experts_forward)
+    if TT_MOE_GPT_BACKEND_NAME not in ALL_EXPERTS_FUNCTIONS:
+        raise RuntimeError(f"{TT_MOE_GPT_BACKEND_NAME} registration failed")
 
     if _original_validator is not None:
         return  # already patched
