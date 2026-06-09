@@ -84,7 +84,7 @@ jobs:
 
     container:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
-      options: --device /dev/tenstorrent
+      options: ${{ (matrix.build.runs-on-original == 'cpu' || matrix.build.runs-on == 'cpu') && ' ' || '--device /dev/tenstorrent' }}
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
