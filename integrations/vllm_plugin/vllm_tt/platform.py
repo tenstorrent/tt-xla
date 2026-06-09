@@ -53,6 +53,16 @@ class TTConfig:
     batch_size: int = 1
     enable_precompile_all: bool = True
 
+    # Per-step prefill chunk size (caps max_num_batched_tokens). 0 (default)
+    # disables chunked prefill — it is opt-in. When set, long prompts are split
+    # into chunks of at most this many tokens, bounding engine-init compile time
+    # and peak prefill DRAM by the chunk size rather than max_model_len (non-MLA
+    # generative path; see tt-xla #4986).
+    # KNOWN LIMITATION: at max_num_seqs > 1 output may be inconsistent across
+    # requests (pre-existing batched-prefill precision issue, fp32_dest_acc_en /
+    # tt-mlir #8666); unaffected at max_num_seqs == 1. Tracked separately.
+    prefill_chunk_size: int = 0
+
     # Flag to enable data parallel execution of a model. It will require
     # - max_num_seqs > 1
     # Only supported for pooling/embedding models.
@@ -371,6 +381,35 @@ class TTPlatform(Platform):
                 vllm_config.model_config.max_model_len,
                 vllm_config.scheduler_config.DEFAULT_MAX_NUM_BATCHED_TOKENS,
             )
+        elif model_config is not None and model_config.runner_type != "pooling":
+            # Non-MLA generative: chunked prefill is opt-in via prefill_chunk_size
+            # (default 0 = off). When set, cap the per-step budget at it (min, so a
+            # smaller user max_num_batched_tokens still wins; floored at one
+            # block / decode step). See prefill_chunk_size above + tt-xla #4986.
+            #
+            # NOTE: `chunked_prefill_enabled` is not a vLLM SchedulerConfig field;
+            # it is a TT-internal flag the AscendScheduler and TTModelRunner read.
+            # We set it alongside the real vLLM `enable_chunked_prefill`.
+            chunk_size = int(additional_config.get("prefill_chunk_size", 0))
+            if chunk_size > 0:
+                floor = max(cache_config.block_size, scheduler_config.max_num_seqs)
+                budget = max(
+                    min(scheduler_config.max_num_batched_tokens, chunk_size), floor
+                )
+                if budget != scheduler_config.max_num_batched_tokens:
+                    logger.info(
+                        "[TT] Chunked prefill: capping max_num_batched_tokens "
+                        "%d -> %d (prefill_chunk_size=%d) to bound prefill "
+                        "compile time and DRAM.",
+                        scheduler_config.max_num_batched_tokens,
+                        budget,
+                        chunk_size,
+                    )
+                scheduler_config.enable_chunked_prefill = True
+                scheduler_config.chunked_prefill_enabled = True
+                scheduler_config.max_num_batched_tokens = budget
+                scheduler_config.max_num_encoder_input_tokens = budget
+                scheduler_config.encoder_cache_size = budget
 
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:
