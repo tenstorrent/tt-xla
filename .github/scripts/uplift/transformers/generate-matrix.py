@@ -46,7 +46,7 @@ TEMPLATES = [
         "runs-on": "p150",
         "framework": "torch",
         "test-mark": "p150 and inference and expected_passing",
-        "parallel-groups": 3,
+        "parallel-groups": 1,  # TEMP: single test only — bump back to 3 when full set returns
         "forked": True,
     },
 ]
