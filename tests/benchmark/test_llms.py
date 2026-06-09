@@ -2701,7 +2701,7 @@ def test_glm_4_7_tp_galaxy_4_layers(
         num_layers=4 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
-        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        batch_size=128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=1,
