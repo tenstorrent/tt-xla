@@ -984,16 +984,16 @@ def benchmark_llm_prefill_torch_xla(
     Args:
         model_loader: Model loader instance for loading the LLM
         model_variant: Specific variant/version of the model to benchmark
-        optimization_level: tt-mlir optimization level for compilation
-        batch_size: Batch size for text generation
         task: Task type
         data_format: Data precision format
+        batch_size: Batch size for text generation
         input_sequence_length: Length of the prefill prompt (number of tokens processed)
         loop_count: Number of timed prefill runs (-lp); <=1 uses DEFAULT_PREFILL_LOOP_COUNT
+        optimization_level: tt-mlir optimization level for compilation
         experimental_weight_dtype: Weight dtype for block format conversion (e.g. "bfp_bf8", "bfp_bf4", or "" for none)
         experimental_enable_permute_matmul_fusion: Whether to enable permute matmul fusion optimization
-        ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         read_logits_fn: Callback function to extract logits from model output
+        ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         required_pcc: Required PCC threshold for validation
 
     Returns:
