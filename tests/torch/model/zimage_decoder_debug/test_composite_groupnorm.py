@@ -15,6 +15,14 @@ Replaces ``up_blocks[3].resnets[0].norm2`` with explicit ``composite_group_norm`
 3. ``test_composite_vae_decoder_full_passes`` — full decoder; only norm2 composite.
 4. ``test_composite_vae_decoder_all_groupnorm_passes`` — full decoder; all GroupNorms composite.
 
+Phase 2B — new OOM when all GroupNorms are composite (same stage as Phase 1)
+-----------------------------------------------------------------------------
+``test_composite_vae_decoder_all_groupnorm_passes`` FAILs with ``ttnn::transpose`` →
+``ttnn::mean`` allocating ~1.89 GiB at the **same layer** as the old subtract OOM:
+``up_blocks[3].resnets[0].norm2`` (GroupNorm 32, 128 @ 1280×720).  Phase 2A (norm2-only
+composite) avoids the 3.77 GiB subtract for that layer but full decoder still needs all
+GNs composite; see ``test_composite_bisect.py`` and ``zimage_logs/composite_bisect_*.log``.
+
 Run full decoder (all GroupNorms composite) on TT device:
   pytest tests/torch/model/zimage_decoder_debug/test_composite_groupnorm.py::test_composite_vae_decoder_all_groupnorm_passes -svv \\
     2>&1 | tee zimage_logs/vae_decoder_all_composite_gn.log

@@ -435,6 +435,14 @@ def build_norm2_only(decoder: torch.nn.Module) -> torch.nn.Module:
     return GroupNormOnlyWrapper(norm2)
 
 
+def build_composite_norm1_only(decoder: torch.nn.Module) -> torch.nn.Module:
+    """Isolated norm1 via ``composite_group_norm`` @ 1280×720 (256 ch)."""
+    norm1 = decoder.up_blocks[UP_BLOCK_NORM_BISECT_INDEX].resnets[
+        RESNET_NORM_BISECT_INDEX
+    ].norm1
+    return CompositeGroupNormOnlyWrapper(norm1)
+
+
 def build_composite_norm2_only(decoder: torch.nn.Module) -> torch.nn.Module:
     """Isolated norm2 via ``composite_group_norm`` @ 1280×720."""
     norm2 = decoder.up_blocks[UP_BLOCK_NORM_BISECT_INDEX].resnets[
@@ -523,6 +531,47 @@ def build_vae_decoder_composite_norm2(vae: torch.nn.Module) -> torch.nn.Module:
 def build_vae_decoder_all_composite_groupnorm(vae: torch.nn.Module) -> torch.nn.Module:
     """Full ``VAEDecoderWrapper`` with every decoder GroupNorm swapped to composite."""
     return _build_vae_decoder_with_composite_groupnorm(vae, all_groupnorms=True)
+
+
+def build_decoder_prefix_composite(
+    decoder: torch.nn.Module,
+    num_up_blocks: int,
+    *,
+    include_head: bool = False,
+) -> torch.nn.Module:
+    """Prefix through ``num_up_blocks`` with all decoder GroupNorms composite."""
+    patch_decoder_all_groupnorms_composite(decoder)
+    return DecoderPrefixWrapper(
+        decoder, num_up_blocks=num_up_blocks, include_head=include_head
+    )
+
+
+def build_isolated_up_block_composite(
+    decoder: torch.nn.Module, block_index: int
+) -> torch.nn.Module:
+    """Single ``up_blocks[i]`` with all decoder GroupNorms composite."""
+    patch_decoder_all_groupnorms_composite(decoder)
+    return ModuleWrapper(decoder.up_blocks[block_index])
+
+
+def build_decoder_head_composite(decoder: torch.nn.Module) -> torch.nn.Module:
+    """Decoder head only with all decoder GroupNorms composite."""
+    patch_decoder_all_groupnorms_composite(decoder)
+    return DecoderHeadWrapper(decoder)
+
+
+# Phase 2B — composite GN mean/transpose OOM @ 1280×720 (all-decoder composite path).
+#
+# Same layer as Phase 1 decomposed-subtract OOM:
+#   decoder.up_blocks[3].resnets[0].norm2  — GroupNorm(32, 128)
+#
+# Phase 1 (old): ttnn::subtract ~3.77 GiB when GN is decomposed (opt0).
+# Phase 2B (new): ttnn::transpose → ttnn::mean ~1.89 GiB when every decoder GN uses
+# composite_group_norm (tenstorrent.group_norm).  Bisect pin: d3b stop "norm2"
+# (conv1 PASS, norm2 FAIL).  Isolated norm2 alone PASS; chain context required.
+#
+# 1_887_436_800 B = 32 groups × 16 tile-padded ch × 921_600 spatial × 4 B (f32).
+COMPOSITE_GN_MEAN_OOM_BYTES = 1_887_436_800
 
 
 def norm2_isolated_input_key() -> str:
