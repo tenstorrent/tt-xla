@@ -301,10 +301,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.sliding_window = model_config.get_sliding_window()
         self.block_size = cache_config.block_size
         self.max_model_len = model_config.max_model_len
-        assert (
-            self.max_model_len * scheduler_config.max_num_seqs
-            <= scheduler_config.max_num_batched_tokens
-        ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
+        # Chunked prefill (tt-xla #4986): the budget need only hold one chunk
+        # (+ one token per running seq for decode); the legacy single-shot path
+        # still requires it to cover the whole prompt.
+        if getattr(scheduler_config, "chunked_prefill_enabled", False):
+            assert scheduler_config.max_num_batched_tokens >= max(
+                self.block_size, scheduler_config.max_num_seqs
+            ), (
+                f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} "
+                f"must be >= max(block_size={self.block_size}, "
+                f"max_num_seqs={scheduler_config.max_num_seqs}) for chunked prefill"
+            )
+        else:
+            assert (
+                self.max_model_len * scheduler_config.max_num_seqs
+                <= scheduler_config.max_num_batched_tokens
+            ), f"The max_num_batched_tokens {scheduler_config.max_num_batched_tokens} must be larger than or equal to max_model_len ({self.max_model_len}) * max_num_seqs ({scheduler_config.max_num_seqs})"
         self.most_model_len = envs.VLLM_TPU_MOST_MODEL_LEN
         self.max_num_blocks_per_req = cdiv(self.max_model_len, self.block_size)
         self.num_blocks_per_most_len_req = (
@@ -321,11 +333,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             self.tt_config.min_context_len = scheduler_config.max_num_batched_tokens
 
+        # Per-step prefill budget: caps the precompile token buckets + prefill
+        # activation (compile time / DRAM) instead of max_model_len. KV-cache and
+        # page-table buffers below stay at max_model_len (KV spans full context).
+        self.prefill_chunk_budget = min(
+            scheduler_config.max_num_batched_tokens, self.max_model_len
+        )
+
         # Compute token padding sizes needed to align inputs to supported context
-        # lengths, from the minimum context length up to the model's maximum length.
+        # lengths, from the minimum context length up to the per-step chunk budget.
         self.num_tokens_paddings = _get_token_paddings(
             min_token_size=self.tt_config.min_context_len,
-            max_token_size=self.max_model_len,
+            max_token_size=self.prefill_chunk_budget,
         )
         if self.tt_config.decode_only:
             # Restrict all num_tokens bucketing to the decode shape so every
@@ -963,6 +982,41 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         return slot_mapping_metadata
 
+    def _build_prefix_chunk_mask(
+        self,
+        num_computed: np.ndarray,
+        num_scheduled: np.ndarray,
+        users_dim: int,
+        query_len: int,
+        kv_len: int,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        """Build the [users_dim, 1, query_len, kv_len] additive attention mask
+        for a cached-prefix prefill chunk (tt-xla #4986).
+
+        For user ``u`` with ``p0 = num_computed[u]`` cached prefix tokens and
+        ``n = num_scheduled[u]`` new chunk tokens, query row ``r`` (absolute
+        position ``p0 + r``) may attend to key columns ``c <= p0 + r`` and only
+        for ``r < n`` (rows beyond the chunk are padding). Allowed entries are
+        ``0``; blocked entries are ``-inf``. Built on CPU (outside the compiled
+        graph); the shape is constant per (query_len) bucket since kv_len is
+        max_model_len, so it does not induce recompilation.
+        """
+        neg_inf = torch.finfo(dtype).min
+        mask = torch.full((users_dim, 1, query_len, kv_len), neg_inf, dtype=dtype)
+        rows = torch.arange(query_len).view(query_len, 1)  # [L, 1]
+        cols = torch.arange(kv_len).view(1, kv_len)  # [1, S]
+        zero = torch.zeros((), dtype=dtype)
+        neg = torch.full((), neg_inf, dtype=dtype)
+        for u in range(len(num_scheduled)):
+            p0 = int(num_computed[u])
+            n = int(num_scheduled[u])
+            if n <= 0:
+                continue
+            allowed = (rows < n) & (cols <= (p0 + rows))  # [L, S] bool
+            mask[u, 0] = torch.where(allowed, zero, neg)
+        return mask
+
     def _prepare_inputs(self, scheduler_output: "SchedulerOutput", start_index: int):
         assert scheduler_output.total_num_scheduled_tokens > 0
         num_reqs = self.input_batch.num_reqs
@@ -1184,6 +1238,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
+        # Cached-prefix attention mask (tt-xla #4986): only a prefill chunk
+        # (L > 1) with a cached prefix (num_computed > 0) needs the masked-SDPA
+        # path; decode (L == 1) and first-chunk prefill keep attn_mask=None (fast
+        # path). See _build_prefix_chunk_mask for the mask semantics.
+        num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
+            np.any(num_computed_for_reqs > 0)
+        )
+        attn_mask = None
+        if prefix_chunk_step:
+            users_dim = page_table_dev.shape[0]
+            s_len = page_table_dev.shape[1] * self.block_size
+            attn_mask = self._build_prefix_chunk_mask(
+                num_computed=num_computed_for_reqs,
+                num_scheduled=num_scheduled_tokens_per_req,
+                users_dim=users_dim,
+                query_len=padded_total_num_scheduled_tokens,
+                kv_len=s_len,
+                dtype=self._hidden_states_dtype,
+            ).to(self.device)
+
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
             padded_num_scheduled_tokens_per_req = np.copy(
@@ -1199,7 +1274,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
-            attn_mask=None,
+            attn_mask=attn_mask,
             fill_page_table=fill_page_table,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
@@ -1886,7 +1961,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         model_loader.load_weights(self.model, model_config=self.model_config)
 
     @torch.no_grad()
-    def _dummy_run(self, num_tokens: int, num_reqs: int, num_blocks: int) -> None:
+    def _dummy_run(
+        self,
+        num_tokens: int,
+        num_reqs: int,
+        num_blocks: int,
+        prefix_chunk: bool = False,
+    ) -> None:
         # Start with token ids so _get_model_inputs runs embed_input_ids and the
         # XLA graph structure matches the real execution path.
         input_ids = torch.zeros((self.max_num_reqs, num_tokens), dtype=torch.int32).to(
@@ -1901,11 +1982,34 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
+        # prefix_chunk=True precompiles the cached-prefix prefill attention graph
+        # (a chunk whose prefix is already in the paged cache): a non-None
+        # attn_mask routes attention through the gather + masked-SDPA path. The
+        # mask shape [num_reqs, 1, num_tokens, S] (S = num_blocks * block_size =
+        # max_model_len) matches what _prepare_inputs builds at runtime, so the
+        # graph is cached and no recompilation happens on the first ≥2nd chunk.
+        attn_mask = None
+        fill_page_table = None
+        if prefix_chunk:
+            s_len = num_blocks * self.block_size
+            attn_mask = torch.zeros(
+                (num_reqs, 1, num_tokens, s_len),
+                dtype=self._hidden_states_dtype,
+            ).to(self.device)
+            # At runtime a continuation chunk uses a *distinct* fill_page_table
+            # (the page table rolled by whole prefix blocks); pass a separate
+            # tensor here so the traced graph has the same input arity (else an
+            # extra graph compiles at runtime — recompilation).
+            fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
+                self.device
+            )
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
             is_causal=True,
-            attn_mask=None,
+            attn_mask=attn_mask,
+            fill_page_table=fill_page_table,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2036,20 +2140,37 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _precompile_backbone(self) -> None:
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
-        for num_tokens in self.num_tokens_paddings:
-            logger.info("  -- num_tokens: %d", num_tokens)
+        chunked = getattr(self.scheduler_config, "chunked_prefill_enabled", False)
+
+        def _run_backbone_dummies(num_tokens: int, prefix_chunk: bool) -> None:
+            # Compile the max-model-len shape, and the optional "most" shape, for
+            # both num_reqs/num_blocks variants. prefix_chunk=True compiles the
+            # cached-prefix attention graph (see _dummy_run).
             self._dummy_run(
-                num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
+                num_tokens,
+                self.num_reqs_max_model_len,
+                self.max_num_blocks_per_req,
+                prefix_chunk=prefix_chunk,
             )
-            # Sync per token count so prefill and decode graphs stay separate.
             torch_xla.sync()
             if self.most_model_len is not None:
                 self._dummy_run(
                     num_tokens,
                     self.num_reqs_most_model_len,
                     self.num_blocks_per_most_len_req,
+                    prefix_chunk=prefix_chunk,
                 )
                 torch_xla.sync()
+
+        for num_tokens in self.num_tokens_paddings:
+            logger.info("  -- num_tokens: %d", num_tokens)
+            # Sync per token count so prefill and decode graphs stay separate.
+            _run_backbone_dummies(num_tokens, prefix_chunk=False)
+            # Precompile the cached-prefix prefill attention graph for prompt
+            # chunks (num_tokens > 1) so it is not compiled at runtime on the
+            # first continuation chunk (tt-xla #4986).
+            if chunked and num_tokens > 1:
+                _run_backbone_dummies(num_tokens, prefix_chunk=True)
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
