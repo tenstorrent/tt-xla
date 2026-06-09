@@ -16,8 +16,6 @@ Regenerate a descriptor by running save_system_desc.py on the target hardware.
 """
 
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -26,6 +24,11 @@ import torch.nn as nn
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from tt_torch import parse_compiled_artifacts_from_cache_to_disk
+
+# One arch per checked-in descriptor. Each descriptor is generated on real
+# hardware via save_system_desc.py and committed to system_descs/.
+# Add a new arch here once its descriptor is committed.
+ARCHS_WITH_SYSTEM_DESC = ["n150", "n300", "n300-llmbox", "p150"]
 
 
 class SimpleModel(nn.Module):
@@ -68,44 +71,30 @@ def _assert_compiled_artifacts(output_dir: Path, label: str = ""):
 @pytest.mark.nightly
 @pytest.mark.cpu
 @pytest.mark.parametrize(
-    # One arch per checked-in descriptor. Each descriptor is generated on real
-    # hardware via save_system_desc.py and committed to system_descs/. Add a new
-    # arch here once its descriptor is committed.
     "arch",
-    ["n150", "n300", "n300-llmbox", "p150"],
+    ARCHS_WITH_SYSTEM_DESC,
 )
-def test_cpu_compile_only_per_arch(arch, tmp_path):
+def test_cpu_compile_only_per_arch(arch, tmp_path, monkeypatch):
     """CPU-only: compile a simple model against a checked-in `.ttsys` descriptor.
 
     No TT hardware required -- TT_COMPILE_ONLY_SYSTEM_DESC tells the plugin to
-    read the chip spec from a file instead of opening a real chip. Runs the
-    compile step in a subprocess because the PJRT client cannot be reconfigured
-    once initialized (one client per process).
+    read the chip spec from a file instead of opening a real chip. The PJRT
+    client cannot be reconfigured once initialized (one client per process), so
+    each arch must run in its own process. This suite is therefore run with
+    --forked (see "forked": true on its nightly matrix entry).
 
     Compiled artifacts land in tmp_path/output and are auto-cleaned by pytest;
     they're disposable, the assertions are what prove the compile succeeded.
     """
+
     # Checked-in `<arch>_system_desc.ttsys` descriptors live in system_descs/.
     system_desc_dir = Path(__file__).resolve().parent / "system_descs"
     system_desc_path = system_desc_dir / f"{arch}_system_desc.ttsys"
     assert system_desc_path.exists(), f"missing system descriptor: {system_desc_path}"
 
-    script = str(Path(__file__).resolve())
-    subprocess.run(
-        [sys.executable, script, "compile", str(system_desc_path)],
-        cwd=tmp_path,
-        check=True,
-    )
+    # Compile writes cache/ and output/ relative to cwd; keep them in tmp_path.
+    monkeypatch.chdir(tmp_path)
+
+    _cpu_compile_only(str(system_desc_path))
 
     _assert_compiled_artifacts(tmp_path / "output", label=arch)
-
-
-if __name__ == "__main__":
-    # Entry point for the compile subprocess spawned by the test itself. The
-    # PJRT client can't be reconfigured once initialized, so each compile runs
-    # in a fresh process. To save a descriptor instead, use save_system_desc.py.
-    if len(sys.argv) == 3 and sys.argv[1] == "compile":
-        _cpu_compile_only(sys.argv[2])
-    else:
-        print(f"Usage: {sys.argv[0]} compile <system_desc_path>")
-        sys.exit(1)
