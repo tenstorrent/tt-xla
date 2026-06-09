@@ -268,12 +268,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.num_xla_graphs = 0
         self._update_num_xla_graphs("init")
-        # Flag for the first inference step: XLA SPMD may compile one extra graph on
-        # the first prefill because the backbone sees real input tensors (from
-        # _prepare_inputs) instead of the torch.zeros used during precompile warm-up.
-        # We accept those graphs on the first step and enforce strict no-recompilation
-        # from the second step onwards.
-        self._first_inference_done = False
+        # Recompilation warm-up tracking. XLA SPMD compiles a real-input graph the
+        # first time each distinct input shape is executed (the torch.zeros dummies
+        # used during precompile only warm the compiler; the real-input graph still
+        # compiles on first real use). For single-shot prefill that is one shape on
+        # the first step. For chunked prefill (#4986) it is several shapes — one per
+        # chunk-size (num_tokens) bucket — first seen across the first few steps
+        # (e.g. a 256-token chunk on step 1 and a final 128-padded chunk on step 3).
+        # So "warm-up" legitimately spans multiple steps: accept new graphs until the
+        # graph set STABILIZES (no new graphs for a couple of steps), then enforce
+        # strict no-recompilation. _recompile_locked latches once stable.
+        self._recompile_stable_steps = 0
+        self._recompile_locked = False
 
         self.pin_memory = is_pin_memory_available()
         self.dtype = self.model_config.dtype
@@ -641,17 +647,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not check_comp:
             return
 
-        if not self._first_inference_done:
-            # On the first inference step, XLA SPMD may compile extra graphs because
-            # the real input tensors (from _prepare_inputs) differ in XLA provenance
-            # from the torch.zeros dummies used during precompile warm-up. Accept any
-            # graphs compiled during this first step and lock the count for all
-            # subsequent steps where recompilation would indicate a real regression.
-            self._update_num_xla_graphs(f"{case_str} (first inference)")
-            self._first_inference_done = True
+        curr_cached_graph = xr.get_num_cached_compilation_graph()
+
+        if not self._recompile_locked:
+            # Warm-up window: accept real-input graphs as each distinct input shape
+            # is first executed (single-shot: one shape on step 1; chunked prefill:
+            # one per chunk-size bucket, spread over the first few steps). Lock once
+            # the graph set has been stable for a couple of consecutive steps — by
+            # then all prefill chunk shapes and the decode shape have been seen.
+            if curr_cached_graph > self.num_xla_graphs:
+                self._update_num_xla_graphs(f"{case_str} (warm-up)")
+                self._recompile_stable_steps = 0
+            else:
+                self._recompile_stable_steps += 1
+                if self._recompile_stable_steps >= 2:
+                    self._recompile_locked = True
             return
 
-        curr_cached_graph = xr.get_num_cached_compilation_graph()
         assert self.num_xla_graphs == curr_cached_graph, (
             "Recompilation after warm up is detected during {}."
             " num_xla_graphs = {} curr_cached_graph = {}".format(
