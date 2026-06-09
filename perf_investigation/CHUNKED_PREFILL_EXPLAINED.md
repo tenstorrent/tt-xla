@@ -34,10 +34,14 @@ prompts, greedy, `fp32_dest_acc_en=False` unless noted):
   (multiple fresh users, one chunked) is correct.
 
 **Open items (tracked):**
-- **Recompilation after warm-up** can trigger on some chunked configs
-  (`VLLM_XLA_CHECK_RECOMPILATION=1` flagged `num_xla_graphs 10→11` at one budget):
-  a precompile-coverage gap (not all chunk-step `(L_bucket, S_bucket)` shapes are
-  enumerated in `_precompile_backbone`). Needs the precompile enumeration widened.
+- ~~Recompilation after warm-up~~ **FIXED.** Root cause wasn't a precompile gap:
+  the dummies *are* compiled for every `(num_tokens, prefix_chunk)` bucket, but XLA
+  compiles a *real-input* graph on the first real use of each shape, and the check
+  only forgave the **first step**. Chunked prefill first-uses several chunk-size
+  shapes across the first few steps (256 on step 1, a 128-padded final chunk on
+  step 3), so the later one asserted. Fix: the recompilation guardrail now treats
+  warm-up as spanning multiple steps — accept new graphs until the set stabilizes,
+  then enforce. `VLLM_XLA_CHECK_RECOMPILATION=1` passes; output unchanged.
 - **batch-size-dependent numerics vs the single-chunk reference:** at batch≥8 the
   (consistent-across-users) output drifts from the batch-1 single-chunk result in
   late decode. This is *not* per-user divergence (all users agree); it looks like
