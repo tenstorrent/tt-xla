@@ -3,8 +3,10 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import bisect
+import contextlib
 import gc
 import time
+from itertools import product
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
 
@@ -529,12 +531,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.supports_mm_inputs
             else None
         )
-
-        if self.tt_config.cpu_sampling:
-            logger.warning("cpu_sampling=True: using CPU sampling path")
-            self.sample_from_logits_func = self.sample_from_logits_cpu
-        else:
-            self.sample_from_logits_func = self.sample_from_logits
 
         # For passing scheduler_output between successive
         # execute_model() and sample_tokens() calls.
@@ -1533,45 +1529,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_ids, mm_embed_inputs
             )
             self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
-            (
-                model_input_ids,
-                model_positions,
-                model_inputs_embeds,
-                hidden_state_shape,
-            ) = self._prepare_model_call_tensors(
-                input_ids, self.position_ids, inputs_embeds
-            )
-            torch_xla.sync(wait=False)
-            # Run the decoder
-            with (
-                set_forward_context(
-                    attn_metadata,
-                    self.vllm_config,
-                    num_tokens=scheduler_output.total_num_scheduled_tokens,
-                ),
-                self.maybe_get_kv_connector_output(
-                    scheduler_output
-                ) as kv_connector_output,
-            ):
-                hidden_states = self.model(
-                    input_ids=model_input_ids,
-                    positions=model_positions,
-                    inputs_embeds=model_inputs_embeds,
-                )
-            hidden_states = self._restore_model_hidden_states(
-                hidden_states, hidden_state_shape
-            )
-
-            # Save hidden states (before position selection) for prompt
-            # logprobs.  Only extract rows for requests that actually need
-            # them, keyed by batch index, so we never copy the full
-            # [max_num_reqs, padded_seq_len, H] tensor to CPU.
-            if self.num_prompt_logprobs:
-                for i in range(start_index, end_index):
-                    req_id = self.input_batch.req_ids[i]
-                    if req_id in self.num_prompt_logprobs:
-                        local_idx = i - start_index
-                        prompt_lp_hs[i] = hidden_states[local_idx].cpu()
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -1587,68 +1544,83 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
+            apply_grammar = grammar_output is not None
+            require_struct_decoding = None
+            grammar_bitmask_padded = None
+            bitmask_arange = None
+            if apply_grammar == True:
+                (
+                    require_struct_decoding,
+                    grammar_bitmask_padded,
+                    bitmask_arange,
+                ) = self.prepare_structured_decoding_input(grammar_output, num_reqs)
+            torch_xla.sync(wait=False)
+
+            # Decode path
             if self.tt_config.cpu_sampling:
-                # cpu_sampling path: select + compute on device, sample on CPU
-                hidden_states = self.select_hidden_states(hidden_states, logits_indices)
-                logits = self.compute_logits(hidden_states)
-                if grammar_output is not None:
-                    (
+                hidden_states, logits, selected_token_ids, kv_connector_output = (
+                    self._model_unfused(
+                        input_ids,
+                        self.position_ids,
+                        inputs_embeds,
+                        logits_indices,
+                        sampling_metadata,
+                        attn_metadata,
+                        apply_grammar,
                         require_struct_decoding,
                         grammar_bitmask_padded,
-                        arange,
-                    ) = self.prepare_structured_decoding_input(logits, grammar_output)
-                    logits = self.structured_decode(
-                        require_struct_decoding, grammar_bitmask_padded, logits, arange
+                        bitmask_arange,
+                        scheduler_output.total_num_scheduled_tokens,
+                        scheduler_output,
                     )
-                selected_token_ids = self.sample_from_logits_func(
-                    logits, sampling_metadata
                 )
             else:
-                # fused path: decode_postprocess is compiled only for num_tokens=1.
-                # For prefill (num_tokens > 1), eagerly select the last token per
-                # request outside the compiled function so the shape is always
-                # (max_num_reqs, 1, hsize) — no extra compiled graphs needed.
-                if hidden_states.shape[1] != 1:
-                    batch_idx = torch.arange(
-                        self.max_num_reqs, dtype=torch.int32, device=self.device
-                    )
-                    hidden_states = hidden_states[
-                        batch_idx, logits_indices, :
-                    ].unsqueeze(1)
-                    if self.enable_tensor_parallel and self.use_2d_mesh:
-                        xs.mark_sharding(
-                            hidden_states, self.mesh, (None, None, "model")
-                        )
-                    logits_indices = torch.zeros(
-                        self.max_num_reqs, dtype=torch.int32, device=self.device
-                    )
-                if grammar_output is not None:
-                    # prepare_structured_decoding_input only uses logits for shape/device
-                    _shape_proxy = hidden_states.new_empty(
-                        self.max_num_reqs, self.vocab_size
-                    )
-                    require_struct_decoding, grammar_bitmask_padded, bitmasks = (
-                        self.prepare_structured_decoding_input(
-                            _shape_proxy, grammar_output
+                if input_ids is not None and input_ids.shape[1] == 1:
+                    hidden_states, logits, selected_token_ids, kv_connector_output = (
+                        self._model_decode(
+                            input_ids,
+                            self.position_ids,
+                            inputs_embeds,
+                            logits_indices,
+                            sampling_metadata,
+                            attn_metadata,
+                            apply_grammar,
+                            require_struct_decoding,
+                            grammar_bitmask_padded,
+                            bitmask_arange,
+                            scheduler_output.total_num_scheduled_tokens,
+                            scheduler_output,
                         )
                     )
                 else:
-                    self.require_structured_out_cpu.zero_()
-                    require_struct_decoding = self.require_structured_out_cpu[
-                        : self.max_num_reqs
-                    ].to(self.device)
-                    grammar_bitmask_padded = self.grammar_bitmask_cpu[
-                        : self.max_num_reqs
-                    ].to(self.device)
-                    bitmasks = self.structured_decode_bitmasks.to(self.device)
-                selected_token_ids, logits = self.decode_postprocess(
-                    hidden_states,
-                    logits_indices,
-                    sampling_metadata,
-                    require_struct_decoding,
-                    grammar_bitmask_padded,
-                    bitmasks,
-                )
+                    hidden_states, logits, selected_token_ids, kv_connector_output = (
+                        self._model_prefill(
+                            input_ids,
+                            self.position_ids,
+                            inputs_embeds,
+                            logits_indices,
+                            sampling_metadata,
+                            attn_metadata,
+                            apply_grammar,
+                            require_struct_decoding,
+                            grammar_bitmask_padded,
+                            bitmask_arange,
+                            scheduler_output.total_num_scheduled_tokens,
+                            scheduler_output,
+                        )
+                    )
+
+            # Save hidden states (before position selection) for prompt
+            # logprobs.  Only extract rows for requests that actually need
+            # them, keyed by batch index, so we never copy the full
+            # [max_num_reqs, padded_seq_len, H] tensor to CPU.
+            if self.num_prompt_logprobs:
+                for i in range(start_index, end_index):
+                    req_id = self.input_batch.req_ids[i]
+                    if req_id in self.num_prompt_logprobs:
+                        local_idx = i - start_index
+                        prompt_lp_hs[i] = hidden_states[local_idx].cpu()
+
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -2041,6 +2013,422 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 end - start,
             )
 
+    def _model_unfused(
+        self,
+        inputs,
+        positions,
+        input_embeds,
+        logits_indices,
+        sampling_metadata,
+        attn_metadata,
+        apply_grammar,
+        require_struct_decoding,
+        grammar_bitmask,
+        bitmasks,
+        num_tokens: int,
+        scheduler_output: "SchedulerOutput | None",
+    ):
+        """
+        Compile and run model forward and postprocessing steps as separate graphs.
+
+        This is used for the non-fused runtime flow (for example cpu_sampling)
+        so the model/backbone and postprocessing graphs are compiled separately.
+        """
+        with (
+            set_forward_context(
+                attn_metadata,
+                self.vllm_config,
+                num_tokens=num_tokens,
+            ),
+            (
+                self.maybe_get_kv_connector_output(scheduler_output)
+                if scheduler_output is not None
+                else contextlib.nullcontext(None)
+            ) as kv_connector_output,
+        ):
+            (
+                model_input_ids,
+                model_positions,
+                model_inputs_embeds,
+                hidden_state_shape,
+            ) = self._prepare_model_call_tensors(inputs, positions, input_embeds)
+
+            hidden_states = self.model(
+                input_ids=model_input_ids,
+                positions=model_positions,
+                inputs_embeds=model_inputs_embeds,
+            )
+            hidden_states = self._restore_model_hidden_states(
+                hidden_states, hidden_state_shape
+            )
+
+            selected_states = self.select_hidden_states(hidden_states, logits_indices)
+            logits = self.compute_logits(selected_states)
+
+            if apply_grammar:
+                logits = self.structured_decode(
+                    require_struct_decoding,
+                    grammar_bitmask,
+                    logits,
+                    bitmasks,
+                )
+
+            selected_token_ids = self.sample_from_logits(logits, sampling_metadata)
+
+        return hidden_states, logits, selected_token_ids, kv_connector_output
+
+    def _precompile_model_fused(self) -> None:
+        """
+        Warm up the fused decode and prefill runtime paths.
+
+        Compiles the combined runtime entrypoints across token-count and
+        sampling/grammar variants so serving can reuse cached graphs.
+        """
+        logger.info(
+            "Compiling model decode and prefill paths with different input shapes."
+        )
+        start = time.perf_counter()
+        all_greedy_options = [True, False]
+        apply_grammar_options = [True, False]
+        num_tokens_paddings = self.num_tokens_paddings
+        if self.tt_config.decode_only:
+            num_tokens_paddings = [1]  # Only compile the decode path
+            logger.info(
+                f"decode_only is set, only compiling decode path with num_tokens=1"
+            )
+
+        configs = [
+            {
+                "num_tokens": num_tokens,
+                "all_greedy": all_greedy,
+                "apply_grammar": apply_grammar,
+            }
+            for (
+                num_tokens,
+                all_greedy,
+                apply_grammar,
+            ) in product(
+                num_tokens_paddings,
+                all_greedy_options,
+                apply_grammar_options,
+            )
+        ]
+
+        for config in configs:
+            (
+                dummy_inputs,
+                dummy_positions,
+                dummy_input_embeds,
+                dummy_indices,
+                dummy_sampling_metadata,
+                dummy_attn_metadata,
+                dummy_require_struct_decoding,
+                dummy_grammar_bitmask,
+                dummy_bitmasks,
+            ) = self._get_dummy_inputs(config)
+            if config["num_tokens"] == 1:
+                _, _, _, _ = self._model_decode(
+                    dummy_inputs,
+                    dummy_positions,
+                    dummy_input_embeds,
+                    dummy_indices,
+                    dummy_sampling_metadata,
+                    dummy_attn_metadata,
+                    config["apply_grammar"],
+                    dummy_require_struct_decoding,
+                    dummy_grammar_bitmask,
+                    dummy_bitmasks,
+                    config["num_tokens"],
+                    None,
+                )
+                self._update_num_xla_graphs("_model_decode")
+            else:
+                logger.info(f"Compiling prefill path with config={config}")
+                _, _, _, _ = self._model_prefill(
+                    dummy_inputs,
+                    dummy_positions,
+                    dummy_input_embeds,
+                    dummy_indices,
+                    dummy_sampling_metadata,
+                    dummy_attn_metadata,
+                    config["apply_grammar"],
+                    dummy_require_struct_decoding,
+                    dummy_grammar_bitmask,
+                    dummy_bitmasks,
+                    config["num_tokens"],
+                    None,
+                )
+                self._update_num_xla_graphs("_model_prefill")
+
+        xm.wait_device_ops()
+        end = time.perf_counter()
+        logger.info("Compilation finished in %.2f [secs].", end - start)
+
+    def _get_dummy_inputs(self, config: dict):
+        """
+        Build dummy tensors and metadata for fused-path warmup.
+        """
+        num_tokens = config["num_tokens"]
+        all_greedy = config["all_greedy"]
+        apply_grammar = config["apply_grammar"]
+        hsize = self.model_config.get_hidden_size()
+
+        dummy_inputs = torch.zeros(
+            (self.max_num_reqs, num_tokens), dtype=torch.int32
+        ).to(self.device)
+        dummy_positions = torch.zeros(
+            (self.max_num_reqs, num_tokens), dtype=torch.int32
+        ).to(self.device)
+        dummy_inputs_embeds = torch.zeros(
+            (self.max_num_reqs, num_tokens, hsize), dtype=self._hidden_states_dtype
+        ).to(self.device)
+        page_table = torch.zeros(
+            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
+            dtype=torch.int32,
+        ).to(self.device)
+        cache_position = torch.ones(
+            (self.num_reqs_max_model_len,), dtype=torch.int32
+        ).to(self.device)
+
+        attn_metadata = TTMetadata(
+            page_table=page_table,
+            cache_position=cache_position,
+            is_causal=True,
+            attn_mask=None,
+            fill_page_table=page_table,
+        )
+        per_layer_attn_metadata = dict.fromkeys(
+            self._attention_layer_names, attn_metadata
+        )
+
+        dummy_inputs, dummy_inputs_embeds = self._get_model_inputs(
+            dummy_inputs, mm_embed_inputs=None
+        )
+        self._pin_input_shardings(dummy_inputs, dummy_positions, dummy_inputs_embeds)
+
+        dummy_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
+            self.device
+        )
+
+        generate_params_if_all_greedy = not all_greedy
+        dummy_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+            self.input_batch,
+            self.max_num_reqs,
+            self.device,
+            generate_params_if_all_greedy,
+            vocab_size=self.vocab_size,
+        )
+        dummy_sampling_metadata.all_greedy = all_greedy
+
+        dummy_require_struct_decoding = None
+        dummy_grammar_bitmask = None
+        dummy_bitmasks = None
+        if apply_grammar:
+            dummy_require_struct_decoding = self.require_structured_out_cpu[
+                : self.max_num_reqs
+            ].to(self.device)
+            dummy_grammar_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(
+                self.device
+            )
+            dummy_bitmasks = self.structured_decode_bitmasks.to(self.device)
+
+        return (
+            dummy_inputs,
+            dummy_positions,
+            dummy_inputs_embeds,
+            dummy_indices,
+            dummy_sampling_metadata,
+            per_layer_attn_metadata,
+            dummy_require_struct_decoding,
+            dummy_grammar_bitmask,
+            dummy_bitmasks,
+        )
+
+    def _model_decode(
+        self,
+        inputs,
+        positions,
+        input_embeds,
+        logits_indices,
+        sampling_metadata,
+        attn_metadata,
+        apply_grammar,
+        require_struct_decoding,
+        grammar_bitmask,
+        bitmasks,
+        num_tokens: int,
+        scheduler_output: "SchedulerOutput | None",
+    ):
+        """Run the fused decode path under the forward context."""
+        with (
+            set_forward_context(
+                attn_metadata,
+                self.vllm_config,
+                num_tokens=num_tokens,
+            ),
+            (
+                self.maybe_get_kv_connector_output(scheduler_output)
+                if scheduler_output is not None
+                else contextlib.nullcontext(None)
+            ) as kv_connector_output,
+        ):
+            hidden_states, logits, selected_token_ids = self._model_decode_compiled(
+                inputs,
+                positions,
+                input_embeds,
+                logits_indices,
+                sampling_metadata,
+                apply_grammar,
+                require_struct_decoding,
+                grammar_bitmask,
+                bitmasks,
+            )
+
+        return hidden_states, logits, selected_token_ids, kv_connector_output
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def _model_decode_compiled(
+        self,
+        inputs,
+        positions,
+        input_embeds,
+        logits_indices,
+        sampling_metadata,
+        apply_grammar,
+        require_struct_decoding,
+        grammar_bitmask,
+        bitmasks,
+    ):
+        """Compile model forward, logits selection, and sampling for decode."""
+
+        (
+            model_input_ids,
+            model_positions,
+            model_inputs_embeds,
+            hidden_state_shape,
+        ) = self._prepare_model_call_tensors(inputs, positions, input_embeds)
+
+        hidden_states = self.model(
+            input_ids=model_input_ids,
+            positions=model_positions,
+            inputs_embeds=model_inputs_embeds,
+        )
+        hidden_states = self._restore_model_hidden_states(
+            hidden_states, hidden_state_shape
+        )
+
+        selected_states = self.select_hidden_states(hidden_states, logits_indices)
+        logits = self.compute_logits(selected_states)
+
+        if apply_grammar == True:
+            logits = self.structured_decode(
+                require_struct_decoding, grammar_bitmask, logits, bitmasks
+            )
+        selected_token_ids = self.sample_from_logits(logits, sampling_metadata)
+
+        return hidden_states, logits, selected_token_ids
+
+    def _model_prefill(
+        self,
+        inputs,
+        positions,
+        input_embeds,
+        logits_indices,
+        sampling_metadata,
+        attn_metadata,
+        apply_grammar,
+        require_struct_decoding,
+        grammar_bitmask,
+        bitmasks,
+        num_tokens: int,
+        scheduler_output: "SchedulerOutput | None",
+    ):
+        """
+        Run the split prefill path. Model forward is compiled as separate graph
+        and postprocessing is compiled separately.
+        This will produce 1 model forward graph and 4 postprocessing graphs
+        (for each combination of greedy/non-greedy sampling and grammar/no-grammar)
+         for each input tokens.
+        Separate compilation is used because compiling combined graphs significantly
+        increase the warmup time.
+        """
+        with (
+            set_forward_context(
+                attn_metadata,
+                self.vllm_config,
+                num_tokens=num_tokens,
+            ),
+            (
+                self.maybe_get_kv_connector_output(scheduler_output)
+                if scheduler_output is not None
+                else contextlib.nullcontext(None)
+            ) as kv_connector_output,
+        ):
+            hidden_states = self._model_prefill_model_compiled(
+                inputs,
+                positions,
+                input_embeds,
+            )
+            logits, selected_token_ids = self._model_prefill_postprocess_compiled(
+                hidden_states,
+                logits_indices,
+                sampling_metadata,
+                apply_grammar,
+                require_struct_decoding,
+                grammar_bitmask,
+                bitmasks,
+            )
+
+        return hidden_states, logits, selected_token_ids, kv_connector_output
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def _model_prefill_model_compiled(
+        self,
+        inputs,
+        positions,
+        input_embeds,
+    ):
+        """Compile the model-forward portion of the prefill path."""
+        (
+            model_input_ids,
+            model_positions,
+            model_inputs_embeds,
+            hidden_state_shape,
+        ) = self._prepare_model_call_tensors(inputs, positions, input_embeds)
+
+        hidden_states = self.model(
+            input_ids=model_input_ids,
+            positions=model_positions,
+            inputs_embeds=model_inputs_embeds,
+        )
+        return self._restore_model_hidden_states(hidden_states, hidden_state_shape)
+
+    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def _model_prefill_postprocess_compiled(
+        self,
+        hidden_states,
+        logits_indices,
+        sampling_metadata,
+        apply_grammar,
+        require_struct_decoding,
+        grammar_bitmask,
+        bitmasks,
+    ):
+        """Compile the logits and sampling postprocessing for prefill."""
+        selected_states = self.select_hidden_states(hidden_states, logits_indices)
+        logits = self.compute_logits(selected_states)
+
+        if apply_grammar:
+            logits = self.structured_decode(
+                require_struct_decoding,
+                grammar_bitmask,
+                logits,
+                bitmasks,
+            )
+
+        selected_token_ids = self.sample_from_logits(logits, sampling_metadata)
+        return logits, selected_token_ids
+
     def _precompile_backbone(self) -> None:
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
@@ -2089,7 +2477,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
 
             with torch_dynamo_tt_device_compatibility():
-                self.select_hidden_states(dummy_hidden, indices)
+                self.select_hidden_states_compiled(dummy_hidden, indices)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2110,7 +2498,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             safe_mark_sharding(dummy_hidden, self.mesh, (None, None))
 
         with torch_dynamo_tt_device_compatibility():
-            self.compute_logits(dummy_hidden)
+            self.compute_logits_compiled(dummy_hidden)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2140,7 +2528,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # them to be static.
         bitmasks = self.structured_decode_bitmasks.to(self.device)
         with torch_dynamo_tt_device_compatibility():
-            self.structured_decode(
+            self.structured_decode_compiled(
                 dummy_require_struct_decoding,
                 dummy_grammar_bitmask,
                 dummy_logits,
@@ -2183,7 +2571,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
                 ),
             ):
-                self.sample_from_logits(dummy_logits, sampling_metadata)
+                self.sample_from_logits_compiled(dummy_logits, sampling_metadata)
 
         # NOTE: the seeded sampling path (no_generators=False, q_samples
         # present) compiles a separate graph variant due to the q_samples
@@ -2217,70 +2605,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
             ),
         ):
-            self.gather_logprobs(dummy_logits, dummy_tokens)
+            self.gather_logprobs_compiled(dummy_logits, dummy_tokens)
 
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("gather_logprobs")
-
-    def _precompile_decode_postprocess(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        logger.info("Compiling decode_postprocess with different input shapes.")
-        start = time.perf_counter()
-        hsize = self.model_config.get_hidden_size()
-        # decode always processes exactly 1 token per request, so only num_tokens=1
-        # is needed here. Prefill batches (num_tokens > 1) use the cpu-sample fallback.
-        for num_tokens in [1]:
-            for all_greedy in [False, True]:
-                logger.info(
-                    "  -- num_tokens: %d, all_greedy: %s", num_tokens, all_greedy
-                )
-                # Fresh tensors per iteration — reusing across SPMD compilations
-                # causes stale tensor IDs that misclassify inputs as constants
-                # (#3672). For decode_postprocess this previously caused the
-                # structured-decode masking branch to be elided on the second
-                # compile, so real grammar bitmasks were ignored at runtime.
-                dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
-                    self.device
-                )
-                dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(
-                    self.device
-                )
-                bitmasks = self.structured_decode_bitmasks.to(self.device)
-                indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
-                    self.device
-                )
-                dummy_hidden = torch.zeros(
-                    (self.max_num_reqs, num_tokens, hsize),
-                    dtype=self._hidden_states_dtype,
-                ).to(self.device)
-                if self.enable_tensor_parallel and self.use_2d_mesh:
-                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
-                sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
-                    self.input_batch,
-                    self.max_num_reqs,
-                    self.device,
-                    not all_greedy,
-                    vocab_size=self.vocab_size,
-                )
-                sampling_metadata.all_greedy = all_greedy
-                with self.maybe_select_dummy_loras(
-                    self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
-                ):
-                    _, _ = self.decode_postprocess(
-                        dummy_hidden,
-                        indices,
-                        sampling_metadata,
-                        dummy_require,
-                        dummy_bitmask,
-                        bitmasks,
-                    )
-
-        xm.wait_device_ops()
-        end = time.perf_counter()
-        logger.info("Compilation finished in %.2f [secs].", end - start)
-        self._update_num_xla_graphs("decode_postprocess")
 
     def capture_model(self) -> None:
         """
@@ -2288,26 +2618,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
-            self._precompile_backbone()
-            if self.tt_config.decode_only:
-                return
-            self._precompile_mm_encoder()
             if not self.tt_config.cpu_sampling:
-                # decode_postprocess handles both decode (num_tokens=1) and
-                # prefill (last token pre-selected eagerly before the call).
-                self._precompile_decode_postprocess()
+                logger.info("Warmup mode: fused runtime path")
+                self._precompile_model_fused()
             else:
-                # cpu_sampling: fused decode_postprocess skipped (sampling on CPU);
-                # precompile the device-side graphs separately instead.
-                logger.warning(
-                    "cpu_sampling=True: using separate precompile for select/compute/structured"
-                )
+                logger.info("Warmup mode: unfused runtime path (cpu_sampling=True)")
+                self._precompile_backbone()
+                if self.tt_config.decode_only:
+                    logger.info(
+                        "decode_only=True: skipping unfused postprocessing warmup"
+                    )
+                    return
                 self._precompile_select_hidden_states()
                 self._precompile_compute_logits()
                 self._precompile_structured_decoding()
+            self._precompile_mm_encoder()
             # TODO(#4387): precompile fails trace-insertion at opt_level=1;
             # skip when trace is on. Paired with the CPU fallback at the
             # runtime call site. Remove both once the compiler bug is fixed.
+            # TODO: Move it to the fused precompile path once the bug is fixed.
             if not self.tt_config.enable_trace:
                 self._precompile_gather_logprobs()
 
@@ -2550,7 +2879,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             TorchCompileWithNoGuardsWrapper.__init__(compiled_model)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def select_hidden_states(self, hidden_states, indices_do_sample):
+    def select_hidden_states_compiled(
+        self, hidden_states, indices_do_sample
+    ) -> torch.Tensor:
+        """Compiled wrapper for hidden-state selection warmup and reuse."""
+        return self.select_hidden_states(hidden_states, indices_do_sample)
+
+    def select_hidden_states(self, hidden_states, indices_do_sample) -> torch.Tensor:
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
         # Only emit the sharding constraint on 2D mesh — under 1D mesh the
@@ -2562,6 +2897,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def compute_logits_compiled(
+        self, sample_hidden_states: torch.Tensor
+    ) -> torch.Tensor:
+        """Compiled wrapper for vocab-logit computation warmup and reuse."""
+        return self.compute_logits(sample_hidden_states)
+
     def compute_logits(self, sample_hidden_states: torch.Tensor) -> torch.Tensor:
         logits = self.model.compute_logits(sample_hidden_states)
         # Replicate logits for SPMD. Hooks can't reach ParallelLMHead
@@ -2572,7 +2913,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
     def sample_from_logits(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
     ) -> torch.Tensor:
@@ -2593,61 +2933,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             out_tokens = self.sampler(logits, sampling_metadata).sampled_token_ids
         return out_tokens
-
-    @torch.compile(backend="tt", fullgraph=True, dynamic=False)
-    def decode_postprocess(
-        self,
-        hidden_states: torch.Tensor,
-        logits_indices: torch.Tensor,
-        sampling_metadata: XLASupportedSamplingMetadata,
-        require_struct_decoding: torch.Tensor,
-        grammar_bitmask: torch.Tensor,
-        bitmasks: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Fused select_hidden_states → compute_logits → structured_decode → sample.
-
-        Returns (selected_token_ids, logits). The logits are post-structured-decode
-        (matching the cpu_sampling path) and pre-penalty/temperature, so callers
-        that need logprobs can use them directly without recomputation.
-
-        NOTE: This method inlines the logic of select_hidden_states, compute_logits,
-        structured_decode (via apply_grammar_bitmask), and sample_from_logits.
-        The cpu_sampling=True path calls those methods separately. If you fix a bug
-        in any of them, mirror the change here too.
-        """
-        # select_hidden_states
-        batch_indices = torch.arange(logits_indices.shape[0], dtype=torch.int32)
-        hidden = hidden_states[batch_indices, logits_indices, :]
-        if self.enable_tensor_parallel and self.use_2d_mesh:
-            hidden = sharding_constraint_tensor(hidden, self.mesh, (None, None))
-        # compute_logits
-        logits = self.model.compute_logits(hidden)
-        if self.enable_tensor_parallel and (
-            not self.use_2d_mesh or self.is_sharded_compute_logits
-        ):
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
-        # structured_decode (always applied; require_struct_decoding masks inactive reqs)
-        bits = grammar_bitmask.unsqueeze(-1) & bitmasks
-        allowed = (bits != 0).reshape(logits.shape[0], -1)[:, : self.vocab_size]
-        logits = torch.where(
-            require_struct_decoding,
-            torch.where(allowed, logits, torch.full_like(logits, float("-inf"))),
-            logits,
-        )
-        # sample_from_logits
-        if (
-            sampling_metadata.all_greedy
-            and sampling_metadata.no_penalties
-            and sampling_metadata.no_logit_bias
-            and sampling_metadata.no_bad_words
-            and sampling_metadata.no_allowed_token_ids
-            and sampling_metadata.no_min_tokens
-            and sampling_metadata.no_generators
-        ):
-            selected = torch.argmax(logits, dim=-1, keepdim=True)
-        else:
-            selected = self.sampler(logits, sampling_metadata).sampled_token_ids
-        return selected, logits
 
     def sample_from_logits_cpu(
         self, logits: torch.Tensor, sampling_metadata: XLASupportedSamplingMetadata
@@ -2747,6 +3032,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return torch.where(temp < 1e-6, greedy, random).unsqueeze(-1)
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def gather_logprobs_compiled(
+        self, logits: torch.Tensor, sampled_tokens: torch.Tensor
+    ) -> LogprobsTensors:
+        return self.gather_logprobs(logits, sampled_tokens)
+
     def gather_logprobs(
         self, logits: torch.Tensor, sampled_tokens: torch.Tensor
     ) -> LogprobsTensors:
@@ -2890,6 +3180,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return result
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
+    def structured_decode_compiled(
+        self,
+        require_struct_decoding: torch.Tensor,
+        grammar_bitmask: torch.Tensor,
+        logits: torch.Tensor,
+        bitmasks: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compiled wrapper for grammar-constrained logits masking."""
+        return self.structured_decode(
+            require_struct_decoding, grammar_bitmask, logits, bitmasks
+        )
+
     def structured_decode(
         self,
         require_struct_decoding: torch.Tensor,
@@ -2924,10 +3226,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return self.model.embed_input_ids(*args, **kwargs)
 
     def prepare_structured_decoding_input(
-        self, logits: torch.Tensor, grammar_output: "GrammarOutput"
+        self, grammar_output: "GrammarOutput", num_reqs: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         grammar_bitmask = grammar_output.grammar_bitmask
-        num_reqs, _ = logits.shape
 
         # Reset pre-allocated tensors
         self.grammar_bitmask_cpu.zero_()
@@ -2948,9 +3249,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cumulative_mask_idx += 1
 
         return (
-            self.require_structured_out_cpu[:num_reqs].to(logits.device),
-            self.grammar_bitmask_cpu[:num_reqs].to(logits.device),
-            self.structured_decode_bitmasks.to(logits.device),
+            self.require_structured_out_cpu[:num_reqs].to(self.device),
+            self.grammar_bitmask_cpu[:num_reqs].to(self.device),
+            self.structured_decode_bitmasks.to(self.device),
         )
 
     def _get_mm_dummy_batch(
