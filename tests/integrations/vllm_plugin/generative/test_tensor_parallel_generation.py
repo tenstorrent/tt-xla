@@ -62,6 +62,45 @@ def test_tensor_parallel_mla_prefill_only(model_name: str, use_2d_mesh: bool):
     assert_output_coherent(output_text)
 
 
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V2-Lite"])
+@pytest.mark.parametrize("use_2d_mesh", [False])
+def test_tensor_parallel_mla_prefill_decode(model_name: str, use_2d_mesh: bool):
+    """Prefill + decode test for the MLA attention backend.
+
+    Exercises the full generation loop on DeepSeek-V2-Lite: prefill emits the
+    first token, then 10 decode steps run through the MLA paged-decode path.
+    ``max_tokens=11`` → 1 prefill token + 10 decodes. temperature=0.0 keeps the
+    prefill→decode path deterministic for easier regression diagnosis.
+    """
+    prompts = [
+        "I like taking walks in the",
+    ]
+    # 1 token from prefill logits + 10 decode steps.
+    sampling_params = vllm.SamplingParams(temperature=0.0, max_tokens=11)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.02,
+        "enforce_eager": True,
+        "additional_config": {
+            "enable_const_eval": False,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "use_2d_mesh": use_2d_mesh,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
+    print(f"prompt: {prompts[0]}, output: {output_text!r}")
+    assert_output_coherent(output_text)
+
+
 @pytest.mark.push
 @pytest.mark.tensor_parallel
 @pytest.mark.dual_chip

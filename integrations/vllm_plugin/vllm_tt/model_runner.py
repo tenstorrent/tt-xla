@@ -1853,10 +1853,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info(f"Compiled model: \n{self.model}")
 
         # Cache attention layer names so we don't rebuild the per-layer
-        # attn_metadata dict every step.
-        self._attention_layer_names = tuple(
-            get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        )
+        # attn_metadata dict every step. MLAAttention is a separate class from
+        # Attention (both derive from AttentionLayerBase), so MLA models like
+        # DeepSeek-V2 need their layer names collected explicitly — otherwise
+        # the per-layer attn_metadata dict omits them and TTMLAAttention.forward
+        # reads back None, misrouting decode (S=1) through the prefill kernel.
+        attn_layers = dict(get_layers_from_vllm_config(self.vllm_config, Attention))
+        attn_layers.update(get_layers_from_vllm_config(self.vllm_config, MLAAttention))
+        self._attention_layer_names = tuple(attn_layers.keys())
 
     def reload_weights(self) -> None:
         assert (
