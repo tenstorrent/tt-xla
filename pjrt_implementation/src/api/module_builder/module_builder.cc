@@ -1002,17 +1002,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
 
-  // Use the `options.devicePtr` to pass the device pointer to the optimizer in
-  // order to avoid closing and reopening the device afterwards.
-  // Optimizer is enabled for optimization_level >= 1
-  if (compile_options.optimization_level >= 1) {
-    tt::runtime::Device submesh_for_optim =
-        client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
-    options.devicePtr =
-        std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
-            submesh_for_optim.handle);
-  }
-
   // TODO(dmilinkovic): Disable const-eval on CPU for EmitC backend until
   // CPU hoisting support is added.
   // https://github.com/tenstorrent/tt-mlir/issues/6100
@@ -1037,9 +1026,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   // Run the pass manager.
   mlir::LogicalResult mlir_result = ttir_to_ttnn_pm.run(mlir_module.get());
-
-  // Close the optimizer submesh now that the compilation is complete.
-  client_instance->closeOptimizerSubmesh();
 
   if (mlir::failed(mlir_result)) {
     LOG_F(ERROR, "Failed to run TTIRToTTNNCommon pipeline");
