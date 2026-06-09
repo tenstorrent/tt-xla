@@ -188,7 +188,10 @@ TP_CONFIGS = [
     pytest.param(_tp_config("Qwen/Qwen3-32B", 1), id="qwen3-32b-tp"),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 1), id="gemma4-31b-it-tp"),
     pytest.param(
-        _tp_config("Qwen/Qwen3-32B", 1, use_2d_mesh=False), id="qwen3-32b-qb2-tp"
+        _tp_config(
+            "Qwen/Qwen3-32B", 32, use_2d_mesh=False, gpu_memory_utilization=0.1
+        ),
+        id="qwen3-32b-qb2-tp",
     ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 1), id="qwen2.5-14b-instruct-tp"
