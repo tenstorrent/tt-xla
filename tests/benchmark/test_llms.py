@@ -1785,7 +1785,7 @@ def test_gpt_oss_20b_tp(
 
 
 # Test with D2M fusion enabled (enable-create-d2m-subgraphs=true).
-# FAILED: SIGSEGV in TTNNRowMajorLayoutPropagation (https://github.com/tenstorrent/tt-xla/issues/5052)
+# FAILED: SIGSEGV in TTNNRowMajorLayoutPropagation (https://github.com/tenstorrent/tt-xla/issues/5121)
 def test_gpt_oss_20b_tp_d2m(
     output_file,
     num_layers,
