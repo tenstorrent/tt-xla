@@ -1412,7 +1412,11 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
-                    shard_model(model, self.mesh)
+                    shard_model(
+                        model,
+                        self.mesh,
+                        self.tt_config.shard_weights_on_batch_axis,
+                    )
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
