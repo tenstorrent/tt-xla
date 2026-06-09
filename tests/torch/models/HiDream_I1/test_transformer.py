@@ -17,18 +17,19 @@ from infra import Framework, run_graph_test
 from infra.utilities.torch_multichip_utils import get_mesh
 
 from third_party.tt_forge_models.hidream_i1.pytorch import ModelLoader, ModelVariant
+from loguru import logger
 
 
-@pytest.mark.skip(
-    reason="OOM on single device — HiDream DiT (17 B) exceeds single-chip memory; sharded variant runs"
-)
-def test_transformer():
-    _run(sharded=False)
+# @pytest.mark.skip(
+#     reason="OOM on single device — HiDream DiT (17 B) exceeds single-chip memory; sharded variant runs"
+# )
+# def test_transformer():
+#     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 5872025600 B DRAM buffer across 12 banks, where each bank needs to store 489336832 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4761"
-)
+# @pytest.mark.xfail(
+#     reason="Out of Memory: Not enough space to allocate 5872025600 B DRAM buffer across 12 banks, where each bank needs to store 489336832 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4761"
+# )
 @pytest.mark.nightly
 @pytest.mark.model_test
 def test_transformer_sharded():
@@ -41,6 +42,8 @@ def _run(sharded: bool):
 
     loader = ModelLoader(ModelVariant.TRANSFORMER)
     model = loader.load_model(dtype_override=torch.float32)
+    logger.info("model={}",model)
+    
     inputs = loader.load_inputs(dtype_override=torch.float32)
 
     mesh = None
