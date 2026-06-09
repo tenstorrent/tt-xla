@@ -40,6 +40,7 @@ def test_generation_single_device_gemma4_e4b():
 
     check_host_memory(model_name)
 
+
 @pytest.mark.nightly
 @pytest.mark.bhqb
 def test_generation_bhqb_gemma4_26b_a4b():

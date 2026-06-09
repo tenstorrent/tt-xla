@@ -1824,6 +1824,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.model = model
 
         from .moe_shims import install_moe_shims
+
         install_moe_shims(self.model)
 
         # Multimodal configs (e.g. Gemma-4) nest the language model and

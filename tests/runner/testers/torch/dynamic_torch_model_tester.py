@@ -15,6 +15,7 @@ from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from loguru import logger
+
 # from tt_torch.sparse_mlp import enable_sparse_mlp, get_moe_shard_specs
 from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, get_tt_moe_shard_specs
 

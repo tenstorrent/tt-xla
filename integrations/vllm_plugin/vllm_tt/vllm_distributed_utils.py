@@ -307,6 +307,7 @@ def partition_vocab_parallel_embedding(
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
+
 def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
     """Fully shard FusedMoE expert weights along the expert dimension (dim 0).
     vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
@@ -322,6 +323,7 @@ def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Modul
             safe_mark_sharding(w, mesh, (expert_axis, None, None))
     logger.debug("Applied compound expert-dim sharding to %s", layer)
     return layer
+
 
 MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
     [
