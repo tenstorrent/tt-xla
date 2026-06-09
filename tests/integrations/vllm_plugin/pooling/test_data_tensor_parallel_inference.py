@@ -89,17 +89,9 @@ def test_data_tensor_parallel_inference_push(
 @pytest.mark.parametrize(
     ["model_name", "baseline_path"],
     [
-        pytest.param(
-            "BAAI/bge-m3",
-            "baseline/bge_m3_baseline.pt",
-            marks=pytest.mark.xfail(
-                reason="BGE-M3 / XLMRoberta produces malformed sdy.all_slice "
-                "under any model-axis sharding (TP-only or DP+TP). "
-                "Pre-existing bug in vllm_distributed_utils.shard_model(); "
-                "tracked separately.",
-                strict=False,
-            ),
-        ),
+        # BGE-M3 intentionally not covered here — small enough that DP-only
+        # is sufficient (see test_data_parallel_inference.py); model-axis
+        # sharding offers no benefit at this size.
         pytest.param(
             "Qwen/Qwen3-Embedding-4B",
             "baseline/qwen3_embedding_4B_baseline.pt",
