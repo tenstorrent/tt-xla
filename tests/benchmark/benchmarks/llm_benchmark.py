@@ -52,9 +52,9 @@ DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
 
 DEFAULT_PREFILL_LOOP_COUNT = 10
 
-PREFILL_RANDOM_SEED = 0
+DEFAULT_PREFILL_RANDOM_SEED = 0
 
-PREFILL_CORPUS_FILE = (
+DEFAULT_PREFILL_CORPUS_FILE = (
     Path(__file__).resolve().parent.parent
     / "reference_outputs"
     / "tale-of-two-cities.txt.bz2"
@@ -78,8 +78,8 @@ def load_prefill_input_tokens(tokenizer, num_tokens: int, vocab_size: int) -> to
 
     Falls back to deterministic random tokens if the corpus is missing or too short.
     """
-    if PREFILL_CORPUS_FILE.exists():
-        with bz2.open(PREFILL_CORPUS_FILE, "rt", encoding="utf-8") as f:
+    if DEFAULT_PREFILL_CORPUS_FILE.exists():
+        with bz2.open(DEFAULT_PREFILL_CORPUS_FILE, "rt", encoding="utf-8") as f:
             text = f.read()
         # Only tokenize as much text as we need. ~8 chars/token is a safe upper bound
         # for English, so this slice yields >= num_tokens tokens while avoiding both the
@@ -99,10 +99,10 @@ def load_prefill_input_tokens(tokenizer, num_tokens: int, vocab_size: int) -> to
         )
     else:
         logger.warning(
-            f"Prefill corpus not found at {PREFILL_CORPUS_FILE}; "
+            f"Prefill corpus not found at {DEFAULT_PREFILL_CORPUS_FILE}; "
             "falling back to random prefill tokens."
         )
-    rng = torch.Generator().manual_seed(PREFILL_RANDOM_SEED)
+    rng = torch.Generator().manual_seed(DEFAULT_PREFILL_RANDOM_SEED)
     return torch.randint(0, vocab_size, (num_tokens,), generator=rng)
 
 
