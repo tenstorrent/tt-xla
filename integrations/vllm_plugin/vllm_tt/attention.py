@@ -525,11 +525,23 @@ class TTAttentionBackendImpl(AttentionImpl):
         2. Pooling models: For the entire attention computation, as these models
            process all tokens in a single pass without a decode phase or KV cache.
         """
-        shared_kv_mode = (
-            self.kv_sharing_target_layer_name is not None
-            and isinstance(kv_cache, (list, tuple))
+        has_paged_cache = (
+            isinstance(kv_cache, (list, tuple))
             and len(kv_cache) >= 2
             and kv_cache[0].numel() > 0
+        )
+        shared_kv_mode = (
+            self.kv_sharing_target_layer_name is not None and has_paged_cache
+        )
+        # Cached-prefix path (tt-xla #4986): a prefill chunk whose prefix is
+        # already in the paged cache gathers the full [0:S] K/V and runs masked
+        # SDPA (mask built in model_runner._prepare_inputs; is_causal off). The
+        # trigger is Python-level (attn_mask presence, cache numel), so it traces
+        # as a distinct graph from the fast path — no data-dependent control flow.
+        prefix_chunk_mode = (
+            attn_metadata.attn_mask is not None
+            and has_paged_cache
+            and not shared_kv_mode
         )
 
         if shared_kv_mode:
@@ -545,6 +557,22 @@ class TTAttentionBackendImpl(AttentionImpl):
             # SDPA expects [users, num_heads, tokens, head]. The gather helper
             # already returns that layout, only Q needs the transpose.
             query_for_sdpa = inputs.query.transpose(-3, -2)
+        elif prefix_chunk_mode:
+            # Gather the full prefix+chunk K/V from the paged cache. S is derived
+            # from the (static) page-table shape, so it is constant per compiled
+            # graph (S = max_model_len). The chunk K/V were already written to
+            # the cache by _handle_paged_attention before this call, so the
+            # gather over the logical page_table returns prefix+chunk in order.
+            num_blocks_per_user = attn_metadata.page_table.shape[1]
+            block_size = kv_cache[0].shape[2]
+            s_len = num_blocks_per_user * block_size
+            key_for_sdpa = self._gather_paged_to_dense(
+                kv_cache[0], attn_metadata.page_table, s_len
+            )
+            value_for_sdpa = self._gather_paged_to_dense(
+                kv_cache[1], attn_metadata.page_table, s_len
+            )
+            query_for_sdpa = inputs.query.transpose(-3, -2)
         else:
             # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
             query_for_sdpa = inputs.query.transpose(-3, -2)
@@ -552,7 +580,9 @@ class TTAttentionBackendImpl(AttentionImpl):
             value_for_sdpa = inputs.value.transpose(-3, -2)
 
         sdpa_kwargs = {
-            "is_causal": attn_metadata.is_causal,
+            # The explicit rectangular mask already encodes causality + prefix
+            # offset, so causal masking must be off in prefix-chunk mode.
+            "is_causal": False if prefix_chunk_mode else attn_metadata.is_causal,
             "attn_mask": attn_metadata.attn_mask,
             "scale": self.scale,
         }
