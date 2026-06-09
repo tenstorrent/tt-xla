@@ -37,6 +37,11 @@ class VLLMBenchmarkConfig:
     # MultiModalBudget video-frame floor).
     min_num_batched_tokens: int = 0
 
+    # Explicit per-step token budget. When set, overrides the derived
+    # batch * max_model_len value, decoupling the budget from max_model_len so
+    # chunked prefill (tt-xla #4986) can cap precompile buckets + prefill DRAM.
+    max_num_batched_tokens: Optional[int] = None
+
     # TT compile options passed directly to vLLM's additional_config (TTConfig).
     additional_config: Dict[str, Any] = field(default_factory=dict)
 
@@ -75,9 +80,12 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
     # tests/benchmark/test_vllm_benchmarks.py).
     additional_config.setdefault("cpu_sampling", False)
 
-    max_num_batched_tokens = max(
-        config.batch_size * config.max_model_len, config.min_num_batched_tokens
-    )
+    if config.max_num_batched_tokens is not None:
+        max_num_batched_tokens = config.max_num_batched_tokens
+    else:
+        max_num_batched_tokens = max(
+            config.batch_size * config.max_model_len, config.min_num_batched_tokens
+        )
 
     llm_args: Dict[str, Any] = {
         "model": config.model,
