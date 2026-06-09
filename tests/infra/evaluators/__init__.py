@@ -10,6 +10,7 @@ from .evaluation_config import (
     ImageGenQualityConfig,
     PccConfig,
     QualityConfig,
+    RelL2Config,
 )
 from .evaluator import ComparisonResult, EvaluationResult, Evaluator, QualityResult
 from .evaluator_factory import EvaluatorFactory
@@ -38,4 +39,5 @@ __all__ = [
     "PccConfig",
     "AtolConfig",
     "AllcloseConfig",
+    "RelL2Config",
 ]

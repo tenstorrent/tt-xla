@@ -502,6 +502,7 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
     "run_mode",
     [
         pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
     ],
 )
 @pytest.mark.parametrize(
@@ -586,6 +587,10 @@ def test_llms_torch(
             pytest.skip("Decode tests do not support sequence_length parameterization")
         if batch_size != 1:
             pytest.skip("Decode tests currently only support batch_size=1")
+        # Training (with or without LoRA) on a static KV-cache decode step is not
+        # meaningful for gradient testing; backward tests run on prefill only.
+        if run_mode == RunMode.TRAINING:
+            pytest.skip("Training tests run on prefill phase only")
         # Decode uses only the backward-compatible default sharding configs.
         if sharding_config.shard_strategy is not None:
             pytest.skip("Decode tests use default sharding config only")

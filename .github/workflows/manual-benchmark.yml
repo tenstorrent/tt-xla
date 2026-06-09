@@ -7,11 +7,6 @@ on:
         description: 'Git SHA of commit in tenstorrent/tt-mlir'
         required: false
         type: string
-      docker_image:
-        description: 'Docker image to use'
-        required: false
-        type: string
-        default: 'ghcr.io/tenstorrent/tt-xla/tt-xla-base-ubuntu-24-04:latest'
       test_filter:
         description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
         required: false
@@ -23,9 +18,10 @@ on:
         options:
           - All
           - n150
-          - p150
+          - p150-perf
           - n300-llmbox
           - galaxy-wh-6u
+          - qb2-blackhole
         default: n150
       skip-device-perf:
         description: "Skip device performance measurement"
@@ -37,26 +33,16 @@ on:
         required: false
         type: boolean
         default: false
-      use_docker_wheel:
-        description: "Use wheel from docker"
-        required: false
-        type: boolean
-        default: false
       sh-runner:
         description: "Run on shared runner"
         required: false
         type: boolean
         default: true
-      should_build_wheel:
-        description: "Should the xla wheel be built"
-        required: false
-        type: boolean
-        default: true
-      artifact_release_run_id:
-        description: "Run ID that already contains the wheel artifact (used when should_build_wheel=false)"
+      torchxla_build_run_id:
+        description: 'Manual torch-xla build run ID'
         required: false
         type: string
-        default: ""
+        default: ''
       manylinux_build:
         description: 'Build and use manylinux wheel'
         required: false
@@ -78,7 +64,6 @@ permissions:
 
 jobs:
   docker-build:
-    if: ${{ inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
@@ -87,7 +72,6 @@ jobs:
 
   build:
     needs: docker-build
-    if: ${{ inputs.should_build_wheel }}
     uses: ./.github/workflows/call-build.yml
     secrets: inherit
     with:
@@ -128,16 +112,16 @@ jobs:
         echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}" >> $GITHUB_STEP_SUMMARY
 
   run-perf-benchmarks:
-    needs: [set-inputs, build]
+    needs: [docker-build, set-inputs, build]
     if: ${{ !cancelled() && needs.set-inputs.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
       adv_filter: ${{ needs.set-inputs.outputs.filter }}
-      docker_image: ${{ inputs.docker_image }}
-      artifact_release_run_id: ${{ inputs.should_build_wheel && needs.build.outputs.artifacts_run_id || inputs.artifact_release_run_id }}
-      artifact_suffix: ${{ inputs.should_build_wheel && needs.build.outputs.artifact_suffix || '' }}
-      use_docker_wheel: ${{ inputs.use_docker_wheel || false }}
+      docker_image: ${{ needs.docker-build.outputs.docker-image }}
+      artifact_release_run_id: ${{ needs.build.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build.outputs.artifact_suffix }}
+      torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
       sh-runner: ${{ inputs.sh-runner || false }}

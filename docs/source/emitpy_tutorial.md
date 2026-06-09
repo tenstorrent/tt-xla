@@ -98,7 +98,7 @@ codegen_py(
 )
 ```
 
-where `forward` is the model’s forward function that TT-XLA will compile and lower to TT-NN ops. In the JAX example, it is defined as:
+where `forward` is the model's forward function that TT-XLA will compile and lower to TT-NN ops. In the JAX example, it is defined as:
 
 ```python
 def forward(graphdef, state, x):
@@ -124,10 +124,11 @@ You should see:
 - **`main.py`** - Generated Python code with TT-NN API calls
 - **`run`** - Executable shell script to run the generated code
 - **`tensors/`** - Directory with exported model input and parameter tensors
-- **`irs/`** - # VHLO, SHLO, TTIR, TTNN intermediate representations (debugging)
+- **`irs/`** - VHLO, SHLO, TTIR, TTNN intermediate representations (debugging)
 
 ### Step 5: Generate the optimized code
-We can specify different optimization options in order to produce the more performant code. For example, we can supply following set of options to produce the optimized code.
+
+You can specify different optimization options to produce more performant code. For example, supply the following set of options to produce optimized code.
 ```python
 # Any compile options you could specify when executing the model normally can also be used with codegen.
 extra_options = {
@@ -139,7 +140,7 @@ codegen_py(
 )
 ```
 
-Link to other optimizer options to be added here: [TT-XLA Optimizer Docs](./performance.md)
+For other optimizer options, see [TT-XLA Optimizer Docs](./performance.md).
 
 ### Step 6: Exporting model input and parameter tensors
 
@@ -216,9 +217,9 @@ codegen_cpp(
 
 The generated C++ code is **fully standalone** and can be integrated into existing C++ projects.
 
-### Generate resnet TTNN code using following example:
-- [PyTorch Resnet example](../../examples/pytorch/codegen/python/resnet.py)
-- [Jax Resnet example](../../examples/jax/codegen/python/resnet.py)
+### Generate ResNet TTNN code using the following example
+- [PyTorch ResNet example](../../examples/pytorch/codegen/python/resnet.py)
+- [JAX ResNet example](../../examples/jax/codegen/python/resnet.py)
 
 ### Learn More
 

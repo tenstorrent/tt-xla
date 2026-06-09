@@ -26,7 +26,8 @@ namespace tt::pjrt {
 class DeviceDescription {
 public:
   // Constructor.
-  DeviceDescription(int32_t device_id, tt::target::Arch arch);
+  DeviceDescription(int32_t device_id, tt::target::Arch arch,
+                    uint64_t dram_size_bytes = 0);
 
   // Binds PJRT API functions implementation related to PJRT_DeviceDescription
   // structure.
@@ -87,6 +88,7 @@ private:
   // This is to enure the attribute name persists for the lifetime of the
   // DeviceDescription
   std::string m_arch_attr_name = "device_arch"; // (eg. "Wormhole_b0")
+  std::string m_dram_size_attr_name = "dram_size_bytes";
 };
 
 namespace internal {

@@ -18,7 +18,7 @@ CompileOptions CompileOptions::parse(
   CompileOptions options;
 
   options.optimization_level =
-      internal::parseIntOption(compile_options, "optimization_level")
+      internal::parseIntOption(compile_options, optimization_level_key)
           .value_or(options.optimization_level);
   options.experimental_weight_dtype =
       internal::parseStringOption(compile_options, "experimental_weight_dtype")
@@ -70,6 +70,9 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(
           compile_options, "experimental-enable-dram-space-saving-optimization")
           .value_or(options.experimental_enable_dram_space_saving_optimization);
+  options.enable_create_d2m_subgraphs =
+      internal::parseBoolOption(compile_options, "enable_create_d2m_subgraphs")
+          .value_or(options.enable_create_d2m_subgraphs);
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);
