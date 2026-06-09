@@ -257,6 +257,9 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
 
+        # sshon/wip-250529-moe-vllm
+        from . import moe_shims
+
         additional_config = vllm_config.additional_config or {}
         if "batch_size" in additional_config:
             logger.warning(

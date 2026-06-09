@@ -258,6 +258,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            xs.set_global_mesh(self.mesh)
             # Updating the config to reflect the actual mesh shape used.
             if self.use_2d_mesh and 1 in mesh_shape:
                 self.use_2d_mesh = False
@@ -1822,6 +1823,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if not hasattr(self, "model"):
             self.model = model
 
+        from .moe_shims import install_moe_shims
+        install_moe_shims(self.model)
+
         # Multimodal configs (e.g. Gemma-4) nest the language model and
         # don't expose lm_head on the top-level module. Walk the module
         # tree to find any ParallelLMHead instance.
@@ -2040,6 +2044,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # graph later.
             if self.enable_tensor_parallel:
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+                # from sshon/wip-250529-moe-vllm
+                # safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
 
             with torch_dynamo_tt_device_compatibility():
                 self.select_hidden_states(dummy_hidden, indices)

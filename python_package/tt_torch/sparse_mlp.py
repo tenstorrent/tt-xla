@@ -547,8 +547,13 @@ class A2aSparseMLP(nn.Module):
         router_input = hidden_states
         if not hasattr(self.router, "gate"):
             router_input = hidden_states.view(-1, hidden_size)
+        router_out = self.router(router_input, *extra_args, **extra_kwargs)
+        # Native router scores (matches HF GptOssMLP return contract) — used
+        # only as the second tuple element; internal sparse_matmul / dispatch
+        # use the [T, E] sparse form below.
+        native_router_scores = router_out[-2]
         router_scores, router_indices = _unpack_router_output(
-            self.router(router_input, *extra_args, **extra_kwargs), self.num_experts
+            router_out, self.num_experts
         )
 
         # Pad batch so (batch * seq_len) is a multiple of TILE (32). The
@@ -727,12 +732,13 @@ class A2aSparseMLP(nn.Module):
         output = (combined * topk_weights).sum(dim=0)  # [1, B*S, H]
         output = output.view(padded_batch, seq_len, hidden_size)
         if pad_batch > 0:
-            # Drop the padded batch entries (and matching router_scores rows)
-            # so callers see the original [batch_size, ...] shape.
+            # Drop the padded batch entries so callers see the original
+            # [batch_size, ...] shape. native_router_scores was computed
+            # pre-padding so it already has the correct row count.
             output = output[:batch_size]
-            router_scores = router_scores[: batch_size * seq_len]
+            # router_scores = router_scores[: batch_size * seq_len]
 
-        return output.to(hidden_states.dtype), router_scores
+        return output.to(hidden_states.dtype), native_router_scores
 
 
 class DeepseekV3MoEToA2AAdapter(nn.Module):
@@ -1145,7 +1151,8 @@ def enable_sparse_mlp(
             should_replace = _is_moe_mlp(module)
 
         if not should_replace:
-            return False
+            # return False
+            return None
 
         if hasattr(module, "gate") and hasattr(module, "experts"):
             sparse_mlp = create_a2a_from_deepseek_v3_moe(
@@ -1155,13 +1162,16 @@ def enable_sparse_mlp(
                 cluster_axis=cluster_axis,
                 dispatch_devices=dispatch_devices,
             )
-            setattr(parent, name, sparse_mlp)
+            # setattr(parent, name, sparse_mlp)
+            if name:
+                setattr(parent, name, sparse_mlp)
             replaced_count += 1
             if verbose:
                 print(
                     f"[SparseMLP] Replaced {name}: {type(module).__name__} -> DeepseekV3MoEToA2AAdapter"
                 )
-            return True
+            # return True
+            return sparse_mlp
 
         moe_config = _get_moe_config(module)
         if moe_config is None and config is not None:
@@ -1173,7 +1183,8 @@ def enable_sparse_mlp(
         if moe_config is None:
             if verbose:
                 print(f"[SparseMLP] Skipping {name}: could not determine MoE config")
-            return False
+            # return False
+            return None
 
         num_experts, num_experts_per_tok = moe_config
 
@@ -1201,7 +1212,9 @@ def enable_sparse_mlp(
             use_dense_matmul=use_dense_matmul,
         )
 
-        setattr(parent, name, sparse_mlp)
+        # setattr(parent, name, sparse_mlp)
+        if name:
+            setattr(parent, name, sparse_mlp)
         replaced_count += 1
 
         if verbose:
@@ -1209,10 +1222,12 @@ def enable_sparse_mlp(
                 f"[SparseMLP] Replaced {name}: {type(module).__name__} -> A2aSparseMLP "
                 f"(experts={num_experts}, num_devices={num_devices})"
             )
-        return True
+        # return True
+        return sparse_mlp
 
     # Traverse and replace. Track replaced prefixes to skip their children.
     replaced_prefixes = set()
+    top_level_replacement = None
     for name, module in list(model.named_modules()):
         # Skip children of already-replaced modules
         if any(name.startswith(p + ".") or name == p for p in replaced_prefixes):
@@ -1229,13 +1244,19 @@ def enable_sparse_mlp(
             parent = model
             child_name = name
 
-        if replace_mlp(parent, child_name, module):
+        replacement = replace_mlp(parent, child_name, module)
+        if replacement is not None:
             replaced_prefixes.add(name)
+            # Top-level (name="") cannot be reassigned via setattr — return the
+            # replacement so callers like `mlp = enable_sparse_mlp(mlp, ...)`
+            # see the new module.
+            if name == "":
+                top_level_replacement = replacement
 
     if verbose:
         print(f"[SparseMLP] Total layers replaced: {replaced_count}")
 
-    return model
+    return top_level_replacement if top_level_replacement is not None else model
 
 
 def get_moe_shard_specs(

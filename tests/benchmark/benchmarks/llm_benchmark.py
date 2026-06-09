@@ -44,6 +44,7 @@ from utils import (
 xr.set_device_type("TT")
 
 MIN_STEPS = 16
+DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
 
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
@@ -54,7 +55,7 @@ MODULE_EXPORT_PATH = "modules"
 
 
 def setup_model_and_tokenizer(
-    model_loader, model_variant
+    model_loader, model_variant, experts_implementation: Optional[str] = None
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
     """
     Instantiate model and tokenizer.
@@ -68,13 +69,20 @@ def setup_model_and_tokenizer(
     """
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
-    model = model_loader.load_model(dtype_override=torch.bfloat16)
+    # model = model_loader.load_model(dtype_override=torch.bfloat16)
+    model_kwargs = {}
+    if experts_implementation is not None:
+        model_kwargs["experts_implementation"] = experts_implementation
+    model = model_loader.load_model(dtype_override=torch.bfloat16, **model_kwargs)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
-        model.config._experts_implementation = "dense"
+        # model.config._experts_implementation = "dense"
+        model.config._experts_implementation = (
+            experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
+        )
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -258,6 +266,7 @@ def benchmark_llm_torch_xla(
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
+    experts_implementation: Optional[str] = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -347,7 +356,12 @@ def benchmark_llm_torch_xla(
     device: torch.device = torch_xla.device()
 
     # Instantiate model and tokenizer
-    model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    # model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    model, tokenizer = setup_model_and_tokenizer(
+        model_loader,
+        model_variant,
+        experts_implementation=experts_implementation,
+    )
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
     # Initialize accuracy testing if enabled
