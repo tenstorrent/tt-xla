@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+import pytest
+import torch
+import torch.nn as nn
+import torch_xla.runtime as xr
+from tt_torch.moe_backend import tt_experts_forward
+from utils import Category
+
+
+class DummyExperts(nn.Module):
+    def __init__(self, num_experts, hidden_dim, intermediate_dim, is_transposed=False):
+        super().__init__()
+        self.num_experts = num_experts
+        self.hidden_dim = hidden_dim
+        self.intermediate_dim = intermediate_dim
+        self.is_transposed = is_transposed
+        # Attrs read by HF `batched_mm` fallback when called on CPU tensors.
+        self.has_gate = True
+        self.has_bias = False
+
+        if is_transposed:
+            self.gate_up_proj = nn.Parameter(
+                torch.randn(num_experts, hidden_dim, 2 * intermediate_dim)
+            )
+            self.down_proj = nn.Parameter(
+                torch.randn(num_experts, intermediate_dim, hidden_dim)
+            )
+        else:
+            self.gate_up_proj = nn.Parameter(
+                torch.randn(num_experts, 2 * intermediate_dim, hidden_dim)
+            )
+            self.down_proj = nn.Parameter(
+                torch.randn(num_experts, hidden_dim, intermediate_dim)
+            )
+
+    def _apply_gate(self, gate_up_out):
+        # Simple GLU for testing
+        gate, up = gate_up_out.chunk(2, dim=-1)
+        return torch.nn.functional.silu(gate) * up
+
+
+@pytest.mark.push
+@pytest.mark.nightly
+@pytest.mark.single_device
+@pytest.mark.record_test_properties(
+    category=Category.GRAPH_TEST,
+)
+@pytest.mark.parametrize("is_transposed", [False, True])
+def test_tt_experts_forward_cpu_fallback(is_transposed):
+    """CPU tensors should fall back to HF `batched_mm` instead of hitting the
+    multi-chip SPMD path."""
+    xr.set_device_type("TT")
+    num_experts = 4
+    hidden_dim = 64
+    intermediate_dim = 128
+    seq_len = 64  # Multiple of 32
+    num_experts_per_tok = 2
+
+    experts = DummyExperts(num_experts, hidden_dim, intermediate_dim, is_transposed)
+
+    hidden_states = torch.randn(seq_len, hidden_dim)
+    top_k_index = torch.randint(0, num_experts, (seq_len, num_experts_per_tok))
+    top_k_weights = torch.rand(seq_len, num_experts_per_tok)
+    top_k_weights = top_k_weights / top_k_weights.sum(dim=-1, keepdim=True)
+
+    out = tt_experts_forward(experts, hidden_states, top_k_index, top_k_weights)
+    assert out.shape == (seq_len, hidden_dim)
+    assert out.device.type == "cpu"

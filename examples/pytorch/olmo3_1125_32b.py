@@ -16,7 +16,7 @@ from transformers.cache_utils import StaticCache
 from transformers.configuration_utils import PretrainedConfig
 from tt_torch.transformers_overrides import (
     override_cache_sliding_window_layers,
-    override_olmo3_sliding_window_causal_mask,
+    override_model_sliding_window_causal_mask,
 )
 
 MODEL_NAME = "allenai/Olmo-3-1125-32B"
@@ -149,7 +149,7 @@ def olmo3_1125_32b():
 
 def _load_model_and_tokenizer(model_name: str):
     model = AutoModelForCausalLM.from_pretrained(model_name, dtype=torch.bfloat16)
-    override_olmo3_sliding_window_causal_mask()
+    override_model_sliding_window_causal_mask(model)
     model = model.eval()
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:

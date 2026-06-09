@@ -219,6 +219,41 @@ def compute_pcc(golden_output: torch.Tensor, device_output: torch.Tensor) -> flo
     return max(-1.0, min(1.0, pcc))
 
 
+def compute_rel_l2(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
+    """Compute relative L2 error between two tensors.
+
+    rel_l2 = ||device_output - golden_output||_2 / ||golden_output||_2
+
+    Computed in float64 to avoid norm underflow in bf16/fp32. Complements PCC:
+    PCC is scale-blind, max-atol is dominated by a single outlier, max-rtol
+    blows up near zero. rel_l2 is scale-sensitive, stable near zero globally
+    (denominator is the golden norm, not per-element |y|), and captures
+    distributed degradation rather than one bad element.
+
+    Args:
+        golden_output: Golden reference tensor.
+        device_output: Device output tensor.
+
+    Returns:
+        Non-negative float. 0.0 if both tensors are exactly zero, inf if the
+        golden norm is zero but the difference norm is non-zero, NaN
+        propagated through if either tensor contains NaN.
+    """
+    golden_flat = golden_output.to(torch.float64).flatten()
+    device_flat = device_output.to(torch.float64).flatten()
+
+    diff_norm = torch.linalg.vector_norm(device_flat - golden_flat)
+    golden_norm = torch.linalg.vector_norm(golden_flat)
+
+    if torch.isnan(diff_norm) or torch.isnan(golden_norm):
+        return float("nan")
+
+    if golden_norm.item() == 0.0:
+        return 0.0 if diff_norm.item() == 0.0 else float("inf")
+
+    return (diff_norm / golden_norm).item()
+
+
 def get_benchmark_metadata() -> Dict[str, str]:
     """Get common benchmark metadata."""
     return {
