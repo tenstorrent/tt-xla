@@ -185,6 +185,12 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
 
   LOG_F(INFO, "Invoking getInputRuntimeTensors");
 
+  if (!m_executable_image->getCompileOptions().dry_run) {
+    FlatbufferExecutableImage *executable_image = static_cast<FlatbufferExecutableImage *>(m_executable_image.get());
+    tt::runtime::Binary binary = executable_image->getFlatbufferBinary();
+    tt::runtime::seedProgramBinary(binary);
+  }
+
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
