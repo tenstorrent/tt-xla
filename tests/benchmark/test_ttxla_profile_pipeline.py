@@ -758,6 +758,7 @@ def test_profile_command_accepts_python_module_tracy_invocation(tmp_path):
         nodeid="tests/benchmark/test_llms.py::test_llama_3_2_1b",
         profile_dir=tmp_path / "profile",
         benchmark_output=tmp_path / "benchmark.json",
+        ir_dump_root=tmp_path / "collected_irs",
         benchmark_args=[
             "--batch-size",
             "1",
@@ -771,9 +772,32 @@ def test_profile_command_accepts_python_module_tracy_invocation(tmp_path):
     assert command[:3] == ["python3", "-m", "tracy"]
     assert "-m" in command
     assert "pytest" in command
+    assert "--dump-irs-dir" in command
+    assert str(tmp_path / "collected_irs") in command
     assert "--batch-size" in command
     assert "--num-layers" in command
     assert "--max-output-tokens" in command
+
+
+def test_collect_ir_artifacts_uses_configured_dump_root(tmp_path):
+    pipeline = load_pipeline_module()
+    entry = sample_discovery_entry(pipeline)
+    paths = pipeline.profile_paths(tmp_path / "run", entry)
+    ir_dump_root = tmp_path / "external-irs"
+    source_dir = ir_dump_root / entry.model_identity
+    source_dir.mkdir(parents=True)
+    (source_dir / "shlo_compiler.mlir").write_text("module {}", encoding="utf-8")
+
+    ir_source, copied = pipeline.collect_ir_artifacts(
+        ir_dump_root=ir_dump_root,
+        paths=paths,
+        benchmark_model_name="different-name",
+        entry=entry,
+    )
+
+    assert ir_source == source_dir
+    assert [path.name for path in copied] == ["shlo_compiler.mlir"]
+    assert (paths.ir_dir / "shlo_compiler.mlir").exists()
 
 
 def test_benchmark_args_are_routed_by_family():

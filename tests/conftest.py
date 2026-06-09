@@ -262,6 +262,12 @@ def pytest_addoption(parser):
         default=False,
         help="Enable IR dumping during model tests",
     )
+    parser.addoption(
+        "--dump-irs-dir",
+        action="store",
+        default=None,
+        help="Directory where IR dumps are written when --dump-irs is enabled. Defaults to collected_irs under the repository root.",
+    )
 
 
 @pytest.fixture(autouse=True)

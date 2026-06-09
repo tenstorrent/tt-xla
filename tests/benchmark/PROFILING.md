@@ -56,6 +56,12 @@ The bounded override flags are routed by benchmark family. LLM entries receive
 receive `--num-layers`; vision and JAX entries run with their benchmark-local
 settings plus the common output/profile flags.
 
+The pipeline passes `--dump-irs-dir` to the benchmark runner and stores raw
+runner IR dumps under the run directory before copying the selected files into
+each profile's `ir/` folder. Put `--output-root` / `--ird-remote-output-root` on
+a large mount when profiling on IRD so `collected_irs` and Tracy artifacts do
+not land under a quota-constrained repository checkout.
+
 Raw Tracy logs can be large enough to fill a shared runner. By default the
 pipeline prunes raw Tracy artifacts larger than 100 MB after each model profile
 returns and records the removed paths in `status.json` under

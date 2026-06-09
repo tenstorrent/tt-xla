@@ -255,6 +255,7 @@ class RequirementCoverageContext:
 class LocalPipelineContext:
     root: Path
     run_dir: Path
+    ir_dump_root: Path
     python_bin: str
     pytest_command: str
     tracy_bin: str
@@ -386,6 +387,7 @@ def profile_command(
     nodeid: str,
     profile_dir: Path,
     benchmark_output: Path,
+    ir_dump_root: Path,
     benchmark_args: list[str],
 ) -> list[str]:
     return [
@@ -400,6 +402,8 @@ def profile_command(
         "-svv",
         nodeid,
         "--dump-irs",
+        "--dump-irs-dir",
+        str(ir_dump_root),
         "--output-file",
         str(benchmark_output),
         *benchmark_args,
@@ -1343,14 +1347,16 @@ def profile_environment(repo: Path, entry: DiscoveryEntry) -> dict[str, str]:
 
 
 def collect_ir_artifacts(
-    repo: Path, paths: ProfilePaths, benchmark_model_name: str, entry: DiscoveryEntry
+    ir_dump_root: Path,
+    paths: ProfilePaths,
+    benchmark_model_name: str,
+    entry: DiscoveryEntry,
 ) -> tuple[Optional[Path], list[Path]]:
-    collected_irs_root = repo / "collected_irs"
     ir_source_candidates = [
-        collected_irs_root / benchmark_model_name,
-        collected_irs_root / slugify(benchmark_model_name),
-        collected_irs_root / entry.model_identity,
-        collected_irs_root / slugify(entry.model_identity),
+        ir_dump_root / benchmark_model_name,
+        ir_dump_root / slugify(benchmark_model_name),
+        ir_dump_root / entry.model_identity,
+        ir_dump_root / slugify(entry.model_identity),
     ]
     ir_source = next(
         (candidate for candidate in ir_source_candidates if candidate.exists()), None
@@ -1631,6 +1637,7 @@ def profile_one_model(
     timeout_seconds: int,
     benchmark_kwargs: dict[str, int],
     max_raw_artifact_bytes: int,
+    ir_dump_root: Path,
 ) -> dict[str, Any]:
     paths = profile_paths(run_dir, entry)
     profile_command_list = profile_command(
@@ -1639,6 +1646,7 @@ def profile_one_model(
         nodeid=entry.nodeid,
         profile_dir=paths.profile_dir,
         benchmark_output=paths.benchmark_output,
+        ir_dump_root=ir_dump_root,
         benchmark_args=benchmark_args_for_entry(entry, benchmark_kwargs),
     )
 
@@ -1661,7 +1669,7 @@ def profile_one_model(
         benchmark_json, entry.model_identity
     )
     ir_source, copied_ir_files = collect_ir_artifacts(
-        repo, paths, benchmark_model_name, entry
+        ir_dump_root, paths, benchmark_model_name, entry
     )
     perf_outcome = run_tt_perf_report(
         repo, paths, tt_perf_report_bin, command_trace_path, timeout_seconds
@@ -3365,6 +3373,7 @@ def initialize_local_pipeline(args: argparse.Namespace) -> LocalPipelineContext:
         else initialize_run_dir(Path(args.output_root), args.run_id)
     )
     ensure_dir(run_dir)
+    ir_dump_root = ensure_dir(run_dir / "collected_irs")
     pytest_command = args.pytest_bin or "pytest"
     tracy_bin = maybe_find_binary("tracy", args.tracy_bin)
     tt_perf_report_bin = maybe_find_binary("tt-perf-report", args.tt_perf_report_bin)
@@ -3376,9 +3385,11 @@ def initialize_local_pipeline(args: argparse.Namespace) -> LocalPipelineContext:
     environment = capture_environment(
         root, tracy_bin, tt_perf_report_bin, pytest_command
     )
+    environment["ir_dump_root"] = str(ir_dump_root)
     return LocalPipelineContext(
         root=root,
         run_dir=run_dir,
+        ir_dump_root=ir_dump_root,
         python_bin=sys.executable,
         pytest_command=pytest_command,
         tracy_bin=tracy_bin,
@@ -3492,6 +3503,7 @@ def profile_selected_entries(
             timeout_seconds=model_timeout_seconds,
             benchmark_kwargs=benchmark_kwargs,
             max_raw_artifact_bytes=args.max_raw_artifact_bytes,
+            ir_dump_root=context.ir_dump_root,
         )
 
 
