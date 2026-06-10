@@ -18,6 +18,7 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
 
 
 @pytest.mark.model_test
+@pytest.mark.single_device
 @pytest.mark.xfail(
     reason=(
         "TT SHLO→TTIR RoPE complex legalization — "
@@ -30,6 +31,16 @@ def test_transformer():
 
 
 @pytest.mark.model_test
+@pytest.mark.nightly
+@pytest.mark.llmbox
+@pytest.mark.tensor_parallel
+@pytest.mark.xfail(
+    reason=(
+        "TT SHLO→TTIR RoPE complex legalization — "
+        "https://github.com/tenstorrent/tt-xla/issues/4756"
+    ),
+    strict=False,
+)
 def test_transformer_sharded():
     _run(sharded=True)
 

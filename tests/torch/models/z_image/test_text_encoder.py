@@ -14,6 +14,7 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import SEED
 
 
 @pytest.mark.model_test
+@pytest.mark.single_device
 def test_text_encoder():
     xr.set_device_type("TT")
     torch.manual_seed(SEED)
