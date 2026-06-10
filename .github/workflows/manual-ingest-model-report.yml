@@ -111,8 +111,10 @@ jobs:
               cp -R "$REPORT_PATH" external-report/
             else
               gh repo clone "$SOURCE_REPOSITORY" source-report-repo -- \
-                --depth 1 \
-                --branch "$SOURCE_REF"
+                --filter=blob:none \
+                --no-checkout
+              git -C source-report-repo fetch --depth 1 origin "$SOURCE_REF"
+              git -C source-report-repo checkout --detach FETCH_HEAD
               if [[ ! -e "source-report-repo/$REPORT_PATH" ]]; then
                 echo "report_path does not exist in $SOURCE_REPOSITORY@$SOURCE_REF: $REPORT_PATH" >&2
                 exit 1
