@@ -5,7 +5,7 @@
 """Text-to-image (diffusion) benchmarks.
 
 Config-driven entry points (one ``test_<model>`` per model) that reuse the
-end-to-end pipelines from ``examples/pytorch`` and drive them through the shared
+end-to-end pipelines from ``tt_forge_models`` and drive them through the shared
 two-pass harness in ``benchmarks/imagegen_benchmark.py``. This mirrors the
 ``test_vision.py`` / ``vision_benchmark.py`` split: model-specific config lives
 here, the reusable measurement logic lives in ``benchmarks/``.
@@ -17,6 +17,21 @@ precision-sensitive text encoders, scheduler and VAE on CPU.
 import json
 
 from benchmarks.imagegen_benchmark import benchmark_imagegen_torch_xla
+from third_party.tt_forge_models.bria_2_3.pytorch.pipeline import (
+    Bria23Config,
+    Bria23Pipeline,
+    save_image as save_bria_image,
+)
+from third_party.tt_forge_models.stable_diffusion_1_5.pytorch.pipeline import (
+    SD15Config,
+    SD15Pipeline,
+    save_image as save_sd15_image,
+)
+from third_party.tt_forge_models.stable_diffusion_3.pytorch.pipeline import (
+    SD3Config,
+    SD3Pipeline,
+    save_image as save_sd3_image,
+)
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
 
 # Defaults shared by all image-gen models.
@@ -58,8 +73,7 @@ def test_imagegen(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running image-gen benchmark for model: {model_info_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     prompt={prompt!r}
@@ -67,8 +81,7 @@ def test_imagegen(
     height={height}
     width={width}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_imagegen_torch_xla(
         build_pipeline_fn=build_pipeline_fn,
@@ -95,8 +108,6 @@ def test_imagegen(
 
 
 def test_stable_diffusion_1_5(output_file, request):
-    from examples.pytorch.sd_v1_5_pipeline import SD15Config, SD15Pipeline, save_image
-
     prompt = "a photo of a cat"
     num_inference_steps = 50
     height = width = 512
@@ -116,7 +127,7 @@ def test_stable_diffusion_1_5(output_file, request):
                 seed=DEFAULT_SEED,
             )
 
-        return pipeline, generate_fn, save_image
+        return pipeline, generate_fn, save_sd15_image
 
     test_imagegen(
         build_pipeline_fn=build_pipeline_fn,
@@ -132,8 +143,6 @@ def test_stable_diffusion_1_5(output_file, request):
 
 
 def test_stable_diffusion_3(output_file, request):
-    from examples.pytorch.sd_v3_pipeline import SD3Config, SD3Pipeline, save_image
-
     prompt = "An astronaut riding a green horse"
     num_inference_steps = 28
     height = width = 1024
@@ -151,7 +160,7 @@ def test_stable_diffusion_3(output_file, request):
                 seed=DEFAULT_SEED,
             )
 
-        return pipeline, generate_fn, save_image
+        return pipeline, generate_fn, save_sd3_image
 
     test_imagegen(
         build_pipeline_fn=build_pipeline_fn,
@@ -167,12 +176,6 @@ def test_stable_diffusion_3(output_file, request):
 
 
 def test_bria_2_3(output_file, request):
-    from examples.pytorch.bria_2_3_pipeline import (
-        Bria23Config,
-        Bria23Pipeline,
-        save_image,
-    )
-
     prompt = (
         "A portrait of a Beautiful and playful ethereal singer, "
         "golden designs, highly detailed, blurry background"
@@ -193,7 +196,7 @@ def test_bria_2_3(output_file, request):
                 seed=DEFAULT_SEED,
             )
 
-        return pipeline, generate_fn, save_image
+        return pipeline, generate_fn, save_bria_image
 
     test_imagegen(
         build_pipeline_fn=build_pipeline_fn,
