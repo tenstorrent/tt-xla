@@ -136,6 +136,11 @@ SKIP_HINTS = (
     "xfail",
 )
 
+PYTEST_PASS_PATTERN = re.compile(
+    r"(?m)(^PASSED\s*$|=+\s+\d+\s+passed\b|::[^\n]+\s+PASSED(?:\s|$))",
+    re.IGNORECASE,
+)
+
 TAXONOMY_VALIDATED_PASS = "validated_pass"
 TAXONOMY_VALIDATED_FAIL = "validated_fail"
 TAXONOMY_MODEL_FAILURE = "model_failure"
@@ -973,6 +978,10 @@ def text_has_skip_signal(text: str) -> bool:
     )
 
 
+def text_has_pytest_pass_signal(text: str) -> bool:
+    return bool(PYTEST_PASS_PATTERN.search(text))
+
+
 def infer_profile_status(returncode: Optional[int], timed_out: bool) -> str:
     if timed_out:
         return "pending"
@@ -994,6 +1003,8 @@ def infer_model_status(
     if text_has_skip_signal(text):
         return "skipped"
     if returncode == 0 and benchmark_json:
+        return "passed"
+    if benchmark_json and text_has_pytest_pass_signal(text):
         return "passed"
     if text_has_hint(text, PIPELINE_ERROR_HINTS):
         return RUN_STATUS_UNKNOWN
