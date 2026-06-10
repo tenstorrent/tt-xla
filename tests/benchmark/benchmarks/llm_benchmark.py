@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Built-in modules
+import contextlib
 import os
 import socket
 import sys
@@ -267,6 +268,7 @@ def benchmark_llm_torch_xla(
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
     experts_implementation: Optional[str] = None,
+    generate_chisel_report: bool = False,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -322,6 +324,12 @@ def benchmark_llm_torch_xla(
 
     if decode_only and accuracy_testing:
         raise ValueError("--decode-only cannot be combined with --accuracy-testing")
+
+    if generate_chisel_report and accuracy_testing:
+        raise ValueError(
+            "generate_chisel_report wraps the PCC prefill/decode and cannot "
+            "be combined with --accuracy-testing"
+        )
 
     if task != "text-generation":
         raise ValueError(
@@ -498,20 +506,23 @@ def benchmark_llm_torch_xla(
     # ========================================================
 
     # No logits returned to maximize performance and avoid device DRAM OOM.
-    perf_wrapper = LLMSamplingWrapper(
-        model,
-        read_logits_fn,
-        return_logits=False,
-        mesh=mesh,
-        output_sharding_spec=input_output_sharding_spec,
-    )
-    perf_wrapper.eval()
-    compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
+    # Skipped entirely for chisel accuracy reports, which only exercise the PCC
+    # prefill/decode below (the debug build chisel requires is very slow).
+    if not generate_chisel_report:
+        perf_wrapper = LLMSamplingWrapper(
+            model,
+            read_logits_fn,
+            return_logits=False,
+            mesh=mesh,
+            output_sharding_spec=input_output_sharding_spec,
+        )
+        perf_wrapper.eval()
+        compiled_perf_model = torch.compile(perf_wrapper, backend="tt")
 
     warmup_kv_cache = None
 
-    # Warmup run (skip in decode-only mode)
-    if not decode_only:
+    # Warmup run (skip in decode-only mode and for chisel accuracy reports)
+    if not decode_only and not generate_chisel_report:
         # Construct inputs for warmup run
         input_args = construct_inputs(
             tokenizer,
@@ -585,19 +596,20 @@ def benchmark_llm_torch_xla(
         token_accuracy.reference_tokens if accuracy_testing else None
     )
 
-    # Run perf benchmark
-    print(f"\nStarting performance benchmark...")
-    _, iteration_times = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        max_output_tokens,
-        verbose=True,
-        tokenizer=tokenizer,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=False,
-    )
-    print("\nPerformance benchmark complete")
+    # Run perf benchmark (skipped for chisel accuracy reports)
+    if not generate_chisel_report:
+        print(f"\nStarting performance benchmark...")
+        _, iteration_times = generate_and_benchmark(
+            compiled_perf_model,
+            input_args,
+            device,
+            max_output_tokens,
+            verbose=True,
+            tokenizer=tokenizer,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=False,
+        )
+        print("\nPerformance benchmark complete")
 
     # ========================================================
     # PCC/TOPK BENCHMARK
@@ -639,61 +651,113 @@ def benchmark_llm_torch_xla(
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
 
+    # Set up the chisel accuracy-report context. When generate_chisel_report
+    # is set, the prefill + first decode that produce PCC are wrapped in a chisel
+    # session that records per-op accuracy checks; everything else (warmup, perf
+    # benchmark) was skipped above because the debug build chisel needs is very slow.
+    if generate_chisel_report:
+        import chisel
+
+        chisel_report_path = f"{export_model_name}_chisel_report.jsonl"
+        print(f"\nGenerating chisel accuracy report at {chisel_report_path}...")
+        accuracy_report_ctx = chisel.session(
+            results_path=chisel_report_path,
+            checks_config=chisel.ChiselChecksConfig(isolation=True, accumulation=True),
+        )
+    else:
+        accuracy_report_ctx = contextlib.nullcontext()
+
     print("\nStarting PCC/TOPK benchmark...")
 
     device_prefill_logits = []
-    if not decode_only:
-        device_prefill_logits, _ = generate_and_benchmark(
+    with accuracy_report_ctx:
+        if not decode_only:
+            device_prefill_logits, _ = generate_and_benchmark(
+                compiled_logits,
+                input_args,
+                device,
+                1,
+                verbose=False,
+                ground_truth_tokens=ground_truth_for_benchmark,
+                collect_logits=True,
+            )
+
+            device_prefill_output_ids = input_args["input_ids"].to("cpu")
+
+            # Override device's first-decode input with CPU's prefill output when they
+            # diverge, so the decode PCC reference is comparing apples to apples
+            # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
+            if not accuracy_testing and not torch.equal(
+                device_prefill_output_ids, first_decode_input_ids.cpu()
+            ):
+                logger.warning(
+                    "Device prefill produced different tokens than CPU prefill; "
+                    "using CPU prefill output as decode PCC reference."
+                )
+                input_args["input_ids"] = first_decode_input_ids.to(device)
+                if input_output_sharding_spec:
+                    xs.mark_sharding(
+                        input_args["input_ids"], mesh, input_output_sharding_spec
+                    )
+
+        # The prefill call above already consumed gt[0] as teacher-forced input for
+        # the first decode step, so the decode call must start its ground-truth
+        # window at gt[1] to stay aligned. It also consumed one of the logits_steps
+        # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
+        decode_ground_truth = (
+            ground_truth_for_benchmark[1:]
+            if ground_truth_for_benchmark is not None and not decode_only
+            else ground_truth_for_benchmark
+        )
+        # Chisel reports only need a single decode step to exercise the decode graph.
+        decode_steps = (
+            1
+            if generate_chisel_report
+            else (logits_steps if decode_only else logits_steps - 1)
+        )
+        device_decode_logits, _ = generate_and_benchmark(
             compiled_logits,
             input_args,
             device,
-            1,
+            decode_steps,
             verbose=False,
-            ground_truth_tokens=ground_truth_for_benchmark,
+            ground_truth_tokens=decode_ground_truth,
             collect_logits=True,
         )
-
-        device_prefill_output_ids = input_args["input_ids"].to("cpu")
-
-        # Override device's first-decode input with CPU's prefill output when they
-        # diverge, so the decode PCC reference is comparing apples to apples
-        # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
-        if not accuracy_testing and not torch.equal(
-            device_prefill_output_ids, first_decode_input_ids.cpu()
-        ):
-            logger.warning(
-                "Device prefill produced different tokens than CPU prefill; "
-                "using CPU prefill output as decode PCC reference."
-            )
-            input_args["input_ids"] = first_decode_input_ids.to(device)
-            if input_output_sharding_spec:
-                xs.mark_sharding(
-                    input_args["input_ids"], mesh, input_output_sharding_spec
-                )
-
-    # The prefill call above already consumed gt[0] as teacher-forced input for
-    # the first decode step, so the decode call must start its ground-truth
-    # window at gt[1] to stay aligned. It also consumed one of the logits_steps
-    # total iterations, so decode runs logits_steps-1 steps (not logits_steps).
-    decode_ground_truth = (
-        ground_truth_for_benchmark[1:]
-        if ground_truth_for_benchmark is not None and not decode_only
-        else ground_truth_for_benchmark
-    )
-    decode_steps = logits_steps if decode_only else logits_steps - 1
-    device_decode_logits, _ = generate_and_benchmark(
-        compiled_logits,
-        input_args,
-        device,
-        decode_steps,
-        verbose=False,
-        ground_truth_tokens=decode_ground_truth,
-        collect_logits=True,
-    )
 
     output_logits = device_prefill_logits + device_decode_logits
 
     print("\nPCC/TOPK benchmark complete")
+
+    # For chisel accuracy reports, compute (but do NOT assert) PCC and return early.
+    # The per-op accuracy report was already written when the chisel session exited
+    # above; the perf benchmark and result aggregation were intentionally skipped.
+    if generate_chisel_report:
+        if decode_only:
+            decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
+            decode_rel_l2_value = compute_rel_l2(
+                cpu_output_logits[1][0], output_logits[0][0]
+            )
+            print(
+                "First decode PCC={:.6f}, rel_l2={:.6e}".format(
+                    decode_pcc_value, decode_rel_l2_value
+                )
+            )
+        else:
+            pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+            rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
+            print("Prefill PCC={:.6f}, rel_l2={:.6e}".format(pcc_value, rel_l2_value))
+            decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+            decode_rel_l2_value = compute_rel_l2(
+                cpu_output_logits[1][0], output_logits[1][0]
+            )
+            print(
+                "First decode PCC={:.6f}, rel_l2={:.6e}".format(
+                    decode_pcc_value, decode_rel_l2_value
+                )
+            )
+        print(f"Chisel accuracy report written to {chisel_report_path}")
+        return None
 
     # Post-processing: derive predicted tokens for accuracy testing (all users)
     if accuracy_testing:

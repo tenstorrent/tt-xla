@@ -69,6 +69,7 @@ def test_llm(
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
     experts_implementation: Optional[str] = None,
+    generate_chisel_report: bool = False,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -89,6 +90,8 @@ def test_llm(
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
         expert_implementation: Expert implementation type
+        generate_chisel_report: Wrap only the PCC prefill/decode in a chisel session
+            to emit a per-op accuracy report, skipping the (slow) perf benchmark.
     """
     # Set default batch size if None
     if batch_size is None:
@@ -170,9 +173,11 @@ def test_llm(
         use_indexer_cache=use_indexer_cache,
         enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
         experts_implementation=experts_implementation,
+        generate_chisel_report=generate_chisel_report,
     )
 
-    if output_file:
+    # Chisel report runs skip the perf benchmark and return no result to aggregate.
+    if results is not None and output_file:
         results["project"] = "tt-forge/tt-xla"
         results["model_rawname"] = model_info_name
 
