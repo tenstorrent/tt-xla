@@ -274,3 +274,49 @@ Looked into whether Option 2 would be cleaner/simpler than Option 1. Conclusion:
 - BUG #2 (our code, mixed-stage prefill packing): root-caused + confirmed.
   Plan: **Option 1 (scheduler)** now; **Option 2 (attention path)** flagged as a
   perf follow-up — see the ACTION ITEM above.
+
+---
+
+# Chunked prefill + enable_trace incompatibility (root-caused on OPT-125M)
+
+Repro: OPT-125M, seq128, b1, `enable_trace=True` + `optimization_level=1` +
+`cpu_sampling=True` + `prefill_chunk_size>0`. (tmp/trace_repro.py). Fails to
+compile:
+```
+'ttnn.capture_or_execute_trace' op All output tensors of trace function must be
+on device. %N = ttnn.from_device(page_table)[1x4 si32] ... is not on device
+```
+Isolation: trace-alone ✓, chunked-alone ✓, only the combination fails.
+
+**Root cause (confirmed via traceback):** the failure is in `capture_model()` →
+`_precompile_backbone` → `_run_backbone_dummies(prefix_chunk=True)` →
+`_dummy_run(prefix_chunk=True)` — i.e. the **prefix-chunk gather graph**, which
+`capture_model` precompiles even at seq128 (where runtime never chunks). That
+graph's `_gather_paged_to_dense` does:
+```python
+flat_indices = page_table.reshape(-1)
+gathered = torch.index_select(cache, 0, flat_indices)
+```
+tt-mlir lowers this gather by moving the **page-table index to host**
+(`from_device`), and the host page-table becomes a **trace-function output**,
+which trace forbids ("all outputs on device").
+
+**It is the gather workaround that breaks trace** — not chunked mode generally.
+(Earlier I mis-stated this: the gather is precompiled+traced at seq128 even though
+it isn't *run* at seq128 runtime.)
+
+**Implication:** the real solution — a **paged flash-attention prefill kernel**
+that reads K/V from the paged cache via the page-table **on device** (sibling of
+`paged_scaled_dot_product_attention_decode`, which works under trace today) — would
+**avoid this trace limitation** (no `index_select`, no host gather).
+
+### Fix options
+1. **tt-xla (interim):** make `_gather_paged_to_dense` trace-compatible — perform
+   the block gather with the page-table index kept on device (a device-native
+   gather, or avoid the host round-trip in the index_select lowering). Keeps the
+   gather workaround but unblocks trace. Needs checking what device gather tt-mlir
+   keeps on-device.
+2. **tt-mlir (real fix):** the paged-prefill SDPA kernel — removes the gather
+   entirely and is trace-compatible by construction.
+3. **Stopgap:** run chunked prefill with `enable_trace=False` (correctness is
+   unaffected; only perf/trace).
