@@ -2626,12 +2626,6 @@ def _glm_4_7_shard_spec_fn(model_loader, model):
     The residual hidden dim is kept replicated along the model axis so the RMS norms reduce locally instead of lowering to a distributed all_gather norm.
     Embedding is replicated, lm_head is vocab-parallel, and attention / dense MLP / shared experts are col->row parallel along model axis TP - 8.
     Routed expert weights are sharded across both model and batch axes EP - 32, matching DeepSeek V3.x / Kimi K2.
-
-    NOTE: this spec duplicates the GLM-4 ModelLoader.load_shard_spec on the
-    tt-forge-models branch mvasiljevic/glm_sharding_testing
-    (https://github.com/tenstorrent/tt-forge-models/tree/mvasiljevic/glm_sharding_testing).
-    The loader's default should be updated/refactored to match so the spec
-    lives in one place and we avoid confusion between the two.
     """
     from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
 
