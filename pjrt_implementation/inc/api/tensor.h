@@ -54,7 +54,7 @@ public:
   struct HostTensorShell {
     const void *host_buffer;
     std::vector<std::uint32_t> shape;
-    std::vector<std::uint32_t> strides;
+    std::vector<std::int64_t> strides;
     std::uint32_t element_size;
     ::tt::target::DataType runtime_data_type;
 
