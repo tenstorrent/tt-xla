@@ -225,6 +225,13 @@ private:
   // Fabric config computed for the current mesh device.
   std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
 
+  // Sticky flag set once a ring/torus fabric is found to be unable to map the
+  // full requested mesh on this system (e.g. galaxy ring auto-discovery
+  // downgrades 4x8 -> 2x8). When set, computeFabricConfig returns the line
+  // fabric (FABRIC_1D) instead of a ring config, so that both the opened mesh
+  // device and the compiled collectives consistently use line topology.
+  bool m_fallback_to_line_fabric = false;
+
   // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
   std::optional<tt::runtime::Device> m_optimizer_submesh;
 

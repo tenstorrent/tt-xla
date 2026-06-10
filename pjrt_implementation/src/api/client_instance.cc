@@ -498,6 +498,21 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                                          {}};
   }
 
+  // If a ring/torus fabric was previously found unable to map the full mesh on
+  // this system (e.g. galaxy ring auto-discovery downgrade), use line fabric
+  // for all subsequent decisions so the opened mesh device and the compiled
+  // collectives consistently use line topology instead of ring.
+  if (m_fallback_to_line_fabric) {
+    uint32_t num_devices = 1;
+    for (uint32_t dim : mesh_shape) {
+      num_devices *= dim;
+    }
+    tt::runtime::FabricConfig global =
+        num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
+                        : tt::runtime::FabricConfig::DISABLED;
+    return tt::runtime::MeshFabricConfig{global, {}};
+  }
+
   if (std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED") != nullptr &&
       std::string(std::getenv("TT_RUNTIME_ENABLE_DISTRIBUTED")) != "0") {
 
@@ -580,13 +595,6 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
   // open/close the device, so we need to set the fabric config each time
   // (even if we always set it to the same value).
   tt::runtime::MeshFabricConfig fabric_config = computeFabricConfig(mesh_shape);
-  DLOG_F(LOG_DEBUG,
-         "ClientInstance::openMeshDevice - setting fabric config: %s",
-         tt::runtime::flatbuffer::EnumNameFabricConfig(
-             fabric_config.globalConfig));
-
-  tt::runtime::setFabricConfig(fabric_config.globalConfig);
-  m_fabric_config = fabric_config;
 
   // TODO(odjuricicTT, #1485): This is a temporary way to disable program cache
   // now that it's enabled by default here,
@@ -612,7 +620,88 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
       .traceRegionSize = traceRegionSize,
   };
 
-  return tt::runtime::openMeshDevice(options);
+  uint32_t requested_num_devices = 1;
+  for (uint32_t dim : mesh_shape) {
+    requested_num_devices *= dim;
+  }
+
+  // Attempt to open the mesh with the given fabric config. Returns nullopt if
+  // the open throws (e.g. tt-metal can't map the requested mesh under this
+  // fabric) or if the opened mesh has fewer devices than requested (a topology
+  // downgrade, e.g. galaxy ring auto-discovery shrinking 4x8 -> 2x8). On
+  // failure the caller is responsible for tearing down the fabric config
+  // (via FabricConfig::DISABLED) before retrying with a different config, since
+  // tt-metal forbids switching directly between two non-disabled fabrics.
+  auto try_open = [&](const tt::runtime::MeshFabricConfig &candidate)
+      -> std::optional<tt::runtime::Device> {
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::openMeshDevice - setting fabric config: %s",
+           tt::runtime::flatbuffer::EnumNameFabricConfig(
+               candidate.globalConfig));
+    tt::runtime::setFabricConfig(candidate.globalConfig);
+    m_fabric_config = candidate;
+    try {
+      tt::runtime::Device device = tt::runtime::openMeshDevice(options);
+      uint32_t opened_num_devices = 1;
+      for (uint32_t dim : tt::runtime::getMeshShape(device)) {
+        opened_num_devices *= dim;
+      }
+      if (opened_num_devices < requested_num_devices) {
+        LOG_F(WARNING,
+              "Opened mesh under fabric %s has only %u devices but %u were "
+              "requested (topology downgrade); will try a different fabric.",
+              tt::runtime::flatbuffer::EnumNameFabricConfig(
+                  candidate.globalConfig),
+              opened_num_devices, requested_num_devices);
+        tt::runtime::closeMeshDevice(device);
+        return std::nullopt;
+      }
+      return device;
+    } catch (const std::exception &e) {
+      LOG_F(WARNING, "Failed to open mesh %s under fabric %s: %s",
+            utils::to_string(mesh_shape).c_str(),
+            tt::runtime::flatbuffer::EnumNameFabricConfig(
+                candidate.globalConfig),
+            e.what());
+      return std::nullopt;
+    }
+  };
+
+  std::optional<tt::runtime::Device> device = try_open(fabric_config);
+
+  // Fallback: if a ring/torus fabric couldn't open the full requested mesh
+  // (e.g. galaxy ring auto-discovery downgrades 4x8 -> 2x8), retry on the line
+  // fabric (FABRIC_1D), which can map the full mesh. tt-metal only allows
+  // changing the fabric config through DISABLED, so tear the current config
+  // down first.
+  if (!device.has_value() &&
+      fabric_config.globalConfig != tt::runtime::FabricConfig::FABRIC_1D &&
+      fabric_config.globalConfig != tt::runtime::FabricConfig::DISABLED) {
+    LOG_F(WARNING,
+          "Falling back to line fabric (FABRIC_1D) for mesh %s after fabric %s "
+          "could not open the full mesh.",
+          utils::to_string(mesh_shape).c_str(),
+          tt::runtime::flatbuffer::EnumNameFabricConfig(
+              fabric_config.globalConfig));
+    tt::runtime::setFabricConfig(tt::runtime::FabricConfig::DISABLED);
+    device = try_open(tt::runtime::MeshFabricConfig{
+        tt::runtime::FabricConfig::FABRIC_1D, {}});
+    if (device.has_value()) {
+      // Make the fallback sticky so subsequent fabric decisions (including the
+      // topology baked into compiled collectives via computeFabricConfig) also
+      // use line fabric, keeping the device and the executable consistent.
+      m_fallback_to_line_fabric = true;
+    }
+  }
+
+  if (!device.has_value()) {
+    LOG_F(ERROR, "Failed to open mesh device %s.",
+          utils::to_string(mesh_shape).c_str());
+    throw std::runtime_error("Failed to open mesh device for the requested "
+                             "mesh shape");
+  }
+
+  return *device;
 }
 
 void ClientInstance::closeParentMesh() {
