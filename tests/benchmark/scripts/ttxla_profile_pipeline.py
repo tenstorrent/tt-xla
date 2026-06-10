@@ -33,6 +33,7 @@ DEFAULT_TIMEOUT_SECONDS = 1800
 DEFAULT_MAX_OUTPUT_TOKENS = 3
 DEFAULT_BATCH_SIZE = 1
 DEFAULT_NUM_LAYERS = 1
+DEFAULT_INPUT_SEQUENCE_LENGTH = 0
 DEFAULT_MAX_RAW_ARTIFACT_BYTES = 100_000_000
 DEFAULT_IRD_RUN_BUDGET_BUFFER_SECONDS = 300
 DEFAULT_COLLECTOR_JOB_ID = "0"
@@ -100,7 +101,6 @@ ENVIRONMENT_FAILURE_HINTS = (
     "module not found",
     "no module named",
     "command not found",
-    "not found",
     "permission denied",
     "file not found",
     "no such file or directory",
@@ -441,6 +441,13 @@ def benchmark_args_for_entry(
     elif family == "encoder":
         args.extend(["--batch-size", str(benchmark_kwargs["batch_size"])])
         args.extend(["--num-layers", str(benchmark_kwargs["num_layers"])])
+        if benchmark_kwargs["input_sequence_length"] > 0:
+            args.extend(
+                [
+                    "--input-sequence-length",
+                    str(benchmark_kwargs["input_sequence_length"]),
+                ]
+            )
     elif family == "jax":
         args.extend(["--batch-size", str(benchmark_kwargs["batch_size"])])
     return args
@@ -2966,6 +2973,8 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         "--perf-report-job-id",
         args.perf_report_job_id,
     ]
+    if args.input_sequence_length > 0:
+        remote_args.extend(["--input-sequence-length", str(args.input_sequence_length)])
     remote_budget = effective_remote_run_budget_seconds(args)
     if remote_budget > 0:
         remote_args.extend(["--run-budget-seconds", str(remote_budget)])
@@ -3549,6 +3558,7 @@ def benchmark_kwargs_from_args(args: argparse.Namespace) -> dict[str, int]:
         "batch_size": args.batch_size,
         "num_layers": args.num_layers,
         "max_output_tokens": args.max_output_tokens,
+        "input_sequence_length": args.input_sequence_length,
     }
 
 
@@ -3715,6 +3725,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_MAX_OUTPUT_TOKENS,
         help="Bounded max-output-tokens fixture value.",
+    )
+    parser.add_argument(
+        "--input-sequence-length",
+        type=int,
+        default=DEFAULT_INPUT_SEQUENCE_LENGTH,
+        help="Bounded input-sequence-length fixture value for benchmarks that support it; 0 preserves benchmark defaults.",
     )
     parser.add_argument(
         "--max-raw-artifact-bytes",

@@ -53,7 +53,8 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py run \
 
 The bounded override flags are routed by benchmark family. LLM entries receive
 `--batch-size`, `--num-layers`, and `--max-output-tokens`; encoder entries
-receive `--batch-size` and `--num-layers`; JAX entries receive `--batch-size`;
+receive `--batch-size`, `--num-layers`, and `--input-sequence-length` when the
+sequence length is set to a positive value; JAX entries receive `--batch-size`;
 vision entries run with their benchmark-local settings plus the common
 output/profile flags.
 

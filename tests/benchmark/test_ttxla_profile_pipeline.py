@@ -223,7 +223,12 @@ def test_run_tt_perf_report_uses_raw_device_csv_as_slow_ops_fallback(tmp_path):
 
 def test_benchmark_args_route_batch_size_to_encoder_and_jax():
     pipeline = load_pipeline_module()
-    kwargs = {"batch_size": 1, "num_layers": 1, "max_output_tokens": 3}
+    kwargs = {
+        "batch_size": 1,
+        "num_layers": 1,
+        "max_output_tokens": 3,
+        "input_sequence_length": 64,
+    }
     encoder = pipeline.DiscoveryEntry(
         run_identity="run-5009-demo-0001",
         nodeid="tests/benchmark/test_encoders.py::test_bert",
@@ -248,6 +253,8 @@ def test_benchmark_args_route_batch_size_to_encoder_and_jax():
         "1",
         "--num-layers",
         "1",
+        "--input-sequence-length",
+        "64",
     ]
     assert pipeline.benchmark_args_for_entry(jax, kwargs) == ["--batch-size", "1"]
 
@@ -607,6 +614,29 @@ def test_status_semantics_do_not_treat_profile_success_as_model_success():
         text=text,
         benchmark_json={},
         perf_report_ok=True,
+    )
+
+    assert taxonomy == "model_failure"
+    assert "model or runtime behavior failed" in reason
+
+
+def test_runtime_failure_with_profiler_not_found_text_is_model_failure():
+    pipeline = load_pipeline_module()
+    text = "\n".join(
+        [
+            "RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13",
+            "Profiler API not found for PJRT plugin",
+        ]
+    )
+
+    assert pipeline.infer_model_status(1, False, text, {}) == "failed"
+
+    taxonomy, reason = pipeline.infer_taxonomy(
+        returncode=1,
+        timed_out=False,
+        text=text,
+        benchmark_json={},
+        perf_report_ok=False,
     )
 
     assert taxonomy == "model_failure"
@@ -990,7 +1020,12 @@ def test_collect_ir_artifacts_uses_configured_dump_root(tmp_path):
 
 def test_benchmark_args_are_routed_by_family():
     pipeline = load_pipeline_module()
-    kwargs = {"batch_size": 2, "num_layers": 3, "max_output_tokens": 4}
+    kwargs = {
+        "batch_size": 2,
+        "num_layers": 3,
+        "max_output_tokens": 4,
+        "input_sequence_length": 0,
+    }
 
     llm = pipeline.DiscoveryEntry(
         run_identity="run-5009-demo-0001",
