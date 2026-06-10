@@ -107,6 +107,8 @@ ENVIRONMENT_FAILURE_HINTS = (
     "filesystem error",
     "cannot create directories",
     "missing dependency",
+    "silicon_sysmem_manager",
+    "pin_or_map_sysmem_to_device",
 )
 
 MODEL_FAILURE_HINTS = (
@@ -1015,12 +1017,12 @@ def infer_model_status(
         return "pending"
     if text_has_hint(text, PIPELINE_ERROR_HINTS):
         return RUN_STATUS_UNKNOWN
+    if text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
+        return RUN_STATUS_NOT_RUN
     if text_has_hint(text, MODEL_FAILURE_HINTS):
         return "failed"
     if returncode == 0:
         return "passed"
-    if text_has_hint(text, ENVIRONMENT_FAILURE_HINTS):
-        return RUN_STATUS_NOT_RUN
     if returncode not in (0, None):
         return "failed" if benchmark_json else "unknown"
     return "unknown"

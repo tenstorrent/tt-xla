@@ -643,6 +643,32 @@ def test_runtime_failure_with_profiler_not_found_text_is_model_failure():
     assert "model or runtime behavior failed" in reason
 
 
+def test_device_start_failure_is_environment_failure():
+    pipeline = load_pipeline_module()
+    text = "\n".join(
+        [
+            "RuntimeError: Proceeding could lead to undefined behavior",
+            "silicon_sysmem_manager.cpp:388",
+            "tt::umd::SiliconSysmemManager::pin_or_map_sysmem_to_device()",
+        ]
+    )
+
+    assert (
+        pipeline.infer_model_status(1, False, text, {}) == pipeline.RUN_STATUS_NOT_RUN
+    )
+
+    taxonomy, reason = pipeline.infer_taxonomy(
+        returncode=1,
+        timed_out=False,
+        text=text,
+        benchmark_json={},
+        perf_report_ok=False,
+    )
+
+    assert taxonomy == "environment_failure"
+    assert "environment" in reason
+
+
 def test_pytest_argument_error_without_benchmark_json_is_pipeline_error():
     pipeline = load_pipeline_module()
     text = "\n".join(
