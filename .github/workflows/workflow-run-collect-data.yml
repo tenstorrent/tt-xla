@@ -14,6 +14,7 @@ on:
       - "On nightly Experimental"
       - "Run Test Single"
       - "Run Test"
+      - "Ingest Model Test Report"
       - "Performance benchmark experimental"
     types:
       - completed
