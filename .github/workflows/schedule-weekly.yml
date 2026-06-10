@@ -54,7 +54,7 @@ jobs:
   # Prefill perf sweep. These tests are marked "perf-prefill" and are skipped
   # in nightly; the {"perf-prefill": true} filter runs only them here, so the
   # regular perf tests (already covered nightly) are not re-run.
-  perf-benchmark:
+  perf-prefill-benchmark:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     needs: [ build-image, build-ttxla ]
     secrets: inherit
@@ -73,7 +73,7 @@ jobs:
     needs:
       - test_forge_models_passing
       - test_forge_models_xfail
-      - perf-benchmark
+      - perf-prefill-benchmark
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest

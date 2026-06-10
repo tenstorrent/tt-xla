@@ -488,6 +488,7 @@ def benchmark_llm_torch_xla(
 
     model = model.to(device, dtype=torch.bfloat16)
 
+    # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
@@ -1038,16 +1039,6 @@ def benchmark_llm_prefill_torch_xla(
 
     xr.set_device_type("TT")
 
-    # Resolve the device arch up front (before SPMD is enabled below) WITHOUT
-    # initializing the default XLA device. NOTE: get_xla_device_arch() calls
-    # xm.xla_device(), which initializes a *non-virtual* device; doing that
-    # before xr.use_spmd() prevents SPMD from virtualizing tensors, so unmarked
-    # inputs/buffers stay plain PjRtData and segfault inside ExecuteReplicated's
-    # dynamic_cast<PjRtShardedData*>. Reading runtime device attributes does not
-    # create the default device, so it is safe to call here.
-    _arch_name = xr.global_runtime_device_attributes()[0].get("device_arch", "").lower()
-    arch = next((a for a in ("wormhole", "blackhole") if a in _arch_name), "")
-
     # Set up for multi-chip if applicable
     if mesh_config_fn is not None and shard_spec_fn is not None:
         is_multichip = xr.global_runtime_device_count() > 1
@@ -1114,6 +1105,7 @@ def benchmark_llm_prefill_torch_xla(
 
     model = model.to(device, dtype=torch.bfloat16)
 
+    # Shard model if shard spec function is provided
     mesh = None
     if is_multichip:
         shard_specs = shard_spec_fn(model_loader, model)
@@ -1196,7 +1188,7 @@ def benchmark_llm_prefill_torch_xla(
         every run starts from cumulative_length=0 - i.e. a genuine first prefill - instead
         of accumulating into a carried-over cache.
         """
-        ia = construct_inputs(
+        in_args = construct_inputs(
             tokenizer,
             model.config,
             batch_size,
@@ -1204,12 +1196,12 @@ def benchmark_llm_prefill_torch_xla(
             input_prompt_tokens=prefill_input_tokens,
             use_mla_cache=use_mla_cache,
         )
-        ia = transfer_to_device(ia, device)
+        in_args = transfer_to_device(in_args, device)
         if is_multichip:
-            _shard_kv_cache(ia["past_key_values"], mesh, kv_cache_sharding_spec)
+            _shard_kv_cache(in_args["past_key_values"], mesh, kv_cache_sharding_spec)
             if input_output_sharding_spec:
-                xs.mark_sharding(ia["input_ids"], mesh, input_output_sharding_spec)
-        return ia
+                xs.mark_sharding(in_args["input_ids"], mesh, input_output_sharding_spec)
+        return in_args
 
     input_args = _make_prefill_inputs_on_device()
 
@@ -1334,6 +1326,7 @@ def benchmark_llm_prefill_torch_xla(
 
     # Get device count and mesh info for metrics. arch was resolved before SPMD
     # was enabled (see top of function).
+    arch = get_xla_device_arch()
     device_count = xr.global_runtime_device_count()
     mesh_shape = tuple(mesh.shape()) if mesh is not None else None
 
