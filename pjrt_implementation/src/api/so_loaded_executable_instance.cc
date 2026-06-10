@@ -13,6 +13,7 @@
 #include "tracy/Tracy.hpp"
 
 // tt-mlir includes
+#include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 
 // tt-xla includes
@@ -201,7 +202,24 @@ SOLoadedExecutableInstance::prepareInputTensor(
   // Python takes care of any device transfer and layout conversion itself.
   tensor.move_to_host();
 
-  return tensor.runtime_tensor();
+  if (arg_buffers.size() == 1) {
+    return tensor.runtime_tensor();
+  }
+
+  // Sharded inputs: move_to_host splits the tensor into per-shard host
+  // tensors. Re-wrap them into a multi-device host tensor with the original
+  // distribution so the generated ttnn.to_device call shards across the mesh
+  // instead of replicating shard 0.
+  std::vector<tt::runtime::Tensor> host_shards;
+  host_shards.reserve(arg_buffers.size());
+  for (BufferInstance *buf : arg_buffers) {
+    host_shards.push_back(buf->getPjrtTensor()->runtime_tensor());
+  }
+  tt::runtime::Tensor multi_device_tensor =
+      tt::runtime::createMultiDeviceHostTensor(
+          host_shards, *strategy, m_executable_image->getDevicesMeshShape());
+  tt::runtime::setTensorRetain(multi_device_tensor, true);
+  return multi_device_tensor;
 }
 
 } // namespace tt::pjrt

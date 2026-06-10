@@ -157,6 +157,17 @@ struct CompileOptions {
   // The graph number (g0, g1, etc.) is automatically appended.
   std::string export_model_name = "";
 
+  // Directory containing previously emitted (and possibly user-edited) codegen
+  // graph subdirectories. When set, compilation skips emission and instead
+  // matches the incoming graph by hash against the saved subdirectories; the
+  // matched code is executed via PythonModelRunner. Compilation fails if no
+  // subdirectory matches.
+  std::optional<std::string> codegen_load_path = std::nullopt;
+
+  // Stable identity of the compiled graph: hash of the StableHLO module text,
+  // computed by the module builder after the frontend SHLO pipeline.
+  std::string graph_hash = "";
+
   static CompileOptions
   parse(const std::unordered_map<std::string, std::string> &compile_options);
 };

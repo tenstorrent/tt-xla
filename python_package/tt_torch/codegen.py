@@ -49,6 +49,34 @@ def codegen_py(
     return None
 
 
+def load_codegen_py(
+    model: nn.Module,
+    *args,
+    load_path: str,
+    compiler_options: dict = {},
+    **kwargs,
+):
+    """Runs the model using previously emitted (and possibly user-edited)
+    Python codegen from load_path instead of compiling. Graphs are matched
+    by hash against the saved graph directories; a missing graph fails
+    compilation. Returns the model output."""
+    real_compile_options = {
+        **compiler_options,
+        "backend": "codegen_py",
+        "codegen_load_path": load_path,
+        "dry_run": "false",
+    }
+    torch_xla.set_custom_compile_options(real_compile_options)
+    device = xm.xla_device()
+    model.compile(backend="tt", options={"tt_legacy_compile": True})
+    model = model.to(device)
+    args = [arg.to(device) for arg in args if isinstance(arg, torch.Tensor)]
+    kwargs = {k: v.to(device) for k, v in kwargs.items() if isinstance(v, torch.Tensor)}
+    output = model(*args, **kwargs)
+    xm.wait_device_ops()
+    return output
+
+
 def codegen_cpp(
     model: nn.Module,
     *args,
