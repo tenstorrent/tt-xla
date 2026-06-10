@@ -22,11 +22,13 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
         ),
     ],
 )
-@pytest.mark.parametrize("use_2d_mesh", [True, False])
+# n300 has 2 devices: [1, 2] is the explicit shape, None the default 1D mesh
+# (both resolve to (1, 2) here).
+@pytest.mark.parametrize("mesh_shape", [[1, 2], None])
 def test_tensor_parallel_n300(
     model_name: str,
     baseline_path: str,
-    use_2d_mesh: bool,
+    mesh_shape: list[int] | None,
 ):
     """
     Test tensor parallel inference with vLLM for embedding models on N300.
@@ -38,7 +40,7 @@ def test_tensor_parallel_n300(
         max_model_len=64,
         enable_tensor_parallel=True,
         max_num_batched_tokens=128,
-        use_2d_mesh=use_2d_mesh,
+        mesh_shape=mesh_shape,
     )
 
 

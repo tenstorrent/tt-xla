@@ -8,39 +8,35 @@ from .logger import tt_init_logger
 logger = tt_init_logger(__name__)
 
 
-def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]:
-    if use_2d_mesh:
-        # Use predefined mesh shapes based on number of devices
-        mesh_shapes = {
-            2: (1, 2),
-            4: (2, 2),
-            8: (2, 4),
-            16: (4, 4),
-            32: (4, 8),
-        }
-        if num_devices in mesh_shapes:
-            mesh_shape = mesh_shapes[num_devices]
-            logger.info(
-                f"Using predefined mesh shape for {num_devices} devices: {mesh_shape}"
-            )
-            return mesh_shape
-        else:
-            # Fallback to computation for unsupported device counts
-            logger.warning(
-                f"Using fallback computation for {num_devices} devices (not in predefined shapes)"
-            )
-            mesh_dim1 = int(num_devices**0.5)
-            while num_devices % mesh_dim1 != 0:
-                mesh_dim1 -= 1
-            mesh_dim2 = num_devices // mesh_dim1
-            mesh_shape = (mesh_dim1, mesh_dim2)
-            logger.info(f"Computed mesh shape: {mesh_shape}")
-            return mesh_shape
-    else:
-        # For 1D mesh, all devices are in one dimension.
-        mesh_shape = (1, num_devices)
-        logger.info(f"Using 1D mesh shape for {num_devices} devices: {mesh_shape}")
-        return mesh_shape
+def determine_mesh_shape(
+    num_devices: int, mesh_shape: tuple[int, int] | list[int] | None = None
+) -> tuple[int, int]:
+    """Resolve the (batch, model) SPMD mesh shape against the device count.
+
+    When `mesh_shape` is None, defaults to a 1D mesh `(1, num_devices)`. When
+    provided, it must have two positive dimensions whose product equals
+    `num_devices`.
+    """
+    if mesh_shape is None:
+        resolved = (1, num_devices)
+        logger.info(f"Using default 1D mesh shape for {num_devices} devices: {resolved}")
+        return resolved
+
+    dims = list(mesh_shape)
+    if len(dims) != 2:
+        raise ValueError(
+            f"mesh_shape must have exactly 2 dimensions (batch, model); got {mesh_shape}"
+        )
+    if any(d <= 0 for d in dims):
+        raise ValueError(f"mesh_shape dimensions must be positive; got {mesh_shape}")
+    if dims[0] * dims[1] != num_devices:
+        raise ValueError(
+            f"mesh_shape {tuple(dims)} has product {dims[0] * dims[1]}, "
+            f"which does not match the device count {num_devices}"
+        )
+    resolved = (dims[0], dims[1])
+    logger.info(f"Using mesh shape for {num_devices} devices: {resolved}")
+    return resolved
 
 
 def prev_power_of_2(n: int) -> int:

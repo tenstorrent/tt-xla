@@ -252,17 +252,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
-        self.use_2d_mesh = self.tt_config.use_2d_mesh
+        self.use_2d_mesh = False
         self.is_sharded_compute_logits = False
 
         if self.enable_tensor_parallel:
             num_devices = xr.global_runtime_device_count()
-            mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
+            mesh_shape = determine_mesh_shape(num_devices, self.tt_config.mesh_shape)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
-            # Updating the config to reflect the actual mesh shape used.
-            if self.use_2d_mesh and 1 in mesh_shape:
-                self.use_2d_mesh = False
+            # A mesh with a size-1 axis is effectively 1D; downstream sharding
+            # treats only genuinely 2D meshes as 2D.
+            self.use_2d_mesh = 1 not in mesh_shape
 
         self.enforce_eager = model_config.enforce_eager
 

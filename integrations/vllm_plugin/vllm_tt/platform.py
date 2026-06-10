@@ -108,8 +108,11 @@ class TTConfig:
     # target number of layers to filter the weights accordingly during loading.
     num_hidden_layers: int = 0
 
-    # Flag to enable 2D mesh for tensor parallel execution.
-    use_2d_mesh: bool = True
+    # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
+    # execution. When None, defaults to a 1D mesh (1, num_devices). When set,
+    # its two positive dimensions must multiply to the device count, e.g.
+    # [1, 4] or [8, 4].
+    mesh_shape: Optional[list[int]] = None
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
