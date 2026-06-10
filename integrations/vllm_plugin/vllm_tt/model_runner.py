@@ -90,6 +90,7 @@ from vllm.v1.worker.utils import (
 )
 
 from .attention import (
+    _USE_CHUNKED_SDPA,
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,
@@ -493,6 +494,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for n in self.num_tokens_paddings
         }
         self._logits_indices_dev = _alloc_dev((self.max_num_reqs,), torch.int32)
+        # Chunked-prefill prefix offset (tt-xla #4986): persistent [1] int32 dev
+        # buffer so the value can change per step under a captured trace without
+        # recompiling (the chunked SDPA "flexible" tensor overload).
+        self._chunk_start_idx_dev = _alloc_dev((1,), torch.int32)
         self._page_table_dev_max = _alloc_dev(
             (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
             self.block_table_cpu.dtype,
@@ -1259,6 +1264,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             np.any(num_computed_for_reqs > 0)
         )
         attn_mask = None
+        chunk_start_idx = None
         if prefix_chunk_step:
             users_dim = page_table_dev.shape[0]
             s_len = page_table_dev.shape[1] * self.block_size
@@ -1270,6 +1276,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 kv_len=s_len,
                 dtype=self._hidden_states_dtype,
             ).to(self.device)
+            # Prefix offset for the on-device chunked SDPA path (no-gather real
+            # fix). All users in a chunked step share num_computed (same-stage
+            # batching invariant, tt-xla #4986 BUG#2 fix), so a single [1]
+            # offset is correct. Copy into the persistent buffer (trace-safe).
+            self._chunk_start_idx_dev.copy_(
+                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+            )
+            chunk_start_idx = self._chunk_start_idx_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1288,6 +1302,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=attn_mask,
             fill_page_table=fill_page_table,
+            chunk_start_idx=chunk_start_idx,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -2002,6 +2017,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # graph is cached and no recompilation happens on the first ≥2nd chunk.
         attn_mask = None
         fill_page_table = None
+        chunk_start_idx = None
         if prefix_chunk:
             s_len = num_blocks * self.block_size
             attn_mask = torch.zeros(
@@ -2015,6 +2031,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
                 self.device
             )
+            # When the no-gather chunked SDPA path is enabled, precompile THAT
+            # graph (not the gather): the op consumes chunk_start_idx on device
+            # and never moves page_table to host, so the cached-prefix graph
+            # becomes trace-compatible (tt-xla #4986). chunk_start_idx must be
+            # present here so _compute_full_attention takes the op branch.
+            if _USE_CHUNKED_SDPA:
+                chunk_start_idx = self._chunk_start_idx_dev
 
         attn_metadata = TTMetadata(
             page_table=page_table,
@@ -2022,6 +2045,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=attn_mask,
             fill_page_table=fill_page_table,
+            chunk_start_idx=chunk_start_idx,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
