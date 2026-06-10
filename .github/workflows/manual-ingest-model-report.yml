@@ -74,8 +74,10 @@ jobs:
       - name: Sanitize cohort
         id: sanitize
         shell: bash
+        env:
+          COHORT: ${{ inputs.cohort }}
         run: |
-          safe="$(printf '%s' '${{ inputs.cohort }}' | tr -cs '[:alnum:]_.-' '_' | sed 's/^_*//; s/_*$//')"
+          safe="$(printf '%s' "$COHORT" | tr -cs '[:alnum:]_.-' '_' | sed 's/^_*//; s/_*$//')"
           if [[ -z "$safe" ]]; then
             safe="external_model_report"
           fi
@@ -86,6 +88,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_REPORT_TOKEN || github.token }}
           CURRENT_REPOSITORY: ${{ github.repository }}
+          CURRENT_REF: ${{ github.ref_name }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           SOURCE_REF: ${{ inputs.source_ref }}
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
@@ -104,7 +107,7 @@ jobs:
           elif [[ -n "$REPORT_URL" ]]; then
             curl -fsSL "$REPORT_URL" -o external-report/source-report.xml
           elif [[ -n "$REPORT_PATH" ]]; then
-            if [[ "$SOURCE_REPOSITORY" == "$CURRENT_REPOSITORY" && -e "$REPORT_PATH" ]]; then
+            if [[ "$SOURCE_REPOSITORY" == "$CURRENT_REPOSITORY" && "$SOURCE_REF" == "$CURRENT_REF" && -e "$REPORT_PATH" ]]; then
               cp -R "$REPORT_PATH" external-report/
             else
               gh repo clone "$SOURCE_REPOSITORY" source-report-repo -- \
@@ -130,16 +133,22 @@ jobs:
 
       - name: Prepare report artifact
         shell: bash
+        env:
+          REPORT_JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+          REPORT_GROUP: ${{ inputs.group }}
+          REPORT_ARCH: ${{ inputs.arch }}
+          REPORT_COHORT: ${{ inputs.cohort }}
+          REPORT_SOURCE: ${{ inputs.source_label }}
         run: |
           set -euo pipefail
           python .github/scripts/prepare_external_model_report.py \
             --input external-report \
             --output-dir prepared-report \
-            --job-id '${{ steps.fetch-job-id.outputs.job_id }}' \
-            --group '${{ inputs.group }}' \
-            --arch '${{ inputs.arch }}' \
-            --cohort '${{ inputs.cohort }}' \
-            --source '${{ inputs.source_label }}' \
+            --job-id "$REPORT_JOB_ID" \
+            --group "$REPORT_GROUP" \
+            --arch "$REPORT_ARCH" \
+            --cohort "$REPORT_COHORT" \
+            --source "$REPORT_SOURCE" \
             --require-final-category
 
       - name: Upload Test Report
