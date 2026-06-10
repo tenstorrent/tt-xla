@@ -223,12 +223,12 @@ External validation lanes that already have JUnit XML can publish through the sa
 The workflow accepts one source report from:
 
 - a GitHub Actions artifact, using `source_repository`, `source_run_id`, and `source_artifact_name`
-- a checked-in `report_path`
+- a checked-in `report_path` in `source_repository` at `source_ref`
 - a direct `report_url`
 
 It normalizes the report with `.github/scripts/prepare_external_model_report.py`, writes pytest-compatible `report_<job_id>.xml`, and uploads it as a `test-reports-*` artifact. The `[internal] Collect workflow data` workflow is configured to collect this workflow, so the standard CI/CD data path can ingest the generated test report after the ingest workflow completes.
 
-For source artifacts in another private repository, configure a `GH_REPORT_TOKEN` repository secret with read access to that source repository; otherwise the workflow uses its default `GITHUB_TOKEN`.
+For source artifacts or checked-in report paths in another private repository, configure a `GH_REPORT_TOKEN` repository secret with read access to that source repository; otherwise the workflow uses its default `GITHUB_TOKEN`.
 
 Required reporting labels:
 

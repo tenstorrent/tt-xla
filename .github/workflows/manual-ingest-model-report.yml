@@ -4,10 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       source_repository:
-        description: "Repository that owns the source report artifact"
+        description: "Repository that owns the source report artifact or checked-in report"
         required: false
         type: string
         default: "tenstorrent/tt-xla"
+      source_ref:
+        description: "Git ref to use when report_path is in source_repository"
+        required: false
+        type: string
+        default: "main"
       source_run_id:
         description: "GitHub Actions run id containing the source report artifact"
         required: false
@@ -80,7 +85,9 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_REPORT_TOKEN || github.token }}
+          CURRENT_REPOSITORY: ${{ github.repository }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          SOURCE_REF: ${{ inputs.source_ref }}
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
           SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
           REPORT_PATH: ${{ inputs.report_path }}
@@ -97,11 +104,18 @@ jobs:
           elif [[ -n "$REPORT_URL" ]]; then
             curl -fsSL "$REPORT_URL" -o external-report/source-report.xml
           elif [[ -n "$REPORT_PATH" ]]; then
-            if [[ ! -e "$REPORT_PATH" ]]; then
-              echo "report_path does not exist: $REPORT_PATH" >&2
-              exit 1
+            if [[ "$SOURCE_REPOSITORY" == "$CURRENT_REPOSITORY" && -e "$REPORT_PATH" ]]; then
+              cp -R "$REPORT_PATH" external-report/
+            else
+              gh repo clone "$SOURCE_REPOSITORY" source-report-repo -- \
+                --depth 1 \
+                --branch "$SOURCE_REF"
+              if [[ ! -e "source-report-repo/$REPORT_PATH" ]]; then
+                echo "report_path does not exist in $SOURCE_REPOSITORY@$SOURCE_REF: $REPORT_PATH" >&2
+                exit 1
+              fi
+              cp -R "source-report-repo/$REPORT_PATH" external-report/
             fi
-            cp -R "$REPORT_PATH" external-report/
           else
             echo "Provide source_run_id+source_artifact_name, report_url, or report_path." >&2
             exit 1
