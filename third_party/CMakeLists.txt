@@ -5,15 +5,18 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    # tt-xla main's tt-mlir pin (c5f398432a61) with the 7 tt_lang_op commits
-    # cherry-picked on top: ttir.tt_lang_op / ttnn.tt_lang_op definitions,
-    # StableHLO -> TTIR and TTIR -> TTNN conversions, and the TtLangOp ->
-    # GenericOp flatbuffer emitter that consumes the `kernel_artifact` attribute
-    # populated by tt-xla's embedded-Python tt-lang bridge. The pinned tt-metal
-    # (d97c2c10b8f) is that base's tt-metal pin plus the interleaved-experts
-    # kernel commit. Requires SFPI 7.52+ on the host -- install via
+    # tt-mlir 3c8ac0cf2 (69 commits ahead of tt-xla main's pin c5f398432; the
+    # newer base fixes a gpt_oss attention KV-cache output-shape mismatch that
+    # c5f398432 hits on this mesh) plus the ttnn.generic raw-kernel path for
+    # low-batch streaming MoE: a `stablehlo.custom_call @tt.raw_kernel` lowers
+    # through a thin ttir.raw_kernel carrier to a stock ttnn.generic, the kernel
+    # config computed from post-Shardy local shapes and the verbatim tt-metal C++
+    # kernel embedded as SOURCE_CODE via a raw_source escape hatch. No tt-lang DSL
+    # or embedded-Python bridge. The pinned tt-metal (0cb9a0277b08) is c5ebc6351098
+    # (c5f398432's tt-metal pin) plus the interleaved-experts kernel and bank-local commits.
+    # Requires SFPI 7.52+ on the host -- install via
     #   sudo $TTPJRT/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/install_dependencies.sh --sfpi
-    set(TT_MLIR_VERSION "3d06ecd47a61ead82a7f0210e9333647ae9781cb")
+    set(TT_MLIR_VERSION "d3c47f001e06cda41de636ce50f43ad0e7886636")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")

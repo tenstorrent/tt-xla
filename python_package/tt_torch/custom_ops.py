@@ -1186,6 +1186,52 @@ def sparse_matmul_fake(
     )
 
 
+@torch.library.custom_op("tt::raw_kernel", mutates_args=[], device_types=["xla"])
+def raw_kernel(
+    tensors: List[torch.Tensor],
+    kernel_source: str,
+    arg_roles: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    """Emit ``stablehlo.custom_call @tt.raw_kernel`` for a hand-written kernel.
+
+    ``kernel_source`` (the verbatim tt-metal C++ kernel) and ``arg_roles``
+    ("in"/"out" per operand) ride in ``frontend_attributes``; the results mirror
+    the ``out``-tagged operands so the plugin sees the real post-Shardy types.
+    tt-mlir lowers @tt.raw_kernel through ttir.raw_kernel to a stock
+    ttnn.generic -- no tt-lang DSL, no Python compile bridge.
+    """
+    if not tensors:
+        raise ValueError("tt::raw_kernel requires at least one tensor operand.")
+    if not out_indices:
+        raise ValueError("tt::raw_kernel requires at least one 'out' operand.")
+    output_shapes = [list(tensors[i].shape) for i in out_indices]
+    output_dtypes = [tensors[i].dtype for i in out_indices]
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        list(tensors),
+        "tt.raw_kernel",
+        output_shapes,
+        output_dtypes,
+        frontend_attributes={
+            "kernel_source": kernel_source,
+            "arg_roles": arg_roles,
+        },
+    )
+    if isinstance(result, torch.Tensor):
+        return [result]
+    return list(result)
+
+
+@raw_kernel.register_fake
+def _raw_kernel_fake(
+    tensors: List[torch.Tensor],
+    kernel_source: str,
+    arg_roles: str,
+    out_indices: List[int],
+) -> List[torch.Tensor]:
+    return [tensors[i].clone() for i in out_indices]
+
+
 @torch.library.custom_op(
     "tt::stream_experts_matmul", mutates_args=[], device_types=["xla", "cpu"]
 )
@@ -1224,13 +1270,12 @@ def stream_experts_matmul(
     N = expert_weights.shape[-1]
 
     if device.type == "xla":
-        # Route through the tt-lang generic-op path (#4712): emit @tt.tt_lang_op with the
-        # interleaved-DRAM selective-experts kernel (Path A). Reshape so every output row
-        # (token x selected-expert) is its own [1, .] tile-group -> the M=1 activation
-        # sits in tile row 0 and the matmul result lands in row 0, no sub-tile packing.
+        # Emit @tt.raw_kernel carrying the verbatim interleaved-DRAM selective-experts
+        # kernel; tt-mlir lowers it to a stock ttnn.generic (Path A). Reshape so every
+        # output row (token x selected-expert) is its own [1, .] tile-group -> the M=1
+        # activation sits in tile row 0 and the result lands in row 0, no sub-tile packing.
         from . import stream_experts_kernel as sek
 
-        sek.register()
         K = input_tensor.shape[-1]
         R = T * k
         if per_expert_input:  # down: [T, k, K] -> one activation per output row
@@ -1250,15 +1295,16 @@ def stream_experts_matmul(
         # for the next layer). Stay on a single bf16 broadcast (no typecast) so the op
         # is trace-hoistable. gate_up's in0 has T rows -> broadcast to R = T*k.
         if per_expert_input:
-            out = (in0[:, :, :1] * 0).expand(R, 1, N).contiguous()
+            # down: in0 is K(=inter)-sharded, so slicing its K element all_gathers the
+            # full inter just to size this zeroed, kernel-overwritten buffer. The
+            # replicated idx avoids that gather (still per-layer-distinct, CSE-safe).
+            out = (idx.reshape(R, 1, 1).to(in0.dtype) * 0).expand(R, 1, N).contiguous()
         else:
             out = (in0[:, :, :1] * 0).expand(T, k, N).reshape(R, 1, N).contiguous()
-        results = torch.ops.tt.tt_lang_op(
+        results = torch.ops.tt.raw_kernel(
             [in0, in1, idx, out],
-            sek.STREAM_EXPERTS_KERNEL_ID,
+            sek.read_kernel_source(),
             "in,in,in,out",
-            sek.STREAM_EXPERTS_VERSION,
-            "",  # shard_spec (compiler shards from the func arg shardings)
             [3],  # out_indices
         )
         return results[0].reshape(T, k, N)

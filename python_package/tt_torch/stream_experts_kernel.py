@@ -28,15 +28,19 @@ _DF_BFP8_B = 6                       # tt::DataFormat::Bfp8_b
 _DF_BFP4_B = 7                       # tt::DataFormat::Bfp4_b
 _DF_INT32 = 8                        # tt::DataFormat::Int32
 
-# Expert-weight streaming dtype. "bfp8"/"bfp4" -> the custom op applies the matching
-# weight_dtype_override and the artifact reads in1 at this format. Keep bfp8 (matches
-# the dense linears): bfp4 saves DRAM but halves decode top-1 (39% vs 80%) for ~2ms.
-_IN1_DTYPE = "bfp8"
+# Expert-weight streaming dtype. "bf16"/"bfp8"/"bfp4" -> @tt.weight_dtype_override marks
+# in1 at this format; the TTIR->TTNN lowering derives the kernel's in1 page/df and casts
+# in1 to it. bfp4 = 2x less DRAM than bfp8 (the batch=1 memory-bound win); it historically
+# halved full-model decode top-1 (39% vs 80%) -- re-checking PCC on the generic path.
+_IN1_DTYPE = "bfp4"
 _IN1_DF = {"bf16": _DF_FLOAT16_B, "bfp8": _DF_BFP8_B, "bfp4": _DF_BFP4_B}[_IN1_DTYPE]
 _IN1_PAGE = {"bf16": _BF16_TILE_BYTES, "bfp8": _BFP8_TILE_BYTES, "bfp4": _BFP4_TILE_BYTES}[_IN1_DTYPE]
 _IN1_CB_FMT = {"bf16": "BFloat16", "bfp8": "BFP_BFloat8", "bfp4": "BFP_BFloat4"}[_IN1_DTYPE]
 WEIGHT_DTYPE_OVERRIDE = {"bf16": None, "bfp8": "bfp_bf8", "bfp4": "bfp_bf4"}[_IN1_DTYPE]
-_MAX_CORES = 12                      # cap; pick the largest divisor of Nt <= this
+# Non-bank-local op (down, Nt=90): 18 cores best on WH (10->45us, 18->38us; >18 hits
+# DRAM-bank contention). The bank-local op (gate_up) uses one core per DRAM bank instead.
+_MAX_CORES = 18
+_WH_DRAM_BANKS = 12                  # Wormhole DRAM bank count (NOT a power of 2)
 
 KERNEL_PATH = (
     "models/demos/deepseek_v3_b1/micro_ops/dram_streaming_experts_matmul/kernels/"
@@ -62,6 +66,15 @@ def _read_kernel_source() -> str:
         except OSError:
             continue
     return ""
+
+
+def read_kernel_source() -> str:
+    """Verbatim interleaved-experts kernel C++, embedded into the @tt.raw_kernel
+    custom call (tt-mlir lowers it to a stock ttnn.generic)."""
+    src = _read_kernel_source()
+    if not src:
+        raise RuntimeError(f"could not read kernel source for {KERNEL_PATH}")
+    return src
 
 
 def _pick_num_cores(nt: int) -> int:
@@ -98,8 +111,25 @@ def build_stream_experts_artifact(
     assert N % TILE == 0, f"N({N}) not tile-aligned"
     Kt, Nt = K // TILE, N // TILE
     idx_tiles = (R + TILE - 1) // TILE
-    num_cores = _pick_num_cores(Nt)
+    # Bank-local (Nt a multiple of the bank count) -> one core per DRAM bank so each
+    # core streams a single bank with no cross-core contention. Else largest divisor
+    # of Nt under the cap.
+    if Nt % _WH_DRAM_BANKS == 0 and Nt >= _WH_DRAM_BANKS:
+        num_cores = _WH_DRAM_BANKS
+    else:
+        num_cores = _pick_num_cores(Nt)
     per_core_n = Nt // num_cores
+
+    # Nt a multiple of banks -> a column's K-tiles share a bank (stride Nt); the kernel
+    # streams it with one address + a fixed in-bank step, skipping the per-tile (non-pow2)
+    # bank division. Tiles; 0 disables (e.g. down, Nt=90).
+    in1_bank_step = (Nt // _WH_DRAM_BANKS) if (Nt % _WH_DRAM_BANKS == 0) else 0
+
+    # Bank-local core->column: core c takes the columns in bank c (nt = c, c+num_cores,
+    # ...) so no two cores contend on a bank. Else contiguous slice (col_first c*per_core_n).
+    bank_local = in1_bank_step != 0 and num_cores == _WH_DRAM_BANKS
+    col_first_mul = 1 if bank_local else per_core_n
+    col_stride = num_cores if bank_local else 1
 
     ct = [
         _ct("iem_cb_in0", _CB_IN0), _ct("iem_cb_in1", _CB_IN1),
@@ -112,6 +142,9 @@ def build_stream_experts_artifact(
         _ct("iem_out_df", _DF_FLOAT16_B), _ct("iem_index_df", _DF_INT32),
         _ct("iem_per_core_n", per_core_n),  # index 16
         _ct("iem_k_reuse", k_reuse),        # index 17
+        _ct("iem_in1_bank_step", in1_bank_step),  # index 18 (0 = per-tile path)
+        _ct("iem_col_first_mul", col_first_mul),  # index 19
+        _ct("iem_col_stride", col_stride),        # index 20
     ]
 
     # Compute cores: row-major on the 8-wide Tensix grid. core_id = list position.
