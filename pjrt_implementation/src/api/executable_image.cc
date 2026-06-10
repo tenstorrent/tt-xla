@@ -227,6 +227,10 @@ FlatbufferExecutableImage::FlatbufferExecutableImage(
            "Number of outputs doesn't match output specs size: "
            "getNumOutputs()={}, output_specs.size()={}",
            this->getNumOutputs(), output_specs.size());
+  TT_FATAL(this->getNumOutputs() == output_sharding.size(),
+           "Number of outputs doesn't match output sharding size: "
+           "getNumOutputs()={}, output_sharding.size()={}",
+           this->getNumOutputs(), output_sharding.size());
 
   int output_dims_so_far = 0;
   for (size_t output_index = 0; output_index < getNumOutputs();

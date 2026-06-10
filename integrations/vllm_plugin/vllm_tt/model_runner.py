@@ -278,7 +278,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.enable_data_parallel = False
 
         if self.enable_data_parallel and self.enable_tensor_parallel:
-            self.parallel_mode = ParallelismMode.DATA_TENSOR_PRALLEL
+            self.parallel_mode = ParallelismMode.DATA_TENSOR_PARALLEL
         elif self.enable_data_parallel:
             self.parallel_mode = ParallelismMode.DATA_PARALLEL_ONLY
         elif self.enable_tensor_parallel:
@@ -1243,7 +1243,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
-            ParallelismMode.DATA_TENSOR_PRALLEL,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             # paged_update_cache requires its update-index (cache_position) and
             # page_table to have the same per-device leading dim as the K/V
@@ -1608,7 +1608,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             if self.parallel_mode in (
                 ParallelismMode.DATA_PARALLEL_ONLY,
-                ParallelismMode.DATA_TENSOR_PRALLEL,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
             ):
                 if input_ids is not None:
                     xs.mark_sharding(input_ids, self.mesh, ("batch", None))
@@ -1984,7 +1984,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
-            ParallelismMode.DATA_TENSOR_PRALLEL,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             if input_ids is not None:
                 xs.mark_sharding(input_ids, self.mesh, ("batch", None))
@@ -1997,7 +1997,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         if self.parallel_mode in (
             ParallelismMode.DATA_PARALLEL_ONLY,
-            ParallelismMode.DATA_TENSOR_PRALLEL,
+            ParallelismMode.DATA_TENSOR_PARALLEL,
         ):
             # paged_update_cache requires its update-index (cache_position) and
             # page_table to have the same per-device leading dim as the K/V
@@ -2182,7 +2182,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # Mark dummy inputs to match the generated hidden_states shardings
             # (during execution) to avoid re-compilation of select_hidden_states
             # graph later.
-            if self.enable_tensor_parallel:
+            if self.parallel_mode in (
+                ParallelismMode.TENSOR_PARALLEL_ONLY_1D,
+                ParallelismMode.TENSOR_PARALLEL_ONLY_2D,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
             elif self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
                 safe_mark_sharding(dummy_hidden, self.mesh, ("batch", None, None))
@@ -2615,26 +2619,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.kv_caches,
         )
 
-        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PRALLEL:
+        if self.parallel_mode == ParallelismMode.DATA_TENSOR_PARALLEL:
             # DP+TP: leave the KV cache un-annotated, same as the DP-only
             # path. Under SPMD an un-annotated tensor is replicated; each
             # device writes its own K/V slice via paged_update_cache without
-            # cross-device sync (each DP replica writes to its own request
-            # rows). We deliberately do NOT apply the TP-only spec
-            # `(None, "batch", None, None)` here because under a (dp, tp)
-            # mesh that puts `block_size` on the DP axis, which then forces
-            # the partitioner to replicate K/V projections back to leading-
-            # dim dp_size and fails `ttir.paged_update_cache` with a shape
-            # mismatch (input dim N != update-index dim 1).
-            #
-            # We also deliberately do NOT shard `num_kv_heads` along
-            # `"model"` (which would be the natural TP spec) because vLLM
-            # may pick a `num_blocks` that isn't divisible by `dp_size`
-            # (e.g. 7 for Qwen3-0.6B at small KV budgets), and any spec that
-            # also names "batch" trips on that. A clean fix would force the
-            # KV budget to round `num_blocks` up to a multiple of dp_size.
-            # Filed as a follow-up; for now this smoke-tests DP+TP without
-            # TP-axis KV head splitting.
+            # cross-device sync. The TP-only spec
+            # `(None, "batch", None, None)` is unsafe here because under a
+            # (dp, tp) mesh it puts `block_size` on the DP axis and fails
+            # `ttir.paged_update_cache` with a shape mismatch. Sharding
+            # `num_kv_heads` along "model" is also blocked when `num_blocks`
+            # is not divisible by `dp_size`. Tracked as a follow-up.
             pass
         elif self.enable_tensor_parallel:
             for kv_pair in self.kv_caches:

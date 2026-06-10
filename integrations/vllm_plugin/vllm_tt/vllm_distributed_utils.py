@@ -64,7 +64,7 @@ class ParallelismMode(Enum):
     DATA_PARALLEL_ONLY = "data_parallel_only"
     TENSOR_PARALLEL_ONLY_1D = "tensor_parallel_only_1D"
     TENSOR_PARALLEL_ONLY_2D = "tensor_parallel_only_2d"
-    DATA_TENSOR_PRALLEL = "data_tensor_prallel"
+    DATA_TENSOR_PARALLEL = "data_tensor_parallel"
 
 
 class XlaMergedColumnParallelLinear(nn.Module):

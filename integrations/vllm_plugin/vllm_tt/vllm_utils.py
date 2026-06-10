@@ -24,7 +24,7 @@ def determine_mesh_shape(
 
     if parallel_mode in (
         ParallelismMode.TENSOR_PARALLEL_ONLY_2D,
-        ParallelismMode.DATA_TENSOR_PRALLEL,
+        ParallelismMode.DATA_TENSOR_PARALLEL,
     ):
         # Use predefined mesh shapes based on number of devices
         mesh_shapes = {
