@@ -487,6 +487,8 @@ class TTAttentionBackendImpl(AttentionImpl):
             key_for_update = inputs.key.transpose(1, 2)
             value_for_update = inputs.value.transpose(1, 2)
 
+            # TODO(#5154): hoist to a setup-time metadata input built on CPU
+            # instead of an in-graph device constructor rebuilt per call.
             batch_idxs = torch.arange(
                 key_for_update.shape[0],
                 dtype=torch.int32,
