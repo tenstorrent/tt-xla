@@ -1835,9 +1835,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Cache attention layer names so we don't rebuild the per-layer
         # attn_metadata dict every step.
-        self._attention_layer_names = tuple(
-            get_layers_from_vllm_config(self.vllm_config, Attention).keys()
-        )
+        attn_layers = get_layers_from_vllm_config(self.vllm_config, Attention)
+        attn_layers |= get_layers_from_vllm_config(self.vllm_config, MLAAttention)
+        self._attention_layer_names = tuple(attn_layers.keys())
 
     def reload_weights(self) -> None:
         assert (
