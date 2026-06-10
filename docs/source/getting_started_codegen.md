@@ -235,6 +235,22 @@ You should see:
 
 ## Advanced Topics
 
+### Emit, Edit, and Reload Generated Python (env vars)
+
+Any workflow that compiles through the TT PJRT plugin (including vLLM) can emit Python codegen and later run a user-edited copy instead of recompiling, without changing the workflow's code:
+
+```bash
+# 1. Emit: every compiled graph is generated AND executed live via PythonModelRunner.
+TTXLA_CODEGEN_EXPORT_DIR=/path/to/export pytest <your test>
+
+# 2. Edit the generated code, e.g. /path/to/export/graph_0/main.py.
+
+# 3. Load: graphs are matched by hash against saved dirs and the edited code runs.
+TTXLA_CODEGEN_LOAD_DIR=/path/to/export pytest <your test>
+```
+
+Each compiled graph gets its own subdirectory (`graph_N` or `{export_model_name}_gN`) containing `main.py`, `ttnn.mlir`, `tensors/` and a `module_key` file holding the graph's StableHLO hash, which is how graphs are matched on load (compile order doesn't matter). `manifest.json` at the export root maps hashes to directories. Loading fails with an error listing available graphs if a compiled graph has no saved match — re-emit to capture it. Explicit compile options override these env vars. From PyTorch you can also use `tt_torch.codegen.load_codegen_py(model, ..., load_path=...)`.
+
 ### Alternative: Code Generation via Serialization
 
 > **Note:** Most users should use compile options (documented above). This method is provided for advanced use cases.
