@@ -302,7 +302,7 @@ void BufferInstance::copyFromHost(
   } else {
     if (cannot_borrow_host_buffer) {
       runtime_tensor = tt::runtime::createOwnedHostTensor(
-          host_buffer, shape, strides_uint32, element_size, runtime_data_type);
+          host_buffer, shape, strides_int64, element_size, runtime_data_type);
       // Memory is copied, we don't need host buffer anymore.
       EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
                                             tt_pjrt_status::kSuccess);
@@ -319,7 +319,7 @@ void BufferInstance::copyFromHost(
       // buffer so we have to const cast here.
       // https://github.com/tenstorrent/tt-metal/issues/20622
       runtime_tensor = tt::runtime::createBorrowedHostTensor(
-          const_cast<void *>(host_buffer), shape, strides_uint32, element_size,
+          const_cast<void *>(host_buffer), shape, strides_int64, element_size,
           runtime_data_type);
 
       // Memory is aliased, we need to hold on to host buffer until this buffer
@@ -357,11 +357,9 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
       src_buffer->getDataType());
   std::vector<std::int64_t> strides_int64_2 = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
-  std::vector<std::uint32_t> strides_uint32_2(strides_int64_2.begin(),
-                                              strides_int64_2.end());
 
   tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
-      /* data= */ nullptr, shape, strides_uint32_2, element_size,
+      /* data= */ nullptr, shape, strides_int64_2, element_size,
       runtime_data_type);
 
   src_buffer->getPjrtTensor()->move_to_host();
