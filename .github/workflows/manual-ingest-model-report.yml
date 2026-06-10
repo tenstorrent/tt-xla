@@ -1,0 +1,143 @@
+name: Ingest Model Test Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: "Repository that owns the source report artifact"
+        required: false
+        type: string
+        default: "tenstorrent/tt-xla"
+      source_run_id:
+        description: "GitHub Actions run id containing the source report artifact"
+        required: false
+        type: string
+      source_artifact_name:
+        description: "Artifact name containing source JUnit XML"
+        required: false
+        type: string
+      report_path:
+        description: "Path to a checked-in JUnit XML file or directory"
+        required: false
+        type: string
+      report_url:
+        description: "URL to a JUnit XML file"
+        required: false
+        type: string
+      cohort:
+        description: "Cohort label for Superset filtering"
+        required: true
+        type: string
+        default: "external-model-report"
+      arch:
+        description: "Hardware/reporting architecture label"
+        required: true
+        type: string
+        default: "nvidia-g5"
+      group:
+        description: "Model group label for Superset filtering"
+        required: true
+        type: string
+        default: "vulcan"
+      source_label:
+        description: "External report source label"
+        required: true
+        type: string
+        default: "external-model-report"
+
+permissions:
+  actions: read
+  checks: write
+  contents: read
+
+run-name: "Ingest model report (${{ inputs.cohort }}, ${{ inputs.arch }})"
+
+jobs:
+  ingest-report:
+    name: "ingest report (${{ inputs.cohort }}, ${{ inputs.arch }})"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch job id
+        id: fetch-job-id
+        uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
+        with:
+          job_name: "ingest report (${{ inputs.cohort }}, ${{ inputs.arch }})"
+
+      - name: Sanitize cohort
+        id: sanitize
+        shell: bash
+        run: |
+          safe="$(printf '%s' '${{ inputs.cohort }}' | tr -cs '[:alnum:]_.-' '_' | sed 's/^_*//; s/_*$//')"
+          if [[ -z "$safe" ]]; then
+            safe="external_model_report"
+          fi
+          echo "cohort=$safe" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch source report
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_REPORT_TOKEN || github.token }}
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          SOURCE_ARTIFACT_NAME: ${{ inputs.source_artifact_name }}
+          REPORT_PATH: ${{ inputs.report_path }}
+          REPORT_URL: ${{ inputs.report_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p external-report
+
+          if [[ -n "$SOURCE_RUN_ID" && -n "$SOURCE_ARTIFACT_NAME" ]]; then
+            gh run download "$SOURCE_RUN_ID" \
+              --repo "$SOURCE_REPOSITORY" \
+              --name "$SOURCE_ARTIFACT_NAME" \
+              --dir external-report
+          elif [[ -n "$REPORT_URL" ]]; then
+            curl -fsSL "$REPORT_URL" -o external-report/source-report.xml
+          elif [[ -n "$REPORT_PATH" ]]; then
+            if [[ ! -e "$REPORT_PATH" ]]; then
+              echo "report_path does not exist: $REPORT_PATH" >&2
+              exit 1
+            fi
+            cp -R "$REPORT_PATH" external-report/
+          else
+            echo "Provide source_run_id+source_artifact_name, report_url, or report_path." >&2
+            exit 1
+          fi
+
+          found="$(find external-report -name '*.xml' -type f | wc -l | tr -d ' ')"
+          if [[ "$found" == "0" ]]; then
+            echo "No XML files found in fetched source report." >&2
+            find external-report -maxdepth 3 -type f >&2 || true
+            exit 1
+          fi
+
+      - name: Prepare report artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/scripts/prepare_external_model_report.py \
+            --input external-report \
+            --output-dir prepared-report \
+            --job-id '${{ steps.fetch-job-id.outputs.job_id }}' \
+            --group '${{ inputs.group }}' \
+            --arch '${{ inputs.arch }}' \
+            --cohort '${{ inputs.cohort }}' \
+            --source '${{ inputs.source_label }}' \
+            --require-final-category
+
+      - name: Upload Test Report
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: test-reports-external-${{ github.run_attempt }}.0-ubuntu-latest-${{ steps.sanitize.outputs.cohort }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: prepared-report/report_${{ steps.fetch-job-id.outputs.job_id }}.xml
+
+      - name: Upload Report Summary
+        uses: actions/upload-artifact@v4
+        if: success() || failure()
+        with:
+          name: external-model-report-summary-${{ github.run_attempt }}.0-ubuntu-latest-${{ steps.sanitize.outputs.cohort }}-${{ steps.fetch-job-id.outputs.job_id }}
+          path: prepared-report/external-model-report-summary.json

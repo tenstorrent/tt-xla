@@ -216,6 +216,30 @@ pytest -q -m n300_llmbox --arch n300-llmbox tests/runner/test_models.py
 - `tests/runner/test_models.py::test_placeholder_models` emits report entries with the `placeholder` marker; used for reporting on Superset dashboard and run in tt-xla Nightly CI (typically via `model-test-xfail.json`).
 - Be sure to remove the placeholder at the same time the real model is added to avoid duplicate reports.
 
+## External model report ingestion
+
+External validation lanes that already have JUnit XML can publish through the same Superset ingestion path as model CI by using the `Ingest Model Test Report` workflow.
+
+The workflow accepts one source report from:
+
+- a GitHub Actions artifact, using `source_repository`, `source_run_id`, and `source_artifact_name`
+- a checked-in `report_path`
+- a direct `report_url`
+
+It normalizes the report with `.github/scripts/prepare_external_model_report.py`, writes `report_<job_id>.xml`, and uploads it as a `test-reports-*` artifact. The `[internal] Collect workflow data` workflow is configured to collect this workflow, so the standard CI/CD data path can ingest the generated test report after the ingest workflow completes.
+
+For source artifacts in another private repository, configure a `GH_REPORT_TOKEN` repository secret with read access to that source repository; otherwise the workflow uses its default `GITHUB_TOKEN`.
+
+Required reporting labels:
+
+- `group`: a chart/filter group such as `vulcan`
+- `arch`: the hardware/reporting scope, for example `nvidia-g5`
+- `cohort`: a stable cohort name such as `issue5010_authoritative_missing`
+- `final_category`: normalized result category, for example `validated_pass`, `validated_fail`, `pipeline_error`, or `not_collected`
+- `reason_code`: normalized reason bucket, for example `incorrect_result`, `timeout`, or `network_or_hf_hub`
+
+The normalizer also preserves existing model-runner tags and adds `external_report_*` labels so external reports can be filtered separately from native nightly model tests.
+
 
 ## CI setup
 
