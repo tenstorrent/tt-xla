@@ -260,6 +260,10 @@ def test_llm(
             json.dump(results, file, indent=2)
 
 
+# Generic driver invoked by the per-model tests, not a test itself.
+test_llm.__test__ = False
+
+
 def test_llm_prefill(
     ModelLoaderModule,
     variant,
@@ -468,6 +472,10 @@ def test_llm_tp(
         required_pcc=required_pcc,
         **kwargs,
     )
+
+
+# Generic driver invoked by the per-model TP tests, not a test itself.
+test_llm_tp.__test__ = False
 
 
 def test_llm_prefill_tp(
