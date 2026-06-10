@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
+import os
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -167,6 +168,14 @@ def fill_cache_workaround(
     return new_cache
 
 
+# Chunked-prefill real fix (tt-xla #4986): when set, the cached-prefix prefill
+# chunk uses the on-device ttnn.transformer.chunked_scaled_dot_product_attention
+# op instead of the gather + host-mask SDPA workaround. Removes the dense
+# re-materialization and the chunked+trace incompatibility. Off by default
+# during bringup so we can A/B against the gather path.
+_USE_CHUNKED_SDPA = os.environ.get("TT_CHUNKED_SDPA", "0") == "1"
+
+
 @dataclass
 class TTMetadata:
     # Used in the TTAttentionBackendImpl
@@ -177,6 +186,11 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    # Chunked-prefill prefix offset (tt-xla #4986): device [1] int32 tensor =
+    # num_computed (shared across users by the same-stage-batching invariant).
+    # Set only on a cached-prefix prefill chunk; consumed by the on-device
+    # chunked_scaled_dot_product_attention op (the no-gather path).
+    chunk_start_idx: torch.Tensor
 
     def __init__(
         self,
@@ -185,6 +199,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        chunk_start_idx: torch.Tensor | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +208,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.chunk_start_idx = chunk_start_idx
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -541,6 +557,27 @@ class TTAttentionBackendImpl(AttentionImpl):
             and has_paged_cache
             and not shared_kv_mode
         )
+
+        if (
+            _USE_CHUNKED_SDPA
+            and prefix_chunk_mode
+            and attn_metadata.chunk_start_idx is not None
+        ):
+            # Real fix (no gather): the prefix chunk attends over the paged cache
+            # on device via page_table + chunk_start_idx. The chunk K/V were
+            # already written to the cache by _handle_paged_attention. Causal
+            # masking + prefix offset are handled inside the op, so no host mask
+            # and no dense re-materialization (and it is trace-compatible).
+            chunked_out = torch.ops.tt.chunked_scaled_dot_product_attention(
+                inputs.query.transpose(-3, -2),  # [users, n_heads, chunk_len, head]
+                kv_cache[0],
+                kv_cache[1],
+                attn_metadata.page_table,
+                attn_metadata.chunk_start_idx,
+                scale=self.scale,
+            )
+            # Back to [users, tokens, num_heads, head_size].
+            return chunked_out.transpose(-3, -2)
 
         if shared_kv_mode:
             # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]
