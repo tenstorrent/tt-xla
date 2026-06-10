@@ -19,6 +19,7 @@ import os
 import re
 import xml.etree.ElementTree as ET
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -388,15 +389,17 @@ def report_counts(testcases: list[ET.Element]) -> dict[str, Any]:
 def build_testsuite(
     args: argparse.Namespace, testcases: list[ET.Element], counts: dict[str, Any]
 ) -> ET.Element:
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
     testsuite = ET.Element(
         "testsuite",
         {
-            "name": args.cohort,
+            "name": "pytest",
             "tests": str(counts["tests"]),
             "failures": str(counts["failures"]),
             "errors": str(counts["errors"]),
             "skipped": str(counts["skipped"]),
             "time": "0",
+            "timestamp": timestamp,
             "hostname": args.arch,
         },
     )
