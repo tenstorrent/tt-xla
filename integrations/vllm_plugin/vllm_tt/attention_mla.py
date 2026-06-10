@@ -243,14 +243,15 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         q_nope: torch.Tensor, attn_metadata: TTMetadata | None
     ) -> bool:
         """
-        Heuristic: prefill when more than one token per user.
+        Prefill when more than one token per user, decode otherwise.
+        Note: the scheduler guarantees that the tensors being sent to this class
+        consist of either only ALL prefill requests, or ALL decode requests.
         """
         if attn_metadata is None or attn_metadata.cache_position is None:
             # Treat profiling runs as prefill
             return True
         users = attn_metadata.cache_position.shape[0]
-        if users == 0:
-            return True
+        assert users > 0, "Invalid number of users"
         total_tokens = q_nope.shape[0]
         return (total_tokens // users) > 1
 
