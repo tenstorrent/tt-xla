@@ -240,6 +240,8 @@ Required reporting labels:
 
 The normalizer also preserves existing model-runner tags and adds `external_report_*` labels so external reports can be filtered separately from native nightly model tests.
 
+The local JUnit summary helper also emits `cohort`, `hardware_scope`, `final_category`, and `reason_code` columns when those tags are present, so generated reports can be checked before the workflow uploads them.
+
 
 ## CI setup
 

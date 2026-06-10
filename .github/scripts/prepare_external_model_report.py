@@ -22,7 +22,6 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
-
 MODEL_TEST_CLASSNAME = "tests.runner.test_models"
 DEFAULT_OWNER = "tt-xla"
 DEFAULT_RUN_MODE = "inference"
@@ -241,7 +240,9 @@ def normalize_tags(
             "specific_test_case": specific_test_case,
             "category": clean_text(tags.get("category") or "model_test"),
             "model_name": model_name,
-            "model_info": normalize_model_info(tags, model_name=model_name, group=group),
+            "model_info": normalize_model_info(
+                tags, model_name=model_name, group=group
+            ),
             "run_mode": clean_text(tags.get("run_mode") or DEFAULT_RUN_MODE),
             "run_phase": clean_text(tags.get("run_phase") or DEFAULT_RUN_PHASE),
             "bringup_status": infer_bringup_status(testcase, tags, final_category),
@@ -369,7 +370,9 @@ def report_counts(testcases: list[ET.Element]) -> dict[str, Any]:
         "failures": sum(
             1 for testcase in testcases if testcase.find("failure") is not None
         ),
-        "errors": sum(1 for testcase in testcases if testcase.find("error") is not None),
+        "errors": sum(
+            1 for testcase in testcases if testcase.find("error") is not None
+        ),
         "skipped": sum(
             1 for testcase in testcases if testcase.find("skipped") is not None
         ),
