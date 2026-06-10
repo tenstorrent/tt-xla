@@ -1,0 +1,155 @@
+2026-06-10 06:22:52.798 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-153-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'metadata': '3.1.1', 'anyio': '4.13.0', 'jaxtyping': '0.3.10', 'split': '0.11.0', 'json-report': '1.5.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: metadata-3.1.1, anyio-4.13.0, jaxtyping-0.3.10, split-0.11.0, json-report-1.5.0, forked-1.6.0
+collecting ... collected 1 item
+
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py::test_export_ir_native_groupnorm[composite_prefix_norm2-1] Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-06-10 06:24:23.654538: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-06-10 06:35:35.354 | critical |          Always | TT_FATAL: Out of Memory: Not enough space to allocate 3774873600 B DRAM buffer across 12 banks, where each bank needs to store 314572800 B, but bank size is 1071821792 B (allocated: 646310560 B, free: 425511232 B, largest free block: 235950944 B) (assert.hpp:104)
+2026-06-10 06:35:35.395 ( 762.597s) [        527936C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/tt_metal/impl/allocator/bank_manager.cpp:462: false
+info:
+Out of Memory: Not enough space to allocate 3774873600 B DRAM buffer across 12 banks, where each bank needs to store 314572800 B, but bank size is 1071821792 B (allocated: 646310560 B, free: 425511232 B, largest free block: 235950944 B)
+backtrace:
+ --- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/libtt_metal.so(+0x889241) [0x7fbd57d61241]
+ --- tt::tt_metal::BankManager::allocate_buffer(unsigned long, unsigned long, bool, tt::tt_metal::CoreRangeSet const&, std::optional<unsigned int>, ttsl::StrongType<unsigned int, tt::tt_metal::AllocatorIDTag>, std::vector<std::pair<unsigned long, unsigned long>, std::allocator<std::pair<unsigned long, unsigned long> > > const&)
+ --- tt::tt_metal::AllocatorImpl::allocate_buffer(tt::tt_metal::Buffer*)
+ --- tt::tt_metal::Buffer::allocate_impl()
+ --- tt::tt_metal::Buffer::create(tt::tt_metal::IDevice*, unsigned long, unsigned long, tt::tt_metal::BufferType, tt::tt_metal::BufferShardingArgs const&, std::optional<bool>, std::optional<ttsl::StrongType<unsigned char, tt::tt_metal::SubDeviceIdTag> >)
+ --- tt::tt_metal::distributed::MeshBuffer::create(std::variant<tt::tt_metal::distributed::ReplicatedBufferConfig, tt::tt_metal::distributed::ShardedBufferConfig> const&, tt::tt_metal::distributed::DeviceLocalBufferConfig const&, tt::tt_metal::distributed::MeshDevice*, std::optional<unsigned long>)
+ --- tt::tt_metal::tensor_impl::allocate_device_buffer(tt::tt_metal::distributed::MeshDevice*, tt::tt_metal::TensorSpec const&)
+ --- tt::tt_metal::MeshTensor::allocate_on_device(tt::tt_metal::distributed::MeshDevice&, tt::tt_metal::TensorSpec const&, tt::tt_metal::TensorTopology const&)
+ --- tt::tt_metal::create_device_tensor(tt::tt_metal::TensorSpec const&, tt::tt_metal::distributed::MeshDevice*, std::optional<tt::tt_metal::TensorTopology>)
+ --- ttnn::operations::binary_ng::BinaryNgDeviceOperation::create_output_tensors(ttnn::operations::binary_ng::BinaryNgDeviceOperation::operation_attributes_t const&, ttnn::operations::binary_ng::BinaryNgDeviceOperation::tensor_args_t const&)
+ --- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn16device_operation6detail6launchITkNS0_22DeviceOperationConceptENS_10operations9binary_ng23BinaryNgDeviceOperationEEENT_21tensor_return_value_tERKNS6_22operation_attributes_tERKNS6_13tensor_args_tE+0x15d) [0x7fbd564ccddd]
+ --- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn4prim9binary_ngERKN2tt8tt_metal6TensorES5_NS_10operations6binary12BinaryOpTypeERKSt8optionalIKNS2_8DataTypeEERKS9_INS2_12MemoryConfigEERKS9_IS3_ERKS9_IbESt4spanIKNS6_5unary19BasicUnaryWithParamIJfijEEELm18446744073709551615EESU_SU_S9_ISt7variantIJjifEEERKS9_INS2_12CoreRangeSetEERKS9_IN4ttsl10StrongTypeIhNS2_14SubDeviceIdTagEEEEffb+0xb93) [0x7fbd564bb443]
+ --- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(+0xc3f812) [0x7fbd564a0812]
+ --- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/third_party/tt-mlir/install/lib/_ttnncpp.so(_ZN4ttnn8subtractERKN2tt8tt_metal6TensorES4_RKSt8optionalIKNS1_8DataTypeEERKS5_INS1_12MemoryConfigEERKS5_IS2_ESt4spanIKNS_10operations5unary19BasicUnaryWithParamIJfijEEELm18446744073709551615EESO_SO_RKS5_INS1_12CoreRangeSetEERKS5_IN4ttsl10StrongTypeIhNS1_14SubDeviceIdTagEEEE+0x56) [0x7fbd5648c816]
+ --- tt::runtime::ttnn::operations::eltwise::binary::run(tt::target::ttnn::EltwiseBinaryOp const*, tt::runtime::ttnn::ProgramContext&)
+ --- tt::runtime::ttnn::ProgramExecutor::runOperation(tt::target::ttnn::Operation const*)
+ --- tt::runtime::ttnn::ProgramExecutor::execute()
+ --- tt::runtime::ttnn::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::runtime::submit(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > std::__invoke_impl<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&>(std::__invoke_other, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- std::optional<std::conditional<std::is_same_v<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >, void>, std::monostate, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >::type> tt::pjrt::utils::invoke_noexcept<std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > >(std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> > (&)(tt::runtime::Device, tt::runtime::Binary, unsigned int, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&), tt::runtime::Device&, tt::runtime::Binary const&, unsigned int&, std::vector<tt::runtime::Tensor, std::allocator<tt::runtime::Tensor> >&)
+ --- tt::pjrt::FlatbufferLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args*)
+ --- tt::pjrt::internal::onLoadedExecutableExecute(PJRT_LoadedExecutable_Execute_Args*)
+ --- xla::PjRtCApiLoadedExecutable::ExecuteWithSingleDevice(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- xla::PjRtCApiLoadedExecutable::ExecutePortable(absl::lts_20230802::Span<xla::PjRtBuffer* const>, xla::PjRtDevice*, xla::ExecuteOptions const&, std::optional<xla::PjRtFuture<void> >&, bool)
+ --- torch_xla::runtime::PjRtComputationClient::ExecuteComputation(torch_xla::runtime::ComputationClient::Computation const&, absl::lts_20230802::Span<std::shared_ptr<torch_xla::runtime::ComputationClient::Data> const>, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, torch_xla::runtime::ComputationClient::ExecuteComputationOptions const&)
+ --- torch_xla::XlaBackendImpl::ExecuteComputation(std::shared_ptr<torch::lazy::Computation>, c10::ArrayRef<std::shared_ptr<torch::lazy::BackendData> >, torch::lazy::BackendDevice const&) const
+ --- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x6dff7d0) [0x7fbddf9837d0]
+ --- torch::lazy::MultiWait::Complete(std::function<void ()> const&)
+ --- Eigen::ThreadPoolTempl<tsl::thread::EigenEnvironment>::WorkerLoop(int)
+ --- void absl::lts_20230802::internal_any_invocable::RemoteInvoker<false, void, tsl::thread::EigenEnvironment::CreateThread(std::function<void ()>)::{lambda()#1}&>(absl::lts_20230802::internal_any_invocable::TypeErasedState*)
+ --- /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/_XLAC.cpython-312-x86_64-linux-gnu.so(+0x116a4c12) [0x7fbdea228c12]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x9caa4) [0x7fbe611d6aa4]
+ --- /lib/x86_64-linux-gnu/libc.so.6(+0x129c6c) [0x7fbe61263c6c]
+}
+
+
+IR export: /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/zimage_decoder_ir/composite_prefix_norm2_opt1
+  vhlo vhlo_zimage_composite_prefix_norm2_g0_1781072676824.mlir
+         composite: {'tenstorrent.group_norm': 3}
+         decomposed: none
+  shlo shlo_compiler_cleaned_1781072677364.mlir
+         composite: {'tenstorrent.group_norm': 3}
+         decomposed: {'stablehlo.subtract': 26}
+  ttir ttir_zimage_composite_prefix_norm2_g0_1781072677406.mlir
+         composite: {'ttir.group_norm': 1}
+         decomposed: {'ttir.subtract': 24}
+  ttnn ttnn_runtime_zimage_composite_prefix_norm2_g0_1781072801485.mlir
+         composite: {'ttnn.group_norm': 1}
+         decomposed: {'ttnn.subtract': 24}
+
+[Fix2] case=composite_prefix_norm2 opt=1 native_ttnn_group_norm_kept=True device_ran=False
+FAILED
+
+=================================== FAILURES ===================================
+__________ test_export_ir_native_groupnorm[composite_prefix_norm2-1] ___________
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py:115: in test_export_ir_native_groupnorm
+    raise exec_error
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py:101: in test_export_ir_native_groupnorm
+    tester.test(workload)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:39: in evaluate
+    device_output, golden_output = self._match_data_types((device_out, golden_out))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/utils.py:41: in wrapper
+    return runner.run_on_cpu(workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:26: in run_on_cpu
+    return self.run_on_device(workload, DeviceType.CPU)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:38: in run_on_device
+    device_workload = self._put_on_device(workload, device=device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:54: in _put_on_device
+    return self._safely_put_workload_on_device(workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in _safely_put_workload_on_device
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1536: in tree_map
+    return treespec.unflatten(map(func, *flat_args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1277: in unflatten
+    leaves = list(leaves)
+             ^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:121: in <lambda>
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                                        ^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:76: in to_device
+    result = x.to(device)
+             ^^^^^^^^^^^^
+python_package/tt_torch/torch_overrides.py:22: in __torch_function__
+    return func(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+------------------------------ Captured log setup ------------------------------
+WARNING  huggingface_hub.utils._http:_http.py:904 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py::test_export_ir_native_groupnorm[composite_prefix_norm2-1]
+  /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+    warnings.warn(
+
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py::test_export_ir_native_groupnorm[composite_prefix_norm2-1]
+  /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/_dynamo/variables/functions.py:2056: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS="+dynamo" for a DEBUG stack trace.
+    torch._dynamo.utils.warn_once(msg)
+
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py::test_export_ir_native_groupnorm[composite_prefix_norm2-1]
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py::test_export_ir_native_groupnorm[composite_prefix_norm2-1]
+  /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py::test_export_ir_native_groupnorm[composite_prefix_norm2-1]
+  /proj_sw/user_dev/ctr-akannan/8_jun_yyz/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/model/zimage_decoder_debug/test_fix2_native_groupnorm.py::test_export_ir_native_groupnorm[composite_prefix_norm2-1] - RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+================== 1 failed, 21 warnings in 758.41s (0:12:38) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
