@@ -1417,7 +1417,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         batch_axis = "batch" if self.use_2d_mesh else "model"
         if input_ids is not None:
             safe_mark_sharding(input_ids, self.mesh, (batch_axis, None))
-        safe_mark_sharding(position_ids, self.mesh, (batch_axis, None))
         if inputs_embeds is not None:
             safe_mark_sharding(inputs_embeds, self.mesh, (batch_axis, None, None))
 
