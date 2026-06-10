@@ -86,7 +86,7 @@ jobs:
       - name: Fetch source report
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GH_REPORT_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_REPORT_TOKEN || secrets.ORG_READ_GITHUB_TOKEN || github.token }}
           CURRENT_REPOSITORY: ${{ github.repository }}
           CURRENT_REF: ${{ github.ref_name }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}

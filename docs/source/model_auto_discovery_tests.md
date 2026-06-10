@@ -228,7 +228,7 @@ The workflow accepts one source report from:
 
 It normalizes the report with `.github/scripts/prepare_external_model_report.py`, writes pytest-compatible `report_<job_id>.xml`, and uploads it as a `test-reports-*` artifact. The `[internal] Collect workflow data` workflow is configured to collect this workflow, so the standard CI/CD data path can ingest the generated test report after the ingest workflow completes.
 
-For source artifacts or checked-in report paths in another private repository, configure a `GH_REPORT_TOKEN` repository secret with read access to that source repository; otherwise the workflow uses its default `GITHUB_TOKEN`.
+For source artifacts or checked-in report paths in another private repository, the workflow uses `GH_REPORT_TOKEN` when configured, then falls back to `ORG_READ_GITHUB_TOKEN`, then the default `GITHUB_TOKEN`. The selected token must have read access to the source repository.
 
 Required reporting labels:
 
