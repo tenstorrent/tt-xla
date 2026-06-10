@@ -285,9 +285,6 @@ void BufferInstance::copyFromHost(
       !::tt::runtime::utils::isSupportedDataType(runtime_data_type) ||
       !is_contiguous;
 
-  std::vector<std::uint32_t> strides_uint32(strides_int64.begin(),
-                                            strides_int64.end());
-
   if (is_distributed) {
     TT_ASSERT(host_buffer_semantics !=
                   PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
@@ -295,7 +292,7 @@ void BufferInstance::copyFromHost(
               "this is okay iff caller guarantees that host_buffer lifetime is "
               "safe until execution.");
     PjrtTensor::HostTensorShell host_tensor_shell = PjrtTensor::HostTensorShell{
-        host_buffer, shape, strides_uint32, element_size, runtime_data_type};
+        host_buffer, shape, strides_int64, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
     m_done_with_host_buffer_event->setIndestructible();
     PjrtTensor::from_host_tensor_shell({this}, std::move(host_tensor_shell));
