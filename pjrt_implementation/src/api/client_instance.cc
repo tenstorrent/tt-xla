@@ -568,7 +568,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 }
 
 void ClientInstance::closeMeshDevice() {
-  closeOptimizerSubmesh();
   closeParentMesh();
   loguru::flush();
 }
@@ -622,44 +621,6 @@ void ClientInstance::closeParentMesh() {
     m_parent_mesh.reset();
     m_fabric_config.reset();
   }
-}
-
-void ClientInstance::closeOptimizerSubmesh() {
-  if (m_optimizer_submesh.has_value()) {
-    DLOG_F(LOG_DEBUG, "Closing optimizer submesh.");
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-    m_optimizer_submesh.reset();
-  }
-}
-
-tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
-    const std::vector<uint32_t> &target_mesh_shape) {
-
-  // Ensure parent mesh exists with the correct shape
-  tt::runtime::Device parent_mesh = getOrCreateMeshDevice(target_mesh_shape);
-
-  if (m_optimizer_submesh.has_value()) {
-    std::vector<uint32_t> optimizer_submesh_shape =
-        tt::runtime::getMeshShape(*m_optimizer_submesh);
-
-    if (optimizer_submesh_shape == target_mesh_shape) {
-      DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - reusing "
-                        "already created optimizer submesh");
-      return *m_optimizer_submesh;
-    }
-
-    // If shape changed, parent mesh was closed and reopened in
-    // getOrCreateMeshDevice, which automatically closed the submesh.
-    // Clear the stale reference.
-    m_optimizer_submesh.reset();
-  }
-
-  DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - "
-                    "creating optimizer submesh");
-  m_optimizer_submesh =
-      tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
-
-  return *m_optimizer_submesh;
 }
 
 namespace internal {
