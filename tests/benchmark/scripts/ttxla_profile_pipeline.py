@@ -41,6 +41,11 @@ PERF_REPORT_CSV_PATTERNS = (
     "ops_perf_results.csv",
     "cpp_device_perf_report.csv",
 )
+TT_PERF_REPORT_CSV_PATTERNS = (
+    "ops_perf_results_*.csv",
+    "ops_perf_results.csv",
+)
+TT_PERF_REPORT_REQUIRED_COLUMNS = ("OP TYPE",)
 DEFAULT_BENCHMARK_FILES = [
     Path("tests/benchmark/test_llms.py"),
     Path("tests/benchmark/test_encoders.py"),
@@ -99,6 +104,8 @@ ENVIRONMENT_FAILURE_HINTS = (
     "permission denied",
     "file not found",
     "no such file or directory",
+    "filesystem error",
+    "cannot create directories",
     "missing dependency",
 )
 
@@ -115,6 +122,12 @@ MODEL_FAILURE_HINTS = (
     "device crash",
     "bad statusor access",
     "traceback",
+)
+
+PIPELINE_ERROR_HINTS = (
+    "pytest: error:",
+    "unrecognized arguments:",
+    "usage: pytest",
 )
 
 SKIP_HINTS = (
@@ -421,7 +434,10 @@ def benchmark_args_for_entry(
         args.extend(["--num-layers", str(benchmark_kwargs["num_layers"])])
         args.extend(["--max-output-tokens", str(benchmark_kwargs["max_output_tokens"])])
     elif family == "encoder":
+        args.extend(["--batch-size", str(benchmark_kwargs["batch_size"])])
         args.extend(["--num-layers", str(benchmark_kwargs["num_layers"])])
+    elif family == "jax":
+        args.extend(["--batch-size", str(benchmark_kwargs["batch_size"])])
     return args
 
 
@@ -814,15 +830,37 @@ def copy_tree(source: Path, target: Path) -> list[Path]:
     return copied
 
 
-def find_latest_csv(root: Path) -> Optional[Path]:
+def find_latest_csv(
+    root: Path, patterns: Iterable[str] = PERF_REPORT_CSV_PATTERNS
+) -> Optional[Path]:
     if not root.exists():
         return None
     candidates = []
-    for pattern in PERF_REPORT_CSV_PATTERNS:
+    for pattern in patterns:
         candidates.extend(path for path in root.rglob(pattern) if path.is_file())
     if not candidates:
         return None
     return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def csv_has_columns(csv_path: Path, required_columns: Iterable[str]) -> bool:
+    try:
+        with csv_path.open(
+            "r", encoding="utf-8", errors="replace", newline=""
+        ) as handle:
+            reader = csv.reader(handle)
+            header = next(reader, [])
+    except OSError:
+        return False
+    normalized = {column.strip() for column in header}
+    return all(column in normalized for column in required_columns)
+
+
+def find_latest_tt_perf_report_csv(root: Path) -> Optional[Path]:
+    csv_path = find_latest_csv(root, TT_PERF_REPORT_CSV_PATTERNS)
+    if csv_path and csv_has_columns(csv_path, TT_PERF_REPORT_REQUIRED_COLUMNS):
+        return csv_path
+    return None
 
 
 def find_latest_tracy_report(root: Path) -> Optional[Path]:
@@ -957,6 +995,8 @@ def infer_model_status(
         return "skipped"
     if returncode == 0 and benchmark_json:
         return "passed"
+    if text_has_hint(text, PIPELINE_ERROR_HINTS):
+        return RUN_STATUS_UNKNOWN
     if text_has_hint(text, MODEL_FAILURE_HINTS):
         return "failed"
     if returncode == 0:
@@ -1337,10 +1377,17 @@ def profile_paths(run_dir: Path, entry: DiscoveryEntry) -> ProfilePaths:
     )
 
 
-def profile_environment(repo: Path, entry: DiscoveryEntry) -> dict[str, str]:
+def profile_environment(
+    repo: Path, entry: DiscoveryEntry, profile_dir: Path
+) -> dict[str, str]:
     env = repo_subprocess_environment(repo)
+    home_dir = ensure_dir(profile_dir / ".home")
+    cache_dir = ensure_dir(home_dir / ".cache")
     env.setdefault("TTMLIR_ENABLE_PERF_TRACE", "1")
     env.setdefault("TT_RUNTIME_TRACE_REGION_SIZE", "10000000")
+    env["HOME"] = str(home_dir)
+    env["XDG_CACHE_HOME"] = str(cache_dir)
+    env["MPLCONFIGDIR"] = str(ensure_dir(cache_dir / "matplotlib"))
     env["TTXLA_PROFILE_RUN_ID"] = entry.run_identity
     env["TTXLA_PROFILE_NODEID"] = entry.nodeid
     return env
@@ -1372,20 +1419,34 @@ def run_tt_perf_report(
     command_trace_path: Path,
     timeout_seconds: int,
 ) -> PerfReportOutcome:
-    perf_csv_source = find_latest_csv(paths.trace_dir)
+    slow_ops_csv_source = find_latest_csv(paths.trace_dir)
+    perf_csv_source = find_latest_tt_perf_report_csv(paths.trace_dir)
+    selected_csv_source = perf_csv_source or slow_ops_csv_source
     perf_csv_recorded = ""
     perf_report_command_list: list[str] = []
-    if perf_csv_source:
+    if selected_csv_source:
         perf_csv_recorded = str(paths.perf_input)
-        shutil.copy2(perf_csv_source, paths.perf_input)
+        shutil.copy2(selected_csv_source, paths.perf_input)
 
-    if not perf_csv_source:
+    if not slow_ops_csv_source:
         return PerfReportOutcome(
             result=None,
             ok=False,
             reason="no ops CSV was produced by the Tracy profile",
             command=[],
             csv_source=None,
+            csv_recorded=perf_csv_recorded,
+        )
+    if not perf_csv_source:
+        return PerfReportOutcome(
+            result=None,
+            ok=False,
+            reason=(
+                "no tt-perf-report-compatible ops CSV was produced by Tracy; "
+                "slow-op rows were parsed from the raw device CSV"
+            ),
+            command=[],
+            csv_source=slow_ops_csv_source,
             csv_recorded=perf_csv_recorded,
         )
     if not command_expr_available(tt_perf_report_bin):
@@ -1640,6 +1701,7 @@ def profile_one_model(
     ir_dump_root: Path,
 ) -> dict[str, Any]:
     paths = profile_paths(run_dir, entry)
+    clean_module_cache(repo)
     profile_command_list = profile_command(
         tracy_bin=tracy_bin,
         pytest_command=pytest_command,
@@ -1658,7 +1720,7 @@ def profile_one_model(
         stage="profile",
         command_trace_path=command_trace_path,
         timeout_seconds=timeout_seconds,
-        env=profile_environment(repo, entry),
+        env=profile_environment(repo, entry, paths.profile_dir),
     )
     pruned_raw_artifacts = prune_large_raw_artifacts(
         paths.profile_dir, max_raw_artifact_bytes
@@ -1694,6 +1756,12 @@ def profile_one_model(
 
     write_json(paths.profile_dir / "status.json", status_payload)
     return status_payload
+
+
+def clean_module_cache(repo: Path) -> None:
+    modules_dir = repo / "modules"
+    if modules_dir.exists():
+        shutil.rmtree(modules_dir)
 
 
 def discover_artifacts(

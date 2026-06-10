@@ -144,6 +144,34 @@ def test_find_latest_csv_accepts_device_perf_report_name(tmp_path):
     assert pipeline.find_latest_csv(tmp_path) == csv_path
 
 
+def test_find_latest_tt_perf_report_csv_ignores_raw_device_report(tmp_path):
+    pipeline = load_pipeline_module()
+    raw_csv = tmp_path / "profile" / "tracy" / ".logs" / "cpp_device_perf_report.csv"
+    pipeline.ensure_dir(raw_csv.parent)
+    raw_csv.write_text("OP CODE,DEVICE FW DURATION [ns]\n", encoding="utf-8")
+
+    assert pipeline.find_latest_tt_perf_report_csv(tmp_path) is None
+
+
+def test_find_latest_tt_perf_report_csv_requires_supported_schema(tmp_path):
+    pipeline = load_pipeline_module()
+    report_csv = (
+        tmp_path
+        / "profile"
+        / "tracy"
+        / "reports"
+        / "2026_06_10_10_00_00"
+        / "ops_perf_results_2026_06_10_10_00_00.csv"
+    )
+    pipeline.ensure_dir(report_csv.parent)
+    report_csv.write_text(
+        "OP CODE,OP TYPE,DEVICE FW DURATION [ns]\nmatmul,tt_dnn_device,1000\n",
+        encoding="utf-8",
+    )
+
+    assert pipeline.find_latest_tt_perf_report_csv(tmp_path) == report_csv
+
+
 def test_parse_perf_csv_accepts_tracy_device_report_schema(tmp_path):
     pipeline = load_pipeline_module()
     csv_path = tmp_path / "ops_perf_results_2026_06_04_17_42_35.csv"
@@ -165,6 +193,87 @@ def test_parse_perf_csv_accepts_tracy_device_report_schema(tmp_path):
     assert parsed["rows"][0]["op_name"] == "MatmulDeviceOperation"
     assert parsed["rows"][0]["duration_us"] == 129.0
     assert parsed["summary"]["op_type_totals"]["tt_dnn_device"] == 153.0
+
+
+def test_run_tt_perf_report_uses_raw_device_csv_as_slow_ops_fallback(tmp_path):
+    pipeline = load_pipeline_module()
+    entry = sample_discovery_entry(pipeline)
+    paths = pipeline.profile_paths(tmp_path, entry)
+    raw_csv = paths.trace_dir / ".logs" / "cpp_device_perf_report.csv"
+    pipeline.ensure_dir(raw_csv.parent)
+    raw_csv.write_text(
+        "OP NAME,DEVICE KERNEL DURATION [ns]\nMatmulDeviceOperation,5000\n",
+        encoding="utf-8",
+    )
+
+    outcome = pipeline.run_tt_perf_report(
+        repo=tmp_path,
+        paths=paths,
+        tt_perf_report_bin="definitely-not-needed",
+        command_trace_path=tmp_path / "command-trace.jsonl",
+        timeout_seconds=5,
+    )
+
+    assert not outcome.ok
+    assert "no tt-perf-report-compatible ops CSV" in outcome.reason
+    assert outcome.command == []
+    assert outcome.csv_source == raw_csv
+    assert paths.perf_input.exists()
+
+
+def test_benchmark_args_route_batch_size_to_encoder_and_jax():
+    pipeline = load_pipeline_module()
+    kwargs = {"batch_size": 1, "num_layers": 1, "max_output_tokens": 3}
+    encoder = pipeline.DiscoveryEntry(
+        run_identity="run-5009-demo-0001",
+        nodeid="tests/benchmark/test_encoders.py::test_bert",
+        source_path="tests/benchmark/test_encoders.py",
+        test_name="test_bert",
+        benchmark_family="encoder",
+        model_identity="test_bert",
+        artifact_slug="tests_benchmark_test_encoders_py_test_bert",
+    )
+    jax = pipeline.DiscoveryEntry(
+        run_identity="run-5009-demo-0002",
+        nodeid="tests/benchmark/resnet_jax_benchmark.py::test_resnet_jax",
+        source_path="tests/benchmark/resnet_jax_benchmark.py",
+        test_name="test_resnet_jax",
+        benchmark_family="jax",
+        model_identity="test_resnet_jax",
+        artifact_slug="tests_benchmark_resnet_jax_benchmark_py_test_resnet_jax",
+    )
+
+    assert pipeline.benchmark_args_for_entry(encoder, kwargs) == [
+        "--batch-size",
+        "1",
+        "--num-layers",
+        "1",
+    ]
+    assert pipeline.benchmark_args_for_entry(jax, kwargs) == ["--batch-size", "1"]
+
+
+def test_clean_module_cache_removes_stale_compiled_modules(tmp_path):
+    pipeline = load_pipeline_module()
+    stale_module = tmp_path / "modules" / "bert" / "module.vmfb"
+    pipeline.ensure_dir(stale_module.parent)
+    stale_module.write_text("stale", encoding="utf-8")
+
+    pipeline.clean_module_cache(tmp_path)
+
+    assert not (tmp_path / "modules").exists()
+
+
+def test_profile_environment_uses_profile_local_cache(tmp_path):
+    pipeline = load_pipeline_module()
+    entry = sample_discovery_entry(pipeline)
+    profile_dir = tmp_path / "run" / "profiles" / entry.artifact_slug
+
+    env = pipeline.profile_environment(tmp_path, entry, profile_dir)
+
+    assert env["HOME"] == str(profile_dir / ".home")
+    assert env["XDG_CACHE_HOME"] == str(profile_dir / ".home" / ".cache")
+    assert env["MPLCONFIGDIR"] == str(profile_dir / ".home" / ".cache" / "matplotlib")
+    assert (profile_dir / ".home" / ".cache" / "matplotlib").is_dir()
 
 
 def write_sample_perf_csv(csv_path):
@@ -502,6 +611,30 @@ def test_status_semantics_do_not_treat_profile_success_as_model_success():
 
     assert taxonomy == "model_failure"
     assert "model or runtime behavior failed" in reason
+
+
+def test_pytest_argument_error_without_benchmark_json_is_pipeline_error():
+    pipeline = load_pipeline_module()
+    text = "\n".join(
+        [
+            "pytest: error: unrecognized arguments: --dump-irs-dir",
+            "inifile: /repo/pytest.ini",
+        ]
+    )
+
+    assert pipeline.infer_profile_status(0, False) == "passed"
+    assert pipeline.infer_model_status(0, False, text, {}) == "unknown"
+
+    taxonomy, reason = pipeline.infer_taxonomy(
+        returncode=0,
+        timed_out=False,
+        text=text,
+        benchmark_json={},
+        perf_report_ok=False,
+    )
+
+    assert taxonomy == "pipeline_error"
+    assert "terminal profiling artifact" in reason
 
 
 def test_successful_benchmark_json_allows_recoverable_runtime_probe_logs():
@@ -850,11 +983,13 @@ def test_benchmark_args_are_routed_by_family():
         "4",
     ]
     assert pipeline.benchmark_args_for_entry(encoder, kwargs) == [
+        "--batch-size",
+        "2",
         "--num-layers",
         "3",
     ]
     assert pipeline.benchmark_args_for_entry(vision, kwargs) == []
-    assert pipeline.benchmark_args_for_entry(jax, kwargs) == []
+    assert pipeline.benchmark_args_for_entry(jax, kwargs) == ["--batch-size", "2"]
 
 
 def test_prune_large_raw_artifacts_removes_only_oversized_tracy_files(tmp_path):

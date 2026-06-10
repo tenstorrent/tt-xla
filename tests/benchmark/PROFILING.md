@@ -53,8 +53,9 @@ python tests/benchmark/scripts/ttxla_profile_pipeline.py run \
 
 The bounded override flags are routed by benchmark family. LLM entries receive
 `--batch-size`, `--num-layers`, and `--max-output-tokens`; encoder entries
-receive `--num-layers`; vision and JAX entries run with their benchmark-local
-settings plus the common output/profile flags.
+receive `--batch-size` and `--num-layers`; JAX entries receive `--batch-size`;
+vision entries run with their benchmark-local settings plus the common
+output/profile flags.
 
 The pipeline passes `--dump-irs-dir` to the benchmark runner and stores raw
 runner IR dumps under the run directory before copying the selected files into
@@ -67,6 +68,14 @@ pipeline prunes raw Tracy artifacts larger than 100 MB after each model profile
 returns and records the removed paths in `status.json` under
 `artifacts.pruned_raw_artifacts`. Use `--max-raw-artifact-bytes 0` only when the
 raw files must be retained for debugging.
+
+The pipeline removes the repo-local `modules/` cache before each selected model
+profile. This avoids stale compiled artifacts from a previous model, hardware
+shape, or checkout from being reused by a later profile on shared storage.
+Each profile subprocess also receives a profile-local `HOME`, `XDG_CACHE_HOME`,
+and `MPLCONFIGDIR` under its profile directory so TT-Metal, JAX, Hugging Face,
+and Matplotlib cache writes stay with the run instead of colliding in shared
+`/home` cache state.
 
 Use `--run-budget-seconds` to keep the nested pipeline inside the scheduler
 reservation window. When the budget is exhausted before a selected benchmark
