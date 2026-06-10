@@ -221,7 +221,7 @@ void BufferInstance::copyFromHost(
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape =
       calculateShape(dims, num_dims, m_data_type);
-  std::vector<std::uint32_t> strides =
+  std::vector<std::int64_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
@@ -301,7 +301,7 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   std::vector<std::uint32_t> shape = calculateShape(
       src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions(),
       src_buffer->getDataType());
-  std::vector<std::uint32_t> strides = calculateStrides(
+  std::vector<std::int64_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
   tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
@@ -337,7 +337,7 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
   return shape;
 }
 
-std::vector<std::uint32_t> BufferInstance::calculateStrides(
+std::vector<std::int64_t> BufferInstance::calculateStrides(
     size_t num_dims, const std::int64_t *byte_strides, size_t num_byte_strides,
     std::uint32_t element_size) {
 
@@ -346,11 +346,11 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
            "num_byte_strides={}, num_dims={}",
            num_byte_strides, num_dims);
 
-  std::vector<std::uint32_t> strides;
+  std::vector<std::int64_t> strides;
   for (size_t i = 0; i < num_dims; ++i) {
     // If no strides are given the array is assumed to have a dense layout with
     // dimensions in major-to-minor order.
-    std::uint32_t stride =
+    std::int64_t stride =
         num_byte_strides == 0
             ? 1
             : (byte_strides[i] / static_cast<std::int64_t>(element_size));
