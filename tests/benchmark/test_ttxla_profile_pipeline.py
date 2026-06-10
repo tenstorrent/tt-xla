@@ -691,6 +691,33 @@ def test_pytest_pass_with_tracy_post_run_failure_preserves_model_success():
     assert pipeline.terminal_state_for_taxonomy(taxonomy) == "blocked"
 
 
+def test_pytest_pass_with_post_processing_timeout_preserves_model_success():
+    pipeline = load_pipeline_module()
+    text = "\n".join(
+        [
+            "PCC verification passed with PCC=0.997413",
+            "PASSED",
+            "================== 1 passed, 19 warnings in 300.33s ==================",
+        ]
+    )
+    benchmark_json = {"model": "Resnet 50 HF", "measurements": [{"value": 32}]}
+
+    assert pipeline.infer_profile_status(-9, True) == "pending"
+    assert pipeline.infer_model_status(-9, True, text, benchmark_json) == "passed"
+
+    taxonomy, reason = pipeline.infer_taxonomy(
+        returncode=-9,
+        timed_out=True,
+        text=text,
+        benchmark_json=benchmark_json,
+        perf_report_ok=False,
+    )
+
+    assert taxonomy == "pipeline_error"
+    assert "pipeline or artifact stage failed" in reason
+    assert pipeline.terminal_state_for_taxonomy(taxonomy) == "blocked"
+
+
 def test_skip_detection_ignores_unrelated_log_words():
     pipeline = load_pipeline_module()
     text = "nanobind: leaked types!\\n - ... skipped remainder"

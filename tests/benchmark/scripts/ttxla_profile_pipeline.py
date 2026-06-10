@@ -998,14 +998,14 @@ def infer_model_status(
     text: str,
     benchmark_json: dict[str, Any],
 ) -> str:
-    if timed_out:
-        return "pending"
     if text_has_skip_signal(text):
         return "skipped"
     if returncode == 0 and benchmark_json:
         return "passed"
     if benchmark_json and text_has_pytest_pass_signal(text):
         return "passed"
+    if timed_out:
+        return "pending"
     if text_has_hint(text, PIPELINE_ERROR_HINTS):
         return RUN_STATUS_UNKNOWN
     if text_has_hint(text, MODEL_FAILURE_HINTS):
@@ -1027,6 +1027,8 @@ def infer_taxonomy_from_statuses(
     perf_report_ok: bool,
 ) -> tuple[str, str]:
     if profile_status == "pending" or model_status == "pending":
+        if benchmark_json:
+            return taxonomy_for_pipeline_fallback(benchmark_json)
         return TAXONOMY_NOT_STARTED, "timed out before reaching a terminal state"
     if model_status == "skipped":
         return TAXONOMY_SKIPPED_WITH_REASON, "benchmark entry was skipped"
