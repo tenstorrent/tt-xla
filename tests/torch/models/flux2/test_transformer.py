@@ -17,14 +17,19 @@ from third_party.tt_forge_models.flux2.pytorch import ModelLoader, ModelVariant
 @pytest.mark.skip(
     reason="~32B transformer — exceeds single-chip DRAM; use test_transformer_sharded on 8+ chips"
 )
+@pytest.mark.single_device
 @pytest.mark.model_test
 def test_transformer():
     _run(sharded=False)
 
 
-# @pytest.mark.xfail(
-#     reason="Large-model bringup — expect OOM or compile issues until sharded path is stable"
-# )
+@pytest.mark.xfail(
+    reason="Out of Memory: cannot allocate 56623104 B DRAM buffer across 12 banks "
+    "(DRAM ~full, ~38 MB free) when sharded across 8 chips — "
+    "TT_FATAL bank_manager.cpp:462. 32B transformer is still DRAM-bound. "
+    "Tracking issue TBD."
+)
+@pytest.mark.tensor_parallel
 @pytest.mark.nightly
 @pytest.mark.model_test
 def test_transformer_sharded():

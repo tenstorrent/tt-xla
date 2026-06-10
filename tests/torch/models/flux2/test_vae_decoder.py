@@ -12,6 +12,8 @@ from infra import Framework, run_graph_test
 from third_party.tt_forge_models.flux2.pytorch import ModelLoader, ModelVariant
 
 
+@pytest.mark.single_device
+@pytest.mark.nightly
 @pytest.mark.model_test
 def test_vae_decoder():
     xr.set_device_type("TT")
