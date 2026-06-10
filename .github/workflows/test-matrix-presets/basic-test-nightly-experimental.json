@@ -1,3 +1,4 @@
 [
-  { "runs-on": "galaxy-bh",           "name": "run_torch_bh_galaxy",   "dir": "./tests/torch",                            "test-mark": "nightly and bh_galaxy", "forked": true }
+  { "runs-on": "galaxy-bh",           "name": "run_torch_bh_galaxy",   "dir": "./tests/torch",                            "test-mark": "nightly and bh_galaxy", "forked": true },
+  { "runs-on": "galaxy-bh",           "name": "run_vllm_bh_galaxy",    "dir": "./tests/integrations/vllm_plugin",         "test-mark": "nightly and tensor_parallel and bh_galaxy", "extra-wheel": "vllm" }
 ]
