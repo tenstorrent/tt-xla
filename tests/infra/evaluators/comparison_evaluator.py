@@ -16,6 +16,7 @@ from .evaluation_config import (
     RelL2Config,
 )
 from .evaluator import ComparisonResult, Evaluator
+from loguru import logger
 
 
 class ComparisonEvaluator(Evaluator):
@@ -106,6 +107,7 @@ class ComparisonEvaluator(Evaluator):
         - passed: True if all enabled comparisons passed their thresholds, False otherwise
         - error_message: None if passed, combined error message for all failures if any failed
         """
+        logger.info("PCC={}",comparison_result.pcc)
         passed = True
         error_messages = []
 

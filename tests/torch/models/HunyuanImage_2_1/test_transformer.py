@@ -15,18 +15,18 @@ from third_party.tt_forge_models.hunyuan_image_2_1.pytorch import (
     ModelLoader,
     ModelVariant,
 )
+from loguru import logger
+
+# @pytest.mark.skip(
+#     reason="model size 17.45B — won't fit on a single chip; sharded variant runs"
+# )
+# def test_transformer():
+#     _run(sharded=False)
 
 
-@pytest.mark.skip(
-    reason="model size 17.45B — won't fit on a single chip; sharded variant runs"
-)
-def test_transformer():
-    _run(sharded=False)
-
-
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4780"
-)
+# @pytest.mark.xfail(
+#     reason="Out of Memory: Not enough space to allocate 234881024 B DRAM buffer across 12 banks, where each bank needs to store 19574784 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4780"
+# )
 @pytest.mark.nightly
 @pytest.mark.model_test
 def test_transformer_sharded():
@@ -38,8 +38,11 @@ def _run(sharded: bool):
     torch.manual_seed(42)
 
     loader = ModelLoader(ModelVariant.TRANSFORMER)
-    model = loader.load_model(dtype_override=torch.float32)
-    inputs = loader.load_inputs(dtype_override=torch.float32)
+    model = loader.load_model(dtype_override=torch.bfloat16)
+    
+    logger.info("model={}",model)
+    
+    inputs = loader.load_inputs(dtype_override=torch.bfloat16)
 
     mesh = None
     shard_spec_fn = None
