@@ -99,8 +99,9 @@ def pytest_addoption(parser):
         "--skip-pcc",
         action="store_true",
         default=False,
-        help="Log the PCC value instead of asserting it. Lets a run complete (and write "
-        "its results JSON) even when PCC is below the threshold.",
+        help="Skip PCC entirely: no CPU reference is computed and no device PCC run is "
+        "performed, so PCC is neither measured nor asserted. Perf is still reported and "
+        "the results JSON is still written.",
     )
 
     parser.addoption(
