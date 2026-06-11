@@ -9,13 +9,7 @@
 
 # ----- TTPJRTApi -----
 # Static lib containing core PJRT API implementation: handling device/client/buffer/etc.
-# Depends on: TTMLIRCompiler, TTMLIRRuntime, TTPJRTUtils, coverage_config, protobuf::libprotobuf.
-#
-# Note on the embedded-Python tt-lang resolver: the pybind11/libpython
-# dependency lives in tt-mlir's `MLIRTTNNTransforms` library, which we
-# pull in transitively via `TTMLIRCompiler`. tt-mlir's
-# `--ttnn-resolve-tt-lang-kernels` pass calls into
-# `tt_torch.tt_lang.resolve_kernel`. We don't link libpython here ourselves.
+# Depends on: TTMLIRCompiler, TTMLIRRuntime, TTPJRTUtils, coverage_config, protobuf::libprotobuf
 
 find_package(Protobuf REQUIRED)
 
