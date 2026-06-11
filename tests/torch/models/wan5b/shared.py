@@ -290,43 +290,115 @@ def shard_umt5_specs(encoder) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# VAE encoder sharding
+# VAE sharding (Megatron column→row per WanResidualBlock)
 # ---------------------------------------------------------------------------
+#
+# Inside every ``WanResidualBlock``:
+#     norm1 → silu → conv1 → norm2 → silu → conv2 →+ shortcut
+# the dual-conv pair is sharded Megatron-style: conv1 column-parallel
+# (split C_out), conv2 row-parallel (split C_in). Two all-reduces fire per
+# block: one inside ``norm2`` (the C-axis L2 sum, since the activation is
+# C-sharded at that point) and one after ``conv2`` to sum the row-parallel
+# partial outputs. ``norm2.gamma`` is sharded to match the C_out partition.
+#
+# Boundary convs / attention / upsamplers / quant_conv are left replicated.
 
 
-def shard_vae_encoder_specs(vae) -> dict:
-    """Build shard specs for AutoencoderKLWan encoder weights.
+def _pick_axis(mesh: Mesh) -> str:
+    """Return the mesh axis with the most devices.
 
-    The VAE is memory-bound, not compute-bound like the DiT. We shard only
-    the largest conv outputs along "batch" to distribute parameters, leaving
-    per-layer channel dims mostly replicated. quant_conv maps to latent
-    (z_dim*2) channels — shard its output dim on "batch".
+    For ``_MESH_SHAPES`` this is "batch" on Galaxy ``(8, 4)`` and "model"
+    on every other device count.
     """
+    sizes = dict(zip(mesh.axis_names, mesh.mesh_shape))
+    return max(sizes, key=sizes.get)
+
+
+def _megatron_pair_specs(block, axis: str) -> dict:
+    """Per-WanResidualBlock Megatron column→row specs.
+
+    conv1 column-parallel (shard C_out), norm2 gamma matched, conv2
+    row-parallel (shard C_in). ``conv_shortcut``, ``norm1``, and
+    ``conv2.bias`` stay replicated.
+    """
+    # Conv3d weight [C_out, C_in, kD, kH, kW]
+    COL_W = (axis, None, None, None, None)  # column-parallel (shard C_out)
+    ROW_W = (None, axis, None, None, None)  # row-parallel (shard C_in)
+    COL_B = (axis,)  # column-parallel (shard bias)
+    NORM_G = (axis, None, None, None)  # WanRMS_norm gamma [dim, 1, 1, 1]
     return {
-        vae.quant_conv.weight: ("batch", None, None, None, None),
-        vae.quant_conv.bias: ("batch",),
-        vae.encoder.conv_in.weight: ("batch", None, None, None, None),
-        vae.encoder.conv_in.bias: ("batch",),
+        block.conv1.weight: COL_W,
+        block.conv1.bias: COL_B,
+        block.norm2.gamma: NORM_G,
+        block.conv2.weight: ROW_W,
     }
 
 
-# ---------------------------------------------------------------------------
-# VAE decoder sharding
-# ---------------------------------------------------------------------------
+def shard_vae_encoder_specs(vae, mesh: Mesh) -> dict:
+    """Sharding specs for the AutoencoderKLWan encoder.
 
+    Megatron column→row pair per block. conv1 col-parallel, norm2.gamma
+    matched, conv2 row-parallel. 1 all_reduce per block (post-conv2 partial
+    sum) + 1 internal all_reduce inside norm2 (the C-axis L2 sum).
 
-def shard_vae_decoder_specs(vae) -> dict:
-    """Build shard specs for AutoencoderKLWan decoder weights.
-
-    Mirrors the encoder strategy: shard post_quant_conv input and the
-    decoder's first conv to seed sharding through the decoder.
+    Left replicated: ``quant_conv``, ``encoder.conv_in`` (C_in=3),
+    ``encoder.conv_out`` (C_out=32 = 2·z_dim), ``norm_out``, the
+    ``mid_block`` attention (its fused ``to_qkv`` + chunk(3) pattern doesn't
+    split cleanly on a 4-way mesh), and the ``WanResample`` downsamplers in
+    ``down_blocks``.
     """
-    return {
-        vae.post_quant_conv.weight: ("batch", None, None, None, None),
-        vae.post_quant_conv.bias: ("batch",),
-        vae.decoder.conv_in.weight: ("batch", None, None, None, None),
-        vae.decoder.conv_in.bias: ("batch",),
-    }
+    from diffusers.models.autoencoders.autoencoder_kl_wan import WanResidualBlock, WanResidualDownBlock
+
+    axis = _pick_axis(mesh)
+    specs: dict = {}
+    encoder = vae.encoder
+
+    # down_blocks: flat ModuleList of WanResidualBlock / WanResample. Only
+    # the WanResidualBlocks are sharded; downsamplers stay replicated.
+    for m in encoder.down_blocks:
+        if isinstance(m, WanResidualBlock):
+            specs.update(_megatron_pair_specs(m, axis))
+        elif isinstance(m, WanResidualDownBlock):
+            for block in m.resnets:
+                specs.update(_megatron_pair_specs(block, axis))
+
+    # mid_block: 2 ResidualBlocks (attention stays replicated)
+    for block in encoder.mid_block.resnets:
+        specs.update(_megatron_pair_specs(block, axis))
+
+    return specs
+
+
+def shard_vae_decoder_specs(vae, mesh: Mesh) -> dict:
+    """Sharding specs for the AutoencoderKLWan decoder.
+
+    Megatron column→row pair per block. conv1 col-parallel, norm2.gamma matched,
+    conv2 row-parallel. 1 all_reduce per block (post-conv2 partial sum) +
+    1 internal all_reduce inside norm2 (the C-axis L2 sum).
+
+    Left replicated: ``post_quant_conv``, ``decoder.conv_in`` (C_in=16),
+    ``decoder.conv_out`` (C_out=3), ``norm_out``, the ``mid_block`` attention
+    (its fused ``to_qkv`` + chunk(3) pattern doesn't split cleanly on a 4-way
+    mesh), and the ``WanResample`` upsamplers in ``up_blocks``.
+    """
+    from diffusers.models.autoencoders.autoencoder_kl_wan import WanResidualBlock
+
+    axis = _pick_axis(mesh)
+    specs: dict = {}
+    decoder = vae.decoder
+
+    # mid_block: WanResidualBlocks (attention stays replicated)
+    for block in decoder.mid_block.resnets:
+        specs.update(_megatron_pair_specs(block, axis))
+
+    # 4 up_blocks: Upsamplers stay replicated.
+    for up_block in decoder.up_blocks:
+        for block in up_block.resnets:
+            assert isinstance(block, WanResidualBlock)
+            specs.update(_megatron_pair_specs(block, axis))
+
+    return specs
+
 
 
 # ---------------------------------------------------------------------------
