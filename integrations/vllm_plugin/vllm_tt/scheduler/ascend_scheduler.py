@@ -85,8 +85,8 @@ class AscendScheduler(Scheduler):
         # requests at the SAME stage in one step. Mixing a fresh request
         # (num_computed=0) with a continuation (num_computed>0) forces the fresh
         # request through the all-or-nothing cached-prefix attention path and
-        # corrupts it (see _compute_full_attention prefix_chunk_mode). None until
-        # the first prefill is scheduled this step.
+        # corrupts it (see _compute_full_attention's chunked-prefix path). None
+        # until the first prefill is scheduled this step.
         step_prefill_num_computed: Optional[int] = None
 
         # Use a temporary queue to collect requests that need to be skipped

@@ -90,7 +90,6 @@ from vllm.v1.worker.utils import (
 )
 
 from .attention import (
-    _USE_CHUNKED_SDPA,
     TPU_STR_DTYPE_TO_TORCH_DTYPE,
     TTAttentionBackend,
     TTMetadata,
@@ -356,11 +355,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #     "page table stick size must be a multiple of 32").
         # Small max_model_len (e.g. 128 -> 4 blocks @ block_size 32) violates (b)
         # and can't chunk anyway, so fall back to the standard prefill path there.
-        self._chunked_sdpa_active = (
-            _USE_CHUNKED_SDPA
-            and self.prefill_chunk_budget < self.max_model_len
-            and (self.max_num_blocks_per_req % 8 == 0)
+        self._chunked_sdpa_active = self.prefill_chunk_budget < self.max_model_len and (
+            self.max_num_blocks_per_req % 8 == 0
         )
+
+        # The chunked SDPA op is the only cached-prefix prefill path now (the
+        # gather workaround was removed). So if chunked prefill would actually
+        # chunk (budget < full context) but the page-table layout is unsupported
+        # (num_blocks_per_req % 8 != 0), there is no correct path — fail loudly
+        # rather than silently dropping the cached prefix. Realistic (power-of-2)
+        # max_model_len always satisfies this; pick a multiple of 8*block_size.
+        if (
+            getattr(scheduler_config, "chunked_prefill_enabled", False)
+            and self.prefill_chunk_budget < self.max_model_len
+            and self.max_num_blocks_per_req % 8 != 0
+        ):
+            raise NotImplementedError(
+                f"Chunked prefill requires max_model_len/block_size % 8 == 0 "
+                f"(got {self.max_num_blocks_per_req} blocks/req for "
+                f"max_model_len={self.max_model_len}, block_size={self.block_size}); "
+                f"use a max_model_len that is a multiple of {8 * self.block_size}."
+            )
 
         # Compute token padding sizes needed to align inputs to supported context
         # lengths, from the minimum context length up to the per-step chunk budget.
@@ -1014,41 +1029,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         return slot_mapping_metadata
 
-    def _build_prefix_chunk_mask(
-        self,
-        num_computed: np.ndarray,
-        num_scheduled: np.ndarray,
-        users_dim: int,
-        query_len: int,
-        kv_len: int,
-        dtype: torch.dtype,
-    ) -> torch.Tensor:
-        """Build the [users_dim, 1, query_len, kv_len] additive attention mask
-        for a cached-prefix prefill chunk (tt-xla #4986).
-
-        For user ``u`` with ``p0 = num_computed[u]`` cached prefix tokens and
-        ``n = num_scheduled[u]`` new chunk tokens, query row ``r`` (absolute
-        position ``p0 + r``) may attend to key columns ``c <= p0 + r`` and only
-        for ``r < n`` (rows beyond the chunk are padding). Allowed entries are
-        ``0``; blocked entries are ``-inf``. Built on CPU (outside the compiled
-        graph); the shape is constant per (query_len) bucket since kv_len is
-        max_model_len, so it does not induce recompilation.
-        """
-        neg_inf = torch.finfo(dtype).min
-        mask = torch.full((users_dim, 1, query_len, kv_len), neg_inf, dtype=dtype)
-        rows = torch.arange(query_len).view(query_len, 1)  # [L, 1]
-        cols = torch.arange(kv_len).view(1, kv_len)  # [1, S]
-        zero = torch.zeros((), dtype=dtype)
-        neg = torch.full((), neg_inf, dtype=dtype)
-        for u in range(len(num_scheduled)):
-            p0 = int(num_computed[u])
-            n = int(num_scheduled[u])
-            if n <= 0:
-                continue
-            allowed = (rows < n) & (cols <= (p0 + rows))  # [L, S] bool
-            mask[u, 0] = torch.where(allowed, zero, neg)
-        return mask
-
     def _prepare_inputs(self, scheduler_output: "SchedulerOutput", start_index: int):
         assert scheduler_output.total_num_scheduled_tokens > 0
         num_reqs = self.input_batch.num_reqs
@@ -1270,39 +1250,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         page_table = page_table_dev
         fill_page_table = fill_page_table_dev
 
-        # Cached-prefix attention mask (tt-xla #4986): only a prefill chunk
-        # (L > 1) with a cached prefix (num_computed > 0) needs the masked-SDPA
-        # path; decode (L == 1) and first-chunk prefill keep attn_mask=None (fast
-        # path). See _build_prefix_chunk_mask for the mask semantics.
+        # Cached-prefix prefill chunk (tt-xla #4986): a step with L > 1 and a
+        # cached prefix (num_computed > 0) attends over the paged cache via the
+        # on-device chunked SDPA op. decode (L == 1) and first-chunk prefill take
+        # the standard path (chunk_start_idx stays None).
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
         prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
             np.any(num_computed_for_reqs > 0)
         )
         attn_mask = None
         chunk_start_idx = None
-        if prefix_chunk_step:
-            users_dim = page_table_dev.shape[0]
-            s_len = page_table_dev.shape[1] * self.block_size
-            attn_mask = self._build_prefix_chunk_mask(
-                num_computed=num_computed_for_reqs,
-                num_scheduled=num_scheduled_tokens_per_req,
-                users_dim=users_dim,
-                query_len=padded_total_num_scheduled_tokens,
-                kv_len=s_len,
-                dtype=self._hidden_states_dtype,
-            ).to(self.device)
-            # Prefix offset for the on-device chunked SDPA path (no-gather real
-            # fix). All users in a chunked step share num_computed (same-stage
-            # batching invariant, tt-xla #4986 BUG#2 fix), so a single [1]
-            # offset is correct. Copy into the persistent buffer (trace-safe).
-            # Only when the op is usable for this config (_chunked_sdpa_active);
-            # otherwise leave chunk_start_idx=None so _compute_full_attention
-            # falls back to the gather/masked-SDPA path (matches the warm-up).
-            if self._chunked_sdpa_active:
-                self._chunk_start_idx_dev.copy_(
-                    torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
-                )
-                chunk_start_idx = self._chunk_start_idx_dev
+        if prefix_chunk_step and self._chunked_sdpa_active:
+            # Prefix offset for the on-device chunked SDPA op (no-gather path).
+            # All users in a chunked step share num_computed (same-stage batching
+            # invariant, tt-xla #4986 BUG#2 fix), so a single [1] offset is
+            # correct. Copy into the persistent buffer (trace-safe). The op masks
+            # causally and applies the offset internally, so there is no host
+            # attn_mask. (Configs where chunking can't occur or the kernel can't
+            # support the page-table layout never set this -> standard path.)
+            self._chunk_start_idx_dev.copy_(
+                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+            )
+            chunk_start_idx = self._chunk_start_idx_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -2028,21 +1997,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
-        # prefix_chunk=True precompiles the cached-prefix prefill attention graph
-        # (a chunk whose prefix is already in the paged cache): a non-None
-        # attn_mask routes attention through the gather + masked-SDPA path. The
-        # mask shape [num_reqs, 1, num_tokens, S] (S = num_blocks * block_size =
-        # max_model_len) matches what _prepare_inputs builds at runtime, so the
-        # graph is cached and no recompilation happens on the first ≥2nd chunk.
+        # prefix_chunk=True precompiles the cached-prefix prefill graph (a chunk
+        # whose prefix is already in the paged cache): chunk_start_idx routes
+        # attention through the on-device chunked SDPA op (causal mask + offset
+        # internal; no host mask, no gather). Only reached when the op is usable
+        # (see _precompile_backbone gating on _chunked_sdpa_active).
         attn_mask = None
         fill_page_table = None
         chunk_start_idx = None
         if prefix_chunk:
-            s_len = num_blocks * self.block_size
-            attn_mask = torch.zeros(
-                (num_reqs, 1, num_tokens, s_len),
-                dtype=self._hidden_states_dtype,
-            ).to(self.device)
             # At runtime a continuation chunk uses a *distinct* fill_page_table
             # (the page table rolled by whole prefix blocks); pass a separate
             # tensor here so the traced graph has the same input arity (else an
@@ -2050,14 +2013,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
                 self.device
             )
-            # When the no-gather chunked SDPA path is active, precompile THAT
-            # graph (not the gather): the op consumes chunk_start_idx on device
-            # and never moves page_table to host, so the cached-prefix graph
-            # becomes trace-compatible (tt-xla #4986). chunk_start_idx must be
-            # present here so _compute_full_attention takes the op branch.
-            # Gated by _chunked_sdpa_active so we don't precompile the op for
-            # configs the ttnn kernel rejects (e.g. small max_model_len whose
-            # page-table stick isn't 32B-aligned -> "stick size multiple of 32").
             if self._chunked_sdpa_active:
                 chunk_start_idx = self._chunk_start_idx_dev
 
@@ -2198,7 +2153,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def _precompile_backbone(self) -> None:
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
-        chunked = getattr(self.scheduler_config, "chunked_prefill_enabled", False)
+        # Precompile the cached-prefix prefill (chunked SDPA op) graph only when
+        # the op is actually usable for this config; otherwise there is no
+        # cached-prefix path to precompile and small configs would hit the ttnn
+        # page-table-stick assert (tt-xla #4986).
+        chunked = self._chunked_sdpa_active
 
         def _run_backbone_dummies(num_tokens: int, prefix_chunk: bool) -> None:
             # Compile the max-model-len shape, and the optional "most" shape, for
