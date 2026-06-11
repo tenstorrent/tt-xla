@@ -15,6 +15,13 @@ register_backend(
     backend=AttentionBackendEnum.FLASH_ATTN_MLA,
     class_path="vllm_tt.attention_mla.TTMLAAttentionBackend",
 )
+# DeepSeek Sparse Attention (sparse MLA, e.g. DeepSeek-V3.2). Registered under the
+# sparse-MLA enum slot; TTPlatform.get_attn_backend_cls routes use_mla+use_sparse
+# here.
+register_backend(
+    backend=AttentionBackendEnum.FLASHMLA_SPARSE,
+    class_path="vllm_tt.attention_dsa.TTDSAAttentionBackend",
+)
 
 
 def register():

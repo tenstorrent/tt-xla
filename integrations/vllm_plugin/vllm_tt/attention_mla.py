@@ -4,6 +4,7 @@
 """
 MLA (Multi-head Latent Attention) backend for TT devices.
 """
+
 from typing import TYPE_CHECKING, Optional
 
 import torch
@@ -152,6 +153,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         attn_metadata: TTMetadata,
         layer: "MLAAttention",
         output: Optional[torch.Tensor] = None,
+        attn_mask: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> torch.Tensor:
         """MLA attention on TT (prefill and paged decode).
@@ -166,6 +168,13 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             k_pe:        [tokens, 1, qk_rope_head_dim]
             kv_cache:    [num_blocks, 1, block_size, kv_lora_rank + qk_rope_head_dim]
             output:      [tokens, num_heads * v_head_dim]   (write target)
+        ``attn_mask`` is an optional additive mask. When ``None`` (plain MLA) the
+        kernels run in their built-in causal mode. When provided (DeepSeek Sparse
+        Attention — see ``attention_dsa.py``) it carries the combined causal +
+        top-k sparsity mask, the kernels run with ``is_causal=False`` and the mask
+        is the sole source of masking. The mask is broadcast over the query heads
+        (shape ``[users, 1, S, S]`` for prefill, ``[users, 1, 1, max_seq]`` for
+        decode), matching the indexer's head-independent token selection.
         Returns the written output tensor.
         """
         q_nope, q_pe = q
@@ -224,6 +233,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
                 act_dtype,
                 device,
                 output,
+                attn_mask,
             )
         else:
             return self._forward_decode(
@@ -236,6 +246,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
                 act_dtype,
                 device,
                 output,
+                attn_mask,
             )
 
     @staticmethod
@@ -267,16 +278,26 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         act_dtype: torch.dtype,
         device: torch.device,
         output: Optional[torch.Tensor],
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         q_for_kernel = q_lat.transpose(1, 2).contiguous()  # [b, N, S, L+R]
         k_for_kernel = k_lat.transpose(1, 2).contiguous()  # [b, 1, S, L+R]
+
+        # A sparse (DSA) mask supersedes the kernel's built-in causal masking:
+        # the mask already encodes causality plus the indexer's top-k selection,
+        # and tt::flash_mla_prefill forbids is_causal=True alongside a mask.
+        if attn_mask is not None:
+            is_causal = False
+        else:
+            is_causal = attn_metadata.is_causal if attn_metadata is not None else True
 
         out_lat = torch.ops.tt.flash_mla_prefill(
             query=q_for_kernel,
             key=k_for_kernel,
             head_dim_v=self.kv_lora_rank,
             value=None,
-            is_causal=attn_metadata.is_causal if attn_metadata is not None else True,
+            attn_mask=attn_mask,
+            is_causal=is_causal,
             scale=self.scale,
         )  # [b, N, S, L]
 
@@ -332,6 +353,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         act_dtype: torch.dtype,
         device: torch.device,
         output: Optional[torch.Tensor],
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Paged MLA decode on TT (one token per user, S = 1).
@@ -339,6 +361,9 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             q_lat:    [users, 1, N, L+R]                latent query (S == 1)
             k_lat:    [users, 1, 1, L+R]                new token's latent K
             kv_cache: [num_blocks, 1, block_size, L+R]  paged latent cache
+        ``attn_mask`` (DSA): additive mask broadcastable to
+        ``[users, nqh, 1, max_seq_len]`` that already encodes causality + top-k
+        sparsity; when given the kernel runs with ``is_causal=False``.
         """
         # Write new token's latent K into the paged cache at the current position
         # (Skipped during profiling runs)
@@ -355,7 +380,15 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
         # Call paged MLA decode kernel.
         # It expects query tensor to be of shape [1, users, N, L+R] and reads K/V
         # straight from the paged cache.
-        is_causal = attn_metadata.is_causal if attn_metadata is not None else True
+        if attn_mask is not None:
+            # DSA: the indexer mask already encodes causality + top-k sparsity, so
+            # run the kernel uncausal with the explicit mask. cur_pos is still
+            # forwarded (the decode kernel ignores it for masking when not causal).
+            is_causal = False
+            decode_mask = attn_mask
+        else:
+            is_causal = attn_metadata.is_causal if attn_metadata is not None else True
+            decode_mask = None if is_causal else attn_metadata.attn_mask
         out_lat = torch.ops.tt.paged_flash_mla_decode(
             query=q_lat.transpose(0, 1),  # [1, users, N, L+R]
             key=kv_cache,
@@ -363,7 +396,7 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             page_table=attn_metadata.page_table,
             value=None,
             is_causal=is_causal,
-            attn_mask=None if is_causal else attn_metadata.attn_mask,
+            attn_mask=decode_mask,
             cur_pos_tensor=attn_metadata.cache_position,
             scale=self.scale,
         )  # [1, users, N, L]
@@ -387,7 +420,12 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
 
 
 class TTMLAAttention(MLAAttention):
-    """`MLAAttention` subclass that calls `impl.forward(...)` directly."""
+    """`MLAAttention` subclass that calls `impl.forward(...)` directly.
+
+    ``attn_mask`` is forwarded to the impl unchanged; it is ``None`` for plain
+    MLA and carries the DSA top-k sparsity mask when the OOT wrapper runs the
+    indexer (see ``attention_dsa.dsa_wrapper_forward``).
+    """
 
     def forward(
         self,
@@ -395,6 +433,7 @@ class TTMLAAttention(MLAAttention):
         kv_c_normed: torch.Tensor,
         k_pe: torch.Tensor,
         output_shape: Optional[torch.Size] = None,
+        attn_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         # Split q into (q_nope, q_pe). vLLM's standard MLAAttention.forward
         # only does this inside forward_impl's MQA branch; we do it here so
@@ -420,6 +459,7 @@ class TTMLAAttention(MLAAttention):
             attn_metadata=attn_metadata,
             layer=self,
             output=output,
+            attn_mask=attn_mask,
         )
         return output
 
@@ -436,11 +476,19 @@ class TTMultiHeadLatentAttentionWrapper(MultiHeadLatentAttentionWrapper):
             super().__init__(*args, **kwargs)
         finally:
             _mla_module.MLAAttention = orig_cls
+        # `is_sparse`/`indexer` are set by the upstream __init__ from
+        # `mla_modules`. DeepSeek-V3.2 (DSA) sets is_sparse=True and supplies an
+        # indexer; everything else is plain MLA.
+        self._tt_is_sparse = bool(
+            getattr(self, "is_sparse", False) and getattr(self, "indexer", None)
+        )
         logger.info(
-            "[TT] Installed TTMLAAttention (prefix=%s) — MLA prefill uses "
-            "torch.ops.tt.flash_mla_prefill; decode uses "
-            "torch.ops.tt.paged_flash_mla_decode.",
+            "[TT] Installed TTMLAAttention (prefix=%s, sparse=%s) — MLA prefill "
+            "uses torch.ops.tt.flash_mla_prefill; decode uses "
+            "torch.ops.tt.paged_flash_mla_decode.%s",
             getattr(self, "prefix", "?"),
+            self._tt_is_sparse,
+            " DSA top-k masking via attention_dsa." if self._tt_is_sparse else "",
         )
 
     def forward(
@@ -449,6 +497,14 @@ class TTMultiHeadLatentAttentionWrapper(MultiHeadLatentAttentionWrapper):
         hidden_states: torch.Tensor,
         llama_4_scaling: torch.Tensor | None = None,
     ) -> torch.Tensor:
+        # DeepSeek Sparse Attention: bypass the upstream forward (which would
+        # call the GPU-only indexer op) and run the TT indexer + sparse MLA path.
+        # dsa_wrapper_forward handles the 3D<->2D reshape itself.
+        if self._tt_is_sparse:
+            from .attention_dsa import dsa_wrapper_forward
+
+            return dsa_wrapper_forward(self, positions, hidden_states, llama_4_scaling)
+
         # The TT model runner passes hidden_states as 3D [users, S, H] and
         # positions as 2D [users, S].
         # Flatten to vLLM's standard 2D `[total_tokens, hidden]` before the

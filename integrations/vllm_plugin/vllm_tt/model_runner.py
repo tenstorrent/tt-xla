@@ -2407,6 +2407,46 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             logger.debug("%s reuses KV cache of %s", layer_name, target_layer_name)
             kv_caches[layer_name] = kv_caches[target_layer_name]
 
+    def _init_dsa_indexer_kv_caches(self, num_blocks: int | None) -> None:
+        """Allocate + bind the DeepSeek Sparse Attention indexer K caches.
+
+        DSA layers (DeepSeek-V3.2) keep a small per-layer indexer key cache —
+        used by the lightning indexer to rank past tokens — separate from the
+        MLA latent cache. vLLM models it as a ``DeepseekV32IndexerCache`` layer
+        with an FP8 spec. On TT we instead ride a BF16 cache alongside each MLA
+        latent cache: same paging (``num_blocks`` / ``block_size`` and the shared
+        ``page_table``), ``head_size == index_head_dim``. This keeps a single
+        vLLM KV-cache group while giving ``attention_dsa.py`` a populated cache to
+        update/gather during decode. The tensor is bound onto the indexer cache
+        module's ``kv_cache`` attribute (the same object the forward context
+        holds), where ``attention_dsa._indexer_kv_cache`` reads it.
+
+        No-op for non-DSA models (no such layers in the forward context).
+        """
+        if num_blocks is None:
+            return
+        ctx = self.vllm_config.compilation_config.static_forward_context
+        index_head_dim = getattr(self.model_config.hf_config, "index_head_dim", None)
+        for prefix, module in ctx.items():
+            # Match by class name to avoid importing deepseek_v2 (which would pull
+            # GPU-only indexer kernels) for non-DSA models.
+            if type(module).__name__ != "DeepseekV32IndexerCache":
+                continue
+            if index_head_dim is None:
+                raise ValueError(
+                    "Found a DeepseekV32IndexerCache layer but model config has "
+                    "no `index_head_dim`; cannot size the DSA indexer KV cache."
+                )
+            shape = (num_blocks, 1, self.block_size, index_head_dim)
+            idx_cache = torch.zeros(shape, dtype=self.kv_cache_dtype).to(self.device)
+            if self.enable_tensor_parallel:
+                # Replicated across the mesh, like the MLA latent cache.
+                xs.mark_sharding(idx_cache, self.mesh, (None, None, None, None))
+            module.kv_cache = idx_cache
+            logger.info(
+                "[TT] Allocated DSA indexer KV cache %s: %s", prefix, tuple(shape)
+            )
+
     def initialize_kv_cache(self, kv_cache_config: KVCacheConfig) -> None:
         """
         Initialize KV cache based on `kv_cache_config`.
@@ -2463,6 +2503,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_cache_sizes[kv_cache_tensor.shared_by[0]] = kv_cache_tensor.size
 
         kv_caches: dict[str, torch.Tensor] = {}
+        # Number of blocks of the MLA latent cache, reused to size the DSA
+        # indexer rider caches so they share the page table (see
+        # _init_dsa_indexer_kv_caches). None for non-MLA models.
+        mla_num_blocks: int | None = None
         for kv_cache_group in kv_cache_config.kv_cache_groups:
             for layer_name in kv_cache_group.layer_names:
                 kv_cache_spec = _get_layer_kv_cache_spec(
@@ -2484,6 +2528,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     dtype = kv_cache_spec.dtype
                     mla_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
                     kv_caches[layer_name] = mla_cache
+                    mla_num_blocks = num_blocks
                 elif isinstance(kv_cache_spec, AttentionSpec):
                     if self.enable_tensor_parallel:
                         num_kv_heads = kv_cache_spec.num_kv_heads
@@ -2521,6 +2566,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.vllm_config.compilation_config.static_forward_context,
             self.kv_caches,
         )
+
+        # DeepSeek Sparse Attention: allocate + bind the per-layer indexer K
+        # caches alongside the MLA latent caches (no-op for non-DSA models).
+        self._init_dsa_indexer_kv_caches(mla_num_blocks)
 
         if self.enable_tensor_parallel:
             # Shard KV Cache — each entry is [k_cache, v_cache].

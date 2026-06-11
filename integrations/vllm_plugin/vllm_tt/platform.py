@@ -194,8 +194,14 @@ class TTPlatform(Platform):
         num_heads: int | None = None,
     ) -> str:
         if attn_selector_config.use_sparse:
+            # DeepSeek Sparse Attention (DSA, e.g. DeepSeek-V3.2) is sparse MLA:
+            # MLA plus a lightning indexer that masks all but the top-k tokens.
+            # See vllm_tt/attention_dsa.py.
+            if attn_selector_config.use_mla:
+                logger.info("Using TT DSA (sparse MLA) Attention backend.")
+                return AttentionBackendEnum.FLASHMLA_SPARSE.get_path()
             raise NotImplementedError(
-                "Sparse Attention is not supported on TT devices."
+                "Non-MLA sparse attention is not supported on TT devices."
             )
         if attn_selector_config.use_mla:
             logger.info("Using TT MLA Attention backend.")
