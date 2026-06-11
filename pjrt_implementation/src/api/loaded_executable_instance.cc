@@ -212,10 +212,9 @@ LoadedExecutableInstance::getOutputShape(size_t output_index) const {
   const mlir::tt::sharding_utils::MeshSharding &output_sharding =
       m_executable_image->getOutputSharding(output_index);
 
+  // Per-device shape equals the global shape for replicated outputs.
   if (output_sharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Identity ||
-      output_sharding.getShardType() ==
-          mlir::tt::ttcore::MeshShardType::Replicate) {
+      mlir::tt::ttcore::MeshShardType::Replicate) {
     return output_shape;
   }
 
@@ -262,7 +261,7 @@ tt_pjrt_status LoadedExecutableInstance::createDefaultOutputBuffers(
 
     // Row-major strides: last stride is 1, each preceding stride is the
     // product of all following dimension sizes.
-    std::vector<std::uint32_t> strides(output_shape->size());
+    std::vector<std::int64_t> strides(output_shape->size());
     std::exclusive_scan(output_shape->rbegin(), output_shape->rend(),
                         strides.rbegin(), std::uint32_t(1),
                         std::multiplies<>());
@@ -349,6 +348,7 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
     const mlir::tt::sharding_utils::MeshSharding &meshSharding,
     size_t num_devices) {
   std::unordered_map<std::string, std::string> strategy;
+
   mlir::tt::ttcore::MeshShardType meshType = meshSharding.getShardType();
   if (meshType == mlir::tt::ttcore::MeshShardType::Replicate) {
     // If there is only one device, the output will be replicated, but there is
@@ -373,8 +373,6 @@ LoadedExecutableInstance::fillStrategyMapFromSharding(
       strategy["mesh_shape_y"] = std::to_string(mesh_shape_data[0]);
       strategy["mesh_shape_x"] = std::to_string(mesh_shape_data[1]);
     }
-  } else if (meshType == mlir::tt::ttcore::MeshShardType::Identity) {
-    strategy["strategy"] = "identity";
   } else {
     return mlir::failure();
   }

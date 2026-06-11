@@ -4,6 +4,7 @@
 
 import json
 import os
+from typing import Optional
 
 import numpy as np
 import pytest
@@ -67,6 +68,7 @@ def test_llm(
     check_fusions: bool = False,
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
+    experts_implementation: Optional[str] = None,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -86,6 +88,7 @@ def test_llm(
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
+        expert_implementation: Expert implementation type
     """
     # Set default batch size if None
     if batch_size is None:
@@ -166,6 +169,7 @@ def test_llm(
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
         enable_create_d2m_subgraphs=enable_create_d2m_subgraphs,
+        experts_implementation=experts_implementation,
     )
 
     if output_file:
@@ -230,9 +234,11 @@ def test_llm_tp(
     required_pcc=DEFAULT_REQUIRED_PCC,
     **kwargs,
 ):
-    mesh_config_fn = kwargs.pop(
-        "mesh_config_fn", getattr(ModelLoaderModule, "get_mesh_config", None)
-    )
+    mesh_override = kwargs.pop("mesh_config_fn", None)
+    if mesh_override is not None:
+        ModelLoaderModule.get_mesh_config = mesh_override
+    mesh_config_fn = getattr(ModelLoaderModule, "get_mesh_config", None)
+
     shard_spec_fn = kwargs.pop(
         "shard_spec_fn", getattr(ModelLoaderModule, "load_shard_spec", None)
     )
@@ -1754,6 +1760,8 @@ def test_gpt_oss_20b_tp(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1774,10 +1782,13 @@ def test_gpt_oss_20b_tp(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         trace_enabled=False,
         optimization_level=1,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+        required_pcc=0.94,
     )
 
 
 # Test with D2M fusion enabled (enable-create-d2m-subgraphs=true).
+# FAILED: SIGSEGV in TTNNRowMajorLayoutPropagation (https://github.com/tenstorrent/tt-xla/issues/5121)
 def test_gpt_oss_20b_tp_d2m(
     output_file,
     num_layers,
@@ -1788,6 +1799,8 @@ def test_gpt_oss_20b_tp_d2m(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1809,6 +1822,7 @@ def test_gpt_oss_20b_tp_d2m(
         trace_enabled=False,
         optimization_level=1,
         enable_create_d2m_subgraphs=True,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -1822,6 +1836,8 @@ def test_gpt_oss_20b_tp_batch_size_1(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1841,6 +1857,7 @@ def test_gpt_oss_20b_tp_batch_size_1(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         batch_size=batch_size if batch_size is not None else 1,
         optimization_level=1,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -1884,6 +1901,8 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1904,6 +1923,7 @@ def test_gpt_oss_20b_tp_galaxy_batch_size_64(
         ),  # 128 fails to compile - https://github.com/tenstorrent/tt-xla/issues/3907
         optimization_level=1,
         experimental_kv_cache_dtype=None,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -1959,6 +1979,8 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -1982,6 +2004,7 @@ def test_gpt_oss_120b_tp_dp_galaxy_batch_size_128(
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
         experimental_kv_cache_dtype=None,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -1995,6 +2018,8 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -2018,6 +2043,7 @@ def test_gpt_oss_120b_tp_galaxy_batch_size_64(
         kv_cache_sharding_spec=("batch", "model", None, None),
         trace_enabled=True,
         experimental_kv_cache_dtype=None,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -2054,6 +2080,8 @@ def test_gpt_oss_120b_tp_qb2(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -2082,6 +2110,7 @@ def test_gpt_oss_120b_tp_qb2(
         required_pcc=0.93,  # set for now as it's ~0.93 on test runs locally
         mesh_config_fn=_gpt_oss_120b_qb2_mesh_config_fn,
         # shard_spec_fn=_gpt_oss_120b_qb2_shard_spec_fn,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
     )
 
 
@@ -2114,6 +2143,7 @@ def test_kimi_k2_tp_galaxy_2_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
+        experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
     )
@@ -2148,6 +2178,7 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
         decode_only=decode_only,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
+        experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
     )
@@ -2182,6 +2213,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         use_indexer_cache=True,
+        experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
         required_pcc=-0.92,
@@ -2528,6 +2560,8 @@ def test_gpt_oss_20b_tp_qb2(
     decode_only,
     optimization_level,
 ):
+    from tt_torch import TT_DENSE_EXPERTS_BACKEND_NAME
+
     from third_party.tt_forge_models.gpt_oss.pytorch.loader import (
         ModelLoader,
         ModelVariant,
@@ -2547,4 +2581,75 @@ def test_gpt_oss_20b_tp_qb2(
         mesh_config_fn=_gpt_oss_20b_mesh_config_fn,
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
+        experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+    )
+
+
+# This test only runs 4 layers so we expect to see incoherent output
+def test_deepseek_v3_1_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.deepseek.deepseek_v3_1.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_V3_1_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4 if num_layers is None else num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=0.96,
+        experimental_kv_cache_dtype=None,
+    )
+
+
+# This test only runs 4 layers so we expect to see incoherent output
+def test_glm_4_7_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GLM_4_7
+
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4 if num_layers is None else num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,
+        trace_enabled=False,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", None, None, None),
+        required_pcc=0.86,
     )
