@@ -413,7 +413,7 @@ ModuleBuilder::buildModule(
   // tt-mlir lowers the custom call to a TTNN op carrying a `kernel_id`
   // attribute with the kernel body left deferred; the tt-mlir
   // `--ttnn-resolve-tt-lang-kernels` pass walks those ops, asks the
-  // tt-lang Python compiler (`tt_torch.tt_lang.resolve_kernel`) to
+  // tt-lang Python compiler (`tt_torch.tt_lang.resolve_operation`) to
   // compile each kernel against its now-final (post-Shardy,
   // post-TTIR-to-TTNN) operand signature, and attaches the resolved
   // artifact bytes back as the `kernel_artifact` attribute. A no-op
