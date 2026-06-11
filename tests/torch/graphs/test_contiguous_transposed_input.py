@@ -9,6 +9,7 @@ from utils import incorrect_result
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_contiguous_transposed_input():
     """
     Runs identity test with transposed input tensor (contiguous in memory).

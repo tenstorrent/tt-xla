@@ -68,9 +68,23 @@ class TTConfig:
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
+    # Per-tensor weight dtype overrides for mixed precision. Either a dict
+    # mapping fnmatch globs over (vLLM) parameter names to dtype strings
+    # ("bfp_bf4"/"bfp_bf8"/"bf16"), with an optional "default" key for
+    # unmatched weights, or a path to a JSON file of the same shape. Takes
+    # precedence over experimental_weight_dtype for matched tensors. None
+    # disables.
+    weight_dtype_overrides: Optional[Union[dict, str]] = None
+
     # Toggle the tt-mlir permute+matmul fusion optimization. Mirrors the PJRT
     # compile option; defaults to True to match the PJRT default.
     experimental_enable_permute_matmul_fusion: bool = True
+
+    # Enable fp32 destination accumulation in matmul/reduction kernels.
+    fp32_dest_acc_en: Optional[bool] = None
+
+    # Override the on-device KV cache element dtype.
+    experimental_kv_cache_dtype: Optional[str] = None
 
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
@@ -132,6 +146,10 @@ class TTConfig:
             "enable_trace": "true" if self.enable_trace else "false",
             "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
+        if self.fp32_dest_acc_en is not None:
+            cfg["fp32_dest_acc_en"] = self.fp32_dest_acc_en
+        if self.experimental_kv_cache_dtype is not None:
+            cfg["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
         if self.export_path:
             cfg["export_path"] = self.export_path
         if self.export_model_name:

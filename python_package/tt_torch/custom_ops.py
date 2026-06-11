@@ -1402,14 +1402,24 @@ def sparse_matmul(
             if not is_input_a_sparse and is_input_b_sparse:
                 H = input_tensor_a.shape[-1]
                 split_seq = S % M == 0 and S >= M
+                # split_bd matches sparsity tile boundaries only when S=1
+                # (decode). For S>1, sparsity tiles cross BD boundaries since
+                # the flat token order is S-inner.
+                split_bd = S == 1 and BD % M == 0 and BD >= M
                 if split_seq:
                     input_tensor_a = input_tensor_a.reshape(BD, S // M, M, H)
                     sparsity = sparsity.reshape(BD, S // M, 1, E_experts)
-                else:
+                elif split_bd:
                     # Decode: tile on BD instead
                     input_tensor_a = input_tensor_a.reshape(BD // M, M, S, H)
                     input_tensor_a = input_tensor_a.permute(0, 2, 1, 3)
                     sparsity = sparsity.reshape(BD // M, S, 1, E_experts)
+                else:
+                    # Fall back to flat tiling of the BD*S token axis,
+                    # matching sparsity's natural [reduced, E] layout.
+                    AB = (BD * S) // M
+                    input_tensor_a = input_tensor_a.reshape(1, AB, M, H)
+                    sparsity = sparsity.reshape(1, AB, 1, E_experts)
 
         frontend_attributes = {
             "is_input_a_sparse": str(is_input_a_sparse),
@@ -1495,8 +1505,9 @@ def sparse_matmul(
                 out_e = torch.matmul(input_tensor_a, input_b_casted[0, e])
                 output[:, :, 0, e, :, :] = out_e * mask_e.unsqueeze(-1).unsqueeze(-1)
             if _tiled:
-                output = output.squeeze(2).permute(0, 1, 3, 2, 4).contiguous()
-                output = output.view(BD, S, E, N)
+                # Match XLA: 5D [A, B, E, M, N] so consumers can broadcast
+                # bias as [1, 1, E, 1, -1] uniformly across devices.
+                output = output.squeeze(2)
             return output.to(orig_dtype)
 
         elif is_input_a_sparse and not is_input_b_sparse:
@@ -1553,10 +1564,16 @@ def sparse_matmul_fake(
         reduced = sparsity.shape[2]
         M = (BD * S) // reduced
         if not is_input_a_sparse and is_input_b_sparse:
-            # Gate-up: tiled output [A, B, E, M, N] (5D)
+            # Gate-up: tiled output [A, B, E, M, N] (5D). Must mirror the
+            # real-op tiling exactly (see XLA branch).
             split_seq = S % M == 0 and S >= M
-            A = BD if split_seq else BD // M
-            B = S // M if split_seq else S
+            split_bd = S == 1 and BD % M == 0 and BD >= M
+            if split_seq:
+                A, B = BD, S // M
+            elif split_bd:
+                A, B = BD // M, S
+            else:
+                A, B = 1, (BD * S) // M
             output_shape = [A, B, E, M, N]
         else:
             output_shape = [BD, S, E, N]

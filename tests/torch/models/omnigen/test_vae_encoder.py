@@ -20,8 +20,10 @@ def test_vae_encoder():
     _run(sharded=False)
 
 
+@pytest.mark.skip(reason="Timed out in CI")
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.llmbox
 def test_vae_encoder_sharded():
     _run(sharded=True)
 

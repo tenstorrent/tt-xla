@@ -54,5 +54,6 @@ def test_composite_sdpa(request):
         [(1, 8, 32, 64), (1, 8, 32, 64), (1, 8, 32, 64)],
         dtype=torch.bfloat16,
         framework=Framework.TORCH,
+        compiler_config=CompilerConfig(optimization_level=1),
         request=request,
     )

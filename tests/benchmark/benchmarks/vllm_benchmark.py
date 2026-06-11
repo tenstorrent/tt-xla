@@ -101,21 +101,18 @@ def _create_llm(config: VLLMBenchmarkConfig) -> vllm.LLM:
 
 def _extract_metrics(
     outputs: List[vllm.RequestOutput],
-    batch_size: int,
-) -> Tuple[float, int, float, float]:
+) -> Tuple[float, List[int], float, float]:
     """
     Extract per-request metrics and return aggregated per-user values.
 
     Returns:
-        (avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user)
+        (avg_ttft_ms, tokens_per_user, avg_decode_time_s, avg_tokens_per_sec)
     """
     ttft_values = []
-    total_gen_tokens = 0
 
     for i, output in enumerate(outputs):
         stats = output.metrics
         gen_tokens = len(output.outputs[0].token_ids)
-        total_gen_tokens += gen_tokens
 
         ttft_ms = stats.first_token_latency * 1000.0
         ttft_values.append(ttft_ms)
@@ -136,17 +133,33 @@ def _extract_metrics(
 
     avg_ttft_ms = sum(ttft_values) / len(ttft_values) if ttft_values else 0.0
 
-    decode_total_tokens = total_gen_tokens - batch_size
-    tokens_per_user = decode_total_tokens // batch_size
-
+    tokens_per_user = [len(o.outputs[0].token_ids) - 1 for o in outputs]
     first_token_times = [o.metrics.first_token_ts for o in outputs]
     last_token_times = [o.metrics.last_token_ts for o in outputs]
-    decode_total_time = max(last_token_times) - min(first_token_times)
-    tokens_per_sec_per_user = (
-        (tokens_per_user / decode_total_time) if decode_total_time > 0 else 0.0
+
+    decode_times_per_user = [
+        last_token_time - first_token_time
+        for last_token_time, first_token_time in zip(
+            last_token_times, first_token_times
+        )
+    ]
+    tokens_per_sec_per_user = [
+        tokens / decode_time if decode_time > 0 else 0.0
+        for tokens, decode_time in zip(tokens_per_user, decode_times_per_user)
+    ]
+    avg_tokens_per_sec = sum(tokens_per_sec_per_user) / len(tokens_per_sec_per_user)
+    avg_decode_time_s = (
+        sum(decode_times_per_user) / len(decode_times_per_user)
+        if decode_times_per_user
+        else 0.0
     )
 
-    return avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user
+    return (
+        avg_ttft_ms,
+        tokens_per_user,
+        avg_decode_time_s,
+        avg_tokens_per_sec,
+    )
 
 
 def _get_device_info(
@@ -244,9 +257,13 @@ def benchmark_vllm(
     _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
     _assert_no_preemptions(llm)
 
-    avg_ttft_ms, tokens_per_user, decode_total_time, tokens_per_sec_per_user = (
-        _extract_metrics(outputs, config.batch_size)
-    )
+    (
+        avg_ttft_ms,
+        tokens_per_user,
+        avg_decode_time_s,
+        avg_tokens_per_sec,
+    ) = _extract_metrics(outputs)
+    total_samples = sum(tokens_per_user)
 
     metadata = get_benchmark_metadata()
     full_model_name = config.model
@@ -260,6 +277,11 @@ def benchmark_vllm(
             "value": avg_ttft_ms,
             "target": -1,
         },
+        {
+            "measurement_name": "samples_per_sec",
+            "value": avg_tokens_per_sec,
+            "target": -1,
+        },
     ]
 
     print_benchmark_results(
@@ -269,9 +291,9 @@ def benchmark_vllm(
         dataset_name=dataset_name,
         date=metadata["date"],
         machine_name=metadata["machine_name"],
-        total_time=decode_total_time,
-        total_samples=tokens_per_user,
-        samples_per_sec=tokens_per_sec_per_user,
+        total_time=avg_decode_time_s,
+        total_samples=total_samples,
+        samples_per_sec=avg_tokens_per_sec,
         evaluation_score=evaluation_score,
         batch_size=config.batch_size,
         data_format="bfloat16",
@@ -290,8 +312,8 @@ def benchmark_vllm(
         input_size=(config.max_model_len,),
         loop_count=1,
         data_format="bfloat16",
-        total_time=decode_total_time,
-        total_samples=tokens_per_user,
+        total_time=avg_decode_time_s,
+        total_samples=total_samples,
         evaluation_score=evaluation_score,
         custom_measurements=custom_measurements,
         optimization_level=config.additional_config.get("optimization_level", 0),

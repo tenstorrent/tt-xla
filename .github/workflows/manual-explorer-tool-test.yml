@@ -105,3 +105,4 @@ jobs:
       run: |
         source venv/activate
         python tests/op_by_op/test_tool_capability.py
+        python tests/op_by_op/test_chisel_capability.py

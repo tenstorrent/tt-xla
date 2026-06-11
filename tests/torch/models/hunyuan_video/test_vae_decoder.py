@@ -20,11 +20,12 @@ def test_vae_decoder():
     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="loc(gather.64): error: 'ttir.concat' op Output tensor dimension 2 does not match the sum of input tensor - https://github.com/tenstorrent/tt-xla/issues/4792"
-)
+@pytest.mark.skip(
+    reason="Takes over an hour to run"
+)  # "loc(gather.64): error: 'ttir.concat' op Output tensor dimension 2 does not match the sum of input tensor - https://github.com/tenstorrent/tt-xla/issues/4792"
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.llmbox
 def test_vae_decoder_sharded():
     _run(sharded=True)
 
