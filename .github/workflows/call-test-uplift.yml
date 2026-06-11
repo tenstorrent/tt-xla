@@ -169,6 +169,11 @@ jobs:
       - name: Extract failures
         id: extract
         run: |
+          # download-artifact@v4 doesn't create the path dir when zero
+          # artifacts match — happens when every test crashed before
+          # writing junit (so no `test-reports-*` to upload). Create it
+          # so the extractor can treat it as "no failures detected".
+          mkdir -p test-results
           python3 .github/scripts/uplift/transformers/extract-failures.py \
             --inputs-dir test-results \
             --out-context failure_context.txt \

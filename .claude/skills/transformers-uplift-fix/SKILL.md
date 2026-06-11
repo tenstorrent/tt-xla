@@ -84,19 +84,31 @@ Additional Instructions:
 
 ## Scope: model-perf-uplift
 
-The caller ran the perf benchmark sweep via `call-perf-uplift.yml`.
+The caller ran the perf benchmark sweep via `call-perf-uplift.yml`. There are three
+types of issues we want to focus on:
+1. Broken benchmark test infrastructure.
+2. Performance (samples/sec) regression beyond the configured threshold.
+3. Missing expected fused TTNN ops.
 
 Additional Instructions:
 
-1. We want to only focus on making sure the benchmark testing infra is
-   working end-to-end.
-2. **Benchmark infrastructure broken by transformers API changes.**
+-  Focus on issues related to the transformers uplift.
+-  **Benchmark infrastructure broken by transformers API changes.**
    The benchmark code itself raised an exception (TypeError, AttributeError,
-   ImportError, etc.) because transformers changed an API the benchmark relies
+   ImportError, etc.) because of changes in transformers that benchmark infra relies
    on. The failing file lives under `tests/benchmark/` (e.g.
    `tests/benchmark/benchmarks/llm_benchmark.py`,
-   `tests/benchmark/llm_utils/decode_utils.py`).
-3. Apply the same approach as `model-test-uplifts` — similar churn patterns
+   `tests/benchmark/llm_utils/decode_utils.py`, etc.).
+-  **Performance Regression** DO NOT attempt blind fixes. Only act if
+   you can attribute the regression to a specific transformers diff. Otherwise list it
+   under Skipped for human review and add a one-line hypothesis to the entry's bullet
+   under ## Skipped in fix-summary.md
+-  **Missing Fusion** read the IR dump path from the failure, grep for the
+   expected op, then check transformers diffs for the op pattern that
+   produced it. Fix by adapting the model wrapper in tt-xla/tt-forge-models
+   to restore the pattern. Skip if the fusion regression has no clear
+   source-side cause.
+-  Apply the same approach as `model-test-uplifts` — similar churn patterns
    (Cache API, attention API, return-shape renames, etc.).
 
 ## Output format
