@@ -73,6 +73,8 @@ permissions:
   actions:  write         # self-dispatch the next iteration
   checks:   write         # call-test.yml publishes check runs
   pull-requests: write    # open the draft tt-xla / tt-forge-models PRs in finalize
+  packages: write         # GHCR pulls in the perf-benchmark cascade
+  id-token: write         # OIDC for cloud-auth steps in the perf cascade
 
 concurrency:
   # One iteration per uplift branch at a time. Queued; never cancelled.
@@ -416,39 +418,42 @@ jobs:
   # the finalize stage — anything the broader suite surfaces gets one
   # attempt at a fix before the PR is opened.
   # ---------------------------------------------------------------------------
-  test-and-fix-full:
-    needs: [setup, decide]
-    if: always() && needs.decide.outputs.action == 'finalize'
-    uses: ./.github/workflows/call-test-uplift.yml
-    with:
-      test_suite:              model-test-passing.json
-      scope:                   model-test-uplifts
-      tag:                     full
-      branch:                  ${{ inputs.branch }}
-      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-      target_version:          ${{ inputs.target_version }}
-      current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-      artifact_suffix:         ${{ inputs.artifact_suffix }}
-      docker_image:            ${{ inputs.docker_image }}
-    secrets: inherit
-
-  # # ---------------------------------------------------------------------------
-  # # Perf benchmark sweep — wraps call-perf-uplift.yml, the shared callable
-  # # that humans can also dispatch manually during PR review.
-  # # ---------------------------------------------------------------------------
-  # perf-benchmark:
-  #   needs: decide
-  #   if: needs.decide.outputs.action == 'finalize'
-  #   uses: ./.github/workflows/call-perf-uplift.yml
-  #   secrets: inherit
+  # test-and-fix-full:
+  #   needs: [setup, decide]
+  #   if: always() && needs.decide.outputs.action == 'finalize'
+  #   uses: ./.github/workflows/call-test-uplift.yml
   #   with:
+  #     test_suite:              model-test-passing.json
+  #     scope:                   model-test-uplifts
+  #     tag:                     full
   #     branch:                  ${{ inputs.branch }}
+  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
   #     target_version:          ${{ inputs.target_version }}
   #     current_version:         ${{ inputs.current_version }}
   #     artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
   #     artifact_suffix:         ${{ inputs.artifact_suffix }}
   #     docker_image:            ${{ inputs.docker_image }}
+  #   secrets: inherit
+
+  # ---------------------------------------------------------------------------
+  # Perf benchmark sweep — wraps call-perf-uplift.yml (run-perf →
+  # extract-failures → claude-fix, same shape as test-and-fix-full).
+  # Humans can also dispatch the callable manually during PR review.
+  # ---------------------------------------------------------------------------
+  perf-benchmark:
+    needs: [setup, decide]
+    if: always() && needs.decide.outputs.action == 'finalize'
+    uses: ./.github/workflows/call-perf-uplift.yml
+    secrets: inherit
+    with:
+      branch:                  ${{ inputs.branch }}
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      tag:                     perf
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+      artifact_suffix:         ${{ inputs.artifact_suffix }}
+      docker_image:            ${{ inputs.docker_image }}
 
   # # ---------------------------------------------------------------------------
   # # Open the two PRs. tt-forge-models first (if its branch has commits),
