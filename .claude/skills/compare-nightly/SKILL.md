@@ -43,10 +43,37 @@ The script outputs a Markdown report covering New / Persisting / Fixed sections 
 Pass `--json` to get structured JSON output instead if you need to post-process results.
 
 The script handles:
-- Parsing `# ownership-area`, `## root-cause`, and `- test_id (arch) -> [job-link](url)` lines
+- Parsing `# ownership-area`, `## root-cause`, and `- test_id (arch) -> [link](url)` lines
+  (any link label is accepted, e.g. `[job-link]`, `[baseline job]`, `[comparison]`)
 - Normalising test IDs to ignore hardware arch suffixes when matching across runs
+  (strips *all* trailing arch tokens, longest-first)
 - Merging multiple arch variants of the same test into a single bullet line
 - Rendering the final Markdown sections (or JSON)
+
+**Matching across runs is two-pass.** Pass 1 matches on the arch-normalised test
+ID. Pass 2 then reconciles the leftovers by token signature, to absorb the case
+where the two analyze-nightly passes labelled the SAME underlying failure with
+different naming conventions (e.g. a `perf vllm_bge_m3` label vs a
+`test_vllm_benchmarks.py::...[bge_m3]` pytest nodeid). Without this, such a
+failure was double-counted as both New *and* Fixed — the known cause of inflated
+new/fixed counts. Reconciliation requires ≥2 shared discriminating tokens and
+≥0.8 containment (so e.g. `qwen3_4b` is never merged with `qwen3_8b`, nor
+`batch1` with `batch32`), and uses greedy best-first assignment.
+
+**Trust the script's counts** — do not hand-correct them as "unreliable." When
+the two files use inconsistent naming, the script now reconciles automatically:
+- Reconciled pairs are reported as **persisting** and tagged
+  `_(matched across naming drift)_`, with a `> **Note:**` block at the top of the
+  report and `WARNING:` lines on stderr listing each reconciled pair.
+- A test that **persists but changes failure mode** (e.g. `pcc=nan` ->
+  `std::bad_alloc`) is tagged `_(root cause changed: "..." -> "...")_`.
+- The stderr summary line reports `N new, N persisting (N reconciled across
+  naming drift), N fixed`.
+
+In `--json` mode the object additionally contains a `reconciled` array (the
+persisting items that were matched via pass 2) and a `warnings` array (one string
+per reconciled pair). Each persisting item carries `reconciled`,
+`root_cause_changed`, and `root_cause_baseline` fields.
 
 If the script is unavailable or the output needs manual correction, fall back to parsing
 the files by hand: for each bullet line extract `test_id` (text before the first ` (`),
@@ -118,7 +145,12 @@ is `third_party/tt_forge_models`, apply the following extra steps instead of the
 ## Step 4 — Match failures across runs
 
 If `analyse_failures.py` was used in Step 2 it already computed and rendered the
-three sets. Incorporate that output into the Step 5 report.
+three sets, including any naming-drift reconciliation. Incorporate that output
+into the Step 5 report verbatim — keep its `> **Note:**` block and the
+`_(matched across naming drift)_` / `_(root cause changed: ...)_` tags. Do **not**
+second-guess or hand-correct the counts; the reconciliation logic exists
+precisely to handle the naming-convention mismatch that previously made manual
+correction necessary.
 
 If falling back to manual comparison: a failure in COMPARISON_FAILURES matches a
 failure in BASELINE_FAILURES when the test_id strings are identical, or differ only
@@ -126,6 +158,16 @@ in a trailing hardware arch token (e.g. `-n150`, `-p150`, `-n300-llmbox`). Compu
 - **New**: in COMPARISON_FAILURES but not in BASELINE_FAILURES
 - **Persisting**: in both
 - **Fixed**: in BASELINE_FAILURES but not in COMPARISON_FAILURES
+
+When matching by hand, also reconcile entries that name the **same underlying
+test under different conventions** — most commonly a perf label such as
+`perf vllm_bge_m3` in one file vs a pytest nodeid such as
+`test_vllm_benchmarks.py::...[bge_m3]` in the other. These are the SAME test;
+classify them as **persisting**, not as both new and fixed. Match on the shared
+discriminating tokens (model name, size, batch), and keep the size/batch distinct
+(`qwen3_4b` ≠ `qwen3_8b`, `batch1` ≠ `batch32`). If a persisting test's root
+cause differs between the two files, note the change rather than treating it as
+two separate failures.
 
 ## Step 5 — Produce the report
 
