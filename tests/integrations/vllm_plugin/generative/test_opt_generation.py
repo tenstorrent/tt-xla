@@ -31,15 +31,7 @@ def test_opt_generation():
 
 @pytest.mark.push
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    reason="experimental_kv_cache_dtype casts the KV cache to BFP8 but leaves the "
-    "query in bf16, and ttnn.paged_scaled_dot_product_attention_decode requires "
-    "Q/K/V to share an element type. See tt-xla #5006.",
-    strict=False,
-)
 def test_opt_generation_kv_cache_bfp8():
-    # Reproduces the experimental_kv_cache_dtype failure on the vLLM decode
-    # path; remove the xfail once tt-xla #5006 is fixed.
     prompts = [
         "Hello, my name is",
     ]

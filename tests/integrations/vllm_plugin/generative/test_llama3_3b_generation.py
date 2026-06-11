@@ -31,16 +31,6 @@ def test_llama3_3b_generation():
 
 @pytest.mark.nightly
 @pytest.mark.single_device
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "tt::sampling + enable_trace=True + optimization_level>=1 "
-        "triggers a tt-mlir compile-time bug (tt-xla #4570) — rejected by "
-        "TTConfig.__post_init__. See test_llama3_3b_generation_trace_opt0 "
-        "for the workaround variant. Remove this xfail once the kernel-side "
-        "OpModel fix lands and the TTConfig guard is removed."
-    ),
-)
 def test_llama3_3b_generation_trace():
     """Trace variant: greedy + device sampling so the metal-trace path is exercised."""
     prompts = [
