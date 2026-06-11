@@ -46,6 +46,7 @@ class LLMSamplingWrapper(torch.nn.Module):
         return_logits: bool = True,
         mesh=None,
         output_sharding_spec=None,
+        logits_to_keep: int = 0,
     ):
         super().__init__()
         self.model = model
@@ -53,6 +54,7 @@ class LLMSamplingWrapper(torch.nn.Module):
         self.return_logits = return_logits
         self.mesh = mesh
         self.output_sharding_spec = output_sharding_spec
+        self.logits_to_keep = logits_to_keep
 
     def forward(self, input_ids, past_key_values, cache_position, use_cache=True):
         position_ids = cache_position.unsqueeze(0)
@@ -62,6 +64,7 @@ class LLMSamplingWrapper(torch.nn.Module):
             position_ids=position_ids,
             cache_position=cache_position,
             use_cache=use_cache,
+            logits_to_keep=self.logits_to_keep,
         )
         logits = self.read_logits_fn(output)
         # Only take logits for last token in prefill.

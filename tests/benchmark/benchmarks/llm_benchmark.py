@@ -1174,6 +1174,9 @@ def benchmark_llm_prefill_torch_xla(
         return_logits=False,
         mesh=mesh,
         output_sharding_spec=input_output_sharding_spec,
+        # Prefill only needs the last token's logits (next-token argmax), so run
+        # lm_head over just that position instead of all input_sequence_length rows.
+        logits_to_keep=1,
     )
     # Eval mode (inference path). The wrapper also passes no explicit position_ids - see
     # LLMSamplingWrapper.forward for why that matters under SPMD.
