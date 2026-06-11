@@ -63,6 +63,7 @@ class NestedModel(nn.Module):
 
 
 @pytest.mark.push
+@pytest.mark.single_device
 class TestWeightDtypeParametrization:
 
     def test_forward(self):
