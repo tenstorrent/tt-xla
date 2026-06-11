@@ -310,9 +310,9 @@ def print_benchmark_results(
     print(f"| Dataset name: {dataset_name}")
     print(f"| Date: {date}")
     print(f"| Machine name: {machine_name}")
-    print(f"| Total execution time: {total_time}")
     print(f"| Total samples: {total_samples}")
-    print(f"| Sample per second: {samples_per_sec}")
+    print(f"| Avg. decode time: {total_time}")
+    print(f"| Avg. samples per second: {samples_per_sec}")
 
     if cpu_samples_per_sec is not None:
         print(f"| CPU samples per second: {cpu_samples_per_sec}")
