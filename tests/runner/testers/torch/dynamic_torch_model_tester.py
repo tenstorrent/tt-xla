@@ -15,7 +15,6 @@ from infra.testers.compiler_config import CompilerConfig
 from infra.testers.single_chip.model import RunMode, TorchModelTester
 from infra.utilities.torch_multichip_utils import get_mesh
 from loguru import logger
-from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, get_tt_moe_shard_specs
 
 from tests.runner.test_utils import RunPhase
 from tests.runner.utils import TorchDynamicLoader
@@ -301,6 +300,8 @@ class DynamicTorchModelTester(TorchModelTester):
 
     def _inject_custom_moe(self, model):
         """Injects a custom MoE implementation into the model if specified in test metadata."""
+        from tt_torch.moe_backend import TT_MOE_BACKEND_NAME, get_tt_moe_shard_specs
+
         mesh_info = self._workload.mesh.shape()
         mesh_names = tuple(mesh_info.keys())
 
