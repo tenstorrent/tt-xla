@@ -4,22 +4,22 @@
 from typing import Any
 
 from .logger import tt_init_logger
+from .vllm_distributed_utils import ParallelismMode
 
 logger = tt_init_logger(__name__)
 
 
 def determine_mesh_shape(
     num_devices: int,
-    use_2d_mesh: bool | None = None,
+    parallel_mode: ParallelismMode,
     mesh_shape: tuple[int, int] | list[int] | None = None,
 ) -> tuple[int, int]:
     """Resolve the (batch, model) SPMD mesh shape against the device count.
 
-    'mesh_shape' is given priority over 'use_2d_mesh'.
-    If 'mesh_shape' is None and 'use_2d_mesh' is True, a pre-defined 2D mesh is used.
-    If 'mesh_shape' is None and 'use_2d_mesh' is False, [1, num_devices] is used.
+    An explicit `mesh_shape` (from config) is given priority; otherwise the
+    shape is derived from `parallel_mode`.
     """
-    # 1. If mesh_shape is provided, use it.
+    # 1. If an explicit mesh_shape is provided, validate and use it.
     if mesh_shape is not None:
         dims = list(mesh_shape)
         if len(dims) != 2:
@@ -39,8 +39,22 @@ def determine_mesh_shape(
         logger.info(f"Using mesh shape for {num_devices} devices: {resolved}")
         return resolved
 
-    # 2. If use_2d_mesh is True, use a pre-defined 2D mesh.
-    if use_2d_mesh:
+    # 2. Otherwise derive the shape from the parallel mode.
+    if parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+        mesh_shape = (num_devices, 1)
+        logger.info(f"Using data-parallel mesh shape: {mesh_shape}")
+        return mesh_shape
+
+    if parallel_mode == ParallelismMode.TENSOR_PARALLEL_ONLY_1D:
+        mesh_shape = (1, num_devices)
+        logger.info(f"Using 1D tensor-parallel mesh shape: {mesh_shape}")
+        return mesh_shape
+
+    if parallel_mode in (
+        ParallelismMode.TENSOR_PARALLEL_ONLY_2D,
+        ParallelismMode.DATA_TENSOR_PARALLEL,
+    ):
+        # Use predefined mesh shapes based on number of devices
         mesh_shapes = {
             2: (1, 2),
             4: (2, 2),
@@ -48,7 +62,6 @@ def determine_mesh_shape(
             16: (4, 4),
             32: (4, 8),
         }
-
         if num_devices in mesh_shapes:
             logger.info(
                 f"Using predefined mesh shape for {num_devices} devices: {mesh_shapes[num_devices]}"
@@ -66,13 +79,13 @@ def determine_mesh_shape(
             mesh_shape = (mesh_dim1, mesh_dim2)
             logger.info(f"Computed mesh shape: {mesh_shape}")
             return mesh_shape
-    # 3. If use_2d_mesh is False, use a 1D mesh.
-    else:
-        resolved = (1, num_devices)
-        logger.info(
-            f"Using default 1D mesh shape for {num_devices} devices: {resolved}"
-        )
-        return resolved
+
+    if parallel_mode == ParallelismMode.DISABLED:
+        mesh_shape = (1, 1)
+        logger.info(f"Using disabled mesh shape: {mesh_shape}")
+        return mesh_shape
+
+    raise ValueError(f"Unsupported parallel mode: {parallel_mode}")
 
 
 def prev_power_of_2(n: int) -> int:
