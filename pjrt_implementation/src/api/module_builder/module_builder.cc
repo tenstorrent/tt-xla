@@ -1527,11 +1527,7 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string split_files =
         compile_options.codegen_split_files ? "true" : "false";
     pipeline_options += " split-files=" + split_files;
-    // Emit a target module (forward(inputs, device)) only when the executor
-    // will actually run the generated Python via PythonModelRunner (which
-    // expects a `forward(inputs, device)` entrypoint).
-    std::string target_module = !compile_options.dry_run ? "true" : "false";
-    pipeline_options += " target-module=" + target_module;
+    pipeline_options += " create-main-for-test=true";
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,

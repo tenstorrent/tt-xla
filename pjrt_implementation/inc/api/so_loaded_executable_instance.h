@@ -47,9 +47,9 @@ public:
 
 private:
   // Returns an input tensor constructed from the provided buffer instances,
-  // prepared for execution. The generated Python (SO) entrypoint expects host
-  // row-major inputs, so the tensor is moved to host (and untilized) before
-  // being returned.
+  // prepared for execution. If we cannot reuse the already prepared tensor
+  // contained within the buffer instances, this will involve calling
+  // `toLayout()` which in most cases involves moving the data to the device.
   std::optional<tt::runtime::Tensor>
   prepareInputTensor(const std::vector<BufferInstance *> &arg_buffers,
                      tt::runtime::Device device, size_t num_devices,
