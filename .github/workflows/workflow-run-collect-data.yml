@@ -11,7 +11,6 @@ on:
       - "On weekly"
       - "On weekly training"
       - "Performance Benchmark"
-      - "TT-XLA Tracy Profile"
       - "On nightly Experimental"
       - "Run Test Single"
       - "Run Test"

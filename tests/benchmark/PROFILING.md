@@ -237,37 +237,12 @@ When these files are uploaded in a `perf_reports` artifact for the same job, the
 existing collection workflow can publish them through the normal Superset
 benchmark ingestion path.
 
-The manual `TT-XLA Tracy Profile` workflow runs the bounded harness on a TT
-hardware CI runner and uploads both the full profiling run directory and the
-`perf_reports` directory. The repository data collection workflow includes this
-workflow name in its allowlist, so completed runs are eligible for the existing
-Superset/perf publication path.
-
-Use the default dispatch values for a small proof run:
-
-```bash
-gh workflow run manual-tracy-profile.yml \
-  -f runs_on=n150 \
-  -f benchmark_file=tests/benchmark/test_vision.py \
-  -f nodeid_filter=test_mnist \
-  -f max_models=1
-```
-
-To run a NVIDIA/SILICON_PASS cohort through the same workflow, make the cohort
-JSON available in the checkout before profiling and pass its path through
-`nvidia_cohort_json`. For example, `extra_setup` can materialize or download the
-manifest, and `max_models` can bound the first proof tranche:
-
-```bash
-gh workflow run manual-tracy-profile.yml \
-  -f runs_on=n150 \
-  -f nvidia_cohort_json=artifacts/cohorts/silicon-pass-runnable.json \
-  -f max_models=25 \
-  -f extra_setup='mkdir -p artifacts/cohorts && cp /path/to/silicon-pass-runnable.json artifacts/cohorts/silicon-pass-runnable.json'
-```
-
-If the runner image needs a specific `tt-perf-report` branch or local tool setup,
-set `tt_perf_report_ref` or `extra_setup` in the workflow dispatch inputs.
+The existing benchmark workflow owns CI benchmark execution and shared perf data
+publication. When `skip-device-perf` is false, `call-perf-test.yml` reruns the
+selected benchmark under Tracy in the existing device-perf step and uploads the
+generated `ops_perf_results*.csv` files in the normal `device-perf-<job-id>`
+artifact. This keeps the benchmark workflow and ingestion path unchanged while
+replacing the old inactive `ttrt perf` collection path.
 
 ### Next steps
 
