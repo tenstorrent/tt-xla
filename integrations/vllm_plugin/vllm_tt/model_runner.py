@@ -2671,7 +2671,45 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel and (
             not self.use_2d_mesh or self.is_sharded_compute_logits
         ):
-            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+            logits = sharding_constraint_tensor(
+                logits,
+                self.mesh,
+                (None, "model") if self.is_sharded_compute_logits else (None, None),
+            )
+        if self.is_sharded_compute_logits:
+            if not sampling_metadata.no_penalties:
+                sampling_metadata.output_token_counts = sharding_constraint_tensor(
+                    sampling_metadata.output_token_counts,
+                    self.mesh,
+                    (None, "model"),
+                )
+                sampling_metadata.prompt_token_mask = sharding_constraint_tensor(
+                    sampling_metadata.prompt_token_mask,
+                    self.mesh,
+                    (None, "model"),
+                )
+            if not sampling_metadata.no_logit_bias:
+                sampling_metadata.logit_bias_tensor = sharding_constraint_tensor(
+                    sampling_metadata.logit_bias_tensor,
+                    self.mesh,
+                    (None, "model"),
+                )
+            if not sampling_metadata.no_bad_words:
+                sampling_metadata.bad_words_mask = sharding_constraint_tensor(
+                    sampling_metadata.bad_words_mask, self.mesh, (None, "model")
+                )
+            if not sampling_metadata.no_allowed_token_ids:
+                sampling_metadata.allowed_token_ids_mask = sharding_constraint_tensor(
+                    sampling_metadata.allowed_token_ids_mask,
+                    self.mesh,
+                    (None, "model"),
+                )
+            if not sampling_metadata.no_min_tokens:
+                sampling_metadata.min_tokens_mask = sharding_constraint_tensor(
+                    sampling_metadata.min_tokens_mask,
+                    self.mesh,
+                    (None, "model"),
+                )
         # structured_decode (always applied; require_struct_decoding masks inactive reqs)
         bits = grammar_bitmask.unsqueeze(-1) & bitmasks
         allowed = (bits != 0).reshape(logits.shape[0], -1)[:, : self.vocab_size]
@@ -2692,7 +2730,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ):
             selected = torch.argmax(logits, dim=-1, keepdim=True)
         else:
-            selected = self.sampler(logits, sampling_metadata).sampled_token_ids
+            selected = self.sampler(
+                logits, sampling_metadata, vocab_sharded=self.is_sharded_compute_logits
+            ).sampled_token_ids
         return selected, logits
 
     def sample_from_logits_cpu(
