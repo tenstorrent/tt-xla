@@ -276,6 +276,8 @@ def shard_umt5_specs(encoder) -> dict:
         specs[sa.v.weight] = ("model", "batch")
         specs[sa.o.weight] = ("batch", "model")
         specs[block.layer[0].layer_norm.weight] = ("batch",)
+        if hasattr(sa, "relative_attention_bias"):
+            specs[sa.relative_attention_bias.weight] = (None, "model")
 
         ffn = block.layer[1].DenseReluDense
         specs[ffn.wi_0.weight] = ("model", "batch")
