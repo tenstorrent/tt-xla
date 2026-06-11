@@ -178,11 +178,12 @@ jobs:
             if [ -n "$TEST_WO_DEVICE" ]; then
               while IFS= read -r test_file; do
                 if echo "$CHANGED_FILES" | grep -q "$test_file"; then
-                  echo "Error: New test without device marker detected"
+                  echo "Error: New test without device marker detected in $test_file"
                   exit 9
                 fi
               done <<< "$TEST_WO_DEVICE"
             fi
+            echo "Marker check passed."
 
           else
             skip_build_and_test=false
