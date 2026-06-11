@@ -8,4 +8,10 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
+# Pin patchelf to a known-good version. The manylinux base image ships patchelf
+# 0.18.0, which corrupts DT_INIT during `auditwheel repair`, causing a SIGSEGV in
+# the dynamic loader's call_init the first time the plugin .so is dlopen'd. 0.17.2
+# is the last release before that regression. Overwrite it in place so PATH order
+# is irrelevant; the trailing `patchelf --version` records the active version in CI.
+before-all = "curl -fsSL https://github.com/NixOS/patchelf/releases/download/0.17.2/patchelf-0.17.2-x86_64.tar.gz | tar -xz -C /tmp bin/patchelf && install -m755 /tmp/bin/patchelf \"$(command -v patchelf)\" && patchelf --version"
 repair-wheel-command = "auditwheel repair --exclude libTTMLIRRuntime.so --exclude libTTMLIRCompiler.so --exclude libtt-alchemist-lib.so --exclude libtt_metal.so --exclude libtt_stl.so --exclude libtt-umd.so.0 --exclude _ttnncpp.so --exclude _ttnn.so --exclude libdevice.so --exclude libtracy.so* -w {dest_dir} {wheel}"
