@@ -8,4 +8,16 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
+# TEMPORARY FIX: force the GNU ld `-z separate-code` layout for the whole manylinux build.
+# The manylinux toolchain regressed to emitting a `noseparate-code`-style layout (code
+# segment first at vaddr 0, with .init/.plt jammed right behind the program headers and no
+# headroom). `auditwheel repair` (and setup.py's RPATH pass) then run patchelf, which on that
+# compact layout must relocate .init/.plt into a non-executable segment and leaves DT_INIT
+# stale -> SIGSEGV in the dynamic loader's call_init on dlopen. `-z separate-code` puts a
+# read-only segment first, giving .init headroom, so patchelf edits RPATH in place and the
+# binaries stay valid (this is the layout older/good manylinux wheels and the linux_x86_64
+# wheel already have). We wrap /usr/bin/ld instead of passing a flag so every sub-build
+# (tt-metal, tt-mlir, tt-xla) is covered without per-repo CMake changes; the flag is appended
+# last so it overrides any earlier `-z noseparate-code`.
+before-all = "if [ ! -e /usr/bin/ld.real ]; then REAL=$(readlink -f /usr/bin/ld); cp -a \"$REAL\" /usr/bin/ld.real; rm -f /usr/bin/ld; { echo '#!/bin/sh'; echo 'exec /usr/bin/ld.real \"$@\" -z separate-code'; } > /usr/bin/ld; chmod +x /usr/bin/ld; fi; echo 'ld now forces -z separate-code:'; cat /usr/bin/ld; /usr/bin/ld --version | head -1"
 repair-wheel-command = "auditwheel repair --exclude libTTMLIRRuntime.so --exclude libTTMLIRCompiler.so --exclude libtt-alchemist-lib.so --exclude libtt_metal.so --exclude libtt_stl.so --exclude libtt-umd.so.0 --exclude _ttnncpp.so --exclude _ttnn.so --exclude libdevice.so --exclude libtracy.so* -w {dest_dir} {wheel}"
