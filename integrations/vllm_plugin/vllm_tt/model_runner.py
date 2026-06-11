@@ -347,6 +347,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             scheduler_config.max_num_batched_tokens, self.max_model_len
         )
 
+        # The on-device chunked SDPA op (tt-xla #4986) is only usable when
+        # (a) chunking can actually occur at this config (per-step budget <
+        #     full context), and
+        # (b) the page-table "stick" is 32B-aligned: stick = num_blocks_per_user
+        #     * sizeof(int32), so num_blocks_per_user % 8 == 0 — a hard
+        #     requirement of the ttnn chunked-SDPA kernel (sdpa_program_factory
+        #     "page table stick size must be a multiple of 32").
+        # Small max_model_len (e.g. 128 -> 4 blocks @ block_size 32) violates (b)
+        # and can't chunk anyway, so fall back to the standard prefill path there.
+        self._chunked_sdpa_active = (
+            _USE_CHUNKED_SDPA
+            and self.prefill_chunk_budget < self.max_model_len
+            and (self.max_num_blocks_per_req % 8 == 0)
+        )
+
         # Compute token padding sizes needed to align inputs to supported context
         # lengths, from the minimum context length up to the per-step chunk budget.
         self.num_tokens_paddings = _get_token_paddings(
@@ -1280,10 +1295,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             # fix). All users in a chunked step share num_computed (same-stage
             # batching invariant, tt-xla #4986 BUG#2 fix), so a single [1]
             # offset is correct. Copy into the persistent buffer (trace-safe).
-            self._chunk_start_idx_dev.copy_(
-                torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
-            )
-            chunk_start_idx = self._chunk_start_idx_dev
+            # Only when the op is usable for this config (_chunked_sdpa_active);
+            # otherwise leave chunk_start_idx=None so _compute_full_attention
+            # falls back to the gather/masked-SDPA path (matches the warm-up).
+            if self._chunked_sdpa_active:
+                self._chunk_start_idx_dev.copy_(
+                    torch.tensor([int(num_computed_for_reqs[0])], dtype=torch.int32)
+                )
+                chunk_start_idx = self._chunk_start_idx_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -2031,12 +2050,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = torch.zeros((num_reqs, num_blocks), dtype=torch.int32).to(
                 self.device
             )
-            # When the no-gather chunked SDPA path is enabled, precompile THAT
+            # When the no-gather chunked SDPA path is active, precompile THAT
             # graph (not the gather): the op consumes chunk_start_idx on device
             # and never moves page_table to host, so the cached-prefix graph
             # becomes trace-compatible (tt-xla #4986). chunk_start_idx must be
             # present here so _compute_full_attention takes the op branch.
-            if _USE_CHUNKED_SDPA:
+            # Gated by _chunked_sdpa_active so we don't precompile the op for
+            # configs the ttnn kernel rejects (e.g. small max_model_len whose
+            # page-table stick isn't 32B-aligned -> "stick size multiple of 32").
+            if self._chunked_sdpa_active:
                 chunk_start_idx = self._chunk_start_idx_dev
 
         attn_metadata = TTMetadata(
