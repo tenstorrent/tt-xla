@@ -4,12 +4,28 @@
 from typing import Any
 
 from .logger import tt_init_logger
+from .vllm_distributed_utils import ParallelismMode
 
 logger = tt_init_logger(__name__)
 
 
-def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]:
-    if use_2d_mesh:
+def determine_mesh_shape(
+    num_devices: int, parallel_mode: ParallelismMode
+) -> tuple[int, int]:
+    if parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+        mesh_shape = (num_devices, 1)
+        logger.info(f"Using data-parallel mesh shape: {mesh_shape}")
+        return mesh_shape
+
+    if parallel_mode == ParallelismMode.TENSOR_PARALLEL_ONLY_1D:
+        mesh_shape = (1, num_devices)
+        logger.info(f"Using 1D tensor-parallel mesh shape: {mesh_shape}")
+        return mesh_shape
+
+    if parallel_mode in (
+        ParallelismMode.TENSOR_PARALLEL_ONLY_2D,
+        ParallelismMode.DATA_TENSOR_PARALLEL,
+    ):
         # Use predefined mesh shapes based on number of devices
         mesh_shapes = {
             2: (1, 2),
@@ -36,11 +52,13 @@ def determine_mesh_shape(num_devices: int, use_2d_mesh: bool) -> tuple[int, int]
             mesh_shape = (mesh_dim1, mesh_dim2)
             logger.info(f"Computed mesh shape: {mesh_shape}")
             return mesh_shape
-    else:
-        # For 1D mesh, all devices are in one dimension.
-        mesh_shape = (1, num_devices)
-        logger.info(f"Using 1D mesh shape for {num_devices} devices: {mesh_shape}")
+
+    if parallel_mode == ParallelismMode.DISABLED:
+        mesh_shape = (1, 1)
+        logger.info(f"Using disabled mesh shape: {mesh_shape}")
         return mesh_shape
+
+    raise ValueError(f"Unsupported parallel mode: {parallel_mode}")
 
 
 def prev_power_of_2(n: int) -> int:
