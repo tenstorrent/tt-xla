@@ -62,8 +62,6 @@ def _config(
         additional["fp32_dest_acc_en"] = fp32_dest_acc_en
     if optimization_level > 0:
         additional["optimization_level"] = optimization_level
-        # TTConfig raises if enable_trace=True AND opt>=1 AND cpu_sampling=False
-        additional["cpu_sampling"] = True
     if _BENCH_CPU_SAMPLING:
         additional["cpu_sampling"] = True
     if _BENCH_KV_CACHE_DTYPE:
