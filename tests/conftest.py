@@ -753,6 +753,7 @@ def _should_use_capfd(request) -> bool:
     - Running with --forked (TeeCapture doesn't work with pytest-forked)
     - Running in distributed mode (TeeCapture doesn't work in subprocesses)
     - Pytest capture is enabled (TeeCapture conflicts with pytest's capture pipes)
+    - Python does not expose os.memfd_create (TeeCapture depends on memfd)
     """
     # Check if --forked option was passed to pytest
     try:
@@ -767,7 +768,9 @@ def _should_use_capfd(request) -> bool:
     capture_mode = request.config.getoption("capture")
     is_capturing = capture_mode != "no"
 
-    return is_forked or is_distributed or is_capturing
+    has_memfd_create = hasattr(os, "memfd_create")
+
+    return is_forked or is_distributed or is_capturing or not has_memfd_create
 
 
 @pytest.fixture()
