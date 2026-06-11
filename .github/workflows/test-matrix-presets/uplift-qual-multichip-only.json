@@ -1,3 +1,0 @@
-[
-  {"runs-on": "n300-llmbox", "name": "run_forge_models_multichip", "dir": "./tests/runner/test_models.py::test_all_models_torch", "test-mark": "n300-llmbox and extended and expected_passing", "forge-models": true, "shared-runners": "true"}
-]
