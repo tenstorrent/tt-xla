@@ -561,6 +561,41 @@ def test_select_discovery_entries_filters_and_limits_nodes():
     ]
 
 
+def test_load_nvidia_cohort_entries_maps_test_case_id_to_tt_runner_node(tmp_path):
+    pipeline = load_pipeline_module()
+    cohort_path = tmp_path / "nvidia-cohort.json"
+    cohort_path.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "test_case_id": "modernbert/masked_lm/pytorch-Base",
+                        "model_id": "modernbert/masked_lm/pytorch-Base-single_device-inference",
+                        "tt_status": "SILICON_PASS",
+                    },
+                    {
+                        "test_case_id": "modernbert/masked_lm/pytorch-Base",
+                        "model_id": "duplicate",
+                    },
+                    {"model_id": "missing-test-case-id"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    entries = pipeline.load_nvidia_cohort_entries(cohort_path, "run-5009-demo")
+
+    assert len(entries) == 1
+    assert entries[0].nodeid == (
+        "tests/runner/test_models.py::test_all_models_torch"
+        "[modernbert/masked_lm/pytorch-Base-single_device-inference]"
+    )
+    assert entries[0].source_path == "tests/runner/test_models.py"
+    assert entries[0].benchmark_family == "runner_torch_inference"
+    assert entries[0].run_identity == "run-5009-demo-0001"
+
+
 def test_selected_benchmark_files_defaults_or_resolves_requested_paths(tmp_path):
     pipeline = load_pipeline_module()
 
@@ -1021,6 +1056,43 @@ def test_profile_command_accepts_python_module_tracy_invocation(tmp_path):
     assert "--batch-size" in command
     assert "--num-layers" in command
     assert "--max-output-tokens" in command
+
+
+def test_profile_command_for_runner_uses_perf_report_dir_not_output_file(tmp_path):
+    pipeline = load_pipeline_module()
+
+    command = pipeline.profile_command(
+        tracy_bin="tracy",
+        pytest_command="pytest",
+        nodeid=(
+            "tests/runner/test_models.py::test_all_models_torch"
+            "[modernbert/masked_lm/pytorch-Base-single_device-inference]"
+        ),
+        profile_dir=tmp_path / "profile",
+        benchmark_output=tmp_path / "benchmark.json",
+        ir_dump_root=tmp_path / "collected_irs",
+        benchmark_args=[],
+    )
+
+    assert "--dump-irs" in command
+    assert "--dump-irs-dir" in command
+    assert "--perf-report-dir" in command
+    assert str(tmp_path / "profile" / "perf-report") in command
+    assert "--perf-id" in command
+    assert "--output-file" not in command
+
+
+def test_load_profile_benchmark_json_falls_back_to_runner_perf_report(tmp_path):
+    pipeline = load_pipeline_module()
+    entry = sample_discovery_entry(pipeline)
+    paths = pipeline.profile_paths(tmp_path / "run", entry)
+    pipeline.ensure_dir(paths.perf_dir)
+    (paths.perf_dir / "report_perf_modernbert_123.json").write_text(
+        json.dumps({"model": "modernbert", "measurements": []}),
+        encoding="utf-8",
+    )
+
+    assert pipeline.load_profile_benchmark_json(paths)["model"] == "modernbert"
 
 
 def test_collect_ir_artifacts_uses_configured_dump_root(tmp_path):

@@ -87,6 +87,27 @@ a `status.json`, so partial runs still produce explicit evidence for every model
 in scope. The `not_started` value follows the existing `BringupStatus.NOT_STARTED`
 terminology used by repository model status reporting.
 
+To profile a NVIDIA/SILICON_PASS cohort from the bringup runner instead of the
+static benchmark directory, pass a cohort JSON with `models[].test_case_id`:
+
+```bash
+python tests/benchmark/scripts/ttxla_profile_pipeline.py run \
+  --nvidia-cohort-json artifacts/results-main-latest-silicon-pass-random-1000-2026-04-23-nvidia-runnable775.json \
+  --max-models 25
+```
+
+The pipeline maps each exact `test_case_id` to the TT runner node ID:
+
+```text
+tests/runner/test_models.py::test_all_models_torch[<test_case_id>-single_device-inference]
+```
+
+This reuses the bringup branch cohort key and avoids fuzzy matching against
+Hugging Face model names. The profiling run still executes on TT hardware
+through Tracy; it does not use the CUDA-specific NVIDIA tester. Runner entries
+receive runner-native output flags (`--dump-irs-dir`, `--perf-report-dir`, and
+`--perf-id`) instead of benchmark-only flags such as `--output-file`.
+
 To run the same pipeline on IRD, use `--target ird`. The default mode uses a
 short-lived `ird run` job so the scheduler owns container teardown:
 

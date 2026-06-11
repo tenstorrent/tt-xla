@@ -53,6 +53,9 @@ DEFAULT_BENCHMARK_FILES = [
     Path("tests/benchmark/test_vision.py"),
     Path("tests/benchmark/resnet_jax_benchmark.py"),
 ]
+RUNNER_TORCH_INFERENCE_SOURCE = "tests/runner/test_models.py"
+RUNNER_TORCH_INFERENCE_TEST = "test_all_models_torch"
+RUNNER_TORCH_INFERENCE_FAMILY = "runner_torch_inference"
 
 REQS = [
     (
@@ -410,7 +413,7 @@ def profile_command(
     ir_dump_root: Path,
     benchmark_args: list[str],
 ) -> list[str]:
-    return [
+    base_command = [
         *split_command_expr(tracy_bin),
         "-p",
         "-r",
@@ -424,6 +427,18 @@ def profile_command(
         "--dump-irs",
         "--dump-irs-dir",
         str(ir_dump_root),
+    ]
+    if nodeid.startswith(f"{RUNNER_TORCH_INFERENCE_SOURCE}::"):
+        return [
+            *base_command,
+            "--perf-report-dir",
+            str(profile_dir / "perf-report"),
+            "--perf-id",
+            slugify(nodeid),
+            *benchmark_args,
+        ]
+    return [
+        *base_command,
         "--output-file",
         str(benchmark_output),
         *benchmark_args,
@@ -624,6 +639,77 @@ def parse_collect_output(output: str, run_id: str) -> list[DiscoveryEntry]:
             )
         )
     return entries
+
+
+def runner_torch_nodeid(test_case_id: str) -> str:
+    return (
+        f"{RUNNER_TORCH_INFERENCE_SOURCE}::{RUNNER_TORCH_INFERENCE_TEST}"
+        f"[{test_case_id}-single_device-inference]"
+    )
+
+
+def discovery_entry_from_nvidia_row(
+    row: dict[str, Any],
+    run_id: str,
+    index: int,
+) -> Optional[DiscoveryEntry]:
+    test_case_id = str(row.get("test_case_id") or "").strip()
+    if not test_case_id:
+        return None
+    nodeid = runner_torch_nodeid(test_case_id)
+    display_name = (
+        row.get("display_name")
+        or row.get("model_id")
+        or row.get("pretrained_model_name")
+        or test_case_id
+    )
+    return DiscoveryEntry(
+        run_identity=f"{run_id}-{index:04d}",
+        nodeid=nodeid,
+        source_path=RUNNER_TORCH_INFERENCE_SOURCE,
+        test_name=f"{RUNNER_TORCH_INFERENCE_TEST}[{test_case_id}-single_device-inference]",
+        benchmark_family=RUNNER_TORCH_INFERENCE_FAMILY,
+        model_identity=str(display_name),
+        artifact_slug=slugify(nodeid),
+    )
+
+
+def load_nvidia_cohort_entries(path: Path, run_id: str) -> list[DiscoveryEntry]:
+    payload = load_json(path)
+    entries: list[DiscoveryEntry] = []
+    seen_test_case_ids: set[str] = set()
+    for row in payload.get("models", []) or []:
+        if not isinstance(row, dict):
+            continue
+        test_case_id = str(row.get("test_case_id") or "").strip()
+        if not test_case_id or test_case_id in seen_test_case_ids:
+            continue
+        entry = discovery_entry_from_nvidia_row(row, run_id, len(entries) + 1)
+        if entry is None:
+            continue
+        seen_test_case_ids.add(test_case_id)
+        entries.append(entry)
+    return entries
+
+
+def nvidia_cohort_discovery_result(
+    repo: Path, cohort_path: Path, entries: list[DiscoveryEntry]
+) -> CommandResult:
+    created_at = now_iso()
+    note = f"loaded {len(entries)} NVIDIA/SILICON_PASS cohort rows by test_case_id"
+    return CommandResult(
+        stage="discover",
+        command=["load-nvidia-cohort-json", str(cohort_path)],
+        cwd=str(repo),
+        returncode=0,
+        timed_out=False,
+        start_time=created_at,
+        end_time=created_at,
+        duration_seconds=0.0,
+        stdout_path="",
+        stderr_path="",
+        note=note,
+    )
 
 
 def discover_models(
@@ -1151,6 +1237,22 @@ def extract_benchmark_model_name(payload: dict[str, Any], fallback: str) -> str:
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return fallback
+
+
+def load_profile_benchmark_json(paths: ProfilePaths) -> dict[str, Any]:
+    benchmark_json = load_json(paths.benchmark_output)
+    if benchmark_json:
+        return benchmark_json
+    report_candidates = sorted(
+        paths.perf_dir.glob("report_perf_*.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for report_path in report_candidates:
+        payload = load_json(report_path)
+        if payload:
+            return payload
+    return {}
 
 
 def stage_result_paths(profile_dir: Path) -> dict[str, str]:
@@ -2946,6 +3048,27 @@ def ird_option_args(args: argparse.Namespace) -> list[str]:
     return options
 
 
+def append_optional_remote_pipeline_args(
+    remote_args: list[str], args: argparse.Namespace
+) -> None:
+    if args.input_sequence_length > 0:
+        remote_args.extend(["--input-sequence-length", str(args.input_sequence_length)])
+    if args.pytest_bin:
+        remote_args.extend(["--pytest-bin", args.pytest_bin])
+    if args.tracy_bin:
+        remote_args.extend(["--tracy-bin", args.tracy_bin])
+    if args.tt_perf_report_bin:
+        remote_args.extend(["--tt-perf-report-bin", args.tt_perf_report_bin])
+    if args.nvidia_cohort_json:
+        remote_args.extend(["--nvidia-cohort-json", args.nvidia_cohort_json])
+    for benchmark_file in args.benchmark_file:
+        remote_args.extend(["--benchmark-file", benchmark_file])
+    for nodeid_filter in args.nodeid_filter:
+        remote_args.extend(["--nodeid-filter", nodeid_filter])
+    if args.max_models:
+        remote_args.extend(["--max-models", str(args.max_models)])
+
+
 def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
     remote_args = [
         args.ird_remote_python,
@@ -2975,23 +3098,10 @@ def build_remote_pipeline_command(args: argparse.Namespace, run_id: str) -> str:
         "--perf-report-job-id",
         args.perf_report_job_id,
     ]
-    if args.input_sequence_length > 0:
-        remote_args.extend(["--input-sequence-length", str(args.input_sequence_length)])
     remote_budget = effective_remote_run_budget_seconds(args)
     if remote_budget > 0:
         remote_args.extend(["--run-budget-seconds", str(remote_budget)])
-    if args.pytest_bin:
-        remote_args.extend(["--pytest-bin", args.pytest_bin])
-    if args.tracy_bin:
-        remote_args.extend(["--tracy-bin", args.tracy_bin])
-    if args.tt_perf_report_bin:
-        remote_args.extend(["--tt-perf-report-bin", args.tt_perf_report_bin])
-    for benchmark_file in args.benchmark_file:
-        remote_args.extend(["--benchmark-file", benchmark_file])
-    for nodeid_filter in args.nodeid_filter:
-        remote_args.extend(["--nodeid-filter", nodeid_filter])
-    if args.max_models:
-        remote_args.extend(["--max-models", str(args.max_models)])
+    append_optional_remote_pipeline_args(remote_args, args)
     remote_args.append("run")
     setup = args.ird_remote_setup.strip()
     command = (
@@ -3512,6 +3622,18 @@ def run_local_readiness(
 def discover_selected_entries(
     args: argparse.Namespace, context: LocalPipelineContext
 ) -> tuple[list[DiscoveryEntry], CommandResult]:
+    if args.nvidia_cohort_json:
+        cohort_path = Path(args.nvidia_cohort_json)
+        if not cohort_path.is_absolute():
+            cohort_path = context.root / cohort_path
+        entries = load_nvidia_cohort_entries(cohort_path, context.run_dir.name)
+        discovery_result = nvidia_cohort_discovery_result(
+            context.root, cohort_path, entries
+        )
+        return (
+            select_discovery_entries(entries, args.nodeid_filter, args.max_models),
+            discovery_result,
+        )
     entries, discovery_result = discover_models(
         repo=context.root,
         run_id=context.run_dir.name,
@@ -3750,6 +3872,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         help="Benchmark file to collect; may be repeated. Defaults to the full benchmark cohort.",
+    )
+    parser.add_argument(
+        "--nvidia-cohort-json",
+        default="",
+        help=(
+            "Path to a NVIDIA/SILICON_PASS cohort JSON with test_case_id rows. "
+            "When set, profiles matching tests/runner/test_models.py TT runner "
+            "node IDs instead of collecting tests/benchmark files."
+        ),
     )
     parser.add_argument(
         "--nodeid-filter",
