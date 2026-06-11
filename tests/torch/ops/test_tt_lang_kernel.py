@@ -6,10 +6,10 @@
 Unit tests for the tt-lang Python surface.
 
 These tests cover what actually exists today: the ``torch.ops.tt.tt_lang_op``
-custom op, the ``@tt_torch.kernel`` decorator, the in-process kernel
-registry, and the Alt B ``resolve_kernel`` entry point that drives tt-lang's
+custom op, the ``@tt_torch.tt_lang_operation`` decorator, the in-process operation
+registry, and the Alt B ``resolve_operation`` entry point that drives tt-lang's
 internal compile path. They do not require XLA hardware. A subset of the
-``resolve_kernel`` tests injects a fake ``ttl.ttl_api`` module via
+``resolve_operation`` tests injects a fake ``ttl.ttl_api`` module via
 ``sys.modules`` so the rest of the wiring is exercised even when the real
 tt-lang isn't installed in the test venv. End-to-end testing against the
 real tt-lang and on-hardware execution belongs in hardware-gated integration
@@ -28,19 +28,19 @@ import tt_torch  # noqa: F401  -- ensures torch.ops.tt is populated
 from tt_torch import tt_lang as tt_lang_mod
 from tt_torch.custom_ops import _validate_tt_lang_op_out_indices
 from tt_torch.tt_lang import (
-    KernelEntry,
+    OperationEntry,
     TtLangError,
-    get_registered_kernel,
-    iter_registered_kernels,
-    kernel,
-    resolve_kernel,
+    tt_lang_operation,
+    get_registered_operation,
+    iter_registered_operations,
+    resolve_operation,
 )
 
 
 @pytest.fixture
 def clean_registry():
-    """Snapshot/restore the global kernel registry around a test."""
-    saved = list(iter_registered_kernels())
+    """Snapshot/restore the global operation registry around a test."""
+    saved = list(iter_registered_operations())
     tt_lang_mod._clear_registry_for_tests()
     try:
         yield
@@ -90,35 +90,35 @@ def test_validate_out_indices_rejects_duplicates():
 # ---------------------------------------------------------------------------
 
 
-def test_decorator_registers_kernel(clean_registry):
-    @kernel(kernel_id="unit.add.v1", arg_roles=("in", "in", "out"))
+def test_decorator_registers_operation(clean_registry):
+    @tt_lang_operation(operation_id="unit.add.v1", arg_roles=("in", "in", "out"))
     def add(lhs, rhs, out): ...
 
-    entry = get_registered_kernel("unit.add.v1")
-    assert isinstance(entry, KernelEntry)
-    assert entry.kernel_id == "unit.add.v1"
+    entry = get_registered_operation("unit.add.v1")
+    assert isinstance(entry, OperationEntry)
+    assert entry.operation_id == "unit.add.v1"
     assert entry.arg_roles == ("in", "in", "out")
     assert entry.version_tag
     assert callable(entry.impl)
-    assert add._tt_lang_kernel_entry is entry
+    assert add._tt_lang_operation_entry is entry
 
 
-def test_decorator_rejects_empty_kernel_id(clean_registry):
+def test_decorator_rejects_empty_operation_id(clean_registry):
     with pytest.raises(ValueError):
 
-        @kernel(kernel_id="", arg_roles=("out",))
+        @tt_lang_operation(operation_id="", arg_roles=("out",))
         def _bad(out): ...
 
 
-def test_decorator_rejects_whitespace_in_kernel_id(clean_registry):
+def test_decorator_rejects_whitespace_in_operation_id(clean_registry):
     with pytest.raises(ValueError):
 
-        @kernel(kernel_id="has space", arg_roles=("out",))
+        @tt_lang_operation(operation_id="has space", arg_roles=("out",))
         def _bad(out): ...
 
 
 def test_decorator_rejects_no_out_role(clean_registry):
-    @kernel(kernel_id="unit.no_out.v1", arg_roles=("in", "in"))
+    @tt_lang_operation(operation_id="unit.no_out.v1", arg_roles=("in", "in"))
     def k(lhs, rhs): ...
 
     a = torch.zeros(1)
@@ -133,7 +133,7 @@ def test_decorator_rejects_out_before_in(clean_registry):
     # decoration time.
     with pytest.raises(ValueError, match="before any"):
 
-        @kernel(kernel_id="unit.bad_order.v1", arg_roles=("in", "out", "in"))
+        @tt_lang_operation(operation_id="unit.bad_order.v1", arg_roles=("in", "out", "in"))
         def k(lhs, out, rhs): ...
 
 
@@ -144,13 +144,13 @@ def test_decorator_requires_explicit_arg_roles(clean_registry):
     # raises (ValueError). We accept either flavor of error.
     with pytest.raises((TypeError, ValueError)):
 
-        @kernel(kernel_id="unit.no_roles.v1")  # type: ignore[call-arg]
+        @tt_lang_operation(operation_id="unit.no_roles.v1")  # type: ignore[call-arg]
         def k(lhs, rhs, out):  # pragma: no cover -- decoration raises
             ...
 
     with pytest.raises(ValueError):
 
-        @kernel(kernel_id="unit.none_roles.v1", arg_roles=None)  # type: ignore[arg-type]
+        @tt_lang_operation(operation_id="unit.none_roles.v1", arg_roles=None)  # type: ignore[arg-type]
         def k2(lhs, rhs, out):  # pragma: no cover -- decoration raises
             ...
 
@@ -158,25 +158,25 @@ def test_decorator_requires_explicit_arg_roles(clean_registry):
 def test_decorator_rejects_double_registration_with_different_source(
     clean_registry,
 ):
-    @kernel(kernel_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="A")
+    @tt_lang_operation(operation_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="A")
     def k1(x, out): ...
 
     with pytest.raises(ValueError):
 
-        @kernel(kernel_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="B")
+        @tt_lang_operation(operation_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="B")
         def k2(x, out): ...
 
 
 def test_decorator_double_registration_same_version_ok(clean_registry):
     """Re-registering with the same version_tag is idempotent."""
 
-    @kernel(kernel_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A")
+    @tt_lang_operation(operation_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A")
     def k1(x, out): ...
 
-    @kernel(kernel_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A")
+    @tt_lang_operation(operation_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A")
     def k2(x, out): ...
 
-    entry = get_registered_kernel("unit.idem.v1")
+    entry = get_registered_operation("unit.idem.v1")
     assert entry.version_tag == "A"
 
 
@@ -184,7 +184,7 @@ def test_decorator_rejects_non_xla_tensors(clean_registry):
     # tt-lang has no CPU fallback by design (see decorator docstring) --
     # calling with CPU tensors must raise loudly so a passing CPU run
     # can never be confused with a working hardware kernel.
-    @kernel(kernel_id="unit.cpu_no_ref.v1", arg_roles=("in", "out"))
+    @tt_lang_operation(operation_id="unit.cpu_no_ref.v1", arg_roles=("in", "out"))
     def k(x, out): ...
 
     x = torch.zeros(2)
@@ -194,7 +194,7 @@ def test_decorator_rejects_non_xla_tensors(clean_registry):
 
 
 def test_decorator_rejects_mixed_device(clean_registry):
-    @kernel(kernel_id="unit.mixed.v1", arg_roles=("in", "out"))
+    @tt_lang_operation(operation_id="unit.mixed.v1", arg_roles=("in", "out"))
     def k(x, out): ...
 
     class _FakeMeta(torch.Tensor):
@@ -208,39 +208,39 @@ def test_decorator_rejects_mixed_device(clean_registry):
         k(x_cpu, out_meta)
 
 
-def test_iter_registered_kernels_snapshot(clean_registry):
-    @kernel(kernel_id="unit.iter.a.v1", arg_roles=("in", "out"))
+def test_iter_registered_operations_snapshot(clean_registry):
+    @tt_lang_operation(operation_id="unit.iter.a.v1", arg_roles=("in", "out"))
     def a(x, out): ...
 
-    @kernel(kernel_id="unit.iter.b.v1", arg_roles=("in", "out"))
+    @tt_lang_operation(operation_id="unit.iter.b.v1", arg_roles=("in", "out"))
     def b(x, out): ...
 
-    ids = {e.kernel_id for e in iter_registered_kernels()}
+    ids = {e.operation_id for e in iter_registered_operations()}
     assert {"unit.iter.a.v1", "unit.iter.b.v1"} <= ids
 
 
 # ---------------------------------------------------------------------------
-# resolve_kernel: registry / version-tag guards
+# resolve_operation: registry / version-tag guards
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_kernel_unknown_id_raises(clean_registry):
+def test_resolve_operation_unknown_id_raises(clean_registry):
     with pytest.raises(KeyError):
-        resolve_kernel(
-            kernel_id="unit.missing.v1",
+        resolve_operation(
+            operation_id="unit.missing.v1",
             version_tag="vt0",
             shapes=[[1]],
             dtypes=["bfloat16"],
         )
 
 
-def test_resolve_kernel_version_tag_mismatch_raises(clean_registry):
-    @kernel(kernel_id="unit.vtag.v1", arg_roles=("in", "out"), version_tag="vt0")
+def test_resolve_operation_version_tag_mismatch_raises(clean_registry):
+    @tt_lang_operation(operation_id="unit.vtag.v1", arg_roles=("in", "out"), version_tag="vt0")
     def k(x, out): ...
 
     with pytest.raises(TtLangError):
-        resolve_kernel(
-            kernel_id="unit.vtag.v1",
+        resolve_operation(
+            operation_id="unit.vtag.v1",
             version_tag="stale-vt",
             shapes=[[1], [1]],
             dtypes=["bfloat16", "bfloat16"],
@@ -248,7 +248,7 @@ def test_resolve_kernel_version_tag_mismatch_raises(clean_registry):
 
 
 # ---------------------------------------------------------------------------
-# resolve_kernel: Alt B compile-driver, exercised with a fake ttl module
+# resolve_operation: Alt B compile-driver, exercised with a fake ttl module
 # ---------------------------------------------------------------------------
 
 
@@ -323,7 +323,7 @@ class _MockComputeConfig:
 class _FakeCompiledKernel:
     """Mimics the shape of tt-lang's ``CompiledTTNNKernel`` for tests.
 
-    Holds only the fields ``_serialize_compiled_kernel`` reads. Mock
+    Holds only the fields ``_serialize_compiled_operation`` reads. Mock
     objects match the duck-typed shape of the real tt-lang/ttnn types,
     so the serializer exercises its real code paths.
     """
@@ -414,14 +414,15 @@ def fake_ttl(tmp_path):
                 sys.modules[k] = v
 
 
-def _kernel_that_calls_compile(kernel_id):
-    """Build a registered 3-arg kernel whose ``impl`` forwards to the
+def _operation_that_calls_compile(operation_id):
+    """Build a registered 3-arg operation whose ``impl`` forwards to the
     (mocked) tt-lang compile path. Mirrors how a real
-    ``@ttl.operation @kernel`` chain would look once compile is captured.
+    ``@ttl.operation @tt_lang_operation`` chain would look once compile is
+    captured.
     """
 
-    @kernel(
-        kernel_id=kernel_id,
+    @tt_lang_operation(
+        operation_id=operation_id,
         arg_roles=("in", "in", "out"),
         version_tag="vt0",
     )
@@ -433,14 +434,14 @@ def _kernel_that_calls_compile(kernel_id):
     return impl
 
 
-def test_resolve_kernel_returns_json_artifact(clean_registry, fake_ttl):
+def test_resolve_operation_returns_json_artifact(clean_registry, fake_ttl):
     """Artifact schema sanity check: structured kernels list with
     embedded cpp source bytes, plus structured core_range / cb_configs.
     """
-    _kernel_that_calls_compile("unit.resolve.basic.v1")
+    _operation_that_calls_compile("unit.resolve.basic.v1")
 
-    artifact = resolve_kernel(
-        kernel_id="unit.resolve.basic.v1",
+    artifact = resolve_operation(
+        operation_id="unit.resolve.basic.v1",
         version_tag="vt0",
         shapes=[[1, 32, 32], [1, 32, 32], [1, 32, 32]],
         dtypes=["bf16", "bf16", "bf16"],
@@ -497,11 +498,11 @@ def test_resolve_kernel_returns_json_artifact(clean_registry, fake_ttl):
     assert payload["operand_metadata"]["mesh_shape"] == [1]
 
 
-def test_resolve_kernel_records_layout_metadata(clean_registry, fake_ttl):
+def test_resolve_operation_records_layout_metadata(clean_registry, fake_ttl):
     """Non-empty layout strings (post-TTNN encoding) must round-trip into
     the artifact so the flatbuffer emitter sees what was assumed.
     """
-    _kernel_that_calls_compile("unit.resolve.layouts.v1")
+    _operation_that_calls_compile("unit.resolve.layouts.v1")
 
     layouts = (
         "#ttnn.ttnn_layout<(d0, d1) -> (d0, d1), <1x1>, "
@@ -510,8 +511,8 @@ def test_resolve_kernel_records_layout_metadata(clean_registry, fake_ttl):
         "memref<1x1x!ttcore.tile<32x32, bf16>, #l1>, <interleaved>>",
         "",
     )
-    artifact = resolve_kernel(
-        kernel_id="unit.resolve.layouts.v1",
+    artifact = resolve_operation(
+        operation_id="unit.resolve.layouts.v1",
         version_tag="vt0",
         shapes=[[1, 32, 32], [1, 32, 32], [1, 32, 32]],
         dtypes=["bf16", "bf16", "bf16"],
@@ -525,14 +526,14 @@ def test_resolve_kernel_records_layout_metadata(clean_registry, fake_ttl):
     assert payload["operand_metadata"]["shard_spec"] == '{"axis":0}'
 
 
-def test_resolve_kernel_defaults_empty_layouts(clean_registry, fake_ttl):
+def test_resolve_operation_defaults_empty_layouts(clean_registry, fake_ttl):
     """When no layouts are supplied the artifact records one empty string
     per operand (keeps the per-operand list length stable for consumers).
     """
-    _kernel_that_calls_compile("unit.resolve.default_layouts.v1")
+    _operation_that_calls_compile("unit.resolve.default_layouts.v1")
 
-    artifact = resolve_kernel(
-        kernel_id="unit.resolve.default_layouts.v1",
+    artifact = resolve_operation(
+        operation_id="unit.resolve.default_layouts.v1",
         version_tag="vt0",
         shapes=[[1], [1], [1]],
         dtypes=["bf16", "bf16", "bf16"],
@@ -543,16 +544,16 @@ def test_resolve_kernel_defaults_empty_layouts(clean_registry, fake_ttl):
     assert payload["operand_metadata"]["shard_spec"] is None
 
 
-def test_resolve_kernel_sets_compile_only_during_call(clean_registry, fake_ttl):
+def test_resolve_operation_sets_compile_only_during_call(clean_registry, fake_ttl):
     """``TTLANG_COMPILE_ONLY=1`` must be active while ``_compile_kernel``
     runs, and the env var must be restored to its prior value after.
     """
-    _kernel_that_calls_compile("unit.resolve.compile_only.v1")
+    _operation_that_calls_compile("unit.resolve.compile_only.v1")
 
     saved = os.environ.pop("TTLANG_COMPILE_ONLY", None)
     try:
-        resolve_kernel(
-            kernel_id="unit.resolve.compile_only.v1",
+        resolve_operation(
+            operation_id="unit.resolve.compile_only.v1",
             version_tag="vt0",
             shapes=[[1], [1], [1]],
             dtypes=["bf16", "bf16", "bf16"],
@@ -564,13 +565,13 @@ def test_resolve_kernel_sets_compile_only_during_call(clean_registry, fake_ttl):
             os.environ["TTLANG_COMPILE_ONLY"] = saved
 
 
-def test_resolve_kernel_restores_compile_only_when_prev_set(clean_registry, fake_ttl):
-    _kernel_that_calls_compile("unit.resolve.prev_env.v1")
+def test_resolve_operation_restores_compile_only_when_prev_set(clean_registry, fake_ttl):
+    _operation_that_calls_compile("unit.resolve.prev_env.v1")
 
     os.environ["TTLANG_COMPILE_ONLY"] = "0"
     try:
-        resolve_kernel(
-            kernel_id="unit.resolve.prev_env.v1",
+        resolve_operation(
+            operation_id="unit.resolve.prev_env.v1",
             version_tag="vt0",
             shapes=[[1], [1], [1]],
             dtypes=["bf16", "bf16", "bf16"],
@@ -581,14 +582,14 @@ def test_resolve_kernel_restores_compile_only_when_prev_set(clean_registry, fake
         os.environ.pop("TTLANG_COMPILE_ONLY", None)
 
 
-def test_resolve_kernel_restores_monkey_patch_after_call(clean_registry, fake_ttl):
-    _kernel_that_calls_compile("unit.resolve.restore_patch.v1")
+def test_resolve_operation_restores_monkey_patch_after_call(clean_registry, fake_ttl):
+    _operation_that_calls_compile("unit.resolve.restore_patch.v1")
 
     import ttl.ttl_api as _api
 
     original = _api._compile_kernel
-    resolve_kernel(
-        kernel_id="unit.resolve.restore_patch.v1",
+    resolve_operation(
+        operation_id="unit.resolve.restore_patch.v1",
         version_tag="vt0",
         shapes=[[1], [1], [1]],
         dtypes=["bf16", "bf16", "bf16"],
@@ -596,8 +597,8 @@ def test_resolve_kernel_restores_monkey_patch_after_call(clean_registry, fake_tt
     assert _api._compile_kernel is original
 
 
-def test_resolve_kernel_restores_patch_on_compile_error(clean_registry, fake_ttl):
-    _kernel_that_calls_compile("unit.resolve.error_patch.v1")
+def test_resolve_operation_restores_patch_on_compile_error(clean_registry, fake_ttl):
+    _operation_that_calls_compile("unit.resolve.error_patch.v1")
 
     import ttl.ttl_api as _api
 
@@ -605,8 +606,8 @@ def test_resolve_kernel_restores_patch_on_compile_error(clean_registry, fake_ttl
     fake_ttl["raise"] = RuntimeError("simulated tt-lang failure")
 
     with pytest.raises(RuntimeError, match="simulated tt-lang failure"):
-        resolve_kernel(
-            kernel_id="unit.resolve.error_patch.v1",
+        resolve_operation(
+            operation_id="unit.resolve.error_patch.v1",
             version_tag="vt0",
             shapes=[[1], [1], [1]],
             dtypes=["bf16", "bf16", "bf16"],
@@ -615,24 +616,24 @@ def test_resolve_kernel_restores_patch_on_compile_error(clean_registry, fake_ttl
     assert "TTLANG_COMPILE_ONLY" not in os.environ
 
 
-def test_resolve_kernel_shape_dtype_count_mismatch(clean_registry, fake_ttl):
-    _kernel_that_calls_compile("unit.resolve.shape_mismatch.v1")
+def test_resolve_operation_shape_dtype_count_mismatch(clean_registry, fake_ttl):
+    _operation_that_calls_compile("unit.resolve.shape_mismatch.v1")
 
     with pytest.raises(TtLangError):
-        resolve_kernel(
-            kernel_id="unit.resolve.shape_mismatch.v1",
+        resolve_operation(
+            operation_id="unit.resolve.shape_mismatch.v1",
             version_tag="vt0",
             shapes=[[1], [1]],
             dtypes=["bf16", "bf16", "bf16"],
         )
 
 
-def test_resolve_kernel_raises_when_ttl_missing(clean_registry):
+def test_resolve_operation_raises_when_ttl_missing(clean_registry):
     """When the user's Python doesn't have tt-lang installed, surface a
     clear ``TtLangError`` rather than an opaque ``ImportError``.
     """
 
-    @kernel(kernel_id="unit.no_ttl.v1", arg_roles=("in", "out"), version_tag="vt0")
+    @tt_lang_operation(operation_id="unit.no_ttl.v1", arg_roles=("in", "out"), version_tag="vt0")
     def k(x, out): ...
 
     saved = {k: sys.modules.get(k) for k in ("ttl", "ttl.ttl_api")}
@@ -640,8 +641,8 @@ def test_resolve_kernel_raises_when_ttl_missing(clean_registry):
     sys.modules["ttl.ttl_api"] = None  # type: ignore[assignment]
     try:
         with pytest.raises(TtLangError, match="tt-lang is not importable"):
-            resolve_kernel(
-                kernel_id="unit.no_ttl.v1",
+            resolve_operation(
+                operation_id="unit.no_ttl.v1",
                 version_tag="vt0",
                 shapes=[[1], [1]],
                 dtypes=["bf16", "bf16"],
@@ -655,12 +656,12 @@ def test_resolve_kernel_raises_when_ttl_missing(clean_registry):
 
 
 # ---------------------------------------------------------------------------
-# resolve_kernel: device-less stub path (production default)
+# resolve_operation: device-less stub path (production default)
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_kernel_deviceless_passes_stub_tensors(clean_registry, fake_ttl):
-    """Default (and only) path: ``resolve_kernel`` feeds tt-lang
+def test_resolve_operation_deviceless_passes_stub_tensors(clean_registry, fake_ttl):
+    """Default (and only) path: ``resolve_operation`` feeds tt-lang
     ``_StubTtnnTensor`` stand-ins (DEMO HACK -- see ``tt_torch.tt_lang``
     for context).
 
@@ -677,10 +678,10 @@ def test_resolve_kernel_deviceless_passes_stub_tensors(clean_registry, fake_ttl)
     """
     from tt_torch.tt_lang import _StubTtnnTensor
 
-    _kernel_that_calls_compile("unit.resolve.deviceless.v1")
+    _operation_that_calls_compile("unit.resolve.deviceless.v1")
 
-    artifact = resolve_kernel(
-        kernel_id="unit.resolve.deviceless.v1",
+    artifact = resolve_operation(
+        operation_id="unit.resolve.deviceless.v1",
         version_tag="vt0",
         shapes=[[2, 32, 32], [2, 32, 32], [2, 32, 32]],
         dtypes=["bf16", "f32", "i32"],

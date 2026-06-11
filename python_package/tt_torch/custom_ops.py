@@ -2264,7 +2264,7 @@ def sampling_fake(
 
 
 # ---------------------------------------------------------------------------
-# tt::tt_lang_op -- variadic dispatcher for @tt_torch.kernel
+# tt::tt_lang_op -- variadic dispatcher for @tt_torch.tt_lang_operation
 # ---------------------------------------------------------------------------
 
 # The op carries the metadata the plugin needs to find the live kernel at
@@ -2306,7 +2306,7 @@ def tt_lang_op(
     the real (post-Shardy) types.
 
     The op is registered only for the XLA dispatch key; calling it on a
-    CPU tensor raises a PyTorch dispatch error. ``@tt_torch.kernel``
+    CPU tensor raises a PyTorch dispatch error. ``@tt_torch.tt_lang_operation``
     refuses non-XLA tensors at the wrapper level for the same reason,
     so this dispatch error should only be reachable via direct calls
     to ``torch.ops.tt.tt_lang_op``. Fake-tensor / Dynamo tracing goes
@@ -2358,7 +2358,7 @@ def _tt_lang_op_autograd(ctx, grad_outputs):
 
     Returning ``None`` per input would silently produce wrong gradients;
     raising preserves correctness. Wrap the kernel call in ``torch.no_grad``
-    or register an explicit backward kernel as a separate @tt_torch.kernel.
+    or register an explicit backward kernel as a separate @tt_torch.tt_lang_operation.
     """
     raise NotImplementedError(
         "Autograd for tt-lang custom kernels is not yet supported. Wrap "
@@ -2378,7 +2378,7 @@ def tt_lang_op_dispatch(
 ) -> List[torch.Tensor]:
     """Keyword-only wrapper around ``torch.ops.tt.tt_lang_op``.
 
-    Lets @tt_torch.kernel call sites read cleanly without remembering the
+    Lets @tt_torch.tt_lang_operation call sites read cleanly without remembering the
     positional argument order.
     """
     return torch.ops.tt.tt_lang_op(

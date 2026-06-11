@@ -6,7 +6,7 @@
 What's exercised
 ----------------
 1. A user-authored ``@ttl.operation`` kernel is wrapped with
-   ``@tt_torch.kernel`` and called from inside a ``torch.nn.Module``
+   ``@tt_torch.tt_lang_operation`` and called from inside a ``torch.nn.Module``
    placed on the ``xla`` device.
 2. ``torch_xla`` lowers the kernel call to
    ``stablehlo.custom_call @tt.tt_lang_op``.
@@ -15,7 +15,7 @@ What's exercised
    ``arg_roles``.
 4. ``ModuleBuilder::resolveTtLangKernels`` runs tt-mlir's
    ``--ttnn-resolve-tt-lang-kernels`` pass, which calls
-   ``tt_torch.tt_lang.resolve_kernel`` (via pybind11, under the GIL)
+   ``tt_torch.tt_lang.resolve_operation`` (via pybind11, under the GIL)
    with the final shard-local shapes and printed layout encodings. The
    Python side runs tt-lang's compile path against duck-typed
    ``_StubTtnnTensor`` stand-ins (DEMO HACK -- see
@@ -74,7 +74,7 @@ except OSError as e:  # libtt_metal symbol resolution
 
 ttl = pytest.importorskip("ttl", exc_type=ImportError)
 
-# The default ``resolve_kernel`` path is DEVICE-LESS (see
+# The default ``resolve_operation`` path is DEVICE-LESS (see
 # python_package/tt_torch/tt_lang.py, search for ``DEMO HACK``). It
 # hands tt-lang ``_StubTtnnTensor`` stand-ins and monkey-patches
 # ``is_ttnn_tensor`` in every site that bound it, so the resolver
@@ -110,7 +110,7 @@ except ImportError as e:
 
 import tt_torch  # noqa: F401  -- registers torch.ops.tt.*
 from tt_torch import tt_lang as tt_lang_mod
-from tt_torch.tt_lang import kernel as tt_lang_kernel
+from tt_torch.tt_lang import tt_lang_operation
 
 # ---------------------------------------------------------------------------
 # Hardware / version gates
@@ -120,7 +120,7 @@ from tt_torch.tt_lang import kernel as tt_lang_kernel
 def _have_tt_device() -> bool:
     """Return True iff torch_xla can place tensors on the TT device.
 
-    With the device-less resolve_kernel path (default), the plugin is
+    With the device-less resolve_operation path (default), the plugin is
     the only ``libtt_metal.so`` consumer in the process, so it's safe
     to actually exercise a transfer here rather than just enumerating.
     """
@@ -144,7 +144,7 @@ pytestmark = [
 # Kernel under test: tilewise elementwise add (cribbed from tt-lang's
 # `examples/eltwise_add.py`, the smallest non-trivial kernel they ship).
 # Kept *inside* a builder function so each invocation re-registers
-# under a fresh kernel_id -- avoids registry collisions across
+# under a fresh operation_id -- avoids registry collisions across
 # parametrised test invocations and keeps each test self-contained.
 # ---------------------------------------------------------------------------
 
@@ -153,10 +153,10 @@ TILE_SIZE = 32
 GRANULARITY = 2  # block_rows = GRANULARITY tiles -> shape[0] must be % 64.
 
 
-def _make_eltwise_add_kernel(kernel_id: str):
-    """Build the tt-lang kernel + ``@tt_torch.kernel`` wrapper.
+def _make_eltwise_add_operation(operation_id: str):
+    """Build the tt-lang operation + ``@tt_torch.tt_lang_operation`` wrapper.
 
-    The kernel mirrors `tt-lang/examples/eltwise_add.py`: a 2-tile-block
+    The operation mirrors `tt-lang/examples/eltwise_add.py`: a 2-tile-block
     pipelined elementwise add with explicit reader/compute/writer
     threads and CB-based block staging. Block count = 2 gives the
     runtime a minimal pipeline depth to exercise.
@@ -227,15 +227,15 @@ def _make_eltwise_add_kernel(kernel_id: str):
                                 tx = ttl.copy(out_blk, out[r0:r1, col : col + 1])
                                 tx.wait()
 
-    @tt_lang_kernel(
-        kernel_id=kernel_id,
+    @tt_lang_operation(
+        operation_id=operation_id,
         arg_roles=("in", "in", "out"),
         version_tag="e2e-v1",
     )
-    def add_kernel(a, b, out):
+    def add_op(a, b, out):
         return _ttl_add(a, b, out)
 
-    return add_kernel
+    return add_op
 
 
 # ---------------------------------------------------------------------------
@@ -246,11 +246,11 @@ def _make_eltwise_add_kernel(kernel_id: str):
 @pytest.mark.parametrize("shape", [(64, 32), (128, 64)], ids=lambda s: f"{s[0]}x{s[1]}")
 def test_tt_lang_eltwise_add_e2e(shape, request):
     """Compile and execute a tt-lang elementwise-add kernel on the TT
-    device through the full @tt_torch.kernel -> stablehlo.custom_call
+    device through the full @tt_torch.tt_lang_operation -> stablehlo.custom_call
     -> tt_lang_op -> kernel_artifact -> flatbuffer -> GenericOp
     pipeline; verify the result matches the bf16 torch.add golden.
     """
-    # With the device-less resolve_kernel path (the bridge's default,
+    # With the device-less resolve_operation path (the bridge's default,
     # see python_package/tt_torch/tt_lang.py "DEMO HACK"), the plugin
     # owns device 0 exclusively. We only need to confirm the chip is
     # reachable through torch_xla; we no longer open a ttnn device
@@ -263,8 +263,8 @@ def test_tt_lang_eltwise_add_e2e(shape, request):
     b_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
     out_cpu = torch.zeros_like(a_cpu)
 
-    kernel_id = f"tt_xla.e2e.eltwise_add.{rows}x{cols}.v1"
-    add_kernel = _make_eltwise_add_kernel(kernel_id)
+    operation_id = f"tt_xla.e2e.eltwise_add.{rows}x{cols}.v1"
+    add_op = _make_eltwise_add_operation(operation_id)
 
     golden = a_cpu + b_cpu
 
@@ -274,9 +274,9 @@ def test_tt_lang_eltwise_add_e2e(shape, request):
     out_xla = out_cpu.to(device)
 
     try:
-        result_xla = add_kernel(a_xla, b_xla, out_xla)
+        result_xla = add_op(a_xla, b_xla, out_xla)
         # mark_step triggers compile + execute. Errors from the bridge
-        # (e.g. resolve_kernel failure) surface here as RuntimeError.
+        # (e.g. resolve_operation failure) surface here as RuntimeError.
         xm.mark_step()
         result = result_xla.to("cpu")
     except RuntimeError as e:
@@ -295,7 +295,7 @@ def test_tt_lang_eltwise_add_e2e(shape, request):
 
 @pytest.mark.parametrize("shape", [(64, 32), (128, 64)], ids=lambda s: f"{s[0]}x{s[1]}")
 def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
-    """Stitch a tt-lang kernel between two ``torch.add`` ops inside the
+    """Stitch a tt-lang operation between two ``torch.add`` ops inside the
     same XLA program; verify the full graph compiles and matches the
     CPU four-operand sum golden.
 
@@ -303,7 +303,7 @@ def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
     PJRT executable::
 
         ab     = torch.add(a, b)             # ttnn.add   (regular)
-        abc    = add_kernel(ab, c, out_buf)  # ttnn.tt_lang_op  (custom)
+        abc    = add_op(ab, c, out_buf)  # ttnn.tt_lang_op  (custom)
         result = torch.add(abc, d)           # ttnn.add   (regular)
 
     What this proves on top of ``test_tt_lang_eltwise_add_e2e``:
@@ -332,9 +332,9 @@ def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
     c_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
     d_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
 
-    # Distinct kernel_id per parametrisation to avoid registry collisions.
-    kernel_id = f"tt_xla.e2e.stitched_add.{rows}x{cols}.v1"
-    add_kernel = _make_eltwise_add_kernel(kernel_id)
+    # Distinct operation_id per parametrisation to avoid registry collisions.
+    operation_id = f"tt_xla.e2e.stitched_add.{rows}x{cols}.v1"
+    add_op = _make_eltwise_add_operation(operation_id)
 
     golden = ((a_cpu + b_cpu) + c_cpu) + d_cpu
 
@@ -352,7 +352,7 @@ def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
         # allocation. We never read out_buf after the call; the returned
         # functional result is what we chain forward.
         out_buf = torch.zeros_like(ab)
-        abc = add_kernel(ab, c_xla, out_buf)
+        abc = add_op(ab, c_xla, out_buf)
         result_xla = abc + d_xla
         # One mark_step -- everything must compile into a single
         # executable. If torch_xla split the graph at the custom_call
