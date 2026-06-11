@@ -79,6 +79,8 @@ jobs:
             CCACHE_REMOTE_STORAGE="${{ env.CCACHE_REMOTE_STORAGE }}"
             IN_CIBW_ENV=ON
             LDFLAGS="-Wl,--no-rosegment"
+            CXXFLAGS=-Wno-error=pass-failed
+            CFLAGS=-Wno-error=pass-failed
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "==3.12.*"
           CIBW_SKIP: "*-musllinux_*"
