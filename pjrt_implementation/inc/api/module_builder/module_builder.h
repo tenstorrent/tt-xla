@@ -242,7 +242,7 @@ private:
   // post-TTNN module. The pass walks `ttnn.tt_lang_op` operations
   // (set by tt-mlir's TTIR -> TTNN legalization of
   // `stablehlo.custom_call @tt.tt_lang_op`) and resolves each
-  // deferred kernel by calling `tt_torch.tt_lang.resolve_kernel`
+  // deferred kernel by calling `tt_torch.tt_lang.resolve_operation`
   // through the embedded Python interpreter, attaching the resolved
   // artifact bytes as a `kernel_artifact` attribute. A no-op when no
   // such ops are present.
