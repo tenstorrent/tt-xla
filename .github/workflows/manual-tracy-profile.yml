@@ -20,6 +20,11 @@ on:
         required: true
         type: string
         default: "tests/benchmark/test_vision.py"
+      nvidia_cohort_json:
+        description: "Optional NVIDIA/SILICON_PASS cohort JSON path with models[].test_case_id rows"
+        required: false
+        type: string
+        default: ""
       nodeid_filter:
         description: "Node id substring selected for the bounded proof"
         required: false
@@ -162,19 +167,29 @@ jobs:
           source venv/activate
           export PYTHONPATH="${{ steps.strings.outputs.work_dir }}:$PYTHONPATH"
 
+          profile_args=(
+            --repo-root "${{ steps.strings.outputs.work_dir }}"
+            --output-root "${{ steps.strings.outputs.output_root }}"
+            --run-id "${{ steps.strings.outputs.run_id }}"
+            --pytest-bin "pytest"
+            --tracy-bin "tracy"
+            --tt-perf-report-bin "tt-perf-report"
+            --perf-report-job-id "${{ steps.strings.outputs.job_id }}"
+            --max-models "${{ inputs.max_models }}"
+            --timeout-seconds "${{ inputs.timeout_seconds }}"
+            --run-budget-seconds "${{ inputs.run_budget_seconds }}"
+          )
+          if [ -n "${{ inputs.nvidia_cohort_json }}" ]; then
+            profile_args+=(--nvidia-cohort-json "${{ inputs.nvidia_cohort_json }}")
+          else
+            profile_args+=(
+              --benchmark-file "${{ inputs.benchmark_file }}"
+              --nodeid-filter "${{ inputs.nodeid_filter }}"
+            )
+          fi
+
           python tests/benchmark/scripts/ttxla_profile_pipeline.py \
-            --repo-root "${{ steps.strings.outputs.work_dir }}" \
-            --output-root "${{ steps.strings.outputs.output_root }}" \
-            --run-id "${{ steps.strings.outputs.run_id }}" \
-            --pytest-bin "pytest" \
-            --tracy-bin "tracy" \
-            --tt-perf-report-bin "tt-perf-report" \
-            --perf-report-job-id "${{ steps.strings.outputs.job_id }}" \
-            --benchmark-file "${{ inputs.benchmark_file }}" \
-            --nodeid-filter "${{ inputs.nodeid_filter }}" \
-            --max-models "${{ inputs.max_models }}" \
-            --timeout-seconds "${{ inputs.timeout_seconds }}" \
-            --run-budget-seconds "${{ inputs.run_budget_seconds }}" \
+            "${profile_args[@]}" \
             run
 
       - name: Upload profiling artifacts

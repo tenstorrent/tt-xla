@@ -245,6 +245,19 @@ gh workflow run manual-tracy-profile.yml \
   -f max_models=1
 ```
 
+To run a NVIDIA/SILICON_PASS cohort through the same workflow, make the cohort
+JSON available in the checkout before profiling and pass its path through
+`nvidia_cohort_json`. For example, `extra_setup` can materialize or download the
+manifest, and `max_models` can bound the first proof tranche:
+
+```bash
+gh workflow run manual-tracy-profile.yml \
+  -f runs_on=n150 \
+  -f nvidia_cohort_json=artifacts/cohorts/silicon-pass-runnable.json \
+  -f max_models=25 \
+  -f extra_setup='mkdir -p artifacts/cohorts && cp /path/to/silicon-pass-runnable.json artifacts/cohorts/silicon-pass-runnable.json'
+```
+
 If the runner image needs a specific `tt-perf-report` branch or local tool setup,
 set `tt_perf_report_ref` or `extra_setup` in the workflow dispatch inputs.
 
