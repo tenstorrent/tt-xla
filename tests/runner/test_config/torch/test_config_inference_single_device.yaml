@@ -1207,6 +1207,12 @@ test_config:
   stable_diffusion_unet/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
 
+  sana/pytorch-1600M_1024px-single_device-inference:
+    # ~30 min end-to-end (PCC ok). Wall-time is dominated by single-threaded
+    # TTNN conv2d host-side weight prep + the CPU golden reference, not compile.
+    # Covered by the 240-min default CI timeout (not yet in .test_durations).
+    status: EXPECTED_PASSING
+
   unet_for_conditional_generation/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
     optimization_level: 1
