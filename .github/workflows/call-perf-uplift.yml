@@ -2,21 +2,34 @@
 # pipeline. Used by the orchestrator's finalize stage, and dispatchable
 # directly by humans during PR review for a one-off perf re-run.
 #
-# Currently a THIN WRAPPER around call-filtered-perf-tests.yml — same
-# args the nightly perf-benchmark uses, narrowed to n150 + p150 (matches
-# the uplift loop's other test scope).
+# Stages:
+#   1. run-perf         — call-filtered-perf-tests.yml on the narrowed
+#                         device filter (matches the uplift loop's other
+#                         test scope).
+#   2. extract-failures — for each failed perf leg in this run, download
+#                         the GHA job stdout via the actions API and lift
+#                         Python tracebacks into a failure context.
+#                         (Perf tests use `pytest -svv` straight to
+#                         stdout — no junit XML, no log artifact — so we
+#                         pull from GHA itself instead.)
+#   3. claude-fix       — invoke the transformers-uplift-fix skill with
+#                         scope=model-perf-uplift on the failures; commit
+#                         any edits to the WIP branch (and to
+#                         tt-forge-models if the submodule was touched).
 #
-# Note: no Claude fix step (yet). Perf regressions are typically
-# algorithmic and need human judgment; Claude isn't well-suited to fix
-# them autonomously. The orchestrator's PR body surfaces the perf job's
-# success/failure status, and reviewers can dispatch this workflow
-# manually to re-measure after a hand fix.
+# Claude only addresses INFRASTRUCTURE breakage in the perf code (the
+# benchmark itself raised TypeError / AttributeError / ImportError due
+# to a transformers API change) — not algorithmic perf regressions,
+# which still need human judgment.
 
 name: Call - Perf + Uplift Fix
 
 permissions:
-  contents: read
-  actions:  read
+  contents: write   # claude-fix commits + pushes to the WIP branch
+  actions:  write   # extract-failures reads job logs + call-filtered-perf-tests.yml cascade
+  checks:   write   # call-filtered-perf-tests.yml publishes check runs
+  packages: write   # GHCR pulls in the perf workflow
+  id-token: write   # OIDC for cloud-auth steps in the perf workflow
 
 on:
   workflow_call:
@@ -24,6 +37,16 @@ on:
       branch:
         type: string
         required: true
+      iteration:
+        type: number
+        required: false
+        default: 1
+        description: 'Used to disambiguate artifact names + commit messages when chained.'
+      tag:
+        type: string
+        required: false
+        default: "perf"
+        description: 'Extra artifact/commit-message discriminator.'
       target_version:
         type: string
         required: true
@@ -43,17 +66,31 @@ on:
       adv_filter:
         type: string
         required: false
-        default: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "p150"} ]'
+        default: '[ {"accuracy-testing": false}, {"runs-on": "n150", "exclude": "vllm"}, {"runs-on": "p150", "exclude": "vllm"} ]'
     outputs:
       perf_result:
         description: 'Result of the underlying perf job (success | failure | skipped | cancelled)'
         value: ${{ jobs.run-perf.result }}
+      has_failures:
+        description: 'true if extract-failures saw any uplift-induced failures'
+        value: ${{ jobs.extract-failures.outputs.has_failures }}
+      failure_count:
+        description: 'integer count of unique failed perf jobs observed'
+        value: ${{ jobs.extract-failures.outputs.failure_count }}
 
   workflow_dispatch:
     inputs:
       branch:
         type: string
         required: true
+      iteration:
+        type: string
+        required: false
+        default: "1"
+      tag:
+        type: string
+        required: false
+        default: "manual"
       target_version:
         type: string
         required: true
@@ -73,13 +110,15 @@ on:
       adv_filter:
         type: string
         required: false
-        default: '[ {"accuracy-testing": false}, {"runs-on": "n150"}, {"runs-on": "p150"} ]'
+        default: '[ {"accuracy-testing": false}, {"runs-on": "n150", "exclude": "vllm"}, {"runs-on": "p150", "exclude": "vllm"} ]'
+
+env:
+  LAST_FAILED_FILE: .github/transformers-uplift/last_failed.txt
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Single stage: invoke the standard perf workflow with the uplift's
-  # narrowed device filter. The orchestrator (or a reviewer dispatching
-  # manually) consumes `jobs.run-perf.result` to decide what comes next.
+  # Stage 1: run the standard perf workflow with the uplift's narrowed
+  # device filter.
   # ---------------------------------------------------------------------------
   run-perf:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
@@ -89,7 +128,217 @@ jobs:
       sh-runner:               false
       skip-device-perf:        true
       regression_check:        true
+      check_fusions:           true
       adv_filter:              ${{ inputs.adv_filter }}
       artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
       artifact_suffix:         ${{ inputs.artifact_suffix }}
-      wheel_build:             manylinux
+      wheel_build:             release
+
+  # ---------------------------------------------------------------------------
+  # Stage 2: extract per-job tracebacks from the GHA stdout of any failed
+  # perf legs in THIS run. Skipped if run-perf was skipped (no work to do).
+  # ---------------------------------------------------------------------------
+  extract-failures:
+    needs: run-perf
+    if: always() && needs.run-perf.result != 'skipped'
+    runs-on: ubuntu-latest
+    outputs:
+      has_failures:  ${{ steps.extract.outputs.has_failures }}
+      failure_count: ${{ steps.extract.outputs.failure_count }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Download failed perf job logs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          mkdir -p perf-logs
+          # List failed jobs in this run whose name matches the perf
+          # naming convention from call-perf-test.yml ("perf <model> (<runner>)").
+          # We emit `<id>\t<name>` so we can build a model+runner slug
+          # for the saved log filename — the log BODY doesn't contain
+          # the perf job name (that's GHA metadata, not log content).
+          mapfile -t FAILED < <(
+            gh api --paginate "repos/${{ github.repository }}/actions/runs/${RUN_ID}/jobs" \
+              --jq '.jobs[] | select(.conclusion == "failure") | select(.name | test("perf .* \\(")) | "\(.id)\t\(.name)"'
+          )
+          echo "Failed perf jobs: ${#FAILED[@]}"
+          for line in "${FAILED[@]}"; do
+            jid="${line%%$'\t'*}"
+            jname="${line#*$'\t'}"
+            # Pull the trailing "perf <model> (<runner>)" out of the GHA
+            # job name and turn it into a filesystem-safe slug. The job
+            # name has a matrix-leg prefix like "run-uplift / perf-benchmark
+            # / run-perf / run-perf-benchmarks / perf llama_3_2_1b (p150)"
+            # — note "run-perf" also contains literal "perf", so we MUST
+            # anchor on the trailing pattern with a greedy `.*` skip, not
+            # a non-anchored grep (the previous grep-then-sed combo
+            # matched the first "perf " inside "run-perf" and produced
+            # garbage slugs like "perf___run_perf_benchmarks___...").
+            slug=$(echo "$jname" \
+              | sed -nE 's/.*perf +([^ ]+) +\(([^)]+)\)$/\1__\2/p')
+            slug="${slug:-unknown}"
+            fname="perf-logs/${slug}__job-${jid}.log"
+            echo "Downloading log for job $jid ($slug)"
+            gh api "repos/${{ github.repository }}/actions/jobs/${jid}/logs" > "$fname" || {
+              echo "::warning::could not fetch log for job $jid"
+              rm -f "$fname"
+            }
+          done
+          ls -la perf-logs
+
+      - name: Extract failures
+        id: extract
+        run: |
+          python3 .github/scripts/uplift/transformers/extract-perf-failures.py \
+            --inputs-dir perf-logs \
+            --matrix-file .github/workflows/perf-bench-matrix.json \
+            --out-context failure_context.txt \
+            --out-failed-tests "$LAST_FAILED_FILE"
+          # `grep -c` prints the count AND exits non-zero when it's 0, so
+          # use `|| true` (not `|| echo 0`) — otherwise we'd append a
+          # second "0" and break the integer comparison below.
+          COUNT=$(grep -cve '^\s*$' "$LAST_FAILED_FILE" || true)
+          echo "failure_count=$COUNT" >> "$GITHUB_OUTPUT"
+          if [[ "$COUNT" -eq 0 ]]; then
+            echo "has_failures=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_failures=true"  >> "$GITHUB_OUTPUT"
+          fi
+          echo "Failing perf jobs this iteration: $COUNT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uplift-failures-model-perf-uplift-${{ inputs.tag }}-iter-${{ inputs.iteration }}
+          path: |
+            failure_context.txt
+            ${{ env.LAST_FAILED_FILE }}
+
+  # ---------------------------------------------------------------------------
+  # Stage 3: invoke the transformers-uplift-fix skill on the failures.
+  # Same shape as call-test-uplift.yml's claude-fix, with scope pinned to
+  # model-perf-uplift so the skill picks the perf-specific guidance.
+  # ---------------------------------------------------------------------------
+  claude-fix:
+    needs: extract-failures
+    if: |
+      always()
+      && needs.extract-failures.outputs.has_failures == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ inputs.docker_image }}
+    steps:
+      - name: Mark repo as safe for git
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/tt_forge_models"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          token: ${{ secrets.GH_TOKEN }}
+          submodules: recursive
+
+      - name: Download tt-xla wheel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          WHEEL_ARTIFACT="xla-whl-release${{ inputs.artifact_suffix }}"
+          gh run download "${{ inputs.artifact_release_run_id }}" \
+            --repo "${{ github.repository }}" \
+            --dir wheels \
+            --name "$WHEEL_ARTIFACT"
+
+      - name: Install wheel + uplifted transformers
+        shell: bash
+        env:
+          TARGET_VERSION: ${{ inputs.target_version }}
+        run: |
+          source venv/activate
+          uv pip install wheels/*.whl
+          # The wheel was built against the OLD pin; force-install the
+          # uplifted version so Claude inspects the same API surface the
+          # benchmarks are running against.
+          uv pip install --force-reinstall --no-deps \
+            "transformers==${TARGET_VERSION}"
+
+      - name: Download failure context
+        uses: actions/download-artifact@v4
+        with:
+          name: uplift-failures-model-perf-uplift-${{ inputs.tag }}-iter-${{ inputs.iteration }}
+
+      - name: Install Claude Code CLI
+        shell: bash
+        run: |
+          if command -v claude >/dev/null 2>&1; then
+            claude --version
+            exit 0
+          fi
+          curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: Invoke Claude fix skill
+        shell: bash
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY_BENCHMARK_CI }}
+          HF_HOME: /mnt/dockercache/huggingface
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          ITERATION: ${{ inputs.iteration }}
+          TARGET_VERSION: ${{ inputs.target_version }}
+          CURRENT_VERSION: ${{ inputs.current_version }}
+          SCOPE: model-perf-uplift
+        run: |
+          source venv/activate
+          bash .github/scripts/uplift/transformers/run-claude-fix.sh \
+            --failures failure_context.txt \
+            --scope "$SCOPE"
+
+      - name: Commit + push fixes (if any)
+        # Run on failure/timeout too so any partial edits Claude made
+        # before bailing still get committed.
+        if: always()
+        shell: bash
+        env:
+          BRANCH: ${{ inputs.branch }}
+          ITER:   ${{ inputs.iteration }}
+          TAG:    ${{ inputs.tag }}
+        run: |
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Prefer Claude's structured summary (see the
+          # transformers-uplift-fix skill's "Output format" section);
+          # otherwise fall back to a generic message tagged with tag/iter.
+          SUMMARY_FILE=".github/transformers-uplift/fix-summary.md"
+          if [[ -s "$SUMMARY_FILE" ]]; then
+            COMMIT_FLAG=(-F "$SUMMARY_FILE")
+          else
+            COMMIT_FLAG=(-m "transformers uplift: model-perf-uplift/${TAG} fixes (iter ${ITER})")
+          fi
+
+          # 1. tt-forge-models submodule — `git add -A` in the parent only
+          #    updates the submodule pointer, not the submodule's contents.
+          #    Commit + push inside the submodule first.
+          if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
+            pushd third_party/tt_forge_models >/dev/null
+            git checkout -B "$BRANCH"
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+            git push origin "$BRANCH"
+            popd >/dev/null
+          fi
+
+          # 2. tt-xla parent — picks up the new submodule pointer + any
+          #    other edits Claude made under the allowlist.
+          git add "$LAST_FAILED_FILE"
+          if ! git diff --staged --quiet || [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit "${COMMIT_FLAG[@]}"
+            git push origin "$BRANCH"
+          fi
