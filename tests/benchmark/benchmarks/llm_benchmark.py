@@ -700,6 +700,22 @@ def benchmark_llm_torch_xla(
                         input_args["input_ids"], mesh, input_output_sharding_spec
                     )
 
+            # Compute and print the prefill PCC now, before decode runs. If decode
+            # later crashes, the prefill PCC is already on stdout and decode can be
+            # re-run in isolation with --decode-only.
+            if generate_chisel_report:
+                prefill_pcc_value = compute_pcc(
+                    device_prefill_logits[0][0], cpu_output_logits[0][0]
+                )
+                prefill_rel_l2_value = compute_rel_l2(
+                    cpu_output_logits[0][0], device_prefill_logits[0][0]
+                )
+                print(
+                    "Prefill PCC={:.6f}, rel_l2={:.6e}".format(
+                        prefill_pcc_value, prefill_rel_l2_value
+                    )
+                )
+
         # The prefill call above already consumed gt[0] as teacher-forced input for
         # the first decode step, so the decode call must start its ground-truth
         # window at gt[1] to stay aligned. It also consumed one of the logits_steps
@@ -744,9 +760,7 @@ def benchmark_llm_torch_xla(
                 )
             )
         else:
-            pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
-            rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
-            print("Prefill PCC={:.6f}, rel_l2={:.6e}".format(pcc_value, rel_l2_value))
+            # Prefill PCC was already computed and printed before decode ran.
             decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
             decode_rel_l2_value = compute_rel_l2(
                 cpu_output_logits[1][0], output_logits[1][0]
