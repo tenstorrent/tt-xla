@@ -243,6 +243,10 @@ TP_CONFIGS = [
             experimental_weight_dtype="bfp_bf8",
             gpu_memory_utilization=0.05,
             enable_data_parallel=True,
+            # Pure DP on the "batch" axis: replicate weights across DP replicas
+            # (no FSDP contraction-dim shard) so the DP axis carries no per-layer
+            # weight collectives. tp=8 already fits the 123B in bfp8 per replica.
+            shard_weights_on_batch_axis=False,
         ),
         id="devstral-123b-tp",
     ),
