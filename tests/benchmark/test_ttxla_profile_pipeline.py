@@ -607,6 +607,46 @@ def test_selected_benchmark_files_defaults_or_resolves_requested_paths(tmp_path)
     ) == [tmp_path / "tests/benchmark/test_vision.py"]
 
 
+def test_discover_command_uses_nvidia_cohort_json(tmp_path):
+    pipeline = load_pipeline_module()
+    cohort_path = tmp_path / "cohort.json"
+    run_dir = tmp_path / "run-5009-cohort-discover"
+    cohort_path.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "test_case_id": "data2vec_text/feature_extraction/pytorch-Tiny_Random",
+                        "model_id": "data2vec_text/feature_extraction/pytorch-Tiny_Random-single_device-inference",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = pipeline.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--run-dir",
+            str(run_dir),
+            "--nvidia-cohort-json",
+            str(cohort_path),
+            "discover",
+        ]
+    )
+
+    manifest = json.loads((run_dir / "model-manifest.json").read_text())
+
+    assert exit_code == 0
+    assert manifest["models"][0]["nodeid"] == (
+        "tests/runner/test_models.py::test_all_models_torch"
+        "[data2vec_text/feature_extraction/pytorch-Tiny_Random-single_device-inference]"
+    )
+    assert manifest["models"][0]["source_path"] == "tests/runner/test_models.py"
+
+
 def test_infer_taxonomy_distinguishes_environment_model_and_terminal_states():
     pipeline = load_pipeline_module()
 

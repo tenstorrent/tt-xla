@@ -4010,6 +4010,52 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def execute_discover_command(args: argparse.Namespace) -> int:
+    root = Path(args.repo_root).resolve()
+    run_dir = (
+        Path(args.run_dir).resolve()
+        if args.run_dir
+        else initialize_run_dir(Path(args.output_root), args.run_id)
+    )
+    ensure_dir(run_dir)
+    python_bin = sys.executable
+    pytest_command = args.pytest_bin or "pytest"
+    tracy_bin = maybe_find_binary("tracy", args.tracy_bin)
+    tt_perf_report_bin = maybe_find_binary("tt-perf-report", args.tt_perf_report_bin)
+    command_trace_path = run_dir / "command-trace.jsonl"
+    environment = capture_environment(
+        root, tracy_bin, tt_perf_report_bin, pytest_command
+    )
+    if args.nvidia_cohort_json:
+        cohort_path = Path(args.nvidia_cohort_json)
+        if not cohort_path.is_absolute():
+            cohort_path = root / cohort_path
+        entries = load_nvidia_cohort_entries(cohort_path, run_dir.name)
+        discovery_result = nvidia_cohort_discovery_result(root, cohort_path, entries)
+    else:
+        entries, discovery_result = discover_models(
+            repo=root,
+            run_id=run_dir.name,
+            python_bin=python_bin,
+            command_trace_path=command_trace_path,
+            timeout_seconds=args.discovery_timeout_seconds,
+        )
+    entries = select_discovery_entries(entries, args.nodeid_filter, args.max_models)
+    discover_artifacts(run_dir, entries, discovery_result, environment)
+    update_manifest_summary(
+        run_dir,
+        {
+            "discovery_only": True,
+            "returncode": discovery_result.returncode,
+            "models": len(entries),
+            "slow_ops": 0,
+        },
+    )
+    print(f"manifest: {run_dir / 'manifest.json'}")
+    print(f"model-manifest: {run_dir / 'model-manifest.json'}")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -4019,43 +4065,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.command == "run":
         return execute_pipeline(args)
     if args.command == "discover":
-        root = Path(args.repo_root).resolve()
-        run_dir = (
-            Path(args.run_dir).resolve()
-            if args.run_dir
-            else initialize_run_dir(Path(args.output_root), args.run_id)
-        )
-        ensure_dir(run_dir)
-        python_bin = sys.executable
-        pytest_command = args.pytest_bin or "pytest"
-        tracy_bin = maybe_find_binary("tracy", args.tracy_bin)
-        tt_perf_report_bin = maybe_find_binary(
-            "tt-perf-report", args.tt_perf_report_bin
-        )
-        command_trace_path = run_dir / "command-trace.jsonl"
-        environment = capture_environment(
-            root, tracy_bin, tt_perf_report_bin, pytest_command
-        )
-        entries, discovery_result = discover_models(
-            repo=root,
-            run_id=run_dir.name,
-            python_bin=python_bin,
-            command_trace_path=command_trace_path,
-            timeout_seconds=args.discovery_timeout_seconds,
-        )
-        discover_artifacts(run_dir, entries, discovery_result, environment)
-        update_manifest_summary(
-            run_dir,
-            {
-                "discovery_only": True,
-                "returncode": discovery_result.returncode,
-                "models": len(entries),
-                "slow_ops": 0,
-            },
-        )
-        print(f"manifest: {run_dir / 'manifest.json'}")
-        print(f"model-manifest: {run_dir / 'model-manifest.json'}")
-        return 0
+        return execute_discover_command(args)
     if not args.run_dir:
         parser.error("--run-dir is required for dashboard and report-packet")
     run_dir = Path(args.run_dir).resolve()
