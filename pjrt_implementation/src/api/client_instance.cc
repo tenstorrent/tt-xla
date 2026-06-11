@@ -407,8 +407,15 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // [Workaround] On a 32-device galaxy (UBB) a 1D {1, N} parent mesh can't be
+    // reshaped to the 2D (4, 8) executable mesh (the MGD solver fails); open
+    // (4, 8) directly.
+    if (m_devices.size() == 32) {
+      m_parent_mesh = getOrCreateMeshDevice({4, 8});
+    } else {
+      m_parent_mesh =
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    }
   }
 
   return tt_pjrt_status::kSuccess;
@@ -509,6 +516,17 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
         num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
+  }
+  // [Workaround] On a 32-device galaxy the auto-detected 2D RING/TORUS fabric
+  // makes get_num_links overcount routing planes (reports 4, only 2 usable per
+  // cluster axis), which breaks all_to_all_dispatch (drops half the tokens).
+  // Force FABRIC_1D on any 32-device galaxy. Set MOE_FORCE_FABRIC_1D=0 to keep
+  // the auto-detected 2D fabric (for testing 2D + capped num_links).
+  bool force_1d = !(std::getenv("MOE_FORCE_FABRIC_1D") != nullptr &&
+                    std::string(std::getenv("MOE_FORCE_FABRIC_1D")) == "0");
+  if (force_1d && m_devices.size() == 32) {
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
   }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }

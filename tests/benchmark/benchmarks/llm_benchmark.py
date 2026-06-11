@@ -142,6 +142,26 @@ def construct_inputs(
             truncation=True,
         )
 
+        # [DEBUG] PAD_PREFILL_TILE=1 grows the prefill to a multiple of 32 (TILE)
+        # using REAL tokens (not pad tokens) by truncating a longer repeated
+        # prompt to exactly the next tile multiple. The sparse MoE path is broken
+        # for seq lengths that are not a multiple of 32 (sub-tile); real-token
+        # growth avoids both the sub-tile bug AND pad-token PCC pollution.
+        import os as _os
+
+        if _os.environ.get("PAD_PREFILL_TILE") == "1":
+            _seq = inputs["input_ids"].shape[1]
+            _tile = 32
+            _target = ((_seq + _tile - 1) // _tile) * _tile
+            if _target > _seq:
+                # Repeat the prompt text enough to exceed _target tokens, then
+                # truncate to exactly _target real tokens.
+                _long = [(p + " ") * (_target // max(_seq, 1) + 2) for p in input_prompt]
+                _re = tokenizer(_long, return_tensors="pt", truncation=False)
+                inputs["input_ids"] = _re["input_ids"][:, :_target].contiguous()
+                if "attention_mask" in _re:
+                    inputs["attention_mask"] = _re["attention_mask"][:, :_target].contiguous()
+
     if past_key_values is None:
         # Static cache should be initialized on CPU and separately transferred to device
         # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645

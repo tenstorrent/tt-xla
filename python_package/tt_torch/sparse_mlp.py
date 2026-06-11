@@ -368,13 +368,21 @@ def build_expert_mapping(num_experts, num_devices, mesh_shape=None):
     For 1D meshes (mesh_shape=None), experts are sequentially distributed:
     experts 0..E/D-1 on device 0, E/D..2*E/D-1 on device 1, etc.
 
-    For 2D meshes, accounts for GSPMD compound sharding ("axis_0", "axis_1")
-    where axis_0 is the inner (fast-varying) dimension:
-    expert e -> mesh position (e % rows, e // rows) -> device (e % rows) * cols + (e // rows).
+    For 2D meshes, accounts for GSPMD compound sharding. The experts dim is
+    sharded by a compound (rows-axis, cols-axis) spec, so contiguous blocks of
+    ``experts_per_device`` experts form shard ``s = e // experts_per_device``
+    (s in [0, rows*cols)). With the compound listing the rows-axis (mesh[0]) as
+    the MINOR/inner axis and the cols-axis (mesh[1]) as the MAJOR/outer axis,
+    shard ``s`` decomposes as ``col_pos = s // rows``, ``row_pos = s % rows`` and
+    physically lives on mesh device ``(row_pos, col_pos)`` whose runtime-linear
+    id is ``row_pos * cols + col_pos`` (the kernel's linearized_mesh_coord =
+    coord0*num_cols + coord1). The 1D sequential mapping (device = s) does NOT
+    match this — it puts the wrong column on each expert, so the dispatch
+    kernel's same-column target filter drops tokens. Passing mesh_shape fixes it.
 
     Args:
         num_experts: Total number of experts (E)
-        num_devices: Number of devices along dispatch axis (D)
+        num_devices: Number of devices the experts are sharded across (D)
         mesh_shape: Optional (rows, cols) tuple for 2D compound sharding
 
     Returns:
@@ -386,11 +394,14 @@ def build_expert_mapping(num_experts, num_devices, mesh_shape=None):
     mapping = torch.zeros(1, 1, num_experts, num_devices, dtype=torch.int64)
     experts_per_device = num_experts // num_devices
     for i in range(num_experts):
+        shard = i // experts_per_device  # which device-shard this expert is in
         if mesh_shape is not None:
             rows, cols = mesh_shape
-            device_id = (i % rows) * cols + (i // rows)
+            row_pos = shard % rows
+            col_pos = shard // rows
+            device_id = row_pos * cols + col_pos
         else:
-            device_id = i // experts_per_device
+            device_id = shard
         mapping[0, 0, i, device_id] = 1
     return mapping
 
@@ -469,6 +480,7 @@ class A2aSparseMLP(nn.Module):
         cpu_forward_module: Optional[nn.Module] = None,
         use_dense_matmul: bool = False,
         swiglu_limit: float = 0.0,
+        mesh_shape: Optional[tuple] = None,
     ):
         super().__init__()
 
@@ -517,9 +529,14 @@ class A2aSparseMLP(nn.Module):
         self.swiglu_limit = swiglu_limit
 
         # Expert-to-device mapping [1, 1, E, D] where D = num_devices (total)
-        # Maps each expert to its owning device. When cluster_axis=0, the dispatch
-        # kernel derives the target row from the device_id in the mapping.
-        mapping = build_expert_mapping(num_experts, num_devices)
+        # Maps each expert to its owning device. The dispatch kernel derives each
+        # expert's mesh (row, col) from the device_id here and filters targets by
+        # the cluster axis. On a 2D mesh the experts are compound-sharded, so the
+        # mapping MUST encode the true 2D device id (via mesh_shape) — a 1D
+        # sequential mapping puts the wrong column on each expert and the kernel's
+        # same-column filter then drops a fraction of the tokens.
+        self.mesh_shape = mesh_shape
+        mapping = build_expert_mapping(num_experts, num_devices, mesh_shape=mesh_shape)
         self.register_buffer("expert_mapping", mapping)
 
     @torch.compiler.disable
@@ -538,9 +555,41 @@ class A2aSparseMLP(nn.Module):
         batch_size, seq_len, hidden_size = hidden_states.shape
         K = self.num_experts_per_tok
 
+        # DEBUG: FORCE_DEVICE_PATH=1 runs the device (a2a + sparse_matmul) path on
+        # CPU using the custom ops' CPU reference impls, so we get per-op golden
+        # intermediates to compare against the on-device runtime dump.
+        import os as _os
+
+        _force = _os.environ.get("FORCE_DEVICE_PATH") == "1"
+        _dump = _os.environ.get("SPARSE_DUMP_DIR")
+
+        def _save(name, t):
+            if _dump:
+                import torch as _torch
+
+                _torch.save(t.detach().to("cpu"), f"{_dump}/{name}.pt")
+
         # CPU golden path
-        if hidden_states.device.type == "cpu":
+        if hidden_states.device.type == "cpu" and not _force:
             return self._cpu_forward(hidden_states, *extra_args, **extra_kwargs)
+
+        # [SUB-TILE FIX] Pad the SEQ dim to a multiple of TILE (32). When
+        # seq_len < 32, the sparse_matmul tiling packs multiple batch-slots into
+        # one 32-row tile (flat path) with a single per-tile sparsity, which
+        # mixes tokens that route to different experts and corrupts the result
+        # (e.g. seq=16 frozen routed PCC 0.36 vs 0.96 at seq=32). Padding seq up
+        # to a tile multiple forces the clean split_seq path (one batch-slot per
+        # tile). Padded seq positions carry zero hidden and are sliced off the
+        # output before return.
+        _orig_seq_len = seq_len
+        if _os.environ.get("PAD_SEQ_TILE") == "1":
+            TILE = 32
+            padded_seq = max(TILE, math.ceil(seq_len / TILE) * TILE)
+            if padded_seq > seq_len:
+                hidden_states = F.pad(
+                    hidden_states, (0, 0, 0, padded_seq - seq_len)
+                )
+                seq_len = padded_seq
 
         # 1. Router — pass 3D for RouterAdapter (handles 3D→2D internally),
         # flatten to 2D for raw routers (e.g. GptOssTopKRouter).
@@ -580,6 +629,9 @@ class A2aSparseMLP(nn.Module):
         # 2. Dispatch: route tokens to devices along cluster_axis
         # Dispatch accepts [B, S, H] and [B*S, K] directly.
         effective_dispatch = self.dispatch_devices
+        _save("00_disp_in_hidden", hidden_states)
+        _save("00_disp_in_indices", router_indices)
+        _save("00_disp_in_mapping", self.expert_mapping)
         dispatched, metadata = torch.ops.tt.all_to_all_dispatch(
             hidden_states,
             router_indices,
@@ -588,6 +640,8 @@ class A2aSparseMLP(nn.Module):
             cluster_axis=self.cluster_axis,
         )
         # dispatched: [1, BD, S, H],  metadata: [1, BD, S, K]
+        _save("01_dispatched", dispatched)
+        _save("01_metadata", metadata)
         # Reshape metadata to [1, 1, BD*S, K] so combine's output_shard_dim=2
         # sees tokens on dim 2 (matching demo layout). Just a reshape, no permute.
         BD = dispatched.shape[1]
@@ -697,6 +751,7 @@ class A2aSparseMLP(nn.Module):
                 num_devices=effective_dispatch,
             )
 
+            _save("02_sparsity_remap", sparsity_remap)
             down_out = self.experts.sparse_forward(
                 dispatched,
                 sparsity_remap,
@@ -706,8 +761,12 @@ class A2aSparseMLP(nn.Module):
                 output_shape=(BD, seq_len),
                 swiglu_limit=self.swiglu_limit,
             )
+            _save("03_down_out", down_out)
 
         # sparse_forward returns [E, 1, BD*S, H] — combine with output_shard_dim=2.
+        _save("00_comb_in_downout", down_out)
+        _save("00_comb_in_metadata", metadata)
+        _save("00_comb_in_mapping", self.expert_mapping)
         combined = torch.ops.tt.all_to_all_combine(
             down_out,
             metadata,
@@ -718,6 +777,7 @@ class A2aSparseMLP(nn.Module):
             output_shard_dim=2,
         )
         # combined: [K, 1, B*S, H] with output_shard_dim=2
+        _save("04_combined", combined)
 
         # Weighted sum
         E = self.num_experts
@@ -736,7 +796,11 @@ class A2aSparseMLP(nn.Module):
             # [batch_size, ...] shape. native_router_scores was computed
             # pre-padding so it already has the correct row count.
             output = output[:batch_size]
+        if _orig_seq_len != seq_len:
+            # Drop the [SUB-TILE FIX] seq padding.
+            output = output[:, :_orig_seq_len]
 
+        _save("05_output", output)
         return output.to(hidden_states.dtype), native_router_scores
 
 
@@ -1034,6 +1098,7 @@ def create_a2a_from_deepseek_v3_moe(
     num_devices: int = 8,
     cluster_axis: int = 0,
     dispatch_devices: Optional[int] = None,
+    mesh_shape: Optional[tuple] = None,
 ) -> A2aSparseMLPWithSharedExperts:
     """
     Create A2aSparseMLP from DeepseekV3MoE.
@@ -1064,6 +1129,7 @@ def create_a2a_from_deepseek_v3_moe(
         dispatch_devices=dispatch_devices,
         cpu_forward_module=moe_module,
         swiglu_limit=float(getattr(config, "swiglu_limit", 0.0) or 0.0),
+        mesh_shape=mesh_shape,
     )
     shared_experts = getattr(moe_module, "shared_experts", None)
     return A2aSparseMLPWithSharedExperts(a2a_mlp, shared_experts)
@@ -1159,6 +1225,10 @@ def enable_sparse_mlp(
                 num_devices=num_devices,
                 cluster_axis=cluster_axis,
                 dispatch_devices=dispatch_devices,
+                # mesh_shape intentionally NOT passed: the 2D compound mapping was
+                # tested and had no effect on the half-batch dispatch drop (PCC
+                # 0.707 either way), and enabling it for all models risks gpt-oss.
+                # Kept dormant (1D mapping) pending the tt-metal dispatch fix.
             )
             if name:
                 setattr(parent, name, sparse_mlp)

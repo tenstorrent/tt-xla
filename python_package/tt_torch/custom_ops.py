@@ -1057,10 +1057,26 @@ def sparse_matmul(
             M = (BD * S) // reduced
 
             if not is_input_a_sparse and is_input_b_sparse:
-                input_tensor_a = input_tensor_a.view(
-                    BD, S // M, M, input_tensor_a.shape[-1]
-                )
-                sparsity = sparsity.view(BD, S // M, 1, E_sp)
+                # Mirror the XLA-side tiling branches (split_seq / split_bd /
+                # flat) so the CPU reference handles S < M (e.g. seq=16 prefill),
+                # which previously crashed with S // M == 0.
+                H_ = input_tensor_a.shape[-1]
+                split_seq = S % M == 0 and S >= M
+                split_bd = S == 1 and BD % M == 0 and BD >= M
+                if split_seq:
+                    input_tensor_a = input_tensor_a.reshape(BD, S // M, M, H_)
+                    sparsity = sparsity.reshape(BD, S // M, 1, E_sp)
+                elif split_bd:
+                    input_tensor_a = (
+                        input_tensor_a.reshape(BD // M, M, S, H_)
+                        .permute(0, 2, 1, 3)
+                        .contiguous()
+                    )
+                    sparsity = sparsity.reshape(BD // M, S, 1, E_sp)
+                else:
+                    AB = (BD * S) // M
+                    input_tensor_a = input_tensor_a.reshape(1, AB, M, H_)
+                    sparsity = sparsity.reshape(1, AB, 1, E_sp)
             elif is_input_a_sparse and not is_input_b_sparse:
                 E_in = input_tensor_a.shape[2]
                 K_in = input_tensor_a.shape[-1]
@@ -1069,9 +1085,19 @@ def sparse_matmul(
                 sparsity = sparsity.view(1, 1, BD * S // M, E_sp)
 
         orig_dtype = input_tensor_a.dtype
-        input_tensor_a = input_tensor_a.float()
-        sparsity = sparsity.float()
-        input_b_casted = input_tensor_b.float()
+        # DEBUG: SPARSE_BF16=1 keeps bf16 (emulates the hardware's reduced
+        # precision) instead of the fp32 reference, to test whether sparse_matmul
+        # precision alone reproduces the on-device PCC drop.
+        import os as _os
+
+        if _os.environ.get("SPARSE_BF16") == "1":
+            input_tensor_a = input_tensor_a.to(torch.bfloat16)
+            sparsity = sparsity.float()
+            input_b_casted = input_tensor_b.to(torch.bfloat16)
+        else:
+            input_tensor_a = input_tensor_a.float()
+            sparsity = sparsity.float()
+            input_b_casted = input_tensor_b.float()
         E = E_experts
         N = input_tensor_b.shape[-1]
 
