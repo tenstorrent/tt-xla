@@ -29,26 +29,89 @@ def extract_markers_from_file(file_path: Path) -> List[Tuple[str, Set[str]]]:
 
     results = []
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and (
-            node.name.startswith("test_")
-            or any(
-                isinstance(d, ast.Name) and d.id == "test"
-                for d in node.decorator_list
-                if isinstance(d, ast.Name)
+    module_markers = _extract_module_pytestmark_markers(tree)
+
+    for node in tree.body:
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ) and _is_test_function(node):
+            fn_markers = _extract_markers_from_decorators(node.decorator_list)
+            results.append((node.name, set(module_markers) | fn_markers))
+            continue
+
+        if isinstance(node, ast.ClassDef):
+            class_markers = (
+                set(module_markers)
+                | _extract_markers_from_decorators(node.decorator_list)
+                | _extract_class_pytestmark_markers(node)
             )
-        ):
-            markers = set()
 
-            # Extract markers from decorators
-            for decorator in node.decorator_list:
-                marker_name = _extract_marker_name(decorator)
-                if marker_name:
-                    markers.add(marker_name)
-
-            results.append((node.name, markers))
+            for member in node.body:
+                if isinstance(
+                    member, (ast.FunctionDef, ast.AsyncFunctionDef)
+                ) and _is_test_function(member):
+                    fn_markers = _extract_markers_from_decorators(member.decorator_list)
+                    results.append((member.name, class_markers | fn_markers))
 
     return results
+
+
+def _is_test_function(node: ast.AST) -> bool:
+    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        return False
+
+    return node.name.startswith("test_")
+
+
+def _extract_markers_from_decorators(decorators: List[ast.expr]) -> Set[str]:
+    markers = set()
+    for decorator in decorators:
+        marker_name = _extract_marker_name(decorator)
+        if marker_name:
+            markers.add(marker_name)
+    return markers
+
+
+def _extract_module_pytestmark_markers(tree: ast.Module) -> Set[str]:
+    markers = set()
+    for statement in tree.body:
+        markers |= _extract_pytestmark_assignment_markers(statement)
+    return markers
+
+
+def _extract_class_pytestmark_markers(class_node: ast.ClassDef) -> Set[str]:
+    markers = set()
+    for statement in class_node.body:
+        markers |= _extract_pytestmark_assignment_markers(statement)
+    return markers
+
+
+def _extract_pytestmark_assignment_markers(statement: ast.stmt) -> Set[str]:
+    if not isinstance(statement, ast.Assign):
+        return set()
+
+    if not any(
+        isinstance(target, ast.Name) and target.id == "pytestmark"
+        for target in statement.targets
+    ):
+        return set()
+
+    return _extract_markers_from_pytestmark_value(statement.value)
+
+
+def _extract_markers_from_pytestmark_value(value: ast.expr) -> Set[str]:
+    # pytestmark supports a single marker or a list/tuple of markers.
+    if isinstance(value, (ast.List, ast.Tuple, ast.Set)):
+        markers = set()
+        for element in value.elts:
+            markers |= _extract_markers_from_pytestmark_value(element)
+        return markers
+
+    marker_name = _extract_marker_name(value)
+    if marker_name:
+        return {marker_name}
+
+    return set()
 
 
 def _extract_marker_name(decorator: ast.expr) -> Optional[str]:
