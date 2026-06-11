@@ -1156,6 +1156,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         else:
             fill_page_table = page_table
 
+
         if use_max_model_len:
             cache_position_dev = self._cache_position_dev_max
             page_table_dev = self._page_table_dev_max
@@ -1195,12 +1196,31 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
+        # Cached prefill: when prefix-cache hits exist, build a shifted-causal
+        # mask so suffix queries attend to all prefix tokens + causally within.
+        cached_prefill = bool(np.any(offsets > 0))
+        if cached_prefill:
+            prefix_len = int(self.input_batch.num_computed_tokens_cpu[0])
+            suffix_len = padded_total_num_scheduled_tokens
+            full_kv_len = prefix_len + suffix_len
+            # mask[i,j] = -inf where j > prefix_len + i (future suffix tokens)
+            attn_mask_cpu = torch.triu(
+                torch.full((suffix_len, full_kv_len), float("-inf")),
+                diagonal=prefix_len + 1,
+            ).unsqueeze(0).unsqueeze(0)  # [1, 1, S, P+S] for broadcast
+            attn_mask = attn_mask_cpu.to(self.device)
+            num_computed_for_attn = prefix_len
+        else:
+            attn_mask = None
+            num_computed_for_attn = None
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
+            is_causal=not cached_prefill,
+            attn_mask=attn_mask,
             fill_page_table=fill_page_table,
+            num_computed_tokens=num_computed_for_attn,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this

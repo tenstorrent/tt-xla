@@ -177,6 +177,9 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    # Per-user count of tokens already in the paged cache (prefix length).
+    # Non-None only on cached-prefill (prefix-cache HIT with suffix > 1 token).
+    num_computed_tokens: int | None
 
     def __init__(
         self,
@@ -185,6 +188,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        num_computed_tokens: int | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +197,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.num_computed_tokens = num_computed_tokens
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -532,6 +537,13 @@ class TTAttentionBackendImpl(AttentionImpl):
             and kv_cache[0].numel() > 0
         )
 
+        cached_prefill_mode = (
+            not shared_kv_mode
+            and attn_metadata.num_computed_tokens is not None
+            and isinstance(kv_cache, (list, tuple))
+            and kv_cache[0].numel() > 0
+        )
+
         if shared_kv_mode:
             # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]
             # from the target layer's paged cache (kv_cache is already the
@@ -545,6 +557,24 @@ class TTAttentionBackendImpl(AttentionImpl):
             # SDPA expects [users, num_heads, tokens, head]. The gather helper
             # already returns that layout, only Q needs the transpose.
             query_for_sdpa = inputs.query.transpose(-3, -2)
+        elif cached_prefill_mode:
+            # Cached prefill: prefix KV is in paged cache, suffix KV is freshly
+            # computed. Gather prefix and concat with suffix so SDPA attends to
+            # the full context.
+            prefix_len = attn_metadata.num_computed_tokens
+            prefix_key = self._gather_paged_to_dense(
+                kv_cache[0], attn_metadata.page_table, prefix_len
+            )
+            prefix_value = self._gather_paged_to_dense(
+                kv_cache[1], attn_metadata.page_table, prefix_len
+            )
+            # Suffix K/V: [users, num_kv_heads, suffix_tokens, head_size]
+            suffix_key = inputs.key.transpose(-3, -2)
+            suffix_value = inputs.value.transpose(-3, -2)
+            # Full KV: [users, num_kv_heads, prefix+suffix, head_size]
+            key_for_sdpa = torch.cat([prefix_key, suffix_key], dim=2)
+            value_for_sdpa = torch.cat([prefix_value, suffix_value], dim=2)
+            query_for_sdpa = inputs.query.transpose(-3, -2)
         else:
             # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
             query_for_sdpa = inputs.query.transpose(-3, -2)
@@ -552,7 +582,9 @@ class TTAttentionBackendImpl(AttentionImpl):
             value_for_sdpa = inputs.value.transpose(-3, -2)
 
         sdpa_kwargs = {
-            "is_causal": attn_metadata.is_causal,
+            "is_causal": attn_metadata.is_causal
+            if not cached_prefill_mode
+            else False,
             "attn_mask": attn_metadata.attn_mask,
             "scale": self.scale,
         }

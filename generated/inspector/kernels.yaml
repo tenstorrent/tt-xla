@@ -1,0 +1,174 @@
+- kernel:
+    watcher_kernel_id: 4
+    name: cq_dispatch_subordinate_compute
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/cq_dispatch_subordinate_compute/12890476598072200665/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate_compute.cpp
+    program_id: 2
+- kernel:
+    watcher_kernel_id: 3
+    name: cq_dispatch_subordinate
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/cq_dispatch_subordinate/6022362850621361835/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch_subordinate.cpp
+    program_id: 2
+- kernel:
+    watcher_kernel_id: 2
+    name: cq_dispatch
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/cq_dispatch/447818591544611285/
+    source: tt_metal/impl/dispatch/kernels/cq_dispatch.cpp
+    program_id: 2
+- kernel:
+    watcher_kernel_id: 1
+    name: cq_prefetch
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/cq_prefetch/2527009427407290218/
+    source: tt_metal/impl/dispatch/kernels/cq_prefetch.cpp
+    program_id: 2
+- kernel:
+    watcher_kernel_id: 6
+    name: cq_realtime_profiler_push
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/cq_realtime_profiler_push/6783220671071789809/
+    source: tt_metal/impl/dispatch/kernels/cq_realtime_profiler_push.cpp
+    program_id: 3
+- kernel:
+    watcher_kernel_id: 5
+    name: cq_realtime_profiler
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/cq_realtime_profiler/7220061753725154384/
+    source: tt_metal/impl/dispatch/kernels/cq_realtime_profiler.cpp
+    program_id: 3
+- kernel:
+    watcher_kernel_id: 7
+    name: reader_unary_pad_multicore_both_dims
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/reader_unary_pad_multicore_both_dims/8306706617211679871/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize_with_val_padding/device/kernels/dataflow/reader_unary_pad_multicore_both_dims.cpp
+    program_id: 4
+- kernel:
+    watcher_kernel_id: 8
+    name: writer_unary_interleaved_start_id_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/writer_unary_interleaved_start_id_wh/2616067736478923277/
+    source: ttnn/cpp/ttnn/operations/eltwise/unary/device/kernels/dataflow/writer_unary_interleaved_start_id_wh.cpp
+    program_id: 4
+- kernel:
+    watcher_kernel_id: 9
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/15782226159406700223/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 4
+- kernel:
+    watcher_kernel_id: 10
+    name: reader_unary_stick_layout_split_rows_multicore
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/reader_unary_stick_layout_split_rows_multicore/8227583737198489040/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/dataflow/reader_unary_stick_layout_split_rows_multicore.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 11
+    name: writer_unary_interleaved_start_id
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/writer_unary_interleaved_start_id/18107942618268027504/
+    source: ttnn/cpp/ttnn/operations/eltwise/unary/device/kernels/dataflow/writer_unary_interleaved_start_id.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 12
+    name: tilize
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize/15365215978228183878/
+    source: ttnn/cpp/ttnn/kernel/compute/tilize.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 13
+    name: tilize
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize/8405530780483808704/
+    source: ttnn/cpp/ttnn/kernel/compute/tilize.cpp
+    program_id: 6
+- kernel:
+    watcher_kernel_id: 14
+    name: reader_unary_pad_multicore_both_dims
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/reader_unary_pad_multicore_both_dims/10905651783757994291/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize_with_val_padding/device/kernels/dataflow/reader_unary_pad_multicore_both_dims.cpp
+    program_id: 8
+- kernel:
+    watcher_kernel_id: 15
+    name: writer_unary_interleaved_start_id_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/writer_unary_interleaved_start_id_wh/12929501079429934117/
+    source: ttnn/cpp/ttnn/operations/eltwise/unary/device/kernels/dataflow/writer_unary_interleaved_start_id_wh.cpp
+    program_id: 8
+- kernel:
+    watcher_kernel_id: 17
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/2558199609178311178/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 8
+- kernel:
+    watcher_kernel_id: 18
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/15685471442200157185/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 8
+- kernel:
+    watcher_kernel_id: 19
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/2213236764610030642/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 8
+- kernel:
+    watcher_kernel_id: 16
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/6092089791704921013/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 8
+- kernel:
+    watcher_kernel_id: 21
+    name: writer_unary_interleaved_start_id_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/writer_unary_interleaved_start_id_wh/11611774867891482288/
+    source: ttnn/cpp/ttnn/operations/eltwise/unary/device/kernels/dataflow/writer_unary_interleaved_start_id_wh.cpp
+    program_id: 10
+- kernel:
+    watcher_kernel_id: 20
+    name: reader_unary_pad_multicore_both_dims
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/reader_unary_pad_multicore_both_dims/5729224080701242596/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize_with_val_padding/device/kernels/dataflow/reader_unary_pad_multicore_both_dims.cpp
+    program_id: 10
+- kernel:
+    watcher_kernel_id: 25
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/14852431814519717531/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 10
+- kernel:
+    watcher_kernel_id: 24
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/14464091468387713635/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 10
+- kernel:
+    watcher_kernel_id: 22
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/16625825811803546985/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 10
+- kernel:
+    watcher_kernel_id: 23
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/1190328535531575480/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 10
+- kernel:
+    watcher_kernel_id: 27
+    name: writer_unary_interleaved_start_id_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/writer_unary_interleaved_start_id_wh/10598126107420052824/
+    source: ttnn/cpp/ttnn/operations/eltwise/unary/device/kernels/dataflow/writer_unary_interleaved_start_id_wh.cpp
+    program_id: 12
+- kernel:
+    watcher_kernel_id: 26
+    name: reader_unary_pad_multicore_both_dims
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/reader_unary_pad_multicore_both_dims/1287100359776025197/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize_with_val_padding/device/kernels/dataflow/reader_unary_pad_multicore_both_dims.cpp
+    program_id: 12
+- kernel:
+    watcher_kernel_id: 29
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/7762913198402795023/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 12
+- kernel:
+    watcher_kernel_id: 28
+    name: tilize_wh
+    path: /home/akhan/.cache/tt-metal-cache/1500535956902424922/kernels/tilize_wh/12402841927560544048/
+    source: ttnn/cpp/ttnn/operations/data_movement/tilize/device/kernels/compute/tilize_wh.cpp
+    program_id: 12
