@@ -616,7 +616,7 @@ def parse_collect_output(output: str, run_id: str) -> list[DiscoveryEntry]:
     seen: set[str] = set()
     for raw_line in output.splitlines():
         line = raw_line.strip()
-        if not line.startswith("tests/benchmark/"):
+        if not line.startswith(("tests/benchmark/", RUNNER_TORCH_INFERENCE_SOURCE)):
             continue
         token = line.split()[0]
         if "::" not in token:
@@ -710,6 +710,170 @@ def nvidia_cohort_discovery_result(
         stderr_path="",
         note=note,
     )
+
+
+def collect_runner_models_for_nvidia_cohort(
+    repo: Path,
+    run_id: str,
+    python_bin: str,
+    command_trace_path: Path,
+    timeout_seconds: int = 900,
+) -> tuple[list[DiscoveryEntry], CommandResult]:
+    command = collect_command(python_bin, [Path(RUNNER_TORCH_INFERENCE_SOURCE)])
+    tmp_dir = ensure_dir(repo / ".tmp" / "ttxla-profile-discovery")
+    stdout_path = tmp_dir / f"collect-nvidia-runner-{run_id}.out"
+    stderr_path = tmp_dir / f"collect-nvidia-runner-{run_id}.err"
+    result = run_subprocess(
+        command=command,
+        cwd=repo,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        stage="discover-nvidia-runner",
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+        env=repo_subprocess_environment(repo),
+    )
+    collected = stdout_path.read_text(encoding="utf-8") if stdout_path.exists() else ""
+    entries = parse_collect_output(collected, run_id)
+    result.note = (
+        f"collected {len(entries)} TT runner nodes before NVIDIA cohort filtering"
+    )
+    return entries, result
+
+
+def nvidia_missing_entries(
+    candidate_entries: list[DiscoveryEntry],
+    collected_entries: list[DiscoveryEntry],
+    validated_collection: bool,
+) -> list[DiscoveryEntry]:
+    if not validated_collection:
+        return []
+    collected_nodeids = {entry.nodeid for entry in collected_entries}
+    return [
+        entry for entry in candidate_entries if entry.nodeid not in collected_nodeids
+    ]
+
+
+def nvidia_collection_payload(discovery_result: CommandResult) -> dict[str, Any]:
+    return {
+        "command": shell_join(discovery_result.command),
+        "returncode": discovery_result.returncode,
+        "timed_out": discovery_result.timed_out,
+        "stdout": discovery_result.stdout_path,
+        "stderr": discovery_result.stderr_path,
+        "note": discovery_result.note,
+    }
+
+
+def nvidia_cohort_mapping_payload(
+    cohort_path: Path,
+    candidate_entries: list[DiscoveryEntry],
+    selected_entries: list[DiscoveryEntry],
+    collected_entries: list[DiscoveryEntry],
+    discovery_result: CommandResult,
+    validated_collection: bool,
+) -> dict[str, Any]:
+    missing_entries = nvidia_missing_entries(
+        candidate_entries, collected_entries, validated_collection
+    )
+    selected_nodeids = {entry.nodeid for entry in selected_entries}
+    return {
+        "cohort_path": str(cohort_path),
+        "validated_collection": validated_collection,
+        "collection": nvidia_collection_payload(discovery_result),
+        "counts": {
+            "candidate_rows": len(candidate_entries),
+            "collected_runner_nodes": len(collected_entries),
+            "selected_rows": len(selected_entries),
+            "missing_rows": len(missing_entries),
+        },
+        "selected": [asdict(entry) for entry in selected_entries],
+        "missing": [asdict(entry) for entry in missing_entries],
+        "candidate_nodeids": [entry.nodeid for entry in candidate_entries],
+        "selected_nodeids": [entry.nodeid for entry in selected_entries],
+        "collected_matching_nodeids": [
+            entry.nodeid
+            for entry in collected_entries
+            if entry.nodeid in selected_nodeids
+        ],
+    }
+
+
+def write_nvidia_cohort_mapping(
+    run_dir: Path,
+    cohort_path: Path,
+    candidate_entries: list[DiscoveryEntry],
+    selected_entries: list[DiscoveryEntry],
+    collected_entries: list[DiscoveryEntry],
+    discovery_result: CommandResult,
+    validated_collection: bool,
+) -> None:
+    write_json(
+        run_dir / "nvidia-cohort-mapping.json",
+        nvidia_cohort_mapping_payload(
+            cohort_path,
+            candidate_entries,
+            selected_entries,
+            collected_entries,
+            discovery_result,
+            validated_collection,
+        ),
+    )
+
+
+def select_nvidia_cohort_entries(
+    repo: Path,
+    run_dir: Path,
+    cohort_path: Path,
+    run_id: str,
+    python_bin: str,
+    command_trace_path: Path,
+    timeout_seconds: int,
+    validate_collection: bool,
+) -> tuple[list[DiscoveryEntry], CommandResult]:
+    candidate_entries = load_nvidia_cohort_entries(cohort_path, run_id)
+    if not validate_collection:
+        discovery_result = nvidia_cohort_discovery_result(
+            repo, cohort_path, candidate_entries
+        )
+        write_nvidia_cohort_mapping(
+            run_dir,
+            cohort_path,
+            candidate_entries,
+            candidate_entries,
+            [],
+            discovery_result,
+            validated_collection=False,
+        )
+        return candidate_entries, discovery_result
+
+    collected_entries, discovery_result = collect_runner_models_for_nvidia_cohort(
+        repo=repo,
+        run_id=run_id,
+        python_bin=python_bin,
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+    )
+    collected_nodeids = {entry.nodeid for entry in collected_entries}
+    selected_entries = [
+        entry for entry in candidate_entries if entry.nodeid in collected_nodeids
+    ]
+    missing_count = len(candidate_entries) - len(selected_entries)
+    discovery_result.note = (
+        f"validated {len(selected_entries)} of {len(candidate_entries)} "
+        f"NVIDIA/SILICON_PASS cohort rows against TT runner collection; "
+        f"{missing_count} rows were not collected"
+    )
+    write_nvidia_cohort_mapping(
+        run_dir,
+        cohort_path,
+        candidate_entries,
+        selected_entries,
+        collected_entries,
+        discovery_result,
+        validated_collection=True,
+    )
+    return selected_entries, discovery_result
 
 
 def discover_models(
@@ -1925,6 +2089,9 @@ def discover_artifacts(
             "command_trace": str(run_dir / "command-trace.jsonl"),
         },
     }
+    nvidia_mapping_path = run_dir / "nvidia-cohort-mapping.json"
+    if nvidia_mapping_path.exists():
+        manifest["artifacts"]["nvidia_cohort_mapping"] = str(nvidia_mapping_path)
     write_json(run_dir / "manifest.json", manifest)
     write_json(run_dir / "environment.json", environment)
     write_json(
@@ -3628,9 +3795,15 @@ def discover_selected_entries(
         cohort_path = Path(args.nvidia_cohort_json)
         if not cohort_path.is_absolute():
             cohort_path = context.root / cohort_path
-        entries = load_nvidia_cohort_entries(cohort_path, context.run_dir.name)
-        discovery_result = nvidia_cohort_discovery_result(
-            context.root, cohort_path, entries
+        entries, discovery_result = select_nvidia_cohort_entries(
+            repo=context.root,
+            run_dir=context.run_dir,
+            cohort_path=cohort_path,
+            run_id=context.run_dir.name,
+            python_bin=context.python_bin,
+            command_trace_path=context.command_trace_path,
+            timeout_seconds=args.discovery_timeout_seconds,
+            validate_collection=not args.nvidia_skip_collection_validation,
         )
         return (
             select_discovery_entries(entries, args.nodeid_filter, args.max_models),
@@ -3885,6 +4058,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--nvidia-skip-collection-validation",
+        action="store_true",
+        help=(
+            "Use synthetic NVIDIA test_case_id to TT runner node mapping without "
+            "validating those node IDs through pytest collection first. Intended "
+            "only for dry mapping/debugging when the runner environment is not available."
+        ),
+    )
+    parser.add_argument(
         "--nodeid-filter",
         action="append",
         default=[],
@@ -4032,8 +4214,16 @@ def execute_discover_command(args: argparse.Namespace) -> int:
         cohort_path = Path(args.nvidia_cohort_json)
         if not cohort_path.is_absolute():
             cohort_path = root / cohort_path
-        entries = load_nvidia_cohort_entries(cohort_path, run_dir.name)
-        discovery_result = nvidia_cohort_discovery_result(root, cohort_path, entries)
+        entries, discovery_result = select_nvidia_cohort_entries(
+            repo=root,
+            run_dir=run_dir,
+            cohort_path=cohort_path,
+            run_id=run_dir.name,
+            python_bin=python_bin,
+            command_trace_path=command_trace_path,
+            timeout_seconds=args.discovery_timeout_seconds,
+            validate_collection=not args.nvidia_skip_collection_validation,
+        )
     else:
         entries, discovery_result = discover_models(
             repo=root,

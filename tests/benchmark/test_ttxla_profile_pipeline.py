@@ -596,6 +596,29 @@ def test_load_nvidia_cohort_entries_maps_test_case_id_to_tt_runner_node(tmp_path
     assert entries[0].run_identity == "run-5009-demo-0001"
 
 
+def write_fake_runner_model_test(repo_root, collected_test_case_id):
+    runner_dir = repo_root / "tests" / "runner"
+    runner_dir.mkdir(parents=True)
+    (runner_dir / "test_models.py").write_text(
+        "\n".join(
+            [
+                "import pytest",
+                "",
+                "@pytest.mark.parametrize(",
+                "    'case',",
+                "    [pytest.param(0, id='"
+                + collected_test_case_id
+                + "-single_device-inference')],",
+                ")",
+                "def test_all_models_torch(case):",
+                "    pass",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_selected_benchmark_files_defaults_or_resolves_requested_paths(tmp_path):
     pipeline = load_pipeline_module()
 
@@ -611,6 +634,9 @@ def test_discover_command_uses_nvidia_cohort_json(tmp_path):
     pipeline = load_pipeline_module()
     cohort_path = tmp_path / "cohort.json"
     run_dir = tmp_path / "run-5009-cohort-discover"
+    write_fake_runner_model_test(
+        tmp_path, "data2vec_text/feature_extraction/pytorch-Tiny_Random"
+    )
     cohort_path.write_text(
         json.dumps(
             {
@@ -638,6 +664,7 @@ def test_discover_command_uses_nvidia_cohort_json(tmp_path):
     )
 
     manifest = json.loads((run_dir / "model-manifest.json").read_text())
+    run_manifest = json.loads((run_dir / "manifest.json").read_text())
 
     assert exit_code == 0
     assert manifest["models"][0]["nodeid"] == (
@@ -645,6 +672,111 @@ def test_discover_command_uses_nvidia_cohort_json(tmp_path):
         "[data2vec_text/feature_extraction/pytorch-Tiny_Random-single_device-inference]"
     )
     assert manifest["models"][0]["source_path"] == "tests/runner/test_models.py"
+    mapping = json.loads((run_dir / "nvidia-cohort-mapping.json").read_text())
+    assert mapping["validated_collection"] is True
+    assert mapping["counts"]["candidate_rows"] == 1
+    assert mapping["counts"]["selected_rows"] == 1
+    assert mapping["counts"]["missing_rows"] == 0
+    assert run_manifest["artifacts"]["nvidia_cohort_mapping"] == str(
+        run_dir / "nvidia-cohort-mapping.json"
+    )
+
+
+def test_nvidia_cohort_collection_validation_records_missing_rows(tmp_path):
+    pipeline = load_pipeline_module()
+    cohort_path = tmp_path / "cohort.json"
+    run_dir = tmp_path / "run-5009-cohort-missing"
+    write_fake_runner_model_test(
+        tmp_path, "distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad"
+    )
+    cohort_path.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "test_case_id": "distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad",
+                        "model_id": "distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-inference",
+                    },
+                    {
+                        "test_case_id": "data2vec_text/feature_extraction/pytorch-Tiny_Random",
+                        "model_id": "data2vec_text/feature_extraction/pytorch-Tiny_Random-single_device-inference",
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = pipeline.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--run-dir",
+            str(run_dir),
+            "--nvidia-cohort-json",
+            str(cohort_path),
+            "discover",
+        ]
+    )
+
+    manifest = json.loads((run_dir / "model-manifest.json").read_text())
+    mapping = json.loads((run_dir / "nvidia-cohort-mapping.json").read_text())
+
+    assert exit_code == 0
+    assert [model["nodeid"] for model in manifest["models"]] == [
+        "tests/runner/test_models.py::test_all_models_torch"
+        "[distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad-single_device-inference]"
+    ]
+    assert mapping["validated_collection"] is True
+    assert mapping["counts"]["candidate_rows"] == 2
+    assert mapping["counts"]["selected_rows"] == 1
+    assert mapping["counts"]["missing_rows"] == 1
+    assert mapping["missing"][0]["nodeid"] == (
+        "tests/runner/test_models.py::test_all_models_torch"
+        "[data2vec_text/feature_extraction/pytorch-Tiny_Random-single_device-inference]"
+    )
+
+
+def test_nvidia_cohort_skip_collection_validation_keeps_synthetic_rows(tmp_path):
+    pipeline = load_pipeline_module()
+    cohort_path = tmp_path / "cohort.json"
+    run_dir = tmp_path / "run-5009-cohort-synthetic"
+    cohort_path.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "test_case_id": "data2vec_text/feature_extraction/pytorch-Tiny_Random",
+                        "model_id": "data2vec_text/feature_extraction/pytorch-Tiny_Random-single_device-inference",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = pipeline.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--run-dir",
+            str(run_dir),
+            "--nvidia-cohort-json",
+            str(cohort_path),
+            "--nvidia-skip-collection-validation",
+            "discover",
+        ]
+    )
+
+    manifest = json.loads((run_dir / "model-manifest.json").read_text())
+    mapping = json.loads((run_dir / "nvidia-cohort-mapping.json").read_text())
+
+    assert exit_code == 0
+    assert len(manifest["models"]) == 1
+    assert mapping["validated_collection"] is False
+    assert mapping["counts"]["candidate_rows"] == 1
+    assert mapping["counts"]["selected_rows"] == 1
+    assert mapping["counts"]["missing_rows"] == 0
 
 
 def test_infer_taxonomy_distinguishes_environment_model_and_terminal_states():

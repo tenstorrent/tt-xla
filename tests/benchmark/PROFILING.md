@@ -108,6 +108,13 @@ through Tracy; it does not use the CUDA-specific NVIDIA tester. Runner entries
 receive runner-native output flags (`--dump-irs-dir`, `--perf-report-dir`, and
 `--perf-id`) instead of benchmark-only flags such as `--output-file`.
 
+By default, NVIDIA cohort discovery validates those exact runner node IDs with
+`pytest --collect-only -q tests/runner/test_models.py` before profiling. The run
+writes `nvidia-cohort-mapping.json` with candidate rows, collected runner nodes,
+selected rows, and missing rows. Use `--nvidia-skip-collection-validation` only
+for dry mapping/debugging when the runner collection environment is unavailable;
+do not use synthetic-only mapping as proof that a row is runnable.
+
 To run the same pipeline on IRD, use `--target ird`. The default mode uses a
 short-lived `ird run` job so the scheduler owns container teardown:
 
@@ -199,6 +206,7 @@ The pipeline writes:
 - `manifest.json`
 - `environment.json`
 - `model-manifest.json`
+- `nvidia-cohort-mapping.json` when `--nvidia-cohort-json` is used
 - `requirements.json`
 - `command-trace.jsonl`
 - `ird/ird-lifecycle.json` when `--target ird` is used
