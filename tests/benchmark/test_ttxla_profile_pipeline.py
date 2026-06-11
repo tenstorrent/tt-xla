@@ -872,6 +872,30 @@ def test_model_success_ignores_environment_warning_text():
     assert pipeline.infer_model_status(0, False, text, {"model": "demo"}) == "passed"
 
 
+def test_pytest_pass_without_benchmark_json_is_validated_by_perf_report():
+    pipeline = load_pipeline_module()
+    text = "\n".join(
+        [
+            "PASSED",
+            "================== 1 passed, 25 warnings in 141.49s ==================",
+            "Benchmark results saved to perf-report/report_perf_demo.json",
+        ]
+    )
+
+    assert pipeline.infer_model_status(0, False, text, {}) == "passed"
+
+    taxonomy, reason = pipeline.infer_taxonomy(
+        returncode=0,
+        timed_out=False,
+        text=text,
+        benchmark_json={},
+        perf_report_ok=True,
+    )
+
+    assert taxonomy == "validated_pass"
+    assert "perf report" in reason
+
+
 def test_discovery_and_manifest_artifacts_are_written(tmp_path):
     pipeline = load_pipeline_module()
     run_dir = tmp_path / "artifacts" / "prd-009" / "ttxla-profile" / "run-5009-demo"

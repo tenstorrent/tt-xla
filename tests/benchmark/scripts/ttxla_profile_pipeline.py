@@ -1097,6 +1097,8 @@ def infer_model_status(
         return "skipped"
     if returncode == 0 and benchmark_json:
         return "passed"
+    if returncode == 0 and text_has_pytest_pass_signal(text):
+        return "passed"
     if benchmark_json and text_has_pytest_pass_signal(text):
         return "passed"
     if timed_out:
