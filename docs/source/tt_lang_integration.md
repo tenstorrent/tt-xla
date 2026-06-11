@@ -14,7 +14,7 @@ The torch custom op it emits is registered in
 import tt_torch
 import ttl  # tt-lang
 
-@tt_torch.kernel(kernel_id="moe.routed_mlp.v1", arg_roles=("in", "in", "out"))
+@tt_torch.tt_lang_operation(operation_id="moe.routed_mlp.v1", arg_roles=("in", "in", "out"))
 @ttl.operation(grid=(8, 8))
 def routed_mlp(lhs, rhs, out):
     ...
@@ -26,7 +26,7 @@ routed_mlp(lhs, rhs, out)
 The decorator does three things at call time:
 
 1. Validates inputs and copies argument-role metadata into a process-global
-   registry keyed by `kernel_id`.
+   registry keyed by `operation_id`.
 2. Emits `stablehlo.custom_call @tt.tt_lang_op` whose `frontend_attributes`
    carry the metadata the plugin will need at compile/execute time.
 3. Copies the functional custom-call results back into the user's
@@ -39,7 +39,7 @@ Shardy, TTIR legalization, and TTNN lowering all see it as a normal op.
 
 ```text
 PyTorch model
-   |  @tt_torch.kernel(kernel_id=...)  -- registers callable, emits custom op
+   |  @tt_torch.tt_lang_operation(operation_id=...)  -- registers callable, emits custom op
    v
 stablehlo.custom_call @tt.tt_lang_op
    { kernel_id, arg_roles, version_tag, shard_spec }
@@ -56,7 +56,7 @@ TTIR -> TTNN                    (ttnn.tt_lang_op, kernel_artifact = empty)
    v  ModuleBuilder::resolveTtLangKernels (compile time, post-TTNN)
 tt-mlir's --ttnn-resolve-tt-lang-kernels pass walks the module for
 `ttnn.tt_lang_op`s and calls
-    tt_torch.tt_lang.resolve_kernel(kernel_id, version_tag, shapes, dtypes, ...)
+    tt_torch.tt_lang.resolve_operation(operation_id, version_tag, shapes, dtypes, ...)
 through the embedded Python interpreter (host's libpython, GIL acquired).
    |
    v
@@ -75,10 +75,10 @@ already-bound kernel -- no Python on the hot path.
 | Piece | Location | Status |
 |---|---|---|
 | `torch.ops.tt.tt_lang_op` (variadic custom op + fake + autograd-raises) | `python_package/tt_torch/custom_ops.py` | done |
-| `@tt_torch.kernel` decorator | `python_package/tt_torch/tt_lang.py` | done |
-| `kernel_id -> KernelEntry` registry | `python_package/tt_torch/tt_lang.py` | done |
-| `resolve_kernel(...)` entry point | `python_package/tt_torch/tt_lang.py` | **stub** -- raises `NotImplementedError`; signature is stable for the plugin to call against |
-| Embedded-Python resolver (`pybind11`, calls `tt_torch.tt_lang.resolve_kernel`) | tt-mlir `--ttnn-resolve-tt-lang-kernels` pass (`lib/Dialect/TTNN/Transforms/TTNNResolveTtLangKernels*.cpp`) | done |
+| `@tt_torch.tt_lang_operation` decorator | `python_package/tt_torch/tt_lang.py` | done |
+| `operation_id -> OperationEntry` registry | `python_package/tt_torch/tt_lang.py` | done |
+| `resolve_operation(...)` entry point | `python_package/tt_torch/tt_lang.py` | **stub** -- raises `NotImplementedError`; signature is stable for the plugin to call against |
+| Embedded-Python resolver (`pybind11`, calls `tt_torch.tt_lang.resolve_operation`) | tt-mlir `--ttnn-resolve-tt-lang-kernels` pass (`lib/Dialect/TTNN/Transforms/TTNNResolveTtLangKernels*.cpp`) | done |
 | `ModuleBuilder::resolveTtLangKernels(...)` compile-time hook (runs the tt-mlir pass via a `PassManager`) | `pjrt_implementation/src/api/module_builder/module_builder.cc` | done -- no-op until tt-mlir emits `ttnn.tt_lang_op` |
 
 The pybind11 / libpython dependency lives entirely in tt-mlir's
@@ -103,7 +103,7 @@ Its operands are the input tensors followed by the pre-allocated outputs
 
 | attribute | meaning |
 |---|---|
-| `kernel_id` | Stable identifier the plugin will pass back to `resolve_kernel`. |
+| `kernel_id` | Stable identifier the plugin will pass back to `resolve_operation`. |
 | `arg_roles` | Comma-separated per-operand role, constrained to `in* out+` (all inputs first, then outputs), e.g. `"in,in,out"`. |
 | `version_tag` | Hash of kernel source; the plugin sends it back so the resolver can refuse stale matches. |
 | `shard_spec` | Optional opaque sharding hint (empty string when unused). |
@@ -152,10 +152,10 @@ and the runtime backend handoff. It drives tt-mlir's
    `kernel_artifact` is still empty (already-baked ops are skipped, so the
    pass is composable with future ahead-of-time artifact paths).
 2. Acquires the GIL on the host Python (the one that loaded the plugin)
-   and imports `tt_torch.tt_lang.resolve_kernel` once per pass.
+   and imports `tt_torch.tt_lang.resolve_operation` once per pass.
 3. For each op, reads the four named attributes, builds per-operand
    `(shape, dtype, layout)` triples from the op's operand types, and
-   calls `resolve_kernel(...)` through pybind11.
+   calls `resolve_operation(...)` through pybind11.
 4. Attaches the returned `bytes` (the JSON artifact) back onto the op
    as the `kernel_artifact` `StringAttr`.
 
@@ -170,7 +170,7 @@ What this still needs:
   emitter described below.
 * Layout hand-off in the resolver pass (T6). **Done** -- the pass
   now stringifies each operand's `ttnn.ttnn_layout` encoding and passes
-  it through to `resolve_kernel`; the Python side records it under
+  it through to `resolve_operation`; the Python side records it under
   `operand_metadata.layouts` in the artifact JSON so the flatbuffer
   emitter can consume it later.
 
@@ -198,14 +198,14 @@ descriptive error pointing at the missing wheel.
 
 ### 4. tt-lang: compile driver (done)
 
-`resolve_kernel` drives tt-lang's existing compile path with mock torch
+`resolve_operation` drives tt-lang's existing compile path with mock torch
 tensors and the `TTLANG_COMPILE_ONLY=1` env var, monkey-patching
 `ttl.ttl_api._compile_kernel` to capture the resulting
 `CompiledTTNNKernel`. The captured bundle is serialized into a JSON byte
 blob (kernel C++ sources, thread types, configs/CB/core-ranges, tensor
 indices, plus `operand_metadata` recording the shapes/dtypes/layouts
 the kernel was compiled against). See
-`python_package/tt_torch/tt_lang.py::_serialize_compiled_kernel` and the
+`python_package/tt_torch/tt_lang.py::_serialize_compiled_operation` and the
 versioned `_ARTIFACT_FORMAT_VERSION` constant; the tt-mlir flatbuffer
 emitter (T4) decodes the same schema.
 
@@ -432,7 +432,7 @@ coverage.
    required -- the same path every other DPS op (matmul, etc.) takes.
 
    The `in* out+` ordering is enforced in three places: the
-   `@tt_torch.kernel` decorator (`_normalize_arg_roles`), the TTIR
+   `@tt_torch.tt_lang_operation` decorator (`_normalize_arg_roles`), the TTIR
    verifier, and the TTNN verifier. The flatbuffer emitter
    (`TTNNToFlatbuffer.cpp`) relies on it too: operand declaration order
    already matches the runtime's `io_tensors` order (ins first, then
@@ -449,14 +449,14 @@ Today there is no cache. The PJRT plugin already caches whole compiled
 executables; tt-lang should cache its own compilations. Only if profiling
 shows our resolve callback firing multiple times for the same arguments
 should we add caching here -- and then it can be a single
-`functools.lru_cache` on `resolve_kernel`, not a separate subsystem.
+`functools.lru_cache` on `resolve_operation`, not a separate subsystem.
 
 ### 6. Autograd (if needed)
 
 `torch.ops.tt.tt_lang_op` currently raises from its autograd hook to
 prevent silent zero-gradient bugs. When backward support is required,
-the canonical pattern is to author a separate `@tt_torch.kernel` (with
-its own `kernel_id`) for the backward and have the autograd hook look it
+the canonical pattern is to author a separate `@tt_torch.tt_lang_operation` (with
+its own `operation_id`) for the backward and have the autograd hook look it
 up and invoke it.
 
 ## Why this shape
@@ -466,11 +466,12 @@ A few invariants kept the design honest:
 * The custom op must stay inside the XLA graph end to end so that Shardy,
   layout, and ttnn.generic placement all compose with it. Anything that
   routes around the graph (e.g. a host callback) defeats the integration.
-* The Python side owns only what it must own: the user-facing API, a
-  `kernel_id` registry, and a single resolve entry point. Compile
+* The Python side owns only what it must own: the user-facing API, an
+  `operation_id` registry, and a single resolve entry point. Compile
   caching, ABI mirrors, and backend selection are deferred until there is
   real code to integrate them with.
-* The `kernel_id` is the only stable identifier crossing the C / Python
+* The operation id (the `kernel_id` MLIR/wire attribute) is the only stable
+  identifier crossing the C / Python
   boundary; everything else (shapes, dtypes, mesh) is normal PJRT runtime
   data the plugin already understands.
 
@@ -479,8 +480,8 @@ A few invariants kept the design honest:
 ```
 python_package/tt_torch/
 ├── custom_ops.py           # tt::tt_lang_op definition + fake + autograd
-└── tt_lang.py              # decorator + registry + resolve_kernel
-                            # + _serialize_compiled_kernel JSON producer
+└── tt_lang.py              # decorator + registry + resolve_operation
+                            # + _serialize_compiled_operation JSON producer
                             # (_ARTIFACT_FORMAT_VERSION is the schema gate)
 
 pjrt_implementation/inc/api/module_builder/
@@ -519,7 +520,7 @@ lib/Dialect/TTNN/Transforms/TTNNResolveTtLangKernels.cpp
                             # --ttnn-resolve-tt-lang-kernels pass: IR walk +
                             # mesh-shape parsing (-fno-rtti, no pybind11)
 lib/Dialect/TTNN/Transforms/TTNNResolveTtLangKernelsPython.cpp
-                            # pybind11 call into tt_torch.tt_lang.resolve_kernel
+                            # pybind11 call into tt_torch.tt_lang.resolve_operation
                             # (-frtti -fexceptions)
 
 test/ttmlir/Conversion/StableHLOToTTIR/tt_lang_op.mlir

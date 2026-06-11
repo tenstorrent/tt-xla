@@ -4,13 +4,13 @@
 
 """tt-lang integration for tt-xla.
 
-Author-facing surface: the ``@tt_torch.kernel`` decorator. Wrap a
-tt-lang kernel (typically also decorated with ``@ttl.operation``) with
-a stable ``kernel_id`` and invocations on XLA tensors become
+Author-facing surface: the ``@tt_torch.tt_lang_operation`` decorator. Wrap
+a tt-lang operation (typically also decorated with ``@ttl.operation``) with
+a stable ``operation_id`` and invocations on XLA tensors become
 ``stablehlo.custom_call @tt.tt_lang_op`` ops that flow through the
 SHLO -> TTIR -> TTNN pipeline. The plugin's
 ``ModuleBuilder::resolveTtLangKernels`` calls back into
-:func:`resolve_kernel` here to populate each op's ``kernel_artifact``.
+:func:`resolve_operation` here to populate each op's ``kernel_artifact``.
 
 The full pipeline and design notes live in
 ``docs/source/tt_lang_integration.md``. The torch custom op definition
@@ -31,19 +31,19 @@ import torch
 from tt_torch.custom_ops import tt_lang_op_dispatch
 
 __all__ = [
-    "KernelEntry",
+    "OperationEntry",
     "TtLangError",
-    "get_registered_kernel",
-    "iter_registered_kernels",
-    "kernel",
-    "resolve_kernel",
+    "tt_lang_operation",
+    "get_registered_operation",
+    "iter_registered_operations",
+    "resolve_operation",
 ]
 
 
-# Format version of the JSON artifact returned by ``resolve_kernel``.
+# Format version of the JSON artifact returned by ``resolve_operation``.
 # The tt-mlir flatbuffer emitter checks the same value; bump on any
 # breaking schema change. Schema documented at the
-# ``_serialize_compiled_kernel`` definition below.
+# ``_serialize_compiled_operation`` definition below.
 _ARTIFACT_FORMAT_VERSION = 1
 
 
@@ -54,27 +54,27 @@ class TtLangError(RuntimeError):
     """Raised when the tt-lang integration is asked to do something it can't."""
 
 
-class KernelEntry:
-    """A registered tt-lang kernel."""
+class OperationEntry:
+    """A registered tt-lang operation."""
 
-    __slots__ = ("kernel_id", "impl", "version_tag", "arg_roles")
+    __slots__ = ("operation_id", "impl", "version_tag", "arg_roles")
 
     def __init__(
         self,
         *,
-        kernel_id: str,
+        operation_id: str,
         impl: Callable,
         version_tag: str,
         arg_roles: Tuple[str, ...],
     ) -> None:
-        self.kernel_id = kernel_id
+        self.operation_id = operation_id
         self.impl = impl
         self.version_tag = version_tag
         self.arg_roles = arg_roles
 
     def __repr__(self) -> str:
         return (
-            f"KernelEntry(kernel_id={self.kernel_id!r}, "
+            f"OperationEntry(operation_id={self.operation_id!r}, "
             f"version_tag={self.version_tag!r}, arg_roles={self.arg_roles!r})"
         )
 
@@ -84,36 +84,36 @@ class KernelEntry:
 # ---------------------------------------------------------------------------
 
 
-_REGISTRY: dict[str, KernelEntry] = {}
+_REGISTRY: dict[str, OperationEntry] = {}
 _REGISTRY_LOCK = threading.Lock()
 
 
-def get_registered_kernel(kernel_id: str) -> KernelEntry:
-    """Look up a kernel by ``kernel_id``. Raises ``KeyError`` if missing."""
+def get_registered_operation(operation_id: str) -> OperationEntry:
+    """Look up an operation by ``operation_id``. Raises ``KeyError`` if missing."""
     with _REGISTRY_LOCK:
-        entry = _REGISTRY.get(kernel_id)
+        entry = _REGISTRY.get(operation_id)
     if entry is None:
-        raise KeyError(f"No tt-lang kernel registered with id {kernel_id!r}.")
+        raise KeyError(f"No tt-lang operation registered with id {operation_id!r}.")
     return entry
 
 
-def iter_registered_kernels() -> List[KernelEntry]:
-    """Snapshot of all currently-registered kernels (registration order)."""
+def iter_registered_operations() -> List[OperationEntry]:
+    """Snapshot of all currently-registered operations (registration order)."""
     with _REGISTRY_LOCK:
         return list(_REGISTRY.values())
 
 
-def _register(entry: KernelEntry) -> None:
+def _register(entry: OperationEntry) -> None:
     with _REGISTRY_LOCK:
-        prev = _REGISTRY.get(entry.kernel_id)
+        prev = _REGISTRY.get(entry.operation_id)
         if prev is not None and prev.version_tag != entry.version_tag:
             raise ValueError(
-                f"tt-lang kernel_id {entry.kernel_id!r} is already registered "
+                f"tt-lang operation_id {entry.operation_id!r} is already registered "
                 f"with a different version_tag "
                 f"(existing={prev.version_tag!r}, new={entry.version_tag!r}). "
-                f"Bump kernel_id when the kernel changes."
+                f"Bump operation_id when the operation changes."
             )
-        _REGISTRY[entry.kernel_id] = entry
+        _REGISTRY[entry.operation_id] = entry
 
 
 def _clear_registry_for_tests() -> None:
@@ -123,7 +123,7 @@ def _clear_registry_for_tests() -> None:
 
 
 def _derive_version_tag(fn: Callable) -> str:
-    """Stable short hash of the kernel source. Best-effort.
+    """Stable short hash of the operation source. Best-effort.
 
     Falls back to the qualified name if the source isn't introspectable
     (e.g. C-backed callables); identical source produces identical tags.
@@ -145,7 +145,7 @@ def _normalize_arg_roles(
 ) -> Tuple[str, ...]:
     """Validate ``arg_roles`` into a tuple of ``"in"``/``"out"`` tokens.
 
-    Raises ``ValueError`` if ``roles`` is ``None`` (every kernel must
+    Raises ``ValueError`` if ``roles`` is ``None`` (every operation must
     declare its roles explicitly -- there is no name-based inference),
     if ``len(roles) != num_args``, if any token is not in ``_VALID_ROLES``,
     or if any ``"in"`` follows an ``"out"``. The ``in* out+`` ordering is
@@ -155,13 +155,13 @@ def _normalize_arg_roles(
     """
     if roles is None:
         raise ValueError(
-            "tt-lang kernels must declare arg_roles= explicitly; name-based "
+            "tt-lang operations must declare arg_roles= explicitly; name-based "
             'inference was removed. Pass e.g. arg_roles=("in", "in", "out").'
         )
     norm = tuple(roles)
     if len(norm) != num_args:
         raise ValueError(
-            f"arg_roles has {len(norm)} entries but kernel was called with "
+            f"arg_roles has {len(norm)} entries but operation was called with "
             f"{num_args} positional tensors."
         )
     bad = [r for r in norm if r not in _VALID_ROLES]
@@ -174,7 +174,7 @@ def _normalize_arg_roles(
         raise ValueError(
             "arg_roles must list all \"in\" operands before any \"out\" "
             f"operand (destination-passing-style order); got {norm!r}. "
-            "Reorder the kernel signature so input tensors precede output "
+            "Reorder the operation signature so input tensors precede output "
             "tensors."
         )
     return norm
@@ -184,7 +184,7 @@ def _positional_arg_count(fn: Callable) -> int:
     """Return the static positional-arg count of ``fn``, or ``0`` if unknown.
 
     Counts ``POSITIONAL_ONLY`` and ``POSITIONAL_OR_KEYWORD`` parameters.
-    Returns ``0`` as a sentinel for ``*args`` kernels (arity unknown
+    Returns ``0`` as a sentinel for ``*args`` operations (arity unknown
     until call time) and for callables whose signature can't be
     introspected -- the decoration-time length check is then skipped
     and the real validation happens at call time against ``len(tensors)``.
@@ -210,22 +210,28 @@ def _positional_arg_count(fn: Callable) -> int:
 # ---------------------------------------------------------------------------
 
 
-def kernel(
+def tt_lang_operation(
     *,
-    kernel_id: str,
+    operation_id: str,
     arg_roles: Sequence[str],
     shard_spec: str = "",
     version_tag: Optional[str] = None,
 ) -> Callable[[Callable], Callable]:
-    """Register a tt-lang kernel and emit a ``stablehlo.custom_call`` on XLA.
+    """Register a tt-lang operation with torch and emit a ``stablehlo.custom_call`` on XLA.
+
+    This is the forge-side wrapper around a tt-lang operation (a function
+    typically also decorated with ``@ttl.operation``): it registers the
+    operation and makes invocations on XLA tensors lower to
+    ``ttnn.tt_lang_op``.
 
     Parameters
     ----------
-    kernel_id:
-        Stable identifier carried through the StableHLO program. Used by
-        the plugin's eventual resolve callback to look up the live kernel.
-        Must be unique within the process; whitespace is disallowed so the
-        id round-trips cleanly through ``frontend_attributes``.
+    operation_id:
+        Stable identifier carried through the StableHLO program (on the
+        wire and in the MLIR op it is the ``kernel_id`` attribute). Used by
+        the plugin's resolve callback to look up the live operation. Must
+        be unique within the process; whitespace is disallowed so the id
+        round-trips cleanly through ``frontend_attributes``.
     arg_roles:
         Required sequence of ``"in"`` / ``"out"`` tags, one per positional
         tensor argument. Must list all inputs before all outputs (e.g.
@@ -237,29 +243,29 @@ def kernel(
         Optional opaque sharding hint, passed through verbatim as a
         ``frontend_attribute``.
     version_tag:
-        Cache-busting tag. Defaults to a short hash of the kernel source.
+        Cache-busting tag. Defaults to a short hash of the operation source.
 
     Returns
     -------
     Callable
-        The wrapped kernel. The return mirrors the ``"out"`` arguments: a
+        The wrapped operation. The return mirrors the ``"out"`` arguments: a
         single tensor when exactly one, a tuple in declaration order
-        otherwise. The wrapped kernel requires XLA tensors -- calls with
+        otherwise. The wrapped operation requires XLA tensors -- calls with
         non-XLA tensors raise ``NotImplementedError``. There is no CPU
         fallback by design: a "ran on CPU and got a plausible-looking
-        answer" outcome is indistinguishable from "the hardware kernel
+        answer" outcome is indistinguishable from "the hardware operation
         is silently broken," so the wrapper refuses to compute outside
         XLA at all.
     """
-    if not isinstance(kernel_id, str) or not kernel_id:
-        raise ValueError("kernel_id must be a non-empty string.")
-    if any(c.isspace() for c in kernel_id):
-        raise ValueError("kernel_id must not contain whitespace.")
+    if not isinstance(operation_id, str) or not operation_id:
+        raise ValueError("operation_id must be a non-empty string.")
+    if any(c.isspace() for c in operation_id):
+        raise ValueError("operation_id must not contain whitespace.")
 
     def decorator(fn: Callable) -> Callable:
         vt = version_tag or _derive_version_tag(fn)
-        entry = KernelEntry(
-            kernel_id=kernel_id,
+        entry = OperationEntry(
+            operation_id=operation_id,
             impl=fn,
             version_tag=vt,
             arg_roles=_normalize_arg_roles(fn, arg_roles, _positional_arg_count(fn)),
@@ -270,12 +276,12 @@ def kernel(
         def wrapper(*tensors: torch.Tensor):
             if not tensors:
                 raise TypeError(
-                    f"tt-lang kernel {kernel_id!r} was called with no tensors."
+                    f"tt-lang operation {operation_id!r} was called with no tensors."
                 )
             for i, t in enumerate(tensors):
                 if not isinstance(t, torch.Tensor):
                     raise TypeError(
-                        f"tt-lang kernel {kernel_id!r}: positional arg {i} is "
+                        f"tt-lang operation {operation_id!r}: positional arg {i} is "
                         f"not a torch.Tensor (got {type(t).__name__})."
                     )
 
@@ -283,7 +289,7 @@ def kernel(
             out_indices = [i for i, r in enumerate(roles) if r == "out"]
             if not out_indices:
                 raise ValueError(
-                    f"tt-lang kernel {kernel_id!r}: at least one argument must "
+                    f"tt-lang operation {operation_id!r}: at least one argument must "
                     f"be tagged 'out' (mutation-style outputs are required)."
                 )
 
@@ -291,21 +297,21 @@ def kernel(
             for t in tensors[1:]:
                 if t.device != device:
                     raise ValueError(
-                        f"tt-lang kernel {kernel_id!r}: all tensors must share "
+                        f"tt-lang operation {operation_id!r}: all tensors must share "
                         f"a device (saw {device} and {t.device})."
                     )
 
             if device.type != "xla":
                 # No CPU fallback by design -- see the decorator docstring.
                 raise NotImplementedError(
-                    f"tt-lang kernel {kernel_id!r} can only run on XLA "
+                    f"tt-lang operation {operation_id!r} can only run on XLA "
                     f"tensors (saw device={device}). Move inputs onto the "
                     f"XLA device with .to(xm.xla_device())."
                 )
 
             outputs = tt_lang_op_dispatch(
                 list(tensors),
-                kernel_id=kernel_id,
+                kernel_id=operation_id,
                 arg_roles=",".join(roles),
                 version_tag=vt,
                 shard_spec=shard_spec,
@@ -318,7 +324,7 @@ def kernel(
                     tensors[idx].copy_(result)
             return outputs[0] if len(outputs) == 1 else tuple(outputs)
 
-        wrapper._tt_lang_kernel_entry = entry  # type: ignore[attr-defined]
+        wrapper._tt_lang_operation_entry = entry  # type: ignore[attr-defined]
         return wrapper
 
     return decorator
@@ -330,7 +336,7 @@ def kernel(
 #
 # Invoked from tt-mlir's ``--ttnn-resolve-tt-lang-kernels`` pass once per
 # ``ttnn.tt_lang_op``:
-# look up the registered ``KernelEntry``, drive tt-lang's compile path
+# look up the registered ``OperationEntry``, drive tt-lang's compile path
 # against device-less stubs with ``TTLANG_COMPILE_ONLY=1`` (capturing the
 # ``CompiledTTNNKernel`` via a monkey-patched ``_compile_kernel``), then
 # serialize the result into the JSON the tt-mlir flatbuffer emitter
@@ -512,7 +518,7 @@ def _make_deviceless_ttnn_args(
         layouts = [""] * len(shapes)
     if len(shapes) != len(dtypes) or len(shapes) != len(layouts):
         raise TtLangError(
-            f"resolve_kernel: shapes/dtypes/layouts length mismatch "
+            f"resolve_operation: shapes/dtypes/layouts length mismatch "
             f"({len(shapes)}/{len(dtypes)}/{len(layouts)})."
         )
     device = _StubTtnnDevice()
@@ -534,7 +540,7 @@ def _make_deviceless_ttnn_args(
 _DRIVE_LOCK = threading.Lock()
 
 
-def _drive_ttl_compile(entry: "KernelEntry", mock_args: Sequence[Any]):
+def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
     """Run tt-lang's compile path for ``entry.impl`` and capture the
     resulting ``CompiledTTNNKernel`` without executing it.
 
@@ -548,7 +554,7 @@ def _drive_ttl_compile(entry: "KernelEntry", mock_args: Sequence[Any]):
         import ttl.ttl_api as _ttl_api  # type: ignore
     except ImportError as e:
         raise TtLangError(
-            "resolve_kernel: tt-lang is not importable in the current "
+            "resolve_operation: tt-lang is not importable in the current "
             "Python environment. Install the tt-lang wheel into the same "
             "venv that loaded the pjrt_plugin_tt plugin so the compile "
             f"path is available. (Original error: {e})"
@@ -639,11 +645,11 @@ def _drive_ttl_compile(entry: "KernelEntry", mock_args: Sequence[Any]):
     if not captured or captured[0] is None:
         raise TtLangError(
             f"tt-lang compile did not produce a CompiledTTNNKernel for "
-            f"kernel_id={entry.kernel_id!r}. The kernel may have hit a "
-            f"compile error (check stderr for tt-lang diagnostics)."
+            f"operation_id={entry.operation_id!r}. The operation may have hit "
+            f"a compile error (check stderr for tt-lang diagnostics)."
         )
     # `entry.impl` may end up triggering multiple compiles (e.g. nested
-    # @ttl.operation calls in unusual kernels); we take the last one,
+    # @ttl.operation calls in unusual operations); we take the last one,
     # which is the outermost-finishing compile.
     return captured[-1]
 
@@ -701,7 +707,7 @@ def _dtype_to_flatbuffer_name(dtype: Any) -> str:
             return _TORCH_DTYPE_TO_FB[dtype]
         except KeyError as e:
             raise TtLangError(
-                f"resolve_kernel: cannot map torch dtype {dtype!r} to a "
+                f"resolve_operation: cannot map torch dtype {dtype!r} to a "
                 f"ttcore DataType."
             ) from e
 
@@ -710,7 +716,7 @@ def _dtype_to_flatbuffer_name(dtype: Any) -> str:
         return _TTNN_DTYPE_NAME_TO_FB[name]
     except KeyError as e:
         raise TtLangError(
-            f"resolve_kernel: cannot map ttnn DataType {name!r} to a "
+            f"resolve_operation: cannot map ttnn DataType {name!r} to a "
             f"ttcore DataType."
         ) from e
 
@@ -736,7 +742,7 @@ def _tile_bytes_from_dtype_name(name: str) -> int:
 
 
 def _serialize_kernel_config(thread_type: str, cfg: Any, noc_kernel_idx: int) -> dict:
-    """Turn a tt-lang kernel-config descriptor into a structured JSON dict.
+    """Turn a tt-lang operation-config descriptor into a structured JSON dict.
 
     The flatbuffer ``KernelConfig`` union has four members; tt-lang
     emits ``ComputeKernelConfig`` for compute threads and a Reader/Writer
@@ -760,7 +766,7 @@ def _serialize_kernel_config(thread_type: str, cfg: Any, noc_kernel_idx: int) ->
             return {"type": "ReaderKernelConfig"}
         return {"type": "WriterKernelConfig"}
     raise TtLangError(
-        f"resolve_kernel: unknown kernel thread_type {thread_type!r}; "
+        f"resolve_operation: unknown kernel thread_type {thread_type!r}; "
         f"expected 'compute' or 'noc'."
     )
 
@@ -820,7 +826,7 @@ def _serialize_cb_config(cb: Any) -> dict:
     shape = tuple(int(s) for s in cb.shape)
     if len(shape) < 2:
         raise TtLangError(
-            f"resolve_kernel: DFB shape {shape!r} must have at least 2 dims."
+            f"resolve_operation: DFB shape {shape!r} must have at least 2 dims."
         )
     num_tiles = shape[0] * shape[1] * int(cb.block_count)
     return {
@@ -840,7 +846,7 @@ def _read_cpp_source(path: str) -> str:
         return f.read()
 
 
-def _serialize_compiled_kernel(
+def _serialize_compiled_operation(
     compiled,
     *,
     operand_metadata: Optional[dict] = None,
@@ -868,7 +874,7 @@ def _serialize_compiled_kernel(
           "cb_configs":  [{...}, ...],            # see _serialize_cb_config
           "num_tensors":      <int>,
           "num_pipe_nets":    <int>,
-          "operand_metadata": { ... }             # see resolve_kernel
+          "operand_metadata": { ... }             # see resolve_operation
         }
 
     Every field is structured (no Python ``repr`` strings). The cpp
@@ -926,9 +932,9 @@ def _serialize_compiled_kernel(
 # ---------------------------------------------------------------------------
 
 
-def resolve_kernel(
+def resolve_operation(
     *,
-    kernel_id: str,
+    operation_id: str,
     version_tag: str,
     shapes: Sequence[Sequence[int]],
     dtypes: Sequence[str],
@@ -938,18 +944,20 @@ def resolve_kernel(
     shard_spec: Optional[str] = None,
     **_unused,
 ) -> bytes:
-    """Resolve a registered kernel to a compiled artifact.
+    """Resolve a registered operation to a compiled artifact.
 
     Called by tt-mlir's ``--ttnn-resolve-tt-lang-kernels`` pass (under
     the GIL, via pybind11) for every ``ttnn.tt_lang_op`` in the
-    post-TTNN module.
+    post-TTNN module. The pass reads the op's ``kernel_id`` MLIR attribute
+    (the wire-level name for the operation id) and forwards it here as
+    ``operation_id``.
 
     Parameters
     ----------
-    kernel_id, version_tag:
+    operation_id, version_tag:
         Identifiers attached to the op by the StableHLO frontend. Must
         match the entry in the process-global registry; a mismatch means
-        the kernel source was edited after the StableHLO program was
+        the operation source was edited after the StableHLO program was
         cached.
     shapes, dtypes, layouts:
         Per-operand metadata, one entry per ``ttnn.tt_lang_op`` operand
@@ -971,14 +979,14 @@ def resolve_kernel(
     bytes
         JSON-encoded artifact understood by the TTNN flatbuffer emitter
         (see ``docs/source/tt_lang_integration.md`` for the schema and
-        ``_serialize_compiled_kernel`` for the producer).
+        ``_serialize_compiled_operation`` for the producer).
     """
-    entry = get_registered_kernel(kernel_id)
+    entry = get_registered_operation(operation_id)
     if entry.version_tag != version_tag:
         raise TtLangError(
-            f"version_tag mismatch for kernel_id={kernel_id!r}: "
+            f"version_tag mismatch for operation_id={operation_id!r}: "
             f"registered={entry.version_tag!r}, requested={version_tag!r}. "
-            f"This usually means the kernel source was edited after the "
+            f"This usually means the operation source was edited after the "
             f"executable was compiled."
         )
 
@@ -991,7 +999,7 @@ def resolve_kernel(
     args = _make_deviceless_ttnn_args(shapes, dtypes, layouts or [""] * len(shapes))
 
     compiled = _drive_ttl_compile(entry, args)
-    return _serialize_compiled_kernel(
+    return _serialize_compiled_operation(
         compiled,
         operand_metadata={
             "shapes": [list(s) for s in shapes],
