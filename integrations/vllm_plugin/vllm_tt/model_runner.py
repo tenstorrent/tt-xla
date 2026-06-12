@@ -37,6 +37,7 @@ from vllm.model_executor.layers.attention.chunked_local_attention import (
 )
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
 from vllm.model_executor.layers.attention_layer_base import AttentionLayerBase
+from vllm.model_executor.layers.mamba.gdn_linear_attn import GatedDeltaNetAttention
 from vllm.model_executor.layers.vocab_parallel_embedding import ParallelLMHead
 from vllm.model_executor.model_loader import get_model_loader
 from vllm.model_executor.model_loader.default_loader import DefaultModelLoader
@@ -61,13 +62,16 @@ from vllm.sequence import IntermediateTensors
 from vllm.tasks import GenerationTask, PoolingTask, SupportedTask
 from vllm.utils.math_utils import cdiv
 from vllm.utils.platform_utils import is_pin_memory_available
+from vllm.utils.torch_utils import get_dtype_size
 from vllm.v1.attention.backend import AttentionType
+from vllm.v1.attention.backends.gdn_attn import GDNAttentionMetadata
 from vllm.v1.kv_cache_interface import (
     AttentionSpec,
     FullAttentionSpec,
     KVCacheConfig,
     KVCacheGroupSpec,
     KVCacheSpec,
+    MambaSpec,
     MLAAttentionSpec,
     SlidingWindowSpec,
     UniformTypeKVCacheSpecs,
@@ -357,6 +361,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
         #     model_config)
         self.supports_mm_inputs = False
+        logger.info(f"Model supports multimodal inputs: {self.supports_mm_inputs}")
 
         self._num_slices_per_kv_cache_update_block = (
             _get_num_slices_per_kv_cache_update_block(
@@ -598,6 +603,50 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             f"Weight filtering complete: kept {kept_count} weights, skipped {skipped_count} weights"
         )
 
+    def _build_per_layer_attn_metadata(
+        self,
+        tt_attn_metadata: TTMetadata,
+        num_reqs: int,
+        num_scheduled_tokens_per_req: np.ndarray,
+        total_num_scheduled_tokens: int,
+        query_start_loc: torch.Tensor,
+        force_gdn_prefill: bool = False,
+    ) -> dict[str, object]:
+        per_layer_attn_metadata: dict[str, object] = dict.fromkeys(
+            self._attention_layer_names, tt_attn_metadata
+        )
+
+        if not self._gdn_layer_names:
+            return per_layer_attn_metadata
+
+        if force_gdn_prefill:
+            num_decodes = 0
+            num_decode_tokens = 0
+            num_prefills = num_reqs
+            num_prefill_tokens = total_num_scheduled_tokens
+        else:
+            num_decodes = int(np.sum(num_scheduled_tokens_per_req == 1))
+            num_decode_tokens = num_decodes
+            num_prefills = int(np.sum(num_scheduled_tokens_per_req > 1))
+            num_prefill_tokens = int(
+                np.sum(num_scheduled_tokens_per_req[num_scheduled_tokens_per_req > 1])
+            )
+        gdn_attn_metadata = GDNAttentionMetadata(
+            num_prefills=num_prefills,
+            num_prefill_tokens=num_prefill_tokens,
+            num_decodes=num_decodes,
+            num_decode_tokens=num_decode_tokens,
+            num_spec_decodes=0,
+            num_spec_decode_tokens=0,
+            num_actual_tokens=total_num_scheduled_tokens,
+            non_spec_query_start_loc=query_start_loc,
+            non_spec_state_indices_tensor=tt_attn_metadata.page_table[:num_reqs, 0],
+        )
+        for layer_name in self._gdn_layer_names:
+            per_layer_attn_metadata[layer_name] = gdn_attn_metadata
+
+        return per_layer_attn_metadata
+
     def reset_mm_cache(self) -> None:
         if self.mm_budget:
             self.mm_budget.reset_cache()
@@ -828,70 +877,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.vllm_config,
             AttentionLayerBase,  # type: ignore[type-abstract]
         )
-        block_size = self.vllm_config.cache_config.block_size
-        cache_dtype_str = self.vllm_config.cache_config.cache_dtype
-
         kv_cache_spec: dict[str, KVCacheSpec] = {}
         for layer_name, attn_module in layers.items():
-            # Classic Attention path
-            if isinstance(attn_module, Attention):
-                if (
-                    kv_tgt_layer := attn_module.kv_sharing_target_layer_name
-                ) is not None:
-                    # The layer doesn't need its own KV cache and will use that of
-                    # the target layer. We skip creating a KVCacheSpec for it, so
-                    # that KV cache management logic will act as this layer does
-                    # not exist, and doesn't allocate KV cache for the layer. This
-                    # enables the memory saving of cross-layer kv sharing, allowing
-                    # a given amount of memory to accommodate longer context lengths
-                    # or enable more requests to be processed simultaneously.
-                    self.shared_kv_cache_layers[layer_name] = kv_tgt_layer
-                    continue
-
-                if attn_module.attn_type == AttentionType.DECODER:
-                    if isinstance(attn_module, ChunkedLocalAttention):
-                        logger.warning_once(
-                            "Using irope in Pallas is not supported yet, it "
-                            "will fall back to global attention for long context."
-                        )
-                    if attn_module.sliding_window is not None:
-                        kv_cache_spec[layer_name] = SlidingWindowSpec(
-                            block_size=block_size,
-                            num_kv_heads=attn_module.num_kv_heads,
-                            head_size=attn_module.head_size,
-                            dtype=self.kv_cache_spec_dtype,
-                            sliding_window=attn_module.sliding_window,
-                        )
-                    else:
-                        kv_cache_spec[layer_name] = FullAttentionSpec(
-                            block_size=block_size,
-                            num_kv_heads=attn_module.num_kv_heads,
-                            head_size=attn_module.head_size,
-                            dtype=self.kv_cache_spec_dtype,
-                        )
-                elif attn_module.attn_type in (
-                    AttentionType.ENCODER,
-                    AttentionType.ENCODER_ONLY,
-                ):
-                    # encoder-only attention does not need KV cache.
-                    continue
-                elif attn_module.attn_type == AttentionType.ENCODER_DECODER:
-                    raise NotImplementedError
-                else:
-                    raise ValueError(f"Unknown attention type: {attn_module.attn_type}")
-            # MLAAttention path
-            elif isinstance(attn_module, MLAAttention):
-                if layer_name in kv_cache_spec:
-                    continue
-                kv_cache_spec[layer_name] = MLAAttentionSpec(
-                    block_size=block_size,
-                    num_kv_heads=1,
-                    head_size=attn_module.head_size,
-                    dtype=self.kv_cache_spec_dtype,
-                    cache_dtype_str=cache_dtype_str,
-                )
-            else:
+            if (
+                isinstance(attn_module, Attention)
+                and (kv_tgt_layer := attn_module.kv_sharing_target_layer_name)
+                is not None
+            ):
+                self.shared_kv_cache_layers[layer_name] = kv_tgt_layer
                 continue
+
+            spec = attn_module.get_kv_cache_spec(self.vllm_config)
+            if spec is not None:
+                kv_cache_spec[layer_name] = spec
 
         return kv_cache_spec
 
@@ -1225,8 +1223,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
+        query_start_loc = self.query_start_loc_cpu[: num_reqs + 1].to(self.device)
+        per_layer_attn_metadata = self._build_per_layer_attn_metadata(
+            attn_metadata,
+            num_reqs,
+            num_scheduled_tokens_per_req,
+            total_num_scheduled_tokens,
+            query_start_loc,
         )
         return (
             per_layer_attn_metadata,
@@ -1874,7 +1877,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Cache attention layer names so we don't rebuild the per-layer
         # attn_metadata dict every step.
         self._attention_layer_names = tuple(
-            get_layers_from_vllm_config(self.vllm_config, Attention).keys()
+            get_layers_from_vllm_config(self.vllm_config, AttentionLayerBase).keys()
+        )
+        self._gdn_layer_names = tuple(
+            get_layers_from_vllm_config(self.vllm_config, GatedDeltaNetAttention).keys()
         )
 
     def reload_weights(self) -> None:
@@ -1907,10 +1913,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
         )
+        logger.info(f"attn_metadata: {attn_metadata}")
+        logger.info(f"self._attention_layer_names: {self._attention_layer_names}")
 
-        per_layer_attn_metadata = dict.fromkeys(
-            self._attention_layer_names, attn_metadata
+        query_start_loc = torch.arange(
+            0,
+            (num_reqs + 1) * num_tokens,
+            step=num_tokens,
+            dtype=torch.int32,
+            device=self.device,
         )
+        num_scheduled_tokens_per_req = np.full((num_reqs,), num_tokens, dtype=np.int32)
+        per_layer_attn_metadata = self._build_per_layer_attn_metadata(
+            attn_metadata,
+            num_reqs,
+            num_scheduled_tokens_per_req,
+            num_tokens * num_reqs,
+            query_start_loc,
+            force_gdn_prefill=bool(self._gdn_layer_names),
+        )
+        logger.info(f"per_layer_attn_metadata keys: {per_layer_attn_metadata}")
         if self.uses_mrope:
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
@@ -1951,6 +1973,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
     def _precompile_mm_encoder(self) -> None:
         torch._dynamo.config.dynamic_shapes = False
+        logger.info(f"Pre-compiling multimodal encoder with different input shapes.")
         if not self.supports_mm_inputs:
             return
 
@@ -1960,9 +1983,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_budget = self.mm_budget
         assert mm_budget is not None
 
-        max_items_per_seq_by_modality = (
-            mm_budget.max_items_per_batch_by_modality
-        )  # noqa: E501
+        max_items_per_seq_by_modality = mm_budget.mm_max_items_per_batch  # noqa: E501
 
         for mode, max_items_per_seq in max_items_per_seq_by_modality.items():
             logger.info(
@@ -2273,8 +2294,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        logger.info(f"Capturing model with different input shapes.")
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
+            logger.info(f"check-1")
             self._precompile_backbone()
             if self.tt_config.decode_only:
                 return
@@ -2324,7 +2347,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # modality with the max possible input tokens even when
                     # it supports multiple.
                     dummy_modality = mm_budget.get_modality_with_max_tokens()
-                    max_mm_items_per_batch = mm_budget.max_items_per_batch_by_modality[
+                    max_mm_items_per_batch = mm_budget.mm_max_items_per_batch[
                         dummy_modality
                     ]
 
@@ -2496,6 +2519,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     v_cache = torch.zeros(kv_cache_shape, dtype=dtype).to(self.device)
 
                     kv_caches[layer_name] = [k_cache, v_cache]
+                elif isinstance(kv_cache_spec, MambaSpec):
+                    state_tensors = []
+                    for state_shape, state_dtype in zip(
+                        kv_cache_spec.shapes, kv_cache_spec.dtypes
+                    ):
+                        target_shape = (num_blocks, *state_shape)
+                        tensor = torch.zeros(
+                            target_shape, dtype=state_dtype, device=self.device
+                        )
+                        state_tensors.append(tensor)
+                    kv_caches[layer_name] = state_tensors
                 else:
                     raise NotImplementedError
 
@@ -2948,22 +2982,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """Dummy data for profiling and precompiling multimodal models."""
         assert self.mm_budget is not None
 
-        dummy_decoder_data = self.mm_registry.get_decoder_dummy_data(
-            model_config=self.model_config,
-            seq_len=self.max_num_tokens,
+        dummy_mm_inputs = self.mm_registry.get_dummy_mm_inputs(
+            self.model_config,
             mm_counts={modality: 1},
             cache=self.mm_budget.cache,
         )
-        dummy_mm_data = dummy_decoder_data.multi_modal_data
-
-        # Result in the maximum GPU consumption of the model
-        dummy_mm_item = dummy_mm_data[modality][0]
-        dummy_mm_items = [dummy_mm_item] * max_items_per_batch
+        dummy_mm_item = dummy_mm_inputs["mm_kwargs"][modality][0]
 
         return next(
             grouped_mm_kwargs
             for _, _, grouped_mm_kwargs in group_mm_kwargs_by_modality(
-                dummy_mm_items,
+                [(modality, dummy_mm_item)] * max_items_per_batch,
                 device=self.device,
                 pin_memory=self.pin_memory,
             )

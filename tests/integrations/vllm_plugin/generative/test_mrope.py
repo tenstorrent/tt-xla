@@ -14,17 +14,18 @@ def test_mrope():
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     model_name = "Qwen/Qwen2-VL-2B-Instruct"
+    model_name = "Qwen/Qwen3.6-27B"
 
     llm_args = {
         "model": model_name,
-        "max_num_batched_tokens": 32,
+        "max_num_batched_tokens": 512,
         "max_num_seqs": 1,
         "max_model_len": 32,
         "gpu_memory_utilization": 0.002,
-        "enforce_eager": True,
         "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
         "additional_config": {
             "min_context_len": 32,
+            "num_hidden_layers": 1,
         },
     }
     llm = vllm.LLM(**llm_args)
