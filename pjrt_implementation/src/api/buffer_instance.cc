@@ -291,10 +291,8 @@ void BufferInstance::copyFromHost(
               "In distributed mode we unsafely borrow data from host_buffer; "
               "this is okay iff caller guarantees that host_buffer lifetime is "
               "safe until execution.");
-    std::vector<std::uint32_t> shell_strides(strides.begin(), strides.end());
-
     PjrtTensor::HostTensorShell host_tensor_shell = PjrtTensor::HostTensorShell{
-        host_buffer, shape, shell_strides, element_size, runtime_data_type};
+        host_buffer, shape, strides, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
     m_done_with_host_buffer_event->setIndestructible();
     PjrtTensor::from_host_tensor_shell({this}, std::move(host_tensor_shell));
