@@ -12,6 +12,7 @@ Usage:
 """
 
 import os
+import time
 
 import numpy as np
 import pytest
@@ -87,7 +88,7 @@ def load_model_and_tokenizer(num_layers: int):
     ModelLoader.get_mesh_config = _kimi_k2_mesh_config
 
     model_loader = ModelLoader(
-        variant=ModelVariant.KIMI_K2_INSTRUCT_MODIFIED, num_layers=num_layers
+        variant=ModelVariant.KIMI_K2_BASE_MODIFIED, num_layers=num_layers
     )
     model = model_loader.load_model(dtype_override=torch.bfloat16)
     model = model.eval()
@@ -342,10 +343,17 @@ def test_kimi_k2_decode(num_layers, batch_size, input_seq_len, max_output_tokens
     compiled_model = torch.compile(model, backend="tt")
 
     print(f"Running {max_output_tokens} decode step(s)...")
+    # Per-step wall-clock for the full-model decode. The .cpu() transfer below
+    # blocks until the device finishes, so timing the forward + materialization
+    # captures the full per-step decode latency. Step 0 also pays the one-time
+    # torch.compile cost, so we report it separately from the steady state.
+    step_times = []
     with torch.no_grad():
         for step in range(max_output_tokens):
+            t0 = time.perf_counter()
             output = compiled_model(**input_args)
             logits = output.logits.cpu()
+            step_times.append(time.perf_counter() - t0)
 
             extract_and_print_tokens(logits, tokenizer, prefix=f"[DECODE step {step}] ")
 
@@ -353,3 +361,17 @@ def test_kimi_k2_decode(num_layers, batch_size, input_seq_len, max_output_tokens
             next_token = logits[:, -1].argmax(dim=-1, keepdim=True)
             input_args["input_ids"] = next_token.to(device)
             input_args["cache_position"] = input_args["cache_position"][-1:] + 1
+
+    # Per-step full-model decode timing. Step 0 includes the one-time
+    # torch.compile, so report it on its own and compute mean/min/max/var over
+    # the steady-state steps (1..N-1) when there is more than one step.
+    times = np.asarray(step_times, dtype=np.float64)
+    steady = times[1:] if times.size > 1 else times
+    print("[DECODE] full-model decode time per step (s):")
+    print(f"  all steps: {', '.join(f'{t:.4f}' for t in times)}")
+    print(f"  step 0 (incl. compile): {times[0]:.4f}")
+    print(
+        f"  steady-state (steps 1..{times.size - 1}, n={steady.size}): "
+        f"mean={steady.mean():.4f}  min={steady.min():.4f}  "
+        f"max={steady.max():.4f}  var={steady.var():.6f}"
+    )
