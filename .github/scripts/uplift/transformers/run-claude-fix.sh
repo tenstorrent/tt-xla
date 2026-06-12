@@ -74,16 +74,18 @@ TIMEOUT="${CLAUDE_FIX_TIMEOUT:-30m}"
 # update the summary would reuse the PREVIOUS iteration's message.
 rm -f "${REPO_ROOT}/.github/transformers-uplift/fix-summary.md"
 
+BASELINE_FILE="baseline_failures.txt"
 PROMPT=$(cat <<PROMPT_EOF
 Use the \`transformers-uplift-fix\` skill in
 \`.claude/skills/transformers-uplift-fix/SKILL.md\` to fix the failures
 below. Apply the skill's instructions, rules and scope-specific guidance.
 
-Scope:           ${SCOPE}
-Current version: ${CURRENT_VERSION:-unknown}
-Target version:  ${TARGET_VERSION:-unknown}
-Failure context: ${FAILURES}
-Read that failure file first; it contains information about the failed tests.
+Scope:            ${SCOPE}
+Current version:  ${CURRENT_VERSION:-unknown}
+Target version:   ${TARGET_VERSION:-unknown}
+Failure context:  ${FAILURES}
+Baseline failures: ${BASELINE_FILE}   (failures observed on the last main nightly — may be empty if the baseline download was skipped or matched nothing)
+Read the failure file first.
 PROMPT_EOF
 )
 
