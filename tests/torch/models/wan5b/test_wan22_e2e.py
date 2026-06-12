@@ -24,7 +24,6 @@ import torch
 from diffusers import UniPCMultistepScheduler
 
 from .monkey_patch import (
-    _patch_wan_resample_avoid_4d_fold,
     _patch_wan_resample_rep_sentinel,
     _patch_wan_time_embedder_dtype_probe,
     safe_xla_slicing,
@@ -222,7 +221,6 @@ def _output_path(mode: str, resolution: str) -> Path:
 # ---------------------------------------------------------------------------
 
 _patch_wan_resample_rep_sentinel()
-_patch_wan_resample_avoid_4d_fold()
 _patch_wan_time_embedder_dtype_probe()
 
 # ---------------------------------------------------------------------------

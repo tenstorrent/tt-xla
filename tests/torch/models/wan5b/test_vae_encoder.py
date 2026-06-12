@@ -40,7 +40,9 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.skip(reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462")
+@pytest.mark.skip(
+    reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462"
+)
 def test_vae_encoder_720p_sharded():
     _run("720p", sharded=True)
 
@@ -50,9 +52,12 @@ def test_vae_encoder_720p_sharded():
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.skip(reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462")
+@pytest.mark.skip(
+    reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462"
+)
 def test_vae_encoder_480p_sharded():
     _run("480p", sharded=True)
+
 
 @pytest.mark.nightly
 @pytest.mark.model_test
@@ -61,7 +66,8 @@ def test_vae_encoder_480p_sharded():
 @pytest.mark.bh_galaxy
 def test_vae_encoder_480p():
     _run("480p", sharded=False)
-    
+
+
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
@@ -86,7 +92,9 @@ def _run(resolution: str, sharded: bool) -> None:
     model = VAEEncoderWrapper(load_vae()).eval().bfloat16()
 
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
-    shard_spec_fn = (lambda m: shard_vae_encoder_specs(m.vae, mesh)) if sharded else None
+    shard_spec_fn = (
+        (lambda m: shard_vae_encoder_specs(m.vae, mesh)) if sharded else None
+    )
 
     run_graph_test(
         graph=model,
