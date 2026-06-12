@@ -53,7 +53,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.xfail(reason="DRAM OOM: TTNN TypecastOp")
+@pytest.mark.xfail(reason="PCC comparison fails: ~0.35 on full model (required 0.99)")
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
@@ -63,7 +63,7 @@ def test_wan_dit_720p_sharded():
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.xfail(reason="PCC comparison fails: ~0.69 on full model (required 0.99)")
+@pytest.mark.xfail(reason="PCC comparison fails: ~0.32 on full model (required 0.99)")
 def test_wan_dit_480p_sharded():
     _run("480p", sharded=True)
 
