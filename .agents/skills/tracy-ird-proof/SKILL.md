@@ -55,6 +55,29 @@ When adding behavior, keep the script style consistent with the surrounding code
 - keep shell command execution observable in `command-trace.jsonl`,
 - avoid broad refactors outside the profiling harness surface.
 
+## Benchmark Workflow Development
+
+For CI-facing benchmark or profiling work, start from the existing benchmark
+workflow and publication path before adding any new workflow.
+
+- Use `.github/workflows/call-perf-test.yml` as the primary CI integration point
+  for benchmark profiling behavior.
+- Keep shared benchmark publication on the existing `perf-reports-<job-id>` and
+  device-perf artifact path when practical.
+- Do not add a standalone profiling workflow unless maintainers explicitly ask
+  for one.
+- If replacing old device-perf behavior, preserve the existing workflow trigger
+  and artifact shape where possible. For issue 5009, the requested direction is
+  to replace the inactive `ttrt perf` device-perf step with a full benchmark run
+  wrapped in Tracy.
+- Use `tests/benchmark/PROFILING.md` as the source of truth for Tracy command
+  examples and expected artifacts.
+- Validate workflow edits with YAML parsing, `git diff --check`, and a stale
+  reference search for removed workflow names or old artifact paths.
+- Treat production ingestion as proven only after a benchmark workflow run
+  uploads the expected artifacts and the existing collection workflow accepts
+  them. Do not claim Superset publication from local artifact shape alone.
+
 ## IRD Execution Rules
 
 Use the harness rather than n8n for this issue unless the user asks for external orchestration.
