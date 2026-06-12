@@ -263,8 +263,7 @@ tt_pjrt_status LoadedExecutableInstance::createDefaultOutputBuffers(
     // product of all following dimension sizes.
     std::vector<std::int64_t> strides(output_shape->size());
     std::exclusive_scan(output_shape->rbegin(), output_shape->rend(),
-                        strides.rbegin(), std::uint32_t(1),
-                        std::multiplies<>());
+                        strides.rbegin(), std::int64_t(1), std::multiplies<>());
 
     // Only create host tensor when not in compile-only mode
     std::optional<tt::runtime::Tensor> host_tensor;
