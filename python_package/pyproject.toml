@@ -8,12 +8,17 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-# DIAGNOSTIC (temporary): the /usr/bin/ld -z separate-code wrapper had zero effect on the
-# produced binaries, so either clang is not invoking /usr/bin/ld, or -z separate-code does
-# not control segment ordering on this image's binutils (GNU ld 2.35.2-72.el9; local repro
-# was 2.42). This prints (a) which linker clang actually invokes, and (b) the first LOAD
-# segment + .init address for a trivial .so linked with no flag / separate-code /
-# noseparate-code -- so we can see which (if any) flag yields the R-first/headroom layout on
-# the real toolchain. `|| true` keeps it from failing the build so we still get a wheel to inspect.
-before-all = "echo CLANG_LD:; /usr/bin/clang++ -print-prog-name=ld; echo CLANG_LD_LLD:; /usr/bin/clang++ -print-prog-name=ld.lld; echo LINK_INVOCATION:; /usr/bin/clang++ -### -shared -fPIC -o /tmp/t.so -xc /dev/null 2>&1 | tail -2; echo 'int g;void f(){g++;}' > /tmp/t.c; for m in none separate-code noseparate-code; do case $m in none) F= ;; *) F=-Wl,-z,$m ;; esac; /usr/bin/clang++ -shared -fPIC /tmp/t.c -o /tmp/m.so $F 2>/dev/null; echo MODE=$m; readelf -lW /tmp/m.so | grep -m1 LOAD; readelf -SW /tmp/m.so | grep -E '[.]init +PROGBITS'; done; true"
+# FIX: redirect clang's linker to the system el9 ld so the manylinux binaries get a
+# patchelf-safe layout. Root cause: the recent uplift pulled in gcc-toolset-15, and clang
+# invokes *its* ld (/opt/rh/gcc-toolset-15/.../bin/ld), whose newer binutils lays shared
+# objects out code-segment-first with .init/.plt jammed behind the program headers (no
+# headroom) -- and -z separate-code does NOT change that on this ld. `auditwheel repair`
+# then runs patchelf, which on that compact layout relocates .init/.plt into a non-exec
+# segment and leaves DT_INIT (and the init_array relocs) stale -> SIGSEGV in call_init on
+# dlopen. The system /usr/bin/ld (binutils 2.35.2-72.el9) instead defaults to a read-only
+# segment first (.init high, headroom), so patchelf edits RPATH in place and the binaries
+# stay valid (verified by extracting that exact ld and the older known-good wheels). We wrap
+# the gcc-toolset-15 ld that clang actually resolves so every sub-build (tt-metal, tt-mlir,
+# tt-xla) links through the safe system ld, with no per-repo CMake changes.
+before-all = "GT=$(readlink -f \"$(/usr/bin/clang++ -print-prog-name=ld)\"); if [ -n \"$GT\" ] && [ \"$GT\" != /usr/bin/ld ] && [ -e \"$GT\" ] && [ ! -e \"$GT.real\" ]; then cp -a \"$GT\" \"$GT.real\"; rm -f \"$GT\"; { echo '#!/bin/sh'; echo 'exec /usr/bin/ld \"$@\"'; } > \"$GT\"; chmod +x \"$GT\"; fi; echo \"clang ld wrapped at: $GT\"; cat \"$GT\"; echo 'system ld:'; /usr/bin/ld --version | head -1"
 repair-wheel-command = "auditwheel repair --exclude libTTMLIRRuntime.so --exclude libTTMLIRCompiler.so --exclude libtt-alchemist-lib.so --exclude libtt_metal.so --exclude libtt_stl.so --exclude libtt-umd.so.0 --exclude _ttnncpp.so --exclude _ttnn.so --exclude libdevice.so --exclude libtracy.so* -w {dest_dir} {wheel}"
