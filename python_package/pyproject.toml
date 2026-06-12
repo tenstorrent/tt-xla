@@ -8,17 +8,10 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-# FIX: redirect clang's linker to the system el9 ld so the manylinux binaries get a
-# patchelf-safe layout. Root cause: the recent uplift pulled in gcc-toolset-15, and clang
-# invokes *its* ld (/opt/rh/gcc-toolset-15/.../bin/ld), whose newer binutils lays shared
-# objects out code-segment-first with .init/.plt jammed behind the program headers (no
-# headroom) -- and -z separate-code does NOT change that on this ld. `auditwheel repair`
-# then runs patchelf, which on that compact layout relocates .init/.plt into a non-exec
-# segment and leaves DT_INIT (and the init_array relocs) stale -> SIGSEGV in call_init on
-# dlopen. The system /usr/bin/ld (binutils 2.35.2-72.el9) instead defaults to a read-only
-# segment first (.init high, headroom), so patchelf edits RPATH in place and the binaries
-# stay valid (verified by extracting that exact ld and the older known-good wheels). We wrap
-# the gcc-toolset-15 ld that clang actually resolves so every sub-build (tt-metal, tt-mlir,
-# tt-xla) links through the safe system ld, with no per-repo CMake changes.
-before-all = "GT=$(readlink -f \"$(/usr/bin/clang++ -print-prog-name=ld)\"); if [ -n \"$GT\" ] && [ \"$GT\" != /usr/bin/ld ] && [ -e \"$GT\" ] && [ ! -e \"$GT.real\" ]; then cp -a \"$GT\" \"$GT.real\"; rm -f \"$GT\"; { echo '#!/bin/sh'; echo 'exec /usr/bin/ld \"$@\"'; } > \"$GT\"; chmod +x \"$GT\"; fi; echo \"clang ld wrapped at: $GT\"; cat \"$GT\"; echo 'system ld:'; /usr/bin/ld --version | head -1"
+# NOTE: the patchelf-safe linker layout is enforced via LDFLAGS=-Wl,--no-rosegment in the
+# manylinux build's CIBW_ENVIRONMENT (see .github/workflows/call-build-manylinux.yml), which
+# propagates to the tt-mlir and tt-metal ExternalProject sub-builds. gcc-toolset-15's binutils
+# (>= 2.44) defaults to --rosegment (single read-only segment => code-first, no headroom),
+# which makes patchelf relocate .init/.plt and corrupt DT_INIT during auditwheel repair;
+# --no-rosegment restores the read-only-segment-first layout so patchelf edits RPATH in place.
 repair-wheel-command = "auditwheel repair --exclude libTTMLIRRuntime.so --exclude libTTMLIRCompiler.so --exclude libtt-alchemist-lib.so --exclude libtt_metal.so --exclude libtt_stl.so --exclude libtt-umd.so.0 --exclude _ttnncpp.so --exclude _ttnn.so --exclude libdevice.so --exclude libtracy.so* -w {dest_dir} {wheel}"
