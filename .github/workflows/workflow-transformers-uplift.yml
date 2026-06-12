@@ -418,22 +418,22 @@ jobs:
   # the finalize stage — anything the broader suite surfaces gets one
   # attempt at a fix before the PR is opened.
   # ---------------------------------------------------------------------------
-  # test-and-fix-full:
-  #   needs: [setup, decide]
-  #   if: always() && needs.decide.outputs.action == 'finalize'
-  #   uses: ./.github/workflows/call-test-uplift.yml
-  #   with:
-  #     test_suite:              model-test-passing.json
-  #     scope:                   model-test-uplifts
-  #     tag:                     full
-  #     branch:                  ${{ inputs.branch }}
-  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-  #     target_version:          ${{ inputs.target_version }}
-  #     current_version:         ${{ inputs.current_version }}
-  #     artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-  #     artifact_suffix:         ${{ inputs.artifact_suffix }}
-  #     docker_image:            ${{ inputs.docker_image }}
-  #   secrets: inherit
+  test-and-fix-full:
+    needs: [setup, decide]
+    if: always() && needs.decide.outputs.action == 'finalize'
+    uses: ./.github/workflows/call-test-uplift.yml
+    with:
+      test_suite:              model-test-passing.json
+      scope:                   model-test-uplifts
+      tag:                     full
+      branch:                  ${{ inputs.branch }}
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
+      artifact_suffix:         ${{ inputs.artifact_suffix }}
+      docker_image:            ${{ inputs.docker_image }}
+    secrets: inherit
 
   # ---------------------------------------------------------------------------
   # Perf benchmark sweep — wraps call-perf-uplift.yml (run-perf →

@@ -81,6 +81,17 @@ Additional Instructions:
 5. **Cache and attention utilities churn every uplift.** Expect
    breakage in `transformers.cache_utils` and in the attention API —
    check those first when failures look unfamiliar.
+6. **Baseline comparison.** The orchestrator writes `baseline_failures.txt`
+   alongside the failure context — it lists the failures the last main
+   nightly observed on the same matrix. For each `TEST:` entry in the
+   current failure context, check whether the same node id appears in
+   `baseline_failures.txt`. If it does AND the failure message/traceback
+   describes the same root cause, the test was already broken on main —
+   list it under `## Skipped` in `fix-summary.md` with a one-line
+   "pre-existing on baseline" note and DO NOT attempt to fix it. If the
+   node id appears in both files but the root cause differs, treat it as
+   uplift-induced and fix normally. Tests absent from the baseline are
+   uplift-induced by definition.
 
 ## Scope: model-perf-uplift
 

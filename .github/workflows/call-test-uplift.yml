@@ -166,6 +166,20 @@ jobs:
           # context (e.g. C++ stderr or loguru output).
           pattern: test-log-*
 
+      - name: Download baseline nightly junit reports
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          BASELINE_RUN_ID: "27517218376"
+        run: |
+          mkdir -p baseline-results
+          if ! gh run download "$BASELINE_RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --dir baseline-results \
+              --pattern 'test-reports-*'; then
+            echo "::warning::could not download baseline junit from run $BASELINE_RUN_ID — proceeding without baseline filter"
+          fi
+
       - name: Extract failures
         id: extract
         run: |
@@ -173,11 +187,24 @@ jobs:
           # artifacts match — happens when every test crashed before
           # writing junit (so no `test-reports-*` to upload). Create it
           # so the extractor can treat it as "no failures detected".
-          mkdir -p test-results
+          mkdir -p test-results baseline-results
+
+          # First invocation: current iteration's failures.
           python3 .github/scripts/uplift/transformers/extract-failures.py \
             --inputs-dir test-results \
             --out-context failure_context.txt \
             --out-failed-tests "$LAST_FAILED_FILE"
+
+          # Second invocation: same extractor, pointed at the baseline
+          # nightly's junit, written to a parallel file. Claude reads both
+          # in the claude-fix step and skips any current failure whose root
+          # cause matches the baseline (pre-existing on main). Throwaway
+          # node-id list — we don't need it.
+          python3 .github/scripts/uplift/transformers/extract-failures.py \
+            --inputs-dir baseline-results \
+            --out-context baseline_failures.txt \
+            --out-failed-tests /tmp/baseline_failed.txt
+
           # `grep -c` prints the count AND exits non-zero when it's 0, so
           # use `|| true` (not `|| echo 0`) — otherwise we'd append a
           # second "0" and break the integer comparison below.
@@ -195,7 +222,9 @@ jobs:
           name: uplift-failures-${{ inputs.scope }}-${{ inputs.tag }}-iter-${{ inputs.iteration }}
           path: |
             failure_context.txt
+            baseline_failures.txt
             ${{ env.LAST_FAILED_FILE }}
+          if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
   # Stage 3: invoke the transformers-uplift-fix skill on the failures.
