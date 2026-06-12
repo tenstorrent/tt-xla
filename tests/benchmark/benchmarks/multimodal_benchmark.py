@@ -1,0 +1,276 @@
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Built-in modules
+import socket
+import time
+
+import torch
+import torch_xla
+import torch_xla.runtime as xr
+from utils import (
+    build_xla_export_name,
+    compute_pcc,
+    create_benchmark_result,
+    get_benchmark_metadata,
+    get_xla_device_arch,
+    print_benchmark_results,
+)
+
+xr.set_device_type("TT")
+
+WARMUP_STEPS = 8
+
+MODULE_EXPORT_PATH = "modules"
+
+
+def _move_inputs_to_device(inputs, device):
+    """Move a dict of model inputs to ``device``.
+
+    Unlike the vision harness we do NOT force a dtype here: ``input_ids`` and
+    ``attention_mask`` are integer tensors and must stay integer for the
+    embedding lookup. ``pixel_values`` was already cast to the model dtype by
+    the loader's ``load_inputs(dtype_override=...)``.
+    """
+    return {k: v.to(device) for k, v in inputs.items()}
+
+
+def execute_and_measure_fps(
+    model, inputs, device, loop_count, extract_output_tensor_fn
+):
+    """
+    Benchmark the model for a given number of loop_count.
+
+    Parameters:
+    ----------
+    model: Callable
+        The model to benchmark.
+    inputs: list of dict[str, torch.Tensor]
+        The per-iteration keyword inputs to the model.
+    device: torch.device
+        The device to run the benchmark on.
+    loop_count: int
+        Number of batches to process.
+    extract_output_tensor_fn: Callable
+        Function to extract tensor from model output (e.g. get .logits from HF output).
+
+    Returns:
+    -------
+    predictions: list of torch.Tensor
+        The predictions made by the model (on CPU).
+    total_time: float
+        The total time taken to process the inputs in seconds.
+    """
+    predictions = []
+    start_time = time.perf_counter_ns()
+    with torch.no_grad():
+        outputs = []
+        for i in range(loop_count):
+            start_iteration_time = time.perf_counter_ns()
+            # Move inputs to device
+            device_inputs = _move_inputs_to_device(inputs[i], device)
+
+            # Model forward, non blocking
+            output = model(**device_inputs)
+
+            # Extract output tensor
+            output = extract_output_tensor_fn(output)
+            outputs.append(output)
+            end_iteration_time = time.perf_counter_ns()
+            print(
+                f"Iteration {i} took {(end_iteration_time - start_iteration_time) / 1e6:.04} ms"
+            )
+
+        start_to_cpu_time = time.perf_counter_ns()
+        # Move all outputs to CPU
+        predictions = [out.to("cpu") for out in outputs]
+        end_to_cpu_time = time.perf_counter_ns()
+        print(
+            f"Moving all outputs to CPU took {(end_to_cpu_time - start_to_cpu_time) / 1e6:.04} ms"
+        )
+
+    end_time = time.perf_counter_ns()
+    total_time = end_time - start_time
+    print(f"Total time: {total_time / 1e9:.04}s for {loop_count} iterations")
+    # Convert to seconds
+    total_time /= 1e9
+    return predictions, total_time
+
+
+def benchmark_multimodal_torch_xla(
+    model,
+    model_info_name,
+    optimization_level,
+    trace_enabled,
+    loop_count,
+    data_format,
+    ttnn_perf_metrics_output_file,
+    load_inputs_fn,
+    extract_output_tensor_fn,
+    display_name=None,
+    required_pcc=0.97,
+):
+    """
+    Benchmark a multimodal (vision-language) model using PyTorch and torch-xla.
+
+    This mirrors ``benchmark_vision_torch_xla`` but feeds the model a dict of
+    keyword inputs (e.g. ``input_ids``/``attention_mask``/``pixel_values``)
+    rather than a single image tensor, and does a single forward pass per
+    iteration (no token generation). It performs warmup runs, collects
+    inference metrics, and validates output correctness via PCC.
+
+    Args:
+        model: Loaded model instance in eval mode (forward returns logits-like output)
+        model_info_name: Model name for identification and reporting
+        optimization_level: tt-mlir optimization level for compilation
+        trace_enabled: Whether to enable tracing
+        loop_count: Number of inference iterations to benchmark
+        data_format: torch.dtype for model precision (e.g., torch.bfloat16, torch.float32)
+        ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
+        load_inputs_fn: Function returning a single dict of model inputs.
+            Signature: fn(dtype: torch.dtype) -> dict[str, Tensor]
+        extract_output_tensor_fn: Function to extract tensor from model outputs.
+        required_pcc: Minimum PCC threshold for output validation
+
+    Returns:
+        Benchmark result containing performance metrics and model information
+    """
+
+    framework_model = model
+
+    # Multimodal inputs are expensive to build (processor + image) and fixed
+    # across iterations, so build once and reuse the same dict every loop.
+    base_inputs = load_inputs_fn(data_format)
+    inputs = [base_inputs for _ in range(loop_count)]
+
+    # Batch size and a representative image input_size for reporting.
+    batch_size = int(base_inputs["input_ids"].shape[0])
+    pixel_values = base_inputs["pixel_values"]
+    # pixel_values is (..., channels, height, width); take the trailing 3 dims.
+    input_size = tuple(int(d) for d in pixel_values.shape[-3:])
+
+    # Generate golden output for PCC calculation (run on CPU)
+    with torch.no_grad():
+        golden_output = framework_model(**base_inputs)
+        golden_output = extract_output_tensor_fn(golden_output)
+
+    export_model_name = build_xla_export_name(
+        model_name=display_name,
+        num_layers=None,
+        batch_size=batch_size,
+        input_sequence_length=None,
+    )
+
+    # Set XLA compilation options
+    options = {
+        "optimization_level": optimization_level,
+        "export_path": MODULE_EXPORT_PATH,
+        "export_model_name": export_model_name,
+        "ttnn_perf_metrics_enabled": True,
+        "ttnn_perf_metrics_output_file": ttnn_perf_metrics_output_file,
+        "enable_trace": trace_enabled,
+    }
+
+    torch_xla.set_custom_compile_options(options)
+
+    # Compile model
+    framework_model.compile(backend="tt")
+
+    device = torch_xla.device()
+
+    # .to(dtype=...) only affects floating-point tensors, so integer buffers
+    # (and the integer inputs handled in _move_inputs_to_device) are untouched.
+    framework_model = framework_model.to(device, dtype=data_format)
+
+    # Warmup
+    print("Starting warmup...")
+    warmup_loop_count = min(WARMUP_STEPS, loop_count)
+    warmup_inputs = inputs[:warmup_loop_count]
+    execute_and_measure_fps(
+        model=framework_model,
+        inputs=warmup_inputs,
+        device=device,
+        loop_count=warmup_loop_count,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+    )
+    print("Warmup completed.")
+
+    # Benchmark
+    print("Starting benchmark...")
+    predictions, total_time = execute_and_measure_fps(
+        model=framework_model,
+        inputs=inputs,
+        device=device,
+        loop_count=loop_count,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+    )
+    print("Benchmark completed.")
+
+    total_samples = batch_size * loop_count
+    samples_per_sec = total_samples / total_time
+
+    metadata = get_benchmark_metadata()
+
+    full_model_name = model_info_name
+    model_type = "Multimodal, Single Forward, Demo Input Data"
+    dataset_name = "Demo Data"
+    num_layers = -1
+
+    # Convert dtype to string for reporting
+    if data_format == torch.bfloat16:
+        data_format_str = "bfloat16"
+    elif data_format == torch.float32:
+        data_format_str = "float32"
+    else:
+        raise ValueError(f"Unsupported data format: {data_format}")
+
+    evaluation_score = 0.0
+    print_benchmark_results(
+        model_title=full_model_name,
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        date=metadata["date"],
+        machine_name=metadata["machine_name"],
+        total_time=total_time,
+        total_samples=total_samples,
+        samples_per_sec=samples_per_sec,
+        evaluation_score=evaluation_score,
+        batch_size=batch_size,
+        data_format=data_format_str,
+        input_size=input_size,
+    )
+
+    # Evaluate PCC
+    pcc_value = compute_pcc(predictions[0], golden_output)
+    assert (
+        pcc_value >= required_pcc
+    ), f"PCC comparison failed. PCC={pcc_value:.6f}, Required={required_pcc}"
+    print(f"PCC verification passed with PCC={pcc_value:.6f}")
+
+    result = create_benchmark_result(
+        full_model_name=full_model_name,
+        model_type=model_type,
+        dataset_name=dataset_name,
+        num_layers=num_layers,
+        batch_size=batch_size,
+        input_size=input_size,
+        loop_count=loop_count,
+        data_format=data_format_str,
+        total_time=total_time,
+        total_samples=total_samples,
+        evaluation_score=evaluation_score,
+        optimization_level=optimization_level,
+        program_cache_enabled=True,
+        trace_enabled=trace_enabled,
+        model_info=model_info_name,
+        display_name=display_name,
+        torch_xla_enabled=True,
+        backend="tt",
+        device_name=socket.gethostname(),
+        arch=get_xla_device_arch(),
+        device_count=xr.global_runtime_device_count(),
+    )
+
+    return result
