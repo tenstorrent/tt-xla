@@ -69,7 +69,7 @@ DEFAULT_NUM_DECODE_TOKENS = 16
 # identical inputs both should argmax the same next token per row. Set to None
 # to use distinct per-row words from DECODE_WORDS instead (good for spotting
 # degenerate/identical output, bad for a 1:1 device-test comparison).
-UNIFORM_DECODE_WORD = "None"
+UNIFORM_DECODE_WORD = None
 
 # Pool of seed words for the decode step. Each batch row gets one word (cycled
 # to fill the batch) so the single decode token differs across the batch
