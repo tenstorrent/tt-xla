@@ -524,6 +524,10 @@ class TTAttentionBackendImpl(AttentionImpl):
            prompt tokens before decode iterations begin.
         2. Pooling models: For the entire attention computation, as these models
            process all tokens in a single pass without a decode phase or KV cache.
+
+        On prefix-cache HIT (cached prefill), inputs.key/value contain only
+        suffix tokens; we must gather the full K/V (prefix + suffix) from the
+        paged cache for correct attention.
         """
         shared_kv_mode = (
             self.kv_sharing_target_layer_name is not None
@@ -531,6 +535,19 @@ class TTAttentionBackendImpl(AttentionImpl):
             and len(kv_cache) >= 2
             and kv_cache[0].numel() > 0
         )
+
+        # Detect cached prefill: is_prefill && cache_position indicates full seq > suffix tokens only
+        cached_prefill = (
+            inputs.is_prefill
+            and attn_metadata.cache_position is not None
+            and isinstance(kv_cache, (list, tuple))
+            and kv_cache[0].numel() > 0
+            and attn_metadata.page_table is not None
+        )
+        if cached_prefill:
+            # Check if any user has prefix cached (full_seq_len > current kv_num_tokens)
+            full_seq_lens = attn_metadata.cache_position + 1
+            cached_prefill = torch.any(full_seq_lens > inputs.kv_num_tokens)
 
         if shared_kv_mode:
             # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]
@@ -545,8 +562,19 @@ class TTAttentionBackendImpl(AttentionImpl):
             # SDPA expects [users, num_heads, tokens, head]. The gather helper
             # already returns that layout, only Q needs the transpose.
             query_for_sdpa = inputs.query.transpose(-3, -2)
+        elif cached_prefill:
+            # On prefix-cache HIT, gather full K/V (prefix + suffix) from paged cache.
+            full_seq_lens = attn_metadata.cache_position + 1
+            max_full_seq_len = int(full_seq_lens.max().item())
+            key_for_sdpa = self._gather_paged_to_dense(
+                kv_cache[0], attn_metadata.page_table, max_full_seq_len
+            )
+            value_for_sdpa = self._gather_paged_to_dense(
+                kv_cache[1], attn_metadata.page_table, max_full_seq_len
+            )
+            query_for_sdpa = inputs.query.transpose(-3, -2)
         else:
-            # scaled_dot_product_attention expects [B, N_tokens, N_heads, H]
+            # Cold prefill: use inputs.key/value (full prefill tokens computed by model)
             query_for_sdpa = inputs.query.transpose(-3, -2)
             key_for_sdpa = inputs.key.transpose(-3, -2)
             value_for_sdpa = inputs.value.transpose(-3, -2)
