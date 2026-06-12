@@ -19,6 +19,7 @@ from vllm.model_executor.layers.linear import (
     QKVParallelLinear,
     RowParallelLinear,
 )
+from vllm.model_executor.layers.mamba.gdn_linear_attn import GatedDeltaNetAttention
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead,
     VocabParallelEmbedding,
@@ -294,7 +295,19 @@ def partition_column_parallel_linear(
 ) -> torch.nn.Module:
     assert isinstance(layer, ColumnParallelLinear)
     # Weight is [output, input]: output on the "model" (TP) axis, input replicated.
-    safe_mark_sharding(layer.weight, mesh, ("model", None))
+    if layer.weight.ndim == 2:
+        safe_mark_sharding(layer.weight, mesh, ("model", None))
+    elif layer.weight.ndim == 3:
+        safe_mark_sharding(layer.weight, mesh, ("model", None, None))
+    else:
+        logger.warning(
+            "Skipping shard of ColumnParallelLinear %s: weight rank %d not in {2, 3} "
+            "(shape %s).",
+            layer,
+            layer.weight.ndim,
+            tuple(layer.weight.shape),
+        )
+        return layer
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -345,6 +358,25 @@ def partition_vocab_parallel_embedding(
     return layer
 
 
+def partition_gated_delta_net_attention(
+    layer: torch.nn.Module, mesh: xs.Mesh
+) -> torch.nn.Module:
+    # logger.info(f"Applying parallel sharding to GatedDeltaNetAttention layer: {layer}")
+    assert isinstance(layer, GatedDeltaNetAttention)
+
+    # GDN/Mamba exposes per-head vectors that do not belong to the generic
+    # linear wrappers and therefore need explicit annotation.
+    if hasattr(layer, "A_log"):
+        #    logger.info(f"Sharding A_log with mesh {mesh} on axis 'model'")
+        safe_mark_sharding(layer.A_log, mesh, ("model",))
+    if hasattr(layer, "dt_bias"):
+        #    logger.info(f"Sharding dt_bias with mesh {mesh} on axis 'model'")
+        safe_mark_sharding(layer.dt_bias, mesh, ("model",))
+
+    logger.debug("Applied parallel sharding to %s", layer)
+    return layer
+
+
 def partition_fused_moe(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
@@ -383,12 +415,13 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        ("GatedDeltaNetAttention", partition_gated_delta_net_attention),
+        ("TTFusedMoE", partition_fused_moe),
+        ("TTSharedFusedMoE", partition_fused_moe),
         # Catch-all for plain nn.Linear layers (e.g. vision encoder projections
         # that are not wrapped in vLLM's parallel linear types). Must come last
         # so the more specific vLLM types above always take priority.
         ("Linear", partition_linear),
-        ("TTFusedMoE", partition_fused_moe),
-        ("TTSharedFusedMoE", partition_fused_moe),
     ]
 )
 

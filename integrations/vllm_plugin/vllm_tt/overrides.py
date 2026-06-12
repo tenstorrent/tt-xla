@@ -5,9 +5,11 @@
 from typing import OrderedDict
 
 import torch
+from vllm.model_executor.layers.mamba.gdn_linear_attn import GatedDeltaNetAttention
 from vllm.model_executor.layers.rotary_embedding.base import RotaryEmbedding
 from vllm.model_executor.layers.rotary_embedding.mrope import MRotaryEmbedding
 
+from .layers.gdn_linear_attn import override_gdn_linear_attn_module
 from .layers.mm_embeddings import install_static_shape_merge_multimodal_embeddings
 from .layers.mrope import override_mrope_module
 from .layers.multimodal_attention import override_vision_attention
@@ -28,11 +30,13 @@ def get_fqn(module):
 MODULE_TYPE_TO_TT_OVERRIDE = OrderedDict(
     [
         ("RMSNorm", override_rmsnorm_module),
+        ("GemmaRMSNorm", override_rmsnorm_module),
     ]
 )
 
 # isinstance-based overrides for classes where subclasses need the same treatment
 ISINSTANCE_OVERRIDES = [
+    (GatedDeltaNetAttention, override_gdn_linear_attn_module),
     (MRotaryEmbedding, override_mrope_module),
     (RotaryEmbedding, override_rotary_embedding_module),
 ]
