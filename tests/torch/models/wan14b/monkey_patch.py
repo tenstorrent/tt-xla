@@ -975,4 +975,3 @@ def _patch_wan_resample_rep_sentinel() -> None:
         return x
 
     akw.WanResample.forward = forward
-

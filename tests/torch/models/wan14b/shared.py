@@ -379,7 +379,7 @@ def shard_vae_encoder_specs(vae, mesh: Mesh) -> dict:
     """
     from diffusers.models.autoencoders.autoencoder_kl_wan import (
         WanResidualBlock,
-        WanResidualDownBlock
+        WanResidualDownBlock,
     )
 
     axis = _pick_axis(mesh)

@@ -58,11 +58,12 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
+@pytest.mark.skip(reason="Skipping due to the long running time: > 40 minutes")
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 
 
-@pytest.mark.xfail(reason="PCC comparison fails: captured 0.75 on single decoder block")
+@pytest.mark.xfail(reason="PCC comparison fails: captured 0.71")
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole

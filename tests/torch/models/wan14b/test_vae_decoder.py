@@ -21,10 +21,7 @@ from infra.utilities import Mesh
 
 from tests.infra.testers.compiler_config import CompilerConfig
 
-from .monkey_patch import (
-    _patch_wan_resample_rep_sentinel,
-    safe_xla_slicing,
-)
+from .monkey_patch import _patch_wan_resample_rep_sentinel, safe_xla_slicing
 from .shared import (
     LATENT_CHANNELS,
     RESOLUTIONS,
@@ -48,7 +45,9 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.skip(reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir")
+@pytest.mark.skip(
+    reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir"
+)
 def test_vae_decoder_720p():
     _run("720p", sharded=False)
 
@@ -58,7 +57,9 @@ def test_vae_decoder_720p():
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.skip(reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir")
+@pytest.mark.skip(
+    reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir"
+)
 def test_vae_decoder_480p():
     _run("480p", sharded=False)
 
