@@ -116,10 +116,16 @@ class SetupConfig:
         try:
             with urllib.request.urlopen(tt_mlir_url) as response:
                 tt_mlir_content = response.read().decode("utf-8")
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to fetch tt-mlir CMakeLists.txt from {tt_mlir_url}: {e}"
+        except Exception:
+            # Local dev commit not pushed to GitHub: fall back to the local
+            # tt-mlir checkout's CMakeLists.
+            local_cmake = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "..", "third_party", "tt-mlir", "src", "tt-mlir",
+                "third_party", "CMakeLists.txt",
             )
+            with open(local_cmake) as f:
+                tt_mlir_content = f.read()
 
         metal_match = re.search(r'set\(TT_METAL_VERSION "([^"]+)"\)', tt_mlir_content)
         if not metal_match:
