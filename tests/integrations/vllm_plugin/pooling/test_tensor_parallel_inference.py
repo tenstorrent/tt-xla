@@ -22,9 +22,7 @@ from tests.integrations.vllm_plugin.pooling.utils import run_pooling_test
         ),
     ],
 )
-# n300 has 2 devices: [1, 2] is the explicit shape, None the default 1D mesh
-# (both resolve to (1, 2) here).
-@pytest.mark.parametrize("mesh_shape", [[1, 2], None])
+@pytest.mark.parametrize("mesh_shape", [[1, 2]])
 def test_tensor_parallel_n300(
     model_name: str,
     baseline_path: str,

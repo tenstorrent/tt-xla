@@ -27,7 +27,6 @@ def test_generation_single_device_gemma4_e4b():
             "enable_const_eval": True,
             "min_context_len": 32,
             "enable_tensor_parallel": False,
-            # bhqb has 4 chips: a 1D (1, 4) mesh.
             "mesh_shape": [1, 4],
             "cpu_sampling": False,
             "flat_model_io": True,

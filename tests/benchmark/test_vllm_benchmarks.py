@@ -121,7 +121,7 @@ def _tp_config(
 def _gemma4_tp_config(model: str, batch_size: int):
     # Gemma-4 is a multimodal model run text-only on a TP mesh. Mirrors
     # tests/integrations/vllm_plugin/generative/test_tensor_parallel_generation.py
-    # ::test_tensor_parallel_generation_bhqb_gemma4_31b:
+    # ::test_tensor_parallel_generation_gemma4_31b:
     #   - limit_mm_per_prompt zeroed so the vision/audio tower never compiles
     #   - max_num_batched_tokens floored at 2560 (MultiModalBudget video floor)
     #   - flat_model_io for Gemma-4's PLE forward; default mesh_shape=None ->

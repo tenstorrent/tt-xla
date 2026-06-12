@@ -43,8 +43,6 @@ def test_tensor_parallel_generation_n300(model_name: str):
         pytest.param("Qwen/Qwen3-0.6B"),
     ],
 )
-# [2, 4] is the 2D mesh over llmbox's 8 devices; None falls back to the
-# default 1D mesh (1, 8).
 @pytest.mark.parametrize("mesh_shape", [[2, 4], [1, 8]])
 def test_tensor_parallel_generation_llmbox_small(
     model_name: str,
@@ -180,7 +178,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
         pytest.param(True, ""),
     ],
 )
-def test_tensor_parallel_generation_bhqb_gemma4_31b(
+def test_tensor_parallel_generation_gemma4_31b(
     enable_const_eval: bool,
     experimental_weight_dtype: str,
 ):
