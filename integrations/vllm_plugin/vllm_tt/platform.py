@@ -121,6 +121,17 @@ class TTConfig:
     export_path: Optional[str] = None
     export_model_name: Optional[str] = None
 
+    # Pad num_attention_heads / num_key_value_heads up to the next multiple of
+    # the heads-sharding mesh axis, so models with awkward head counts can be
+    # sharded cleanly. Padded q heads are zero-projected and contribute nothing
+    # to the output.
+    pad_attention_heads: bool = False
+
+    # Force c=k (padded_q == padded_kv) instead of the default min-cost
+    # strategy. Workaround for #5015 (tt-metal concat bug on unequal Q/K/V).
+    # Gemma-4-31B on llmbox 1D 8-chip needs this.
+    pad_attention_heads_force_equal: bool = False
+
     def __post_init__(self):
         # tt::sampling + enable_trace + optimization_level >= 1 hits a
         # tt-mlir compile bug: TTNNGreedyMemoryLayoutPropagation falls
