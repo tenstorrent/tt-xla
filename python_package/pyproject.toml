@@ -8,16 +8,12 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-# TEMPORARY FIX: force the GNU ld `-z separate-code` layout for the whole manylinux build.
-# The manylinux toolchain regressed to emitting a `noseparate-code`-style layout (code
-# segment first at vaddr 0, with .init/.plt jammed right behind the program headers and no
-# headroom). `auditwheel repair` (and setup.py's RPATH pass) then run patchelf, which on that
-# compact layout must relocate .init/.plt into a non-executable segment and leaves DT_INIT
-# stale -> SIGSEGV in the dynamic loader's call_init on dlopen. `-z separate-code` puts a
-# read-only segment first, giving .init headroom, so patchelf edits RPATH in place and the
-# binaries stay valid (this is the layout older/good manylinux wheels and the linux_x86_64
-# wheel already have). We wrap /usr/bin/ld instead of passing a flag so every sub-build
-# (tt-metal, tt-mlir, tt-xla) is covered without per-repo CMake changes; the flag is appended
-# last so it overrides any earlier `-z noseparate-code`.
-before-all = "if [ ! -e /usr/bin/ld.real ]; then REAL=$(readlink -f /usr/bin/ld); cp -a \"$REAL\" /usr/bin/ld.real; rm -f /usr/bin/ld; { echo '#!/bin/sh'; echo 'exec /usr/bin/ld.real \"$@\" -z separate-code'; } > /usr/bin/ld; chmod +x /usr/bin/ld; fi; echo 'ld now forces -z separate-code:'; cat /usr/bin/ld; /usr/bin/ld --version | head -1"
+# DIAGNOSTIC (temporary): the /usr/bin/ld -z separate-code wrapper had zero effect on the
+# produced binaries, so either clang is not invoking /usr/bin/ld, or -z separate-code does
+# not control segment ordering on this image's binutils (GNU ld 2.35.2-72.el9; local repro
+# was 2.42). This prints (a) which linker clang actually invokes, and (b) the first LOAD
+# segment + .init address for a trivial .so linked with no flag / separate-code /
+# noseparate-code -- so we can see which (if any) flag yields the R-first/headroom layout on
+# the real toolchain. `|| true` keeps it from failing the build so we still get a wheel to inspect.
+before-all = "echo CLANG_LD:; /usr/bin/clang++ -print-prog-name=ld; echo CLANG_LD_LLD:; /usr/bin/clang++ -print-prog-name=ld.lld; echo LINK_INVOCATION:; /usr/bin/clang++ -### -shared -fPIC -o /tmp/t.so -xc /dev/null 2>&1 | tail -2; echo 'int g;void f(){g++;}' > /tmp/t.c; for m in none separate-code noseparate-code; do case $m in none) F= ;; *) F=-Wl,-z,$m ;; esac; /usr/bin/clang++ -shared -fPIC /tmp/t.c -o /tmp/m.so $F 2>/dev/null; echo MODE=$m; readelf -lW /tmp/m.so | grep -m1 LOAD; readelf -SW /tmp/m.so | grep -E '[.]init +PROGBITS'; done; true"
 repair-wheel-command = "auditwheel repair --exclude libTTMLIRRuntime.so --exclude libTTMLIRCompiler.so --exclude libtt-alchemist-lib.so --exclude libtt_metal.so --exclude libtt_stl.so --exclude libtt-umd.so.0 --exclude _ttnncpp.so --exclude _ttnn.so --exclude libdevice.so --exclude libtracy.so* -w {dest_dir} {wheel}"
