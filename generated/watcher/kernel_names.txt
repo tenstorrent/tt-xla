@@ -1,3 +1,0 @@
-0: blank
-1: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp
-2: tt_metal/fabric/impl/kernels/edm_fabric/fabric_erisc_router.cpp

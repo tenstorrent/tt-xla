@@ -119,10 +119,10 @@ void FlatbufferLoadedExecutableInstance::materializeShellTensors(
     // copies the bytes from the client's host_base pointer. Subsequent
     // buffers in the group get unsafe-borrowed tensors aliasing that owned
     // tensor, so we only hold one copy of the data on the worker side.
-    std::vector<std::int64_t> strides_int64(shell->strides.begin(),
-                                            shell->strides.end());
+    std::vector<std::int64_t> strides(shell->strides.begin(),
+                                      shell->strides.end());
     tt::runtime::Tensor owned_tensor = tt::runtime::createOwnedHostTensor(
-        const_cast<void *>(shell->host_buffer), shell->shape, strides_int64,
+        const_cast<void *>(shell->host_buffer), shell->shape, strides,
         shell->element_size, shell->runtime_data_type);
 
     for (size_t i = 0; i < buffers.size(); ++i) {
