@@ -37,21 +37,16 @@ from .shared import (
 _COMPILER_CONFIG = CompilerConfig(
     optimization_level=1,
     experimental_enable_dram_space_saving_optimization=True,
-    export_path="model",
-    export_model_name="vae_decoder",
     enable_trace=True,
 )
 
 
-@pytest.mark.xfail(
-    reason="DRAM OOM: Out of Memory: Not enough space to allocate 14763950080 B "
-    "DRAM buffer across 8 banks during VAE decoder permute output allocation"
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
+@pytest.mark.skip(reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462")
 def test_vae_decoder_720p_sharded():
     _run("720p", sharded=True)
 
@@ -61,8 +56,18 @@ def test_vae_decoder_720p_sharded():
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
+@pytest.mark.skip(reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462")
 def test_vae_decoder_480p_sharded():
     _run("480p", sharded=True)
+    
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.qb2_blackhole
+@pytest.mark.lb_blackhole
+@pytest.mark.bh_galaxy
+@pytest.mark.skip(reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir")
+def test_vae_decoder_480p():
+    _run("480p", sharded=False)
 
 
 def _run(resolution: str, sharded: bool) -> None:
@@ -85,7 +90,7 @@ def _run(resolution: str, sharded: bool) -> None:
     model = VAEDecoderWrapper(load_vae()).eval().bfloat16()
 
     mesh: Optional[Mesh] = wan22_mesh() if sharded else None
-    shard_spec_fn = (lambda m: shard_vae_decoder_specs(m.vae)) if sharded else None
+    shard_spec_fn = (lambda m: shard_vae_decoder_specs(m.vae, mesh)) if sharded else None
 
     # safe_xla_slicing wraps the entire run: its TorchFunctionMode stays on
     # the stack across CPU golden, dynamo trace + compile, and TT execution.
