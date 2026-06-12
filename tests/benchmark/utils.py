@@ -36,35 +36,17 @@ def get_jax_device_arch():
 
 def get_xla_device_arch():
     """Get the architecture of the XLA device."""
-    import torch_xla.core.xla_model as xm
+    import torch_xla.runtime as xr
 
-    device = xm.xla_device()
-    device = xm.xla_device_kind(device)
-    arch_name = str(device).lower()
+    # Query the physical runtime devices directly. This works in both regular
+    # and SPMD modes. xm.xla_device_kind() cannot be used because in SPMD mode
+    # (e.g. tensor-parallel benchmarks) xm.xla_device() resolves to a virtual
+    # "SPMD:0" device that the device-kind lookup cannot find.
+    attrs = xr.global_runtime_device_attributes()
+    if not attrs:
+        return ""
+    arch_name = str(attrs[0]["device_arch"]).lower()
     return align_arch(arch_name)
-
-
-def get_device_type(arch: str, device_count: int) -> str:
-    """Determine device type string based on architecture and device count."""
-
-    if device_count == 32:
-        return "galaxy"
-    if device_count == 8:
-        return "llmbox"
-    if arch == "wormhole":
-        if device_count == 1:
-            return "n150"
-        if device_count == 2:
-            return "n300"
-    if arch == "blackhole":
-        if device_count == 1:
-            return "p150"
-        if device_count == 2:
-            return "p300"
-        if device_count == 4:
-            return "qb2-blackhole"
-
-    return "unknown"
 
 
 def sanitize_filename(name: str) -> str:
@@ -237,6 +219,41 @@ def compute_pcc(golden_output: torch.Tensor, device_output: torch.Tensor) -> flo
     return max(-1.0, min(1.0, pcc))
 
 
+def compute_rel_l2(golden_output: torch.Tensor, device_output: torch.Tensor) -> float:
+    """Compute relative L2 error between two tensors.
+
+    rel_l2 = ||device_output - golden_output||_2 / ||golden_output||_2
+
+    Computed in float64 to avoid norm underflow in bf16/fp32. Complements PCC:
+    PCC is scale-blind, max-atol is dominated by a single outlier, max-rtol
+    blows up near zero. rel_l2 is scale-sensitive, stable near zero globally
+    (denominator is the golden norm, not per-element |y|), and captures
+    distributed degradation rather than one bad element.
+
+    Args:
+        golden_output: Golden reference tensor.
+        device_output: Device output tensor.
+
+    Returns:
+        Non-negative float. 0.0 if both tensors are exactly zero, inf if the
+        golden norm is zero but the difference norm is non-zero, NaN
+        propagated through if either tensor contains NaN.
+    """
+    golden_flat = golden_output.to(torch.float64).flatten()
+    device_flat = device_output.to(torch.float64).flatten()
+
+    diff_norm = torch.linalg.vector_norm(device_flat - golden_flat)
+    golden_norm = torch.linalg.vector_norm(golden_flat)
+
+    if torch.isnan(diff_norm) or torch.isnan(golden_norm):
+        return float("nan")
+
+    if golden_norm.item() == 0.0:
+        return 0.0 if diff_norm.item() == 0.0 else float("inf")
+
+    return (diff_norm / golden_norm).item()
+
+
 def get_benchmark_metadata() -> Dict[str, str]:
     """Get common benchmark metadata."""
     return {
@@ -293,9 +310,9 @@ def print_benchmark_results(
     print(f"| Dataset name: {dataset_name}")
     print(f"| Date: {date}")
     print(f"| Machine name: {machine_name}")
-    print(f"| Total execution time: {total_time}")
     print(f"| Total samples: {total_samples}")
-    print(f"| Sample per second: {samples_per_sec}")
+    print(f"| Avg. decode time: {total_time}")
+    print(f"| Avg. samples per second: {samples_per_sec}")
 
     if cpu_samples_per_sec is not None:
         print(f"| CPU samples per second: {cpu_samples_per_sec}")
@@ -374,7 +391,6 @@ def create_benchmark_result(
     torch_xla_enabled: bool = True,
     backend: str = "tt",
     device_name: str = "",
-    galaxy: bool = False,
     arch: str = "",
     input_is_image: bool = True,
     input_sequence_length: Optional[int] = -1,
@@ -474,11 +490,10 @@ def create_benchmark_result(
         "measurements": measurements,
         "device_info": {
             "device_name": device_name,
-            "galaxy": galaxy,
             "arch": arch,
             "device_count": device_count,
             "mesh_shape": mesh_shape,
-            "device_type": get_device_type(arch, device_count),
+            "device_type": None,
         },
     }
 

@@ -26,6 +26,10 @@ enum class BackendRuntime {
 
 // POD struct containing various options used to customize module compilation.
 struct CompileOptions {
+
+  // Map the key used to store and retrieve the optimization level
+  static inline const std::string optimization_level_key = "optimization_level";
+
   // Optimization level (0, 1, or 2) that controls multiple optimization passes.
   // See documentation for details on what each level enables.
   // Level 0 (default): All optimizations disabled
@@ -117,6 +121,10 @@ struct CompileOptions {
 
   // Enable DRAM space saving optimization pass (TTNNMemoryManagement).
   bool experimental_enable_dram_space_saving_optimization = false;
+
+  // Enable D2M subgraph creation pass for d2m elementwise fusion.
+  // Only effective when optimization_level >= 1 (optimizer must be enabled)
+  bool enable_create_d2m_subgraphs = false;
 
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;

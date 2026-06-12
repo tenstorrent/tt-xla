@@ -34,3 +34,24 @@ from .weight_dtype import (
     dump_weight_names,
     remove_weight_dtype_overrides,
 )
+
+_HF_BACKEND_EXPORTS = {
+    "TT_MOE_BACKEND_NAME": "moe_backend",
+    "TT_DENSE_EXPERTS_BACKEND_NAME": "moe_backend",
+    "get_tt_moe_shard_specs": "moe_backend",
+    "register_tt_moe_backend": "moe_backend",
+    "tt_experts_forward": "moe_backend",
+    "tt_dense_experts_forward": "moe_backend",
+}
+
+
+def __getattr__(name):
+    module_name = _HF_BACKEND_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    from importlib import import_module
+
+    value = getattr(import_module(f"{__name__}.{module_name}"), name)
+    globals()[name] = value
+    return value

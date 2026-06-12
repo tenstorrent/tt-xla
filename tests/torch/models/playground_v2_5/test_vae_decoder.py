@@ -10,17 +10,16 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 
+from tests.infra.testers.compiler_config import CompilerConfig
 from third_party.tt_forge_models.playground_v2_5.pytorch import (
     ModelLoader,
     ModelVariant,
 )
 
 
-@pytest.mark.xfail(
-    reason="Out of Memory: Not enough space to allocate 4294967296 B DRAM buffer across 12 banks, where each bank needs to store 357916672 B, but bank size is 1071821792 B — https://github.com/tenstorrent/tt-xla/issues/4710"
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.single_device
 def test_vae_decoder():
     xr.set_device_type("TT")
     torch.manual_seed(42)
@@ -29,8 +28,14 @@ def test_vae_decoder():
     model = loader.load_model(dtype_override=torch.float32)
     inputs = loader.load_inputs(dtype_override=torch.float32)
 
+    # opt_level=1 keeps ttir.group_norm -> ttnn.group_norm; opt_level=0 triggers
+    # GroupNorm decomposition (reshape+mean+sub) which triggers OOM
+    # https://github.com/tenstorrent/tt-xla/issues/4710
+    compiler_config = CompilerConfig(optimization_level=1)
+
     run_graph_test(
         model,
         inputs,
         framework=Framework.TORCH,
+        compiler_config=compiler_config,
     )

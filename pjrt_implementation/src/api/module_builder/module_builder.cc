@@ -52,9 +52,9 @@
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 #include "ttmlir/Dialect/StableHLO/Pipelines/StableHLOPipelines.h"
+#include "ttmlir/Dialect/StableHLO/Utils/CollectMeshShardings.h"
 #include "ttmlir/Dialect/StableHLO/Utils/GSPMDUtils.h"
 #include "ttmlir/Dialect/StableHLO/Utils/ShardingUtils.h"
-#include "ttmlir/Dialect/StableHLO/Utils/ShardyUtils.h"
 #include "ttmlir/Dialect/TTCore/IR/TTCoreOpsTypes.h"
 #include "ttmlir/Dialect/TTIR/Pipelines/TTIRPipelines.h"
 #include "ttmlir/Dialect/TTIR/Transforms/Passes.h"
@@ -162,16 +162,22 @@ TTAlchemistHandler::~TTAlchemistHandler() {
 }
 
 std::optional<std::string> TTAlchemistHandler::findTTAlchemistLibraryPath() {
-  const char *mlir_home = std::getenv("TT_MLIR_HOME");
-  if (mlir_home == nullptr) {
-    return std::nullopt;
+  // Wheel install: pjrt_plugin_tt/__init__.py exports TT_PJRT_PLUGIN_DIR,
+  // and the bundled library lives in <plugin_dir>/lib/.
+  if (const char *plugin_dir = std::getenv("TT_PJRT_PLUGIN_DIR")) {
+    std::string p = std::string(plugin_dir) + "/lib/libtt-alchemist-lib.so";
+    if (std::filesystem::exists(p)) {
+      return p;
+    }
   }
 
-  std::string alchemist_lib_path =
-      std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
-
-  if (std::filesystem::exists(alchemist_lib_path)) {
-    return alchemist_lib_path;
+  // Source build fallback: tt-mlir build tree.
+  if (const char *mlir_home = std::getenv("TT_MLIR_HOME")) {
+    std::string p =
+        std::string(mlir_home) + "/build/lib/libtt-alchemist-lib.so";
+    if (std::filesystem::exists(p)) {
+      return p;
+    }
   }
 
   return std::nullopt;
@@ -350,26 +356,6 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  // Shardy output shardings must be collected after the SHLO compiler pipeline
-  // is run. If shardy is being used, overwrite the GSPMD shardings collected
-  // earlier.
-  bool is_using_shardy_output_shardings =
-      isUsingShardyManualComputation(mlir_module);
-  DLOG_F(LOG_DEBUG,
-         "SHLO compiler pipeline run completed - is using shardy output "
-         "shardings: %d",
-         is_using_shardy_output_shardings);
-
-  if (is_using_shardy_output_shardings) {
-    // Clear the GSPMD shardings collected earlier before collecting shardy
-    // shardings.
-    output_shardings.clear();
-    status = collectOutputShardings(mlir_module, output_shardings);
-    if (!tt_pjrt_status_is_ok(status)) {
-      return {status, nullptr};
-    }
-  }
-
   // Sanitize the module for XLA ingestion operating on a clone of the base
   // module.
   mlir::OwningOpRef<mlir::ModuleOp> sanitized_module = mlir_module->clone();
@@ -382,6 +368,16 @@ ModuleBuilder::buildModule(
   std::string optimized_mlir_code = getMlirCode(sanitized_module);
   printModule(sanitized_module, compile_options.export_path,
               "shlo_compiler_cleaned");
+
+  // Output shardings collected before the SHLO compiler pipeline are Replicate
+  // for Shardy inputs (the output sharding is only derived during propagation).
+  // Now that the pipeline has run and `cleanForXlaIngestion` has materialized
+  // `mhlo.spmd_output_sharding`, override them with the correct shardings.
+  status = recollectOutputShardingsFromModuleAttr(sanitized_module,
+                                                  output_shardings);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
 
   LOG_BRINGUP_STAGE("TTMLIR_COMPILATION_START");
   std::string ttir_mlir;
@@ -511,150 +507,99 @@ ModuleBuilder::getMlirCode(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
 tt_pjrt_status ModuleBuilder::collectInputShardings(
     const mlir::OwningOpRef<mlir::ModuleOp> &module,
     std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings) {
-  if (auto shardy_shardings_opt = collectInputShardingsShardy(module)) {
-    input_shardings = *shardy_shardings_opt;
-    return tt_pjrt_status::kSuccess;
-  }
-  return collectInputShardingsGSPMD(module, input_shardings);
-}
-
-tt_pjrt_status ModuleBuilder::collectInputShardingsGSPMD(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module,
-    std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings) {
-
-  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-  std::vector<mlir::StringAttr> gspmd_attributes;
-  for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    for (unsigned int i = 0; i < func_op.getNumArguments(); ++i) {
-      gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
-          func_op.getArgAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr)));
+  for (mlir::func::FuncOp &func_op : getPublicFuncOps(module)) {
+    auto collected = mlir::tt::sharding_utils::collectArgMeshShardings(func_op);
+    if (auto err = collected.takeError()) {
+      LOG_F(ERROR, "Failed to collect input shardings: %s",
+            llvm::toString(std::move(err)).c_str());
+      return tt_pjrt_status::kInternal;
     }
+    input_shardings.insert(input_shardings.end(), collected->begin(),
+                           collected->end());
   }
-
-  mlir::LogicalResult result =
-      createShardingsFromGSPMD(gspmd_attributes, input_shardings);
-  if (result.failed()) {
-    LOG_F(ERROR, "Failed to create input shardings from GSPMD attributes");
-    return tt_pjrt_status::kInternal;
-  }
-
   return tt_pjrt_status::kSuccess;
-}
-
-std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectInputShardingsShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  auto mesh_op_opt = getFirstShardyMeshOp(module);
-  if (!mesh_op_opt.has_value()) {
-    return std::nullopt;
-  }
-
-  mlir::sdy::MeshOp mesh_op = *mesh_op_opt;
-  mlir::sdy::MeshAttr shardy_mesh = mesh_op.getMesh();
-  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-  std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
-
-  for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    for (unsigned int arg_index = 0; arg_index < func_op.getNumArguments();
-         ++arg_index) {
-      shardy_attributes.push_back(
-          func_op.getArgAttrOfType<mlir::sdy::TensorShardingAttr>(
-              arg_index, mlir::sdy::kShardingAttr));
-    }
-  }
-
-  std::vector<mlir::tt::sharding_utils::MeshSharding> input_shardings;
-  mlir::LogicalResult result = createShardingsFromShardy(
-      shardy_attributes, shardy_mesh, input_shardings);
-  if (result.failed()) {
-    LOG_F(ERROR, "Failed to create input shardings from Shardy attributes");
-    return std::nullopt;
-  }
-  return input_shardings;
 }
 
 tt_pjrt_status ModuleBuilder::collectOutputShardings(
     const mlir::OwningOpRef<mlir::ModuleOp> &module,
     std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings) {
-  if (auto shardy_shardings_opt = collectOutputShardingsShardy(module)) {
-    output_shardings = *shardy_shardings_opt;
-    return tt_pjrt_status::kSuccess;
-  }
-  return collectOutputShardingsGSPMD(module, output_shardings);
-}
-
-tt_pjrt_status ModuleBuilder::collectOutputShardingsGSPMD(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module,
-    std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings) {
-  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-  std::vector<mlir::StringAttr> gspmd_attributes;
-  for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    for (unsigned int i = 0; i < func_op.getNumResults(); ++i) {
-      gspmd_attributes.push_back(llvm::dyn_cast_if_present<mlir::StringAttr>(
-          func_op.getResultAttr(i, mlir::tt::gspmd_utils::kXlaShardingAttr)));
+  for (mlir::func::FuncOp &func_op : getPublicFuncOps(module)) {
+    auto collected =
+        mlir::tt::sharding_utils::collectResultMeshShardings(func_op);
+    if (auto err = collected.takeError()) {
+      LOG_F(ERROR, "Failed to collect output shardings: %s",
+            llvm::toString(std::move(err)).c_str());
+      return tt_pjrt_status::kInternal;
     }
-  }
-
-  mlir::LogicalResult result =
-      createShardingsFromGSPMD(gspmd_attributes, output_shardings);
-  if (result.failed()) {
-    LOG_F(ERROR, "Failed to create output shardings from GSPMD attributes");
-    return tt_pjrt_status::kInternal;
+    output_shardings.insert(output_shardings.end(), collected->begin(),
+                            collected->end());
   }
   return tt_pjrt_status::kSuccess;
 }
 
-std::optional<std::vector<mlir::tt::sharding_utils::MeshSharding>>
-ModuleBuilder::collectOutputShardingsShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  auto mesh_op_opt = getFirstShardyMeshOp(module);
-  if (!mesh_op_opt.has_value()) {
-    return std::nullopt;
+tt_pjrt_status ModuleBuilder::recollectOutputShardingsFromModuleAttr(
+    const mlir::OwningOpRef<mlir::ModuleOp> &cleaned_module,
+    std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings) {
+  // The attribute matches the string built by `cleanForXlaIngestion`: a tuple
+  // wrapping one GSPMD sharding per output, e.g. "{{devices=[1,2]<=[2]}}" for a
+  // single output, or "{{...},{...}}" for several.
+  auto tuple_attr = cleaned_module.get()->getAttrOfType<mlir::StringAttr>(
+      "mhlo.spmd_output_sharding");
+  if (!tuple_attr) {
+    // Nothing to override (e.g. no sharded outputs); keep what we have.
+    return tt_pjrt_status::kSuccess;
   }
 
-  mlir::sdy::MeshOp mesh_op = *mesh_op_opt;
-  mlir::sdy::MeshAttr shardy_mesh = mesh_op.getMesh();
-  std::vector<mlir::func::FuncOp> publicFuncOps = getPublicFuncOps(module);
-  std::vector<mlir::sdy::TensorShardingAttr> shardy_attributes;
-  for (mlir::func::FuncOp &func_op : publicFuncOps) {
-    std::vector<mlir::sdy::ManualComputationOp> manual_computation_ops;
-    func_op.walk([&](mlir::sdy::ManualComputationOp op) {
-      manual_computation_ops.push_back(op);
-    });
-
-    // zero manual computation ops may exist if execution is entirely replicated
-    // In this case, we must insert as many nullptr into shardy_attributes as
-    // there are results in the funcOp so that createShardingsFromShardy will
-    // generate the correct number of default output shardings
-    if (manual_computation_ops.size() == 0) {
-      for (size_t i = 0; i < func_op.getNumResults(); ++i) {
-        shardy_attributes.push_back(nullptr);
-      }
-      continue;
-    }
-
-    if (manual_computation_ops.size() != 1) {
-      LOG_F(ERROR,
-            "Expected exactly zero or one manual computation op, found: %zu",
-            manual_computation_ops.size());
-      return std::nullopt;
-    }
-    mlir::sdy::ManualComputationOp manual_op = manual_computation_ops[0];
-    mlir::sdy::TensorShardingPerValueAttr out_shardings =
-        manual_op.getOutShardings();
-    for (size_t i = 0; i < out_shardings.size(); ++i) {
-      shardy_attributes.push_back(out_shardings.getSharding(i));
-    }
+  llvm::StringRef tuple = tuple_attr.getValue();
+  if (!tuple.consume_front("{") || !tuple.consume_back("}")) {
+    LOG_F(ERROR, "Malformed mhlo.spmd_output_sharding (no tuple braces): %s",
+          tuple_attr.getValue().str().c_str());
+    return tt_pjrt_status::kInternal;
   }
 
-  std::vector<mlir::tt::sharding_utils::MeshSharding> output_shardings;
-  mlir::LogicalResult result = createShardingsFromShardy(
-      shardy_attributes, shardy_mesh, output_shardings);
-  if (result.failed()) {
-    LOG_F(ERROR, "Failed to create output shardings from Shardy attributes");
-    return std::nullopt;
+  // Split into per-output "{...}" elements at brace depth 0. A naive comma
+  // split would break on commas inside a sharding (e.g. "devices=[1,2]").
+  std::vector<llvm::StringRef> element_strings;
+  int depth = 0;
+  size_t token_start = 0;
+  for (size_t i = 0; i < tuple.size(); ++i) {
+    char c = tuple[i];
+    if (c == '{') {
+      ++depth;
+    } else if (c == '}') {
+      --depth;
+    } else if (c == ',' && depth == 0) {
+      element_strings.push_back(tuple.slice(token_start, i).trim());
+      token_start = i + 1;
+    }
   }
-  return output_shardings;
+  element_strings.push_back(tuple.slice(token_start, tuple.size()).trim());
+
+  std::vector<mlir::tt::sharding_utils::MeshSharding> parsed;
+  parsed.reserve(element_strings.size());
+  for (llvm::StringRef element : element_strings) {
+    auto generated = mlir::tt::gspmd_utils::GSPMDMeshSharding::generate(
+        element, element, mlir::tt::ttcore::ShardStatus::Presharded,
+        mlir::tt::ttcore::MeshShardDirection::ShardToFull);
+    if (auto err = generated.takeError()) {
+      LOG_F(ERROR, "Failed to parse output sharding '%s' from %s: %s",
+            element.str().c_str(), tuple_attr.getValue().str().c_str(),
+            llvm::toString(std::move(err)).c_str());
+      return tt_pjrt_status::kInternal;
+    }
+    parsed.emplace_back(*generated);
+  }
+
+  if (!output_shardings.empty() && parsed.size() != output_shardings.size()) {
+    LOG_F(ERROR,
+          "Parsed output sharding count (%zu) doesn't match collected count "
+          "(%zu); keeping the original shardings",
+          parsed.size(), output_shardings.size());
+    return tt_pjrt_status::kInternal;
+  }
+
+  output_shardings = std::move(parsed);
+  return tt_pjrt_status::kSuccess;
 }
 
 std::vector<PJRT_Buffer_Type> ModuleBuilder::collectOutputTypes(
@@ -744,80 +689,6 @@ bool ModuleBuilder::isScalarType(mlir::Type type) {
     return tensorType.getRank() == 0;
   }
   return false;
-}
-
-mlir::LogicalResult ModuleBuilder::createShardingsFromGSPMD(
-    const std::vector<mlir::StringAttr> &gspmd_attributes,
-    std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
-
-  for (const mlir::StringAttr &gspmd_attr : gspmd_attributes) {
-
-    // If there is no sharding attribute, we put the default sharding,
-    // which means there is no sharding.
-    if (!gspmd_attr) {
-      llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
-          default_mesh_sharding_result =
-              mlir::tt::gspmd_utils::GSPMDMeshSharding::generateDefault();
-      if (default_mesh_sharding_result.takeError()) {
-        LOG_F(ERROR, "Failed to generate default mesh sharding");
-        return llvm::LogicalResult::failure();
-      }
-      shardings.push_back(*default_mesh_sharding_result);
-      continue;
-    }
-    llvm::Expected<mlir::tt::gspmd_utils::GSPMDMeshSharding>
-        mesh_sharding_result =
-            mlir::tt::gspmd_utils::GSPMDMeshSharding::generate(
-                gspmd_attr.getValue(),
-                /*operandShardingStr=*/gspmd_attr.getValue(),
-                mlir::tt::ttcore::ShardStatus::Unsharded,
-                mlir::tt::ttcore::MeshShardDirection::FullToShard);
-    if (mesh_sharding_result.takeError()) {
-      LOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
-      return llvm::LogicalResult::failure();
-    }
-
-    shardings.push_back(*mesh_sharding_result);
-  }
-
-  return llvm::LogicalResult::success();
-}
-
-mlir::LogicalResult ModuleBuilder::createShardingsFromShardy(
-    std::vector<mlir::sdy::TensorShardingAttr> &shardy_attributes,
-    const mlir::sdy::MeshAttr &shardy_mesh,
-    std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
-  for (const mlir::sdy::TensorShardingAttr &shardy_attr : shardy_attributes) {
-
-    // If there is no sharding attribute, we put the default sharding,
-    // which means there is no sharding.
-    if (!shardy_attr) {
-      llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding>
-          default_mesh_sharding_result =
-              mlir::tt::shardy_utils::ShardyMeshSharding::generateDefault();
-      if (llvm::Error e = default_mesh_sharding_result.takeError()) {
-        LOG_F(ERROR, "Failed to generate default mesh sharding");
-        return llvm::LogicalResult::failure();
-      }
-      shardings.push_back(*default_mesh_sharding_result);
-      continue;
-    }
-
-    llvm::Expected<mlir::tt::shardy_utils::ShardyMeshSharding>
-        mesh_sharding_result =
-            mlir::tt::shardy_utils::ShardyMeshSharding::generate(
-                shardy_mesh, shardy_attr,
-                mlir::tt::ttcore::ShardStatus::Unsharded,
-                mlir::tt::ttcore::MeshShardDirection::FullToShard);
-    if (llvm::Error e = mesh_sharding_result.takeError()) {
-      LOG_F(ERROR, "Failed to convert sharding attribute to mesh sharding");
-      return llvm::LogicalResult::failure();
-    }
-
-    shardings.push_back(*mesh_sharding_result);
-  }
-
-  return llvm::LogicalResult::success();
 }
 
 std::vector<int64_t> ModuleBuilder::collectResultPresharded(
@@ -1087,6 +958,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
       compile_options.enable_const_eval_inputs_to_system_memory;
   options.dramSpaceSavingOptimizationEnabled =
       compile_options.experimental_enable_dram_space_saving_optimization;
+  options.enableCreateD2MSubgraphs =
+      compile_options.enable_create_d2m_subgraphs;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
 
   // Auto-number performance metrics output file if enabled
@@ -1128,17 +1001,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
 
   options.meshShape = {devices_mesh_shape[0], devices_mesh_shape[1]};
-
-  // Use the `options.devicePtr` to pass the device pointer to the optimizer in
-  // order to avoid closing and reopening the device afterwards.
-  // Optimizer is enabled for optimization_level >= 1
-  if (compile_options.optimization_level >= 1) {
-    tt::runtime::Device submesh_for_optim =
-        client_instance->getOrCreateOptimizerSubmesh(devices_mesh_shape);
-    options.devicePtr =
-        std::static_pointer_cast<tt::tt_metal::distributed::MeshDevice>(
-            submesh_for_optim.handle);
-  }
 
   // TODO(dmilinkovic): Disable const-eval on CPU for EmitC backend until
   // CPU hoisting support is added.
@@ -1240,8 +1102,8 @@ tt_pjrt_status ModuleBuilder::checkOutputShardingShapes(
        ++output_index) {
     const mlir::tt::sharding_utils::MeshSharding &output_sharding =
         output_shardings[output_index];
-    if (output_sharding.getShardType() ==
-            mlir::tt::ttcore::MeshShardType::Identity ||
+    if (output_sharding.getShardStatus() ==
+            mlir::tt::ttcore::ShardStatus::Presharded ||
         output_sharding.getShardType() ==
             mlir::tt::ttcore::MeshShardType::Replicate) {
       continue;
@@ -1314,29 +1176,6 @@ void ModuleBuilder::enableVerboseIRPrinting(mlir::PassManager &pm) {
   // to avoid interleaved output.
   pm.getContext()->disableMultithreading();
   pm.enableIRPrinting();
-}
-
-bool ModuleBuilder::isUsingShardy(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  // After running through the SdyRoundTripImportPipeline, the module which uses
-  // shardy dialect will have the sdy.mesh op.
-  return getFirstShardyMeshOp(module).has_value();
-}
-
-bool ModuleBuilder::isUsingShardyManualComputation(
-    const mlir::OwningOpRef<mlir::ModuleOp> &module) {
-  if (!isUsingShardy(module)) {
-    return false;
-  }
-
-  bool is_using_shardy_manual_computation = false;
-  module.get().walk([&](mlir::sdy::ManualComputationOp op) {
-    is_using_shardy_manual_computation = true;
-
-    return mlir::WalkResult::interrupt();
-  });
-
-  return is_using_shardy_manual_computation;
 }
 
 void ModuleBuilder::collectMemoryKinds(
@@ -1519,7 +1358,11 @@ ModuleBuilder::performCodegen(std::string_view ttnn_mlir,
     std::string split_files =
         compile_options.codegen_split_files ? "true" : "false";
     pipeline_options += " split-files=" + split_files;
-    pipeline_options += " create-main-for-test=true";
+    // Emit a target module (forward(inputs, device)) only when the executor
+    // will actually run the generated Python via PythonModelRunner (which
+    // expects a `forward(inputs, device)` entrypoint).
+    std::string target_module = !compile_options.dry_run ? "true" : "false";
+    pipeline_options += " target-module=" + target_module;
     is_local = true;
     result = m_tt_alchemist_handler.generatePythonFunc()(
         instance, input_file.c_str(), folder.c_str(), is_local,

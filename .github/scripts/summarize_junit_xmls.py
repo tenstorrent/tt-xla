@@ -130,6 +130,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Filter rows where bringup_status equals this value (e.g., incorrect_result, passed)",
     )
     parser.add_argument(
+        "--framework",
+        help="Filter rows where framework equals this value (e.g., jax, torch)",
+    )
+    parser.add_argument(
         "--csv",
         action="store_true",
         help="Output as CSV (comma-separated). Ignores alignment.",
@@ -184,6 +188,7 @@ def resolve_input_patterns(
 def get_columns() -> List[str]:
     return [
         "specific_test_case",
+        "framework",
         "model_type",
         "group",
         "weights_dtype",
@@ -205,8 +210,31 @@ def get_header_labels() -> List[str]:
     label_map = {
         "pcc_threshold": "pcc_thres",
         "pcc_assertion_enabled": "pcc_en",
+        "framework": "frameworks",
     }
     return [label_map.get(k, k) for k in keys]
+
+
+# Derive the framework (e.g. 'jax', 'torch') from the pytest test function name.
+# Test functions follow the pattern test_<...>_<framework>[<params>], e.g.
+#   test_all_models_jax[...]  -> jax
+#   test_all_models_torch[...]-> torch
+#   test_llms_torch[...]      -> torch
+# Only returns a value if the suffix matches a known framework to avoid
+# misclassifying tests like test_placeholder_models.
+KNOWN_FRAMEWORKS = {"jax", "torch"}
+
+
+def derive_framework(test_name: str) -> str:
+    if not test_name:
+        return ""
+    name = test_name.split("[", 1)[0]
+    parts = name.rsplit("_", 1)
+    if len(parts) == 2 and parts[0].startswith("test_"):
+        suffix = parts[1]
+        if suffix in KNOWN_FRAMEWORKS:
+            return suffix
+    return ""
 
 
 # Iterate testcases and build a flat record per testcase by merging tags and group.
@@ -246,6 +274,9 @@ def iter_test_records(tree: ET.ElementTree) -> Iterator[Dict]:
         # Data type / weights_dtype: support both tag keys (e.g. "weights_dtype": "bfloat16")
         record["weights_dtype"] = record.get("weights_dtype") or ""
 
+        # Derive framework from the pytest test function name (e.g. test_all_models_jax -> jax)
+        record["framework"] = derive_framework(to_str(record.get("test_name", "")))
+
         yield record
 
 
@@ -258,6 +289,7 @@ def record_matches_filters(
     runmode_filter: Optional[str],
     model_type_filter: Optional[str],
     bringup_status_filter: Optional[str],
+    framework_filter: Optional[str],
 ) -> bool:
     if group_filter is not None:
         if to_str(record.get("group")).lower() != group_filter.lower():
@@ -279,6 +311,9 @@ def record_matches_filters(
             to_str(record.get("bringup_status")).lower()
             != bringup_status_filter.lower()
         ):
+            return False
+    if framework_filter is not None:
+        if to_str(record.get("framework")).lower() != framework_filter.lower():
             return False
     return True
 
@@ -359,6 +394,7 @@ def collect_rows_from_files(
     runmode_filter: Optional[str],
     model_type_filter: Optional[str],
     bringup_status_filter: Optional[str],
+    framework_filter: Optional[str],
     dedupe_enabled: bool = True,
 ) -> List[List[str]]:
     # Collect rows once; optionally dedupe by testsuite timestamp (latest wins).
@@ -396,6 +432,7 @@ def collect_rows_from_files(
                 runmode_filter,
                 model_type_filter,
                 bringup_status_filter,
+                framework_filter,
             ):
                 continue
 
@@ -479,6 +516,7 @@ def main(argv: Iterable[str]) -> int:
         runmode_filter=args.runmode,
         model_type_filter=args.model_type,
         bringup_status_filter=args.bringup_status,
+        framework_filter=args.framework,
         dedupe_enabled=not args.no_dedupe,
     )
     print_table(

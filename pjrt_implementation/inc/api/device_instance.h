@@ -29,11 +29,10 @@ class MemoryInstance;
 class DeviceInstance {
 public:
   // Creates new device instance.
-  static std::unique_ptr<DeviceInstance> createInstance(ClientInstance *client,
-                                                        int global_device_id,
-                                                        bool is_addressable,
-                                                        int local_device_id,
-                                                        tt::target::Arch arch);
+  static std::unique_ptr<DeviceInstance>
+  createInstance(ClientInstance *client, int global_device_id,
+                 bool is_addressable, int local_device_id,
+                 tt::target::Arch arch, uint64_t dram_size_bytes = 0);
 
   // Binds PJRT API functions implementation related to PJRT_Device structure.
   static void bindApi(PJRT_Api *api);
@@ -91,8 +90,9 @@ private:
   // Constructor.
   DeviceInstance(ClientInstance *client, int global_device_id,
                  bool is_addressable, int local_device_id,
-                 tt::target::Arch arch)
-      : m_client(client), m_description(global_device_id, arch),
+                 tt::target::Arch arch, uint64_t dram_size_bytes)
+      : m_client(client),
+        m_description(global_device_id, arch, dram_size_bytes),
         m_is_addressable(is_addressable), m_local_device_id(local_device_id),
         m_default_memory(nullptr) {}
 

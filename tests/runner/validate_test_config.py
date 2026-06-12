@@ -200,6 +200,27 @@ def _has_method(tree: ast.Module, class_name: str, method_name: str) -> bool:
     return False
 
 
+ADAPTER_SUFFIXES = ("_lora", "_dora")
+
+
+def _adapter_base_loader_path(loader_path: str) -> str:
+    """If *loader_path* is an adapter (LoRA/DoRA) loader, return the base model's loader.py path.
+
+    Adapter loaders live under ``<base>_lora/`` (or ``_dora/``) and inherit
+    the full variant set, ModelVariant enum, and prefill class from the base
+    model loader — they only attach an extra LoRA adapter at load time. So
+    variant / prefill / method discovery should run against the base file
+    directly. Returns an empty string if *loader_path* is not an adapter.
+    """
+    parts = loader_path.split(os.sep)
+    for i, segment in enumerate(parts):
+        for suffix in ADAPTER_SUFFIXES:
+            if segment.endswith(suffix) and segment != suffix:
+                parts[i] = segment[: -len(suffix)]
+                return os.sep.join(parts)
+    return ""
+
+
 def _find_prefill_class_name(tree: ast.Module) -> str:
     """Return the name of the class that inherits from ForgePrefillModel, if any.
 
@@ -408,12 +429,18 @@ class TestConfigValidator:
                 if parent_dir in TORCH_EXCLUDED_MODEL_DIRS:
                     continue
 
+            # Adapter (LoRA/DoRA) loaders reuse the base model's full variant
+            # set and class hierarchy — variant/prefill/method discovery runs
+            # against the base file, but generated test IDs keep the adapter's
+            # rel_path so they point at the adapter's loader.
+            discovery_path = _adapter_base_loader_path(loader_path) or loader_path
+
             try:
-                with open(loader_path, "r") as f:
+                with open(discovery_path, "r") as f:
                     source = f.read()
-                tree = ast.parse(source, filename=loader_path)
+                tree = ast.parse(source, filename=discovery_path)
             except (SyntaxError, OSError) as e:
-                parse_warnings.append(f"Cannot parse {loader_path}: {e}")
+                parse_warnings.append(f"Cannot parse {discovery_path}: {e}")
                 continue
 
             enum_members = _extract_model_variant_enum(tree)
@@ -442,12 +469,12 @@ class TestConfigValidator:
 
                 for method_name, phase_str in LLM_PHASES.items():
                     if phase_str == "llm_prefill":
-                        if prefill_class_name and _has_method(
-                            tree, prefill_class_name, method_name
-                        ):
-                            target_variants = prefill_variants
-                        else:
+                        # Any ForgePrefillModel subclass owns the prefill phase
+                        # via inherited load_inputs_prefill — mirrors the runtime
+                        # check in test_models.py (_is_prefill_loader).
+                        if not prefill_class_name:
                             continue
+                        target_variants = prefill_variants
                     else:
                         if not _has_method(tree, "ModelLoader", method_name):
                             continue

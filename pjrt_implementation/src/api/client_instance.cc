@@ -54,6 +54,8 @@ static std::string getRankBindingPath(const std::string &metal_home) {
                              "16x4_dual_bh_galaxy_rank_bindings.yaml"},
       {"quad_exabox_galaxy", "tests/tt_metal/distributed/config/"
                              "32x4_quad_bh_galaxy_rank_bindings.yaml"},
+      {"dual_bh_loudbox_1x16",
+       "tests/tt_metal/distributed/config/bh_lbx2_1x16_rank_bindings.yaml"},
   };
 
   const char *rank_binding = std::getenv("TT_DISTRIBUTED_RANK_BINDING");
@@ -250,7 +252,7 @@ void GlobalClientInstanceSingleton::destroyClient() {
 }
 
 GlobalClientInstanceSingleton &GlobalClientInstanceSingleton::getInstance() {
-  static GlobalClientInstanceSingleton singleton =
+  static thread_local GlobalClientInstanceSingleton singleton =
       GlobalClientInstanceSingleton(nullptr);
   return singleton;
 }
@@ -376,10 +378,18 @@ tt_pjrt_status ClientInstance::populateDevices() {
     // For now, just make all devices addressable.
     bool is_addressable = true;
 
+    const auto *chip_desc = m_system_descriptor->chip_descs()->Get(i);
+    // Total on-device DRAM = num_dram_channels * dram_channel_size.  Used
+    // by clients (e.g. vLLM) to size the KV cache without hardcoding a
+    // per-board number.
+    const uint64_t dram_size_bytes =
+        static_cast<uint64_t>(chip_desc->num_dram_channels()) *
+        chip_desc->dram_channel_size();
+
     std::unique_ptr<DeviceInstance> device_instance =
-        DeviceInstance::createInstance(
-            this, global_device_id, is_addressable, local_device_id,
-            m_system_descriptor->chip_descs()->Get(i)->arch());
+        DeviceInstance::createInstance(this, global_device_id, is_addressable,
+                                       local_device_id, chip_desc->arch(),
+                                       dram_size_bytes);
 
     m_devices_raw.push_back(device_instance.get());
     if (is_addressable) {
@@ -397,8 +407,19 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // [Workaround] On a 32-device galaxy (UBB) a 1D {1, N} parent mesh can't be
+    // reshaped to the 2D (4, 8) executable mesh (the MGD solver fails); open
+    // (4, 8) directly.
+    if (m_devices.size() == 32) {
+      LOG_F(WARNING, "32-device galaxy: opening the parent mesh directly as "
+                     "(4, 8); the 1D {1, N} -> (4, 8) reshape fails in the MGD "
+                     "solver. See "
+                     "https://github.com/tenstorrent/tt-metal/issues/43210");
+      m_parent_mesh = getOrCreateMeshDevice({4, 8});
+    } else {
+      m_parent_mesh =
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    }
   }
 
   return tt_pjrt_status::kSuccess;
@@ -499,6 +520,21 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
         num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
+  }
+  // [Workaround] The Blackhole galaxy (UBB) lacks a both-axis wrap, so
+  // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
+  // TopologyMapper; force FABRIC_1D there. Other 32-device galaxies (e.g.
+  // Wormhole) have the wrap, so keep their auto-detected fabric.
+  bool is_blackhole = m_system_descriptor->chip_descs()->size() > 0 &&
+                      m_system_descriptor->chip_descs()->Get(0)->arch() ==
+                          ::tt::target::Arch::Blackhole;
+  if (is_blackhole && m_devices.size() == 32) {
+    LOG_F(WARNING,
+          "Auto-overriding fabric config to FABRIC_1D for the "
+          "32-device Blackhole galaxy (UBB); this is a workaround, not "
+          "expected behaviour.");
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
   }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }

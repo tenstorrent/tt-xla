@@ -24,11 +24,11 @@ on:
         required: false
         type: string
         default: release
-      use_docker_wheel:
-        description: "Use wheel from docker instead of building a new one"
+      torchxla_build_run_id:
+        description: 'Manual torch-xla build run ID'
         required: false
-        type: boolean
-        default: false
+        type: string
+        default: ''
       skip-device-perf:
         description: "Skip device performance measurement"
         required: false
@@ -66,7 +66,7 @@ jobs:
 
     runs-on: ${{ !inputs.sh-runner && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) }}
 
-    name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on }})"
+    name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on-original || matrix.build.runs-on }})"
 
     container:
       image: ${{ !inputs.sh-runner && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
@@ -108,17 +108,11 @@ jobs:
       run: |
         git submodule update --init --recursive third_party/tt_forge_models
 
-    - name: Fetch job id
-      id: fetch-job-id
-      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
-      with:
-        job_name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on }})"
-
     - name: Set reusable strings
       id: strings
       shell: bash
       env:
-        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+        JOB_ID: ${{ job.check_run_id }}
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "job_id=$JOB_ID" >> "$GITHUB_OUTPUT"
@@ -141,7 +135,6 @@ jobs:
         fi
 
     - name: Download and install wheel
-      if: ${{ !inputs.use_docker_wheel }}
       shell: bash
       run: |
         echo "=== Downloading wheel ==="
@@ -175,10 +168,19 @@ jobs:
       shell: bash
       run: |
         source venv/activate
-        pip install ${{ matrix.build.pyreq }}
-        # Install correct torch-xla version from requirements.txt
-        pip install $(grep "torch-xla@" python_package/requirements.txt)
-        pip install torchvision==0.25.0+cpu --index-url https://download.pytorch.org/whl/cpu
+        if [ -n "${{ matrix.build.pyreq }}" ]; then
+          pip install ${{ matrix.build.pyreq }}
+        fi
+
+    - name: Install custom torch_xla from workflow run
+      if: ${{ inputs.torchxla_build_run_id != '' }}
+      shell: bash
+      run: |
+        echo "Using custom torchxla install from run ${{ inputs.torchxla_build_run_id }}"
+        gh run download ${{ inputs.torchxla_build_run_id }} --repo ${{ github.repository }}
+        source venv/activate
+        uv pip install --force-reinstall xla-torch-wheel-release/*.whl
+        uv pip show torch_xla
 
     - name: Create perf report directory
       run: mkdir -p ${{ steps.strings.outputs.perf_report_path }}
@@ -204,7 +206,7 @@ jobs:
       run: |
         echo "Dump stablehlo to report"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/stablehlo
-        stablehlo_artifact_name="stablehlo-mlir-${{ steps.fetch-job-id.outputs.job_id }}"
+        stablehlo_artifact_name="stablehlo-mlir-${{ job.check_run_id }}"
         if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
           cp ./modules/${{ matrix.build.name }}_stablehlo.mlir ${{ steps.strings.outputs.perf_report_path }}/stablehlo/stablehlo.mlir 2>/dev/null || true
         else
@@ -237,7 +239,7 @@ jobs:
       run: |
         echo "Dump ttir to report"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttir
-        ttir_artifact_name="ttir-mlir-${{ steps.fetch-job-id.outputs.job_id }}"
+        ttir_artifact_name="ttir-mlir-${{ job.check_run_id }}"
         if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
           cp ./modules/${{ matrix.build.name }}_ttir.mlir ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir.mlir
         else
@@ -270,7 +272,7 @@ jobs:
       run: |
         echo "Dump ttnn to report"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttnn
-        ttnn_artifact_name="ttnn-mlir-${{ steps.fetch-job-id.outputs.job_id }}"
+        ttnn_artifact_name="ttnn-mlir-${{ job.check_run_id }}"
         if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
           cp ./modules/${{ matrix.build.name }}_ttnn.mlir ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn.mlir
         else
@@ -419,6 +421,20 @@ jobs:
             --job-id-url "$JOB_ID_URL"
         fi
 
+    # Patch report fields that can't be properly set in benchmark scripts
+    - name: Patch report fields
+      if: success() || failure()
+      shell: bash
+      run: |
+        PERF_REPORT_FILE="${{ steps.strings.outputs.perf_report_json_file }}"
+        # Patch device_info.device_type from CI runner.
+        MACHINE_TYPE="${{ matrix.build.runs-on-original }}"
+        if [ -f "$PERF_REPORT_FILE" ] && [ -n "$MACHINE_TYPE" ]; then
+          jq --arg mt "$MACHINE_TYPE" '.device_info.device_type = $mt' "$PERF_REPORT_FILE" > "${PERF_REPORT_FILE}.tmp" \
+            && mv "${PERF_REPORT_FILE}.tmp" "$PERF_REPORT_FILE"
+          echo "Patched device_info.device_type to '$MACHINE_TYPE' in $PERF_REPORT_FILE"
+        fi
+
     - name: Upload Perf Report
       uses: actions/upload-artifact@v6
       if: success() || failure()
@@ -449,17 +465,8 @@ jobs:
           | jq -r '.workflow_runs[0].id')
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
-        arch=""
-        if [[ "${{ matrix.build.runs-on }}" == *"n150"* ]]; then
-          arch="wormhole"
-        elif [[ "${{ matrix.build.runs-on }}" == *"p150"* ]]; then
-          arch="blackhole"
-        elif [[ "${{ matrix.build.runs-on }}" == *"llmbox"* ]]; then
-          arch="wormhole_llmbox"
-        elif [[ "${{ matrix.build.runs-on }}" == *"galaxy"* ]]; then
-          arch="wormhole_galaxy"
-        fi
-        echo "arch=$arch" >> $GITHUB_OUTPUT
+        echo "device_type=${{ matrix.build.runs-on-original }}" >> $GITHUB_OUTPUT
+        echo "arch=$(jq -r '.device_info.arch // ""' ${{ steps.strings.outputs.perf_report_json_file }})" >> $GITHUB_OUTPUT
 
     - name: Fetch previous perf results
       id: prev-perf
@@ -467,7 +474,7 @@ jobs:
       uses: ./.github/actions/superset-api
       with:
         query: 'benchmarks/last_measurement'
-        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}"}'
+        query_params: '{"project":"tt-forge/tt-xla","display_name":"${{ steps.set-query-strings.outputs.display_name }}","github_pipeline_id":"${{ steps.set-query-strings.outputs.last_nightly_workflow_id }}","arch":"${{ steps.set-query-strings.outputs.arch }}","device_type":"${{ steps.set-query-strings.outputs.device_type }}"}'
 
     - name: Check perf regression
       if: inputs.regression_check

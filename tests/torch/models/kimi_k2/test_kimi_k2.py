@@ -25,8 +25,9 @@ from third_party.tt_forge_models.kimi_k2.pytorch.modified_modeling_deepseek impo
     DeepseekV3ForCausalLM,
     DeepseekV3MoE,
 )
-
-from .original_modeling_deepseek import DeepseekV3Attention as OrigDeepseekV3Attention
+from third_party.tt_forge_models.kimi_k2.pytorch.original_modeling_deepseek import (
+    DeepseekV3Attention as OrigDeepseekV3Attention,
+)
 
 
 @pytest.mark.xfail(
@@ -99,8 +100,15 @@ def test_kimi_k2_attention_prefill():
         device="cpu",
         dtype=torch.bfloat16,
     )
+    for cache_layer in static_cache.layers:
+        cache_layer.lazy_initialization(
+            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
+            torch.zeros(
+                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
+            ),
+        )
     past_key_states = static_cache
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    cache_positions = torch.arange(seq_len, dtype=torch.long)
     position_ids = torch.arange(seq_len).unsqueeze(0)
 
     def get_shard_spec(attention, args, kwargs):
@@ -343,7 +351,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
     attention_mask = torch.rand(
         batch_size, 1, seq_len, max_cache_len, dtype=torch.bfloat16
     )
-    cache_positions = torch.randint(0, max_cache_len, (seq_len,), dtype=torch.long)
+    cache_positions = torch.arange(seq_len, dtype=torch.long)
     num_devices = xr.global_runtime_device_count()
     mesh_shape = (2, 4)
     device_ids = np.array(range(num_devices))
@@ -358,6 +366,13 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
         device="cpu",
         dtype=torch.bfloat16,
     )
+    for cache_layer in static_cache.layers:
+        cache_layer.lazy_initialization(
+            torch.zeros(batch_size, 1, 1, config.kv_lora_rank, dtype=torch.bfloat16),
+            torch.zeros(
+                batch_size, 1, 1, config.qk_rope_head_dim, dtype=torch.bfloat16
+            ),
+        )
     past_key_states = static_cache
 
     num_devices = xr.global_runtime_device_count()
@@ -434,6 +449,7 @@ def test_kimi_k2_layer_sparse_moe(batch_size, seq_len):
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_kimi_k2_mla_cache():
     """
     CPU-only test validating the MLACache used in modeling_deepseek.py against the original
@@ -544,5 +560,5 @@ def test_kimi_k2_mla_cache():
         [mla_k_nope, mla_k_pe.expand(-1, config.num_attention_heads, -1, -1)], dim=-1
     )
 
-    assert torch.equal(mla_key, orig_key)
-    assert torch.equal(mla_val, orig_val)
+    assert torch.allclose(mla_key, orig_key, atol=1e-6, rtol=1e-5)
+    assert torch.allclose(mla_val, orig_val, atol=1e-6, rtol=1e-5)

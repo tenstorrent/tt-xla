@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import contextlib
 import os
 import shutil
 import socket
@@ -102,8 +103,16 @@ def _run_model_test_impl(
     model_info = ModelLoader.get_model_info(variant=variant)
     print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
-    # Ensure per-model requirements are installed, and roll back after the test
-    with RequirementsManager.for_loader(loader_path, framework=str(framework)):
+    # Ensure per-model requirements are installed, and roll back after the test.
+    # Skip installation entirely for NOT_SUPPORTED_SKIP tests (unless --force-run):
+    force_run = request.config.getoption("--force-run", default=False)
+    will_run = test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP or force_run
+    requirements_ctx = (
+        RequirementsManager.for_loader(loader_path, framework=str(framework))
+        if will_run
+        else contextlib.nullcontext()
+    )
+    with requirements_ctx:
 
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
@@ -138,7 +147,6 @@ def _run_model_test_impl(
 
         comparison_config = test_metadata.to_comparison_config()
 
-        force_run = request.config.getoption("--force-run", default=False)
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.
@@ -502,6 +510,7 @@ def _validate_llm_sharding_mesh_combination(sharding_config, mesh_shape):
     "run_mode",
     [
         pytest.param(RunMode.INFERENCE, id="inference", marks=pytest.mark.inference),
+        pytest.param(RunMode.TRAINING, id="training", marks=pytest.mark.training),
     ],
 )
 @pytest.mark.parametrize(
@@ -586,6 +595,10 @@ def test_llms_torch(
             pytest.skip("Decode tests do not support sequence_length parameterization")
         if batch_size != 1:
             pytest.skip("Decode tests currently only support batch_size=1")
+        # Training (with or without LoRA) on a static KV-cache decode step is not
+        # meaningful for gradient testing; backward tests run on prefill only.
+        if run_mode == RunMode.TRAINING:
+            pytest.skip("Training tests run on prefill phase only")
         # Decode uses only the backward-compatible default sharding configs.
         if sharding_config.shard_strategy is not None:
             pytest.skip("Decode tests use default sharding config only")

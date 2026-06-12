@@ -125,17 +125,17 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-fsdp-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox", "lb-blackhole"]
-    required_pcc: 0.95
+    required_pcc: 0.96
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-fsdp-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.95
+    required_pcc: 0.96
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.90
+    required_pcc: 0.91
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-fsdp-no_dp-tensor_parallel-mesh_4x8-inference:
@@ -178,7 +178,7 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-fsdp-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox", "lb-blackhole"]
-    required_pcc: 0.90
+    required_pcc: 0.91
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-fsdp-dp-tensor_parallel-mesh_4x8-inference:
@@ -220,17 +220,17 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox", "lb-blackhole"]
-    required_pcc: 0.95
+    required_pcc: 0.96
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-no_dp-tensor_parallel-mesh_4x8-inference:
     supported_archs: ["galaxy-wh-6u"]
-    required_pcc: 0.95
+    required_pcc: 0.96
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_1-megatron-no_dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox", "lb-blackhole"]
-    required_pcc: 0.90
+    required_pcc: 0.91
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_8192-batch_4-megatron-no_dp-tensor_parallel-mesh_4x8-inference:
@@ -272,7 +272,7 @@ test_config:
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_1-megatron-dp-tensor_parallel-mesh_2x4-inference:
     supported_archs: ["n300-llmbox", "lb-blackhole"]
-    required_pcc: 0.95
+    required_pcc: 0.96
     status: EXPECTED_PASSING
     markers: [nightly]
   llama/causal_lm/pytorch-3.1_8B_Instruct-llm_prefill-seq_4096-batch_4-megatron-dp-tensor_parallel-mesh_4x8-inference:

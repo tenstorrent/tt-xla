@@ -15,8 +15,8 @@ run_op_test(...)
 run_op_test_with_random_inputs(...)
 ```
 
-They wrap the instantiation of the `OpTester` and all the underlying complexity. User just need to
-pass the op (python function) they want to test to one of these functions like this:
+They wrap the instantiation of the `OpTester` and all the underlying complexity. Users just need to
+pass the op (Python function) they want to test to one of these functions like this:
 
 ```python
 def test_add(x_shape: tuple, y_shape: tuple):
@@ -26,9 +26,9 @@ def test_add(x_shape: tuple, y_shape: tuple):
     run_op_test_with_random_inputs(add, [x_shape, y_shape])
 ```
 
-and that's it.
+That is all that is required.
 
-`GraphTester` is at the moment identical to `OpTester`, and it too exposes
+`GraphTester` is currently identical to `OpTester` and also exposes
 
 ```python
 run_graph_test(...)
@@ -39,10 +39,10 @@ which are meant to be used in the same way as for op tests.
 
 ## Model Tests
 
-Models are tested by inheriting one of `*ModelTester` classes and overriding required methods.
-Please read docstring of appropriate class you want to inherit for more information.
+Test a model by inheriting one of the `*ModelTester` classes and overriding the required methods.
+Read the docstring of the appropriate class you want to inherit for more information.
 
-### Jax Model Example
+### JAX Model Example
 
 First, you define a model:
 
