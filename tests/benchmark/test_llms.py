@@ -2184,6 +2184,94 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
     )
 
 
+def _deepseek_v3_2_exp_shard_spec_fn(model_loader, model):
+    """Hidden-replicated sharding spec for DeepSeek V3.2-exp on the 4x8 galaxy mesh.
+    DP - 4 (batch axis) : TP - 8 (model axis) : EP - 32 (model x batch).
+
+    Mirrors the hidden-replicated recipe used for GLM-4
+    (``_glm_4_7_shard_spec_fn``): the residual hidden dim is kept replicated along
+    the model axis so the per-layer RMS norms (attn_norm / ffn_norm / final norm)
+    reduce locally instead of lowering to a distributed all_gather norm.
+
+    MLA specifics: the LoRA-compressed dims (q_lora / kv_lora) are kept replicated
+    so ``q_norm`` / ``kv_norm`` stay local; only the per-head up-projections
+    (``wq_b`` / ``wkv_b``) are model-parallel, and the row-parallel ``wo`` collapses
+    them back to a replicated hidden with a single reduction per layer. The Indexer
+    is fully replicated (its cross-head score reduction + topk stay local), with its
+    k-cache sharded on the batch axis to match the batch-sharded activations. Routed
+    experts use compound EP-32; the shared experts / dense MLP are col->row parallel.
+
+    NOTE: this duplicates the default ``ModelLoader.load_shard_spec`` structure but
+    swaps the model-axis hidden shards for replication to minimise CCLs.
+    """
+    shard_specs = {}
+    t = model.transformer
+
+    # Replicated embedding, replicated final norm (local RMS), vocab-parallel head.
+    shard_specs[t.embed.weight] = (None, None)
+    shard_specs[t.norm.weight] = (None,)
+    shard_specs[t.head.weight] = ("model", None)
+
+    for layer in t.layers:
+        shard_specs[layer.attn_norm.weight] = (None,)
+        shard_specs[layer.ffn_norm.weight] = (None,)
+
+        attn = layer.attn
+        # Keep the LoRA-compressed dims replicated -> q_norm / kv_norm reduce
+        # locally. Only the per-head up-projections are model-parallel, collapsed
+        # back to replicated hidden by the row-parallel wo.
+        shard_specs[attn.wq_a.weight] = (None, None)
+        shard_specs[attn.wkv_a.weight] = (None, None)
+        shard_specs[attn.wq_b.weight] = ("model", None)
+        shard_specs[attn.wkv_b.weight] = ("model", None)
+        shard_specs[attn.wo.weight] = (None, "model")
+
+        if hasattr(attn, "q_norm"):
+            shard_specs[attn.q_norm.weight] = (None,)
+        if hasattr(attn, "kv_norm"):
+            shard_specs[attn.kv_norm.weight] = (None,)
+
+        # Indexer: replicate the (small) projections so the head-sum + topk stay
+        # local (no model-axis CCL); shard the k-cache on batch to match activations.
+        idx = getattr(attn, "indexer", None)
+        if idx is not None:
+            shard_specs[idx.wq_b.weight] = (None, None)
+            shard_specs[idx.wk.weight] = (None, None)
+            shard_specs[idx.weights_proj.weight] = (None, None)
+            if hasattr(idx, "k_norm"):
+                shard_specs[idx.k_norm.weight] = (None,)
+                if getattr(idx.k_norm, "bias", None) is not None:
+                    shard_specs[idx.k_norm.bias] = (None,)
+            if getattr(idx, "k_cache", None) is not None:
+                shard_specs[idx.k_cache] = ("batch", None, None, None)
+
+        # Internal MLA caches (only present when not using an external MLACache).
+        if getattr(attn, "kv_cache", None) is not None:
+            shard_specs[attn.kv_cache] = ("batch", None, None)
+        if getattr(attn, "pe_cache", None) is not None:
+            shard_specs[attn.pe_cache] = ("batch", None, None)
+
+        ffn = layer.ffn
+        if hasattr(ffn, "mlp"):
+            mlp = ffn.mlp
+            shard_specs[mlp.router.gate.weight] = (None, None)
+            shard_specs[mlp.experts.gate_proj] = (("model", "batch"), None, None)
+            shard_specs[mlp.experts.up_proj] = (("model", "batch"), None, None)
+            shard_specs[mlp.experts.down_proj] = (("model", "batch"), None, None)
+
+            shared = getattr(ffn, "shared_experts", None)
+            if shared is not None:
+                shard_specs[shared.w1.weight] = ("model", None)
+                shard_specs[shared.w3.weight] = ("model", None)
+                shard_specs[shared.w2.weight] = (None, "model")
+        else:
+            shard_specs[ffn.w1.weight] = ("model", None)
+            shard_specs[ffn.w3.weight] = ("model", None)
+            shard_specs[ffn.w2.weight] = (None, "model")
+
+    return shard_specs
+
+
 # This test only runs 2 layers so we expect to see incoherent output
 def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
     output_file,
@@ -2204,12 +2292,13 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         ModelLoader,
         variant,
         output_file,
-        num_layers=2,
+        num_layers=2 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=128,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        shard_spec_fn=_deepseek_v3_2_exp_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         use_mla_cache=True,
         use_indexer_cache=True,
