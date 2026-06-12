@@ -58,55 +58,12 @@ import os
 import pytest
 import torch
 
-# We must import torch_xla *before* tt_torch so the plugin
-# registration on torch_xla startup runs against the right tt-metal.
-# If the plugin can't load (typically: vendored tt-metal symbols
-# missing because ttnn-from-pip pre-loaded an incompatible tt-metal),
-# skip rather than fail: that's a packaging-side problem outside this
-# test's scope.
-try:
-    import torch_xla  # noqa: F401
-    import torch_xla.core.xla_model as xm
-except OSError as e:  # libtt_metal symbol resolution
-    pytest.skip(
-        f"torch_xla / pjrt_plugin_tt failed to load: {e}", allow_module_level=True
-    )
+# Import torch_xla before tt_torch so the plugin registers on torch_xla
+# startup. ttl (tt-lang) is an optional dependency -- skip if absent.
+import torch_xla  # noqa: F401
+import torch_xla.core.xla_model as xm
 
 ttl = pytest.importorskip("ttl", exc_type=ImportError)
-
-# The default ``resolve_operation`` path is DEVICE-LESS (see
-# python_package/tt_torch/tt_lang.py, search for ``DEMO HACK``). It
-# hands tt-lang ``_StubTtnnTensor`` stand-ins and monkey-patches
-# ``is_ttnn_tensor`` in every site that bound it, so the resolver
-# itself never calls ``ttnn.open_device(0)`` and the
-# init_command_queue conflict is gone.
-#
-# tt-lang's own ``_compile_kernel`` *still* imports ``ttnn`` (lazily,
-# via ``_ensure_ttnn``) to construct ``ttnn.CoreRangeSet`` /
-# ``ttnn.ReaderConfigDescriptor`` / etc. -- it never opens a device,
-# but the symbols must resolve. Importing the PyPI ttnn 0.69.0 wheel
-# in a process that already loaded the plugin's vendored
-# ``libtt_metal.so`` aborts with ``undefined symbol`` because the
-# two builds disagree on internal symbols. The fix is to point
-# ``PYTHONPATH`` at the *vendored* ttnn that was built against the
-# plugin's tt-metal:
-#
-#     VENDORED_METAL=<tt-xla>/third_party/tt-mlir/src/tt-mlir/
-#                    third_party/tt-metal/src/tt-metal
-#     PJRT_DEVICE=TT TT_METAL_HOME=$VENDORED_METAL \
-#       PYTHONPATH=$VENDORED_METAL/ttnn:$PYTHONPATH pytest ...
-#
-# If a vendored ttnn isn't on the path, ttnn won't import here and we
-# skip below.
-try:
-    import ttnn  # type: ignore  # noqa: F401
-except ImportError as e:
-    pytest.skip(
-        f"ttnn could not be imported in the plugin process: {e}. "
-        f"Set PYTHONPATH to the vendored ttnn -- see the docstring "
-        f"in this file for the exact command.",
-        allow_module_level=True,
-    )
 
 import tt_torch  # noqa: F401  -- registers torch.ops.tt.*
 from tt_torch import tt_lang as tt_lang_mod
@@ -116,29 +73,9 @@ from tt_torch.tt_lang import tt_lang_operation
 # Hardware / version gates
 # ---------------------------------------------------------------------------
 
-
-def _have_tt_device() -> bool:
-    """Return True iff torch_xla can place tensors on the TT device.
-
-    With the device-less resolve_operation path (default), the plugin is
-    the only ``libtt_metal.so`` consumer in the process, so it's safe
-    to actually exercise a transfer here rather than just enumerating.
-    """
-    try:
-        device = xm.xla_device()
-    except Exception:
-        return False
-    try:
-        torch.zeros(1, dtype=torch.bfloat16).to(device).to("cpu")
-    except Exception:
-        return False
-    return True
-
-
 pytestmark = [
     pytest.mark.single_device,
 ]
-
 
 # ---------------------------------------------------------------------------
 # Kernel under test: tilewise elementwise add (cribbed from tt-lang's
@@ -250,13 +187,6 @@ def test_tt_lang_eltwise_add_e2e(shape, request):
     -> tt_lang_op -> kernel_artifact -> flatbuffer -> GenericOp
     pipeline; verify the result matches the bf16 torch.add golden.
     """
-    # With the device-less resolve_operation path (the bridge's default,
-    # see python_package/tt_torch/tt_lang.py "DEMO HACK"), the plugin
-    # owns device 0 exclusively. We only need to confirm the chip is
-    # reachable through torch_xla; we no longer open a ttnn device
-    # from the test process.
-    if not _have_tt_device():
-        pytest.skip("No TT device visible to torch_xla.")
 
     rows, cols = shape
     a_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
@@ -323,8 +253,6 @@ def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
       * End-to-end correctness against ``((a+b) + c) + d`` under bf16
         tolerances.
     """
-    if not _have_tt_device():
-        pytest.skip("No TT device visible to torch_xla.")
 
     rows, cols = shape
     a_cpu = torch.randn(rows, cols, dtype=torch.bfloat16)
@@ -344,26 +272,20 @@ def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
     c_xla = c_cpu.to(device)
     d_xla = d_cpu.to(device)
 
-    try:
-        ab = a_xla + b_xla
-        # The kernel is mutation-style: it needs an "out" operand of the
-        # right shape/dtype/device. ``torch.zeros_like(ab)`` is traced as
-        # an XLA constant in the same program -- it's not a host
-        # allocation. We never read out_buf after the call; the returned
-        # functional result is what we chain forward.
-        out_buf = torch.zeros_like(ab)
-        abc = add_op(ab, c_xla, out_buf)
-        result_xla = abc + d_xla
-        # One mark_step -- everything must compile into a single
-        # executable. If torch_xla split the graph at the custom_call
-        # boundary, we'd observe extra compiles in the logs.
-        xm.mark_step()
-        result = result_xla.to("cpu")
-    except RuntimeError as e:
-        msg = str(e)
-        if "undefined symbol" in msg or "_ZN2tt8tt_metal" in msg:
-            pytest.skip("tt-metal ABI mismatch surfaced at compile time: " + msg[:300])
-        raise
+    ab = a_xla + b_xla
+    # The kernel is mutation-style: it needs an "out" operand of the
+    # right shape/dtype/device. ``torch.zeros_like(ab)`` is traced as
+    # an XLA constant in the same program -- it's not a host
+    # allocation. We never read out_buf after the call; the returned
+    # functional result is what we chain forward.
+    out_buf = torch.zeros_like(ab)
+    add_op(ab, c_xla, out_buf)
+    result_xla = out_buf + d_xla
+    # One mark_step -- everything must compile into a single
+    # executable. If torch_xla split the graph at the custom_call
+    # boundary, we'd observe extra compiles in the logs.
+    xm.mark_step()
+    result = result_xla.to("cpu")
 
     assert (
         result.shape == golden.shape
