@@ -377,7 +377,10 @@ def shard_vae_encoder_specs(vae, mesh: Mesh) -> dict:
     split cleanly on a 4-way mesh), and the ``WanResample`` downsamplers in
     ``down_blocks``.
     """
-    from diffusers.models.autoencoders.autoencoder_kl_wan import WanResidualBlock
+    from diffusers.models.autoencoders.autoencoder_kl_wan import (
+        WanResidualBlock,
+        WanResidualDownBlock
+    )
 
     axis = _pick_axis(mesh)
     specs: dict = {}
@@ -388,6 +391,9 @@ def shard_vae_encoder_specs(vae, mesh: Mesh) -> dict:
     for m in encoder.down_blocks:
         if isinstance(m, WanResidualBlock):
             specs.update(_megatron_pair_specs(m, axis))
+        elif isinstance(m, WanResidualDownBlock):
+            for block in m.resnets:
+                specs.update(_megatron_pair_specs(block, axis))
 
     # mid_block: 2 ResidualBlocks (attention stays replicated)
     for block in encoder.mid_block.resnets:
