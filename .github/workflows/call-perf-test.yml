@@ -459,10 +459,17 @@ jobs:
           workflow_file="schedule-nightly.yml"
         fi
         echo "mode=$mode" >> $GITHUB_OUTPUT
-        workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-          -H "Accept: application/vnd.github.v3+json" \
-          "https://api.github.com/repos/${{ github.repository }}/actions/workflows/${workflow_file}/runs?status=completed&branch=main&per_page=100" \
-          | jq -r '.workflow_runs[0].id')
+        # TEMP: pinned baseline for transformers-uplift perf-regression
+        # testing. Run 27517218376 is the 2026-06-15 nightly built from
+        # main @ 98af4ea8 — same commit the uplift branch is now rebased
+        # onto, so device_type and submodule pointers should align.
+        # REVERT this block (restore the curl auto-detect below) before
+        # this workflow change merges.
+        workflow_id=27517218376
+        # workflow_id=$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+        #   -H "Accept: application/vnd.github.v3+json" \
+        #   "https://api.github.com/repos/${{ github.repository }}/actions/workflows/${workflow_file}/runs?status=completed&branch=main&per_page=100" \
+        #   | jq -r '.workflow_runs[0].id')
         echo "last_nightly_workflow_id=$workflow_id" >> $GITHUB_OUTPUT
 
         echo "device_type=${{ matrix.build.runs-on-original }}" >> $GITHUB_OUTPUT
