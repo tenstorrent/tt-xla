@@ -1195,12 +1195,46 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
+        max_seq_len = int(self.seq_lens_np[:num_reqs].max())
+
+        # Detect cached prefill: any request with num_computed_tokens > 0
+        # means Q has fewer tokens than K/V (suffix-only Q vs full-sequence KV).
+        # In that case is_causal=True is wrong (it assumes Q and K/V are aligned
+        # from position 0), so we build an explicit causal mask with correct
+        # position offsets.
+        num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+        is_cached_prefill = bool(np.any(num_computed > 0))
+
+        if is_cached_prefill:
+            # Build mask [max_num_reqs, 1, padded_total_num_scheduled_tokens, max_seq_len]
+            # For user i, Q position q attends to K position j if:
+            #   j <= num_computed[i] + q  AND  q < num_scheduled[i]
+            # Padding positions (q >= num_scheduled[i]) get all -inf.
+            attn_mask = torch.full(
+                (self.max_num_reqs, 1, padded_total_num_scheduled_tokens, max_seq_len),
+                float("-inf"),
+                dtype=torch.float32,
+            )
+            for i in range(num_reqs):
+                n_computed = int(num_computed[i])
+                n_scheduled = int(num_scheduled_tokens_per_req[i])
+                for q in range(n_scheduled):
+                    # This Q token is at absolute position n_computed + q,
+                    # so it can attend to K positions 0..n_computed+q (inclusive).
+                    attn_mask[i, 0, q, : n_computed + q + 1] = 0.0
+            attn_mask = attn_mask.to(self.device)
+            is_causal = False
+        else:
+            attn_mask = None
+            is_causal = True
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
+            is_causal=is_causal,
+            attn_mask=attn_mask,
             fill_page_table=fill_page_table,
+            max_seq_len=max_seq_len,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1906,6 +1940,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            max_seq_len=num_tokens,
         )
 
         per_layer_attn_metadata = dict.fromkeys(

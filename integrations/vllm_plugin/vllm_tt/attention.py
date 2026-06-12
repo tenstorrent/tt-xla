@@ -177,6 +177,10 @@ class TTMetadata:
     # Page table with prefix blocks rolled to the end for paged_fill_cache.
     # Computed outside the compiled graph to avoid shape-change recompilation.
     fill_page_table: torch.Tensor
+    # Max full sequence length across all users in this batch (including cached
+    # prefix tokens). Used by prefill SDPA to gather the correct number of
+    # tokens from paged cache without needing .item() inside the trace.
+    max_seq_len: int | None
 
     def __init__(
         self,
@@ -185,6 +189,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        max_seq_len: int | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +198,7 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        self.max_seq_len = max_seq_len
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -525,29 +531,23 @@ class TTAttentionBackendImpl(AttentionImpl):
         2. Pooling models: For the entire attention computation, as these models
            process all tokens in a single pass without a decode phase or KV cache.
 
-        On prefix-cache HIT (cached prefill), inputs.key/value contain only
-        suffix tokens; we must gather the full K/V (prefix + suffix) from the
-        paged cache for correct attention.
+        When paged KV cache is available, we always gather K/V from the paged
+        cache rather than using inputs.key/value directly. This handles both
+        cold prefill (all tokens just written to cache) and cached prefill
+        (prefix already in cache + suffix just written). Using paged cache
+        unconditionally avoids data-dependent branches that would break
+        torch.compile tracing.
         """
-        shared_kv_mode = (
-            self.kv_sharing_target_layer_name is not None
-            and isinstance(kv_cache, (list, tuple))
+        has_paged_cache = (
+            isinstance(kv_cache, (list, tuple))
             and len(kv_cache) >= 2
-            and kv_cache[0].numel() > 0
-        )
-
-        # Detect cached prefill: is_prefill && cache_position indicates full seq > suffix tokens only
-        cached_prefill = (
-            inputs.is_prefill
-            and attn_metadata.cache_position is not None
-            and isinstance(kv_cache, (list, tuple))
             and kv_cache[0].numel() > 0
             and attn_metadata.page_table is not None
         )
-        if cached_prefill:
-            # Check if any user has prefix cached (full_seq_len > current kv_num_tokens)
-            full_seq_lens = attn_metadata.cache_position + 1
-            cached_prefill = torch.any(full_seq_lens > inputs.kv_num_tokens)
+
+        shared_kv_mode = (
+            self.kv_sharing_target_layer_name is not None and has_paged_cache
+        )
 
         if shared_kv_mode:
             # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]
@@ -559,22 +559,21 @@ class TTAttentionBackendImpl(AttentionImpl):
             value_for_sdpa = self._gather_paged_to_dense(
                 kv_cache[1], attn_metadata.page_table, inputs.kv_num_tokens
             )
-            # SDPA expects [users, num_heads, tokens, head]. The gather helper
-            # already returns that layout, only Q needs the transpose.
             query_for_sdpa = inputs.query.transpose(-3, -2)
-        elif cached_prefill:
-            # On prefix-cache HIT, gather full K/V (prefix + suffix) from paged cache.
-            full_seq_lens = attn_metadata.cache_position + 1
-            max_full_seq_len = int(full_seq_lens.max().item())
+        elif has_paged_cache and attn_metadata.max_seq_len is not None:
+            # Gather full K/V from paged cache. On cold prefill the cache was
+            # just populated by _handle_paged_attention; on cached prefill (prefix
+            # cache HIT) the prefix is already there. Either way the paged cache
+            # holds the complete K/V needed for correct SDPA.
             key_for_sdpa = self._gather_paged_to_dense(
-                kv_cache[0], attn_metadata.page_table, max_full_seq_len
+                kv_cache[0], attn_metadata.page_table, attn_metadata.max_seq_len
             )
             value_for_sdpa = self._gather_paged_to_dense(
-                kv_cache[1], attn_metadata.page_table, max_full_seq_len
+                kv_cache[1], attn_metadata.page_table, attn_metadata.max_seq_len
             )
             query_for_sdpa = inputs.query.transpose(-3, -2)
         else:
-            # Cold prefill: use inputs.key/value (full prefill tokens computed by model)
+            # No paged cache (pooling models or profiling): use inputs directly
             query_for_sdpa = inputs.query.transpose(-3, -2)
             key_for_sdpa = inputs.key.transpose(-3, -2)
             value_for_sdpa = inputs.value.transpose(-3, -2)
