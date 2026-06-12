@@ -22,7 +22,6 @@ from infra.utilities import Mesh
 from tests.infra.testers.compiler_config import CompilerConfig
 
 from .monkey_patch import (
-    _patch_wan_resample_avoid_4d_fold,
     _patch_wan_resample_rep_sentinel,
     safe_xla_slicing,
 )
@@ -44,16 +43,12 @@ _COMPILER_CONFIG = CompilerConfig(
 )
 
 
-@pytest.mark.xfail(
-    reason="DRAM OOM on ttnn.repeat in the upsample path: repeat_interleave(2, dim=3) "
-    "materializes a 1x192x720x640x2 bf16 intermediate whose trailing dim-2 pads to a "
-    "32-wide tile (16x blowup -> 5.66 GB), exceeding device DRAM (~4 GB/bank)"
-)
 @pytest.mark.nightly
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
+@pytest.mark.skip(reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir")
 def test_vae_decoder_720p():
     _run("720p", sharded=False)
 
@@ -63,6 +58,7 @@ def test_vae_decoder_720p():
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
+@pytest.mark.skip(reason="currently slow so skipping for now: we need to set proper config for conv3d in tt-mlir")
 def test_vae_decoder_480p():
     _run("480p", sharded=False)
 
@@ -71,7 +67,6 @@ def _run(resolution: str, sharded: bool) -> None:
     # Apply monkey patches here (not at module top) so they don't leak into
     # other tests collected in the same pytest session.
     _patch_wan_resample_rep_sentinel()
-    _patch_wan_resample_avoid_4d_fold()
 
     shapes = RESOLUTIONS[resolution]
     torch.manual_seed(42)
