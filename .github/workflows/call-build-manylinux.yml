@@ -73,13 +73,6 @@ jobs:
       - name: Build ttxla  Wheel (manylinux)
         uses: pypa/cibuildwheel@v3.3
         env:
-          # LDFLAGS=-Wl,--no-rosegment: gcc-toolset-15's binutils (>= 2.44) defaults to
-          # --rosegment (single read-only segment => code segment first, no headroom), which
-          # makes patchelf relocate .init/.plt and corrupt DT_INIT during auditwheel repair ->
-          # SIGSEGV in the dynamic loader's call_init on dlopen. --no-rosegment restores the
-          # read-only-segment-first layout so patchelf edits RPATH in place. LDFLAGS is
-          # inherited by the tt-mlir and tt-metal ExternalProject sub-builds, so it covers
-          # every binary in the wheel (not just tt-xla's own extension).
           CIBW_ENVIRONMENT: >-
             CCACHE_REMOTE_ONLY=true
             CCACHE_TEMPDIR=/tmp/ccache

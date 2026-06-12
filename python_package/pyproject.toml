@@ -8,10 +8,4 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-# NOTE: the patchelf-safe linker layout is enforced via LDFLAGS=-Wl,--no-rosegment in the
-# manylinux build's CIBW_ENVIRONMENT (see .github/workflows/call-build-manylinux.yml), which
-# propagates to the tt-mlir and tt-metal ExternalProject sub-builds. gcc-toolset-15's binutils
-# (>= 2.44) defaults to --rosegment (single read-only segment => code-first, no headroom),
-# which makes patchelf relocate .init/.plt and corrupt DT_INIT during auditwheel repair;
-# --no-rosegment restores the read-only-segment-first layout so patchelf edits RPATH in place.
 repair-wheel-command = "auditwheel repair --exclude libTTMLIRRuntime.so --exclude libTTMLIRCompiler.so --exclude libtt-alchemist-lib.so --exclude libtt_metal.so --exclude libtt_stl.so --exclude libtt-umd.so.0 --exclude _ttnncpp.so --exclude _ttnn.so --exclude libdevice.so --exclude libtracy.so* -w {dest_dir} {wheel}"
