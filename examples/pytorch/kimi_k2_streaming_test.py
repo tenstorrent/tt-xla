@@ -36,6 +36,7 @@ Usage:
 import ctypes
 import gc
 import os
+import time
 
 import numpy as np
 import pytest
@@ -48,7 +49,7 @@ import torch_xla.runtime as xr
 from loguru import logger
 from torch_xla.distributed.spmd import Mesh
 
-setproctitle.setproctitle("kimi-stream")
+# setproctitle.setproctitle("kimi-stream")
 
 
 # ============== CONFIGURATION ==============
@@ -68,7 +69,7 @@ DEFAULT_NUM_DECODE_TOKENS = 16
 # identical inputs both should argmax the same next token per row. Set to None
 # to use distinct per-row words from DECODE_WORDS instead (good for spotting
 # degenerate/identical output, bad for a 1:1 device-test comparison).
-UNIFORM_DECODE_WORD = "Hello"
+UNIFORM_DECODE_WORD = "None"
 
 # Pool of seed words for the decode step. Each batch row gets one word (cycled
 # to fill the batch) so the single decode token differs across the batch
@@ -76,7 +77,6 @@ UNIFORM_DECODE_WORD = "Hello"
 # UNIFORM_DECODE_WORD is None.
 DECODE_WORDS = [
     "The",
-    "Hello",
     "Once",
     "Today",
     "Water",
@@ -90,6 +90,7 @@ DECODE_WORDS = [
     "Time",
     "Dream",
     "Robot",
+    "Hello",
     "Garden",
 ]
 
@@ -358,7 +359,7 @@ def test_kimi_k2_streaming_decode(
     # ---- 1. Build a weight-less CPU skeleton ----
     logger.info(f"Building Kimi K2 skeleton with {num_layers} layers...")
     loader = ModelLoader(
-        variant=ModelVariant.KIMI_K2_INSTRUCT_MODIFIED, num_layers=num_layers
+        variant=ModelVariant.KIMI_K2_BASE_MODIFIED, num_layers=num_layers
     )
     model = loader.build_skeleton()
     config = loader.config
@@ -519,8 +520,14 @@ def test_kimi_k2_streaming_decode(
     # full generated continuation at the end.
     logger.info(f"Running {num_decode_tokens} autoregressive decode step(s)...")
     generated_ids = [[] for _ in range(batch_size)]
+    # Per-step wall-clock for the full-model decode. The .cpu() transfer below
+    # blocks until the device finishes, so timing the forward + materialization
+    # captures the full per-step decode latency. Step 0 also pays the one-time
+    # torch.compile cost, so we report it separately from the steady state.
+    step_times = []
     with torch.no_grad():
         for step in range(num_decode_tokens):
+            t0 = time.perf_counter()
             output = compiled_model(
                 input_ids=input_ids,
                 past_key_values=cache,
@@ -528,6 +535,7 @@ def test_kimi_k2_streaming_decode(
                 use_cache=True,
             )
             logits = output.logits.cpu()
+            step_times.append(time.perf_counter() - t0)
             if step == 0:
                 # Expected (batch_size, seq_len=1, vocab). Under SPMD the
                 # gathered host tensor's batch dim may be a single shard (e.g.
@@ -549,6 +557,23 @@ def test_kimi_k2_streaming_decode(
             xs.mark_sharding(next_token, mesh, ("batch", None))
             input_ids = next_token
             cache_position = cache_position[-1:] + 1
+
+    # Per-step full-model decode timing. Step 0 includes the one-time
+    # torch.compile, so report it on its own and compute mean/min/max/var over
+    # the steady-state steps (1..N-1) when there is more than one step.
+    times = np.asarray(step_times, dtype=np.float64)
+    steady = times[1:] if times.size > 1 else times
+    stat_lines = [
+        "[STREAMING DECODE] full-model decode time per step (s):",
+        f"  all steps: {', '.join(f'{t:.4f}' for t in times)}",
+        f"  step 0 (incl. compile): {times[0]:.4f}",
+        (
+            f"  steady-state (steps 1..{times.size - 1}, n={steady.size}): "
+            f"mean={steady.mean():.4f}  min={steady.min():.4f}  "
+            f"max={steady.max():.4f}  var={steady.var():.6f}"
+        ),
+    ]
+    logger.info("\n".join(stat_lines))
 
     # Decode each row's full generated continuation. batch_decode treats each
     # inner list as its own token sequence, so we get one string per row.
