@@ -197,7 +197,7 @@ jobs:
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
         source venv/activate
-        pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} ${{ inputs.check_fusions && '--check-fusions' || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
+        pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} ${{ matrix.build.input-sequence-length && format('--input-sequence-length {0}', matrix.build.input-sequence-length) || '' }} ${{ matrix.build.optimization-level != null && format('--optimization-level {0}', matrix.build.optimization-level) || '' }} ${{ matrix.build.num-layers && format('--num-layers {0}', matrix.build.num-layers) || '' }} ${{ inputs.check_fusions && '--check-fusions' || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report
       id: dump-stablehlo
