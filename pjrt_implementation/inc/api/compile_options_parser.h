@@ -31,6 +31,14 @@ namespace tt::pjrt {
 //
 // The protobuf layout is defined in:
 // https://github.com/openxla/xla/blob/main/xla/pjrt/proto/compile_options.proto
+struct ExecutableDeviceShape {
+  std::optional<int64_t> num_partitions;
+  std::optional<int64_t> num_replicas;
+
+  // Number of devices the executable will distribute its computation across.
+  int64_t targetNumDevices() const { return num_partitions.value_or(1); }
+};
+
 class CompileOptionsParser {
 public:
   // Parses compile options protobuf and extracts both custom compile options
@@ -38,7 +46,8 @@ public:
   static tt_pjrt_status parseCompileOptions(
       const char *compile_options_data, size_t compile_options_size,
       std::unordered_map<std::string, std::string> &out_compile_options,
-      std::optional<std::vector<int64_t>> &out_replica_device_ids);
+      std::optional<std::vector<int64_t>> &out_replica_device_ids,
+      ExecutableDeviceShape &out_device_shape);
 
   // Parses compile options protobuf data into UnknownFieldSet.
   // Returns true if parsing succeeded, false otherwise.
@@ -57,6 +66,11 @@ public:
   static tt_pjrt_status extractReplicaDeviceIds(
       const google::protobuf::UnknownFieldSet &unknown_fields,
       std::optional<std::vector<int64_t>> &out_replica_device_ids);
+
+  // Extracts num_partitions and num_replicas from ExecutableBuildOptionsProto.
+  static tt_pjrt_status
+  extractDeviceShape(const google::protobuf::UnknownFieldSet &unknown_fields,
+                     ExecutableDeviceShape &out_device_shape);
 
   // Helper function to parse a length-delimited protobuf field into an
   // UnknownFieldSet. Returns true if parsing succeeds, false otherwise.
