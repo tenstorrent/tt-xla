@@ -59,6 +59,8 @@ def check_host_memory(model_name: str) -> float:
     model_rss_limits_gb = {
         "Qwen/Qwen3-0.6B": 5,
         "Qwen/Qwen3-32B": 150,
+        # 26B-A4B measured ~57 GB host RSS; ~50% headroom.
+        "google/gemma-4-26B-A4B-it": 85,
     }
 
     # Measures max RSS across child processes; assumes one engine at a time.
