@@ -181,6 +181,9 @@ class TTPlatform(Platform):
             raise NotImplementedError(
                 "Sparse Attention is not supported on TT devices."
             )
+        if attn_selector_config.use_mla:
+            logger.info("Using TT MLA Attention backend.")
+            return AttentionBackendEnum.FLASH_ATTN_MLA.get_path()
         if selected_backend != AttentionBackendEnum.CUSTOM:
             logger.info("Cannot use %s backend on TT devices.", selected_backend)
 
