@@ -2668,14 +2668,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             hidden = sharding_constraint_tensor(hidden, self.mesh, (None, None))
         # compute_logits
         logits = self.model.compute_logits(hidden)
-        if self.enable_tensor_parallel and (
-            not self.use_2d_mesh or self.is_sharded_compute_logits
+        if (
+            self.enable_tensor_parallel
+            and not self.use_2d_mesh
+            and not self.is_sharded_compute_logits
         ):
-            logits = sharding_constraint_tensor(
-                logits,
-                self.mesh,
-                (None, "model") if self.is_sharded_compute_logits else (None, None),
-            )
+            # 1D mesh, non-sharded compute_logits: force replicated.
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        # When is_sharded_compute_logits: no explicit constraint on logits.
+        # The tt-mlir CustomCallTopKConversionPattern walks back through the
+        # matmul to detect vocab-sharding from the column-sharded LM head
+        # weight. An explicit (None, "model") here triggers Shardy to emit
+        # collective_permute (tt-mlir#3370) which tt-mlir does not lower.
         if self.is_sharded_compute_logits:
             if not sampling_metadata.no_penalties:
                 sampling_metadata.output_token_counts = sharding_constraint_tensor(
