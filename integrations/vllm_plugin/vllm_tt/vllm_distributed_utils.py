@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_xla.distributed.spmd as xs
 from torch.nn.parameter import Parameter
-from tt_torch.sharding import sharding_constraint_hook
+from tt_torch.sharding import _partition_spec_to_sdy_sharding, sharding_constraint_hook
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (
     ColumnParallelLinear,
@@ -273,6 +273,17 @@ def partition_row_parallel_linear(
     return layer
 
 
+def partition_linear(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Module:
+    assert isinstance(layer, nn.Linear)
+    # Row-parallel: shard input dim (dim 1 of weight [out, in]) across "model"
+    # axis. Output dim is replicated so no all-reduce annotation is needed —
+    # SPMD inserts it automatically when the sharded contraction dim is reduced.
+    # Bias is left replicated; it is added to the full (post-reduce) output.
+    safe_mark_sharding(layer.weight, mesh, (None, "model"))
+    logger.debug("Applied row-parallel sharding to nn.Linear %s", layer)
+    return layer
+
+
 def partition_parallel_lm_head(
     layer: torch.nn.Module, mesh: xs.Mesh
 ) -> torch.nn.Module:
@@ -287,9 +298,18 @@ def partition_vocab_parallel_embedding(
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
     safe_mark_sharding(layer.weight, mesh, (None, "model"))
-    # Apply sharding constraint to the output of the layer.
-    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
-    layer.register_forward_hook(hook_forward)
+    # Apply sharding constraint to the output. The output rank matches input
+    # rank + 1: 2D input_ids (batch, seq) → 3D output; 1D input_ids (seq,) →
+    # 2D output (e.g., during mm-encoder precompilation). Pre-compute both
+    # sharding strings to avoid per-call overhead and dispatch dynamically.
+    sdy_sharding_3d = _partition_spec_to_sdy_sharding(mesh, (None, None, None))
+    sdy_sharding_2d = _partition_spec_to_sdy_sharding(mesh, (None, None))
+
+    def rank_aware_hook(mod, input, output):
+        sdy = sdy_sharding_3d if output.dim() == 3 else sdy_sharding_2d
+        return torch.ops.tt.sharding_constraint(output, sdy)
+
+    layer.register_forward_hook(rank_aware_hook)
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -302,6 +322,10 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        # Catch-all for plain nn.Linear layers (e.g. vision encoder projections
+        # that are not wrapped in vLLM's parallel linear types). Must come last
+        # so the more specific vLLM types above always take priority.
+        ("Linear", partition_linear),
     ]
 )
 
