@@ -329,6 +329,19 @@ private:
   tt_pjrt_status performCodegen(std::string_view ttnn_mlir,
                                 const CompileOptions &compile_options);
 
+  // Computes a stable identity for the graph: hex sha256 (truncated) of the
+  // module's textual form, printed without debug info so it doesn't pick up
+  // run-specific locations.
+  static std::string
+  computeGraphHash(const mlir::OwningOpRef<mlir::ModuleOp> &module);
+
+  // Finds the saved graph directory under codegen_load_path whose module_key
+  // matches the current graph hash, restoring the mesh shape and device count
+  // saved at emit time.
+  static tt_pjrt_status resolveCodegenLoadDir(
+      const CompileOptions &compile_options, std::string &matched_dir,
+      std::vector<std::uint32_t> &mesh_shape, size_t &num_devices);
+
   // MLIR context handle.
   std::unique_ptr<mlir::MLIRContext> m_context;
 
