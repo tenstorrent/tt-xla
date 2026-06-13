@@ -1708,7 +1708,6 @@ test_config:
         bringup_status: FAILED_RUNTIME
 
   mistral/pytorch-Ministral_8B_Instruct-single_device-inference:
-    optimization_level: 2
     arch_overrides:
       p150:
         status: EXPECTED_PASSING
