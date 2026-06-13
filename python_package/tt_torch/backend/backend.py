@@ -103,8 +103,9 @@ def torch_pass_pipeline(
     # passes are reflected during execution.
     compiled_graph.recompile()
 
-    # Extract metadata from FX nodes in order to inject them into locs
-    node_info = extract_nodes_info(compiled_graph)
+    # Extract metadata from FX nodes in order to inject them into locs; only needed when XLA_HLO_DEBUG=1.
+    hlo_debug = os.environ.get("XLA_HLO_DEBUG", "0") == "1"
+    node_info = extract_nodes_info(compiled_graph) if hlo_debug else {}
 
     return compiled_graph, program.graph_signature, node_info
 
