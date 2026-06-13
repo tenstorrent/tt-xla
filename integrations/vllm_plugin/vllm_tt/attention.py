@@ -181,6 +181,16 @@ class TTMetadata:
     # prefix tokens). Used by prefill SDPA to gather the correct number of
     # tokens from paged cache without needing .item() inside the trace.
     max_seq_len: int | None
+    # Per-user number of already-computed (prefix-cached) tokens. Shape:
+    # [num_users], dtype int32, on device. Zero for cold prefill.
+    num_computed_tokens: torch.Tensor | None
+    # Pre-computed cur_pos_tensor for the prefill-via-decode-kernel path.
+    # Shape: [num_users * num_tokens], dtype int32, on device. Each entry is
+    # the absolute position for a virtual user (prefill token).
+    prefill_cur_pos: torch.Tensor | None
+    # Pre-computed expanded page_table for prefill-via-decode-kernel path.
+    # Shape: [num_users * num_tokens, num_blocks_per_user], dtype int32, on device.
+    prefill_page_table: torch.Tensor | None
 
     def __init__(
         self,
@@ -190,6 +200,9 @@ class TTMetadata:
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
         max_seq_len: int | None = None,
+        num_computed_tokens: torch.Tensor | None = None,
+        prefill_cur_pos: torch.Tensor | None = None,
+        prefill_page_table: torch.Tensor | None = None,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -199,6 +212,9 @@ class TTMetadata:
             fill_page_table if fill_page_table is not None else page_table
         )
         self.max_seq_len = max_seq_len
+        self.num_computed_tokens = num_computed_tokens
+        self.prefill_cur_pos = prefill_cur_pos
+        self.prefill_page_table = prefill_page_table
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -523,20 +539,21 @@ class TTAttentionBackendImpl(AttentionImpl):
         kv_cache,
         attn_metadata: TTMetadata,
     ) -> torch.Tensor:
-        """Compute full attention using scaled dot-product attention (non-paged).
+        """Compute full attention during the prefill phase.
 
-        This method is used in two scenarios:
-        1. Generative models: During the prefill phase when processing initial
-           prompt tokens before decode iterations begin.
-        2. Pooling models: For the entire attention computation, as these models
-           process all tokens in a single pass without a decode phase or KV cache.
+        For generative models with paged KV cache: uses the decode kernel to
+        read K/V from the paged cache internally (C++ on device). Each prefill
+        token is treated as a virtual "user" with its own cur_pos indicating
+        how far into the sequence it should attend. This handles both cold
+        prefill (cur_pos = [0, 1, ..., B-1]) and cached prefill (cur_pos =
+        [num_computed, num_computed+1, ...]) without Python branches, which is
+        critical because torch.compile with NoGuards bakes branches at trace
+        time.
 
-        When paged KV cache is available, we always gather K/V from the paged
-        cache rather than using inputs.key/value directly. This handles both
-        cold prefill (all tokens just written to cache) and cached prefill
-        (prefix already in cache + suffix just written). Using paged cache
-        unconditionally avoids data-dependent branches that would break
-        torch.compile tracing.
+        For pooling models or profiling (no paged cache): falls back to
+        standard SDPA with inputs.key/value directly.
+
+        For KV-sharing layers: gathers from the target layer's paged cache.
         """
         has_paged_cache = (
             isinstance(kv_cache, (list, tuple))
@@ -550,9 +567,6 @@ class TTAttentionBackendImpl(AttentionImpl):
         )
 
         if shared_kv_mode:
-            # Gather dense [users, num_kv_heads, kv_num_tokens, head_size]
-            # from the target layer's paged cache (kv_cache is already the
-            # target's tensor via vLLM's alias).
             key_for_sdpa = self._gather_paged_to_dense(
                 kv_cache[0], attn_metadata.page_table, inputs.kv_num_tokens
             )
@@ -560,20 +574,11 @@ class TTAttentionBackendImpl(AttentionImpl):
                 kv_cache[1], attn_metadata.page_table, inputs.kv_num_tokens
             )
             query_for_sdpa = inputs.query.transpose(-3, -2)
-        elif has_paged_cache and attn_metadata.max_seq_len is not None:
-            # Gather full K/V from paged cache. On cold prefill the cache was
-            # just populated by _handle_paged_attention; on cached prefill (prefix
-            # cache HIT) the prefix is already there. Either way the paged cache
-            # holds the complete K/V needed for correct SDPA.
-            key_for_sdpa = self._gather_paged_to_dense(
-                kv_cache[0], attn_metadata.page_table, attn_metadata.max_seq_len
+        elif has_paged_cache:
+            return self._compute_prefill_via_decode_kernel(
+                inputs, kv_cache, attn_metadata
             )
-            value_for_sdpa = self._gather_paged_to_dense(
-                kv_cache[1], attn_metadata.page_table, attn_metadata.max_seq_len
-            )
-            query_for_sdpa = inputs.query.transpose(-3, -2)
         else:
-            # No paged cache (pooling models or profiling): use inputs directly
             query_for_sdpa = inputs.query.transpose(-3, -2)
             key_for_sdpa = inputs.key.transpose(-3, -2)
             value_for_sdpa = inputs.value.transpose(-3, -2)
@@ -597,6 +602,59 @@ class TTAttentionBackendImpl(AttentionImpl):
 
         return output
 
+    def _compute_prefill_via_decode_kernel(
+        self,
+        inputs,
+        kv_cache,
+        attn_metadata: TTMetadata,
+    ) -> torch.Tensor:
+        """Handle prefill by treating each token as a virtual user in the decode kernel.
+
+        The decode kernel reads K/V from the paged cache internally (C++ on
+        device), avoiding gather/index_select in the PyTorch graph (which
+        trigger compiler Error 13 via ttir.embedding). Each prefill token
+        becomes a separate "user" with its own cur_pos indicating how far
+        into the sequence it should attend.
+
+        This approach handles both cold prefill (cur_pos = [0, 1, ..., B-1])
+        and cached prefill (cur_pos = [num_computed, ..., num_computed+B-1])
+        identically — the cur_pos values determine the attention pattern
+        without any Python branches.
+
+        The cur_pos_tensor and expanded page_table are pre-computed on CPU in
+        model_runner and passed via metadata to avoid in-graph tensor operations
+        that could trigger trace-insertion Error 13.
+        """
+        k_cache = kv_cache[0]
+        v_cache = kv_cache[1]
+        suffix_len = inputs.query_num_tokens
+        num_users = inputs.users
+
+        # Reshape query: [users, suffix_len, num_heads, head_size]
+        #             → [1, users * suffix_len, num_heads, head_size]
+        query_for_decode = inputs.query.reshape(
+            1, num_users * suffix_len, -1, self.head_size
+        )
+
+        decode_kwargs = {
+            "cur_pos_tensor": attn_metadata.prefill_cur_pos,
+            "is_causal": True,
+            "scale": self.scale,
+        }
+        if self.sliding_window is not None:
+            decode_kwargs["sliding_window_size"] = self.sliding_window
+
+        out = torch.ops.tt.paged_scaled_dot_product_attention_decode(
+            query_for_decode,
+            k_cache,
+            v_cache,
+            attn_metadata.prefill_page_table,
+            **decode_kwargs,
+        )
+        # out: [1, num_users * suffix_len, num_heads, head_size]
+        # → [num_users, suffix_len, num_heads, head_size]
+        return out.reshape(num_users, suffix_len, -1, self.head_size)
+
     def _gather_paged_to_dense(
         self,
         cache: torch.Tensor,
@@ -611,6 +669,9 @@ class TTAttentionBackendImpl(AttentionImpl):
         re-order dims so the token axis is flattened across blocks, and trim
         to the logical prompt length so downstream SDPA sees a dense tensor
         matching the self-K/V path's shape.
+
+        Uses torch.gather (supported by TT backend) instead of index_select
+        (which lowers to ttir.embedding and breaks trace mode).
         """
         num_blocks_per_user = page_table.shape[1]
         num_kv_heads = cache.shape[1]
@@ -618,8 +679,13 @@ class TTAttentionBackendImpl(AttentionImpl):
         head_size = cache.shape[3]
         users = page_table.shape[0]
 
-        flat_indices = page_table.reshape(-1)
-        gathered = torch.index_select(cache, 0, flat_indices)
+        flat_indices = page_table.reshape(-1).to(torch.int64)
+        # Use torch.gather on dim 0 instead of index_select.
+        # Expand indices to match cache shape for gather semantics.
+        expanded_indices = flat_indices.view(-1, 1, 1, 1).expand(
+            -1, num_kv_heads, block_size, head_size
+        )
+        gathered = torch.gather(cache, 0, expanded_indices)
         # [users * num_blocks_per_user, num_kv_heads, block_size, head_size]
         gathered = gathered.view(
             users, num_blocks_per_user, num_kv_heads, block_size, head_size

@@ -1197,44 +1197,54 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         max_seq_len = int(self.seq_lens_np[:num_reqs].max())
 
-        # Detect cached prefill: any request with num_computed_tokens > 0
-        # means Q has fewer tokens than K/V (suffix-only Q vs full-sequence KV).
-        # In that case is_causal=True is wrong (it assumes Q and K/V are aligned
-        # from position 0), so we build an explicit causal mask with correct
-        # position offsets.
+        # Compute per-user num_computed_tokens and prefill decode-kernel
+        # metadata. The decode kernel is used unconditionally for all prefill
+        # attention (both cold and cached prefill) because torch.compile with
+        # NoGuards bakes Python branches — we cannot conditionally switch
+        # between SDPA and decode kernel at runtime. The decode kernel handles
+        # both cases correctly via cur_pos values:
+        #   - Cold prefill: cur_pos = [0, 1, ..., B-1] (standard causal)
+        #   - Cached prefill: cur_pos = [num_computed, ..., num_computed+B-1]
         num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
-        is_cached_prefill = bool(np.any(num_computed > 0))
 
-        if is_cached_prefill:
-            # Build mask [max_num_reqs, 1, padded_total_num_scheduled_tokens, max_seq_len]
-            # For user i, Q position q attends to K position j if:
-            #   j <= num_computed[i] + q  AND  q < num_scheduled[i]
-            # Padding positions (q >= num_scheduled[i]) get all -inf.
-            attn_mask = torch.full(
-                (self.max_num_reqs, 1, padded_total_num_scheduled_tokens, max_seq_len),
-                float("-inf"),
-                dtype=torch.float32,
-            )
-            for i in range(num_reqs):
-                n_computed = int(num_computed[i])
-                n_scheduled = int(num_scheduled_tokens_per_req[i])
-                for q in range(n_scheduled):
-                    # This Q token is at absolute position n_computed + q,
-                    # so it can attend to K positions 0..n_computed+q (inclusive).
-                    attn_mask[i, 0, q, : n_computed + q + 1] = 0.0
-            attn_mask = attn_mask.to(self.device)
-            is_causal = False
-        else:
-            attn_mask = None
-            is_causal = True
+        num_computed_tokens_tensor = torch.zeros(
+            self.max_num_reqs, dtype=torch.int32
+        )
+        num_computed_tokens_tensor[:num_reqs] = torch.from_numpy(
+            num_computed.astype(np.int32)
+        )
+
+        # Pre-compute cur_pos and expanded page_table for the
+        # prefill-via-decode-kernel path. Done on CPU to avoid in-graph
+        # arange/expand that could trigger trace-insertion Error 13.
+        num_tokens = padded_total_num_scheduled_tokens
+        offsets = torch.arange(num_tokens, dtype=torch.int32)
+        cur_pos = (
+            num_computed_tokens_tensor.unsqueeze(1) + offsets.unsqueeze(0)
+        )
+        prefill_cur_pos = cur_pos.reshape(-1).to(self.device)
+
+        # Expand page_table: repeat each user's row num_tokens times so each
+        # virtual user (token) gets the same page_table as its real user.
+        expanded_pt = page_table.unsqueeze(1).expand(
+            -1, num_tokens, -1
+        ).contiguous()
+        prefill_page_table = expanded_pt.reshape(
+            self.max_num_reqs * num_tokens, -1
+        ).to(self.device)
+
+        num_computed_tokens_tensor = num_computed_tokens_tensor.to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            is_causal=is_causal,
-            attn_mask=attn_mask,
+            is_causal=True,
+            attn_mask=None,
             fill_page_table=fill_page_table,
             max_seq_len=max_seq_len,
+            num_computed_tokens=num_computed_tokens_tensor,
+            prefill_cur_pos=prefill_cur_pos,
+            prefill_page_table=prefill_page_table,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -1632,16 +1642,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             else:
                 # fused path: decode_postprocess is compiled only for num_tokens=1.
-                # For prefill (num_tokens > 1), eagerly select the last token per
-                # request outside the compiled function so the shape is always
-                # (max_num_reqs, 1, hsize) — no extra compiled graphs needed.
+                # For prefill (num_tokens > 1), select the last token per request
+                # using the separately-compiled select_hidden_states so the indexing
+                # compiles as its own graph (avoids Error 13 from fusing gather ops
+                # with decode_postprocess under trace mode).
                 if hidden_states.shape[1] != 1:
-                    batch_idx = torch.arange(
-                        self.max_num_reqs, dtype=torch.int32, device=self.device
-                    )
-                    hidden_states = hidden_states[
-                        batch_idx, logits_indices, :
-                    ].unsqueeze(1)
+                    hidden_states = self.select_hidden_states(
+                        hidden_states, logits_indices
+                    ).unsqueeze(1)
                     if self.enable_tensor_parallel and self.use_2d_mesh:
                         xs.mark_sharding(
                             hidden_states, self.mesh, (None, None, "model")
@@ -1941,6 +1949,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             max_seq_len=num_tokens,
+            num_computed_tokens=torch.zeros(num_reqs, dtype=torch.int32).to(
+                self.device
+            ),
+            prefill_cur_pos=torch.zeros(
+                num_reqs * num_tokens, dtype=torch.int32
+            ).to(self.device),
+            prefill_page_table=torch.zeros(
+                (num_reqs * num_tokens, num_blocks), dtype=torch.int32
+            ).to(self.device),
         )
 
         per_layer_attn_metadata = dict.fromkeys(
@@ -2318,6 +2335,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 # decode_postprocess handles both decode (num_tokens=1) and
                 # prefill (last token pre-selected eagerly before the call).
                 self._precompile_decode_postprocess()
+                # select_hidden_states is used for prefill (num_tokens > 1) to
+                # extract the last token per request as a separate compiled
+                # graph (avoids Error 13 from fusing gather ops with
+                # decode_postprocess under trace mode).
+                self._precompile_select_hidden_states()
             else:
                 # cpu_sampling: fused decode_postprocess skipped (sampling on CPU);
                 # precompile the device-side graphs separately instead.
