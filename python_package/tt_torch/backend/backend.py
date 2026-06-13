@@ -95,8 +95,15 @@ def torch_pass_pipeline(
     # passes are reflected during execution.
     compiled_graph.recompile()
 
-    # Extract metadata from FX nodes in order to inject them into locs
-    node_info = extract_nodes_info(compiled_graph)
+    # Extract metadata from FX nodes in order to inject them into locs.
+    # The sole consumer is the metadata-injection path in XLAExecutor, which
+    # only runs when XLA_HLO_DEBUG=1. Skip the per-node AST walk otherwise --
+    # it is a significant slice of compile time and the result is discarded.
+    node_info = (
+        extract_nodes_info(compiled_graph)
+        if os.environ.get("XLA_HLO_DEBUG", "0") == "1"
+        else {}
+    )
 
     return compiled_graph, program.graph_signature, node_info
 
