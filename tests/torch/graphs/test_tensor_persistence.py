@@ -18,6 +18,7 @@ import os
 import threading
 
 import numpy as np
+import psutil
 import pytest
 import torch
 import torch_xla
@@ -808,3 +809,149 @@ def test_output_sharding_simple_propagation():
     assert input_e_shard_spec == output_e_shard_spec
     assert input_f_shard_spec == output_f_shard_spec
     assert input_g_shard_spec == output_g_shard_spec
+
+
+@pytest.mark.push
+@pytest.mark.single_device
+@pytest.mark.parametrize(
+    "dim",
+    [
+        512,
+        1024,
+        2048,
+    ],
+)
+def test_no_rss_leak_across_executions(dim: int, record_property):
+    """
+    Run the same matmul `ITERS` times, drop the first WARMUP_ITERS samples,
+    and assert that post-warmup RSS is stable.
+
+    We measure the slope of the post-warmup RSS samples (via linear regression)
+    and the growth (last RSS − first RSS).
+
+    Ideally there is no leak at all, i.e. the measured slope and growth are
+    both 0. The thresholds below (MAX_RSS_SLOPE_MIB_PER_ITER and
+    MAX_RSS_GROWTH_MIB) are small nonzero allowances for noise from its running environment.
+
+    Asserts slope <= MAX_RSS_SLOPE_MIB_PER_ITER
+        - Fit a line through the (iteration, RSS) samples via linear
+          regression and require its slope (MiB gained per iteration) to not
+          exceed the threshold. Catches a slow, steady leak.
+
+    Asserts growth <= MAX_RSS_GROWTH_MIB
+        - Require the total drift from the first to the last post-warmup
+          sample (last RSS - first RSS) to not exceed the threshold. Catches
+          a sudden step jump that a slope could average away.
+
+    Asserts every iteration's output sum matches iteration 0
+        - The run is deterministic, each iteration must produce the same output.
+    """
+
+    # Threshold values for assertion
+    MAX_RSS_SLOPE_MIB_PER_ITER = 1.0
+    MAX_RSS_GROWTH_MIB = 50.0
+    ITERS = 15
+    WARMUP_ITERS = 3
+
+    class MatMulModel(torch.nn.Module):
+        def __init__(self, dim: int):
+            super().__init__()
+            self.linear = torch.nn.Linear(dim, dim, bias=False, dtype=torch.bfloat16)
+
+        def forward(self, x):
+            return self.linear(x)
+
+    def get_rss_mib() -> float:
+        """
+        Helper to get this process's current resident set size, in MiB.
+        """
+        return psutil.Process().memory_info().rss / (1024 * 1024)
+
+    def get_vmhwm_mib() -> float:
+        """
+        Helper to get this process's lifetime peak RSS, in MiB.
+        """
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmHWM:"):
+                    return int(line.split()[1]) / 1024
+        return float("nan")
+
+    initial_vmhwm_mib = get_vmhwm_mib()
+
+    def linear_slope(xs: list[int], ys: list[float]) -> float:
+        n = len(xs)
+        if n < 2:
+            return 0.0
+        mean_x = sum(xs) / n
+        mean_y = sum(ys) / n
+        num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
+        den = sum((x - mean_x) ** 2 for x in xs)
+        return num / den if den else 0.0
+
+    xr.set_device_type("TT")
+
+    torch.manual_seed(42)
+    model = MatMulModel(dim).to(dtype=torch.bfloat16).eval()
+    model.compile(backend="tt")
+    x = torch.ones((dim, dim), dtype=torch.bfloat16)
+    device = xm.xla_device()
+    model = model.to(device)
+    x = x.to(device)
+
+    samples: list[tuple[int, float, float]] = []
+    checksum = torch.zeros((), dtype=torch.float64)
+    per_iter_sums: list[torch.Tensor] = []
+
+    for i in range(ITERS):
+        with torch.no_grad():
+            out = model(x).cpu()
+        iter_sum = out.to(torch.float64).sum()
+        per_iter_sums.append(iter_sum)
+        checksum += iter_sum
+        samples.append((i, get_rss_mib(), get_vmhwm_mib() - initial_vmhwm_mib))
+
+    measured = samples[WARMUP_ITERS:]
+    xs_pts = [it for it, _, _ in measured]
+    ys_pts = [rss for _, rss, _ in measured]
+    slope = linear_slope(xs_pts, ys_pts)
+    growth = ys_pts[-1] - ys_pts[0]
+
+    record_property("rss_slope_mib_per_iter", round(slope, 4))
+    record_property("rss_growth_mib", round(growth, 3))
+    record_property("rss_first_post_warmup_mib", round(ys_pts[0], 3))
+    record_property("rss_last_post_warmup_mib", round(ys_pts[-1], 3))
+    record_property("vmhwm_final_mib", round(samples[-1][2], 3))
+
+    print(f"\nRSS trajectory (dim={dim}, iters={ITERS}):")
+    for it, rss, vmhwm in samples:
+        tag = "W " if it < WARMUP_ITERS else "  "
+        print(f"  {tag}iter {it:3d}: rss={rss:8.1f} MiB  vmhwm={vmhwm:8.1f} MiB")
+    print(
+        f"  post-warmup slope:  {slope:+.3f} MiB/iter (threshold {MAX_RSS_SLOPE_MIB_PER_ITER})"
+    )
+    print(
+        f"  post-warmup growth: {growth:+.2f} MiB     (threshold {MAX_RSS_GROWTH_MIB})"
+    )
+
+    assert (
+        slope <= MAX_RSS_SLOPE_MIB_PER_ITER
+    ), f"RSS slope {slope:+.3f} MiB/iter exceeds {MAX_RSS_SLOPE_MIB_PER_ITER}"
+    assert growth <= MAX_RSS_GROWTH_MIB, (
+        f"RSS grew {growth:+.2f} MiB over {len(measured)} post-warmup iters, "
+        f"exceeds {MAX_RSS_GROWTH_MIB}"
+    )
+
+    # Check consistency of checksum across each iteration
+    ref_sum = per_iter_sums[0]
+    for i, s in enumerate(per_iter_sums):
+        assert torch.isclose(s, ref_sum, rtol=1e-3), (
+            f"iteration {i} output sum {s.item()} drifted from iteration 0 "
+            f"sum {ref_sum.item()} -- possible tensor-persistence corruption"
+        )
+    expected_checksum = ITERS * ref_sum
+    print(
+        f"  checksum:  actual={checksum.item():.4f}  "
+        f"expected={expected_checksum.item():.4f}  "
+        f"(ITERS={ITERS} * iter0_sum={ref_sum.item():.4f})"
+    )
