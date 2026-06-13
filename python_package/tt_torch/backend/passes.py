@@ -11,6 +11,78 @@ from tt_torch.fusion_providers import FusionProvider
 from ttxla_tools.logging import logger
 
 
+def rewrite_interpolate_to_matmul(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Rewrite F.interpolate(mode='bilinear'/'nearest') to the matmul-based implementation.
+
+    AOTAutograd's functionalization trace decomposes F.interpolate via the C++
+    CompositeImplicitAutograd kernel into gather/index ops before the Python
+    decomposition table is consulted.  This pass rewrites the calls at the FX
+    graph level so they use our efficient matmul-based interpolation instead.
+    """
+    from tt_torch.backend.decompositions import (
+        upsample_linear_vec,
+        upsample_nearest_vec,
+    )
+
+    graph = gm.graph
+    modified = False
+
+    for node in list(graph.nodes):
+        if (
+            node.op != "call_function"
+            or node.target is not torch.nn.functional.interpolate
+        ):
+            continue
+
+        # Extract arguments — F.interpolate(input, size=, scale_factor=, mode=, align_corners=, ...)
+        input_node = node.args[0] if node.args else node.kwargs.get("input")
+        size = node.kwargs.get("size", node.args[1] if len(node.args) > 1 else None)
+        scale_factor = node.kwargs.get("scale_factor", None)
+        mode = node.kwargs.get("mode", "nearest")
+        align_corners = node.kwargs.get("align_corners", False)
+
+        # Normalize size to a list or None
+        if size is not None:
+            if isinstance(size, int):
+                output_size = [size, size]
+            else:
+                output_size = list(size)
+            scale_factors = None
+        else:
+            output_size = None
+            if isinstance(scale_factor, (int, float)):
+                scale_factors = [float(scale_factor), float(scale_factor)]
+            elif scale_factor is not None:
+                scale_factors = [float(s) for s in scale_factor]
+            else:
+                continue
+
+        # Use the vec wrappers which handle output_size/scale_factor normalization
+        if mode == "bilinear":
+            replacement_fn = upsample_linear_vec
+            new_args = (input_node, output_size, align_corners, scale_factors)
+        elif mode == "nearest":
+            replacement_fn = upsample_nearest_vec
+            new_args = (input_node, output_size, scale_factors)
+        else:
+            continue
+
+        with graph.inserting_after(node):
+            new_node = graph.call_function(
+                replacement_fn,
+                args=new_args,
+            )
+            node.replace_all_uses_with(new_node)
+            graph.erase_node(node)
+            modified = True
+
+    if modified:
+        gm.recompile()
+
+    return gm
+
+
 def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
     """
     Rewrite call_module nodes targeting AdaptiveAvgPool1d/2d with output_size=1/(1,1)
@@ -56,6 +128,152 @@ def rewrite_adaptive_avgpool_to_mean(gm: torch.fx.GraphModule) -> torch.fx.Graph
         gm.recompile()
 
     return gm
+
+
+_VIEW_OPS = (
+    torch.ops.aten.view.default,
+    torch.ops.aten._unsafe_view.default,
+    torch.ops.aten.reshape.default,
+)
+_TRANSPOSE_OPS = (
+    torch.ops.aten.transpose.int,
+    torch.ops.aten.permute.default,
+)
+
+
+def _fx_node_shape(n):
+    """Static shape from an FX node's val meta, or None if unavailable."""
+    if not isinstance(n, torch.fx.Node):
+        return None
+    val = n.meta.get("val")
+    return tuple(int(d) for d in val.shape) if val is not None else None
+
+
+def _swaps_last_two_only(node):
+    """True iff `node` is a transpose/permute that swaps exactly the last two dims."""
+    src_shape = _fx_node_shape(node.args[0])
+    if src_shape is None or len(src_shape) < 2:
+        return False
+    rank = len(src_shape)
+    if node.target is torch.ops.aten.transpose.int:
+        d0 = node.args[1] % rank
+        d1 = node.args[2] % rank
+        return {d0, d1} == {rank - 2, rank - 1}
+    # permute
+    perm = list(node.args[1])
+    expected = list(range(rank))
+    expected[-2], expected[-1] = expected[-1], expected[-2]
+    return perm == expected
+
+
+def _trace_to_rank_n_source(operand, target_batch_prefix):
+    """Walk back from a bmm operand through view/reshape and last-two-dim
+    transpose nodes until we land on a tensor whose shape's batch prefix
+    matches `target_batch_prefix`.  Returns `(node, transposed_last_two)`
+    on success, or `None` on failure."""
+    target_rank = len(target_batch_prefix) + 2
+    cur = operand
+    transposed = False
+
+    while isinstance(cur, torch.fx.Node):
+        shp = _fx_node_shape(cur)
+        if shp is None:
+            return None
+        if len(shp) == target_rank and shp[:-2] == target_batch_prefix:
+            return cur, transposed
+        if cur.target in _VIEW_OPS:
+            cur = cur.args[0]
+            continue
+        if cur.target in _TRANSPOSE_OPS and _swaps_last_two_only(cur):
+            transposed = not transposed
+            cur = cur.args[0]
+            continue
+        return None
+    return None
+
+
+def fold_view_bmm_view_to_einsum(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Recover rank-preserving matmul from the post-AOTA view->bmm->view sandwich.
+
+    AOTAutograd's SDPA decomp (and PyTorch's N-D matmul -> bmm folding,
+    LinearAlgebra.cpp#L1999) reshapes (..., M, K) operands to (B*H, M, K)
+    before bmm, then reshapes the output back.  Under tensor parallelism with
+    the head dim sharded, that destroys head sharding and forces SPMD to
+    insert an f32 all_gather on the 4-D Q/K/V, which OOMs L1.
+
+    Detect the sandwich and rewrite it to a rank-preserving einsum, which
+    torch-xla lowers to a 4-D stablehlo.dot_general with head sharding intact.
+    aten.einsum.default is opaque (we pop its decomp in populate_decompositions),
+    so it survives to torch-xla unchanged.
+
+    Walks each bmm operand backwards through any chain of view/reshape and
+    last-two-dim transpose/permute ops (the latter absorbed into the einsum
+    equation, which handles the typical K^T in Q*K^T).  Anything else
+    (expand, repeat_interleave, convert_element_type, clone, ...) stops the
+    walk and the bmm is left alone.
+    """
+    graph = gm.graph
+    rewritten = 0
+
+    for bmm in list(graph.nodes):
+        if bmm.op != "call_function" or bmm.target is not torch.ops.aten.bmm.default:
+            continue
+        if _try_rewrite_bmm_to_einsum(graph, bmm):
+            rewritten += 1
+
+    if rewritten:
+        graph.eliminate_dead_code()
+        graph.lint()
+        gm.recompile()
+
+    return gm
+
+
+def _try_rewrite_bmm_to_einsum(graph, bmm):
+    """Try to rewrite one bmm site.  Returns True iff rewritten."""
+    if len(bmm.users) != 1:
+        return False
+    out_v = next(iter(bmm.users))
+    if not (isinstance(out_v, torch.fx.Node) and out_v.target in _VIEW_OPS):
+        return False
+    out_shape = _fx_node_shape(out_v)
+    if out_shape is None or len(out_shape) < 4:
+        return False
+
+    batch_prefix = out_shape[:-2]
+    M_out, N_out = out_shape[-2], out_shape[-1]
+
+    lhs_res = _trace_to_rank_n_source(bmm.args[0], batch_prefix)
+    if lhs_res is None:
+        return False
+    rhs_res = _trace_to_rank_n_source(bmm.args[1], batch_prefix)
+    if rhs_res is None:
+        return False
+
+    lhs_4d, lhs_T = lhs_res
+    rhs_4d, rhs_T = rhs_res
+    lshp = _fx_node_shape(lhs_4d)
+    rshp = _fx_node_shape(rhs_4d)
+
+    # Resolve logical (M, K) / (K, N) given the recorded transpose flags.
+    M_lhs, K_lhs = (lshp[-1], lshp[-2]) if lhs_T else (lshp[-2], lshp[-1])
+    K_rhs, N_rhs = (rshp[-1], rshp[-2]) if rhs_T else (rshp[-2], rshp[-1])
+
+    if (M_lhs, N_rhs) != (M_out, N_out) or K_lhs != K_rhs:
+        return False
+
+    lhs_eq = "...km" if lhs_T else "...mk"
+    rhs_eq = "...nk" if rhs_T else "...kn"
+    equation = f"{lhs_eq},{rhs_eq}->...mn"
+
+    with graph.inserting_before(bmm):
+        einsum = graph.call_function(
+            torch.ops.aten.einsum.default,
+            args=(equation, [lhs_4d, rhs_4d]),
+        )
+    einsum.meta.update(out_v.meta)
+    out_v.replace_all_uses_with(einsum)
+    return True
 
 
 def run_fusion_passes(gm: torch.fx.GraphModule) -> None:
@@ -206,8 +424,7 @@ def insert_argument_type_markers(
         if out_spec.kind == OutputKind.BUFFER_MUTATION:
             mutated_buffer_targets.add(out_spec.target)
 
-    get_attr_target_type_dict = {}
-    placeholder_target_type_dict = {}
+    input_type_dict = {}
     for in_spec in input_signature:
         type_str = None
         if in_spec.kind == InputKind.USER_INPUT:
@@ -232,22 +449,21 @@ def insert_argument_type_markers(
         else:
             assert False, f"Unexpected input kind: {in_spec.kind}"
 
+        # Index by target (for get_attr nodes) and by arg.name (for placeholder
+        # nodes in the AOTAutograd path).
         if in_spec.target is not None:
-            get_attr_target_type_dict[in_spec.target] = type_str
-        else:
-            placeholder_target_type_dict[in_spec.arg.name] = type_str
+            input_type_dict[in_spec.target] = type_str
+        input_type_dict[in_spec.arg.name] = type_str
 
     for input_node in input_nodes:
         users = list(input_node.users.keys())
         if len(users) == 0:
             continue
 
-        argument_type = None
-        if input_node.target in get_attr_target_type_dict:
-            argument_type = get_attr_target_type_dict[input_node.target]
-        elif input_node.name in placeholder_target_type_dict:
-            argument_type = placeholder_target_type_dict[input_node.name]
-        else:
+        argument_type = input_type_dict.get(input_node.target) or input_type_dict.get(
+            input_node.name
+        )
+        if argument_type is None:
             continue
 
         mangled_name = input_node.target if input_node.target else input_node.name
@@ -345,10 +561,9 @@ def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
                 node.meta["original_aten"]._name != "aten::_to_copy"
                 and node.args[1] == torch.float32
             )
-            is_redundant_cast = (
-                "tensor_meta" in node.args[0].meta
-                and node.args[0].meta["tensor_meta"].dtype == node.args[1]
-            )
+            node_meta = node.args[0].meta
+            meta_val = node_meta.get("tensor_meta") or node_meta.get("val")
+            is_redundant_cast = meta_val is not None and meta_val.dtype == node.args[1]
 
             if is_unwanted_dtype_promotion or is_redundant_cast:
                 node.replace_all_uses_with(node.args[0])

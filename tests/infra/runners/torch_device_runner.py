@@ -7,7 +7,7 @@ import inspect
 
 import torch
 import torch_xla.distributed.spmd as xs
-from infra.connectors import DeviceConnector
+from infra.connectors import DeviceConnector, DeviceType
 from infra.utilities import Device, Tensor
 from infra.workloads import Workload
 from infra.workloads.torch_workload import TorchWorkload
@@ -134,6 +134,24 @@ class TorchDeviceRunner(DeviceRunner):
         # Provide a context manager to enable or disable gradient calculation.
         with torch.set_grad_enabled(self.training_mode):
             return workload.execute()
+
+    # @override
+    def serialize_on_device(
+        self,
+        workload: Workload,
+        output_prefix: str,
+        device_type: DeviceType = DeviceType.TT,
+        device_num: int = 0,
+        compiler_options=None,
+    ) -> None:
+        with torch.set_grad_enabled(self.training_mode):
+            super().serialize_on_device(
+                workload,
+                output_prefix,
+                device_type=device_type,
+                device_num=device_num,
+                compiler_options=compiler_options,
+            )
 
     # @override
     def _safely_put_workload_on_device(
