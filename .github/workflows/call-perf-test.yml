@@ -299,101 +299,55 @@ jobs:
         if-no-files-found: ignore
 
     # Device Performance Collection
-    - name: Find tt-mlir workflow run
-      id: find-run
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      shell: bash
-      run: |
-        source venv/activate
-        mlir_sha=$(python .github/scripts/get_description_field_from_wheel.py "pjrt-plugin-tt" "tt-mlir-commit")
-        echo "Found tt-mlir-commit: $mlir_sha"
-
-        RUN_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-          "https://api.github.com/repos/tenstorrent/tt-mlir/actions/workflows/on-push.yml/runs?head_sha=${mlir_sha}&per_page=1" \
-          | jq -r '.workflow_runs[0].id')
-
-        if [[ -z "$RUN_ID" || "$RUN_ID" == "null" ]]; then
-          echo "The tt-mlir commit doesn't contain a ttrt wheel artifact. Run the "On push" workflow on the commit in tt-mlir."
-          exit 1
-        fi
-
-        echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-        echo "mlir_sha=$mlir_sha" >> $GITHUB_OUTPUT
-        echo "Workflow URL: https://github.com/tenstorrent/tt-mlir/actions/runs/$RUN_ID"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Download ttrt wheel
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      uses: dawidd6/action-download-artifact@v11
-      with:
-        run_id: ${{ steps.find-run.outputs.run_id }}
-        name: "ttrt-whl-tracy"
-        repo: tenstorrent/tt-mlir
-        check_artifacts: true
-        path: ./
-        skip_unpack: true
-
-    - name: Extract ttrt wheel
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      shell: bash
-      run: |
-        echo "Extracting ttrt wheel"
-        mkdir ttrt-whl-tracy
-        mv ttrt-whl-tracy.zip ttrt-whl-tracy/ttrt-whl-tracy.zip
-        unzip -q ttrt-whl-tracy/ttrt-whl-tracy.zip -d ttrt-whl-tracy
-
-    - name: Install ttrt wheel
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
-      shell: bash
-      run: |
-        echo "Installing ttrt in separate venv"
-        python3.12 -m venv ttrt-venv
-        source ttrt-venv/bin/activate
-        apt-get install -y -qq --no-install-recommends libtbb12 libcapstone4
-        pip install ttrt-whl-tracy/ttrt*.whl --upgrade --extra-index-url https://download.pytorch.org/whl/cpu
-        pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
-        pip install pandas==2.3.3
-
     - name: Run Device Perf
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
+      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
       shell: bash
       run: |
-        source ttrt-venv/bin/activate
-        pip install pandas==2.3.3
+        cd ${{ steps.strings.outputs.work-dir }}
+        export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
+        source venv/activate
 
-        echo "Save artifacts"
-        ttrt query --save-artifacts
-
-        echo "Copy binaries"
-        mkdir -p flatbuffers
-        cp ./modules/*.ttnn flatbuffers/ 2>/dev/null
-
-        echo "Run ttrt perf"
-        if [[ "${{ matrix.build.runs-on }}" == "galaxy-wh-6u" ]]; then
-          ttrt perf flatbuffers --ignore-version --fabric-config fabric_1d_ring
-        else
-          ttrt perf flatbuffers --ignore-version
-        fi
-
-        echo "Write device perf to report"
-        python3 ./tests/benchmark/scripts/device_perf.py ttrt-artifacts ${{ steps.strings.outputs.perf_report_json_file }}
+        echo "Run benchmark under Tracy"
+        tracy_args=(
+          -p
+          -r
+          --sync-host-device
+          -o "${{ steps.strings.outputs.perf_report_path }}/device_perf_tracy"
+          -m pytest
+          -svv
+          --confcutdir=tests/benchmark
+          ${{ matrix.build.pytest }}
+          ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }}
+          ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }}
+          ${{ inputs.check_fusions && '--check-fusions' || '' }}
+          --output-file "${{ steps.strings.outputs.perf_report_path }}/device_perf_benchmark_${{ steps.strings.outputs.job_id }}.json"
+        )
+        tracy "${tracy_args[@]}"
 
         echo "Copy device perf CSVs"
         mkdir -p ${{ steps.strings.outputs.perf_report_path }}/device_perf
-        for dir in ttrt-artifacts/*/; do
-          binary_name=$(basename "$dir")
-          csv_file="$dir/perf/ops_perf_results_minus_const_eval_and_input_layout_conversions.csv"
-          if [ -f "$csv_file" ]; then
-            cp "$csv_file" "${{ steps.strings.outputs.perf_report_path }}/device_perf/${binary_name}.csv"
-            echo "Copied $csv_file to ${binary_name}.csv"
-          fi
-        done
+        while IFS= read -r csv_file; do
+          csv_name="$(basename "$csv_file")"
+          report_dir="$(basename "$(dirname "$csv_file")")"
+          cp "$csv_file" "${{ steps.strings.outputs.perf_report_path }}/device_perf/${report_dir}_${csv_name}"
+          echo "Copied $csv_file"
+        done < <(find "${{ steps.strings.outputs.perf_report_path }}/device_perf_tracy" -type f -name 'ops_perf_results*.csv' | sort)
+
+        if ! compgen -G "${{ steps.strings.outputs.perf_report_path }}/device_perf/*.csv" > /dev/null; then
+          echo "No Tracy device perf CSV files were produced"
+          exit 1
+        fi
+
+        echo "Record Tracy device perf metadata"
+        jq '.config.device_perf_source = "tracy_benchmark"' \
+          "${{ steps.strings.outputs.perf_report_json_file }}" \
+          > "${{ steps.strings.outputs.perf_report_json_file }}.tmp"
+        mv "${{ steps.strings.outputs.perf_report_json_file }}.tmp" "${{ steps.strings.outputs.perf_report_json_file }}"
 
     - name: Upload Device Perf
       id: upload-device-perf
       uses: actions/upload-artifact@v6
-      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' }}
+      if: ${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf }}
       with:
         name: device-perf-${{ steps.strings.outputs.job_id }}
         path: ${{ steps.strings.outputs.perf_report_path }}/device_perf/
@@ -407,8 +361,7 @@ jobs:
         STABLEHLO_URL="${{ !matrix.build.skip-stablehlo-dump && steps.upload-stablehlo-mlir.outputs.artifact-url || '' }}"
         TTIR_URL="${{ !matrix.build.skip-ttir-dump && steps.upload-ttir-mlir.outputs.artifact-url || '' }}"
         TTNN_URL="${{ !matrix.build.skip-ttnn-dump && steps.upload-ttnn-mlir.outputs.artifact-url || '' }}"
-        DEVICE_PERF_URL="${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && matrix.build.runs-on != 'p150' && steps.upload-device-perf.outputs.artifact-url || '' }}"
-        MLIR_SHA="${{ steps.find-run.outputs.mlir_sha || '' }}"
+        DEVICE_PERF_URL="${{ !matrix.build.skip-device-perf && !inputs.skip-device-perf && steps.upload-device-perf.outputs.artifact-url || '' }}"
         JOB_ID_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ steps.strings.outputs.job_id }}"
 
         if [ -f "$PERF_REPORT_FILE" ]; then
@@ -417,7 +370,6 @@ jobs:
             ${TTIR_URL:+--ttir-url "$TTIR_URL"} \
             ${TTNN_URL:+--ttnn-url "$TTNN_URL"} \
             ${DEVICE_PERF_URL:+--device-perf-url "$DEVICE_PERF_URL"} \
-            ${MLIR_SHA:+--mlir-sha "$MLIR_SHA"} \
             --job-id-url "$JOB_ID_URL"
         fi
 
