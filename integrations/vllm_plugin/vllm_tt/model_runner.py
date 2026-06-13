@@ -3165,6 +3165,19 @@ def _get_token_paddings(min_token_size: int, max_token_size: int) -> list[int]:
 
     First adjust min_token_size so it is power-of-two and divisible by 32.
     """
+    # Experiment knob (TTXLA_PREFILL_PADDINGS="1,128,2048"): override the ladder
+    # to study compile-time vs runtime-padding tradeoffs. Always keeps 1 (decode)
+    # and extends to cover max_token_size (the chunk budget) so buffers/graphs fit.
+    override = os.environ.get("TTXLA_PREFILL_PADDINGS")
+    if override:
+        paddings = sorted({int(x) for x in override.split(",") if x.strip()})
+        if 1 not in paddings:
+            paddings = [1] + paddings
+        if paddings[-1] < max_token_size:
+            paddings.append(max_token_size)
+        logger.info("TTXLA_PREFILL_PADDINGS override -> %s", paddings)
+        return paddings
+
     # Adjust min_token_size to be power of 2 and >=32 (if required)
     num = _adjust_min_token(min_token_size)
     paddings = [1]
