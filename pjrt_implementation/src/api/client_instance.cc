@@ -335,6 +335,8 @@ void ClientInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Client_DefaultDeviceAssignment =
       internal::onClientDefaultDeviceAssignment;
   api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
+  api->PJRT_Client_CreateUninitializedBuffer =
+      internal::onCreateUninitializedBuffer;
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
@@ -930,6 +932,87 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   }
 
   // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
+  args->buffer = *buffer.release();
+
+  return nullptr;
+}
+
+// Allocating an uninitialized device buffer (no host data). The contents are
+// written later by a compiled program (e.g. KV caches, scratch space).
+PJRT_Error *
+onCreateUninitializedBuffer(PJRT_Client_CreateUninitializedBuffer_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_CreateUninitializedBuffer");
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+
+  const std::int64_t *byte_strides = nullptr;
+  size_t num_byte_strides = 0;
+  if (args->shape_layout) {
+    if (args->shape_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
+      LOG_F(ERROR, "Creating uninitialized buffer is supported only with "
+                   "strided memory layout");
+      return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented)
+                  .release();
+    }
+    byte_strides = args->shape_layout->strides.byte_strides;
+    num_byte_strides = args->shape_layout->strides.num_byte_strides;
+  }
+
+  if (num_byte_strides != 0 && num_byte_strides != args->shape_num_dims) {
+    LOG_F(ERROR, "Invalid value of num_byte_strides argument");
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
+  }
+
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
+  DeviceInstance *device_instance = DeviceInstance::unwrap(args->device);
+
+  // From PJRT specification: "If nullptr, host data will be copied to `device`,
+  // otherwise we copy data to `memory`."
+  if (memory_instance) {
+    if (device_instance && device_instance != memory_instance->getDevice()) {
+      LOG_F(ERROR, "Device set in the device argument is different from the "
+                   "memory space device set in the memory argument");
+      return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                  .release();
+    }
+    device_instance = memory_instance->getDevice();
+  } else {
+    if (!device_instance) {
+      LOG_F(ERROR, "Device is not set either in the device argument nor in "
+                   "device from the memory argument");
+      return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                  .release();
+    }
+    memory_instance = device_instance->getDefaultMemory();
+  }
+
+  if (!memory_instance) {
+    LOG_F(ERROR, "Memory space is not set either in the memory argument nor in "
+                 "device from the device argument");
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
+  }
+  if (memory_instance->isHostMemory()) {
+    LOG_F(ERROR, "Buffer creation is supported only in device memory");
+    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
+  }
+
+  std::unique_ptr<BufferInstance> buffer =
+      BufferInstance::createInputBufferInstance(
+          args->shape_element_type, args->shape_dims, args->shape_num_dims,
+          device_instance, memory_instance);
+
+  if (client_instance->isCompileOnly()) {
+    DLOG_F(LOG_DEBUG,
+           "Compile-only mode: PJRT_Client_CreateUninitializedBuffer no-op ");
+    buffer->markAsDataReady();
+  } else {
+    buffer->allocateUninitialized(byte_strides, num_byte_strides);
+  }
+
+  // Releasing the ownership to the caller since the caller is
   // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
   args->buffer = *buffer.release();
 

@@ -139,6 +139,15 @@ public:
                     PJRT_HostBufferSemantics host_buffer_semantics,
                     EventInstance **out_done_with_host_buffer_event);
 
+  // Allocates an uninitialized owned host runtime tensor for this buffer and
+  // marks it as ready. No host data is copied in; the contents are written
+  // later by a compiled program. Optional byte_strides parameter
+  // (with num_byte_strides either 0 or equal to the number of dimensions)
+  // describe the layout; passing nullptr, 0 requests a dense major-to-minor
+  // layout.
+  void allocateUninitialized(const std::int64_t *byte_strides,
+                             size_t num_byte_strides);
+
   // Asynchronously copies this buffer's data into a preallocated host buffer.
   tt_pjrt_status copyToHost(void *host_buffer, size_t host_buffer_size,
                             EventInstance **out_copy_done_event);

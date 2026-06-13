@@ -366,6 +366,30 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   markAsDataReady();
 }
 
+void BufferInstance::allocateUninitialized(const std::int64_t *byte_strides,
+                                           size_t num_byte_strides) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::allocateUninitialized");
+
+  ::tt::target::DataType runtime_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
+  std::uint32_t element_size =
+      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  std::vector<std::uint32_t> shape =
+      calculateShape(getDimensionsRaw(), getNumberOfDimensions(), m_data_type);
+  std::vector<std::uint32_t> strides = calculateStrides(
+      getNumberOfDimensions(), byte_strides, num_byte_strides, element_size);
+
+  // Allocate an owned host tensor without copying any data in. The contents are
+  // written later by a compiled program (the runtime transfers it to device
+  // during execution). Passing nullptr as data allocates uninitialized storage.
+  tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
+      /*data=*/nullptr, shape, strides, element_size, runtime_data_type);
+
+  PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+
+  markAsDataReady();
+}
+
 std::vector<std::uint32_t>
 BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
                                PJRT_Buffer_Type data_type) {
