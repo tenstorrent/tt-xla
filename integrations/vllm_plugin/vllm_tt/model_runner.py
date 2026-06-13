@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -357,6 +358,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # and can't chunk anyway, so fall back to the standard prefill path there.
         self._chunked_sdpa_active = self.prefill_chunk_budget < self.max_model_len and (
             self.max_num_blocks_per_req % 8 == 0
+        )
+
+        # Prototype (TTXLA_UNIFY_FIRST_CHUNK, default off): when chunked SDPA is
+        # active, route the first/no-prefix prefill chunk through it too
+        # (chunk_start_idx=0) instead of a separate standard-prefill graph. This
+        # drops the prefix_chunk=False prefill graphs (only one prefill graph per
+        # token bucket compiles), ~halving backbone precompile at long context.
+        # Correctness relies on chunked SDPA at chunk_start_idx=0 matching
+        # standard causal SDPA over the chunk; keep off until bit-exact verified.
+        self._unify_first_chunk = self._chunked_sdpa_active and (
+            os.environ.get("TTXLA_UNIFY_FIRST_CHUNK", "0") == "1"
         )
 
         # The chunked SDPA op is the only cached-prefix prefill path now (the
@@ -1255,9 +1267,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # on-device chunked SDPA op. decode (L == 1) and first-chunk prefill take
         # the standard path (chunk_start_idx stays None).
         num_computed_for_reqs = self.input_batch.num_computed_tokens_cpu[:num_reqs]
-        prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
-            np.any(num_computed_for_reqs > 0)
-        )
+        if self._unify_first_chunk:
+            # Unified path: every multi-token prefill chunk (including the first,
+            # num_computed==0) goes through the chunked SDPA op. chunk_start_idx
+            # below is num_computed[0] (0 for the first chunk), fill_page_table is
+            # the unrolled page_table -- standard causal self-attention over the
+            # chunk with an empty prefix.
+            prefix_chunk_step = padded_total_num_scheduled_tokens > 1
+        else:
+            prefix_chunk_step = padded_total_num_scheduled_tokens > 1 and bool(
+                np.any(num_computed_for_reqs > 0)
+            )
         attn_mask = None
         chunk_start_idx = None
         if prefix_chunk_step and self._chunked_sdpa_active:
@@ -2182,12 +2202,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         for num_tokens in self.num_tokens_paddings:
             logger.info("  -- num_tokens: %d", num_tokens)
             # Sync per token count so prefill and decode graphs stay separate.
-            _run_backbone_dummies(num_tokens, prefix_chunk=False)
-            # Precompile the cached-prefix prefill attention graph for prompt
-            # chunks (num_tokens > 1) so it is not compiled at runtime on the
-            # first continuation chunk (tt-xla #4986).
-            if chunked and num_tokens > 1:
+            if self._unify_first_chunk and num_tokens > 1:
+                # Unified: the first/no-prefix chunk also uses the chunked op, so
+                # the standard-prefill graph is never needed for num_tokens > 1.
                 _run_backbone_dummies(num_tokens, prefix_chunk=True)
+            else:
+                _run_backbone_dummies(num_tokens, prefix_chunk=False)
+                # Precompile the cached-prefix prefill attention graph for prompt
+                # chunks (num_tokens > 1) so it is not compiled at runtime on the
+                # first continuation chunk (tt-xla #4986).
+                if chunked and num_tokens > 1:
+                    _run_backbone_dummies(num_tokens, prefix_chunk=True)
         xm.wait_device_ops()
         end = time.perf_counter()
         logger.info("Compilation finished in %.2f [secs].", end - start)
