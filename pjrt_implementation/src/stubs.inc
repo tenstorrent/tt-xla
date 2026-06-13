@@ -117,10 +117,6 @@
   // store in the buffer is available to the client.
   _STUB(PJRT_Client_CreateBuffersForAsyncHostToDevice);
 
-  // Returns the topology description of the runtime topology. Doesn't hold
-  // value without other PJRT_TopologyDescription related API calls.
-  _STUB(PJRT_Client_TopologyDescription);
-
   // Not required to be implemented. Used to map memory for fast transfers.
   _STUB(PJRT_Client_DmaMap);
   _STUB(PJRT_Client_DmaUnmap);
@@ -157,13 +153,10 @@
   _STUB(PJRT_CopyToDeviceStream_TotalBytes);
   _STUB(PJRT_CopyToDeviceStream_GranuleSize);
   _STUB(PJRT_CopyToDeviceStream_CurrentBytes);
+  // AOT compilation (used outside the client lifetime) is not yet supported.
   _STUB(PJRT_TopologyDescription_Create);
-  _STUB(PJRT_TopologyDescription_Destroy);
-  _STUB(PJRT_TopologyDescription_PlatformName);
-  _STUB(PJRT_TopologyDescription_PlatformVersion);
-  _STUB(PJRT_TopologyDescription_GetDeviceDescriptions);
+  // Serialization/deserialization are needed for AOT cache keys only.
   _STUB(PJRT_TopologyDescription_Serialize);
-  _STUB(PJRT_TopologyDescription_Attributes);
   _STUB(PJRT_TopologyDescription_Deserialize);
   _STUB(PJRT_TopologyDescription_Fingerprint);
   _STUB(PJRT_TopologyDescription_MakeCanonicalShapeForMemorySpace);
@@ -179,7 +172,4 @@
   _STUB(PJRT_AsyncHostToDeviceTransferManager_AddMetadata);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_TransferLiteral);
   _STUB(PJRT_Client_Load);
-  _STUB(PJRT_Device_GetAttributes);
-  _STUB(PJRT_LoadedExecutable_AddressableDeviceLogicalIds);
   _STUB(PJRT_Buffer_Bitcast);
-  _STUB(PJRT_Error_ForEachPayload);

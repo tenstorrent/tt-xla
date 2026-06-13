@@ -73,7 +73,7 @@ def make_flax_linen_parameters_partition_specs_on_cpu(
 
 def make_easydel_parameters_partition_specs(
     model_state: PyTree,
-    partition_rules: Tuple[Tuple[str, PartitionSpec], ...],
+    partition_rules: Tuple[Tuple[str, object], ...],
     axis_name="X",
 ) -> PyTree:
     """
@@ -81,13 +81,37 @@ def make_easydel_parameters_partition_specs(
 
     Args:
         model_state: The NNX model state (from nnx.split(model)[1])
-        partition_rules: Tuple of (regex_pattern, PartitionSpec) pairs
+        partition_rules: Tuple of (regex_pattern, spec) pairs. `spec` may be:
+            - a `PartitionSpec` instance (legacy EasyDeL format), or
+            - one of EasyDeL's resolver classes `ColumnWise`, `RowWise`,
+              `Replicated` (post-uplift format). Resolver classes are
+              recognized by name to avoid a hard import dependency on
+              eformer/EasyDeL — the canonical translation matches
+              `PartitionManager.resolve` with default `PartitionAxis` names
+              (dp/fsdp/ep/tp/sp).
         axis_name: The name of the mesh axis to map 'tp' to (e.g., "X")
 
     Returns:
         PyTree of partition specs matching the model_state structure
     """
     import re
+
+    # Canonical PartitionSpec each EasyDeL resolver class resolves to under the
+    # default PartitionAxis names. Sourced from
+    # eformer/escale/partition/manager.py:PartitionAxis (tensor_parallel_axis
+    # defaults to "tp"; fsdp/sp to their names).
+    _RESOLVER_TO_PARTITION_SPEC = {
+        "ColumnWise": PartitionSpec(("fsdp", "sp"), "tp"),
+        "RowWise": PartitionSpec("tp", ("fsdp", "sp")),
+        "Replicated": PartitionSpec(),
+    }
+
+    def normalize_spec(spec):
+        """Translate an EasyDeL resolver class to its PartitionSpec, or
+        pass through an existing PartitionSpec unchanged."""
+        if isinstance(spec, type) and spec.__name__ in _RESOLVER_TO_PARTITION_SPEC:
+            return _RESOLVER_TO_PARTITION_SPEC[spec.__name__]
+        return spec
 
     def jax_path_to_string(path) -> str:
         """Convert JAX tree path to string representation.
@@ -161,7 +185,7 @@ def make_easydel_parameters_partition_specs(
         """
         for pattern, spec in partition_rules:
             if re.search(pattern, param_path):
-                mapped_spec = map_tp_to_mesh_axis(spec)
+                mapped_spec = map_tp_to_mesh_axis(normalize_spec(spec))
                 return mapped_spec
         # Default to replicated if no match
         return PartitionSpec()

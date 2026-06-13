@@ -28,6 +28,7 @@
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
 #include "api/memory_instance.h"
+#include "api/topology_description.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
@@ -105,6 +106,11 @@ public:
   const std::vector<MemoryInstance *> &getAddressableMemoriesRaw() const {
     return m_addressable_memories_raw;
   }
+
+  // Returns the singleton topology description for this client, creating it on
+  // first call. JAX 0.9 invokes PJRT_Client_TopologyDescription during plugin
+  // init, so the client must always be able to hand back a topology.
+  TopologyDescription *getOrCreateTopologyDescription();
 
   // Returns true if the client was initialized in compile-only mode ()
   //
@@ -218,6 +224,10 @@ private:
   // We don't have a versioning system for our software stack yet.
   const std::string m_platform_version = "0.0.0";
 
+  // Lazily-created topology description; owned by the client and handed back
+  // (non-owning) from PJRT_Client_TopologyDescription.
+  std::unique_ptr<TopologyDescription> m_topology_description;
+
   // Set of all tracked buffers. Used to materialize all buffers before mesh
   // reshape to prevent data loss.
   std::unordered_set<BufferInstance *> m_tracked_buffers;
@@ -270,6 +280,10 @@ onClientDefaultDeviceAssignment(PJRT_Client_DefaultDeviceAssignment_Args *args);
 
 // Implements PJRT_Client_BufferFromHostBuffer API function.
 PJRT_Error *onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args);
+
+// Implements PJRT_Client_TopologyDescription API function.
+PJRT_Error *
+onClientTopologyDescription(PJRT_Client_TopologyDescription_Args *args);
 
 } // namespace internal
 

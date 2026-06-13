@@ -12,7 +12,15 @@ from pjrt_plugin_tt import (
     setup_tt_pjrt_plugin_dir,
 )
 
-from .monkeypatch import setup_monkey_patches
+from .monkeypatch import _patch_triton_for_non_gpu_host, setup_monkey_patches
+
+# Install the triton null-driver shim at module-load time so that any
+# subsequent `import easydel` works on hosts without a GPU. JAX only invokes
+# `initialize()` lazily (on first device access), which can be after user
+# code has already tried to import EasyDeL — too late to install patches
+# from there. This is safe to run unconditionally: it's a no-op when
+# triton is absent or when a real GPU driver is active.
+_patch_triton_for_non_gpu_host()
 
 
 def initialize():

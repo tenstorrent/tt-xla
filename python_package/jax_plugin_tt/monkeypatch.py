@@ -17,7 +17,6 @@ from typing import Any, Callable
 import jax
 import jax.lax
 import jax.nn
-from jax._src import random
 from jax.extend import core
 from jax.interpreters import ad
 from jax.interpreters.mlir import ir, register_lowering
@@ -332,6 +331,48 @@ def _create_absl_handler_close_patch_config():
     ]
 
 
+def _patch_triton_for_non_gpu_host():
+    """Allow EasyDeL/ejkernel to be imported on hosts without a GPU.
+
+    ejkernel's `@triton.autotune` decorators run at module import time and
+    call `driver.active.get_benchmarker()`, which raises if triton finds
+    zero active GPU drivers. tt-xla compiles JAX programs through PJRT to
+    tt-mlir and never invokes triton kernels, so installing a null driver
+    on triton's LazyProxy lets the import chain succeed. If real GPU
+    drivers are present (e.g. someone develops on a CUDA host), we leave
+    triton alone.
+    """
+    try:
+        import triton.runtime.driver as triton_driver
+        from triton.backends import backends
+    except ImportError:
+        return  # triton not installed; nothing to do.
+
+    try:
+        if any(x.driver.is_active() for x in backends.values()):
+            return  # Real GPU driver present; nothing to patch.
+    except Exception:
+        return  # Anything unexpected — don't risk breaking real GPU setups.
+
+    class _NullDriver:
+        def get_benchmarker(self):
+            def _benchmarker(*args, **kwargs):
+                raise RuntimeError(
+                    "triton kernel execution is not supported on the "
+                    "Tenstorrent backend; this code path should not be "
+                    "reached when running on TT hardware."
+                )
+
+            return _benchmarker
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None
+
+    # Pre-resolve triton's LazyProxy so the first access doesn't run
+    # `_create_driver()` and raise.
+    triton_driver.active._obj = _NullDriver()
+
+
 def _get_monkeypatches():
     """
     Get the list of monkey patches for the Tenstorrent JAX plugin.
@@ -372,6 +413,10 @@ def setup_monkey_patches():
     This function applies monkey patches to jax.nn.gelu for Tenstorrent optimization
     and flax.linen.Module.apply for weight marking.
     """
+    # Install the triton-null-driver shim before any patches that might
+    # transitively import EasyDeL/ejkernel.
+    _patch_triton_for_non_gpu_host()
+
     # Get and apply monkey patches
     monkeypatches = _get_monkeypatches()
     _apply_patches(monkeypatches)
