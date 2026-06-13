@@ -17,6 +17,10 @@ import tt_torch.custom_ops
 
 # Import torch overrides so they are registered
 import tt_torch.torch_overrides
+
+# Import tt-lang integration; this also registers torch.ops.tt.tt_lang_op
+import tt_torch.tt_lang
+from tt_torch.tt_lang import tt_lang_operation  # re-exported as `tt_torch.tt_lang_operation`
 from ttxla_tools import save_system_descriptor_to_disk
 
 from .codegen import codegen_cpp, codegen_py
