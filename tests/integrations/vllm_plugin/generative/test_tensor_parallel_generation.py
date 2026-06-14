@@ -212,9 +212,36 @@ def test_tensor_parallel_generation_llmbox_deepseek_v32_single_layer():
             "num_hidden_layers": 1,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
-            # DeepSeek-V3.2 forces chunked prefill / prefix caching off (MLA);
-            # keep const-eval off to avoid storing the full model per graph.
-            "enable_const_eval": False,
+            # Convert *only* the weights DeepSeek-V3.2 ships as block-wise
+            # fp8_e4m3 to bfloat8_b (the Wormhole-native 8-bit weight format);
+            # keep everything else in bf16. DeepSeek quantizes the attention/MLP
+            # linear projections (fused_qkv_a_proj, q_b_proj, kv_b_proj, o_proj,
+            # gate_up_proj, down_proj) and the indexer's wq_b/wk, but NOT the
+            # indexer weights_proj (built with quant_config=None), lm_head, or the
+            # MoE router gate; norms/embeddings aren't matmuls so they're never
+            # converted.
+            #
+            # This is expressed as "global bfp_bf8 + bf16 exclusions" rather than
+            # an allowlist: gate_up_proj is an Xla-fused linear whose weights live
+            # in a plain Python list (not nn.Parameters), so the per-tensor
+            # parametrization can't reach it — but the global compiler pass
+            # converts matmul weights regardless of torch storage. We then pin the
+            # two originally-unquantized matmul weights back to bf16.
+            #
+            # Requires const-eval: the bf16 -> bfp8_b conversion is a host-side
+            # typecast that const-eval hoists and caches once per weight (else it
+            # would run as a device<->host roundtrip every forward). Storing the
+            # full model per graph is not a concern with a single dense layer.
+            "enable_const_eval": True,
+            "experimental_weight_dtype": "bfp_bf8",
+            "weight_dtype_overrides": {
+                "*weights_proj.weight": "bf16",
+                "*lm_head.weight": "bf16",
+                # MoE router gate (GateLinear) ships unquantized. Only matches once
+                # MoE layers are compiled; a no-op (harmless "did not match"
+                # warning) for this single dense layer.
+                "*.gate.weight": "bf16",
+            },
         },
     }
     llm = vllm.LLM(**llm_args)
