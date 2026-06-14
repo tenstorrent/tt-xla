@@ -170,6 +170,63 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+def test_tensor_parallel_generation_llmbox_deepseek_v32_single_layer():
+    """Single-layer DeepSeek-V3.2 (DSA) compile/run smoke on llmbox.
+
+    Exercises the DeepSeek Sparse Attention path end-to-end: the
+    ``num_hidden_layers=1`` override compiles only decoder layer 0, which is a
+    dense layer (``n_dense_layers=1``) so this brings up MLA + the lightning
+    indexer (see vllm_tt/attention_dsa.py) without the MoE experts.
+
+    NOTE: one layer cannot produce coherent text, so this asserts only that the
+    DSA graph compiles, runs, and emits the requested tokens — NOT
+    ``assert_output_coherent``.
+
+    Uses ``load_format="dummy"`` (random weights): the full DeepSeek-V3.2
+    checkpoint is ~600 GB of block-wise FP8, and a single layer is gibberish
+    regardless, so this validates the DSA compile/run path on device without the
+    download. Swap to real weights to sanity-check numerics once available.
+    """
+    model_name = "deepseek-ai/DeepSeek-V3.2-Exp"
+    prompts = ["I like taking walks in the"]
+    max_tokens = 16
+    sampling_params = vllm.SamplingParams(
+        temperature=0.0, top_p=1.0, max_tokens=max_tokens
+    )
+    llm_args = {
+        "model": model_name,
+        "load_format": "dummy",
+        # DeepSeek-V3.2 ships block-wise FP8, but vLLM's FP8 linear kernel has no
+        # OOT-platform entry (KeyError on PlatformEnum.OOT). With dummy weights we
+        # don't need the real FP8 checkpoint, so drop the quantization_config and
+        # build the layer unquantized in bf16. (Real FP8 support on TT is a
+        # separate effort, orthogonal to DSA attention.)
+        "hf_overrides": {"quantization_config": None},
+        "max_num_batched_tokens": 32,
+        "max_num_seqs": 1,
+        "max_model_len": 32,
+        "gpu_memory_utilization": 0.1,
+        "additional_config": {
+            # Compile only the first (dense) decoder layer.
+            "num_hidden_layers": 1,
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            # DeepSeek-V3.2 forces chunked prefill / prefix caching off (MLA);
+            # keep const-eval off to avoid storing the full model per graph.
+            "enable_const_eval": False,
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output = llm.generate(prompts, sampling_params)[0].outputs[0]
+    print(f"prompt: {prompts[0]}, output: {output.text!r}")
+    # A single layer is gibberish; only assert the path ran and produced tokens.
+    assert len(output.token_ids) > 0, "DSA single-layer run produced no tokens"
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
 @pytest.mark.bhqb
 @pytest.mark.parametrize(
     ["enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],

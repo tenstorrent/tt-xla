@@ -261,6 +261,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             mesh_shape = determine_mesh_shape(num_devices, use_2d_mesh=self.use_2d_mesh)
             device_ids = np.array(range(num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
+            # Publish the mesh globally so code that runs inside the compiled
+            # forward (and has no runner handle) can match its sharding — e.g. the
+            # DeepSeek Sparse Attention decode path shards its additive mask's head
+            # dim over "model" to line up with the query heads (see
+            # attention_mla.TTMLAAttentionBackendImpl._forward_decode).
+            xs.set_global_mesh(self.mesh)
             # Updating the config to reflect the actual mesh shape used.
             if self.use_2d_mesh and 1 in mesh_shape:
                 self.use_2d_mesh = False
@@ -1806,9 +1812,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 model_loader = get_model_loader(self.load_config)
 
                 # If layer override is active, patch the weight loading process
+                # to drop weights for the layers we no longer build.
+                # DummyModelLoader (load_format="dummy") exposes no
+                # get_all_weights and already materializes only the
+                # overridden-config layers, so no filtering is needed there.
                 if (
                     self._original_num_layers is not None
                     and self._target_num_layers is not None
+                    and hasattr(model_loader, "get_all_weights")
                 ):
                     # Store reference to original get_all_weights method
                     original_get_all_weights = model_loader.get_all_weights

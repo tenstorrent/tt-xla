@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Optional
 
 import torch
 import torch.nn as nn
+import torch_xla.distributed.spmd as xs
+from tt_torch.sharding import sharding_constraint_tensor
 from vllm.forward_context import get_forward_context
 from vllm.model_executor.custom_op import PluggableLayer
 from vllm.model_executor.layers.attention.mla_attention import MLAAttention
@@ -385,7 +387,26 @@ class TTMLAAttentionBackendImpl(MLAAttentionImpl):
             # run the kernel uncausal with the explicit mask. cur_pos is still
             # forwarded (the decode kernel ignores it for masking when not causal).
             is_causal = False
-            decode_mask = attn_mask
+            # The paged MLA decode kernel lays the mask out as
+            # [users, 1, num_heads, max_seq]: with S == 1 the query heads occupy the
+            # kernel's row dimension, so the mask validation requires a head per row
+            # (mask_shape[2] == q heads), unlike prefill's head-broadcast
+            # [users, 1, S, S]. The indexer's top-k selection is head-independent, so
+            # broadcast the single computed row across all query heads.
+            decode_mask = attn_mask.expand(-1, -1, self.num_heads, -1)
+            # Under tensor parallelism the query heads are sharded over the "model"
+            # mesh axis (q_b_proj is column-parallel), so per device q has
+            # num_heads / model_axis heads. Constrain the mask's head dim the same
+            # way or the kernel sees a 128-head mask against 32-head q. The mask rows
+            # are identical across heads, so any head-shard slice is correct. Use the
+            # Shardy sharding-constraint op (the supported way to reshard an
+            # intermediate inside the compiled graph), not xs.mark_sharding which is
+            # for graph params/inputs.
+            mesh = xs.get_global_mesh()
+            if mesh is not None:
+                decode_mask = sharding_constraint_tensor(
+                    decode_mask, mesh, (None, None, "model", None)
+                )
         else:
             is_causal = attn_metadata.is_causal if attn_metadata is not None else True
             decode_mask = None if is_causal else attn_metadata.attn_mask
