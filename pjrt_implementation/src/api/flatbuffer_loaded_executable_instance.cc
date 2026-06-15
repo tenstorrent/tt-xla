@@ -5,6 +5,13 @@
 
 #include "api/flatbuffer_loaded_executable_instance.h"
 
+// c++ standard library includes
+#include <algorithm>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 // tracy includes
 #include "tracy/Tracy.hpp"
 #include "tt/runtime/runtime.h"
@@ -21,6 +28,30 @@
 #include "utils/utils.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+std::string
+strategyToString(const std::unordered_map<std::string, std::string> &strategy) {
+  std::vector<std::string> keys;
+  keys.reserve(strategy.size());
+  for (const auto &[key, _] : strategy) {
+    keys.push_back(key);
+  }
+  std::sort(keys.begin(), keys.end());
+
+  std::stringstream stream;
+  stream << "{";
+  for (size_t i = 0; i < keys.size(); ++i) {
+    const std::string &key = keys[i];
+    stream << key << ": " << strategy.at(key)
+           << (i + 1 < keys.size() ? ", " : "");
+  }
+  stream << "}";
+  return stream.str();
+}
+
+} // namespace
 
 std::unique_ptr<FlatbufferLoadedExecutableInstance>
 FlatbufferLoadedExecutableInstance::createInstance(
@@ -73,14 +104,38 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
 
   bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
                         tt::runtime::HostRuntime::Distributed;
+  auto runtime_mesh_shape = utils::invoke_noexcept(
+      [&] { return tt::runtime::getMeshShape(runtime_device); });
+  std::string runtime_mesh_shape_str =
+      runtime_mesh_shape.has_value() ? utils::to_string(*runtime_mesh_shape)
+                                     : "<unavailable>";
+
+  LOG_F(INFO,
+        "prepareInputTensor arg=%zu program_index=%u num_devices=%zu "
+        "distributed=%d executable_mesh_shape=%s runtime_mesh_shape=%s "
+        "strategy=%s",
+        arg_index, program_index, num_devices, is_distributed,
+        utils::to_string(m_executable_image->getDevicesMeshShape()).c_str(),
+        runtime_mesh_shape_str.c_str(), strategyToString(*strategy).c_str());
+
   if (is_distributed) {
+    LOG_F(INFO, "Materializing shell tensors for arg=%zu", arg_index);
     materializeShellTensors(arg_buffers);
+    LOG_F(INFO, "Done materializing shell tensors for arg=%zu", arg_index);
   }
 
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
 
+  LOG_F(INFO,
+        "Calling ensure_layout for arg=%zu tensor_uid=%lu shard_count=%zu "
+        "has_runtime_tensor=%d",
+        arg_index, tensor.uid(), tensor.shards().size(),
+        tensor.has_runtime_tensor());
+  loguru::flush();
   tensor.ensure_layout(runtime_device, expected_layout);
+  LOG_F(INFO, "Done ensure_layout for arg=%zu tensor_uid=%lu", arg_index,
+        tensor.uid());
 
   return tensor.runtime_tensor();
 }
@@ -115,6 +170,14 @@ void FlatbufferLoadedExecutableInstance::materializeShellTensors(
                host_base, buffers[i]->getUID(), buffers.front()->getUID());
     }
 
+    LOG_F(INFO,
+          "materializeShellTensors host_base=%p group_size=%zu shape=%s "
+          "strides=%s element_size=%u dtype=%s first_buffer_uid=%lu",
+          host_base, buffers.size(), utils::to_string(shell->shape).c_str(),
+          utils::to_string(shell->strides).c_str(), shell->element_size,
+          ::tt::target::EnumNameDataType(shell->runtime_data_type),
+          buffers.front()->getUID());
+
     // First buffer gets a newly-allocated owned host tensor that actually
     // copies the bytes from the client's host_base pointer. Subsequent
     // buffers in the group get unsafe-borrowed tensors aliasing that owned
@@ -130,6 +193,12 @@ void FlatbufferLoadedExecutableInstance::materializeShellTensors(
       tt::runtime::Tensor worker_runtime_tensor =
           is_first ? owned_tensor
                    : tt::runtime::createUnsafeBorrowedHostTensor(owned_tensor);
+
+      LOG_F(INFO,
+            "materializeShellTensors assigning worker tensor "
+            "buffer_uid=%lu group_index=%zu is_first=%d global_device_id=%d",
+            buffer->getUID(), i, is_first,
+            buffer->getDevice()->getGlobalDeviceId());
 
       // Inplace replacement: rebuilds the BufferInstance's PjrtTensor around
       // the new runtime tensor and updates m_pjrt_tensor via setPjrtTensor.

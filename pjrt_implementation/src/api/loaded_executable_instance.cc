@@ -11,11 +11,13 @@
 #include "api/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <algorithm>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
 #include <optional>
 #include <unordered_set>
+#include <vector>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -39,8 +41,19 @@
 #include "utils/assert.h"
 #include "utils/data_type_utils.h"
 #include "utils/logging.h"
+#include "utils/utils.h"
 
 namespace tt::pjrt {
+
+namespace {
+
+std::string deviceIdsToString(const std::unordered_set<int> &device_ids) {
+  std::vector<int> sorted_device_ids(device_ids.begin(), device_ids.end());
+  std::sort(sorted_device_ids.begin(), sorted_device_ids.end());
+  return utils::to_string(sorted_device_ids);
+}
+
+} // namespace
 
 void LoadedExecutableInstance::bindApi(PJRT_Api *api) {
   api->PJRT_LoadedExecutable_Destroy = internal::onLoadedExecutableDestroy;
@@ -108,6 +121,14 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   size_t mesh_shape_num_devices = static_cast<size_t>(
       std::accumulate(devices_mesh_shape.begin(), devices_mesh_shape.end(), 1,
                       std::multiplies<std::uint32_t>{}));
+
+  LOG_F(INFO,
+        "getOrCreateMeshDevice num_args=%zu num_devices=%zu "
+        "input_device_ids=%s executable_mesh_shape=%s "
+        "mesh_shape_num_devices=%zu execute_device=%p",
+        num_args, num_devices, deviceIdsToString(device_ids).c_str(),
+        utils::to_string(devices_mesh_shape).c_str(), mesh_shape_num_devices,
+        static_cast<void *>(pjrt_device));
 
   if (device_ids.size() != mesh_shape_num_devices) {
     LOG_F(ERROR,
@@ -177,8 +198,23 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
       BufferInstance *buffer =
           BufferInstance::unwrap(argument_lists[device_index][arg_index]);
       arg_buffers.push_back(buffer);
+
+      const PjrtTensorRef &pjrt_tensor = buffer->getPjrtTensor();
+      LOG_F(INFO,
+            "getInputRuntimeTensors arg=%zu device_index=%zu "
+            "buffer_uid=%lu global_device_id=%d shape=%s dtype=%s "
+            "has_runtime_tensor=%d has_shell=%d tensor_uid=%lu",
+            arg_index, device_index, buffer->getUID(),
+            buffer->getDevice()->getGlobalDeviceId(),
+            buffer->toShapeStr().c_str(),
+            data_type_utils::getPJRTBufferTypeString(buffer->getDataType())
+                .c_str(),
+            pjrt_tensor->has_runtime_tensor(),
+            pjrt_tensor->host_tensor_shell().has_value(), pjrt_tensor->uid());
     }
 
+    LOG_F(INFO, "Preparing input tensor arg=%zu shard_count=%zu", arg_index,
+          arg_buffers.size());
     std::optional<tt::runtime::Tensor> prepared_tensor = prepareInputTensor(
         arg_buffers, runtime_device, num_devices, program_index, arg_index);
 
@@ -188,6 +224,9 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
     }
 
     input_tensors.push_back(*prepared_tensor);
+    LOG_F(INFO, "Prepared input tensor arg=%zu retain=%d allocated=%d",
+          arg_index, tt::runtime::getTensorRetain(*prepared_tensor),
+          tt::runtime::isTensorAllocated(*prepared_tensor));
 
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.

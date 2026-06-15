@@ -11,10 +11,13 @@
 #include "api/tensor.h"
 
 // c++ standard library includes
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -36,6 +39,26 @@
 namespace tt::pjrt {
 
 namespace {
+
+std::string
+strategyToString(const std::unordered_map<std::string, std::string> &strategy) {
+  std::vector<std::string> keys;
+  keys.reserve(strategy.size());
+  for (const auto &[key, _] : strategy) {
+    keys.push_back(key);
+  }
+  std::sort(keys.begin(), keys.end());
+
+  std::stringstream stream;
+  stream << "{";
+  for (size_t i = 0; i < keys.size(); ++i) {
+    const std::string &key = keys[i];
+    stream << key << ": " << strategy.at(key)
+           << (i + 1 < keys.size() ? ", " : "");
+  }
+  stream << "}";
+  return stream.str();
+}
 
 // Opt-in (TT_XLA_DEALLOCATE_HOST_INPUTS_AFTER_MIGRATION) host-input
 // reclamation.
@@ -81,8 +104,16 @@ PjrtTensor &PjrtTensor::from_pjrt_buffers(
     const std::vector<std::uint32_t> &mesh_shape,
     const std::unordered_map<std::string, std::string> &strategy) {
 
-  if (have_same_tensor(shards))
+  LOG_F(INFO, "PjrtTensor::from_pjrt_buffers shard_count=%zu mesh_shape=%s "
+              "strategy=%s",
+        shards.size(), utils::to_string(mesh_shape).c_str(),
+        strategyToString(strategy).c_str());
+
+  if (have_same_tensor(shards)) {
+    LOG_F(INFO, "PjrtTensor::from_pjrt_buffers reusing tensor_uid=%lu",
+          shards.front()->getPjrtTensor()->uid());
     return from_shards(shards);
+  }
 
   std::vector<tt::runtime::Tensor> captured_host_shards;
   tt::runtime::Tensor rt_tensor = rt_tensor_from_strategy(
@@ -108,6 +139,9 @@ PjrtTensor::from_runtime_tensor(std::vector<BufferInstance *> shards,
   for (BufferInstance *shard : tensor->shards()) {
     shard->setPjrtTensor(tensor);
   }
+
+  LOG_F(INFO, "PjrtTensor::from_runtime_tensor tensor_uid=%lu shard_count=%zu",
+        tensor->uid(), tensor->shards().size());
 
   return *tensor;
 }
@@ -141,7 +175,14 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   TT_FATAL(m_runtime_tensor.has_value(),
            "Cannot ensure layout for shell-only PjrtTensor");
 
-  if (tt::runtime::hasLayout(*m_runtime_tensor, layout))
+  bool already_has_layout = tt::runtime::hasLayout(*m_runtime_tensor, layout);
+  LOG_F(INFO,
+        "PjrtTensor::ensure_layout tensor_uid=%lu shard_count=%zu "
+        "already_has_layout=%d retain=%d",
+        m_uid, m_shards.size(), already_has_layout,
+        tt::runtime::getTensorRetain(*m_runtime_tensor));
+
+  if (already_has_layout)
     return;
 
   const bool dealloc_host_inputs = deallocHostInputsAfterMigrationEnabled();
@@ -154,8 +195,23 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   }
 
   const bool retain = tt::runtime::getTensorRetain(*m_runtime_tensor);
+  auto runtime_mesh_shape =
+      utils::invoke_noexcept([&] { return tt::runtime::getMeshShape(device); });
+  std::string runtime_mesh_shape_str =
+      runtime_mesh_shape.has_value() ? utils::to_string(*runtime_mesh_shape)
+                                     : "<unavailable>";
+
+  LOG_F(INFO,
+        "PjrtTensor::ensure_layout calling toLayout tensor_uid=%lu "
+        "retain=%d dealloc_host_inputs=%d host_source_shard_count=%zu "
+        "runtime_mesh_shape=%s",
+        m_uid, retain, dealloc_host_inputs, m_host_source_shards.size(),
+        runtime_mesh_shape_str.c_str());
+  loguru::flush();
   m_runtime_tensor =
       tt::runtime::toLayout(*m_runtime_tensor, device, layout, retain);
+  LOG_F(INFO, "PjrtTensor::ensure_layout finished toLayout tensor_uid=%lu",
+        m_uid);
 
   // Notify each shard so the host-buffer-done event fires now and the
   // framework releases its source reference, instead of holding it for
@@ -298,6 +354,12 @@ tt::runtime::Tensor PjrtTensor::rt_tensor_from_strategy(
   for (const BufferInstance *shard : shards) {
     tensors.emplace_back(shard->runtimeTensor());
   }
+
+  LOG_F(INFO,
+        "PjrtTensor::rt_tensor_from_strategy creating multi-device host tensor "
+        "shard_count=%zu mesh_shape=%s strategy=%s captured_host_shards=%d",
+        shards.size(), utils::to_string(mesh_shape).c_str(),
+        strategyToString(strategy).c_str(), captured_host_shards != nullptr);
 
   if (captured_host_shards != nullptr) {
     *captured_host_shards = tensors;
