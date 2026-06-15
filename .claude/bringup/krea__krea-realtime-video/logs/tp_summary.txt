@@ -1,0 +1,7 @@
+TP chain start 2026-06-15T02:46:52+00:00
+vae_sharded: FAILED
+>>> umt5_sharded 2026-06-15T02:53:52+00:00
+umt5_sharded: FAILED
+>>> dit_sharded 2026-06-15T02:57:42+00:00
+dit_sharded: ERROR
+TP chain done 2026-06-15T03:05:39+00:00

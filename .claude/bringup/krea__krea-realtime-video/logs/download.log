@@ -1,0 +1,8 @@
+[dl] krea/krea-realtime-video patterns=['transformer/*', 'modular_model_index.json', 'modular_config.json', '*.py', 'modular_blocks.py']
+Fetching 17 files:   0%|          | 0/17 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 17 files:   6%|▌         | 1/17 [00:00<00:02,  5.95it/s]Fetching 17 files:  12%|█▏        | 2/17 [00:00<00:02,  7.26it/s]Fetching 17 files:  59%|█████▉    | 10/17 [00:00<00:00, 19.35it/s]Fetching 17 files:  59%|█████▉    | 10/17 [00:19<00:00, 19.35it/s]Fetching 17 files:  76%|███████▋  | 13/17 [00:44<00:18,  4.73s/it]Fetching 17 files: 100%|██████████| 17/17 [00:44<00:00,  2.64s/it]
+[dl] DONE krea/krea-realtime-video -> /proj_sw/user_dev/ctr-akannan/hf_cache/hub/models--krea--krea-realtime-video/snapshots/6b5d204f9d14c3c3a59608e49d1da7fad90daf8d  (45s)
+[dl] Wan-AI/Wan2.1-T2V-14B-Diffusers patterns=['text_encoder/*', 'vae/*', 'scheduler/*', 'tokenizer/*', 'model_index.json']
+Fetching 15 files:   0%|          | 0/15 [00:00<?, ?it/s]Fetching 15 files:   7%|▋         | 1/15 [00:00<00:02,  6.30it/s]Fetching 15 files:  27%|██▋       | 4/15 [00:40<01:58, 10.80s/it]Fetching 15 files:  33%|███▎      | 5/15 [00:41<01:20,  8.08s/it]Fetching 15 files: 100%|██████████| 15/15 [00:41<00:00,  2.74s/it]
+[dl] DONE Wan-AI/Wan2.1-T2V-14B-Diffusers -> /proj_sw/user_dev/ctr-akannan/hf_cache/hub/models--Wan-AI--Wan2.1-T2V-14B-Diffusers/snapshots/38ec498cb3208fb688890f8cc7e94ede2cbd7f68  (86s)
+[dl] ALL DONE in 86s

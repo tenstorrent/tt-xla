@@ -1,0 +1,56 @@
+{
+  "model_key": "krea/krea-realtime-video",
+  "pipeline_class": "WanModularPipeline",
+  "activation_class": "video",
+  "device_budgets": {"n150_gib": 12, "p150_gib": 32, "weight_budget_frac": 0.85},
+  "components": [
+    {
+      "name": "transformer",
+      "class": "CausalWanModel",
+      "repo": "krea/krea-realtime-video",
+      "subfolder": "transformer",
+      "params_approx": 14290000000,
+      "weights_gib_bf16": 26.6,
+      "kv_cache_gib_bf16_full": 27.0,
+      "notes": "weights 28.6GB on disk; per-block streaming KV cache adds ~27GB at full seq_length=32760",
+      "fits_bf16": {"n150": false, "p150": false},
+      "eligible_archs": [],
+      "p150_only": false,
+      "weight_predicted": {"n150": "weight_bound", "p150": "weight_bound"},
+      "parallelism_mode": "tensor_parallel",
+      "single_device_only": false,
+      "test_path": "tests/torch/models/krea_realtime_video/test_causal_wan_dit.py::test_causal_wan_dit_480p_sharded"
+    },
+    {
+      "name": "text_encoder",
+      "class": "UMT5EncoderModel",
+      "repo": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+      "subfolder": "text_encoder",
+      "params_approx": 5500000000,
+      "weights_gib_bf16": 11.0,
+      "fits_bf16": {"n150": false, "p150": true},
+      "eligible_archs": ["p150"],
+      "p150_only": true,
+      "weight_predicted": {"n150": "weight_bound", "p150": "fits"},
+      "parallelism_mode": "tensor_parallel",
+      "single_device_only": true,
+      "notes": "fits a single p150 (32GiB) but not n150 (12GiB); shard for TP on this n300-class mesh",
+      "test_path": "tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py::test_umt5_sharded"
+    },
+    {
+      "name": "vae",
+      "class": "AutoencoderKLWan",
+      "repo": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+      "subfolder": "vae",
+      "params_approx": 250000000,
+      "weights_gib_bf16": 0.5,
+      "fits_bf16": {"n150": true, "p150": true},
+      "eligible_archs": ["n150", "p150"],
+      "p150_only": false,
+      "weight_predicted": {"n150": "fits", "p150": "fits"},
+      "parallelism_mode": "single_device",
+      "single_device_only": true,
+      "test_path": "tests/torch/models/krea_realtime_video/test_vae_decoder.py::test_vae_decoder_480p"
+    }
+  ]
+}

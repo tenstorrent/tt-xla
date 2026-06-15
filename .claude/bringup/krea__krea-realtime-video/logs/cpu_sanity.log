@@ -1,0 +1,19 @@
+2026-06-15 02:27:17.663 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+=== VAE decode sanity (tiny latent) ===
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+/proj_sw/user_dev/ctr-akannan/11_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+VAE out shape=(1, 3, 1, 128, 128) finite=True (25s)
+=== Transformer wrapper plumbing (truncated 2 blocks, tiny spatial) ===
+`trust_remote_code` is enabled. Downloading code from krea/krea-realtime-video. Please ensure you trust the contents of this repository
+This modeling file might require the following packages that were not found in your environment: kernels, flash_attn, sageattention, flash_attn_interface. Run `pip install kernels flash_attn sageattention flash_attn_interface`
+This modeling file might require the following packages that were not found in your environment: kernels, flash_attn, sageattention, flash_attn_interface. Run `pip install kernels flash_attn sageattention flash_attn_interface`
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Fetching 3 files: 100%|██████████| 3/3 [00:00<00:00, 957.17it/s]
+The config attributes {'auto_map': {'AutoModel': 'causal_model.CausalWanModel'}} were passed to CausalWanModel, but are not expected and will be ignored. Please verify your config.json configuration file.
+Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]Loading checkpoint shards:  33%|███▎      | 1/3 [00:01<00:02,  1.40s/it]Loading checkpoint shards:  67%|██████▋   | 2/3 [00:03<00:01,  1.61s/it]Loading checkpoint shards: 100%|██████████| 3/3 [00:04<00:00,  1.55s/it]Loading checkpoint shards: 100%|██████████| 3/3 [00:04<00:00,  1.55s/it]
+  loaded blocks=2 (32s)
+DiT wrapper out shape=(1, 16, 3, 8, 8) expected=(1, 16, 3, 8, 8) match=True finite=True (33s)
+SANITY DONE

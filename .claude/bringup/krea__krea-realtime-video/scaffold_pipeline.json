@@ -1,0 +1,49 @@
+{
+  "family": "krea_realtime_video",
+  "variant_prefix": "KreaRealtimeVideo",
+  "hf_repo": "krea/krea-realtime-video",
+  "base_repo": "Wan-AI/Wan2.1-T2V-14B-Diffusers",
+  "pipeline_class": "WanModularPipeline",
+  "modular_diffusers": true,
+  "scaffold_convention": "wan2_2 in-repo pattern (tests/torch/models/<family>/{shared.py,test_*.py}); no third_party loader.py, mirroring the sibling wan/wan2_2 component bringups",
+  "total_params_approx": 20000000000,
+  "denoise_steps_default": "realtime streaming (num_frames_per_block=3 latent frames/step)",
+  "components": [
+    {"name": "transformer", "class": "CausalWanModel", "trust_remote_code": true, "source_file": "transformer/causal_model.py", "parallelism_mode": "tensor_parallel"},
+    {"name": "text_encoder", "class": "UMT5EncoderModel", "parallelism_mode": "tensor_parallel"},
+    {"name": "vae", "class": "AutoencoderKLWan", "parallelism_mode": "single_device"}
+  ],
+  "device": "n300_class_wormhole_mesh",
+  "chip_count": 8,
+  "mesh_shape": [2, 4],
+  "mesh_axes": ["batch", "model"],
+  "shard_specs": {
+    "transformer": "shard_causal_dit_specs (column QKV/FFN-up, row O/FFN-down)",
+    "text_encoder": "shard_umt5_specs (column q/k/v/wi, row o/wo)",
+    "vae": "shard_vae_decoder_specs (memory-bound: post_quant_conv + decoder.conv_in)"
+  },
+  "io_spec": {
+    "transformer": {
+      "inputs": {"latents": [1, 16, 3, 60, 104], "timestep": [1, 3], "context": [1, 512, 4096]},
+      "output": [1, 16, 3, 60, 104],
+      "nontensor_pinned": {"seq_len": 32760, "current_start": 0, "cache_start": null,
+                            "kv_cache": "built per-forward, sized to one realtime block (4680 tokens)",
+                            "crossattn_cache": "built per-forward, [1,512,40,128] per block"}
+    },
+    "text_encoder": {"inputs": {"input_ids": [1, 512], "attention_mask": [1, 512]}, "output": [1, 512, 4096]},
+    "vae_decoder": {"inputs": {"z": [1, 16, 21, 60, 104]}, "output": [1, 3, 81, 480, 832]}
+  },
+  "capture": {"strategy": "analytic — shapes derived from configs + repo denoise.py call site (denoise.py:102), not a live modular-pipeline forward"},
+  "loader_paths": {
+    "shared": "tests/torch/models/krea_realtime_video/shared.py",
+    "tests": [
+      "tests/torch/models/krea_realtime_video/test_causal_wan_dit.py",
+      "tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py",
+      "tests/torch/models/krea_realtime_video/test_vae_decoder.py"
+    ]
+  },
+  "blockers": [
+    "transformer training/block_mask path uses torch.compile flex_attention (unsupported); inference path (kv_cache set, block_mask=None) uses torch SDPA and is the path these tests exercise",
+    "transformer does in-place KV-cache mutation with cache-state-derived slice indices; static for the frame-0 single step the wrapper exercises, but a known compile risk"
+  ]
+}

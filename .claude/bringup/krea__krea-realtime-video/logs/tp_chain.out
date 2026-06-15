@@ -1,0 +1,2 @@
+WARNING: TTMLIR_TOOLCHAIN_DIR not set. Using default value /opt/ttmlir-toolchain
+/tmp/krea_tp_chain.sh: line 15: 52332 Segmentation fault      timeout 7200 python -m pytest -svv "$node" > "$log" 2>&1

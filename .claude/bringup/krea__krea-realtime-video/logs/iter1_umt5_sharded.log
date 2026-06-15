@@ -1,0 +1,102 @@
+2026-06-15 03:08:43.351 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/11_jun_yyz/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.0.3', 'pluggy': '1.6.0'}, 'Plugins': {'split': '0.11.0', 'json-report': '1.5.0', 'metadata': '3.1.1', 'jaxtyping': '0.3.10', 'anyio': '4.13.0', 'forked': '1.6.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/11_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: split-0.11.0, json-report-1.5.0, metadata-3.1.1, jaxtyping-0.3.10, anyio-4.13.0, forked-1.6.0
+collecting ... collected 1 item
+
+tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py::test_umt5_sharded Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 1380.34it/s]
+Loading weights:   0%|          | 0/242 [00:00<?, ?it/s]Loading weights:   2%|▏         | 5/242 [00:00<00:17, 13.50it/s]Loading weights:  28%|██▊       | 67/242 [00:00<00:00, 179.08it/s]Loading weights:  44%|████▍     | 107/242 [00:00<00:00, 240.80it/s]Loading weights:  63%|██████▎   | 153/242 [00:00<00:00, 300.28it/s]Loading weights:  81%|████████▏ | 197/242 [00:00<00:00, 338.60it/s]Loading weights: 100%|██████████| 242/242 [00:01<00:00, 258.17it/s]Loading weights: 100%|██████████| 242/242 [00:01<00:00, 234.10it/s]
+Read unexpected run_mailbox value: 0x40 (expected 0x80 or 0x0)
+2026-06-15 03:11:05.902 | critical |          Always | TT_FATAL: Read unexpected run_mailbox value from core 25-16 (assert.hpp:104)
+2026-06-15 03:11:07.513385: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-06-15 03:12:10.817745: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-15 03:12:20.435 | critical |          Always | TT_FATAL: Can only slice tilized tensor with width begin index aligned to tiles (assert.hpp:104)
+2026-06-15 03:12:20.435 ( 217.084s) [        2F0B96C0]                utils.h:62     ERR| Exception:
+{TT_FATAL @ /proj_sw/user_dev/ctr-akannan/11_jun_yyz/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal/ttnn/cpp/ttnn/operations/data_movement/slice/device/slice_device_operation.cpp:164: (output_tensor_shape[-1] % TILE_WIDTH == 0) && (args.slice_start[-1] % TILE_WIDTH == 0)
+info:
+Can only slice tilized tensor with width begin index aligned to tiles
+}
+
+Created device mesh: (2, 4) with 8 devices.
+FAILED
+
+=================================== FAILURES ===================================
+______________________________ test_umt5_sharded _______________________________
+tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py:45: in test_umt5_sharded
+    _run(sharded=True)
+tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py:62: in _run
+    run_graph_test(
+tests/infra/testers/single_chip/graph/graph_tester.py:74: in run_graph_test
+    tester.test(workload, request=request)
+tests/infra/testers/single_chip/op/op_tester.py:78: in test
+    self._evaluator.evaluate(tt_res, cpu_res)
+tests/infra/evaluators/comparison_evaluator.py:49: in evaluate
+    device_output, golden_output = self._match_data_types((device_out, golden_out))
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/utils.py:41: in wrapper
+    return runner.run_on_cpu(workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:26: in run_on_cpu
+    return self.run_on_device(workload, DeviceType.CPU)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:38: in run_on_device
+    device_workload = self._put_on_device(workload, device=device)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:54: in _put_on_device
+    return self._safely_put_workload_on_device(workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:152: in _safely_put_workload_on_device
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1536: in tree_map
+    return treespec.unflatten(map(func, *flat_args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/utils/_pytree.py:1277: in unflatten
+    leaves = list(leaves)
+             ^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:152: in <lambda>
+    args_on_device = tree_map(lambda x: to_device(x, device), workload.args)
+                                        ^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:77: in to_device
+    result = x.to(device)
+             ^^^^^^^^^^^^
+python_package/tt_torch/torch_overrides.py:66: in __torch_function__
+    return func(*args, **(kwargs or {}))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+------------------------------ Captured log call -------------------------------
+WARNING  huggingface_hub.utils._http:_http.py:904 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /proj_sw/user_dev/ctr-akannan/11_jun_yyz/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py::test_umt5_sharded
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py::test_umt5_sharded
+  /proj_sw/user_dev/ctr-akannan/11_jun_yyz/tt-xla/tests/conftest.py:530: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py::test_umt5_sharded
+  /proj_sw/user_dev/ctr-akannan/11_jun_yyz/tt-xla/tests/conftest.py:534: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/torch/models/krea_realtime_video/test_umt5_text_encoder.py::test_umt5_sharded - RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13
+================== 1 failed, 19 warnings in 187.02s (0:03:07) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
