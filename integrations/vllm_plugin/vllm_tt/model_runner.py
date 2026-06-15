@@ -2732,7 +2732,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            selected = torch.argmax(logits, dim=-1, keepdim=True)
+            if self.is_sharded_compute_logits:
+                # argmax over vocab-sharded logits returns shard-local indices.
+                # composite_topk_indices(k=1) is sharding-aware: tt-mlir's
+                # CustomCallTopKConversionPattern emits local_topk + all_gather
+                # + merge, padding the per-shard candidate count so the gathered
+                # tensor is tile-aligned, then slicing down to k=1.
+                selected = composite_topk_indices(
+                    logits, k=1, dim=-1, largest=True, sorted=False
+                )
+            else:
+                selected = torch.argmax(logits, dim=-1, keepdim=True)
         else:
             selected = self.sampler(
                 logits, sampling_metadata, vocab_sharded=self.is_sharded_compute_logits
