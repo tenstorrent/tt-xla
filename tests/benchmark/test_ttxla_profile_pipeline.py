@@ -578,6 +578,8 @@ def parse_ird_run_args(pipeline):
             "--nvidia-cohort-json",
             "artifacts/issue-5009/input/cohort.json",
             "--nvidia-source-branch-checkout",
+            "--max-superset-slow-op-reports",
+            "50",
             "--benchmark-file",
             "tests/benchmark/test_vision.py",
             "--nodeid-filter",
@@ -607,6 +609,7 @@ def assert_remote_pipeline_command(remote_command):
         "--benchmark-file tests/benchmark/test_vision.py",
         "--nvidia-cohort-json artifacts/issue-5009/input/cohort.json",
         "--nvidia-source-branch-checkout",
+        "--max-superset-slow-op-reports 50",
         "--nodeid-filter test_vision.py",
         "--max-models 1",
         "ttxla_profile_pipeline.py",
@@ -1298,6 +1301,31 @@ def test_superset_perf_reports_use_existing_collector_shape(tmp_path):
     assert payload["config"]["op_type"] == "compute"
     assert payload["config"]["taxonomy"] == "validated_pass"
     assert payload["device_info"]["arch"] == "wormhole_b0"
+
+
+def test_superset_perf_reports_can_be_capped(tmp_path):
+    pipeline = load_pipeline_module()
+    run_dir = tmp_path / "run-5009-superset-cap"
+    pipeline.ensure_dir(run_dir)
+    status = sample_profile_status(run_dir)
+    slow_ops = [
+        {**sample_slow_ops(run_dir, status)[0], "global_rank": index, "op_name": name}
+        for index, name in enumerate(("matmul", "gelu", "copy"), start=1)
+    ]
+
+    export_dir = pipeline.write_superset_perf_reports(
+        run_dir,
+        sample_environment(tmp_path),
+        slow_ops,
+        "job-12345",
+        max_reports=2,
+    )
+
+    reports = sorted(export_dir.glob("perf_report_ttxla_slow_op_*.json"))
+    assert [report.name for report in reports] == [
+        "perf_report_ttxla_slow_op_00001_model_a_matmul_12345.json",
+        "perf_report_ttxla_slow_op_00002_model_a_gelu_12345.json",
+    ]
 
 
 def test_copy_tree_returns_copied_paths(tmp_path):

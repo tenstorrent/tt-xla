@@ -35,6 +35,7 @@ DEFAULT_BATCH_SIZE = 1
 DEFAULT_NUM_LAYERS = 1
 DEFAULT_INPUT_SEQUENCE_LENGTH = 0
 DEFAULT_MAX_RAW_ARTIFACT_BYTES = 100_000_000
+DEFAULT_MAX_SUPERSET_SLOW_OP_REPORTS = 0
 DEFAULT_IRD_RUN_BUDGET_BUFFER_SECONDS = 300
 DEFAULT_COLLECTOR_JOB_ID = "0"
 PERF_REPORT_CSV_PATTERNS = (
@@ -2398,11 +2399,13 @@ def write_superset_perf_reports(
     environment: dict[str, Any],
     slow_ops: list[dict[str, Any]],
     job_id: str,
+    max_reports: int = DEFAULT_MAX_SUPERSET_SLOW_OP_REPORTS,
 ) -> Path:
     export_dir = ensure_dir(run_dir / "perf_reports" / "slow_ops")
     clean_superset_perf_reports(export_dir)
     suffix = collector_job_id(job_id)
-    for index, row in enumerate(slow_ops, start=1):
+    selected_slow_ops = slow_ops[:max_reports] if max_reports > 0 else slow_ops
+    for index, row in enumerate(selected_slow_ops, start=1):
         payload = slow_op_perf_report_payload(run_dir, environment, row)
         model_slug = slugify(str(payload["model"]))
         op_slug = slugify(str(row.get("op_name", "unknown-op")))
@@ -3259,6 +3262,7 @@ def write_artifacts(
     statuses: list[dict[str, Any]],
     slow_ops: list[dict[str, Any]],
     perf_report_job_id: str = DEFAULT_COLLECTOR_JOB_ID,
+    max_superset_slow_op_reports: int = DEFAULT_MAX_SUPERSET_SLOW_OP_REPORTS,
 ) -> tuple[Path, Path, Path]:
     manifest = load_json(run_dir / "manifest.json")
     dashboard_path = run_dir / "dashboard.html"
@@ -3300,7 +3304,13 @@ def write_artifacts(
         ),
         encoding="utf-8",
     )
-    write_superset_perf_reports(run_dir, environment, slow_ops, perf_report_job_id)
+    write_superset_perf_reports(
+        run_dir,
+        environment,
+        slow_ops,
+        perf_report_job_id,
+        max_reports=max_superset_slow_op_reports,
+    )
     write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
     return dashboard_path, packet_path, report_path
 
@@ -3394,6 +3404,13 @@ def append_optional_remote_pipeline_args(
         remote_args.extend(["--nvidia-cohort-json", args.nvidia_cohort_json])
     if args.nvidia_source_branch_checkout:
         remote_args.append("--nvidia-source-branch-checkout")
+    if args.max_superset_slow_op_reports:
+        remote_args.extend(
+            [
+                "--max-superset-slow-op-reports",
+                str(args.max_superset_slow_op_reports),
+            ]
+        )
     for benchmark_file in args.benchmark_file:
         remote_args.extend(["--benchmark-file", benchmark_file])
     for nodeid_filter in args.nodeid_filter:
@@ -4087,6 +4104,7 @@ def write_final_local_artifacts(
     discovery_result: CommandResult,
     entries: list[DiscoveryEntry],
     perf_report_job_id: str,
+    max_superset_slow_op_reports: int,
 ) -> tuple[Path, Path, Path]:
     terminalize_missing_model_statuses(
         run_dir=context.run_dir,
@@ -4104,6 +4122,7 @@ def write_final_local_artifacts(
         statuses=statuses,
         slow_ops=slow_ops,
         perf_report_job_id=perf_report_job_id,
+        max_superset_slow_op_reports=max_superset_slow_op_reports,
     )
     update_manifest_summary(
         context.run_dir, summarize_run(context.run_dir, statuses, slow_ops)
@@ -4130,7 +4149,11 @@ def execute_pipeline(args: argparse.Namespace) -> int:
 
     profile_selected_entries(args, context, entries)
     dashboard_path, packet_path, report_path = write_final_local_artifacts(
-        context, discovery_result, entries, args.perf_report_job_id
+        context,
+        discovery_result,
+        entries,
+        args.perf_report_job_id,
+        args.max_superset_slow_op_reports,
     )
     print(f"dashboard: {dashboard_path}")
     print(f"packet: {packet_path}")
@@ -4226,6 +4249,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--perf-report-job-id",
         default=os.environ.get("TTXLA_PERF_REPORT_JOB_ID", DEFAULT_COLLECTOR_JOB_ID),
         help="Numeric GitHub check-run id used as the trailing id in Superset collector perf_report JSON filenames.",
+    )
+    parser.add_argument(
+        "--max-superset-slow-op-reports",
+        type=int,
+        default=DEFAULT_MAX_SUPERSET_SLOW_OP_REPORTS,
+        help=(
+            "Maximum number of slow-op perf_report JSON files to emit for the "
+            "Superset collector; 0 emits all rows. Dashboard and slow-ops.json "
+            "remain complete."
+        ),
     )
     parser.add_argument(
         "--benchmark-file",
@@ -4468,7 +4501,11 @@ def main(argv: Optional[list[str]] = None) -> int:
             render_dashboard_html(run_dir, statuses, slow_ops), encoding="utf-8"
         )
         write_superset_perf_reports(
-            run_dir, environment, slow_ops, args.perf_report_job_id
+            run_dir,
+            environment,
+            slow_ops,
+            args.perf_report_job_id,
+            max_reports=args.max_superset_slow_op_reports,
         )
         write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
         return 0
@@ -4491,7 +4528,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         ),
         encoding="utf-8",
     )
-    write_superset_perf_reports(run_dir, environment, slow_ops, args.perf_report_job_id)
+    write_superset_perf_reports(
+        run_dir,
+        environment,
+        slow_ops,
+        args.perf_report_job_id,
+        max_reports=args.max_superset_slow_op_reports,
+    )
     write_requirements_json(run_dir, manifest, environment, statuses, slow_ops)
     return 0
 
