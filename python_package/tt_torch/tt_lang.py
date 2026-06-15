@@ -172,7 +172,7 @@ def _normalize_arg_roles(
     first_out = next((i for i, r in enumerate(norm) if r == "out"), len(norm))
     if any(r == "in" for r in norm[first_out:]):
         raise ValueError(
-            "arg_roles must list all \"in\" operands before any \"out\" "
+            'arg_roles must list all "in" operands before any "out" '
             f"operand (destination-passing-style order); got {norm!r}. "
             "Reorder the operation signature so input tensors precede output "
             "tensors."

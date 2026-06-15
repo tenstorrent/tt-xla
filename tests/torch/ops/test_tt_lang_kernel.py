@@ -30,10 +30,10 @@ from tt_torch.custom_ops import _validate_tt_lang_op_out_indices
 from tt_torch.tt_lang import (
     OperationEntry,
     TtLangError,
-    tt_lang_operation,
     get_registered_operation,
     iter_registered_operations,
     resolve_operation,
+    tt_lang_operation,
 )
 
 
@@ -133,7 +133,9 @@ def test_decorator_rejects_out_before_in(clean_registry):
     # decoration time.
     with pytest.raises(ValueError, match="before any"):
 
-        @tt_lang_operation(operation_id="unit.bad_order.v1", arg_roles=("in", "out", "in"))
+        @tt_lang_operation(
+            operation_id="unit.bad_order.v1", arg_roles=("in", "out", "in")
+        )
         def k(lhs, out, rhs): ...
 
 
@@ -158,22 +160,30 @@ def test_decorator_requires_explicit_arg_roles(clean_registry):
 def test_decorator_rejects_double_registration_with_different_source(
     clean_registry,
 ):
-    @tt_lang_operation(operation_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="A")
+    @tt_lang_operation(
+        operation_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="A"
+    )
     def k1(x, out): ...
 
     with pytest.raises(ValueError):
 
-        @tt_lang_operation(operation_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="B")
+        @tt_lang_operation(
+            operation_id="unit.dup.v1", arg_roles=("in", "out"), version_tag="B"
+        )
         def k2(x, out): ...
 
 
 def test_decorator_double_registration_same_version_ok(clean_registry):
     """Re-registering with the same version_tag is idempotent."""
 
-    @tt_lang_operation(operation_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A")
+    @tt_lang_operation(
+        operation_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A"
+    )
     def k1(x, out): ...
 
-    @tt_lang_operation(operation_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A")
+    @tt_lang_operation(
+        operation_id="unit.idem.v1", arg_roles=("in", "out"), version_tag="A"
+    )
     def k2(x, out): ...
 
     entry = get_registered_operation("unit.idem.v1")
@@ -235,7 +245,9 @@ def test_resolve_operation_unknown_id_raises(clean_registry):
 
 
 def test_resolve_operation_version_tag_mismatch_raises(clean_registry):
-    @tt_lang_operation(operation_id="unit.vtag.v1", arg_roles=("in", "out"), version_tag="vt0")
+    @tt_lang_operation(
+        operation_id="unit.vtag.v1", arg_roles=("in", "out"), version_tag="vt0"
+    )
     def k(x, out): ...
 
     with pytest.raises(TtLangError):
@@ -565,7 +577,9 @@ def test_resolve_operation_sets_compile_only_during_call(clean_registry, fake_tt
             os.environ["TTLANG_COMPILE_ONLY"] = saved
 
 
-def test_resolve_operation_restores_compile_only_when_prev_set(clean_registry, fake_ttl):
+def test_resolve_operation_restores_compile_only_when_prev_set(
+    clean_registry, fake_ttl
+):
     _operation_that_calls_compile("unit.resolve.prev_env.v1")
 
     os.environ["TTLANG_COMPILE_ONLY"] = "0"
@@ -633,7 +647,9 @@ def test_resolve_operation_raises_when_ttl_missing(clean_registry):
     clear ``TtLangError`` rather than an opaque ``ImportError``.
     """
 
-    @tt_lang_operation(operation_id="unit.no_ttl.v1", arg_roles=("in", "out"), version_tag="vt0")
+    @tt_lang_operation(
+        operation_id="unit.no_ttl.v1", arg_roles=("in", "out"), version_tag="vt0"
+    )
     def k(x, out): ...
 
     saved = {k: sys.modules.get(k) for k in ("ttl", "ttl.ttl_api")}

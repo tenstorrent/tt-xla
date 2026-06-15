@@ -1049,9 +1049,9 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
 
   // The resolveTtLangKernels pass walks `ttnn.tt_lang_op` ops and invokes the
-  // tt-lang compiler to compile each kernel through the tt_torch.tt_lang.resolve_operation
-  // via pybind11. The output of the compiler is then added back as the `kernel_artifact`
-  // attribute on the op.
+  // tt-lang compiler to compile each kernel through the
+  // tt_torch.tt_lang.resolve_operation via pybind11. The output of the compiler
+  // is then added back as the `kernel_artifact` attribute on the op.
   mlir::tt::ttnn::TTNNResolveTtLangKernelsOptions resolve_options;
   // The pass takes mesh-shape as a comma-separated string so the
   // pipeline-options machinery (which doesn't natively support
@@ -1067,7 +1067,6 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   resolve_options.meshShape = std::move(mesh_csv);
   ttir_to_ttnn_pm.addPass(
       mlir::tt::ttnn::createTTNNResolveTtLangKernels(resolve_options));
-  
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
