@@ -121,6 +121,19 @@ class RMSNormFusionProvider(FusionProvider):
         return (weight * hidden_states).to(input_dtype)
 
     Both are replaced with torch.nn.functional.rms_norm.
+
+    Gemma / Gemma2 / Gemma3 use a slightly different shape:
+        output = self._norm(x.float())
+        output = output * (1.0 + self.weight.float())
+        return output.type_as(x)
+    The weight is upcast to fp32 and shifted by +1 before multiply. The trailing
+    cast uses .type_as() which lowers to a copy with extra layout/device kwargs
+    that vary by platform; we therefore truncate the Gemma patterns at the
+    weighted-multiply and let the trailing cast remain in the graph (it becomes
+    a cheap no-op when downstream produces the same dtype).
+
+    Gemma4 is structurally Gemma without the +1 shift and uses torch.pow(x, -0.5)
+    in place of torch.rsqrt.
     """
 
     @property
@@ -167,14 +180,126 @@ class RMSNormFusionProvider(FusionProvider):
         return result.to(dtype)
 
     @staticmethod
+    def pattern_x_weight_order(
+        hidden_states: Tensor, weight: Tensor, eps: float, dtype
+    ) -> Tensor:
+        """
+        vLLM TTRMSNorm variant: cast happens before multiply with weight, and the
+        weight is the trailing operand (x * weight, not weight * x).
+
+        Matches: hidden_states.to(input_dtype) * weight
+
+        Note:
+            FX subgraph rewriter does not normalize positional vs kwarg form for
+            method calls, so `mean(dim=-1, keepdim=True)` is used here to match
+            vLLM TTRMSNorm exactly (its forward calls .mean(dim=-1, keepdim=True)).
+        """
+        hidden_fp32 = hidden_states.to(torch.float32)
+        variance = hidden_fp32.pow(2).mean(dim=-1, keepdim=True)
+        variance_eps = variance.add(eps)
+        rsqrt_var = torch.rsqrt(variance_eps)
+        hidden_normalized = hidden_fp32.mul(rsqrt_var)
+        hidden_cast = hidden_normalized.to(dtype)
+        return hidden_cast.mul(weight)
+
+    @staticmethod
     def replacement(hidden_states: Tensor, weight: Tensor, eps: float, dtype) -> Tensor:
-        """Shared replacement for both RMS norm pattern variants."""
+        """Shared replacement for RMS norm pattern variants."""
         return torch.nn.functional.rms_norm(
             hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
+        )
+
+    # ----- Gemma family (Gemma / Gemma2 / Gemma3) -----
+
+    @staticmethod
+    def pattern_gemma(hidden_states: Tensor, weight: Tensor, eps: float) -> Tensor:
+        """
+        Gemma dynamo: weight is upcast and shifted by +1 before multiply, then
+        type_as cast back. Pattern matches up to the weighted-multiply only; the
+        trailing type_as remains in the graph after fusion.
+
+        Uses tensor method calls (.add, .mul) instead of operators because
+        tt_torch's dynamo compatibility patches funnel +/* through call_method.
+        For the same reason, `1.0 + weight_fp32` is written as
+        `weight_fp32.add(1.0)` (the patched __radd__ swaps arg order).
+        """
+        x_fp32 = hidden_states.float()
+        variance = x_fp32.pow(2).mean(-1, keepdim=True)
+        variance_eps = variance.add(eps)
+        rsqrt_var = torch.rsqrt(variance_eps)
+        normed = x_fp32.mul(rsqrt_var)
+        weight_fp32 = weight.float()
+        shifted_w = weight_fp32.add(1.0)
+        return normed.mul(shifted_w)
+
+    @staticmethod
+    def replacement_gemma(hidden_states: Tensor, weight: Tensor, eps: float) -> Tensor:
+        """Replacement: rms_norm with effective weight = 1 + weight.float()."""
+        return torch.nn.functional.rms_norm(
+            hidden_states,
+            normalized_shape=weight.shape,
+            weight=1.0 + weight.float(),
+            eps=eps,
+        )
+
+    # ----- Gemma4 (no +1, pow(-0.5) instead of rsqrt) -----
+
+    @staticmethod
+    def pattern_gemma4(hidden_states: Tensor, weight: Tensor, eps: float) -> Tensor:
+        """
+        Gemma4 dynamo: weight upcast (no +1), torch.pow(ms, -0.5) for inv-sqrt.
+        Uses tensor method calls per the patched-dynamo convention (see
+        pattern_gemma docstring).
+        """
+        x_fp32 = hidden_states.float()
+        variance = x_fp32.pow(2).mean(-1, keepdim=True)
+        mean_squared = variance.add(eps)
+        inv_std = torch.pow(mean_squared, -0.5)
+        normed = x_fp32.mul(inv_std)
+        weight_fp32 = weight.float()
+        return normed.mul(weight_fp32)
+
+    @staticmethod
+    def replacement_gemma4(hidden_states: Tensor, weight: Tensor, eps: float) -> Tensor:
+        """Replacement: rms_norm with weight upcast to fp32."""
+        return torch.nn.functional.rms_norm(
+            hidden_states,
+            normalized_shape=weight.shape,
+            weight=weight.float(),
+            eps=eps,
+        )
+
+    # ----- Gemma4 with_scale=False (no learned weight) -----
+
+    @staticmethod
+    def pattern_gemma4_no_scale(hidden_states: Tensor, eps: float) -> Tensor:
+        """
+        Gemma4 with with_scale=False: same shape as pattern_gemma4 but the
+        trailing weighted-multiply is absent. Pattern matches up to the
+        normalized output; trailing type_as remains in the graph.
+        """
+        x_fp32 = hidden_states.float()
+        variance = x_fp32.pow(2).mean(-1, keepdim=True)
+        mean_squared = variance.add(eps)
+        inv_std = torch.pow(mean_squared, -0.5)
+        return x_fp32.mul(inv_std)
+
+    @staticmethod
+    def replacement_gemma4_no_scale(hidden_states: Tensor, eps: float) -> Tensor:
+        """Replacement: rms_norm with no learned weight (identity scale)."""
+        return torch.nn.functional.rms_norm(
+            hidden_states,
+            normalized_shape=hidden_states.shape[-1:],
+            weight=None,
+            eps=eps,
         )
 
     def get_patterns(self) -> List[tuple]:
         return [
             (self.pattern, self.replacement),
             (self.pattern_cast_after_mul, self.replacement),
+            (self.pattern_x_weight_order, self.replacement),
+            (self.pattern_gemma, self.replacement_gemma),
+            (self.pattern_gemma4, self.replacement_gemma4),
+            (self.pattern_gemma4_no_scale, self.replacement_gemma4_no_scale),
         ]
