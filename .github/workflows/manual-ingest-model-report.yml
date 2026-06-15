@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Fetch job id
         id: fetch-job-id
@@ -154,14 +154,14 @@ jobs:
             --require-final-category
 
       - name: Upload Test Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: test-reports-external-${{ github.run_attempt }}.0-ubuntu-latest-${{ steps.sanitize.outputs.cohort }}-${{ steps.fetch-job-id.outputs.job_id }}
           path: prepared-report/report_${{ steps.fetch-job-id.outputs.job_id }}.xml
 
       - name: Upload Report Summary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: success() || failure()
         with:
           name: external-model-report-summary-${{ github.run_attempt }}.0-ubuntu-latest-${{ steps.sanitize.outputs.cohort }}-${{ steps.fetch-job-id.outputs.job_id }}
