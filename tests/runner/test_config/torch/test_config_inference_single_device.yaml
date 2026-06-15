@@ -1460,16 +1460,6 @@ test_config:
     status: EXPECTED_PASSING
 
 
-  flux/pytorch-Schnell-single_device-inference:
-    supported_archs: ["p150"]
-    assert_pcc: false
-    status: EXPECTED_PASSING
-    reason: "AssertionError: PCC comparison failed. Calculated: pcc=0.9354927640542214. Required: pcc=0.99"
-
-  flux/pytorch-Dev-single_device-inference:
-    supported_archs: ["p150"]
-    status: EXPECTED_PASSING
-
   gliner/pytorch-Multi_v2.1-single_device-inference:
     status: NOT_SUPPORTED_SKIP #https://github.com/tenstorrent/tt-xla/issues/4267
 
