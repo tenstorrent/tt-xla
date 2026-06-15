@@ -65,8 +65,7 @@ def test_imagegen(
     ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
 
     print(f"Running image-gen benchmark for model: {model_info_name}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     prompt={prompt!r}
@@ -74,8 +73,7 @@ def test_imagegen(
     height={height}
     width={width}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_imagegen_torch_xla(
         build_pipeline_fn=build_pipeline_fn,
@@ -164,7 +162,7 @@ def test_stable_diffusion_1_5(output_file, request):
     def build_pipeline_fn(compile_options):
         # Heavy net (UNet) on TT; precision-sensitive CLIP, scheduler and VAE on
         # CPU. compile_options is already applied globally by the harness.
-        pipeline = SD15Pipeline(config=SD15Config(device="cpu", clip_on_tt=False))
+        pipeline = SD15Pipeline(config=SD15Config(clip_on_tt=False))
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -199,7 +197,7 @@ def test_stable_diffusion_3(output_file, request):
     def build_pipeline_fn(compile_options):
         # Heavy net (MMDiT transformer) on TT; the three text encoders,
         # scheduler and VAE on CPU.
-        pipeline = SD3Pipeline(config=SD3Config(device="cpu"))
+        pipeline = SD3Pipeline(config=SD3Config())
         pipeline.setup()
 
         def generate_fn(prompt, steps):

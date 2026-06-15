@@ -40,7 +40,7 @@ def run_sd15_pipeline(
 ):
     """Run the Stable Diffusion 1.5 pipeline and save the output image."""
     # CLIP on CPU (precision-sensitive); UNet on TT.
-    config = SD15Config(device="cpu", clip_on_tt=False)
+    config = SD15Config(clip_on_tt=False)
     pipeline = SD15Pipeline(config=config)
     pipeline.setup()
 

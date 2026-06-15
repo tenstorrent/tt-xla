@@ -40,7 +40,7 @@ def run_sd3_pipeline(
 ):
     """Run the Stable Diffusion 3 Medium pipeline and save the output image."""
     # Transformer on TT; text encoders, scheduler and VAE on CPU.
-    config = SD3Config(device="cpu")
+    config = SD3Config()
     pipeline = SD3Pipeline(config=config)
     pipeline.setup()
 
