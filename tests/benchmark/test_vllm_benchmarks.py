@@ -239,10 +239,12 @@ TP_CONFIGS = [
     pytest.param(
         _tp_config(
             "mistralai/Devstral-2-123B-Instruct-2512",
-            1,
+            32,
             experimental_weight_dtype="bfp_bf8",
             gpu_memory_utilization=0.05,
             enable_data_parallel=True,
+            shard_weights_on_batch_axis=False,
+            num_hidden_layers=2,
         ),
         id="devstral-123b-tp",
     ),
