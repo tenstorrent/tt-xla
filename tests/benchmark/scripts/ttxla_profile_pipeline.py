@@ -3390,6 +3390,8 @@ def append_optional_remote_pipeline_args(
         remote_args.extend(["--tt-perf-report-bin", args.tt_perf_report_bin])
     if args.nvidia_cohort_json:
         remote_args.extend(["--nvidia-cohort-json", args.nvidia_cohort_json])
+    if args.nvidia_source_branch_checkout:
+        remote_args.append("--nvidia-source-branch-checkout")
     for benchmark_file in args.benchmark_file:
         remote_args.extend(["--benchmark-file", benchmark_file])
     for nodeid_filter in args.nodeid_filter:
