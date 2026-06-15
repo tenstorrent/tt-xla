@@ -88,6 +88,7 @@ def test_llm(
         required_pcc: Required PCC threshold
         num_layers: Number of layers to override
         accuracy_testing: Enable token accuracy testing with reference data
+        expert_implementation: Expert implementation type
     """
     # Set default batch size if None
     if batch_size is None:
@@ -233,9 +234,11 @@ def test_llm_tp(
     required_pcc=DEFAULT_REQUIRED_PCC,
     **kwargs,
 ):
-    mesh_config_fn = kwargs.pop(
-        "mesh_config_fn", getattr(ModelLoaderModule, "get_mesh_config", None)
-    )
+    mesh_override = kwargs.pop("mesh_config_fn", None)
+    if mesh_override is not None:
+        ModelLoaderModule.get_mesh_config = mesh_override
+    mesh_config_fn = getattr(ModelLoaderModule, "get_mesh_config", None)
+
     shard_spec_fn = kwargs.pop(
         "shard_spec_fn", getattr(ModelLoaderModule, "load_shard_spec", None)
     )
@@ -1785,6 +1788,7 @@ def test_gpt_oss_20b_tp(
 
 
 # Test with D2M fusion enabled (enable-create-d2m-subgraphs=true).
+# FAILED: SIGSEGV in TTNNRowMajorLayoutPropagation (https://github.com/tenstorrent/tt-xla/issues/5121)
 def test_gpt_oss_20b_tp_d2m(
     output_file,
     num_layers,
@@ -2578,4 +2582,132 @@ def test_gpt_oss_20b_tp_qb2(
         shard_spec_fn=_gpt_oss_20b_shard_spec_fn,
         optimization_level=2,
         experts_implementation=TT_DENSE_EXPERTS_BACKEND_NAME,
+    )
+
+
+# This test only runs 4 layers so we expect to see incoherent output
+def test_deepseek_v3_1_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.deepseek.deepseek_v3_1.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DEEPSEEK_V3_1_MODIFIED
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4 if num_layers is None else num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        input_output_sharding_spec=("batch", None),
+        use_mla_cache=True,
+        optimization_level=0,
+        trace_enabled=False,
+        required_pcc=0.96,
+        experimental_kv_cache_dtype=None,
+    )
+
+
+def _glm_4_7_shard_spec_fn(model_loader, model):
+    """Hidden-replicated sharding spec for GLM-4 on the 4x8 galaxy mesh.
+    TP - 8 : DP - 4 : EP - 32
+    The residual hidden dim is kept replicated along the model axis so the RMS norms reduce locally instead of lowering to a distributed all_gather norm.
+    Embedding is replicated, lm_head is vocab-parallel, and attention / dense MLP / shared experts are col->row parallel along model axis TP - 8.
+    Routed expert weights are sharded across both model and batch axes EP - 32, matching DeepSeek V3.x / Kimi K2.
+    """
+    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+    shard_specs[model.lm_head.weight] = ("model", None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+        attn = layer.self_attn
+        shard_specs[attn.q_proj.weight] = ("model", None)
+        shard_specs[attn.k_proj.weight] = ("model", None)
+        shard_specs[attn.v_proj.weight] = ("model", None)
+        shard_specs[attn.o_proj.weight] = (None, "model")
+
+        if attn.q_proj.bias is not None:
+            shard_specs[attn.q_proj.bias] = ("model",)
+            shard_specs[attn.k_proj.bias] = ("model",)
+            shard_specs[attn.v_proj.bias] = ("model",)
+
+        if hasattr(attn, "q_norm"):
+            shard_specs[attn.q_norm.weight] = (None,)
+            shard_specs[attn.k_norm.weight] = (None,)
+
+        mlp = layer.mlp
+
+        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
+            inner = mlp.mlp
+            shard_specs[inner.router.gate.weight] = (None, None)
+            shard_specs[inner.experts.gate_proj] = (("model", "batch"), None, None)
+            shard_specs[inner.experts.up_proj] = (("model", "batch"), None, None)
+            shard_specs[inner.experts.down_proj] = (("model", "batch"), None, None)
+
+            shared = getattr(mlp, "shared_experts", None)
+            if shared is not None:
+                shard_specs[shared.gate_proj.weight] = ("model", None)
+                shard_specs[shared.up_proj.weight] = ("model", None)
+                shard_specs[shared.down_proj.weight] = (None, "model")
+
+        else:
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+
+    return shard_specs
+
+
+# This test only runs 4 layers so we expect to see incoherent output
+def test_glm_4_7_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.glm.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GLM_4_7
+
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4 if num_layers is None else num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=64,  # Test hangs for a batch size of 128 - Issue: https://github.com/tenstorrent/tt-xla/issues/4565
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,
+        trace_enabled=False,
+        shard_spec_fn=_glm_4_7_shard_spec_fn,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", None, None, None),
+        required_pcc=0.86,
     )

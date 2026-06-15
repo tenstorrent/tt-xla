@@ -19,7 +19,6 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 import vllm.envs as envs
 from tt_torch.sharding import sharding_constraint_tensor
-from tt_torch.utils import torch_dynamo_tt_device_compatibility
 from vllm.compilation.wrapper import TorchCompileWithNoGuardsWrapper
 from vllm.config import (
     ParallelConfig,
@@ -103,7 +102,11 @@ from .overrides import replace_modules
 from .platform import TTConfig
 from .sampler import Sampler
 from .vllm_distributed_utils import safe_mark_sharding, shard_model
-from .vllm_utils import determine_mesh_shape, prev_power_of_2
+from .vllm_utils import (
+    apply_hidden_layer_override,
+    determine_mesh_shape,
+    prev_power_of_2,
+)
 
 
 def add_kv_sharing_layers_to_kv_cache_groups(
@@ -354,8 +357,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # self.supports_mm_inputs = self.mm_registry.supports_multimodal_inputs(
         #     model_config)
         self.supports_mm_inputs = False
-        # TODO: Support M-RoPE (e.g, Qwen2-VL)
-        assert not self.uses_mrope, "TPU does not support M-RoPE yet."
 
         self._num_slices_per_kv_cache_update_block = (
             _get_num_slices_per_kv_cache_update_block(
@@ -456,7 +457,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             for n in self.num_tokens_paddings
         }
         self._position_ids_dev = {
-            n: _alloc_dev((self.max_num_reqs, n), torch.int32)
+            n: _alloc_dev(
+                (
+                    (3, self.max_num_reqs, n)
+                    if self.uses_mrope
+                    else (self.max_num_reqs, n)
+                ),
+                torch.int32,
+            )
             for n in self.num_tokens_paddings
         }
         self._logits_indices_dev = _alloc_dev((self.max_num_reqs,), torch.int32)
@@ -518,8 +526,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.mm_budget = (
             MultiModalBudget(
-                self.model_config,
-                self.scheduler_config,
+                self.vllm_config,
                 self.mm_registry,
             )
             if self.supports_mm_inputs
@@ -538,22 +545,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.mm_embed_inputs: tuple[list[torch.Tensor], torch.Tensor] | None = None
 
         # Override number of hidden layers if specified in TTConfig
-        self._original_num_layers = None
-        self._target_num_layers = None
-        target_num_layers = self.tt_config.num_hidden_layers
-        # Multimodal configs (e.g. Gemma 4) nest num_hidden_layers under text_config.
-        hf_config = vllm_config.model_config.hf_config
-        hf_text_config = getattr(hf_config, "text_config", hf_config)
-        original_num_layers = getattr(hf_text_config, "num_hidden_layers", 0)
-
-        if target_num_layers > 0 and target_num_layers < original_num_layers:
-            hf_text_config.num_hidden_layers = target_num_layers
-            logger.info(
-                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+        self._original_num_layers, self._target_num_layers = (
+            apply_hidden_layer_override(
+                vllm_config.model_config.hf_config,
+                self.tt_config.num_hidden_layers,
             )
-            # Store original layer count for weight filtering
-            self._original_num_layers = original_num_layers
-            self._target_num_layers = target_num_layers
+        )
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""
@@ -1023,12 +1020,22 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.num_tokens_paddings, max_num_scheduled_tokens_all_reqs
         )
 
-        # Allocate a zero-initialized position tensor of shape
-        # [max_num_reqs, padded_total_num_scheduled_tokens]. Entries beyond the
-        # actual number of scheduled tokens per request remain zero (padding).
-        arange = torch.zeros(
-            (self.max_num_reqs, padded_total_num_scheduled_tokens), dtype=torch.int32
+        # Allocate a zero-initialized position tensor. For MRoPE models, keep
+        # three identical position planes [3, max_num_reqs, padded_tokens] to
+        # match the runtime input convention; otherwise use [max_num_reqs,
+        # padded_tokens]. Entries beyond the actual number of scheduled tokens
+        # per request remain zero (padding).
+        # NOTE: When M-RoPE is enabled, position ids are 3D regardless of the
+        # modality of inputs. For text-only inputs, each dimension has identical
+        # position IDs, making M-RoPE functionally equivalent to 1D-RoPE.
+        # See page 5 of https://arxiv.org/abs/2409.12191
+
+        arange_shape = (
+            (3, self.max_num_reqs, padded_total_num_scheduled_tokens)
+            if self.uses_mrope
+            else (self.max_num_reqs, padded_total_num_scheduled_tokens)
         )
+        arange = torch.zeros(arange_shape, dtype=torch.int32)
 
         # Populate position ids for each request.
         # For request i with n scheduled tokens, positions are computed as:
@@ -1051,10 +1058,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         #    [10,11,12,13,14],
         #    [5, 6, 7, 0, 0]]
         for i, n in enumerate(num_scheduled_tokens_per_req):
-            arange[i, :n] = (
+            positions = (
                 torch.arange(n, dtype=torch.int32)
                 + self.input_batch.num_computed_tokens_cpu[i]
             )
+            if self.uses_mrope:
+                arange[:, i, :n] = positions
+            else:
+                arange[i, :n] = positions
 
         # Allocate a zero-padded input_ids tensor of shape
         # [max_num_reqs, padded_total_num_scheduled_tokens].
@@ -1076,6 +1087,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Move input_ids and position_ids to the target device for execution.
         # Reuse persistent device buffers and update in place via copy_ to
         # avoid issuing a fresh H2D transfer (and on-device alloc) per step.
+        # 'padded_total_num_scheduled_tokens' is used as the key into the
+        # preallocated buffer dictionaries (self._input_ids_dev and
+        # self._position_ids_dev) to select the buffer whose second dimension
+        # matches this step's padded token width.
         input_ids_dev = self._input_ids_dev[padded_total_num_scheduled_tokens]
         input_ids_dev.copy_(input_ids_cpu)
         self.input_ids = input_ids_dev
@@ -1896,9 +1911,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         per_layer_attn_metadata = dict.fromkeys(
             self._attention_layer_names, attn_metadata
         )
+        if self.uses_mrope:
+            position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
         with (
-            torch_dynamo_tt_device_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([num_tokens], dtype=np.int32)
             ),
@@ -2064,8 +2080,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.enable_tensor_parallel:
                 safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
 
-            with torch_dynamo_tt_device_compatibility():
-                self.select_hidden_states(dummy_hidden, indices)
+            self.select_hidden_states(dummy_hidden, indices)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2085,8 +2100,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if self.enable_tensor_parallel and self.is_sharded_compute_logits:
             safe_mark_sharding(dummy_hidden, self.mesh, (None, None))
 
-        with torch_dynamo_tt_device_compatibility():
-            self.compute_logits(dummy_hidden)
+        self.compute_logits(dummy_hidden)
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2115,13 +2129,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # mark_dynamic because some operations in structured_decode require
         # them to be static.
         bitmasks = self.structured_decode_bitmasks.to(self.device)
-        with torch_dynamo_tt_device_compatibility():
-            self.structured_decode(
-                dummy_require_struct_decoding,
-                dummy_grammar_bitmask,
-                dummy_logits,
-                bitmasks,
-            )
+        self.structured_decode(
+            dummy_require_struct_decoding,
+            dummy_grammar_bitmask,
+            dummy_logits,
+            bitmasks,
+        )
 
         xm.wait_device_ops()
         end = time.perf_counter()
@@ -2154,7 +2167,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             sampling_metadata.all_greedy = all_greedy
             with (
-                torch_dynamo_tt_device_compatibility(),
                 self.maybe_select_dummy_loras(
                     self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
                 ),
@@ -2188,7 +2200,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self.device
         )
         with (
-            torch_dynamo_tt_device_compatibility(),
             self.maybe_select_dummy_loras(
                 self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
             ),
