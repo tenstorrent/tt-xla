@@ -201,6 +201,7 @@ class DiscoveryEntry:
     benchmark_family: str
     model_identity: str
     artifact_slug: str
+    source_branch: str = ""
 
 
 @dataclass
@@ -671,6 +672,7 @@ def discovery_entry_from_nvidia_row(
         benchmark_family=RUNNER_TORCH_INFERENCE_FAMILY,
         model_identity=str(display_name),
         artifact_slug=slugify(nodeid),
+        source_branch=str(row.get("source_branch") or "").strip(),
     )
 
 
@@ -739,6 +741,140 @@ def collect_runner_models_for_nvidia_cohort(
         f"collected {len(entries)} TT runner nodes before NVIDIA cohort filtering"
     )
     return entries, result
+
+
+def source_branch_for_entries(entries: list[DiscoveryEntry]) -> str:
+    branches = {entry.source_branch for entry in entries if entry.source_branch}
+    if len(branches) == 1:
+        return next(iter(branches))
+    return ""
+
+
+def checkout_nvidia_source_branch(
+    repo: Path,
+    source_branch: str,
+    run_id: str,
+    command_trace_path: Path,
+    timeout_seconds: int,
+) -> list[CommandResult]:
+    if not source_branch:
+        return []
+    models_repo = repo / "third_party" / "tt_forge_models"
+    tmp_dir = ensure_dir(repo / ".tmp" / "ttxla-profile-discovery")
+    safe_branch = slugify(source_branch)
+    fetch = run_subprocess(
+        command=["git", "fetch", "origin", source_branch],
+        cwd=models_repo,
+        stdout_path=tmp_dir / f"fetch-{safe_branch}-{run_id}.out",
+        stderr_path=tmp_dir / f"fetch-{safe_branch}-{run_id}.err",
+        stage="checkout-nvidia-source-branch-fetch",
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+    )
+    if not fetch.ok:
+        fetch.note = f"failed to fetch tt_forge_models source_branch={source_branch}"
+        append_command_trace(command_trace_path, fetch)
+        return [fetch]
+    checkout = run_subprocess(
+        command=["git", "checkout", "--force", "FETCH_HEAD"],
+        cwd=models_repo,
+        stdout_path=tmp_dir / f"checkout-{safe_branch}-{run_id}.out",
+        stderr_path=tmp_dir / f"checkout-{safe_branch}-{run_id}.err",
+        stage="checkout-nvidia-source-branch",
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+    )
+    checkout.note = f"checked out tt_forge_models source_branch={source_branch}"
+    append_command_trace(command_trace_path, checkout)
+    return [fetch, checkout]
+
+
+def checkout_nvidia_source_branch_for_entries(
+    repo: Path,
+    entries: list[DiscoveryEntry],
+    run_id: str,
+    command_trace_path: Path,
+    timeout_seconds: int,
+) -> list[CommandResult]:
+    source_branch = source_branch_for_entries(entries)
+    if not source_branch:
+        return []
+    return checkout_nvidia_source_branch(
+        repo=repo,
+        source_branch=source_branch,
+        run_id=run_id,
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def collect_nvidia_entries_by_source_branch(
+    repo: Path,
+    run_id: str,
+    python_bin: str,
+    command_trace_path: Path,
+    timeout_seconds: int,
+    candidate_entries: list[DiscoveryEntry],
+) -> tuple[list[DiscoveryEntry], list[DiscoveryEntry], int, int]:
+    selected_entries: list[DiscoveryEntry] = []
+    collected_entries: list[DiscoveryEntry] = []
+    failed_checkouts = 0
+    failed_collections = 0
+    branch_groups: dict[str, list[DiscoveryEntry]] = defaultdict(list)
+    for entry in candidate_entries:
+        branch_groups[entry.source_branch].append(entry)
+    for branch_index, branch_entries in enumerate(branch_groups.values(), 1):
+        branch_run_id = f"{run_id}-branch-{branch_index:04d}"
+        checkout_results = checkout_nvidia_source_branch_for_entries(
+            repo=repo,
+            entries=branch_entries,
+            run_id=branch_run_id,
+            command_trace_path=command_trace_path,
+            timeout_seconds=timeout_seconds,
+        )
+        if any(not result.ok for result in checkout_results):
+            failed_checkouts += 1
+            continue
+        branch_collected, branch_result = collect_runner_models_for_nvidia_cohort(
+            repo=repo,
+            run_id=branch_run_id,
+            python_bin=python_bin,
+            command_trace_path=command_trace_path,
+            timeout_seconds=timeout_seconds,
+        )
+        if not branch_result.ok:
+            failed_collections += 1
+            continue
+        branch_collected_nodeids = {entry.nodeid for entry in branch_collected}
+        selected_entries.extend(
+            entry
+            for entry in branch_entries
+            if entry.nodeid in branch_collected_nodeids
+        )
+        collected_entries.extend(branch_collected)
+    return selected_entries, collected_entries, failed_checkouts, failed_collections
+
+
+def collect_nvidia_entries_from_current_source(
+    repo: Path,
+    run_id: str,
+    python_bin: str,
+    command_trace_path: Path,
+    timeout_seconds: int,
+    candidate_entries: list[DiscoveryEntry],
+) -> tuple[list[DiscoveryEntry], list[DiscoveryEntry], CommandResult]:
+    collected_entries, discovery_result = collect_runner_models_for_nvidia_cohort(
+        repo=repo,
+        run_id=run_id,
+        python_bin=python_bin,
+        command_trace_path=command_trace_path,
+        timeout_seconds=timeout_seconds,
+    )
+    collected_nodeids = {entry.nodeid for entry in collected_entries}
+    selected_entries = [
+        entry for entry in candidate_entries if entry.nodeid in collected_nodeids
+    ]
+    return selected_entries, collected_entries, discovery_result
 
 
 def nvidia_missing_entries(
@@ -830,6 +966,7 @@ def select_nvidia_cohort_entries(
     command_trace_path: Path,
     timeout_seconds: int,
     validate_collection: bool,
+    source_branch_checkout: bool,
 ) -> tuple[list[DiscoveryEntry], CommandResult]:
     candidate_entries = load_nvidia_cohort_entries(cohort_path, run_id)
     if not validate_collection:
@@ -847,23 +984,46 @@ def select_nvidia_cohort_entries(
         )
         return candidate_entries, discovery_result
 
-    collected_entries, discovery_result = collect_runner_models_for_nvidia_cohort(
-        repo=repo,
-        run_id=run_id,
-        python_bin=python_bin,
-        command_trace_path=command_trace_path,
-        timeout_seconds=timeout_seconds,
-    )
-    collected_nodeids = {entry.nodeid for entry in collected_entries}
-    selected_entries = [
-        entry for entry in candidate_entries if entry.nodeid in collected_nodeids
-    ]
-    missing_count = len(candidate_entries) - len(selected_entries)
-    discovery_result.note = (
-        f"validated {len(selected_entries)} of {len(candidate_entries)} "
-        f"NVIDIA/SILICON_PASS cohort rows against TT runner collection; "
-        f"{missing_count} rows were not collected"
-    )
+    if source_branch_checkout:
+        selected_entries, collected_entries, failed_checkouts, failed_collections = (
+            collect_nvidia_entries_by_source_branch(
+                repo=repo,
+                run_id=run_id,
+                python_bin=python_bin,
+                command_trace_path=command_trace_path,
+                timeout_seconds=timeout_seconds,
+                candidate_entries=candidate_entries,
+            )
+        )
+        discovery_result = nvidia_cohort_discovery_result(
+            repo, cohort_path, candidate_entries
+        )
+        if failed_checkouts or failed_collections:
+            discovery_result.returncode = 4
+        discovery_result.note = (
+            f"validated {len(selected_entries)} of {len(candidate_entries)} "
+            "NVIDIA/SILICON_PASS cohort rows with per-source-branch "
+            f"tt_forge_models checkout; {failed_checkouts} branch checkout "
+            f"command(s) failed; {failed_collections} branch collection "
+            "command(s) failed"
+        )
+    else:
+        selected_entries, collected_entries, discovery_result = (
+            collect_nvidia_entries_from_current_source(
+                repo=repo,
+                run_id=run_id,
+                python_bin=python_bin,
+                command_trace_path=command_trace_path,
+                timeout_seconds=timeout_seconds,
+                candidate_entries=candidate_entries,
+            )
+        )
+        missing_count = len(candidate_entries) - len(selected_entries)
+        discovery_result.note = (
+            f"validated {len(selected_entries)} of {len(candidate_entries)} "
+            f"NVIDIA/SILICON_PASS cohort rows against TT runner collection; "
+            f"{missing_count} rows were not collected"
+        )
     write_nvidia_cohort_mapping(
         run_dir,
         cohort_path,
@@ -3804,6 +3964,7 @@ def discover_selected_entries(
             command_trace_path=context.command_trace_path,
             timeout_seconds=args.discovery_timeout_seconds,
             validate_collection=not args.nvidia_skip_collection_validation,
+            source_branch_checkout=args.nvidia_source_branch_checkout,
         )
         return (
             select_discovery_entries(entries, args.nodeid_filter, args.max_models),
@@ -3882,6 +4043,26 @@ def profile_selected_entries(
                 ),
             )
             continue
+        if args.nvidia_source_branch_checkout and entry.source_branch:
+            checkout_results = checkout_nvidia_source_branch(
+                repo=context.root,
+                source_branch=entry.source_branch,
+                run_id=entry.run_identity,
+                command_trace_path=context.command_trace_path,
+                timeout_seconds=args.discovery_timeout_seconds,
+            )
+            if any(not result.ok for result in checkout_results):
+                write_unprofiled_model_status(
+                    entry=entry,
+                    repo=context.root,
+                    run_dir=context.run_dir,
+                    taxonomy=TAXONOMY_PIPELINE_ERROR,
+                    reason=(
+                        "tt_forge_models source_branch checkout failed before "
+                        "profiling started"
+                    ),
+                )
+                continue
         profile_one_model(
             entry=entry,
             repo=context.root,
@@ -4067,6 +4248,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--nvidia-source-branch-checkout",
+        action="store_true",
+        help=(
+            "For NVIDIA/SILICON_PASS cohort rows that include source_branch, "
+            "checkout that tt_forge_models branch before collection and before "
+            "profiling each row. This reproduces Nick's branch-pinned bringup "
+            "pipeline behavior."
+        ),
+    )
+    parser.add_argument(
         "--nodeid-filter",
         action="append",
         default=[],
@@ -4223,6 +4414,7 @@ def execute_discover_command(args: argparse.Namespace) -> int:
             command_trace_path=command_trace_path,
             timeout_seconds=args.discovery_timeout_seconds,
             validate_collection=not args.nvidia_skip_collection_validation,
+            source_branch_checkout=args.nvidia_source_branch_checkout,
         )
     else:
         entries, discovery_result = discover_models(
@@ -4245,6 +4437,8 @@ def execute_discover_command(args: argparse.Namespace) -> int:
     )
     print(f"manifest: {run_dir / 'manifest.json'}")
     print(f"model-manifest: {run_dir / 'model-manifest.json'}")
+    if discovery_result.returncode not in (0, None) and not entries:
+        return 2
     return 0
 
 

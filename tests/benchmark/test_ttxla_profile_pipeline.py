@@ -259,6 +259,68 @@ def test_benchmark_args_route_batch_size_to_encoder_and_jax():
     assert pipeline.benchmark_args_for_entry(jax, kwargs) == ["--batch-size", "1"]
 
 
+def test_load_nvidia_cohort_entries_preserves_source_branch(tmp_path):
+    pipeline = load_pipeline_module()
+    cohort = tmp_path / "cohort.json"
+    cohort.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "test_case_id": "distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad",
+                        "source_branch": "arch-c-36-tt-xla-dev/nsmith/hf-bringup-5",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    entries = pipeline.load_nvidia_cohort_entries(cohort, "run-5009-demo")
+
+    assert len(entries) == 1
+    assert entries[0].source_branch == "arch-c-36-tt-xla-dev/nsmith/hf-bringup-5"
+
+
+def test_checkout_nvidia_source_branch_uses_fetch_head(tmp_path):
+    pipeline = load_pipeline_module()
+    repo = tmp_path / "repo"
+    models_repo = repo / "third_party" / "tt_forge_models"
+    pipeline.ensure_dir(models_repo)
+    commands = []
+
+    def fake_run_subprocess(**kwargs):
+        commands.append(kwargs["command"])
+        return pipeline.CommandResult(
+            stage=kwargs["stage"],
+            command=kwargs["command"],
+            cwd=str(kwargs["cwd"]),
+            returncode=0,
+            timed_out=False,
+            start_time="2026-06-01T00:00:00+00:00",
+            end_time="2026-06-01T00:00:01+00:00",
+            duration_seconds=1.0,
+            stdout_path=str(kwargs["stdout_path"]),
+            stderr_path=str(kwargs["stderr_path"]),
+        )
+
+    pipeline.run_subprocess = fake_run_subprocess
+
+    results = pipeline.checkout_nvidia_source_branch(
+        repo=repo,
+        source_branch="arch-c-36-tt-xla-dev/nsmith/hf-bringup-5",
+        run_id="run-5009-demo",
+        command_trace_path=tmp_path / "command-trace.jsonl",
+        timeout_seconds=30,
+    )
+
+    assert len(results) == 2
+    assert commands == [
+        ["git", "fetch", "origin", "arch-c-36-tt-xla-dev/nsmith/hf-bringup-5"],
+        ["git", "checkout", "--force", "FETCH_HEAD"],
+    ]
+
+
 def test_clean_module_cache_removes_stale_compiled_modules(tmp_path):
     pipeline = load_pipeline_module()
     stale_module = tmp_path / "modules" / "bert" / "module.vmfb"
@@ -735,6 +797,66 @@ def test_nvidia_cohort_collection_validation_records_missing_rows(tmp_path):
         "tests/runner/test_models.py::test_all_models_torch"
         "[data2vec_text/feature_extraction/pytorch-Tiny_Random-single_device-inference]"
     )
+
+
+def test_discover_command_fails_when_collection_fails_without_selected_rows(
+    tmp_path, monkeypatch
+):
+    pipeline = load_pipeline_module()
+    cohort_path = tmp_path / "cohort.json"
+    run_dir = tmp_path / "run-5009-cohort-collection-failed"
+    cohort_path.write_text(
+        json.dumps(
+            {
+                "models": [
+                    {
+                        "test_case_id": "distilbert/question_answering/pytorch-Base_Cased_Distilled_Squad",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_collect_runner_models_for_nvidia_cohort(**kwargs):
+        return [], pipeline.CommandResult(
+            stage="discover-nvidia-runner",
+            command=["python", "-m", "pytest", "--collect-only"],
+            cwd=str(tmp_path),
+            returncode=4,
+            timed_out=False,
+            start_time="2026-06-01T00:00:00+00:00",
+            end_time="2026-06-01T00:00:01+00:00",
+            duration_seconds=1.0,
+            stdout_path=str(tmp_path / "collect.out"),
+            stderr_path=str(tmp_path / "collect.err"),
+            note="collection failed",
+        )
+
+    monkeypatch.setattr(
+        pipeline,
+        "collect_runner_models_for_nvidia_cohort",
+        fake_collect_runner_models_for_nvidia_cohort,
+    )
+
+    exit_code = pipeline.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--run-dir",
+            str(run_dir),
+            "--nvidia-cohort-json",
+            str(cohort_path),
+            "discover",
+        ]
+    )
+
+    manifest = json.loads((run_dir / "manifest.json").read_text())
+    mapping = json.loads((run_dir / "nvidia-cohort-mapping.json").read_text())
+
+    assert exit_code == 2
+    assert manifest["discovery"]["returncode"] == 4
+    assert mapping["counts"]["selected_rows"] == 0
 
 
 def test_nvidia_cohort_skip_collection_validation_keeps_synthetic_rows(tmp_path):
