@@ -20,11 +20,17 @@ from loguru import logger
 from PIL import Image
 from utils import BringupStatus, Category, ModelGroup
 
-from third_party.tt_forge_models.stable_diffusion_1_5.pytorch.pipeline import (
-    SD15Config,
-    SD15Pipeline,
-    save_image,
+# The SD1.5 pipeline implementation lands via a tt_forge_models submodule uplift
+# (tt-forge-models#720), which is intentionally not bumped in this PR. Until that
+# uplift, importorskip skips this module at collection time so it doesn't break
+# `pytest --collect-only` on tests/torch; the test runs once the pipeline is present.
+_sd15_pipeline = pytest.importorskip(
+    "third_party.tt_forge_models.stable_diffusion_1_5.pytorch.pipeline",
+    reason="SD1.5 pipeline pending tt_forge_models uplift (tt-forge-models#720)",
 )
+SD15Config = _sd15_pipeline.SD15Config
+SD15Pipeline = _sd15_pipeline.SD15Pipeline
+save_image = _sd15_pipeline.save_image
 
 PROMPT = "a photo of a cat"
 NEGATIVE_PROMPT = ""
