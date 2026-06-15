@@ -252,7 +252,7 @@ void GlobalClientInstanceSingleton::destroyClient() {
 }
 
 GlobalClientInstanceSingleton &GlobalClientInstanceSingleton::getInstance() {
-  static GlobalClientInstanceSingleton singleton =
+  static thread_local GlobalClientInstanceSingleton singleton =
       GlobalClientInstanceSingleton(nullptr);
   return singleton;
 }
