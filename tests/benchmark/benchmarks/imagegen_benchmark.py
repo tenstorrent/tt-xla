@@ -10,15 +10,14 @@ logic. Diffusion pipelines don't fit the single-forward vision harness — each
 generation is a multi-step denoising loop — so this harness uses a two-pass
 scheme:
 
-  - Pass 1 (cold): the first ``generate()`` call; the heavy net (UNet /
-    transformer) compiles on its first forward, so this pass includes compile
-    time.
-  - Pass 2 (warm): a second ``generate()`` call; every forward is a cache hit.
-    This is the steady-state pass whose image is saved and whose latency drives
-    the reported throughput.
+  - Pass 1 (warmup): a single-step ``generate()`` call — enough to trigger
+    the first-forward compile of every component.
+  - Pass 2 (steady-state): a full ``generate(num_inference_steps)`` call;
+    every forward is a cache hit. This is the pass whose image is saved and
+    whose latency drives the reported throughput.
 
 Per-model wiring provides a ``build_pipeline_fn`` that returns
-``(pipeline, generate_fn, save_fn)``; this module sets the XLA compile options,
+``(pipeline, generate_fn)``; this module sets the XLA compile options,
 builds the pipeline (which compiles the heavy net for TT), runs the two passes
 and emits a standardized benchmark result.
 """
@@ -34,6 +33,7 @@ from utils import (
     get_benchmark_metadata,
     get_xla_device_arch,
     print_benchmark_results,
+    save_image,
 )
 
 xr.set_device_type("TT")
@@ -57,11 +57,11 @@ def benchmark_imagegen_torch_xla(
     """Benchmark a text-to-image diffusion pipeline on the TT backend.
 
     Args:
-        build_pipeline_fn: Callable returning ``(pipeline, generate_fn, save_fn)``.
-            ``generate_fn(num_inference_steps) -> image tensor (B, 3, H, W)`` runs
-            one full text-to-image generation. ``save_fn(image, path)`` writes the
-            decoded image (may be ``None`` to skip saving). The heavy net is
-            expected to already be compiled for / moved to TT inside this call.
+        build_pipeline_fn: ``build_pipeline_fn(compile_options) -> (pipeline, generate_fn)``.
+            ``compile_options`` is forwarded so the pipeline can merge instead
+            of overwriting if it needs to switch any option inline.
+            ``generate_fn(prompt, num_inference_steps) -> image tensor (B, 3, H, W)``
+            runs one full text-to-image generation.
         model_info_name: Model name for identification and reporting.
         prompt: Text prompt to generate from.
         num_inference_steps: Number of denoising steps per generation.
@@ -70,7 +70,7 @@ def benchmark_imagegen_torch_xla(
         trace_enabled: Whether to enable tracing.
         ttnn_perf_metrics_output_file: Base path for TTNN perf metrics files.
         display_name: Display name used for export naming / dashboard.
-        output_image_path: If set, the warm-pass image is saved here.
+        output_image_path: If set, the steady-state image is saved here.
 
     Returns:
         Standardized benchmark result dict (see ``create_benchmark_result``).
@@ -94,33 +94,48 @@ def benchmark_imagegen_torch_xla(
 
     # Build + compile the pipeline (heavy net registers the "tt" backend and is
     # moved to the XLA device here; actual kernel compilation happens lazily on
-    # the first forward, i.e. during the cold pass below).
-    pipeline, generate_fn, save_fn = build_pipeline_fn()
+    # the first forward, i.e. during the warmup pass below).
+    pipeline, generate_fn = build_pipeline_fn(options)
 
-    # Pass 1 (cold): first generation, includes first-forward compile.
-    print("Starting cold pass (includes compile)...")
-    cold_start = time.perf_counter()
-    generate_fn(num_inference_steps)
-    cold_time = time.perf_counter() - cold_start
-    print(f"Cold pass: {cold_time:.3f}s")
+    # Pass 1 (warmup): 1 step is enough to trigger the first-forward compile
+    # of every component.
+    print("Starting warmup pass (includes compile)...")
+    warmup_start = time.perf_counter()
+    generate_fn(prompt, 1)
+    warmup_time = time.perf_counter() - warmup_start
+    print(f"Warmup pass: {warmup_time:.3f}s")
 
-    # Pass 2 (warm): steady-state generation; this image is the saved one.
-    print("Starting warm pass (steady-state)...")
-    warm_start = time.perf_counter()
-    warm_image = generate_fn(num_inference_steps)
-    warm_time = time.perf_counter() - warm_start
-    print(f"Warm pass: {warm_time:.3f}s")
+    # Pass 2 (steady-state): steady-state generation; this image is the saved one.
+    print("Starting steady-state pass...")
+    steady_state_start = time.perf_counter()
+    steady_state_image = generate_fn(prompt, num_inference_steps)
+    steady_state_time = time.perf_counter() - steady_state_start
+    print(f"Steady-state pass: {steady_state_time:.3f}s")
 
-    if output_image_path is not None and save_fn is not None:
-        save_fn(warm_image, output_image_path)
+    if output_image_path is not None:
+        save_image(steady_state_image, output_image_path)
         print(f"Saved output image to {output_image_path}")
 
-    # Throughput is reported on the steady-state (warm) pass. One image per run.
+    # Throughput is reported on the steady-state pass. One image per run.
     total_samples = 1
-    samples_per_sec = total_samples / warm_time
-    per_step_latency_ms = (warm_time / num_inference_steps) * 1000.0
-    # First-forward compile overhead, approximated as the cold/warm delta.
-    compile_time = max(0.0, cold_time - warm_time)
+    samples_per_sec = total_samples / steady_state_time
+
+    # Per-component forward+sync times from the pipeline's own instrumentation
+    # (steady-state pass). The schema is model-agnostic so the same harness
+    # serves every image-gen pipeline:
+    #   _perf = {
+    #       "components": {<name>: seconds, ...},   # scalar per-stage times
+    #       "steps": [seconds, ...],                # per heavy-net-step times
+    #       "step_metric_name": "unet_step" | "transformer_step",
+    #       "total": seconds,                       # full generate() wall time
+    #   }
+    perf = pipeline._perf
+    components = perf["components"]
+    steps = perf["steps"]
+    step_metric_name = perf["step_metric_name"]
+    step_mean_s = sum(steps) / len(steps) if steps else 0.0
+    tt_components_total = sum(components.values()) + sum(steps)
+    cpu_overhead = max(0.0, perf["total"] - tt_components_total)
 
     metadata = get_benchmark_metadata()
     full_model_name = model_info_name
@@ -135,7 +150,7 @@ def benchmark_imagegen_torch_xla(
         dataset_name=dataset_name,
         date=metadata["date"],
         machine_name=metadata["machine_name"],
-        total_time=warm_time,
+        total_time=steady_state_time,
         total_samples=total_samples,
         samples_per_sec=samples_per_sec,
         evaluation_score=0.0,
@@ -143,18 +158,26 @@ def benchmark_imagegen_torch_xla(
         data_format="bfloat16",
         input_size=input_size,
     )
+    component_lines = "".join(
+        f"|   {name} (s):  {value:.3f}\n" for name, value in components.items()
+    )
     print(
         f"| Num inference steps: {num_inference_steps}\n"
-        f"| Per-step latency (ms): {per_step_latency_ms:.3f}\n"
-        f"| Compile time (cold-warm) (s): {compile_time:.3f}"
+        f"| Steady-state:\n"
+        f"{component_lines}"
+        f"|   {step_metric_name} mean (s):  {step_mean_s:.3f}\n"
+        f"|   CPU overhead (s):    {cpu_overhead:.3f}"
     )
 
     custom_measurements = [
         {"measurement_name": "images_per_second", "value": samples_per_sec},
-        {"measurement_name": "e2e_latency", "value": warm_time},
-        {"measurement_name": "per_step_latency_ms", "value": per_step_latency_ms},
-        {"measurement_name": "compile_time", "value": compile_time},
+        {"measurement_name": "e2e_latency", "value": steady_state_time},
+        {"measurement_name": f"{step_metric_name}_mean_s", "value": step_mean_s},
+        {"measurement_name": "cpu_overhead_s", "value": cpu_overhead},
     ]
+    # One measurement per scalar component (e.g. text_encoder_1_s, vae_s).
+    for name, value in components.items():
+        custom_measurements.append({"measurement_name": f"{name}_s", "value": value})
 
     result = create_benchmark_result(
         full_model_name=full_model_name,
@@ -165,7 +188,7 @@ def benchmark_imagegen_torch_xla(
         input_size=input_size,
         loop_count=num_inference_steps,
         data_format="bfloat16",
-        total_time=warm_time,
+        total_time=steady_state_time,
         total_samples=total_samples,
         evaluation_score=0.0,
         custom_measurements=custom_measurements,

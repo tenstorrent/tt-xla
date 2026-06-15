@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Playground v2.5 — end-to-end TT pipeline example.
+"""Playground v2.5 — nightly e2e pipeline test.
 
 Each nn.Module component (text_encoder, text_encoder_2, unet, vae) can be
 independently moved to Tenstorrent via
@@ -14,14 +14,17 @@ the call site of each nn component.
 from pathlib import Path
 from typing import Optional
 
+import pytest
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from diffusers import EDMDPMSolverMultistepScheduler
+from infra import RunMode
 from loguru import logger
 from PIL import Image
 from transformers import CLIPTokenizer
+from utils import BringupStatus, Category, ModelGroup
 
 from third_party.tt_forge_models.playground_v2_5.pytorch import (
     ModelLoader,
@@ -387,6 +390,25 @@ def run_playground_v25_pipeline(
     return output_path
 
 
+@pytest.mark.xfail(
+    reason=(
+        "VAE compile TT_FATAL during warmup (cores harvested / device_hash mismatch), "
+        "possibly due to recent uplift — "
+        "https://github.com/tenstorrent/tt-xla/issues/5176"
+    ),
+    strict=False,
+)
+@pytest.mark.nightly
+@pytest.mark.model_test
+@pytest.mark.single_device
+@pytest.mark.large
+@pytest.mark.record_test_properties(
+    category=Category.MODEL_TEST,
+    model_name="PlaygroundV2_5_Pipeline",
+    model_group=ModelGroup.RED,
+    run_mode=RunMode.INFERENCE,
+    bringup_status=BringupStatus.PASSED,
+)
 def test_playground_v25_pipeline():
     """Run the full Playground v2.5 pipeline with all components on TT."""
     xr.set_device_type("TT")
@@ -409,7 +431,3 @@ def test_playground_v25_pipeline():
         assert height == HEIGHT, f"Expected height {HEIGHT}, got {height}"
 
     logger.info(f"Output image saved to {output_path} ({width}x{height})")
-
-
-if __name__ == "__main__":
-    test_playground_v25_pipeline()

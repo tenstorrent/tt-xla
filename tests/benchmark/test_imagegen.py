@@ -4,33 +4,28 @@
 
 """Text-to-image (diffusion) benchmarks.
 
-Config-driven entry points (one ``test_<model>`` per model) that reuse the
-end-to-end pipelines from ``tt_forge_models`` and drive them through the shared
-two-pass harness in ``benchmarks/imagegen_benchmark.py``. This mirrors the
-``test_vision.py`` / ``vision_benchmark.py`` split: model-specific config lives
-here, the reusable measurement logic lives in ``benchmarks/``.
-
-Each model runs the heavy net (UNet / MMDiT transformer) on TT and keeps the
-precision-sensitive text encoders, scheduler and VAE on CPU.
+Config-driven entry points (one ``test_<model>`` per model) that drive
+per-model pipelines through the shared harness in
+``benchmarks/imagegen_benchmark.py``. This mirrors the ``test_vision.py`` /
+``vision_benchmark.py`` split: model-specific config lives here, the reusable
+measurement logic lives in ``benchmarks/``.
 """
 
 import json
 
+import pytest
 from benchmarks.imagegen_benchmark import benchmark_imagegen_torch_xla
 from third_party.tt_forge_models.bria_2_3.pytorch.pipeline import (
     Bria23Config,
     Bria23Pipeline,
-    save_image as save_bria_image,
 )
 from third_party.tt_forge_models.stable_diffusion_1_5.pytorch.pipeline import (
     SD15Config,
     SD15Pipeline,
-    save_image as save_sd15_image,
 )
 from third_party.tt_forge_models.stable_diffusion_3.pytorch.pipeline import (
     SD3Config,
     SD3Pipeline,
-    save_image as save_sd3_image,
 )
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
 
@@ -56,7 +51,7 @@ def test_imagegen(
     """Run a text-to-image benchmark with the given configuration.
 
     Args:
-        build_pipeline_fn: Callable returning ``(pipeline, generate_fn, save_fn)``;
+        build_pipeline_fn: Callable returning ``(pipeline, generate_fn)``;
             see ``benchmark_imagegen_torch_xla``.
         model_info_name: Model name for identification and reporting.
         output_file: Path to save benchmark results as JSON.
@@ -65,7 +60,7 @@ def test_imagegen(
         height, width: Output image dimensions.
         optimization_level: Optimization level (0, 1, or 2).
         trace_enabled: Enable trace.
-        output_image_path: If set, the warm-pass image is saved here.
+        output_image_path: If set, the steady-state image is saved here.
     """
     resolved_display_name = resolve_display_name(
         request=request, fallback=model_info_name
@@ -107,18 +102,73 @@ def test_imagegen(
             json.dump(results, file, indent=2)
 
 
+@pytest.mark.xfail(
+    reason=(
+        "VAE compile TT_FATAL during warmup (cores harvested / device_hash mismatch), "
+        "possibly due to recent uplift — "
+        "https://github.com/tenstorrent/tt-xla/issues/5176"
+    ),
+    strict=False,
+)
+def test_playground_v2_5(output_file, request):
+    from benchmarks.playground_v2_5_pipeline import (
+        PlaygroundV25Config,
+        PlaygroundV25Pipeline,
+    )
+
+    prompt = "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
+    num_inference_steps = 50
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        # All 4 components on TT. compile_options forwarded into Config so the
+        # VAE-only opt_level switch can merge instead of clobbering.
+        pipeline = PlaygroundV25Pipeline(
+            config=PlaygroundV25Config(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                negative_prompt=None,
+                cfg_scale=3.0,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="playground-v2.5",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        # opt_level=0 for text encoders + UNet (text_encoder 1 hits
+        # "Unsupported buffer type" at opt_level=1). VAE switches to
+        # opt_level=1 inline (and resets after) because GroupNorm
+        # decomposition at opt_level=0 OOMs the VAE.
+        optimization_level=0,
+        output_image_path="test_playground_v2_5_output.png",
+    )
+
+
 def test_stable_diffusion_1_5(output_file, request):
     prompt = "a photo of a cat"
     num_inference_steps = 50
     height = width = 512
 
-    def build_pipeline_fn():
-        # CLIP on CPU (precision-sensitive); UNet on TT. Matches the example's
-        # validated configuration.
+    def build_pipeline_fn(compile_options):
+        # Heavy net (UNet) on TT; precision-sensitive CLIP, scheduler and VAE on
+        # CPU. compile_options is already applied globally by the harness.
         pipeline = SD15Pipeline(config=SD15Config(device="cpu", clip_on_tt=False))
         pipeline.setup()
 
-        def generate_fn(steps):
+        def generate_fn(prompt, steps):
             return pipeline.generate(
                 prompt=prompt,
                 negative_prompt="",
@@ -127,7 +177,7 @@ def test_stable_diffusion_1_5(output_file, request):
                 seed=DEFAULT_SEED,
             )
 
-        return pipeline, generate_fn, save_sd15_image
+        return pipeline, generate_fn
 
     test_imagegen(
         build_pipeline_fn=build_pipeline_fn,
@@ -147,11 +197,13 @@ def test_stable_diffusion_3(output_file, request):
     num_inference_steps = 28
     height = width = 1024
 
-    def build_pipeline_fn():
+    def build_pipeline_fn(compile_options):
+        # Heavy net (MMDiT transformer) on TT; the three text encoders,
+        # scheduler and VAE on CPU.
         pipeline = SD3Pipeline(config=SD3Config(device="cpu"))
         pipeline.setup()
 
-        def generate_fn(steps):
+        def generate_fn(prompt, steps):
             return pipeline.generate(
                 prompt=prompt,
                 negative_prompt="",
@@ -160,7 +212,7 @@ def test_stable_diffusion_3(output_file, request):
                 seed=DEFAULT_SEED,
             )
 
-        return pipeline, generate_fn, save_sd3_image
+        return pipeline, generate_fn
 
     test_imagegen(
         build_pipeline_fn=build_pipeline_fn,
@@ -183,11 +235,13 @@ def test_bria_2_3(output_file, request):
     num_inference_steps = 50
     height = width = 1024
 
-    def build_pipeline_fn():
+    def build_pipeline_fn(compile_options):
+        # Heavy net (SDXL-class UNet) on TT; the two CLIP text encoders,
+        # scheduler and VAE on CPU.
         pipeline = Bria23Pipeline(config=Bria23Config(device="cpu"))
         pipeline.setup()
 
-        def generate_fn(steps):
+        def generate_fn(prompt, steps):
             return pipeline.generate(
                 prompt=prompt,
                 negative_prompt="",
@@ -196,7 +250,7 @@ def test_bria_2_3(output_file, request):
                 seed=DEFAULT_SEED,
             )
 
-        return pipeline, generate_fn, save_bria_image
+        return pipeline, generate_fn
 
     test_imagegen(
         build_pipeline_fn=build_pipeline_fn,

@@ -120,18 +120,6 @@ def test_tensor_parallel_generation_llmbox_large(
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "sdpa_decode tree-reduction limit (max 64 cores/head) exceeded after the "
-        "QKV sharding axis swap to ('model', 'batch') in this PR. With kv_heads=8 "
-        "split 8-way on galaxy_wh_6u's (4, 8) mesh model axis, each device gets "
-        "1 KV head and the kernel allocates the full 72-core grid to it. Fixed "
-        "in tt-metal by #44617 (L1-safe defaults for paged SDPA decode, "
-        "max_cores_per_head_batch=1). Remove this xfail once tt-mlir uplifts "
-        "past tt-metal 5cd3b7a (open uplift PRs: tt-mlir #8484, #8597)."
-    ),
-)
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
     [pytest.param("mistralai/Mistral-Large-Instruct-2411", True, "bfp_bf8", True)],

@@ -64,6 +64,7 @@ def setup_model_and_tokenizer(
     Args:
         model_loader: Loader of the HuggingFace model.
         model_variant: Specific variant of the model.
+        expert_implementation: Expert implementation type
 
     Returns:
         Tuple of (model, tokenizer)
@@ -293,7 +294,7 @@ def benchmark_llm_torch_xla(
         accuracy_testing: Whether to perform token accuracy testing
         model_name_for_accuracy: Model name for .refpt file lookup (required if accuracy_testing=True)
         hf_model_name_for_accuracy: Full HuggingFace model name for on-demand .refpt generation
-
+        expert_implementation: Expert implementation type
     Returns:
         Benchmark result containing token generation performance metrics and model information
     """

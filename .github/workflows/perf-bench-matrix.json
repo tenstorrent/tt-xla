@@ -63,6 +63,10 @@
         "pytest": "tests/benchmark/test_vision.py::test_vovnet"
       },
       {
+        "name": "playground_v2_5",
+        "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5"
+      },
+      {
         "name": "stable_diffusion_1_5",
         "pytest": "tests/benchmark/test_imagegen.py::test_stable_diffusion_1_5"
       },
@@ -177,11 +181,6 @@
       {
         "name": "gpt_oss_20b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "gpt_oss_20b_tp_d2m",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_d2m",
         "runs-on": "n300-llmbox"
       },
       {
@@ -354,8 +353,18 @@
         "pytest": "tests/benchmark/test_encoders.py::test_unet_for_conditional_generation"
       },
       {
+        "name": "deepseek_v3_1_tp_galaxy_4_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_1_tp_galaxy_4_layers",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
         "name": "deepseek_v3_2_exp_tp_galaxy_2_layers",
         "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_2_exp_tp_galaxy_2_layers",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
+        "name": "glm_4_7_tp_galaxy_4_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_glm_4_7_tp_galaxy_4_layers",
         "runs-on": "galaxy-wh-6u"
       },
       {
