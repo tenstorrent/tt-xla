@@ -29,6 +29,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    clamp_neg_slice_bounds,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
@@ -71,6 +72,13 @@ def torch_pass_pipeline(
         strict=False,
     )
     program = program.run_decompositions(decompositions)
+
+    # Clamp out-of-range negative slice start/end bounds to -dim_size (CPU
+    # __getitem__ semantics) on the exported graph, where nodes still carry shape
+    # meta (program.module() drops it). XLA's strict aten.slice otherwise rejects
+    # them. In torch_pass_pipeline so both legacy and experimental paths get it.
+    # Refs: tt-xla #5199.
+    clamp_neg_slice_bounds(program.graph_module)
 
     compiled_graph = program.module()
     # When torch.compile traces a model, it flattens the module hierarchy and
