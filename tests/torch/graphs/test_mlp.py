@@ -644,6 +644,7 @@ def test_gpt_oss_sparse_mlp_small_batch(decode_batch, decode_seq_len, arch):
 
 
 @pytest.mark.nightly
+@pytest.mark.single_device
 def test_a2a_sparse_mlp_cpu_parity():
     """Verify A2aSparseMLP produces the same results as the original MLP on CPU.
 
