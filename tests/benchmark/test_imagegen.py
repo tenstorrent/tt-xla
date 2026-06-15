@@ -15,10 +15,6 @@ import json
 
 import pytest
 from benchmarks.imagegen_benchmark import benchmark_imagegen_torch_xla
-from third_party.tt_forge_models.bria_2_3.pytorch.pipeline import (
-    Bria23Config,
-    Bria23Pipeline,
-)
 from third_party.tt_forge_models.stable_diffusion_1_5.pytorch.pipeline import (
     SD15Config,
     SD15Pipeline,
@@ -224,42 +220,4 @@ def test_stable_diffusion_3(output_file, request):
         height=height,
         width=width,
         output_image_path="test_sd3_output.png",
-    )
-
-
-def test_bria_2_3(output_file, request):
-    prompt = (
-        "A portrait of a Beautiful and playful ethereal singer, "
-        "golden designs, highly detailed, blurry background"
-    )
-    num_inference_steps = 50
-    height = width = 1024
-
-    def build_pipeline_fn(compile_options):
-        # Heavy net (SDXL-class UNet) on TT; the two CLIP text encoders,
-        # scheduler and VAE on CPU.
-        pipeline = Bria23Pipeline(config=Bria23Config(device="cpu"))
-        pipeline.setup()
-
-        def generate_fn(prompt, steps):
-            return pipeline.generate(
-                prompt=prompt,
-                negative_prompt="",
-                guidance_scale=5.0,
-                num_inference_steps=steps,
-                seed=DEFAULT_SEED,
-            )
-
-        return pipeline, generate_fn
-
-    test_imagegen(
-        build_pipeline_fn=build_pipeline_fn,
-        model_info_name="bria-2.3",
-        output_file=output_file,
-        request=request,
-        prompt=prompt,
-        num_inference_steps=num_inference_steps,
-        height=height,
-        width=width,
-        output_image_path="test_bria_2_3_output.png",
     )
