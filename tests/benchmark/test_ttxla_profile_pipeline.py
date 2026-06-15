@@ -221,6 +221,40 @@ def test_run_tt_perf_report_uses_raw_device_csv_as_slow_ops_fallback(tmp_path):
     assert paths.perf_input.exists()
 
 
+def test_run_tt_perf_report_uses_tracy_ops_times_as_slow_ops_fallback(tmp_path):
+    pipeline = load_pipeline_module()
+    entry = sample_discovery_entry(pipeline)
+    paths = pipeline.profile_paths(tmp_path, entry)
+    raw_csv = paths.trace_dir / ".logs" / "tracy_ops_times.csv"
+    pipeline.ensure_dir(raw_csv.parent)
+    raw_csv.write_text(
+        "name,src_file,src_line,zone_name,zone_text,ns_since_start,exec_time_ns,thread,special_parent_text\n"
+        "CompileProgram,tt_metal.cpp,1092,,,,4418009945,7,\n"
+        "ProfilerSync,tt_metal_profiler.cpp,589,,,,8041388838,4,\n",
+        encoding="utf-8",
+    )
+
+    outcome = pipeline.run_tt_perf_report(
+        repo=tmp_path,
+        paths=paths,
+        tt_perf_report_bin="definitely-not-needed",
+        command_trace_path=tmp_path / "command-trace.jsonl",
+        timeout_seconds=5,
+    )
+    pipeline.write_slow_ops_payload(paths, "distilbert", entry, outcome)
+
+    payload = json.loads(paths.slow_ops_path.read_text(encoding="utf-8"))
+    assert not outcome.ok
+    assert "raw Tracy CSV" in outcome.reason
+    assert outcome.csv_source == raw_csv
+    assert paths.perf_input.exists()
+    assert payload["summary"]["row_count"] == 2
+    assert payload["rows"][0]["op_name"] == "ProfilerSync"
+    assert payload["rows"][0]["op_type"] == "unknown-type"
+    assert payload["rows"][0]["duration_us"] == 8041388.838
+    assert payload["rows"][0]["duration_source"] == "exec_time_ns"
+
+
 def test_benchmark_args_route_batch_size_to_encoder_and_jax():
     pipeline = load_pipeline_module()
     kwargs = {

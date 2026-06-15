@@ -41,6 +41,7 @@ PERF_REPORT_CSV_PATTERNS = (
     "ops_perf_results_*.csv",
     "ops_perf_results.csv",
     "cpp_device_perf_report.csv",
+    "tracy_ops_times.csv",
 )
 TT_PERF_REPORT_CSV_PATTERNS = (
     "ops_perf_results_*.csv",
@@ -170,6 +171,7 @@ CSV_DURATION_ALIASES = (
     "DEVICE FW DURATION [ns]",
     "DEVICE KERNEL DURATION [ns]",
     "HOST DURATION [ns]",
+    "exec_time_ns",
     "duration_us",
     "duration_ms",
     "duration_ns",
@@ -1893,7 +1895,7 @@ def run_tt_perf_report(
             ok=False,
             reason=(
                 "no tt-perf-report-compatible ops CSV was produced by Tracy; "
-                "slow-op rows were parsed from the raw device CSV"
+                "slow-op rows were parsed from a raw Tracy CSV"
             ),
             command=[],
             csv_source=slow_ops_csv_source,
