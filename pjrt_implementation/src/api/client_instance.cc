@@ -642,6 +642,7 @@ ClientInstance::openMeshDevice(const std::vector<uint32_t> &mesh_shape) {
 
 void ClientInstance::closeParentMesh() {
   if (m_parent_mesh.has_value()) {
+    closeLiveSubmeshes();
     DLOG_F(LOG_DEBUG, "Closing parent mesh.");
     tt::runtime::closeMeshDevice(*m_parent_mesh);
     m_parent_mesh.reset();
@@ -649,6 +650,40 @@ void ClientInstance::closeParentMesh() {
   }
 }
 
+tt::runtime::Device ClientInstance::getOrCreateSubmesh(
+    const std::vector<uint32_t> &parent_mesh_shape,
+    const std::vector<uint32_t> &submesh_shape,
+    const std::vector<uint32_t> &submesh_offset) {
+  // Ensure the parent mesh is open with the expected shape. If it already is
+  // (the common case - the parent is opened once in populateDevices), this
+  // reuses it without a close+reopen, so existing live submeshes survive.
+  getOrCreateMeshDevice(parent_mesh_shape);
+
+  auto it = m_live_submeshes.find(submesh_offset);
+  if (it != m_live_submeshes.end()) {
+    DLOG_F(LOG_DEBUG,
+           "ClientInstance::getOrCreateSubmesh - reusing submesh at offset %s",
+           utils::to_string(submesh_offset).c_str());
+    return it->second;
+  }
+
+  DLOG_F(
+      LOG_DEBUG,
+      "ClientInstance::getOrCreateSubmesh - creating submesh %s at offset %s",
+      utils::to_string(submesh_shape).c_str(),
+      utils::to_string(submesh_offset).c_str());
+  tt::runtime::Device submesh = tt::runtime::createSubMeshDevice(
+      *m_parent_mesh, submesh_shape, submesh_offset);
+  m_live_submeshes.emplace(submesh_offset, submesh);
+  return submesh;
+}
+
+void ClientInstance::closeLiveSubmeshes() {
+  for (auto &entry : m_live_submeshes) {
+    tt::runtime::releaseSubMeshDevice(entry.second);
+  }
+  m_live_submeshes.clear();
+}
 namespace internal {
 
 PJRT_Error *onClientCreate(PJRT_Client_Create_Args *args) {

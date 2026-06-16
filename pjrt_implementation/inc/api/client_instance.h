@@ -15,6 +15,7 @@
 
 // c++ standard library includes
 #include <cstdlib>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -149,6 +150,20 @@ public:
   // Closes currently opened parrent mesh device.
   void closeParentMesh();
 
+  // Pipeline-parallel: returns a live submesh of submesh_shape at submesh_offset
+  // within the parent mesh (of parent_mesh_shape), creating and caching it on
+  // first use. Unlike getOrCreateMeshDevice, this keeps multiple submeshes (and
+  // the parent) open concurrently instead of close+reopen, so two stages can run
+  // on disjoint submeshes. See plans/pipeline-parallel-basic.
+  //
+  // NOTE: not thread-safe (sequential execution only for now).
+  tt::runtime::Device
+  getOrCreateSubmesh(const std::vector<uint32_t> &parent_mesh_shape,
+                     const std::vector<uint32_t> &submesh_shape,
+                     const std::vector<uint32_t> &submesh_offset);
+
+  // Releases all live pipeline submeshes (before closing the parent mesh).
+  void closeLiveSubmeshes();
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
       const PJRT_Program *mlir_program,
@@ -212,6 +227,10 @@ private:
   // Fabric config computed for the current mesh device.
   std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
 
+  // Live pipeline-parallel submeshes carved from m_parent_mesh, keyed by offset
+  // within the parent (row-major). Kept open concurrently for multi-stage
+  // execution. See plans/pipeline-parallel-basic.
+  std::map<std::vector<uint32_t>, tt::runtime::Device> m_live_submeshes;
   // Used to identify the platform.
   const std::string m_platform_name = "tt";
 

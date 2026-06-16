@@ -11,6 +11,7 @@
 #include "api/loaded_executable_instance.h"
 
 // c++ standard library includes
+#include <algorithm>
 #include <filesystem>
 #include <mutex>
 #include <numeric>
@@ -131,6 +132,23 @@ LoadedExecutableInstance::getOrCreateMeshDevice(
   // offset. We need to keep track of opened devices in Client and map the
   // buffers devices to these devices.
   // https://github.com/tenstorrent/tt-xla/issues/502
+
+  // Pipeline-parallel: when this executable targets a strict subset of the
+  // client's devices (a stage), carve/keep a live submesh of the parent instead
+  // of reshaping the parent mesh (which would close any other stage's submesh).
+  // The parent is opened row-major as [1, N] in populateDevices, so a stage on
+  // device k is the submesh of shape devices_mesh_shape at offset {0, k}.
+  // See plans/pipeline-parallel-basic.
+  size_t total_devices = m_client_instance->getAddressableDevicesRaw().size();
+  if (mesh_shape_num_devices < total_devices) {
+    std::vector<uint32_t> parent_shape = {
+        1, static_cast<uint32_t>(total_devices)};
+    uint32_t min_device_id = static_cast<uint32_t>(
+        *std::min_element(device_ids.begin(), device_ids.end()));
+    std::vector<uint32_t> submesh_offset = {0, min_device_id};
+    return m_client_instance->getOrCreateSubmesh(
+        parent_shape, devices_mesh_shape, submesh_offset);
+  }
 
   return m_client_instance->getOrCreateMeshDevice(devices_mesh_shape);
 }
