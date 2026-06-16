@@ -191,6 +191,9 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
+  tt::runtime::WorkerDebugStats worker_debug_stats = tt::runtime::getWorkerDebugStats();
+  LOG_F(INFO, "Worker debug stats before getInputRuntimeTensors: %s", worker_debug_stats.to_string().c_str());
+
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
   tt_pjrt_status status = getInputRuntimeTensors(
@@ -199,7 +202,10 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
+  
 
+  tt::runtime::WorkerDebugStats worker_debug_stats = tt::runtime::getWorkerDebugStats();
+  LOG_F(INFO, "Worker debug stats after getInputRuntimeTensors: %s", worker_debug_stats.to_string().c_str());
   if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
