@@ -25,8 +25,6 @@ def test_tensor_parallel_generation_n300(model_name: str):
             "enable_const_eval": False,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
-            "num_hidden_layers": 1,
-            "enable_decode_fused_graphs": True,
         },
     }
     llm = vllm.LLM(**llm_args)

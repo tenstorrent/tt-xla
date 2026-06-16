@@ -1585,7 +1585,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def sample_tokens(
         self, grammar_output: "GrammarOutput | None"
     ) -> ModelRunnerOutput:
-        logger.info(f"sample_tokens called with grammar_output")
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
