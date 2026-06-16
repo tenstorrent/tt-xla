@@ -78,6 +78,7 @@ def upsample_linear(
     align_corners: bool,
     scales: List[Optional[float]],
 ) -> torch.Tensor:
+    scales = list(scales)
     input_size = input.shape[-len(scales) :]
 
     for i in range(len(scales)):
@@ -408,12 +409,76 @@ def _get_default_decomposition_ops() -> DecompositionOpsList:
     ]
 
 
+def nll_loss_backward_no_scatter(
+    grad_output: torch.Tensor,
+    self: torch.Tensor,
+    target: torch.Tensor,
+    weight: Optional[torch.Tensor],
+    reduction: int,
+    ignore_index: int,
+    total_weight: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Decompose nll_loss_backward without ``torch.scatter``.
+
+    The default PyTorch decomposition in
+    ``torch._decomp.decompositions._nll_loss_backward`` materialises the
+    gradient via ``torch.scatter(zeros_like(self), channel_dim, target, -1.0)``.
+    When that scatter is lowered through tt-mlir, the multi-dim form is
+    flattened to a 1D scatter on the ``<B*V>`` flat buffer followed by a
+    reshape back to ``<B, V>``.  The intermediate ``<B*V, 1>`` tile-layout
+    conversion pads the trailing 1 dim to a full 32-wide tile, inflating
+    the buffer by 32x (3 GB for GPT-OSS's V=201088) and exceeding per-chip
+    DRAM under AOTAutograd memory pressure.
+    An alternative approach would be to commute reshapes and other operations
+    around scatter to avoid the pathological shapes, however the simplest case
+    runs into metal L1 OOMs. More robust fix will take time to implement.
+
+    Rewriting the scatter as ``-1.0 * one_hot(target, V)`` keeps everything
+    in the natural ``<..., V>`` shape (both dims tile-aligned for typical
+    vocab sizes), so the IR no longer contains the pathological flat
+    scatter or the trailing ``<N, 1>`` tilize.
+
+    Mirrors the structure of ``_nll_loss_backward`` (Reduction enum from
+    ``torch._decomp.decompositions``: NONE=0, MEAN=1, SUM=2).
+    """
+    MEAN = 1
+    channel_dim = 0 if self.dim() < 2 else 1
+    if reduction == MEAN:
+        grad_output = grad_output / total_weight
+
+    V = self.shape[channel_dim]
+    target = target.unsqueeze(channel_dim)
+    safe_target = torch.where(target != ignore_index, target, 0)
+
+    arange_shape = [1] * self.dim()
+    arange_shape[channel_dim] = V
+    arange = torch.arange(V, device=self.device, dtype=torch.int64).view(arange_shape)
+    one_hot = (arange == safe_target.to(torch.int64)).to(self.dtype)
+    grad_input = -one_hot
+
+    if grad_input.dim() > grad_output.dim() > 0:
+        grad_output = grad_output.unsqueeze(channel_dim)
+
+    if weight is not None:
+        new_shape = [1 for _ in range(self.dim())]
+        new_shape[channel_dim] = weight.shape[0]
+        weight = weight.reshape(new_shape)
+        grad_output = grad_output * weight
+
+    grad_output = torch.where(
+        target != ignore_index, grad_output, torch.zeros_like(grad_output)
+    )
+
+    return grad_input * grad_output
+
+
 def _get_custom_decompositions() -> DecompositionTable:
     aten = torch.ops.aten
     return {
         aten.copy.default: copy_default,
         aten.matmul.default: matmul,
-        aten.dot.default: dot,
+        aten.nll_loss_backward.default: nll_loss_backward_no_scatter,
         # Interpolation decompositions here perform interpolation
         # using a series of matmuls against constant tensors.
         # They are necessary as the default aten decompositions
@@ -456,10 +521,24 @@ def populate_decompositions() -> DecompositionTable:
     # We add a custom decomposition of mm -> einsum. For this reason, remove einsum decomposition.
     decompositions.pop(torch.ops.aten.einsum.default)
 
-    # Dot product gets lowered to stablehlo.multiply, returning eltwise product
-    # of two tensors: https://github.com/tenstorrent/tt-xla/issues/2672
-    # A custom decomposition dot->matmul is added later (ref dot fn).
+    # Torch decomposition for dot results in a multiply rather than a matmul
+    # https://github.com/tenstorrent/tt-xla/issues/2672
+    # TorchXLA handles dot correctly anyway, so we don't need to decompose it.
     decompositions.pop(torch.ops.aten.dot.default)
+
+    # Sum decompositions were causing a different shape to appear for final reduced loss in a backward test([18] vs [])
+    # And subsequently caused shape mismatch errors in the backward pass.
+    # Same story as above, TorchXLA handles sum correctly anyway, so we don't need to decompose it.
+    decompositions.pop(torch.ops.aten.sum.default)
+    decompositions.pop(torch.ops.aten.sum.out)
+
+    # The core decomposition for aten.detach rewrites it as aten.alias. AOTAutograd
+    # inserts detach() around saved-for-backward tensors as markers; rewriting them
+    # to alias() (a view) confuses the downstream FunctionalTensor / torch-xla
+    # extract_compiled_graph machinery under SPMD multichip and causes user outputs
+    # to be mapped to the wrong tensors (loss/logits resolve to attention
+    # intermediates). Keep detach as a no-op aten op instead.
+    decompositions.pop(torch.ops.aten.detach.default)
 
     decompositions.update(get_decompositions(_get_default_decomposition_ops()))
     decompositions.update(_get_custom_decompositions())
