@@ -237,15 +237,16 @@ class XLAExecutor:
                 output = interp.run(*args)
         else:
             output = self.module(*args)
+
+        if self.lazy_execution:
+            return output
+
         gm_has_functional_output_kind: bool = True
 
         for el in self.signature.output_specs:
             if el.kind is not OutputKind.USER_OUTPUT:
                 gm_has_functional_output_kind = False
                 break
-
-        if self.lazy_execution:
-            return output
 
         if gm_has_functional_output_kind:
             # This tells torch-xla to cut the graph at only what is required to
