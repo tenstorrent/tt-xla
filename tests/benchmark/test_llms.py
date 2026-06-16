@@ -2588,7 +2588,7 @@ def test_gpt_oss_20b_tp_qb2(
 def _deepseek_v3_1_shard_spec_fn(model_loader, model):
     """Sharding specs for DeepSeek V3.1 on 4x8 galaxy mesh with TP 8, DP 4, EP 32."""
     from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
-    
+
     shard_specs = {}
 
     shard_specs[model.model.embed_tokens.weight] = (None, "model")
