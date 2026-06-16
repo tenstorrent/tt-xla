@@ -372,23 +372,34 @@ jobs:
     - name: Collect Tests
       id: collect-tests
       shell: bash
+      env:
+        TIMEOUT_OVERRIDE: ${{ matrix.build.timeout }}
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
         python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} |& tee collected_tests.txt
 
-        # Check if any collected tests have notimeout marker
-        NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
-        if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
-          echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
-          ESTIMATED_DURATION=240
+        if [[ -n "$TIMEOUT_OVERRIDE" ]]; then
+          # Honor a per-job fixed timeout (minutes) from the test matrix preset,
+          # bypassing the duration-based estimate. Used when the duration-based
+          # estimate is unusable (e.g. tests missing from .test_durations, or a
+          # long outlier test that inflates the 3x safety margin).
+          echo "Using per-job timeout override of $TIMEOUT_OVERRIDE minutes"
+          ESTIMATED_DURATION=$TIMEOUT_OVERRIDE
         else
-          SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
-            --collected-output collected_tests.txt \
-            --durations-file .test_durations \
-            --default-timeout 240)
-          echo "$SCRIPT_OUTPUT"
-          ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+          # Check if any collected tests have notimeout marker
+          NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
+          if [[ "$NOTIMEOUT_COUNT" -gt 0 ]]; then
+            echo "Found $NOTIMEOUT_COUNT tests with notimeout marker, using default timeout of 240 minutes"
+            ESTIMATED_DURATION=240
+          else
+            SCRIPT_OUTPUT=$(python .github/scripts/calculate_test_timeout.py \
+              --collected-output collected_tests.txt \
+              --durations-file .test_durations \
+              --default-timeout 240)
+            echo "$SCRIPT_OUTPUT"
+            ESTIMATED_DURATION=$(echo "$SCRIPT_OUTPUT" | tail -n 1)
+          fi
         fi
 
         echo "Estimated duration: $ESTIMATED_DURATION minutes"
