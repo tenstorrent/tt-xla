@@ -244,7 +244,6 @@ class XLAExecutor:
                 gm_has_functional_output_kind = False
                 break
 
-
         if self.lazy_execution:
             return output
 
@@ -296,7 +295,9 @@ def fw_compiler(
         if "tt_lazy_execution" in options:
             lazy_execution = bool(options["tt_lazy_execution"])
 
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile, lazy_execution)
+    return XLAExecutor(
+        module, graph_signature, node_info, legacy_compile, lazy_execution
+    )
 
 
 def aot_backend(
