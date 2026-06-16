@@ -1497,7 +1497,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def sample_tokens(
         self, grammar_output: "GrammarOutput | None"
     ) -> ModelRunnerOutput:
-        logger.info(f"sample_tokens called with grammar_output")
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
@@ -1555,7 +1554,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
             torch_xla.sync(wait=False)
 
-            # Decode path
             if self.tt_config.cpu_sampling:
                 hidden_states, logits, selected_token_ids, kv_connector_output = (
                     self._model_unfused(
@@ -2113,6 +2111,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         ]
 
         for config in configs:
+            logger.info(f"Compiling graph for config={config}")
             (
                 dummy_inputs,
                 dummy_positions,
@@ -2141,7 +2140,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 )
                 self._update_num_xla_graphs("_model_decode")
             else:
-                logger.info(f"Compiling prefill path with config={config}")
                 _, _, _, _ = self._model_prefill(
                     dummy_inputs,
                     dummy_positions,
@@ -2346,9 +2344,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         and postprocessing is compiled separately.
         This will produce 1 model forward graph and 4 postprocessing graphs
         (for each combination of greedy/non-greedy sampling and grammar/no-grammar)
-         for each input tokens.
+        for each input lenght.
         Separate compilation is used because compiling combined graphs significantly
         increase the warmup time.
+        This path is always used for prefill and is also used for decode if
+        enable_decode_fused_graphs=False.
         """
         with (
             set_forward_context(
