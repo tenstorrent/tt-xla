@@ -115,6 +115,7 @@ class XLAExecutor:
         signature: torch.export.ExportGraphSignature,
         node_info: dict[str, str],
         legacy_compile_enabled: bool,
+        lazy_execution: bool = False,
     ):
         self.module = module
         self.signature = signature
@@ -136,6 +137,7 @@ class XLAExecutor:
         self.legacy_compile_enabled = legacy_compile_enabled
         self.params_and_consts = None
         self.compiled_graph = None
+        self.lazy_execution = lazy_execution
 
     # Extract the param and consts from the exported program.
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
@@ -242,6 +244,10 @@ class XLAExecutor:
                 gm_has_functional_output_kind = False
                 break
 
+
+        if self.lazy_execution:
+            return output
+
         if gm_has_functional_output_kind:
             # This tells torch-xla to cut the graph at only what is required to
             # compute all tensors in the `output` list.
@@ -277,6 +283,7 @@ def fw_compiler(
     )
 
     legacy_compile = False
+    lazy_execution = False
     if options:
         if "tt_experimental_compile" in options:
             print(
@@ -286,8 +293,10 @@ def fw_compiler(
             legacy_compile = not bool(options["tt_experimental_compile"])
         if "tt_legacy_compile" in options:
             legacy_compile = bool(options["tt_legacy_compile"])
+        if "tt_lazy_execution" in options:
+            lazy_execution = bool(options["tt_lazy_execution"])
 
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile)
+    return XLAExecutor(module, graph_signature, node_info, legacy_compile, lazy_execution)
 
 
 def aot_backend(
