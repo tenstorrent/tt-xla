@@ -50,3 +50,12 @@ tests/benchmark/reference_outputs/*.refpt
 
 # Tracy profiling files
 /tracy_artifacts/
+
+# FLUX.2 bring-up local artifacts (do NOT commit — .flux_env.sh holds an HF token)
+.flux_env.sh
+/tmp/
+/generated/
+/build_log.log
+/tt_snap*.json
+/flux_updated_logs/*.log
+/flux_updated_logs/*.out

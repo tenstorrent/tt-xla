@@ -14,20 +14,20 @@ from infra.utilities.torch_multichip_utils import get_mesh
 from third_party.tt_forge_models.flux2.pytorch import ModelLoader, ModelVariant
 
 
-@pytest.mark.skip(
-    reason="~24B text encoder — exceeds single-chip DRAM; use test_text_encoder_sharded on 8+ chips"
-)
+# @pytest.mark.skip(
+#     reason="~24B text encoder — exceeds single-chip DRAM; use test_text_encoder_sharded on 8+ chips"
+# )
 @pytest.mark.single_device
 @pytest.mark.model_test
 def test_text_encoder():
     _run(sharded=False)
 
 
-@pytest.mark.xfail(
-    reason="PCC comparison failed: calculated pcc=0.9684 vs required 0.99. "
-    "Sharded Mistral3 text encoder compiles and runs end-to-end on 8 chips; "
-    "remaining gap is numerical accuracy. Tracking issue TBD."
-)
+# @pytest.mark.xfail(
+#     reason="PCC comparison failed: calculated pcc=0.9684 vs required 0.99. "
+#     "Sharded Mistral3 text encoder compiles and runs end-to-end on 8 chips; "
+#     "remaining gap is numerical accuracy. Tracking issue TBD."
+# )
 @pytest.mark.tensor_parallel
 @pytest.mark.nightly
 @pytest.mark.model_test
