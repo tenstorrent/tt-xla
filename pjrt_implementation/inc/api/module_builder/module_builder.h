@@ -200,6 +200,8 @@ private:
   tt_pjrt_status runCompilerStableHLOPipeline(
       mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
       const std::vector<int64_t> &result_presharded,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings,
       const std::optional<std::string> &export_path,
       const std::string &model_name = "",
       const std::optional<std::vector<uint32_t>> &current_mesh_shape =
