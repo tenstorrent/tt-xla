@@ -7,6 +7,7 @@
 
 // c++ standard library includes
 #include <algorithm>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -30,7 +31,50 @@
 namespace tt::pjrt {
 namespace {
 
-std::string serializeDebugStatsMap(const tt::runtime::DebugStatsMap &stats) {
+std::string serializeJsonString(const std::string &value) {
+  std::stringstream ss;
+  ss << "\"";
+
+  for (unsigned char c : value) {
+    switch (c) {
+    case '"':
+      ss << "\\\"";
+      break;
+    case '\\':
+      ss << "\\\\";
+      break;
+    case '\b':
+      ss << "\\b";
+      break;
+    case '\f':
+      ss << "\\f";
+      break;
+    case '\n':
+      ss << "\\n";
+      break;
+    case '\r':
+      ss << "\\r";
+      break;
+    case '\t':
+      ss << "\\t";
+      break;
+    default:
+      if (c < 0x20) {
+        ss << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+           << static_cast<int>(c) << std::dec;
+      } else {
+        ss << c;
+      }
+      break;
+    }
+  }
+
+  ss << "\"";
+  return ss.str();
+}
+
+std::string serializeDebugStatsMapToJson(
+    const tt::runtime::DebugStatsMap &stats) {
   std::stringstream ss;
   ss << "{";
 
@@ -47,15 +91,15 @@ std::string serializeDebugStatsMap(const tt::runtime::DebugStatsMap &stats) {
       ss << ", ";
     }
 
-    ss << stat_name << ": " << stats.at(stat_name);
+    ss << serializeJsonString(stat_name) << ": " << stats.at(stat_name);
   }
 
   ss << "}";
   return ss.str();
 }
 
-std::string
-serializeWorkerDebugStats(const tt::runtime::WorkerDebugStats &worker_stats) {
+std::string serializeWorkerDebugStatsToJson(
+    const tt::runtime::WorkerDebugStats &worker_stats) {
   std::stringstream ss;
   ss << "[";
 
@@ -67,24 +111,31 @@ serializeWorkerDebugStats(const tt::runtime::WorkerDebugStats &worker_stats) {
       ss << ", ";
     }
 
-    ss << "{hostname=\"" << entry.hostname
-       << "\", stats=" << serializeDebugStatsMap(entry.stats) << "}";
+    ss << "{\"hostname\": " << serializeJsonString(entry.hostname)
+       << ", \"stats\": " << serializeDebugStatsMapToJson(entry.stats) << "}";
   }
 
   ss << "]";
   return ss.str();
 }
 
-void logRuntimeDebugStats(const char *location) {
+std::string serializeRuntimeDebugStatsToJson(const char *location) {
   tt::runtime::DebugStatsMap controller_stats =
       tt::runtime::debug::Stats::get().getAllStats();
   tt::runtime::WorkerDebugStats worker_stats =
       tt::runtime::getWorkerDebugStats();
 
-  std::string controller_stats_str = serializeDebugStatsMap(controller_stats);
-  std::string worker_stats_str = serializeWorkerDebugStats(worker_stats);
-  LOG_F(INFO, "Debug stats %s: controller=%s, workers=%s", location,
-        controller_stats_str.c_str(), worker_stats_str.c_str());
+  std::stringstream ss;
+  ss << "{\"location\": " << serializeJsonString(location)
+     << ", \"controller\": " << serializeDebugStatsMapToJson(controller_stats)
+     << ", \"workers\": " << serializeWorkerDebugStatsToJson(worker_stats)
+     << "}";
+  return ss.str();
+}
+
+void logRuntimeDebugStats(const char *location) {
+  std::string debug_stats_json = serializeRuntimeDebugStatsToJson(location);
+  LOG_F(INFO, "Debug stats: %s", debug_stats_json.c_str());
 }
 
 } // namespace
