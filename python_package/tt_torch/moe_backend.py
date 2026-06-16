@@ -71,6 +71,42 @@ def _mesh_info() -> Tuple[int, int, Tuple[int, ...], int]:
     return total, dispatch, mesh_shape, ax
 
 
+def moe_expert_parallel_devices(mesh: Any = None) -> int:
+    """Number of devices the experts are sharded across for expert parallelism,
+    or ``1`` when experts should be replicated (the dense path).
+
+    Expert parallelism is viable whenever the mesh spans more than one device
+    *and* has a cluster (EP) axis larger than one to dispatch over — this is
+    true for a genuine 2D mesh (e.g. ``(2, 4)``) **and** for a 1D / degenerate
+    mesh such as ``(1, 8)`` (cluster axis = the size-8 ``"model"`` axis). Returns
+    the *total* device count, because ``_expert_mapping`` distributes experts
+    across every device; ``all_to_all_dispatch`` then communicates over the
+    cluster axis. ``1`` means single-device / dense (replicate experts).
+
+    The caller must still confirm ``num_experts`` is divisible by the returned
+    count before sharding / taking the EP path. ``partition_fused_moe`` (weight
+    sharding) and ``TTFusedMoE.forward_native`` (compute) share this single
+    decision so the two can never disagree — a mismatch would either replicate
+    weights while the kernel expects shards, or vice versa.
+
+    Pass ``mesh`` explicitly (e.g. from the sharding pass, which has the mesh in
+    hand) to avoid depending on the global mesh being set; defaults to the
+    torch_xla global SPMD mesh.
+    """
+    if mesh is None:
+        total, dispatch, _, _ = _mesh_info()
+    else:
+        mesh_shape = tuple(int(d) for d in mesh.mesh_shape)
+        total = 1
+        for d in mesh_shape:
+            total *= d
+        ax = _resolve_cluster_axis(mesh)
+        dispatch = mesh_shape[ax] if 0 <= ax < len(mesh_shape) else 1
+    if total <= 1 or dispatch <= 1:
+        return 1
+    return total
+
+
 def _as_sparse_matmul_weight(weight: torch.Tensor, is_transposed: bool) -> torch.Tensor:
     """Reshape weight to `[1, E, in, out]` for `sparse_matmul`."""
     if is_transposed:

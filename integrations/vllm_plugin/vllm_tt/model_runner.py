@@ -2615,69 +2615,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("gather_logprobs")
 
-<<<<<<< HEAD
-=======
-    def _precompile_decode_postprocess(self) -> None:
-        torch._dynamo.config.dynamic_shapes = False
-        logger.info("Compiling decode_postprocess with different input shapes.")
-        start = time.perf_counter()
-        hsize = self.model_config.get_hidden_size()
-        # decode always processes exactly 1 token per request, so only num_tokens=1
-        # is needed here. Prefill batches (num_tokens > 1) use the cpu-sample fallback.
-        for num_tokens in [1]:
-            for all_greedy in [False, True]:
-                logger.info(
-                    "  -- num_tokens: %d, all_greedy: %s", num_tokens, all_greedy
-                )
-                # Fresh tensors per iteration — reusing across SPMD compilations
-                # causes stale tensor IDs that misclassify inputs as constants
-                # (#3672). For decode_postprocess this previously caused the
-                # structured-decode masking branch to be elided on the second
-                # compile, so real grammar bitmasks were ignored at runtime.
-                dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
-                    self.device
-                )
-                dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(
-                    self.device
-                )
-                bitmasks = self.structured_decode_bitmasks.to(self.device)
-                indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
-                    self.device
-                )
-                dummy_hidden = torch.zeros(
-                    (self.max_num_reqs, num_tokens, hsize),
-                    dtype=self._hidden_states_dtype,
-                ).to(self.device)
-                if self.enable_tensor_parallel and self.use_2d_mesh:
-                    # Match select_hidden_states precompile + model.forward output
-                    # ("batch"-axis hidden).
-                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
-                sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
-                    self.input_batch,
-                    self.max_num_reqs,
-                    self.device,
-                    not all_greedy,
-                    vocab_size=self.vocab_size,
-                )
-                sampling_metadata.all_greedy = all_greedy
-                with self.maybe_select_dummy_loras(
-                    self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
-                ):
-                    _, _ = self.decode_postprocess(
-                        dummy_hidden,
-                        indices,
-                        sampling_metadata,
-                        dummy_require,
-                        dummy_bitmask,
-                        bitmasks,
-                    )
-
-        xm.wait_device_ops()
-        end = time.perf_counter()
-        logger.info("Compilation finished in %.2f [secs].", end - start)
-        self._update_num_xla_graphs("decode_postprocess")
-
->>>>>>> ddfcab20b (Add Gemma-4 26B-A4B MoE support for vLLM on 2D mesh)
     def capture_model(self) -> None:
         """
         Precompile all the subgraphs with possible input shapes.

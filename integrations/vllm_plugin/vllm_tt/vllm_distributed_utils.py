@@ -311,16 +311,25 @@ def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Modul
     """Fully shard FusedMoE expert weights along the expert dimension (dim 0).
 
     vLLM stacks experts as ``w13_weight`` [E, 2*I, H] and ``w2_weight``
-    [E, H, I]. TTFusedMoE only takes the expert-parallel (tt_experts_forward)
-    path on a genuine 2D mesh (both axes > 1), where experts are distributed
-    across *all* devices via a compound sharding over both axes (e.g. (2,2) ->
-    4-way split of E). On a 1D / degenerate / single-chip mesh TTFusedMoE uses
-    the dense bmm path, which needs the full expert set on every device, so
-    leave the expert weights replicated (mirrors the is_2d guard in
-    layers/fused_moe.py)."""
-    mesh_shape = tuple(int(d) for d in mesh.mesh_shape)
-    if not (len(mesh_shape) == 2 and all(d > 1 for d in mesh_shape)):
-        logger.debug("Skipping expert sharding for %s on non-2D mesh", layer)
+    [E, H, I]. We shard E across *all* mesh devices via a compound sharding over
+    every axis (e.g. (1,8) or (2,4) -> 8-way split of E), matching the
+    expert-parallel ``tt_experts_forward`` path. The decision to shard vs.
+    replicate is shared with ``TTFusedMoE.forward_native`` through
+    ``moe_expert_parallel_devices`` so the on-device weight layout always
+    matches the kernel: a true single-chip mesh (or a model whose expert count
+    isn't divisible by the device count) keeps the experts replicated for the
+    dense bmm path."""
+    from tt_torch.moe_backend import moe_expert_parallel_devices
+
+    ep_devices = moe_expert_parallel_devices(mesh)
+    num_experts = getattr(layer, "global_num_experts", None)
+    if ep_devices <= 1 or num_experts is None or num_experts % ep_devices != 0:
+        logger.debug(
+            "Skipping expert sharding for %s (ep_devices=%s, num_experts=%s)",
+            layer,
+            ep_devices,
+            num_experts,
+        )
         return layer
     expert_axis = tuple(mesh.axis_names)
     for name in ("w13_weight", "w2_weight"):
@@ -341,6 +350,11 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
         ("FusedMoE", partition_fused_moe),
         ("TTFusedMoE", partition_fused_moe),
+        # DeepSeek-style shared+routed MoE; expert weights live in the same
+        # w13_weight / w2_weight tensors, so the FusedMoE partitioner applies
+        # unchanged (no-op on a 1D / single-chip mesh, expert-dim shard on 2D).
+        ("SharedFusedMoE", partition_fused_moe),
+        ("TTSharedFusedMoE", partition_fused_moe),
     ]
 )
 

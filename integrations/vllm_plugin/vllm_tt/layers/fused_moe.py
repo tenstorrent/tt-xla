@@ -26,6 +26,7 @@ import torch.nn.functional as F
 from vllm.model_executor.custom_op import CustomOp
 from vllm.model_executor.layers.fused_moe.activation import MoEActivation
 from vllm.model_executor.layers.fused_moe.layer import FusedMoE
+from vllm.model_executor.layers.fused_moe.shared_fused_moe import SharedFusedMoE
 
 
 @CustomOp.register_oot(name="FusedMoE")
@@ -66,7 +67,7 @@ class TTFusedMoE(FusedMoE):
     def forward_native(self, hidden_states, router_logits):
         # Lazy import keeps tt_torch.moe_backend out of the import-time cycle.
         from tt_torch import tt_dense_experts_forward, tt_experts_forward
-        from tt_torch.moe_backend import _mesh_info
+        from tt_torch.moe_backend import moe_expert_parallel_devices
 
         orig_shape = hidden_states.shape
         h_flat = hidden_states.view(-1, orig_shape[-1])
@@ -87,13 +88,49 @@ class TTFusedMoE(FusedMoE):
                 topk_weights = topk_weights / renorm
 
         topk_weights = topk_weights.to(h_flat.dtype)
-        # Expert-parallel tt-moe is only valid on a genuine 2D mesh (both axes
-        # > 1), where partition_fused_moe shards the experts across the mesh.
-        # On 1D / degenerate (1, N) / single-chip meshes, use dense bmm.
-        _, _, mesh_shape, _ = _mesh_info()
-        is_2d_mesh = len(mesh_shape) == 2 and all(d > 1 for d in mesh_shape)
-        if is_2d_mesh:
+        # Expert-parallel tt-moe runs whenever the experts are sharded across
+        # the mesh (any mesh with an EP axis > 1, including a 1D (1, N) mesh).
+        # partition_fused_moe shards the expert weights under the *same*
+        # decision, so the kernel always matches the on-device weight layout.
+        # Only a true single-chip mesh falls back to the dense (replicated) bmm.
+        ep_devices = moe_expert_parallel_devices()
+        use_ep = ep_devices > 1 and int(self.global_num_experts) % ep_devices == 0
+        if use_ep:
             out_flat = tt_experts_forward(self, h_flat, topk_ids, topk_weights)
         else:
             out_flat = tt_dense_experts_forward(self, h_flat, topk_ids, topk_weights)
         return out_flat.view(orig_shape)
+
+
+@CustomOp.register_oot(name="SharedFusedMoE")
+class TTSharedFusedMoE(SharedFusedMoE, TTFusedMoE):
+    """OOT ``SharedFusedMoE`` (shared + routed experts) for the TT pipeline.
+
+    DeepSeek-style models use ``SharedFusedMoE``. Unlike the plain ``FusedMoE``
+    that ``TTFusedMoE`` already replaces, it defaults to the *overlapped* runner
+    path: the routed experts run inside vLLM's ``moe_forward_shared`` custom op
+    with the router gate called internally. That op is ``auto_functionalized``
+    during the TT torch->StableHLO trace, and its internal gate ``F.linear``
+    then trips PyTorch's "composite op functionalization fallback expects its
+    inputs all not to be functional tensors" assert, killing compilation.
+
+    We force ``use_overlapped = False`` so the layer matches the plain-FusedMoE
+    contract ``TTFusedMoE`` already supports:
+
+    * ``is_internal_router`` flips off, so ``DeepseekV2MoE.forward`` runs the
+      gate itself and hands us real ``[tokens, num_experts]`` router logits
+      (exactly what ``TTFusedMoE.forward_native`` expects);
+    * the inherited non-overlapped ``SharedFusedMoE.forward`` then computes the
+      shared experts eagerly as an ordinary sub-module and routes the experts
+      through ``super().forward() -> TTFusedMoE.forward_native`` (the TT dense /
+      expert-parallel kernels via the MRO), returning ``(shared, routed)``.
+
+    No call ever reaches the ``moe_forward_shared`` custom op. The MRO
+    ``TTSharedFusedMoE -> SharedFusedMoE -> TTFusedMoE -> FusedMoE`` provides
+    ``forward`` from ``SharedFusedMoE`` and ``forward_native`` (plus the expert
+    adapter properties) from ``TTFusedMoE``.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_overlapped = False
