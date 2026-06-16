@@ -24,31 +24,8 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  # This is a single test job that runs all experimental/unknown status tt-forge-models tests.
-  test_forge_models_experimental:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    if: success() || failure()
-    with:
-      test_suite: model-test-experimental.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      include_passed: true
-
-  test_forge_models_lb_blackhole:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    if: success() || failure()
-    with:
-      test_suite: model-test-lb-blackhole-nightly.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      include_passed: true
-
+  # [TEMP] bh-glx only: other experimental jobs removed to test the bh_galaxy
+  # timeout fix in isolation. Do not merge.
   test_bh_galaxy:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
@@ -64,8 +41,6 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - test_forge_models_experimental
-      - test_forge_models_lb_blackhole
       - test_bh_galaxy
       - build-image
       - build-ttxla
