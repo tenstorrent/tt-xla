@@ -651,13 +651,14 @@ void ClientInstance::closeParentMesh() {
 }
 
 tt::runtime::Device ClientInstance::getOrCreateSubmesh(
-    const std::vector<uint32_t> &parent_mesh_shape,
     const std::vector<uint32_t> &submesh_shape,
     const std::vector<uint32_t> &submesh_offset) {
-  // Ensure the parent mesh is open with the expected shape. If it already is
-  // (the common case - the parent is opened once in populateDevices), this
-  // reuses it without a close+reopen, so existing live submeshes survive.
-  getOrCreateMeshDevice(parent_mesh_shape);
+  // The parent mesh is opened once in populateDevices and stays open; we carve
+  // submeshes from it WITHOUT going through getOrCreateMeshDevice, so we never
+  // risk a reshape (close+reopen) that would invalidate already-cached submesh
+  // handles in m_live_submeshes.
+  TT_FATAL(m_parent_mesh.has_value(),
+           "Parent mesh must be open before carving a submesh");
 
   auto it = m_live_submeshes.find(submesh_offset);
   if (it != m_live_submeshes.end()) {

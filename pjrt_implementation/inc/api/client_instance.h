@@ -144,6 +144,15 @@ public:
     return m_parent_mesh;
   };
 
+  // Returns the shape of the live parent mesh (row-major), or empty if none is
+  // open. Used by pipeline-parallel routing to map a device id to a submesh
+  // offset within whatever shape the parent was actually opened as.
+  std::vector<uint32_t> getParentMeshShape() const {
+    return m_parent_mesh.has_value()
+               ? tt::runtime::getMeshShape(*m_parent_mesh)
+               : std::vector<uint32_t>{};
+  }
+
   // Closes currently opened mesh device, if any.
   void closeMeshDevice();
 
@@ -151,15 +160,14 @@ public:
   void closeParentMesh();
 
   // Pipeline-parallel: returns a live submesh of submesh_shape at submesh_offset
-  // within the parent mesh (of parent_mesh_shape), creating and caching it on
-  // first use. Unlike getOrCreateMeshDevice, this keeps multiple submeshes (and
-  // the parent) open concurrently instead of close+reopen, so two stages can run
-  // on disjoint submeshes. See plans/pipeline-parallel-basic.
+  // within the already-open parent mesh, creating and caching it on first use.
+  // Carves directly from the parent (no getOrCreateMeshDevice / reshape), so
+  // multiple submeshes stay open concurrently and cached handles never go stale.
+  // See plans/pipeline-parallel-basic.
   //
   // NOTE: not thread-safe (sequential execution only for now).
   tt::runtime::Device
-  getOrCreateSubmesh(const std::vector<uint32_t> &parent_mesh_shape,
-                     const std::vector<uint32_t> &submesh_shape,
+  getOrCreateSubmesh(const std::vector<uint32_t> &submesh_shape,
                      const std::vector<uint32_t> &submesh_offset);
 
   // Releases all live pipeline submeshes (before closing the parent mesh).
