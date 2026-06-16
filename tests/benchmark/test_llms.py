@@ -2216,7 +2216,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
-        required_pcc=-0.92,
+        required_pcc=0.92,
     )
 
 
