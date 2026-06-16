@@ -50,6 +50,7 @@ option(TTXLA_ENABLE_PJRT_TESTS "Enable PJRT tests" OFF)
 option(TTXLA_ENABLE_EWHEEL_INSTALL "Enable editable wheel install" ON)
 option(TTXLA_ENABLE_TOOLS "Enable building tools" ON)
 option(TTXLA_ENABLE_EMITPY_EXECUTION "Enable EmitPy execution via PythonModelRunner" ON)
+option(TT_RUNTIME_DEBUG "Enable ttmlir runtime debugging" OFF)
 option(TT_USE_SYSTEM_SFPI "Use system SFPI" OFF)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(TTXLA_ENABLE_PJRT_TESTS ON)
@@ -60,6 +61,7 @@ set_property(CACHE TTMLIR_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWith
 
 if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_BINDINGS_PYTHON ON)
+    set(TT_RUNTIME_DEBUG ON)
 endif()
 
 option(TTXLA_TRACY_ZONES "Enable PJRT tracy zones" OFF)
