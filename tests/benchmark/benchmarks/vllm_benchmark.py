@@ -51,6 +51,10 @@ class VLLMBenchmarkConfig:
     warmup_iterations: int = 1
     prompt: str = DEFAULT_PROMPT
 
+    # Exact input length via dummy prompt_token_ids (overrides `prompt` when > 0).
+    # Lets us test a large ISL (e.g. 16384) that a short text prompt can't reach.
+    isl: int = 0
+
     # When True, send `prompt` as a chat message via llm.chat() so the chat
     # template is applied; instruct models (e.g. Gemma-4-it) degenerate without it.
     use_chat_template: bool = False
@@ -235,7 +239,13 @@ def benchmark_vllm(
 
     # chat() applies the model's chat template; generate() feeds the raw
     # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
-    if config.use_chat_template:
+    if config.isl > 0:
+        # Exact-length input via dummy token ids (100 is a safe in-vocab id).
+        inputs = [
+            {"prompt_token_ids": [100] * config.isl} for _ in range(config.batch_size)
+        ]
+        run_fn = llm.generate
+    elif config.use_chat_template:
         inputs = [
             [{"role": "user", "content": config.prompt}]
             for _ in range(config.batch_size)

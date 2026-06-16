@@ -40,6 +40,9 @@ _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 _BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
 _BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
 _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
+_BENCH_ISL = os.environ.get(
+    "TT_BENCHMARK_ISL"
+)  # exact input length via dummy token ids
 _BENCH_FP32_DEST_ACC = os.environ.get("TT_BENCHMARK_FP32_DEST_ACC")
 
 
@@ -97,6 +100,7 @@ def _config(
         gpu_memory_utilization=gpu_memory_utilization,
         temperature=_BENCH_TEMPERATURE,
         additional_config=additional,
+        isl=int(_BENCH_ISL) if _BENCH_ISL else 0,
     )
 
 
