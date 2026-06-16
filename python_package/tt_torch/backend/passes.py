@@ -327,6 +327,58 @@ def run_shape_prop(gm, example_inputs):
     shape_prop.run(*fake_args)
 
 
+def clamp_neg_slice_bounds(gm: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """Clamp out-of-range negative ``aten.slice.Tensor`` start/end bounds to ``-dim_size``.
+
+    CPU's ``Tensor.__getitem__`` clamps a bound ``< -dim_size`` to ``-dim_size``;
+    XLA's strict ``aten.slice.Tensor`` instead raises "Value out of range". Only a
+    constant negative start/end on a statically known dim is rewritten, so valid
+    slices are untouched. Refs: tt-xla #5199.
+    """
+    changed = False
+    for node in gm.graph.nodes:
+        if node.op != "call_function" or node.target is not torch.ops.aten.slice.Tensor:
+            continue
+        # aten.slice.Tensor(input, dim, start, end=None, step=1)
+        if len(node.args) < 3:
+            continue
+        inp, dim = node.args[0], node.args[1]
+        if not isinstance(inp, torch.fx.Node) or not isinstance(dim, int):
+            continue
+        shape = getattr(inp.meta.get("val"), "shape", None)
+        if shape is None:
+            shape = getattr(inp.meta.get("tensor_meta"), "shape", None)
+        if shape is None:
+            continue
+        ndim = len(shape)
+        d = dim + ndim if dim < 0 else dim
+        if not (0 <= d < ndim):
+            continue
+        dim_size = shape[d]
+        if not isinstance(dim_size, int):  # skip symbolic / dynamic dims
+            continue
+        # Clamp the start (args[2]) and end (args[3]) bounds independently.
+        new_args = list(node.args)
+        node_changed = False
+        for i in (2, 3):
+            bound = new_args[i] if i < len(new_args) else None
+            if isinstance(bound, int) and bound < -dim_size:
+                new_args[i] = -dim_size
+                node_changed = True
+        if node_changed:
+            logger.debug(
+                f"clamp_neg_slice_bounds: clamped {node.name} start/end "
+                f"{tuple(node.args[2:4])} -> {tuple(new_args[2:4])} "
+                f"(dim {dim}, size {dim_size})"
+            )
+            node.args = tuple(new_args)
+            changed = True
+    if changed:
+        gm.graph.lint()
+        gm.recompile()
+    return gm
+
+
 def bypass_dtype_promotion_and_redundant_cast(gm, example_inputs):
     """
     Removes casting of nodes to float32 unless they were explicitly set by the user.
