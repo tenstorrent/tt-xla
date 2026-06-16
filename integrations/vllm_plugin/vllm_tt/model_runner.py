@@ -1548,7 +1548,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     require_struct_decoding,
                     grammar_bitmask_padded,
                     bitmask_arange,
-                ) = self.prepare_structured_decoding_input(grammar_output, num_reqs)
+                ) = self.prepare_structured_decoding_input(
+                    grammar_output, self.max_num_reqs
+                )
             torch_xla.sync(wait=False)
 
             # Decode path
@@ -1570,7 +1572,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     )
                 )
             else:
-                if input_ids is not None and input_ids.shape[1] == 1:
+                if self.position_ids.shape[-1] == 1:
                     hidden_states, logits, selected_token_ids, kv_connector_output = (
                         self._model_decode(
                             input_ids,
@@ -2610,17 +2612,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if not self.tt_config.cpu_sampling:
                 logger.info("Warmup mode: fused runtime path")
                 self._precompile_model_fused()
+                if self.tt_config.decode_only:
+                    logger.info(
+                        "decode_only=True: skipping remaining graphs compilation."
+                    )
+                    return
             else:
                 logger.info("Warmup mode: unfused runtime path (cpu_sampling=True)")
                 self._precompile_backbone()
                 if self.tt_config.decode_only:
                     logger.info(
-                        "decode_only=True: skipping unfused postprocessing warmup"
+                        "decode_only=True: skipping remaining graphs compilation."
                     )
                     return
                 self._precompile_select_hidden_states()
                 self._precompile_compute_logits()
                 self._precompile_structured_decoding()
+
             self._precompile_mm_encoder()
             # TODO(#4387): precompile fails trace-insertion at opt_level=1;
             # skip when trace is on. Paired with the CPU fallback at the
