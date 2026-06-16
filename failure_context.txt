@@ -1,0 +1,174 @@
+=== FAILED TESTS (1 total) ===
+
+TEST: tests/runner/test_models.py::test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference]
+TYPE: failure
+MESSAGE: tests/runner/test_models.py:348: in test_all_models_torch
+    _run_model_test_impl(
+tests/runner/test_models.py:203: in _run_model_test_impl
+    comparison_result, tt_result = tester.test(request=request)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:160: in test
+    return self._test_inference(request=request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:179: in _test_inference
+    e2e_perf_stats = self._test_e2e_perf()
+                     ^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:200: in _test_e2e_perf
+    _ = self._run_on_tt_device(self._workload)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:229: in _run_on_tt_device
+    return self._device_runner.run_on_tt_device(compiled_workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:30: in run_on_tt_device
+    return self.run_on_device(workload, DeviceType.TT, device_num)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:40: in run_on_device
+    return self._run_on_device(device_workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:136: in _run_on_device
+    return workload.execute()
+           ^^^^^^^^^^^^^^^^^^
+tests/infra/workloads/workload.py:71: in execute
+    return self.compiled_executable(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:465: in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:953: in compile_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1787: in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/transformers/models/maskformer/modeling_maskformer.py:1915: in forward
+    @auto_docstring
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:1181: in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/tt_torch/backend/backend.py:226: in __call__
+    return self._call_experimental_compile(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/tt_torch/backend/backend.py:201: in _call_experimental_compile
+    self.compiled_graph = bridge.extract_compiled_graph(
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:737: in extract_compiled_graph
+    return extract_compiled_graph_helper(xla_model, xla_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:859: in extract_compiled_graph_helper
+    return partition_fx_graph_for_cpu_fallback(xla_model, xla_args,
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:804: in partition_fx_graph_for_cpu_fallback
+    extract_internal(fused_module), node.args, None)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:539: in extract_internal
+    xla_args_need_update) = extract_graph_helper(xla_model,
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:483: in extract_graph_helper
+    torch_xla._XLAC._xla_warm_up_cache(args_and_out_tensor_only, [])
+E   ValueError: Error code: 13
+TRACEBACK:
+tests/runner/test_models.py:348: in test_all_models_torch
+    _run_model_test_impl(
+tests/runner/test_models.py:203: in _run_model_test_impl
+    comparison_result, tt_result = tester.test(request=request)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:160: in test
+    return self._test_inference(request=request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:179: in _test_inference
+    e2e_perf_stats = self._test_e2e_perf()
+                     ^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:200: in _test_e2e_perf
+    _ = self._run_on_tt_device(self._workload)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:229: in _run_on_tt_device
+    return self._device_runner.run_on_tt_device(compiled_workload)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:30: in run_on_tt_device
+    return self.run_on_device(workload, DeviceType.TT, device_num)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/device_runner.py:40: in run_on_device
+    return self._run_on_device(device_workload, device)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/runners/torch_device_runner.py:136: in _run_on_device
+    return workload.execute()
+           ^^^^^^^^^^^^^^^^^^
+tests/infra/workloads/workload.py:71: in execute
+    return self.compiled_executable(*self.args, **self.kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py:465: in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/lib/python3.12/site-packages/torch/nn/modules/module.py:1776: in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+venv/
+---
+
+=== ERROR EXCERPTS FROM LOGS ===
+
+--- Log: test-log-p150--81694786381 ---
+collected 4716 items / 4715 deselected / 1 selected
+
+tests/runner/test_models.py::test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference] FAILED [100%]
+
+=================================== FAILURES ===================================
+_ test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference] _
+tests/runner/test_models.py:348: in test_all_models_torch
+    _run_model_test_impl(
+tests/runner/test_models.py:203: in _run_model_test_impl
+    comparison_result, tt_result = tester.test(request=request)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:160: in test
+    return self._test_inference(request=request)
+
+~~~
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:483: in extract_graph_helper
+    torch_xla._XLAC._xla_warm_up_cache(args_and_out_tensor_only, [])
+E   ValueError: Error code: 13
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+| pytorch_MaskFormer Swin-B_Swin_Base_Coco_cv_image_seg_huggingface BENCHMARK:  
+--------------------------------------------------------------------
+| e2e_perf-total_samples: -1
+| e2e_perf-total_time: -1
+====================================================================
+Benchmark results saved to /__w/tt-xla/tt-xla/benchmark_reports/report_perf_pytorch_MaskFormer Swin-B_Swin_Base_Coco_cv_image_seg_huggingface_81694786381.json
+------------------------------ Captured log call -------------------------------
+DEBUG    torch.__trace:utils.py:2029 
+
+~~~
+0.31s setup    tests/runner/test_models.py::test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference]
+=========================== short test summary info ============================
+FAILED tests/runner/test_models.py::test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference] - tests/runner/test_models.py:348: in test_all_models_torch
+    _run_model_test_impl(
+tests/runner/test_models.py:203: in _run_model_test_impl
+    comparison_result, tt_result = tester.test(request=request)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:160: in test
+    return self._test_inference(request=request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/infra/testers/single_chip/model/model_tester.py:179: in _test_inference
+    e2e_perf_stats = self._test_e2e_perf()
+                     ^^^^^^^^^^^^^^^^^^^^^
+
+~~~
+venv/lib/python3.12/site-packages/torch_xla/_dynamo/dynamo_bridge.py:483: in extract_graph_helper
+    torch_xla._XLAC._xla_warm_up_cache(args_and_out_tensor_only, [])
+E   ValueError: Error code: 13
+========= 1 failed, 4715 deselected, 17 warnings in 116.77s (0:01:56) ==========
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+~~~
+    torch_xla._XLAC._xla_warm_up_cache(args_and_out_tensor_only, [])
+E   ValueError: Error code: 13
+========= 1 failed, 4715 deselected, 17 warnings in 116.77s (0:01:56) ==========
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+~~~
