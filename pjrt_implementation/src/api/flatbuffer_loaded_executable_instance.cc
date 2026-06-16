@@ -5,6 +5,12 @@
 
 #include "api/flatbuffer_loaded_executable_instance.h"
 
+// c++ standard library includes
+#include <algorithm>
+#include <sstream>
+#include <string>
+#include <vector>
+
 // tracy includes
 #include "tracy/Tracy.hpp"
 #include "tt/runtime/runtime.h"
@@ -21,6 +27,47 @@
 #include "utils/utils.h"
 
 namespace tt::pjrt {
+namespace {
+
+std::string
+serializeWorkerDebugStats(const tt::runtime::WorkerDebugStats &debug_stats) {
+  std::stringstream ss;
+  ss << "[";
+
+  for (size_t entry_index = 0; entry_index < debug_stats.size();
+       ++entry_index) {
+    const tt::runtime::WorkerDebugStatsEntry &entry =
+        debug_stats[entry_index];
+    if (entry_index != 0) {
+      ss << ", ";
+    }
+
+    ss << "{hostname=\"" << entry.hostname << "\", stats={";
+
+    std::vector<std::string> stat_names;
+    stat_names.reserve(entry.stats.size());
+    for (const auto &stat : entry.stats) {
+      stat_names.push_back(stat.first);
+    }
+
+    std::sort(stat_names.begin(), stat_names.end());
+    for (size_t stat_index = 0; stat_index < stat_names.size(); ++stat_index) {
+      const std::string &stat_name = stat_names[stat_index];
+      if (stat_index != 0) {
+        ss << ", ";
+      }
+
+      ss << stat_name << ": " << entry.stats.at(stat_name);
+    }
+
+    ss << "}}";
+  }
+
+  ss << "]";
+  return ss.str();
+}
+
+} // namespace
 
 std::unique_ptr<FlatbufferLoadedExecutableInstance>
 FlatbufferLoadedExecutableInstance::createInstance(
@@ -191,8 +238,10 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
-  tt::runtime::WorkerDebugStats worker_debug_stats = tt::runtime::getWorkerDebugStats();
-  LOG_F(INFO, "Worker debug stats before getInputRuntimeTensors: %s", worker_debug_stats.to_string().c_str());
+  std::string worker_debug_stats_before =
+      serializeWorkerDebugStats(tt::runtime::getWorkerDebugStats());
+  LOG_F(INFO, "Worker debug stats before getInputRuntimeTensors: %s",
+        worker_debug_stats_before.c_str());
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
@@ -202,10 +251,11 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
   }
-  
 
-  tt::runtime::WorkerDebugStats worker_debug_stats = tt::runtime::getWorkerDebugStats();
-  LOG_F(INFO, "Worker debug stats after getInputRuntimeTensors: %s", worker_debug_stats.to_string().c_str());
+  std::string worker_debug_stats_after =
+      serializeWorkerDebugStats(tt::runtime::getWorkerDebugStats());
+  LOG_F(INFO, "Worker debug stats after getInputRuntimeTensors: %s",
+        worker_debug_stats_after.c_str());
   if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
