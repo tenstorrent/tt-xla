@@ -84,7 +84,7 @@ jobs:
 
     container:
       image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
-      options: --device /dev/tenstorrent
+      options: ${{ (matrix.build.runs-on-original == 'cpu' || matrix.build.runs-on == 'cpu') && ' ' || '--device /dev/tenstorrent' }}
       volumes:
         - /dev/hugepages:/dev/hugepages
         - /dev/hugepages-1G:/dev/hugepages-1G
@@ -92,6 +92,12 @@ jobs:
         - /lib/modules:/lib/modules
         - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
         - /mnt/dockercache:/mnt/dockercache
+        # Multihost: MPI hostfile and SSH agent socket for controller→worker SSH.
+        - /etc/mpirun:/etc/mpirun
+        - /var/run/mpirun:/var/run/mpirun
+        - /var/run/mpirun/id_rsa_multihost_ssh_agent_sock:/var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+      env:
+        SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
 
     steps:
 
@@ -135,6 +141,7 @@ jobs:
           tests/
           venv/
           examples/
+          scripts/
 
     - name: Override tt_forge_models ref
       if: ${{ inputs.forge_models_override != '' }}
@@ -161,12 +168,12 @@ jobs:
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
         # Override wheel_build to release if matrix.build.require is 'release' or 'alchemist'
-        if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" ]]; then
-          echo "wheel_build=release" >> "$GITHUB_OUTPUT"
+        if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" || "${{ matrix.build.multihost }}" == "true" ]]; then
+          wheel_build=release
         else
-          echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
+          wheel_build="${{ inputs.wheel_build }}"
         fi
-        echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_artifact_name=xla-whl-$wheel_build${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
         echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
         echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
 
@@ -223,6 +230,25 @@ jobs:
             mv alchemist_artifact/tools third_party/tt-mlir/src/tt-mlir/build/
           fi
         fi
+
+    - name: Start multihost worker containers
+      if: ${{ matrix.build.multihost }}
+      shell: bash
+      env:
+        HOST_WORKSPACE_PATH: ${{ github.workspace }}
+        CONTAINER_WORKSPACE: ${{ steps.strings.outputs.work-dir }}
+        # Workers use the same base image passed to regular test jobs.
+        MULTIHOST_WORKER_IMAGE: ${{ inputs.docker_image }}
+        SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
+      run: |
+        .github/scripts/multihost-start-workers.sh "$MULTIHOST_WORKER_IMAGE" /etc/mpirun/hostfile
+        source venv/activate
+        python scripts/multihost_topology.py \
+          --topology "${{ matrix.build.topology }}" \
+          --script-dir tests/torch/multi_host/experimental > topology_exports.sh
+        echo "export TTXLA_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
+        echo "export TT_METAL_LOGGER_LEVEL=DEBUG" >> topology_exports.sh
+        echo "export TT_METAL_LOGGER_TYPES=Fabric,Always" >> topology_exports.sh
 
     - name: Check for re-run attempt
       id: check-rerun-attempt
@@ -289,6 +315,16 @@ jobs:
         fi
 
         MARKS="${{ matrix.build.test-mark }}"
+        MARKS_ARG=""
+        if [[ -n "$MARKS" ]]; then
+          MARKS_ARG="-m '$MARKS'"
+        fi
+
+        CONTAINS="${{ matrix.build.contains }}"
+        CONTAINS_ARG=""
+        if [[ -n "$CONTAINS" ]]; then
+          CONTAINS_ARG="-k '$CONTAINS'"
+        fi
 
         if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
           echo "Only running previously failed tests"
@@ -300,12 +336,13 @@ jobs:
             --splitting-algorithm least_duration"
         fi
 
+        # Add -m/-k only when provided to avoid empty-argument parsing issues.
         BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
           --durations=0 \
           ${{ matrix.build.dir }} \
           $ARCH \
-          -m \"$MARKS\" ${{ matrix.build.args }} \
-          -k "$(printf '%q' '${{ matrix.build.contains }}')" \
+          $MARKS_ARG ${{ matrix.build.args }} \
+          $CONTAINS_ARG \
           $PYTEST_SPLITS"
 
         if [[ "${{ inputs.dump_irs }}" == "true" ]]; then
@@ -338,8 +375,7 @@ jobs:
       run: |
         source venv/activate
         echo "Collecting tests for group ${{ matrix.build.group-id || 1}}..."
-        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} > collected_tests.txt
-        cat collected_tests.txt
+        python -m pytest --collect-only -q --disable-warnings ${{ env.BASE_PYTEST_CMD }} |& tee collected_tests.txt
 
         # Check if any collected tests have notimeout marker
         NOTIMEOUT_COUNT=$(python -m pytest --collect-only -q --disable-warnings -m notimeout $(grep "::" collected_tests.txt | tr '\n' ' ') 2>/dev/null | grep -c "::" || echo "0")
@@ -369,11 +405,12 @@ jobs:
       shell: bash
       run: |
         source venv/activate
+        [[ -f topology_exports.sh ]] && source topology_exports.sh
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
-               --junitxml=${{ steps.strings.outputs.test_report_path }} \
-               --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
-               --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
-               2>&1 | tee pytest.log
+          --junitxml=${{ steps.strings.outputs.test_report_path }} \
+          --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
+          --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+          2>&1 | tee pytest.log
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
     # until https://github.com/tenstorrent/tt-github-actions/issues/78 is fixed
@@ -439,6 +476,12 @@ jobs:
         name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
         path: collected_irs/
         if-no-files-found: ignore
+
+    - name: Cleanup multihost worker containers
+      if: ${{ always() && matrix.build.multihost }}
+      shell: bash
+      run: |
+        .github/scripts/multihost-cleanup-workers.sh /etc/mpirun/hostfile || true
 
 
   test-summary:

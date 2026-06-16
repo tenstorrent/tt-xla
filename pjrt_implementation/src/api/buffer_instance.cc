@@ -11,6 +11,7 @@
 #include "api/buffer_instance.h"
 
 // c++ standard library includes
+#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <numeric>
@@ -200,6 +201,30 @@ void BufferInstance::fireDoneWithHostBufferEvent() {
   m_done_with_host_buffer_event = nullptr;
 }
 
+namespace {
+
+// Returns true if `byte_strides` describe a dense, row-major (C-contiguous)
+// layout for `dims`. `num_byte_strides == 0` is the PJRT sentinel meaning
+// "dense". Dimensions of size <= 1 are ignored, since their stride is
+// irrelevant to the memory layout.
+bool isDenseRowMajor(const std::int64_t *dims, size_t num_dims,
+                     const std::int64_t *byte_strides, size_t num_byte_strides,
+                     std::uint32_t element_size) {
+  if (num_byte_strides == 0) {
+    return true;
+  }
+  std::int64_t expected = static_cast<std::int64_t>(element_size);
+  for (size_t d = num_dims; d-- > 0;) {
+    if (dims[d] > 1 && byte_strides[d] != expected) {
+      return false;
+    }
+    expected *= dims[d];
+  }
+  return true;
+}
+
+} // namespace
+
 // Constructing buffer instance for the first time.
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
@@ -221,65 +246,91 @@ void BufferInstance::copyFromHost(
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape =
       calculateShape(dims, num_dims, m_data_type);
-  std::vector<std::uint32_t> strides =
+  std::vector<std::int64_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
+
+  // A buffer is treated as contiguous if it is a complex dtype (its `shape`
+  // carries an extra trailing dim with no matching `byte_strides` entry) or
+  // genuinely dense row-major. A non-contiguous (e.g. transposed/sliced) buffer
+  // is forced onto the owned path below so the runtime gathers it into a
+  // contiguous tensor: the borrowed/zero-copy path cannot alias non-contiguous
+  // memory and would read it linearly, corrupting the data.
+  bool is_contiguous = data_type_utils::isComplexPJRTType(m_data_type) ||
+                       isDenseRowMajor(dims, num_dims, byte_strides,
+                                       num_byte_strides, element_size);
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
 
   tt::runtime::Tensor runtime_tensor;
 
-  // In distributed runtime, we always create owned host tensor because we
-  // cannot alias the host buffer.
+  // In distributed runtime, we defer host tensor materialization until
+  // prepareInputTensor and keep only shell metadata in PjrtTensor.
   //
-  // In case when input host buffer has a semantic `ImmutableOnlyDuringCall`
-  // we are not allowed to alias it directly, so we have to create owned host
-  // tensor which copies buffer data. In JAX this semantic is used only for
-  // copying scalars and numpy arrays, so the copy shouldn't take long. We can
-  // mark the event as ready since we don't need the original host buffer
-  // anymore.
-  //
-  // If the runtime data type which has been inferred from m_data_type is not
-  // supported by runtime/ttnn, then we must create an owned tensor as runtime
-  // must case the data inside the host buffer into a supported data type. Thus,
-  // the buffer cannot be borrowed.
-  if (::tt::runtime::getCurrentHostRuntime() ==
-          tt::runtime::HostRuntime::Distributed ||
+  // In non-distributed runtime:
+  // - For `ImmutableOnlyDuringCall` semantics we are not allowed to alias the
+  //   host buffer directly, so we create an owned host tensor which copies
+  //   buffer data. In JAX this semantic is used only for copying scalars and
+  //   numpy arrays, so the copy shouldn't take long.
+  // - For unsupported runtime dtypes, we must create an owned tensor as runtime
+  //   must cast the data into a supported data type; the buffer cannot be
+  //   borrowed.
+
+  bool is_distributed = ::tt::runtime::getCurrentHostRuntime() ==
+                        tt::runtime::HostRuntime::Distributed;
+
+  bool cannot_borrow_host_buffer =
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type)) {
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type) ||
+      !is_contiguous;
 
-    runtime_tensor = tt::runtime::createOwnedHostTensor(
-        host_buffer, shape, strides, element_size, runtime_data_type);
-
-    // Memory is copied, we don't need host buffer anymore.
-    EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
-                                          tt_pjrt_status::kSuccess);
-  }
-  // Otherwise when input host buffer has other semantic we are allowed to alias
-  // it, so we can create borrowed host which doesn't copy any data and instead
-  // uses direct pointer to existing data. Since we are holding a pointer to the
-  // original data we can't mark the event as ready yet, so we remember it and
-  // mark it as ready once the buffer is destroyed.
-  else {
-    // TODO(mrakita): Metal doesn't have a read-only version of borrowed buffer
-    // so we have to const cast here.
-    // https://github.com/tenstorrent/tt-metal/issues/20622
-    runtime_tensor = tt::runtime::createBorrowedHostTensor(
-        const_cast<void *>(host_buffer), shape, strides, element_size,
-        runtime_data_type);
-
-    // Memory is aliased, we need to hold on to host buffer until this buffer is
-    // deleted.
+  if (is_distributed) {
+    TT_ASSERT(host_buffer_semantics !=
+                  PJRT_HostBufferSemantics_kImmutableOnlyDuringCall,
+              "In distributed mode we unsafely borrow data from host_buffer; "
+              "this is okay iff caller guarantees that host_buffer lifetime is "
+              "safe until execution.");
+    PjrtTensor::HostTensorShell host_tensor_shell = PjrtTensor::HostTensorShell{
+        host_buffer, shape, strides, element_size, runtime_data_type};
     m_done_with_host_buffer_event = done_with_host_buffer_event.get();
-
-    // TODO(mrakita): This is a major hack that we currently have to do because
-    // XLA PJRT client destroys event immediately after it sets callback on it.
-    // https://github.com/openxla/xla/issues/25172
     m_done_with_host_buffer_event->setIndestructible();
-  }
+    PjrtTensor::from_host_tensor_shell({this}, std::move(host_tensor_shell));
+  } else {
+    if (cannot_borrow_host_buffer) {
+      runtime_tensor = tt::runtime::createOwnedHostTensor(
+          host_buffer, shape, strides, element_size, runtime_data_type);
+      // Memory is copied, we don't need host buffer anymore.
+      EventInstance::markAsReadyAndCallback(done_with_host_buffer_event.get(),
+                                            tt_pjrt_status::kSuccess);
+      PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+    }
 
-  PjrtTensor::from_runtime_tensor({this}, runtime_tensor);
+    // Otherwise when input host buffer has other semantic we are allowed to
+    // alias it, so we can create borrowed host which doesn't copy any data and
+    // instead uses direct pointer to existing data. Since we are holding a
+    // pointer to the original data we can't mark the event as ready yet, so we
+    // remember it and mark it as ready once the buffer is destroyed.
+    else {
+      // TODO(mrakita): Metal doesn't have a read-only version of borrowed
+      // buffer so we have to const cast here.
+      // https://github.com/tenstorrent/tt-metal/issues/20622
+      runtime_tensor = tt::runtime::createBorrowedHostTensor(
+          const_cast<void *>(host_buffer), shape, strides, element_size,
+          runtime_data_type);
+
+      // Memory is aliased, we need to hold on to host buffer until this buffer
+      // is deleted.
+      m_done_with_host_buffer_event = done_with_host_buffer_event.get();
+
+      // TODO(mrakita): This is a major hack that we currently have to do
+      // because XLA PJRT client destroys event immediately after it sets
+      // callback on it. https://github.com/openxla/xla/issues/25172
+      m_done_with_host_buffer_event->setIndestructible();
+
+      PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+    }
+  }
 
   markAsDataReady();
 
@@ -301,7 +352,7 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   std::vector<std::uint32_t> shape = calculateShape(
       src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions(),
       src_buffer->getDataType());
-  std::vector<std::uint32_t> strides = calculateStrides(
+  std::vector<std::int64_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
   tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
@@ -361,7 +412,7 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
   return shape;
 }
 
-std::vector<std::uint32_t> BufferInstance::calculateStrides(
+std::vector<std::int64_t> BufferInstance::calculateStrides(
     size_t num_dims, const std::int64_t *byte_strides, size_t num_byte_strides,
     std::uint32_t element_size) {
 
@@ -370,11 +421,11 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
            "num_byte_strides={}, num_dims={}",
            num_byte_strides, num_dims);
 
-  std::vector<std::uint32_t> strides;
+  std::vector<std::int64_t> strides;
   for (size_t i = 0; i < num_dims; ++i) {
     // If no strides are given the array is assumed to have a dense layout with
     // dimensions in major-to-minor order.
-    std::uint32_t stride =
+    std::int64_t stride =
         num_byte_strides == 0
             ? 1
             : (byte_strides[i] / static_cast<std::int64_t>(element_size));

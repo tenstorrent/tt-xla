@@ -3,7 +3,7 @@
 ## Code Generation Fails
 
 **Symptom:**
-```
+```text
 ERROR: tt-alchemist generatePython failed
 ```
 
@@ -36,10 +36,10 @@ ERROR: tt-alchemist generatePython failed
 
 ---
 
-### Export Path Not Set
+## Export Path Not Set
 
 **Symptom:**
-```
+```text
 Compile option 'export_path' must be provided when backend is not 'TTNNFlatbuffer'
 ```
 
@@ -56,7 +56,7 @@ options = {
 
 ---
 
-### Generated Code Execution Fails
+## Generated Code Execution Fails
 
 **Symptom:** Errors when running generated Python code via `./run`
 
@@ -85,7 +85,7 @@ options = {
 
 ---
 
-### Generated C++ Code Won't Compile
+## Generated C++ Code Won't Compile
 
 **Symptom:** C++ compilation errors in generated code
 

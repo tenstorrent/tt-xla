@@ -7,7 +7,7 @@ Explorer is an interactive GUI tool from [TT-MLIR](https://github.com/tenstorren
 Explorer is a visual debugging and performance analysis tool that allows you to:
 - **Visualize MLIR graphs**: Inspect your model graph with hierarchical visualization
 - **Compile and execute your model**: Compile your model to Tenstorrent hardware and execute it
-- **Debug performance**: Identify bottlenecks and see affects of optimizations on runtime performance
+- **Debug performance**: Identify bottlenecks and see the effects of optimizations on runtime performance
 
 ## Building with Explorer
 

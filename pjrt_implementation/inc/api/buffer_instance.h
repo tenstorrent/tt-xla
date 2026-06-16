@@ -207,7 +207,7 @@ private:
                                                    PJRT_Buffer_Type data_type);
 
   // Calculates required tensor strides.
-  static std::vector<std::uint32_t>
+  static std::vector<std::int64_t>
   calculateStrides(size_t num_dims, const std::int64_t *byte_strides,
                    size_t num_byte_strides, std::uint32_t element_size);
 

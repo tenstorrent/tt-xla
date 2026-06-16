@@ -143,24 +143,11 @@ public:
     return m_parent_mesh;
   };
 
-  // Closes currently opened mesh device and submesh device, if any.
+  // Closes currently opened mesh device, if any.
   void closeMeshDevice();
-
-  // Returns the optimizer submesh device of the provided shape. If there is
-  // already opened optimizer submesh and its shape matches the provided shape,
-  // it is returned. Otherwise, we close any previously opened optimizer submesh
-  // and create a new one with the provided shape.
-  //
-  // NOTE: this method is not thread-safe and we will need to revisit this when
-  // adding support for parallel execution.
-  tt::runtime::Device
-  getOrCreateOptimizerSubmesh(const std::vector<uint32_t> &target_mesh_shape);
 
   // Closes currently opened parrent mesh device.
   void closeParentMesh();
-
-  // Closes currently opened optimizer submesh device, if any.
-  void closeOptimizerSubmesh();
 
   // Compiles given mlir program.
   tt_pjrt_status compileMlirProgram(
@@ -224,9 +211,6 @@ private:
 
   // Fabric config computed for the current mesh device.
   std::optional<tt::runtime::MeshFabricConfig> m_fabric_config;
-
-  // Optimizer submesh device (created from m_parent_mesh for optimizer passes).
-  std::optional<tt::runtime::Device> m_optimizer_submesh;
 
   // Used to identify the platform.
   const std::string m_platform_name = "tt";
