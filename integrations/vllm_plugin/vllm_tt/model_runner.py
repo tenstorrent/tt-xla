@@ -4,7 +4,6 @@
 
 import bisect
 import gc
-import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -1983,7 +1982,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         num_reqs: int,
         num_blocks: int,
         prefix_chunk: bool = False,
-        prefill_postprocess: bool = False,
     ) -> None:
         # Start with token ids so _get_model_inputs runs embed_input_ids and the
         # XLA graph structure matches the real execution path.
@@ -2058,51 +2056,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             out = self._restore_model_hidden_states(out, hidden_state_shape)
 
         self._hidden_states_dtype = out.dtype
-
-        # Precompile the fused-path prefill tail on the REAL model output `out`
-        # (tt-xla #4986 warmup gap). For a prefill step (num_tokens > 1)
-        # execute_model() selects the last token per request OUTSIDE
-        # decode_postprocess — hidden_states[batch_idx, logits_indices, :] — then
-        # calls decode_postprocess on the (max_num_reqs, 1, hsize) result. That
-        # select gather is a distinct graph per prefill bucket and, since
-        # _precompile_decode_postprocess only covers num_tokens == 1, otherwise
-        # JIT-recompiles at serving time on the first prefill of each bucket (for
-        # chunked prefill, the chunk-size bucket on the first long prompt — a
-        # multi-minute stall the short warmup prompt never triggers). It must run
-        # on `out` (a live tensor), not a fresh torch.zeros: zeros is
-        # constant-folded so the gather drops its hidden input and compiles a
-        # different graph that does not prevent the runtime recompile. Feeding the
-        # result to decode_postprocess keeps the gather live (not eliminated) and
-        # reproduces the runtime graph's exact inputs/outputs.
-        if prefill_postprocess and num_tokens > 1:
-            torch_xla.sync()  # close the forward graph so `out` is a live input
-            batch_idx = torch.arange(
-                self.max_num_reqs, dtype=torch.int32, device=self.device
-            )
-            selected = out[batch_idx, self._logits_indices_dev, :].unsqueeze(1)
-            if self.enable_tensor_parallel and self.use_2d_mesh:
-                xs.mark_sharding(selected, self.mesh, (None, None, "model"))
-            logits_idx = torch.zeros(
-                self.max_num_reqs, dtype=torch.int32, device=self.device
-            )
-            require = self.require_structured_out_cpu[: self.max_num_reqs].to(
-                self.device
-            )
-            bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(self.device)
-            bitmasks = self.structured_decode_bitmasks.to(self.device)
-            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
-                self.input_batch,
-                self.max_num_reqs,
-                self.device,
-                True,
-                vocab_size=self.vocab_size,
-            )
-            with self.maybe_select_dummy_loras(
-                self.lora_config, np.array([self.max_num_reqs], dtype=np.int32)
-            ):
-                self.decode_postprocess(
-                    selected, logits_idx, sampling_metadata, require, bitmask, bitmasks
-                )
 
     def _set_active_loras(
         self, prompt_lora_mapping, token_lora_mapping, lora_requests
@@ -2206,17 +2159,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # page-table-stick assert (tt-xla #4986).
         chunked = self._chunked_sdpa_active
 
-        # The fused (non-cpu_sampling) path selects the prefill last token with an
-        # eager gather + decode_postprocess outside the model forward; precompile
-        # that tail here on the real hidden states (tt-xla #4986). cpu_sampling
-        # covers the equivalent via _precompile_select_hidden_states, so skip it.
-        # TT_DISABLE_PREFILL_SELECT_PRECOMPILE=1 is an escape hatch that restores
-        # the legacy behavior (prefill select JIT-compiled at runtime).
-        prefill_postprocess = (
-            not self.tt_config.cpu_sampling
-            and os.environ.get("TT_DISABLE_PREFILL_SELECT_PRECOMPILE") != "1"
-        )
-
         def _run_backbone_dummies(num_tokens: int, prefix_chunk: bool) -> None:
             # Compile the max-model-len shape, and the optional "most" shape, for
             # both num_reqs/num_blocks variants. prefix_chunk=True compiles the
@@ -2226,7 +2168,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.num_reqs_max_model_len,
                 self.max_num_blocks_per_req,
                 prefix_chunk=prefix_chunk,
-                prefill_postprocess=prefill_postprocess and not prefix_chunk,
             )
             torch_xla.sync()
             if self.most_model_len is not None:
@@ -2477,11 +2418,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 return
             self._precompile_mm_encoder()
             if not self.tt_config.cpu_sampling:
-                # decode_postprocess handles the decode shape (num_tokens=1). The
-                # prefill last-token select + postprocess (num_tokens > 1) is
-                # precompiled inside _precompile_backbone, on the REAL model-output
-                # hidden states, so the gather graph matches runtime exactly
-                # (tt-xla #4986 warmup gap).
+                # decode_postprocess handles both decode (num_tokens=1) and
+                # prefill (last token pre-selected eagerly before the call).
                 self._precompile_decode_postprocess()
             else:
                 # cpu_sampling: fused decode_postprocess skipped (sampling on CPU);
