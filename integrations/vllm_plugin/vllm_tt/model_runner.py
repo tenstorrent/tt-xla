@@ -739,7 +739,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # sets of requests), this optimization becomes very inefficient.
 
         for req_id in unscheduled_req_ids:
-            if self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+            if self.parallel_mode in (
+                ParallelismMode.DATA_PARALLEL_ONLY,
+                ParallelismMode.DATA_TENSOR_PARALLEL,
+            ):
                 # KV cache is replicated across devices, but each device only
                 # writes its own slot's KV. Removing a request and re-adding
                 # it at a different slot later breaks request -> device
@@ -1275,6 +1278,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
             fill_page_table=fill_page_table,
+            dp_size=self.dp_size,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
         # request in the batch. While we should not sample any token from this
@@ -2015,6 +2019,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             cache_position=cache_position,
             is_causal=True,
             attn_mask=None,
+            dp_size=self.dp_size,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
