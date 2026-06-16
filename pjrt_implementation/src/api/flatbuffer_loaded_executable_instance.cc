@@ -13,9 +13,10 @@
 
 // tracy includes
 #include "tracy/Tracy.hpp"
-#include "tt/runtime/runtime.h"
 
 // tt-mlir includes
+#include "tt/runtime/debug.h"
+#include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 
 // tt-xla includes
@@ -29,42 +30,61 @@
 namespace tt::pjrt {
 namespace {
 
+std::string serializeDebugStatsMap(const tt::runtime::DebugStatsMap &stats) {
+  std::stringstream ss;
+  ss << "{";
+
+  std::vector<std::string> stat_names;
+  stat_names.reserve(stats.size());
+  for (const auto &stat : stats) {
+    stat_names.push_back(stat.first);
+  }
+
+  std::sort(stat_names.begin(), stat_names.end());
+  for (size_t stat_index = 0; stat_index < stat_names.size(); ++stat_index) {
+    const std::string &stat_name = stat_names[stat_index];
+    if (stat_index != 0) {
+      ss << ", ";
+    }
+
+    ss << stat_name << ": " << stats.at(stat_name);
+  }
+
+  ss << "}";
+  return ss.str();
+}
+
 std::string
-serializeWorkerDebugStats(const tt::runtime::WorkerDebugStats &debug_stats) {
+serializeWorkerDebugStats(const tt::runtime::WorkerDebugStats &worker_stats) {
   std::stringstream ss;
   ss << "[";
 
-  for (size_t entry_index = 0; entry_index < debug_stats.size();
+  for (size_t entry_index = 0; entry_index < worker_stats.size();
        ++entry_index) {
     const tt::runtime::WorkerDebugStatsEntry &entry =
-        debug_stats[entry_index];
+        worker_stats[entry_index];
     if (entry_index != 0) {
       ss << ", ";
     }
 
-    ss << "{hostname=\"" << entry.hostname << "\", stats={";
-
-    std::vector<std::string> stat_names;
-    stat_names.reserve(entry.stats.size());
-    for (const auto &stat : entry.stats) {
-      stat_names.push_back(stat.first);
-    }
-
-    std::sort(stat_names.begin(), stat_names.end());
-    for (size_t stat_index = 0; stat_index < stat_names.size(); ++stat_index) {
-      const std::string &stat_name = stat_names[stat_index];
-      if (stat_index != 0) {
-        ss << ", ";
-      }
-
-      ss << stat_name << ": " << entry.stats.at(stat_name);
-    }
-
-    ss << "}}";
+    ss << "{hostname=\"" << entry.hostname
+       << "\", stats=" << serializeDebugStatsMap(entry.stats) << "}";
   }
 
   ss << "]";
   return ss.str();
+}
+
+void logRuntimeDebugStats(const char *location) {
+  tt::runtime::DebugStatsMap controller_stats =
+      tt::runtime::debug::Stats::get().getAllStats();
+  tt::runtime::WorkerDebugStats worker_stats =
+      tt::runtime::getWorkerDebugStats();
+
+  std::string controller_stats_str = serializeDebugStatsMap(controller_stats);
+  std::string worker_stats_str = serializeWorkerDebugStats(worker_stats);
+  LOG_F(INFO, "Debug stats %s: controller=%s, workers=%s", location,
+        controller_stats_str.c_str(), worker_stats_str.c_str());
 }
 
 } // namespace
@@ -238,10 +258,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
-  std::string worker_debug_stats_before =
-      serializeWorkerDebugStats(tt::runtime::getWorkerDebugStats());
-  LOG_F(INFO, "Worker debug stats before getInputRuntimeTensors: %s",
-        worker_debug_stats_before.c_str());
+  logRuntimeDebugStats("before getInputRuntimeTensors");
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
@@ -252,10 +269,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return status;
   }
 
-  std::string worker_debug_stats_after =
-      serializeWorkerDebugStats(tt::runtime::getWorkerDebugStats());
-  LOG_F(INFO, "Worker debug stats after getInputRuntimeTensors: %s",
-        worker_debug_stats_after.c_str());
+  logRuntimeDebugStats("after getInputRuntimeTensors");
   if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
