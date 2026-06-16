@@ -2587,6 +2587,8 @@ def test_gpt_oss_20b_tp_qb2(
 
 def _deepseek_v3_1_shard_spec_fn(model_loader, model):
     """Sharding specs for DeepSeek V3.1 on 4x8 galaxy mesh with TP 8, DP 4, EP 32."""
+    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+    
     shard_specs = {}
 
     shard_specs[model.model.embed_tokens.weight] = (None, "model")
@@ -2766,5 +2768,5 @@ def test_glm_4_7_tp_galaxy_4_layers(
         shard_spec_fn=_glm_4_7_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
-        required_pcc=0.86,
+        required_pcc=0.99, # Since this is only a 4 layer test, pcc lower than 0.99 likely indicates a larger full model regression
     )
