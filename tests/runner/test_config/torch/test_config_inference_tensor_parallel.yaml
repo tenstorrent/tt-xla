@@ -17,6 +17,10 @@ test_config:
     status: KNOWN_FAILURE_XFAIL
     reason: " Error: loc('compare.1209'): error: Compare operation is not supported in stablehlo-pipeline for meshes not 1x1 - https://github.com/tenstorrent/tt-mlir/issues/3497"
 
+  fibo/pytorch-Base-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
   gemma/pytorch-1.1_7B_IT-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
