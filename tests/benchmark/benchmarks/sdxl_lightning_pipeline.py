@@ -12,7 +12,9 @@ the call site of each nn component. Per-component forward+sync times are
 collected into `self._perf` for the harness to read after each generate() call.
 """
 
+import os
 import time
+from pathlib import Path
 from typing import Optional
 
 import torch
@@ -27,7 +29,39 @@ from third_party.tt_forge_models.sdxl_lightning.pytorch.src.model_utils import (
     SDXL_BASE_REPO_ID,
 )
 
-MODEL_ID = SDXL_BASE_REPO_ID
+
+def _resolve_sdxl_base() -> str:
+    """Resolve where the SDXL-Base components (text_encoder / text_encoder_2 /
+    vae / scheduler / tokenizers) should be loaded from.
+
+    On CIv2 shared runners the benchmark runs on ephemeral machines where the
+    /mnt/dockercache HuggingFace cache is always empty, so loading
+    ``stabilityai/stable-diffusion-xl-base-1.0`` directly from HuggingFace cold-
+    downloads ~10+ GB every run and saturates the runner's bandwidth. The CI
+    workflow (.github/workflows/call-perf-test.yml) exports
+    ``SDXL_BASE_MODEL_PATH`` pointing at the Large File Cache (LFC) copy of the
+    base repo so we can read from the persistent shared cache instead.
+
+    We only honour ``SDXL_BASE_MODEL_PATH`` when it points at an existing local
+    directory (a ``from_pretrained``-compatible snapshot). Otherwise — local
+    dev, non-LFC CI, or an LFC value that is a remote URL rather than a mounted
+    path — we fall back to the HuggingFace repo id and let HF resolve it
+    normally. This keeps the change a no-op everywhere the LFC snapshot is not
+    locally available.
+
+    NOTE: This only redirects the SDXL-*Base* components. The distilled UNet
+    weights still come from ByteDance/SDXL-Lightning via HuggingFace (see
+    third_party/tt_forge_models .../model_utils.py::load_unet); that checkpoint
+    does not yet have an LFC entry.
+    """
+    base_path = os.environ.get("SDXL_BASE_MODEL_PATH")
+    if base_path and Path(base_path).is_dir():
+        logger.info(f"[SDXL] Loading SDXL-Base weights from LFC path: {base_path}")
+        return base_path
+    return SDXL_BASE_REPO_ID
+
+
+MODEL_ID = _resolve_sdxl_base()
 HEIGHT = 1024
 WIDTH = 1024
 

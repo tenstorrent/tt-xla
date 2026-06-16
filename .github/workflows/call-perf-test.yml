@@ -88,7 +88,22 @@ jobs:
       shell: bash
       run: |
         if [[ "${{ inputs.sh-runner }}" == "false" || "${{ inputs.sh-runner }}" == "" ]]; then
+          # CIv1 / dedicated runners: /mnt/dockercache is a persistent host-path
+          # volume that is pre-populated (and synced from S3), so the HF cache
+          # under it is warm. Keep using it.
           echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
+        else
+          # CIv2 shared runners: the /mnt/dockercache volume is mounted but is
+          # ALWAYS EMPTY on these ephemeral runners, so pointing HF_HOME at it
+          # forces a cold ~10 GB download of stabilityai/stable-diffusion-xl-base-1.0
+          # from HuggingFace on every run (saturates runner bandwidth).
+          # Instead expose the Large File Cache (LFC) so the codebase can resolve
+          # weights from the persistent shared cache. This mirrors call-test.yml.
+          echo "IRD_LF_CACHE=${{ vars.IRD_LF_CACHE }}" >> $GITHUB_ENV
+          # Hook for the SDXL-Lightning pipeline: prefer the SDXL-Base snapshot
+          # from the LFC over a cold HF download when available. The pipeline
+          # falls back to the HF repo id if this path is unset / not present.
+          echo "SDXL_BASE_MODEL_PATH=${{ vars.IRD_LF_CACHE }}/stable-diffusion-xl-base-1.0" >> $GITHUB_ENV
         fi
 
     - uses: actions/checkout@v6
@@ -189,12 +204,22 @@ jobs:
       id: run-benchmark
       shell: bash
       env:
-        HF_HOME: /mnt/dockercache/huggingface
-        TORCH_HOME: /mnt/dockercache/torchhub
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
+
+        # HuggingFace / torch hub cache location.
+        # On CIv1 / dedicated runners /mnt/dockercache is a warm, persistent
+        # host volume so we use it. On CIv2 shared runners that same path is
+        # ALWAYS EMPTY, so pinning HF_HOME there guarantees a cold ~10 GB SDXL
+        # download every run. There, let HF use its default user cache instead
+        # (managed by tests/conftest.py) and rely on SDXL_BASE_MODEL_PATH /
+        # IRD_LF_CACHE (set in "Set caching env variables") for the warm path.
+        if [[ "${{ inputs.sh-runner }}" == "false" || "${{ inputs.sh-runner }}" == "" ]]; then
+          export HF_HOME=/mnt/dockercache/huggingface
+          export TORCH_HOME=/mnt/dockercache/torchhub
+        fi
 
         source venv/activate
         pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} ${{ inputs.check_fusions && '--check-fusions' || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
