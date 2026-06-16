@@ -110,6 +110,12 @@ class TTConfig:
     # (e.g. local debugging of decode-only tests).
     decode_only: bool = False
 
+    # Generate fused decode graphs containing both the model forward and post-processing
+    # (e.g. sampling, compute_logits, applying grammar constraints) in a single
+    # graph. This will generate 4 graphs capturing greedy/non-greedy sampling
+    # with and without grammar constraints.
+    enable_decode_fused_graphs: bool = False
+
     # Override number of hidden layers (0 = use model default)
     # For debugging and testing purposes, we allow overriding the number of hidden
     # layers in the model config to enable testing with smaller models or to
