@@ -1,9 +1,10 @@
-transformers uplift: model-test-uplifts fixes — none applicable (maskformer compile error not attributable)
+transformers uplift: model-perf-uplift fixes — none applicable (runtime/infra failures)
 
 ## Skipped (left for human review)
-- tests/runner/test_models.py::test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference]: Fails with `ValueError: Error code: 13` from `torch_xla._XLAC._xla_warm_up_cache` (TT-MLIR compile/runtime error), not a Python/transformers API error. Diffed every file that builds this model's compiled graph between 5.5.1 and 5.8.1 — `modeling_maskformer.py`, `modeling_maskformer_swin.py` (Swin backbone), `modeling_swin.py`, and both maskformer image processors. The only changes are cosmetic `@dataclass`/`@auto_docstring` decorator reordering on the ModelOutput classes; attention interface, einsum/interpolate ops, and the input pipeline are functionally identical, and the image processors are byte-identical. The compiled graph is unchanged, so this compile failure is not caused by the transformers bump. No source-level transformers fix exists; needs investigation on the tt-mlir/compiler side (likely a compiler regression or flake independent of transformers).
+- tests/benchmark/test_llms.py::test_phi2: device-runtime crash, not a transformers diff. The Python model call (decode_utils.py:324) runs; the failure is at the torch_xla step-marker sync — `RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13`, root-caused by tt-metal `TT_THROW: Statically allocated circular buffers ... clash with L1 buffers on core range [0-0 - 7-7]`. L1/circular-buffer allocation clash in the compiler/runtime; no transformers API attribution.
+- tests/benchmark/test_vision.py::test_vovnet: CI infrastructure only — `tenstorrent-hugepages.service` failed and the wheel download returned `HTTP 502: Server Error` (xla-whl-release-b7be0a5). The test never executed; nothing transformers-related.
 
 ## Stats
-- Failures input: 1
+- Failures input: 2
 - Fixed: 0
-- Skipped: 1
+- Skipped: 2
