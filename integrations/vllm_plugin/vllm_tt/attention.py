@@ -185,6 +185,7 @@ class TTMetadata:
         page_table: torch.Tensor | None = None,
         is_causal: bool = True,
         fill_page_table: torch.Tensor | None = None,
+        dp_size: int = 1,
     ):
         self.cache_position = cache_position
         self.attn_mask = attn_mask
@@ -193,6 +194,9 @@ class TTMetadata:
         self.fill_page_table = (
             fill_page_table if fill_page_table is not None else page_table
         )
+        # Number of batch shards; used by paged_fill_cache to rebase batch_idx
+        # into per-shard local ids.
+        self.dp_size = dp_size
 
 
 class TTAttentionBackendImpl(AttentionImpl):
@@ -494,6 +498,12 @@ class TTAttentionBackendImpl(AttentionImpl):
                 dtype=torch.int32,
                 device=k_cache.device,
             )
+            # paged_fill_cache expects batch_idx local to each batch shard, but
+            # it's sharded — so % local_batch rebases it to local ids (no-op
+            # when dp_size == 1).
+            if attn_metadata.dp_size > 1:
+                local_batch = key_for_update.shape[0] // attn_metadata.dp_size
+                batch_idxs = batch_idxs % local_batch
             k_cache = torch.ops.tt.paged_fill_cache(
                 k_cache,
                 key_for_update,
