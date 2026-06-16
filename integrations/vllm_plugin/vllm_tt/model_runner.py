@@ -251,6 +251,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         self.device = device
         self.check_recompilation = envs.VLLM_XLA_CHECK_RECOMPILATION
         self.use_flat_model_io = self.tt_config.flat_model_io
+        self.enable_decode_fused_graphs = self.tt_config.enable_decode_fused_graphs
 
         # SPMD Related
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
@@ -1496,6 +1497,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def sample_tokens(
         self, grammar_output: "GrammarOutput | None"
     ) -> ModelRunnerOutput:
+        logger.info(f"sample_tokens called with grammar_output")
         if self.scheduler_output is None:
             # Nothing to do (PP non-final rank case), output isn't used.
             return None  # type: ignore[return-value]
@@ -1572,7 +1574,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     )
                 )
             else:
-                if self.position_ids.shape[-1] == 1:
+                if self.position_ids.shape[-1] == 1 and self.enable_decode_fused_graphs:
                     hidden_states, logits, selected_token_ids, kv_connector_output = (
                         self._model_decode(
                             input_ids,
@@ -2122,7 +2124,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 dummy_grammar_bitmask,
                 dummy_bitmasks,
             ) = self._get_dummy_inputs(config)
-            if config["num_tokens"] == 1:
+            if config["num_tokens"] == 1 and self.enable_decode_fused_graphs:
                 _, _, _, _ = self._model_decode(
                     dummy_inputs,
                     dummy_positions,
