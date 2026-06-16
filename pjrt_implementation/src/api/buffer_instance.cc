@@ -376,7 +376,7 @@ void BufferInstance::allocateUninitialized(const std::int64_t *byte_strides,
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape =
       calculateShape(getDimensionsRaw(), getNumberOfDimensions(), m_data_type);
-  std::vector<std::uint32_t> strides = calculateStrides(
+  std::vector<std::int64_t> strides = calculateStrides(
       getNumberOfDimensions(), byte_strides, num_byte_strides, element_size);
 
   // Allocate an owned host tensor without copying any data in. The contents are
