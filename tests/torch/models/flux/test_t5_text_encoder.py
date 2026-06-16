@@ -13,11 +13,10 @@ from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
 
 @pytest.mark.xfail(
-    reason="tt-mlir compiler INTERNAL error (RuntimeError: Bad StatusOr access: "
-    "INTERNAL: Error code: 13) during graph lowering. IR shows a const-eval "
-    "subgraph materializing a rank-0 scalar (ttnn.full shape=<>, tile layout); "
-    "the scalar const-eval path errors out. Compiler-level issue, not a loader "
-    "bug. Tracking issue TBD."
+    reason="PCC 0.933 < 0.99 on Blackhole (single-chip): compiles and runs e2e, "
+    "numerical-accuracy gap only (close to historical flux ~0.935). On Wormhole "
+    "it instead hits a tt-mlir compiler INTERNAL error (rank-0 scalar const-eval). "
+    "Deferred per triage policy (PCC). Tracking issue TBD."
 )
 @pytest.mark.single_device
 @pytest.mark.nightly

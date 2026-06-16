@@ -12,11 +12,15 @@ from infra import Framework, run_graph_test
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
 
-@pytest.mark.xfail(
-    reason="Model OOM on a single chip: TT_FATAL Out of Memory allocating a "
-    "~12.99 GB DRAM buffer across 12 banks (bank size ~1.07 GB). The ~12B "
-    "FLUX.1-dev transformer exceeds single-chip DRAM at 128x128. Needs the "
-    "multi-chip sharded path (later bringup phase). Tracking issue TBD."
+@pytest.mark.skip(
+    reason="Single-chip device DRAM OOM during execution. On Blackhole (~34 GB: "
+    "8 banks x 4.27 GB) the ~23.8 GB weights fit and execution starts, but an "
+    "intermediate ~4.8 GB activation buffer can't allocate (~30 GB already used, "
+    "<0.5 GB/bank free) - marginally over; needs memory opt (bfp8 weights / "
+    "optimization_level=2). On Wormhole (12 GB) it OOMs outright. The full "
+    "run_graph_test also needs >31 GB host RAM (weights + trace + CPU reference). "
+    "skip (not xfail) because a host OOM-kill / device TT_FATAL aborts the "
+    "process rather than raising. Tracking issue TBD."
 )
 @pytest.mark.single_device
 @pytest.mark.nightly
