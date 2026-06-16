@@ -2768,5 +2768,5 @@ def test_glm_4_7_tp_galaxy_4_layers(
         shard_spec_fn=_glm_4_7_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
         kv_cache_sharding_spec=("batch", "model", None, None),
-        required_pcc=0.99, # Since this is only a 4 layer test, pcc lower than 0.99 likely indicates a larger full model regression
+        required_pcc=0.99,
     )
