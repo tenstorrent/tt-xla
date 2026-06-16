@@ -105,6 +105,16 @@ class AscendScheduler(Scheduler):
 
             request = request_queue.peek_request()
 
+            # Defensive: an aborted/finished request must never be scheduled.
+            # finish_requests() purges these from the queues, but guard here too
+            # so a stale finished request (e.g. a mid-prefill chunk aborted on a
+            # client disconnect) is dropped instead of crashing the EngineCore
+            # at the status check below (the FINISHED_ABORTED scheduler crash).
+            if request.is_finished():
+                request_queue.pop_request()
+                self.scheduled_req_ids.discard(request.request_id)
+                continue
+
             def skip_cur_request(req=request):
                 request_queue.pop_request()
                 step_skipped_waiting.prepend_request(req)
@@ -620,18 +630,48 @@ class AscendScheduler(Scheduler):
 
         For example, the API server can abort a request when the client
         disconnects.
+
+        Extends the base handler to also purge finished/aborted requests from
+        the *waiting-side* queues. AscendScheduler keeps a mid-prefill chunked
+        request (status RUNNING) in ``self.skipped_waiting`` rather than
+        ``self.running`` until its prefill completes (tt-xla #4986). The base
+        ``finish_requests`` removes RUNNING requests only from ``self.running``,
+        so an aborted mid-prefill request would linger in ``skipped_waiting``
+        and the next ``schedule()`` would raise
+        ``RuntimeError: Invalid request status: FINISHED_ABORTED``, killing the
+        EngineCore for every in-flight request. We remove the request from both
+        waiting queues here so a single client abort cannot crash the engine.
         """
         if request_ids is None:
             return
+        # Normalize to a concrete list: a str is a single id (not an iterable of
+        # ids), and a one-shot generator would otherwise be exhausted by the
+        # loop below before super() could consume it.
+        if isinstance(request_ids, str):
+            request_ids = [request_ids]
+        else:
+            request_ids = list(request_ids)
 
+        to_remove: list[Request] = []
         for req_id in request_ids:
             request = self.requests.get(req_id)
-            if request is None:
-                # Invalid request ID.
+            if request is None or request.is_finished():
+                # Invalid or already-finished request ID.
                 continue
+            to_remove.append(request)
             if request.status == RequestStatus.RUNNING:
                 self.scheduled_req_ids.discard(request.request_id)
+
         super().finish_requests(request_ids, finished_status)
+
+        # Purge from the waiting-side queues. The base handler only removes
+        # RUNNING-status requests from self.running, missing chunked-prefill
+        # continuations that live in skipped_waiting (tt-xla #4986).
+        # remove_requests just filters the deque, so it is a safe no-op for
+        # requests the base handler already removed.
+        if to_remove:
+            self.waiting.remove_requests(to_remove)
+            self.skipped_waiting.remove_requests(to_remove)
 
     def update_from_output(
         self,
