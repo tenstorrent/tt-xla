@@ -1068,6 +1068,9 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   ttir_to_ttnn_pm.addPass(
       mlir::tt::ttnn::createTTNNResolveTtLangKernels(resolve_options));
 
+  // Lower each now-resolved `ttnn.tt_lang_op` to `ttnn.generic` op
+  ttir_to_ttnn_pm.addPass(mlir::tt::ttnn::createTTNNLowerTtLangToGeneric());
+
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
   // Run the pass manager.
