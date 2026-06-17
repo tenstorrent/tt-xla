@@ -116,11 +116,13 @@ class TTConfig:
     # When set, it overrides use_2d_mesh.
     mesh_shape: Optional[list[int]] = None
 
-    # When True (default), weight partition specs include the "batch" (DP)
-    # axis — FSDP-style sharding that saves memory at the cost of extra
-    # communication.  When False, weights are sharded only on the "model"
-    # (TP) axis and replicated across DP replicas (classic DP+TP).
-    shard_weights_on_batch_axis: bool = True
+    # When True, weight partition specs include the "batch" (DP) axis —
+    # FSDP-style sharding that saves memory at the cost of extra communication.
+    # When False (default), weights are sharded only on the "model" (TP) axis
+    # and replicated across DP replicas (classic DP+TP), which incurs fewer
+    # CCLs. Enable batch-axis sharding only for models that otherwise don't fit
+    # on a machine.
+    shard_weights_on_batch_axis: bool = False
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
