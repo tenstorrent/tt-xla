@@ -30,11 +30,11 @@ import torch_xla.core.xla_model as xm
 import torch_xla.runtime as xr
 from infra.utilities.torch_multichip_utils import enable_spmd
 from utils import (
-    align_arch,
     build_xla_export_name,
     compute_pcc,
     create_benchmark_result,
     get_benchmark_metadata,
+    get_xla_device_arch,
     print_benchmark_results,
 )
 
@@ -46,18 +46,6 @@ EXECUTION_STEPS = 3
 # Where the compiler dumps stablehlo/ttir/ttnn + flatbuffer artifacts; the perf
 # CI collects them from here (matches the vision/encoder/llm harnesses).
 MODULE_EXPORT_PATH = "modules"
-
-
-def _device_arch() -> str:
-    """SPMD-safe device architecture ("wormhole" / "blackhole").
-
-    The shared ``get_xla_device_arch`` resolves ``xm.xla_device()``, which under
-    SPMD is the virtual ``SPMD:0`` device and can't be looked up. The runtime
-    device attributes expose the physical arch in both sharded and single-device
-    modes.
-    """
-    attributes = xr.global_runtime_device_attributes()
-    return align_arch(str(attributes[0]["device_arch"]).lower())
 
 
 def _execute_and_measure(
@@ -290,7 +278,7 @@ def benchmark_video_gen_torch_xla(
         torch_xla_enabled=True,
         backend="tt",
         device_name=socket.gethostname(),
-        arch=_device_arch(),
+        arch=get_xla_device_arch(),
         device_count=device_count,
         mesh_shape=mesh_shape,
         # Inputs are text (2-D) / video (5-D) tensors, not 2-D images, so skip
