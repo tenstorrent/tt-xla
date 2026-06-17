@@ -225,7 +225,7 @@ def qwen3_6_27b_tp():
     log(f"Loading model weights (bfloat16, low_cpu_mem_usage=True, 8 layers)...")
     t0 = time.time()
     config = AutoConfig.from_pretrained(model_id)
-    config.num_hidden_layers = 4
+    # config.num_hidden_layers = 4
     model = AutoModelForCausalLM.from_pretrained(
         model_id, config=config, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
     )
@@ -320,10 +320,12 @@ def qwen3_6_27b_tp():
 
     log("Decoding output token...")
     with torch.no_grad():
-        next_token = outputs.logits[:, -1, :].argmax(dim=-1)
-        decoded = tokenizer.decode(next_token[0])
+        last_real_pos = attention_mask.sum(dim=-1) - 1
+        next_token = outputs.logits[0, last_real_pos[0], :].argmax(dim=-1)
+        decoded = tokenizer.decode(next_token)
         print(f"Prompt: {prompt}")
         print(f"Next token: {decoded}")
+        print(f"Next token undecoded: {next_token[0]}")
 
     return decoded
 
