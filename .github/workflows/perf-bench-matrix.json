@@ -212,6 +212,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "flux2_dev_tp_qb2",
+        "pytest": "tests/benchmark/test_imagegen.py::test_flux2_dev",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "microsoft_phi-1",
         "pytest": "tests/benchmark/test_llms.py::test_phi1"
       },

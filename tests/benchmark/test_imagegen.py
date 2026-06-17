@@ -145,3 +145,47 @@ def test_playground_v2_5(output_file, request):
         optimization_level=0,
         output_image_path="test_playground_v2_5_output.png",
     )
+
+
+def test_flux2_dev(output_file, request):
+    from benchmarks.flux2_pipeline import Flux2Config, Flux2Pipeline
+    from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
+        GUIDANCE_SCALE,
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+    )
+
+    # FLUX.2-dev bringup geometry (128x128, 4 flow-matching steps), matching the
+    # tt-forge-models component-test plan.
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # ~32B transformer/denoiser runs tensor-parallel on all visible chips;
+        # the ~24B text encoder and the VAE decode stay on CPU (composite recipe,
+        # mirrors tt_forge_models flux2/pytorch/test_multichip.py).
+        pipeline = Flux2Pipeline(config=Flux2Config(compile_options=compile_options))
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(prompt=prompt, num_inference_steps=steps)
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="flux2-dev",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,  # safe default for bringup; perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; perf-tuning will ramp
+        output_image_path="test_flux2_dev_output.png",
+    )
