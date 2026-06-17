@@ -201,6 +201,30 @@ void BufferInstance::fireDoneWithHostBufferEvent() {
   m_done_with_host_buffer_event = nullptr;
 }
 
+namespace {
+
+// Returns true if `byte_strides` describe a dense, row-major (C-contiguous)
+// layout for `dims`. `num_byte_strides == 0` is the PJRT sentinel meaning
+// "dense". Dimensions of size <= 1 are ignored, since their stride is
+// irrelevant to the memory layout.
+bool isDenseRowMajor(const std::int64_t *dims, size_t num_dims,
+                     const std::int64_t *byte_strides, size_t num_byte_strides,
+                     std::uint32_t element_size) {
+  if (num_byte_strides == 0) {
+    return true;
+  }
+  std::int64_t expected = static_cast<std::int64_t>(element_size);
+  for (size_t d = num_dims; d-- > 0;) {
+    if (dims[d] > 1 && byte_strides[d] != expected) {
+      return false;
+    }
+    expected *= dims[d];
+  }
+  return true;
+}
+
+} // namespace
+
 // Constructing buffer instance for the first time.
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
@@ -225,6 +249,16 @@ void BufferInstance::copyFromHost(
   std::vector<std::int64_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
 
+  // A buffer is treated as contiguous if it is a complex dtype (its `shape`
+  // carries an extra trailing dim with no matching `byte_strides` entry) or
+  // genuinely dense row-major. A non-contiguous (e.g. transposed/sliced) buffer
+  // is forced onto the owned path below so the runtime gathers it into a
+  // contiguous tensor: the borrowed/zero-copy path cannot alias non-contiguous
+  // memory and would read it linearly, corrupting the data.
+  bool is_contiguous = data_type_utils::isComplexPJRTType(m_data_type) ||
+                       isDenseRowMajor(dims, num_dims, byte_strides,
+                                       num_byte_strides, element_size);
+
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
 
@@ -248,7 +282,8 @@ void BufferInstance::copyFromHost(
   bool cannot_borrow_host_buffer =
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type);
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type) ||
+      !is_contiguous;
 
   if (is_distributed) {
     TT_ASSERT(host_buffer_semantics !=

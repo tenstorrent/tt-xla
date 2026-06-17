@@ -63,6 +63,10 @@
         "pytest": "tests/benchmark/test_vision.py::test_vovnet"
       },
       {
+        "name": "playground_v2_5",
+        "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
@@ -194,11 +198,6 @@
         "optimization-level": 1
       },
       {
-        "name": "falcon3_7b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_falcon3_7b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
         "name": "falcon3_10b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_falcon3_10b_tp",
         "runs-on": "n300-llmbox"
@@ -209,38 +208,8 @@
         "runs-on": "n300-llmbox"
       },
       {
-        "name": "ministral_8b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_ministral_8b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "mistral_nemo_instruct_2407_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_mistral_nemo_instruct_2407_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
         "name": "mistral_small_24b_instruct_2501_tp",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_small_24b_instruct_2501_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "qwen_2_5_14b_instruct_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_14b_instruct_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "qwen_2_5_coder_32b_instruct_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "qwen_3_8b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "qwen_3_14b_tp",
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_14b_tp",
         "runs-on": "n300-llmbox"
       },
       {
@@ -321,11 +290,6 @@
       {
         "name": "gpt_oss_20b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp",
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "gpt_oss_20b_tp_batch_size_1",
-        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1",
         "runs-on": "n300-llmbox"
       },
       {

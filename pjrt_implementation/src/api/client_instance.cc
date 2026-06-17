@@ -407,8 +407,19 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // [Workaround] On a 32-device galaxy (UBB) a 1D {1, N} parent mesh can't be
+    // reshaped to the 2D (4, 8) executable mesh (the MGD solver fails); open
+    // (4, 8) directly.
+    if (m_devices.size() == 32) {
+      LOG_F(WARNING, "32-device galaxy: opening the parent mesh directly as "
+                     "(4, 8); the 1D {1, N} -> (4, 8) reshape fails in the MGD "
+                     "solver. See "
+                     "https://github.com/tenstorrent/tt-metal/issues/43210");
+      m_parent_mesh = getOrCreateMeshDevice({4, 8});
+    } else {
+      m_parent_mesh =
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    }
   }
 
   return tt_pjrt_status::kSuccess;
@@ -510,6 +521,21 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
+  // [Workaround] The Blackhole galaxy (UBB) lacks a both-axis wrap, so
+  // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
+  // TopologyMapper; force FABRIC_1D there. Other 32-device galaxies (e.g.
+  // Wormhole) have the wrap, so keep their auto-detected fabric.
+  bool is_blackhole = m_system_descriptor->chip_descs()->size() > 0 &&
+                      m_system_descriptor->chip_descs()->Get(0)->arch() ==
+                          ::tt::target::Arch::Blackhole;
+  if (is_blackhole && m_devices.size() == 32) {
+    LOG_F(WARNING,
+          "Auto-overriding fabric config to FABRIC_1D for the "
+          "32-device Blackhole galaxy (UBB); this is a workaround, not "
+          "expected behaviour.");
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
+  }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }
 
@@ -568,7 +594,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 }
 
 void ClientInstance::closeMeshDevice() {
-  closeOptimizerSubmesh();
   closeParentMesh();
   loguru::flush();
 }
@@ -622,44 +647,6 @@ void ClientInstance::closeParentMesh() {
     m_parent_mesh.reset();
     m_fabric_config.reset();
   }
-}
-
-void ClientInstance::closeOptimizerSubmesh() {
-  if (m_optimizer_submesh.has_value()) {
-    DLOG_F(LOG_DEBUG, "Closing optimizer submesh.");
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-    m_optimizer_submesh.reset();
-  }
-}
-
-tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
-    const std::vector<uint32_t> &target_mesh_shape) {
-
-  // Ensure parent mesh exists with the correct shape
-  tt::runtime::Device parent_mesh = getOrCreateMeshDevice(target_mesh_shape);
-
-  if (m_optimizer_submesh.has_value()) {
-    std::vector<uint32_t> optimizer_submesh_shape =
-        tt::runtime::getMeshShape(*m_optimizer_submesh);
-
-    if (optimizer_submesh_shape == target_mesh_shape) {
-      DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - reusing "
-                        "already created optimizer submesh");
-      return *m_optimizer_submesh;
-    }
-
-    // If shape changed, parent mesh was closed and reopened in
-    // getOrCreateMeshDevice, which automatically closed the submesh.
-    // Clear the stale reference.
-    m_optimizer_submesh.reset();
-  }
-
-  DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - "
-                    "creating optimizer submesh");
-  m_optimizer_submesh =
-      tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
-
-  return *m_optimizer_submesh;
 }
 
 namespace internal {

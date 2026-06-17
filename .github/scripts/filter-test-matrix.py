@@ -119,7 +119,9 @@ def filter_matrix_adv(matrix, adv_filter):
 
 def update_runners(matrix, sh_runner):
     """Update runner names based on shared runner flag."""
-    runner_map = {"p150": "p150b"} if sh_runner else {"n150": "n150-perf"}
+    runner_map = (
+        {"p150": "p150b", "p150-perf": "p150b"} if sh_runner else {"n150": "n150-perf"}
+    )
 
     for item in matrix:
         item["runs-on-original"] = item.get("runs-on")

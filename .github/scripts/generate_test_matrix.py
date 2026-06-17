@@ -23,6 +23,7 @@ def map_runner_name(entry):
         "n300-high-memory": "tt-ubuntu-2204-n300-stable",
         "wormhole_b0": "tt-ubuntu-2204-n300-stable",
         "p150": "tt-ubuntu-2204-p150b-stable",
+        "p150-perf": "tt-ubuntu-2204-p150b-stable",
         "n300-llmbox": "tt-ubuntu-2204-n300-llmbox-stable",
         "cpu": "tt-ubuntu-2204-large-stable",
     }
