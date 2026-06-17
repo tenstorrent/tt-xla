@@ -2,7 +2,7 @@
     {"runs-on": "n150", "name": "run_vllm_n150_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and single_device", "shared-runners": "true", "extra-wheel": "vllm"},
     {"runs-on": "p150", "name": "run_vllm_p150_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and single_device", "shared-runners": "true", "extra-wheel": "vllm"},
     {"runs-on": "n300", "name": "run_vllm_n300_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and data_parallel", "shared-runners": "true", "extra-wheel": "vllm"},
-    {"runs-on": "n300", "name": "run_vllm_n300_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and (tensor_parallel and data_parallel) and dual_chip", "shared-runners": "true", "extra-wheel": "vllm"},
+    {"runs-on": "n300", "name": "run_vllm_n300_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and tensor_parallel and dual_chip", "shared-runners": "true", "extra-wheel": "vllm"},
     {"runs-on": "n300-llmbox", "name": "run_vllm_llmbox_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and tensor_parallel and llmbox", "shared-runners": "true", "extra-wheel": "vllm"},
     { "runs-on": "galaxy-wh-6u",        "name": "run_vllm_galaxy_wh_6u_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and tensor_parallel and galaxy_wh_6u", "extra-wheel": "vllm" },
     {"runs-on": "qb2-blackhole", "name": "run_vllm_bhqb_tests", "dir": "./tests/integrations/vllm_plugin", "test-mark": "nightly and bhqb", "extra-wheel": "vllm"}

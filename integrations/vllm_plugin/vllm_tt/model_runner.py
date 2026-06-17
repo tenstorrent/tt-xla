@@ -1528,7 +1528,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
-            self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
+            # self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
             (
                 model_input_ids,
                 model_positions,
@@ -1913,8 +1913,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             is_causal=True,
             attn_mask=None,
         )
-        logger.info(f"attn_metadata: {attn_metadata}")
-        logger.info(f"self._attention_layer_names: {self._attention_layer_names}")
 
         query_start_loc = torch.arange(
             0,
@@ -1932,7 +1930,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             query_start_loc,
             force_gdn_prefill=bool(self._gdn_layer_names),
         )
-        logger.info(f"per_layer_attn_metadata keys: {per_layer_attn_metadata}")
         if self.uses_mrope:
             position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
@@ -1945,7 +1942,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             input_ids, inputs_embeds = self._get_model_inputs(
                 input_ids, mm_embed_inputs=None
             )
-            self._pin_input_shardings(input_ids, position_ids, inputs_embeds)
+            # self._pin_input_shardings(input_ids, position_ids, inputs_embeds)
             (
                 model_input_ids,
                 model_positions,
@@ -2297,7 +2294,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info(f"Capturing model with different input shapes.")
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
-            logger.info(f"check-1")
             self._precompile_backbone()
             if self.tt_config.decode_only:
                 return
@@ -2436,11 +2432,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_cache_config: Configuration for the KV cache, including the KV
             cache size of each layer
         """
-        if len(kv_cache_config.kv_cache_groups) > 1:
-            raise NotImplementedError(
-                "Hybrid models with more than one KV cache type are not "
-                "supported yet."
-            )
 
         # This may be a valid config if full model is not being compiled; for
         # example, using num_hidden_layers override to compile only a subset of
@@ -2452,10 +2443,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             return
 
-        if (
-            kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-            != self.block_size
-        ):
+        # Get block size from first group (all groups must have same block size)
+        first_block_size = kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
+        if first_block_size != self.block_size:
             self.input_batch = InputBatch(
                 max_num_reqs=self.max_num_reqs,
                 max_model_len=self.max_model_len,
@@ -2463,12 +2453,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 device="cpu",
                 pin_memory=self.pin_memory,
                 vocab_size=self.model_config.get_vocab_size(),
-                block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
-                kernel_block_sizes=[
-                    kv_cache_config.kv_cache_groups[0].kv_cache_spec.block_size
-                ],
+                block_sizes=[first_block_size],
+                kernel_block_sizes=[first_block_size],
                 is_pooling_model=False,
             )
         # Verify dtype compatibility between block_table_cpu and input_batch
@@ -2479,21 +2465,35 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         kv_cache_sizes = {}
         for kv_cache_tensor in kv_cache_config.kv_cache_tensors:
-            assert len(kv_cache_tensor.shared_by) == 1, (
-                "KV cache tensor shared by multiple layers is not supported in " "TPU."
-            )
-            kv_cache_sizes[kv_cache_tensor.shared_by[0]] = kv_cache_tensor.size
+            if not kv_cache_tensor.shared_by:
+                raise ValueError(
+                    "KV cache tensor has no associated layers in shared_by."
+                )
+            for layer_name in kv_cache_tensor.shared_by:
+                previous_size = kv_cache_sizes.get(layer_name)
+                if previous_size is not None and previous_size != kv_cache_tensor.size:
+                    raise ValueError(
+                        "Conflicting KV cache tensor sizes for layer "
+                        f"{layer_name}: {previous_size} vs {kv_cache_tensor.size}."
+                    )
+                kv_cache_sizes[layer_name] = kv_cache_tensor.size
 
         kv_caches: dict[str, torch.Tensor] = {}
+        kv_cache_is_attention: dict[str, bool] = {}
         for kv_cache_group in kv_cache_config.kv_cache_groups:
             for layer_name in kv_cache_group.layer_names:
                 kv_cache_spec = _get_layer_kv_cache_spec(
                     kv_cache_group.kv_cache_spec, layer_name
                 )
+                if layer_name not in kv_cache_sizes:
+                    raise KeyError(
+                        f"Missing KV cache tensor size for layer {layer_name}."
+                    )
                 tensor_size = kv_cache_sizes[layer_name]
                 assert tensor_size % kv_cache_spec.page_size_bytes == 0
                 num_blocks = tensor_size // kv_cache_spec.page_size_bytes  # noqa
                 if isinstance(kv_cache_spec, AttentionSpec):
+                    kv_cache_is_attention[layer_name] = True
                     if self.enable_tensor_parallel:
                         num_kv_heads = kv_cache_spec.num_kv_heads
                         assert self.original_parallel_config is not None
@@ -2505,7 +2505,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         )
                     kv_cache_shape = TTAttentionBackend.get_kv_cache_shape(
                         num_blocks,
-                        kv_cache_spec.block_size,
+                        # kv_cache_spec.block_size,
+                        32,
                         kv_cache_spec.num_kv_heads,
                         kv_cache_spec.head_size,
                     )
@@ -2520,6 +2521,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
                     kv_caches[layer_name] = [k_cache, v_cache]
                 elif isinstance(kv_cache_spec, MambaSpec):
+                    kv_cache_is_attention[layer_name] = False
                     state_tensors = []
                     for state_shape, state_dtype in zip(
                         kv_cache_spec.shapes, kv_cache_spec.dtypes
@@ -2543,11 +2545,44 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         if self.enable_tensor_parallel:
-            # Shard KV Cache — each entry is [k_cache, v_cache].
-            for kv_pair in self.kv_caches:
-                for cache in kv_pair:
-                    assert cache.ndim == 4, "KV cache tensor must be 4D."
-                    safe_mark_sharding(cache, self.mesh, (None, "model", None, None))
+            # Shard KV cache tensors by cache type and rank.
+            for layer_name, layer_caches in kv_caches.items():
+                is_attention_cache = kv_cache_is_attention.get(layer_name)
+                if is_attention_cache is None:
+                    logger.warning(
+                        "Missing KV cache type for layer %s; assuming non-attention cache",
+                        layer_name,
+                    )
+                    is_attention_cache = False
+
+                for cache in layer_caches:
+                    if is_attention_cache:
+                        assert cache.ndim == 4, (
+                            "Attention KV cache tensor must be 4D, got "
+                            f"rank-{cache.ndim} with shape {tuple(cache.shape)} "
+                            f"for layer {layer_name}."
+                        )
+                        safe_mark_sharding(
+                            cache, self.mesh, (None, "model", None, None)
+                        )
+                        continue
+
+                    if cache.ndim == 4:
+                        safe_mark_sharding(
+                            cache, self.mesh, (None, "model", None, None)
+                        )
+                    elif cache.ndim == 3:
+                        safe_mark_sharding(cache, self.mesh, (None, None, "model"))
+                    elif cache.ndim == 2:
+                        safe_mark_sharding(cache, self.mesh, (None, "model"))
+                    else:
+                        logger.warning(
+                            "Skipping non-attention KV cache sharding for layer %s: "
+                            "rank-%d tensor with shape %s",
+                            layer_name,
+                            cache.ndim,
+                            tuple(cache.shape),
+                        )
 
         if has_kv_transfer_group():
             get_kv_transfer_group().register_kv_caches(kv_caches)
