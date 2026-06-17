@@ -345,8 +345,8 @@ def test_fully_replicated_graph(spmd_mode):
         def forward(self, x, y):
             return x @ y
 
-    input_x = torch.randn(32, 32, dtype=torch.bfloat16)
-    input_y = torch.randn(32, 32, dtype=torch.bfloat16)
+    input_x = torch.randn(8, 32, dtype=torch.bfloat16)
+    input_y = torch.randn(32, 64, dtype=torch.bfloat16)
     model = MM()
     golden = model(input_x, input_y)
 
