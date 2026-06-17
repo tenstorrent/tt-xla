@@ -94,6 +94,13 @@ public: // Constructors needs to be public for std::shared_ptr.
   void ensure_layout(const tt::runtime::Device &device,
                      const tt::runtime::Layout &layout);
 
+  // Relabels a uint32 carrier runtime tensor (raw block-float tile bytes) as the
+  // block-float tile tensor of `shape`/`dtype`, in place, sharing the bytes.
+  // Used when a pre-packed weight shipped through torch-xla as a uint32 carrier.
+  void reinterpretBlockFloat(const std::vector<std::uint32_t> &shape,
+                             ::tt::target::DataType dtype,
+                             const std::vector<std::uint32_t> &meshShape);
+
   // Removes shard from shards (by setting shard to nullptr).
   void remove_shard(const BufferInstance *shard) noexcept;
 

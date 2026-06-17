@@ -405,8 +405,18 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // [Workaround] On the Blackhole galaxy (UBB) a 1D {1, N} parent mesh
+    // cannot be reshaped to the 2D executable mesh: the MGD topology_solver
+    // fails to map the logical mesh onto the physical 2D galaxy. Opening the
+    // parent mesh directly as 2D sidesteps that reshape. Gated to the BH
+    // galaxy so every other system keeps the generic 1D parent mesh.
+    if (std::getenv("TT_RUNTIME_USING_BH_GALAXY") != nullptr &&
+        std::string(std::getenv("TT_RUNTIME_USING_BH_GALAXY")) != "0") {
+      m_parent_mesh = getOrCreateMeshDevice({8, 4});
+    } else {
+      m_parent_mesh = getOrCreateMeshDevice(
+          {1, static_cast<uint32_t>(m_devices.size())});
+    }
   }
 
   return tt_pjrt_status::kSuccess;
@@ -507,6 +517,17 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
         num_devices > 1 ? tt::runtime::FabricConfig::FABRIC_1D
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
+  }
+  // [Workaround] On the Blackhole galaxy (UBB), computeMeshFabricConfig
+  // returns RING_RING which tt-metal reinterprets as TORUS_XY; the
+  // TopologyMapper rejects that because the board lacks a both-axis wrap.
+  // Force FABRIC_1D there until the underlying tt-metal/MGD issue is fixed.
+  // Gated to the BH galaxy so every other system keeps the auto-detected
+  // fabric config.
+  if (std::getenv("TT_RUNTIME_USING_BH_GALAXY") != nullptr &&
+      std::string(std::getenv("TT_RUNTIME_USING_BH_GALAXY")) != "0") {
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
   }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }

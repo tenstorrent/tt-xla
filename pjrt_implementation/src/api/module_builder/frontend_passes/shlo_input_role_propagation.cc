@@ -9,6 +9,7 @@
 #include "llvm/ADT/StringRef.h"
 
 // llvm mlir includes
+#include "mlir/AsmParser/AsmParser.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Operation.h"
@@ -35,6 +36,7 @@ const std::string c_mark_argument_function_name = "tt.mark_argument";
 const std::string c_weight_dtype_override_function_name =
     "tt.weight_dtype_override";
 const std::string c_weight_dtype_attr_name = "ttcore.weight_dtype";
+const std::string c_weight_carrier_attr_name = "ttcore.weight_carrier";
 
 tt_pjrt_status
 annotateArgumentAttributes(mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
@@ -333,10 +335,107 @@ struct PopulateWeightDtypeFromCustomCall final
       return mlir::failure();
     }
 
+    // A carrier weight ships as a 1D uint32 carrier and the custom_call reshapes
+    // it to the logical bf16 placeholder (input shape != output shape). Retype
+    // the carrier argument to that placeholder type so the consumer sees the
+    // logical weight and TTNNPrepackedWeightDtype can retype it to the
+    // block-float tile; the PJRT input-prep relabels the carrier buffer (the
+    // bytes are already block-float) to the tile tensor.
+    bool isCarrier = false;
+    if (mlir::Attribute carrierAttr =
+            frontendAttrs.get(c_weight_carrier_attr_name)) {
+      if (auto carrierStr = mlir::dyn_cast<mlir::StringAttr>(carrierAttr)) {
+        isCarrier = carrierStr.getValue() == "1";
+      }
+    }
+
     // Trace the input to its root block arguments and set the weight dtype
     // attribute on each.
     mlir::Value input = op.getOperand(0);
     mlir::SmallVector<mlir::BlockArgument> blockArgs = getBlockArguments(input);
+
+    if (isCarrier) {
+      // The carrier custom_call reshapes the uint32 carrier argument into the
+      // logical bf16 placeholder. Retype the carrier function argument to that
+      // placeholder type, wire the consumer directly to it, and drop the (now
+      // dead) chain of single-operand ops that fed the custom_call (e.g. the
+      // mark_argument / reshape ops the tracer inserted between the argument and
+      // this op).
+      TT_FATAL(blockArgs.size() == 1,
+               "Expected carrier weight_dtype_override to trace to exactly one "
+               "block argument, got %u",
+               static_cast<unsigned>(blockArgs.size()));
+
+      mlir::BlockArgument blockArg = blockArgs[0];
+      auto funcOp =
+          mlir::dyn_cast<mlir::func::FuncOp>(blockArg.getOwner()->getParentOp());
+      TT_FATAL(funcOp, "Expected function as parent of block argument");
+      unsigned argIndex = blockArg.getArgNumber();
+      mlir::Type carrierLogicalType = op.getResult(0).getType();
+
+      auto carrierArgType = mlir::cast<mlir::RankedTensorType>(blockArg.getType());
+      auto logicalType = mlir::cast<mlir::RankedTensorType>(carrierLogicalType);
+      int64_t rankDiff = logicalType.getRank() - carrierArgType.getRank();
+
+      blockArg.setType(carrierLogicalType);
+      mlir::FunctionType oldType = funcOp.getFunctionType();
+      llvm::SmallVector<mlir::Type> argTypes(oldType.getInputs());
+      argTypes[argIndex] = carrierLogicalType;
+      funcOp.setType(mlir::FunctionType::get(funcOp.getContext(), argTypes,
+                                             oldType.getResults()));
+      funcOp.setArgAttr(argIndex, c_weight_carrier_attr_name,
+                        rewriter.getBoolAttr(true));
+      funcOp.setArgAttr(argIndex, c_weight_dtype_attr_name, weightDtypeStrAttr);
+
+      // The carrier argument shipped 2D (e.g. [E, carrier_per_KN]) with an sdy
+      // sharding of matching rank, but the retyped logical arg is higher rank
+      // (e.g. [E, K, N]). Expand the `sdy.sharding` dim-sharding list with
+      // `rankDiff` extra replicate ({}) dims so it matches the new rank (the
+      // flattened carrier tail maps to the replicated logical matrix dims).
+      if (rankDiff > 0) {
+        if (mlir::Attribute sh =
+                funcOp.getArgAttr(argIndex, "sdy.sharding")) {
+          std::string shStr;
+          llvm::raw_string_ostream os(shStr);
+          sh.print(os);
+          size_t closePos = shStr.rfind(']');
+          if (closePos != std::string::npos) {
+            std::string insert;
+            for (int64_t i = 0; i < rankDiff; ++i) {
+              insert += ", {}";
+            }
+            shStr.insert(closePos, insert);
+            if (mlir::Attribute newSh = mlir::parseAttribute(
+                    shStr, funcOp.getContext())) {
+              funcOp.setArgAttr(argIndex, "sdy.sharding", newSh);
+            }
+          }
+        }
+      }
+
+      // Wire the custom_call's users to the retyped argument and erase the op.
+      rewriter.replaceOp(op, mlir::Value(blockArg));
+
+      // Erase the dead single-operand chain that fed the custom_call (input ->
+      // ... -> blockArg). They no longer have any users now that the op is gone.
+      mlir::Value dead = input;
+      while (mlir::Operation *defOp = dead.getDefiningOp()) {
+        if (!defOp->use_empty() || defOp->getNumResults() != 1) {
+          break;
+        }
+        mlir::Value next = defOp->getNumOperands() == 1 ? defOp->getOperand(0)
+                                                        : mlir::Value();
+        rewriter.eraseOp(defOp);
+        if (!next) {
+          break;
+        }
+        dead = next;
+      }
+
+      LOG_F(WARNING, "[carrier-frontend] arg %u retyped + chain erased done",
+            argIndex);
+      return mlir::success();
+    }
 
     for (auto blockArg : blockArgs) {
       auto *parentOp = blockArg.getOwner()->getParentOp();
@@ -358,13 +457,24 @@ struct PopulateWeightDtypeFromCustomCall final
 tt_pjrt_status annotateArgumentAttributesFromCustomCall(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module) {
   mlir::MLIRContext *context = mlir_module->getContext();
+
+  // Remove `tt.mark_argument` custom calls FIRST, in a separate fixpoint, so a
+  // carrier `tt.weight_dtype_override` then consumes its function argument
+  // directly (no intervening mark op) and can retype the argument cleanly.
+  mlir::RewritePatternSet markPatterns(context);
+  markPatterns.add<internal::PopulateArgumentAttrsFromTTMark>(context);
+  if (failed(mlir::applyPatternsGreedily(mlir_module.get(),
+                                         std::move(markPatterns)))) {
+    LOG_F(ERROR, "Failed to uplift mark parameters custom call");
+    return tt_pjrt_status::kInternal;
+  }
+
   mlir::RewritePatternSet patterns(context);
-  patterns.add<internal::PopulateArgumentAttrsFromTTMark>(context);
   patterns.add<internal::PopulateWeightDtypeFromCustomCall>(context);
 
   if (failed(mlir::applyPatternsGreedily(mlir_module.get(),
                                          std::move(patterns)))) {
-    LOG_F(ERROR, "Failed to uplift mark parameters custom call");
+    LOG_F(ERROR, "Failed to uplift weight dtype custom call");
     return tt_pjrt_status::kInternal;
   }
 

@@ -189,6 +189,20 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     input_tensors.push_back(*prepared_tensor);
 
+    // A/B switch (paired with load_cached.cpp's STREAM_CONST_EVAL_RETAIN_FALSE
+    // branch): in retain-false mode, const-eval inputs are intentionally given
+    // retain=false so the compiler-emitted ttnn.deallocate frees their device
+    // buffer once the bfp output is cached. A later graph that lists the same
+    // weight as an input then legitimately sees retain=false / not-allocated,
+    // so these two safety checks must be skipped under the same env gate.
+    static const bool retainFalseMode = []() {
+      const char *v = std::getenv("STREAM_CONST_EVAL_RETAIN_FALSE");
+      return v != nullptr && v[0] == '1';
+    }();
+    if (retainFalseMode) {
+      continue;
+    }
+
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.
     if (!tt::runtime::getTensorRetain(*prepared_tensor)) {

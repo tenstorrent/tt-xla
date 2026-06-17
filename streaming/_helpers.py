@@ -12,11 +12,10 @@ from typing import Dict, List, Tuple
 import psutil
 import torch
 import torch_xla
-from torch import nn
 from ttxla_tools.logging import logger
+from torch import nn
 
 from streaming.streaming_loader import _ship_module_handle_path, _upload_with_sharding
-from streaming.weight_loaders import deepseek_v4_flash as weight_loader
 from third_party.tt_forge_models.deepseek_v4.modified_model import (
     model_decode_opt as mdo,
 )
@@ -71,16 +70,18 @@ def _ship_top_level(
     device,
     *,
     top_level_shard_spec_fn,
+    load_embed_state_dict,
+    load_top_level_state_dict,
 ) -> None:
     """Load top-level state dicts (embed + norm + head + hc_head_*) and ship
     each to device with the partition spec the adapter provides."""
-    embed_sd = weight_loader.load_embed_state_dict()
+    embed_sd = load_embed_state_dict()
     _check_no_unexpected(
         model.embed.load_state_dict(embed_sd, strict=False),
         "embed",
     )
     del embed_sd
-    top_sd = weight_loader.load_top_level_state_dict()
+    top_sd = load_top_level_state_dict()
     _check_no_unexpected(
         model.load_state_dict(top_sd, strict=False),
         "top-level",

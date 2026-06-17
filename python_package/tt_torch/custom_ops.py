@@ -221,6 +221,68 @@ def _(ctx, grad_output):
 
 
 @torch.library.custom_op(
+    "tt::weight_dtype_override_carrier", mutates_args=[], device_types=["cpu", "xla"]
+)
+def weight_dtype_override_carrier(
+    carrier: torch.Tensor, out_shape: list[int], dtype_str: str
+) -> torch.Tensor:
+    """
+    Ship a pre-packed block-float weight as a uint32 ``carrier`` and present a
+    bf16 placeholder of logical shape ``out_shape`` to the tracer so downstream
+    matmuls see the logical weight shape.
+
+    The carrier bytes ARE the device-ready block-float (bfp4/bfp8) tile bytes
+    (produced host-side by ttnn's ``pack_bfp4``). Unlike ``weight_dtype_override``
+    (which keeps a bf16 weight and lets the runtime pack it), this ships only the
+    small carrier, so no bf16 weight ever lands on device. The custom_call emits a
+    ``tt.weight_dtype_override`` carrying ``ttcore.weight_carrier=1``; the C++
+    frontend retypes the carrier function argument to the bf16 placeholder type and
+    the PJRT input-prep relabels the carrier buffer to the block-float tile tensor.
+    ``out_shape`` may be 2D (``[out,in]``) or batched (``[E,K,N]`` for an expert
+    stack); the carrier may be 1D or sharded along the leading (batch) dim.
+
+    Args:
+        carrier: uint32 tensor of packed block-float tile bytes.
+        out_shape: logical weight shape (the block-float tile dims are the last 2).
+        dtype_str: "bfp_bf4" or "bfp_bf8".
+    """
+    if carrier.device.type == "cpu":
+        return torch.zeros(out_shape, dtype=torch.bfloat16)
+
+    assert dtype_str in (
+        "bfp_bf4",
+        "bfp_bf8",
+    ), f"dtype_str must be 'bfp_bf4' or 'bfp_bf8', received {dtype_str}"
+
+    frontend_attributes = {
+        "ttcore.weight_dtype": dtype_str,
+    }
+
+    # Path A: emit a distinct custom_call target the StableHLO->TTIR conversion
+    # turns into ttir.bfp_reinterpret. The carrier stays an integer through the
+    # graph/sharding; the op reinterprets it to block-float after the mesh_shard.
+    result = stablehlo_custom_call.stablehlo_custom_call(
+        [carrier],
+        "tt.bfp_reinterpret",
+        [list(out_shape)],
+        [torch.bfloat16],
+        frontend_attributes=frontend_attributes,
+    )
+    return result
+
+
+@weight_dtype_override_carrier.register_fake
+def _(carrier: torch.Tensor, out_shape: list[int], dtype_str: str) -> torch.Tensor:
+    return torch.zeros(out_shape, dtype=torch.bfloat16, device=carrier.device)
+
+
+@weight_dtype_override_carrier.register_autograd
+def _(ctx, grad_output):
+    # Inference-only metadata op; carrier/out_shape/dtype_str are non-diff.
+    return None, None, None
+
+
+@torch.library.custom_op(
     "tt::scaled_dot_product_attention", mutates_args=[], device_types=["xla", "cpu"]
 )
 def scaled_dot_product_attention(

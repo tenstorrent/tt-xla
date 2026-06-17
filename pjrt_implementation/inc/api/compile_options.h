@@ -108,6 +108,12 @@ struct CompileOptions {
   //                outputs on device DRAM.
   bool enable_const_eval_inputs_to_system_memory = true;
 
+  // Treat block-float (bfp_bf4/bfp_bf8) weight args as host-prepacked: the
+  // compiler retypes them straight to their tile dtype instead of inserting a
+  // device-side typecast, so no const-eval / GlobalTensorCache is needed for
+  // these weights. The host buffer is packed (bf16 -> bfp) on upload.
+  bool enable_host_packed_weights = false;
+
   // Enables transpose + matmul and transpose + linear ops fusion.
   // This controls fusing of transpose + matmul and transpose + linear ops.
   // When disabled, transpose is kept as a separate op which can be constevaled,

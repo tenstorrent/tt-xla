@@ -23,6 +23,137 @@ class WeightDtypeParametrization(torch.nn.Module):
         return torch.ops.tt.weight_dtype_override(weight, self.dtype_str)
 
 
+class WeightCarrierParametrization(torch.nn.Module):
+    """Parametrization that ships a pre-packed block-float weight as a 1D uint32
+    carrier and reconstructs the ``[out_dim, in_dim]`` bf16 placeholder on access.
+
+    The registered ``original`` parameter is the small uint32 carrier (so only it
+    is moved to device — no bf16 weight ever lands there). ``forward`` calls the
+    ``weight_dtype_override_carrier`` custom op, which traces as the bf16
+    placeholder and lowers to a carrier custom_call the PJRT relabels to the
+    block-float tile tensor at input-prep.
+    """
+
+    def __init__(self, out_shape, dtype_str: str):
+        super().__init__()
+        self.out_shape = [int(d) for d in out_shape]
+        self.dtype_str = dtype_str
+
+    def forward(self, carrier: torch.Tensor) -> torch.Tensor:
+        return torch.ops.tt.weight_dtype_override_carrier(
+            carrier, self.out_shape, self.dtype_str
+        )
+
+
+def apply_weight_carrier(
+    module: torch.nn.Module,
+    param_name: str,
+    carrier: torch.Tensor,
+    out_shape,
+    dtype_str: str,
+) -> None:
+    """Replace ``module.<param_name>`` with a uint32 ``carrier`` parameter and
+    register a :class:`WeightCarrierParametrization` so the module sees a bf16
+    placeholder of shape ``out_shape`` while only the carrier ships to device.
+    """
+    assert carrier.dtype == torch.uint32, (
+        f"carrier must be uint32, got {carrier.dtype}"
+    )
+    setattr(module, param_name, torch.nn.Parameter(carrier, requires_grad=False))
+    parametrize.register_parametrization(
+        module,
+        param_name,
+        WeightCarrierParametrization(out_shape, dtype_str),
+        unsafe=True,
+    )
+
+
+def _pack_weight_carrier(weight: torch.Tensor, dtype_str: str) -> torch.Tensor:
+    """Pack a bf16/fp32 weight into ttnn's exact block-float tile bytes as a uint32
+    carrier. For a batched expert stack ``[E, K, N]`` the carrier is returned 2D as
+    ``[E, carrier_per_KN]`` so it can shard along the leading (expert) dim; a plain
+    ``[out, in]`` weight returns a 1D carrier.
+    """
+    import numpy as np
+    from ttnn._ttnn.bfp_utils import pack_bfp4, pack_bfp8
+
+    pack = pack_bfp4 if dtype_str == "bfp_bf4" else pack_bfp8
+    shape = list(weight.shape)
+
+    if len(shape) >= 3:
+        # Expert stack [E, K, N]: pack EACH [K, N] matrix separately and stack to
+        # the carrier [E, carrier_per_KN] (which shards along E). Packing the whole
+        # [E*K, N] in one call would overflow pack_bfp4's 32-bit element indexing
+        # for large stacks (e.g. 384*7168*3072 = 8.4e9 > 2^31) and materialize a
+        # huge fp32 buffer; per-expert packing gives identical bytes (bfp4 tiles
+        # each [K, N] independently) and bounds memory.
+        wf = weight.reshape(shape[0], -1, shape[-1])  # [E, K, N]
+        per = [
+            pack(
+                wf[e].float().contiguous().view(-1).numpy(), True, False
+            ).astype(np.uint32)
+            for e in range(shape[0])
+        ]
+        return torch.from_numpy(np.stack(per, axis=0).copy())
+
+    mat = weight.reshape(-1, shape[-1])
+    flat = mat.float().contiguous().view(-1).numpy()
+    carrier_1d = pack(flat, True, False).astype(np.uint32)
+    return torch.from_numpy(carrier_1d.copy())
+
+
+def apply_weight_carrier_overrides(
+    model: torch.nn.Module,
+    config: Union[str, dict, os.PathLike],
+) -> List[Tuple[str, str]]:
+    """Like :func:`apply_weight_dtype_overrides`, but for block-float weights it
+    packs each weight host-side into a uint32 carrier and registers a
+    :class:`WeightCarrierParametrization`, so ONLY the small carrier ships to
+    device (no bf16 weight ever lands there). bf16 overrides fall back to the
+    plain dtype-override parametrization. Call this BEFORE moving the module to
+    device.
+    """
+    overrides = _load_config(config)
+    default_dtype = overrides.pop("default", None)
+
+    modules_by_name = dict(model.named_modules())
+    all_param_names = [name for name, _ in model.named_parameters()]
+
+    resolved = {}
+    if default_dtype is not None:
+        for param_name in all_param_names:
+            if param_name.endswith(".weight"):
+                resolved[param_name] = default_dtype
+    for pattern, dtype_str in overrides.items():
+        for param_name in all_param_names:
+            if fnmatch(param_name, pattern):
+                resolved[param_name] = dtype_str
+
+    applied = []
+    for param_path, dtype_str in resolved.items():
+        module_path, param_name = param_path.rsplit(".", 1)
+        module = modules_by_name.get(module_path)
+        if module is None:
+            continue
+        weight = getattr(module, param_name, None)
+        if not isinstance(weight, torch.nn.Parameter):
+            continue
+        # Carrier ship only the large >=3D expert stacks; 2D weights (shared
+        # experts, projections) keep the plain dtype-override parametrization
+        # (their bf16 ship is cheap, and the carrier custom_call's <3D output
+        # trips stablehlo_custom_call's 2D-shape limitation).
+        if dtype_str in ("bfp_bf4", "bfp_bf8") and weight.dim() >= 3:
+            out_shape = list(weight.shape)
+            carrier = _pack_weight_carrier(weight.data, dtype_str)
+            apply_weight_carrier(module, param_name, carrier, out_shape, dtype_str)
+        else:
+            parametrize.register_parametrization(
+                module, param_name, WeightDtypeParametrization(dtype_str)
+            )
+        applied.append((param_path, dtype_str))
+    return applied
+
+
 def apply_weight_dtype_overrides(
     model: torch.nn.Module,
     config: Union[str, dict, os.PathLike],

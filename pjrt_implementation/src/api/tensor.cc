@@ -97,6 +97,14 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   }
 }
 
+void PjrtTensor::reinterpretBlockFloat(
+    const std::vector<std::uint32_t> &shape, ::tt::target::DataType dtype,
+    const std::vector<std::uint32_t> &meshShape) {
+  m_runtime_tensor = tt::runtime::reinterpretBlockFloat(m_runtime_tensor, shape,
+                                                        dtype, meshShape);
+  tt::runtime::setTensorRetain(m_runtime_tensor, true);
+}
+
 // Moves pjrt tensor to host.
 //
 // For non-sharded tensor, we will get the new runtime tensor and we are done.

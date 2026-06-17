@@ -73,6 +73,26 @@ FlatbufferLoadedExecutableInstance::prepareInputTensor(
   PjrtTensor &tensor = PjrtTensor::from_pjrt_buffers(
       arg_buffers, m_executable_image->getDevicesMeshShape(), *strategy);
 
+  // A pre-packed block-float weight ships through torch-xla as a small uint32
+  // carrier: the executable expects a block-float input but the buffer arrived
+  // as uint32. Relabel the host carrier bytes (already block-float tile bytes)
+  // to the block-float tile tensor here, before ensure_layout's to_device, so
+  // no numeric conversion happens and no bf16 weight ever lands on device.
+  std::vector<tt::runtime::TensorDesc> programInputs =
+      executable_image->getFlatbufferBinary().getProgramInputs(program_index);
+  if (arg_index < programInputs.size() && !arg_buffers.empty()) {
+    const tt::runtime::TensorDesc &inputDesc = programInputs[arg_index];
+    bool expectsBlockFloat =
+        inputDesc.dataType == ::tt::target::DataType::BFP_BFloat4 ||
+        inputDesc.dataType == ::tt::target::DataType::BFP_BFloat8;
+    bool carrierShipped =
+        arg_buffers[0]->getDataType() == PJRT_Buffer_Type_U32;
+    if (expectsBlockFloat && carrierShipped) {
+      tensor.reinterpretBlockFloat(inputDesc.shape, inputDesc.dataType,
+                                   m_executable_image->getDevicesMeshShape());
+    }
+  }
+
   tensor.ensure_layout(runtime_device, expected_layout);
 
   return tensor.runtime_tensor();

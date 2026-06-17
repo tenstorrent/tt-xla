@@ -109,6 +109,13 @@ class DeepSeekV4FlashAdapter:
             for k, v in block_sd.items()
         }
 
+    # ---- top-level load ----
+    def load_embed_state_dict(self) -> Dict[str, torch.Tensor]:
+        return wl.load_embed_state_dict()
+
+    def load_top_level_state_dict(self) -> Dict[str, torch.Tensor]:
+        return wl.load_top_level_state_dict()
+
     def post_load_block(
         self,
         block: nn.Module,
@@ -380,4 +387,18 @@ class DeepSeekV4FlashAdapter:
                     "layers.*.attn.wo_b.weight": attn_dtype,
                 }
             )
+        return overrides
+
+    # ---- top-level weight dtype overrides ----
+    def top_level_weight_dtype_overrides(
+        self,
+        head_dtype: str,
+    ) -> Dict[str, str]:
+        """bfp4-pack the LM head. It's hidden-sharded but still ~232 MB/dev
+        at Pro scale; const-eval typecast at prefill-compile time frees the
+        bf16 copy before the first activation allocates. Head only feeds the
+        final logits→argmax so precision loss is cosmetic."""
+        overrides: Dict[str, str] = {}
+        if head_dtype and head_dtype.lower() not in ("bf16", "none", ""):
+            overrides["head.weight"] = head_dtype
         return overrides

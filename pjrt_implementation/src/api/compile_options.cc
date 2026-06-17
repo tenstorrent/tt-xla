@@ -55,6 +55,9 @@ CompileOptions CompileOptions::parse(
       internal::parseBoolOption(compile_options,
                                 "enable_const_eval_inputs_to_system_memory")
           .value_or(options.enable_const_eval_inputs_to_system_memory);
+  options.enable_host_packed_weights =
+      internal::parseBoolOption(compile_options, "enable_host_packed_weights")
+          .value_or(options.enable_host_packed_weights);
   options.experimental_enable_permute_matmul_fusion =
       internal::parseBoolOption(compile_options,
                                 "experimental_enable_permute_matmul_fusion")

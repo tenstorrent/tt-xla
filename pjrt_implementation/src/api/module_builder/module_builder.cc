@@ -1085,6 +1085,7 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableCPUHoistedConstEval = compile_options.enable_const_eval_on_cpu;
   options.enableConstEvalInputsToSystemMemory =
       compile_options.enable_const_eval_inputs_to_system_memory;
+  options.enableHostPackedWeights = compile_options.enable_host_packed_weights;
   options.dramSpaceSavingOptimizationEnabled =
       compile_options.experimental_enable_dram_space_saving_optimization;
   options.enableCreateD2MSubgraphs =

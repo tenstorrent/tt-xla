@@ -21,6 +21,7 @@ buffer names, MoE swap, weight-dtype overrides, tokenization, ...). See
 from __future__ import annotations
 
 import gc
+import os
 import time
 from typing import Dict, List, Tuple
 
@@ -32,8 +33,14 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra.utilities.torch_multichip_utils import enable_spmd
 from torch_xla.distributed.spmd import Mesh
-from tt_torch.sharding import sharding_constraint_hook
-from tt_torch.weight_dtype import apply_weight_dtype_overrides
+from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
+from third_party.tt_forge_models.deepseek_v4.modified_model import (
+    model_decode_opt as _mdo,
+)
+from tt_torch.weight_dtype import (
+    apply_weight_carrier_overrides,
+    apply_weight_dtype_overrides,
+)
 from ttxla_tools.logging import logger
 
 from streaming._helpers import (
@@ -130,13 +137,34 @@ def run_streaming(
     # be called after the TT plugin's ComputationClient is up (via
     # set_device_type) — calling at module-load triggers a duplicate
     # Initialize.
-    torch_xla.set_custom_compile_options(
-        {"enable_const_eval_inputs_to_system_memory": False}
-    )
+    custom_compile_options = {"enable_const_eval_inputs_to_system_memory": False}
+    # Block-float expert weights are packed to their bfp tile dtype on host and
+    # shipped straight to device, so the compiler retypes the weight args
+    # directly instead of inserting a const-eval typecast/eviction. Gate on the
+    # expert dtype being a block-float format.
+    if config.expert_dtype and config.expert_dtype.lower() in (
+        "bfp_bf4",
+        "bfp_bf8",
+    ):
+        custom_compile_options["enable_host_packed_weights"] = True
+    _early_ir = os.environ.get("STREAM_EARLY_IR_DUMP", "").strip()
+    if _early_ir:
+        os.makedirs(_early_ir, exist_ok=True)
+        custom_compile_options["export_path"] = _early_ir
+    torch_xla.set_custom_compile_options(custom_compile_options)
 
     mesh, mesh_shape = _make_mesh()
     device = torch_xla.device()
     bsz = config.batch_size
+
+    # Pin the Hyper-Connection mix input's hidden `dim` replicated (batch stays
+    # on _axis_0). With the hidden `dim` tensor-sharded on _axis_1, `hc_pre`'s
+    # `flatten(2)` otherwise reshards via all_to_all -> O(N^2) point_to_point.
+    # The constraint makes it an O(N) all_gather instead. No-op when the hidden
+    # `dim` is already replicated (e.g. Flash).
+    _mdo._HC_RESHARD_HOOK = lambda t: sharding_constraint_tensor(
+        t, mesh, ("_axis_0",) + (None,) * (t.dim() - 1)
+    )
 
     # Streaming shards the batch across mesh axis 0 (prompts, block KV
     # buffers, and `h` are all `("_axis_0", ...)`-sharded), so the batch must
@@ -198,12 +226,28 @@ def run_streaming(
         mesh,
         device,
         top_level_shard_spec_fn=lambda m: adapter.top_level_shard_spec(m),
+        load_embed_state_dict=adapter.load_embed_state_dict,
+        load_top_level_state_dict=adapter.load_top_level_state_dict,
     )
     logger.info(
         f"[step] skeleton+top-level: skeleton={time.time() - t_section - (time.time() - t_ship):.1f}s "
         f"ship={time.time() - t_ship:.1f}s "
         f"total={time.time() - t_section:.1f}s",
     )
+
+    # Top-level weight dtype override (e.g. head.weight → bfp4). Applied here,
+    # after the top-level ship, so the const-eval typecast lands in the
+    # whole-model (prefill) graph and frees the bf16 head before the first
+    # prefill activation allocates.
+    top_overrides = adapter.top_level_weight_dtype_overrides(config.head_dtype)
+    if top_overrides:
+        applied_top = apply_weight_dtype_overrides(model, top_overrides)
+        for path, dtype_str in applied_top:
+            logger.info(f"[wdtype] top-level {path} -> {dtype_str}")
+        if not applied_top:
+            logger.warning(
+                f"[wdtype] top-level overrides matched nothing: {top_overrides}"
+            )
     _log("post-top-level")
 
     # ---- pre-allocate persistent KV buffers ----
@@ -286,6 +330,37 @@ def run_streaming(
         # 3. Splice persistent KV into block._buffers.
         _splice_persistent_buffers(block, persistent_bufs[layer_id])
 
+        # 3b. Carrier mode (STREAM_EXPERT_CARRIER=1): pack block-float weights to
+        # uint32 carriers + register carrier parametrizations BEFORE the ship, so
+        # only the small carriers reach device (no bf16 weight ever lands there;
+        # the PJRT relabels them to block-float tiles at input-prep). This REPLACES
+        # the post-ship per-layer dtype override below. block_shard_spec then sees
+        # the 2D carrier params (the adapter must give them a leading-dim spec).
+        carrier_mode = os.environ.get("STREAM_EXPERT_CARRIER") == "1"
+        import sys as _sys
+
+        _sys.stderr.write(
+            f"[CARRIER-DBG] layer {layer_id} carrier_mode={carrier_mode} "
+            f"have_overrides={bool(weight_overrides)}\n"
+        )
+        _sys.stderr.flush()
+        if carrier_mode and weight_overrides:
+            applied_carrier = apply_weight_carrier_overrides(
+                block, _block_relative_overrides(weight_overrides)
+            )
+            _sys.stderr.write(
+                f"[CARRIER-DBG] layer {layer_id} applied {len(applied_carrier)} "
+                f"carriers: {applied_carrier[:3]}\n"
+            )
+            _sys.stderr.flush()
+            gc.collect()
+            if layer_id == 0:
+                logger.info(
+                    f"[carrier] per-layer apply: {len(applied_carrier)} carriers",
+                )
+                for path, dtype_str in applied_carrier:
+                    logger.info(f"[carrier]   {path} -> {dtype_str}")
+
         # 4. Ship CPU params to device.
         t_ship = time.time()
         block_specs = adapter.block_shard_spec(block, mesh)
@@ -306,7 +381,7 @@ def run_streaming(
 
         # 4b. Per-layer weight dtype override (so const_eval typecast happens
         # at flush-compile time, before the next layer's weights add pressure).
-        if weight_overrides:
+        if weight_overrides and not carrier_mode:
             applied_block = apply_weight_dtype_overrides(
                 block,
                 _block_relative_overrides(weight_overrides),
@@ -443,6 +518,26 @@ def _run_inference_whole_graph(
     """Whole-model `torch.compile` once, then prefill + decode."""
     logger.info("\n[stream] mode=whole_graph: torch.compile(model) ...")
     _log("pre-torch-compile")
+
+    # Optional IR dump for the whole-model graph (prefill + decode). Set here
+    # rather than alongside the const-eval option so the 60 per-layer flush
+    # compiles don't each dump ~8 stage IRs. Writes <dir>/irs/*.mlir; the
+    # final `ttnn_*.mlir` carries memory configs to locate large buffers.
+    ir_dump_dir = os.environ.get("STREAM_IR_DUMP", "").strip()
+    if ir_dump_dir:
+        os.makedirs(ir_dump_dir, exist_ok=True)
+        ir_opts = {
+            "enable_const_eval_inputs_to_system_memory": False,
+            "export_path": ir_dump_dir,
+        }
+        if config.expert_dtype and config.expert_dtype.lower() in (
+            "bfp_bf4",
+            "bfp_bf8",
+        ):
+            ir_opts["enable_host_packed_weights"] = True
+        torch_xla.set_custom_compile_options(ir_opts)
+        logger.info(f"[stream] IR dump enabled -> {ir_dump_dir}/irs/")
+
     t_section = time.time()
     compiled = torch.compile(model, backend="tt")
     logger.info(

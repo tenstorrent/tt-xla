@@ -34,6 +34,7 @@ import warnings
 from ttxla_tools.logging import logger
 
 from streaming.adapters.deepseek_v4_flash import DeepSeekV4FlashAdapter
+from streaming.adapters.deepseek_v4_pro import DeepSeekV4ProAdapter
 from streaming.config import StreamingConfig
 from streaming.core import print_decoded, run_streaming
 
@@ -62,7 +63,10 @@ def _configure_logging() -> None:
 def main() -> None:
     _configure_logging()
     config = StreamingConfig.from_env()
-    adapter = DeepSeekV4FlashAdapter()
+    if config.model == "pro":
+        adapter = DeepSeekV4ProAdapter()
+    else:
+        adapter = DeepSeekV4FlashAdapter()
     result = run_streaming(adapter, config)
     print_decoded(adapter, result)
 

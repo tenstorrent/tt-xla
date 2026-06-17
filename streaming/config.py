@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 Mode = Literal["whole_graph", "layer_eager"]
+Model = Literal["flash", "pro"]
 
 
 @dataclass
@@ -36,6 +37,12 @@ class StreamingConfig:
     # "bf16" / "" / "none" → no override for that weight class.
     expert_dtype: str = "bf16"  # MoE expert weights
     attn_dtype: str = "bf16"  # Attention weights
+    head_dtype: str = "bf16"  # LM head (+ tied embed) weight
+
+    # ---- model selection ----
+    # "flash" → DeepSeek-V4-Flash (43 layers, default), "pro" → -V4-Pro
+    # (60 layers, requires bfp_bf4 experts to fit on device).
+    model: Model = "flash"
 
     @classmethod
     def from_env(cls) -> "StreamingConfig":
@@ -45,7 +52,14 @@ class StreamingConfig:
                 f"STREAM_MODE must be 'whole_graph' or 'layer_eager', "
                 f"got {mode_val!r}"
             )
-        num_layers_env = os.environ.get("STREAM_NUM_LAYERS", "43")
+        model_val = os.environ.get("STREAM_MODEL", "flash").strip().lower()
+        if model_val not in ("flash", "pro"):
+            raise ValueError(
+                f"STREAM_MODEL must be 'flash' or 'pro', got {model_val!r}"
+            )
+        num_layers_env = os.environ.get("STREAM_NUM_LAYERS", "")
+        if not num_layers_env:
+            num_layers_env = "60" if model_val == "pro" else "43"
         return cls(
             prompt_len=int(os.environ.get("STREAM_PROMPT_LEN", "128")),
             max_new_tokens=int(os.environ.get("STREAM_MAX_NEW_TOKENS", "3")),
@@ -54,4 +68,6 @@ class StreamingConfig:
             mode=mode_val,  # type: ignore[arg-type]
             expert_dtype=os.environ.get("STREAM_EXPERT_DTYPE", "bf16").strip(),
             attn_dtype=os.environ.get("STREAM_ATTN_DTYPE", "bf16").strip(),
+            head_dtype=os.environ.get("STREAM_HEAD_DTYPE", "bf16").strip(),
+            model=model_val,  # type: ignore[arg-type]
         )

@@ -45,6 +45,16 @@ class ModelAdapter(Protocol):
     # ---- per-layer load ----
     def load_block_state_dict(self, layer_id: int) -> Dict[str, torch.Tensor]: ...
 
+    # ---- top-level load ----
+    def load_embed_state_dict(self) -> Dict[str, torch.Tensor]:
+        """State dict for `model.embed`. Returns {"weight": ...}."""
+        ...
+
+    def load_top_level_state_dict(self) -> Dict[str, torch.Tensor]:
+        """State dict for model-level params (norm, head, hc_head_*).
+        Keys are dotted names rooted at the top-level model."""
+        ...
+
     def post_load_block(
         self,
         block: nn.Module,
@@ -178,4 +188,16 @@ class ModelAdapter(Protocol):
         weight class (expert / attention / ...) is independently controllable;
         "bf16" / "" / "none" for that class disables overrides on those paths.
         Adapters may extend with more weight classes by adding kwargs."""
+        return {}
+
+    def top_level_weight_dtype_overrides(
+        self,
+        head_dtype: str,
+    ) -> Dict[str, str]:
+        """Map the head dtype value to `{param_path: dtype_str}` for the
+        TOP-LEVEL model (paths rooted at the model, e.g. "head.weight").
+        Applied after `_ship_top_level` so the const-eval bfp4 typecast
+        runs at whole-model (prefill) compile time, freeing the bf16 head
+        before the first prefill activation allocates. "bf16"/""/"none"
+        disables. Default: no override."""
         return {}
