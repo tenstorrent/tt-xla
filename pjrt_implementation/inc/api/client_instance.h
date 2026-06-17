@@ -25,6 +25,7 @@
 #include "tt/runtime/runtime.h"
 
 // tt-xla includes
+#include "api/compile_options_parser.h"
 #include "api/device_instance.h"
 #include "api/loaded_executable_instance.h"
 #include "api/memory_instance.h"
@@ -154,7 +155,8 @@ public:
       const PJRT_Program *mlir_program,
       LoadedExecutableInstance **out_executable,
       const std::unordered_map<std::string, std::string> &compile_options,
-      const std::optional<std::vector<int64_t>> &replica_device_ids);
+      const std::optional<std::vector<int64_t>> &replica_device_ids,
+      const ExecutableDeviceShape &device_shape);
 
 private:
   tt_pjrt_status populateDevices();

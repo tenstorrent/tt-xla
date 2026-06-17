@@ -19,7 +19,8 @@ namespace tt::pjrt {
 tt_pjrt_status CompileOptionsParser::parseCompileOptions(
     const char *compile_options_data, size_t compile_options_size,
     std::unordered_map<std::string, std::string> &out_compile_options,
-    std::optional<std::vector<int64_t>> &out_replica_device_ids) {
+    std::optional<std::vector<int64_t>> &out_replica_device_ids,
+    ExecutableDeviceShape &out_device_shape) {
 
   google::protobuf::UnknownFieldSet unknown_fields;
 
@@ -40,6 +41,13 @@ tt_pjrt_status CompileOptionsParser::parseCompileOptions(
       extractReplicaDeviceIds(unknown_fields, out_replica_device_ids);
   if (!tt_pjrt_status_is_ok(replica_ids_status)) {
     return replica_ids_status;
+  }
+
+  // Extract num_partitions / num_replicas (target device shape).
+  tt_pjrt_status shape_status =
+      extractDeviceShape(unknown_fields, out_device_shape);
+  if (!tt_pjrt_status_is_ok(shape_status)) {
+    return shape_status;
   }
 
   return tt_pjrt_status::kSuccess;
@@ -172,6 +180,45 @@ tt_pjrt_status CompileOptionsParser::extractReplicaDeviceIds(
     out_replica_device_ids = std::vector<int64_t>(unique_device_ids.begin(),
                                                   unique_device_ids.end());
   }
+  return tt_pjrt_status::kSuccess;
+}
+
+tt_pjrt_status CompileOptionsParser::extractDeviceShape(
+    const google::protobuf::UnknownFieldSet &unknown_fields,
+    ExecutableDeviceShape &out_device_shape) {
+  out_device_shape = {};
+
+  constexpr int kExecutableBuildOptionsProtoFieldNumber = 3;
+  constexpr int kNumReplicasFieldNumber = 4;
+  constexpr int kNumPartitionsFieldNumber = 5;
+
+  for (int i = 0; i < unknown_fields.field_count(); ++i) {
+    const google::protobuf::UnknownField &field = unknown_fields.field(i);
+    if (field.number() != kExecutableBuildOptionsProtoFieldNumber) {
+      continue;
+    }
+
+    google::protobuf::UnknownFieldSet exec_build_fields;
+    if (!parseNestedProtobufField(field, exec_build_fields)) {
+      continue;
+    }
+
+    for (int j = 0; j < exec_build_fields.field_count(); ++j) {
+      const google::protobuf::UnknownField &exec_field =
+          exec_build_fields.field(j);
+      if (exec_field.type() != google::protobuf::UnknownField::TYPE_VARINT) {
+        continue;
+      }
+      if (exec_field.number() == kNumReplicasFieldNumber) {
+        out_device_shape.num_replicas =
+            static_cast<int64_t>(exec_field.varint());
+      } else if (exec_field.number() == kNumPartitionsFieldNumber) {
+        out_device_shape.num_partitions =
+            static_cast<int64_t>(exec_field.varint());
+      }
+    }
+  }
+
   return tt_pjrt_status::kSuccess;
 }
 

@@ -33,6 +33,7 @@
 
 // tt-xla includes
 #include "api/compile_options.h"
+#include "api/compile_options_parser.h"
 #include "utils/status.h"
 
 namespace tt::pjrt {
@@ -129,7 +130,8 @@ public:
       const std::string_view &mlir_code,
       const std::string &system_descriptor_path,
       const std::unordered_map<std::string, std::string> &compile_options,
-      tt::pjrt::ClientInstance *client_instance);
+      tt::pjrt::ClientInstance *client_instance,
+      const ExecutableDeviceShape &device_shape = {});
 
   // Gets the first sdy.Mesh op of a mlir module with shardy dialect enbaled.
   // Could be used to extract mesh attribute from the module so we can use it as
@@ -203,7 +205,8 @@ private:
       const std::optional<std::string> &export_path,
       const std::string &model_name = "",
       const std::optional<std::vector<uint32_t>> &current_mesh_shape =
-          std::nullopt);
+          std::nullopt,
+      size_t target_num_devices = 1);
 
   // Converts StableHLO module to TTIR module.
   tt_pjrt_status
