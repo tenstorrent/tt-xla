@@ -91,6 +91,16 @@ class _DeviceDenoiser:
             transformer.tie_weights()
         for tensor, spec in shard_transformer_specs(transformer).items():
             xs.mark_sharding(tensor, mesh, spec)
+        # Optional per-weight dtype override (perf-tuning knob). Applied AFTER
+        # mark_sharding so the TP annotations stay on the leaf parameters
+        # (torch parametrize keeps the sharded leaf as ``parametrizations.*.original``);
+        # applied BEFORE torch.compile so the override custom_call is traced.
+        overrides = getattr(owner.config, "weight_dtype_overrides", None)
+        if overrides:
+            from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+            applied = apply_weight_dtype_overrides(transformer, overrides)
+            print(f"Applied {len(applied)} weight dtype overrides to denoiser.")
         self._compiled = torch.compile(transformer, backend="tt")
 
     def __call__(self, **kwargs):
@@ -112,7 +122,11 @@ class _DeviceDenoiser:
 
 
 class Flux2Config:
-    def __init__(self, compile_options: Optional[dict] = None):
+    def __init__(
+        self,
+        compile_options: Optional[dict] = None,
+        weight_dtype_overrides: Optional[object] = None,
+    ):
         self.model_id = REPO_ID
         self.height = HEIGHT
         self.width = WIDTH
@@ -121,6 +135,9 @@ class Flux2Config:
         # Harness-set compile options (kept for parity with the other imagegen
         # pipelines; FLUX.2 does not switch options inline).
         self.compile_options = compile_options or {}
+        # Optional per-weight dtype override applied to the on-device denoiser
+        # (perf-tuning knob; e.g. "bfp_bf8" or {"default": "bfp_bf8"}).
+        self.weight_dtype_overrides = weight_dtype_overrides
 
 
 class Flux2Pipeline:

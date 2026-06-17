@@ -168,7 +168,12 @@ def test_flux2_dev(output_file, request):
         # ~32B transformer/denoiser runs tensor-parallel on all visible chips;
         # the ~24B text encoder and the VAE decode stay on CPU (composite recipe,
         # mirrors tt_forge_models flux2/pytorch/test_multichip.py).
-        pipeline = Flux2Pipeline(config=Flux2Config(compile_options=compile_options))
+        pipeline = Flux2Pipeline(
+            config=Flux2Config(
+                compile_options=compile_options,
+                weight_dtype_overrides="bfp_bf8",  # perf-tuning sweep
+            )
+        )
         pipeline.setup()
 
         def generate_fn(prompt, steps):
