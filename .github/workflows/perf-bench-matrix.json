@@ -117,6 +117,11 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "qwen_2_5_coder_32b_instruct_tp",
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_2_5_coder_32b_instruct_tp",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "qwen_3_32b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_32b_tp",
         "runs-on": "n300-llmbox"
@@ -134,6 +139,11 @@
       {
         "name": "gpt_oss_20b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp",
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "gpt_oss_20b_tp_batch_size_1",
+        "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp_batch_size_1",
         "runs-on": "n300-llmbox"
       },
       {
