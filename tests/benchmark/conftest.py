@@ -88,14 +88,6 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
-        "--input-sequence-length",
-        action="store",
-        default=None,
-        type=make_validator_positive_int("--input-sequence-length"),
-        help="Input (prefill) sequence length in tokens. Overrides model default.",
-    )
-
-    parser.addoption(
         "--skip-pcc",
         action="store_true",
         default=False,
@@ -160,11 +152,6 @@ def optimization_level(request):
 @pytest.fixture
 def max_output_tokens(request):
     return request.config.getoption("--max-output-tokens")
-
-
-@pytest.fixture
-def input_sequence_length(request):
-    return request.config.getoption("--input-sequence-length")
 
 
 @pytest.fixture

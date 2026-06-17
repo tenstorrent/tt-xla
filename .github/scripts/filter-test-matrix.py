@@ -15,11 +15,33 @@ def flatten_matrix(data):
         for test in proj.get("tests", []):
             merged_test = {**test_defaults, **test, "project": proj["project"]}
 
-            runs_on = merged_test.get("runs-on", [])
-            if isinstance(runs_on, list):
-                matrix.extend({**merged_test, "runs-on": runner} for runner in runs_on)
+            # Expand a "pytest-sweep" (list of pytest parametrization ids) into one
+            # entry per id: the id is appended to the pytest node and the name, e.g.
+            # "...::test_x_prefill" + "bs1_sl1024_opt0" ->
+            # "...::test_x_prefill[bs1_sl1024_opt0]" / "<name>_bs1_sl1024_opt0".
+            # This lets a single matrix entry fan out over all parametrizations while
+            # each combo still runs as its own job (own output file / dashboard row).
+            sweep = merged_test.pop("pytest-sweep", None)
+            if sweep:
+                variants = [
+                    {
+                        **merged_test,
+                        "pytest": f"{merged_test['pytest']}[{pytest_id}]",
+                        "name": f"{merged_test['name']}_{pytest_id}",
+                    }
+                    for pytest_id in sweep
+                ]
             else:
-                matrix.append(merged_test)
+                variants = [merged_test]
+
+            for variant in variants:
+                runs_on = variant.get("runs-on", [])
+                if isinstance(runs_on, list):
+                    matrix.extend(
+                        {**variant, "runs-on": runner} for runner in runs_on
+                    )
+                else:
+                    matrix.append(variant)
 
     return matrix
 

@@ -94,52 +94,17 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b"
       },
       {
-        "name": "llama_3_2_1b_instruct_prefill_bs1_sl1024_opt0",
+        "name": "llama_3_2_1b_instruct_prefill",
         "perf-prefill": true,
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "llama_3_2_1b_instruct_prefill_bs1_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "llama_3_2_1b_instruct_prefill_bs32_sl1024_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "llama_3_2_1b_instruct_prefill_bs32_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "llama_3_2_1b_instruct_prefill_bs8_sl512_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 0
-      },
-      {
-        "name": "llama_3_2_1b_instruct_prefill_bs8_sl512_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 1
+        "pytest-sweep": [
+          "bs1_sl1024_opt0",
+          "bs1_sl1024_opt1",
+          "bs32_sl1024_opt0",
+          "bs32_sl1024_opt1",
+          "bs8_sl512_opt0",
+          "bs8_sl512_opt1"
+        ]
       },
       {
         "name": "llama_3_2_3b_instruct",
@@ -150,52 +115,17 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
       },
       {
-        "name": "llama_3_1_8b_instruct_prefill_bs1_sl1024_opt0",
+        "name": "llama_3_1_8b_instruct_prefill",
         "perf-prefill": true,
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "llama_3_1_8b_instruct_prefill_bs1_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "llama_3_1_8b_instruct_prefill_bs32_sl1024_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "llama_3_1_8b_instruct_prefill_bs32_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "llama_3_1_8b_instruct_prefill_bs8_sl512_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 0
-      },
-      {
-        "name": "llama_3_1_8b_instruct_prefill_bs8_sl512_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 1
+        "pytest-sweep": [
+          "bs1_sl1024_opt0",
+          "bs1_sl1024_opt1",
+          "bs32_sl1024_opt0",
+          "bs32_sl1024_opt1",
+          "bs8_sl512_opt0",
+          "bs8_sl512_opt1"
+        ]
       },
       {
         "name": "falcon3_10b_tp",
@@ -223,64 +153,18 @@
         "runs-on": "n300-llmbox"
       },
       {
-        "name": "test_llama_3_1_70b_tp_prefill_bs1_sl1024_opt0",
+        "name": "test_llama_3_1_70b_tp_prefill",
         "perf-prefill": true,
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 0,
-        "num-layers": 1,
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "test_llama_3_1_70b_tp_prefill_bs1_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 1,
-        "num-layers": 1,
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "test_llama_3_1_70b_tp_prefill_bs32_sl1024_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 0,
-        "num-layers": 1,
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "test_llama_3_1_70b_tp_prefill_bs32_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 1,
-        "num-layers": 1,
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "test_llama_3_1_70b_tp_prefill_bs8_sl512_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 0,
-        "num-layers": 1,
-        "runs-on": "n300-llmbox"
-      },
-      {
-        "name": "test_llama_3_1_70b_tp_prefill_bs8_sl512_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 1,
-        "num-layers": 1,
-        "runs-on": "n300-llmbox"
+        "runs-on": "n300-llmbox",
+        "pytest-sweep": [
+          "bs1_sl1024_opt0",
+          "bs1_sl1024_opt1",
+          "bs32_sl1024_opt0",
+          "bs32_sl1024_opt1",
+          "bs8_sl512_opt0",
+          "bs8_sl512_opt1"
+        ]
       },
       {
         "name": "llama_3_1_70b_tp_galaxy",
@@ -372,52 +256,17 @@
         "pytest": "tests/benchmark/test_llms.py::test_phi1"
       },
       {
-        "name": "microsoft_phi-1_prefill_bs1_sl1024_opt0",
+        "name": "microsoft_phi-1_prefill",
         "perf-prefill": true,
         "pytest": "tests/benchmark/test_llms.py::test_phi1_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "microsoft_phi-1_prefill_bs1_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_phi1_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "microsoft_phi-1_prefill_bs32_sl1024_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_phi1_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "microsoft_phi-1_prefill_bs32_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_phi1_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "microsoft_phi-1_prefill_bs8_sl512_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_phi1_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 0
-      },
-      {
-        "name": "microsoft_phi-1_prefill_bs8_sl512_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_phi1_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 1
+        "pytest-sweep": [
+          "bs1_sl1024_opt0",
+          "bs1_sl1024_opt1",
+          "bs32_sl1024_opt0",
+          "bs32_sl1024_opt1",
+          "bs8_sl512_opt0",
+          "bs8_sl512_opt1"
+        ]
       },
       {
         "name": "microsoft_phi-1_5",
@@ -472,52 +321,17 @@
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
       },
       {
-        "name": "qwen_3_8b_prefill_bs1_sl1024_opt0",
+        "name": "qwen_3_8b_prefill",
         "perf-prefill": true,
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "qwen_3_8b_prefill_bs1_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_prefill",
-        "batch-size": 1,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "qwen_3_8b_prefill_bs32_sl1024_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 0
-      },
-      {
-        "name": "qwen_3_8b_prefill_bs32_sl1024_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_prefill",
-        "batch-size": 32,
-        "input-sequence-length": 1024,
-        "optimization-level": 1
-      },
-      {
-        "name": "qwen_3_8b_prefill_bs8_sl512_opt0",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 0
-      },
-      {
-        "name": "qwen_3_8b_prefill_bs8_sl512_opt1",
-        "perf-prefill": true,
-        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_prefill",
-        "batch-size": 8,
-        "input-sequence-length": 512,
-        "optimization-level": 1
+        "pytest-sweep": [
+          "bs1_sl1024_opt0",
+          "bs1_sl1024_opt1",
+          "bs32_sl1024_opt0",
+          "bs32_sl1024_opt1",
+          "bs8_sl512_opt0",
+          "bs8_sl512_opt1"
+        ]
       },
       {
         "name": "qwen_2_5_7b_instruct",

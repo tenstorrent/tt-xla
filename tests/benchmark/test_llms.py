@@ -35,6 +35,26 @@ DEFAULT_EXPERIMENTAL_KV_CACHE_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.94
 
+# Prefill perf sweep over (batch_size, input_sequence_length, optimization_level).
+# These combinations used to be enumerated as separate entries in
+# .github/workflows/perf-bench-matrix.json; they now live here as a pytest
+# parametrization. CI selects a single combo per job via the test node id, e.g.
+# `...::test_llama_3_2_1b_prefill[bs1_sl1024_opt0]`.
+PREFILL_SWEEP = [
+    pytest.param(1, 1024, 0, id="bs1_sl1024_opt0"),
+    pytest.param(1, 1024, 1, id="bs1_sl1024_opt1"),
+    pytest.param(32, 1024, 0, id="bs32_sl1024_opt0"),
+    pytest.param(32, 1024, 1, id="bs32_sl1024_opt1"),
+    pytest.param(8, 512, 0, id="bs8_sl512_opt0"),
+    pytest.param(8, 512, 1, id="bs8_sl512_opt1"),
+]
+
+# Direct parametrization of these three names shadows the same-named CLI fixtures
+# (--batch-size / --input-sequence-length / --optimization-level) for prefill tests.
+prefill_sweep = pytest.mark.parametrize(
+    "batch_size, input_sequence_length, optimization_level", PREFILL_SWEEP
+)
+
 
 def default_read_logits_fn(output):
     return output.logits
@@ -168,8 +188,7 @@ def test_llm(
     )
 
     print(f"Running LLM benchmark for variant: {variant}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     batch_size={batch_size}
@@ -183,8 +202,7 @@ def test_llm(
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     # Resolve model name for accuracy testing
     model_name_for_accuracy = None
@@ -353,8 +371,7 @@ def test_llm_prefill(
     )
 
     print(f"Running LLM benchmark for variant: {variant}")
-    print(
-        f"""Configuration:
+    print(f"""Configuration:
     optimization_level={optimization_level}
     trace_enabled={trace_enabled}
     batch_size={batch_size}
@@ -368,8 +385,7 @@ def test_llm_prefill(
     required_pcc={required_pcc}
     num_layers={num_layers}
     ttnn_perf_metrics_output_file={ttnn_perf_metrics_output_file}
-    """
-    )
+    """)
 
     results = benchmark_llm_prefill_torch_xla(
         optimization_level=optimization_level,
@@ -557,6 +573,7 @@ def test_llama_3_2_1b(
     )
 
 
+@prefill_sweep
 def test_llama_3_2_1b_prefill(
     output_file,
     num_layers,
@@ -581,16 +598,8 @@ def test_llama_3_2_1b_prefill(
         request=request,
         fp32_dest_acc_en=False,
         batch_size=batch_size,
-        input_sequence_length=(
-            input_sequence_length
-            if input_sequence_length is not None
-            else DEFAULT_INPUT_SEQUENCE_LENGTH
-        ),
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
-        ),
+        input_sequence_length=input_sequence_length,
+        optimization_level=optimization_level,
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
         trace_enabled=(trace_override if trace_override is not None else True),
@@ -737,6 +746,7 @@ def test_phi1(
     )
 
 
+@prefill_sweep
 def test_phi1_prefill(
     output_file,
     num_layers,
@@ -761,16 +771,8 @@ def test_phi1_prefill(
         request=request,
         fp32_dest_acc_en=False,
         batch_size=batch_size,
-        input_sequence_length=(
-            input_sequence_length
-            if input_sequence_length is not None
-            else DEFAULT_INPUT_SEQUENCE_LENGTH
-        ),
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
-        ),
+        input_sequence_length=input_sequence_length,
+        optimization_level=optimization_level,
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
         trace_enabled=(trace_override if trace_override is not None else True),
@@ -1165,6 +1167,7 @@ def test_qwen_3_8b(
     )
 
 
+@prefill_sweep
 def test_qwen_3_8b_prefill(
     output_file,
     num_layers,
@@ -1189,16 +1192,8 @@ def test_qwen_3_8b_prefill(
         request=request,
         fp32_dest_acc_en=False,
         batch_size=batch_size,
-        input_sequence_length=(
-            input_sequence_length
-            if input_sequence_length is not None
-            else DEFAULT_INPUT_SEQUENCE_LENGTH
-        ),
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
-        ),
+        input_sequence_length=input_sequence_length,
+        optimization_level=optimization_level,
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
         trace_enabled=(trace_override if trace_override is not None else True),
@@ -1483,6 +1478,7 @@ def test_llama_3_1_8b(
     )
 
 
+@prefill_sweep
 def test_llama_3_1_8b_prefill(
     output_file,
     num_layers,
@@ -1507,16 +1503,8 @@ def test_llama_3_1_8b_prefill(
         request=request,
         fp32_dest_acc_en=False,
         batch_size=batch_size,
-        input_sequence_length=(
-            input_sequence_length
-            if input_sequence_length is not None
-            else DEFAULT_INPUT_SEQUENCE_LENGTH
-        ),
-        optimization_level=(
-            optimization_level
-            if optimization_level is not None
-            else DEFAULT_OPTIMIZATION_LEVEL
-        ),
+        input_sequence_length=input_sequence_length,
+        optimization_level=optimization_level,
         required_pcc=0.90,
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
@@ -2147,6 +2135,7 @@ def test_llama_3_1_70b_tp(
     )
 
 
+@prefill_sweep
 def test_llama_3_1_70b_tp_prefill(
     output_file,
     num_layers,
@@ -2167,18 +2156,13 @@ def test_llama_3_1_70b_tp_prefill(
         ModelLoader,
         variant,
         output_file,
-        num_layers=num_layers,
+        # 70B prefill runs a single layer (was `num-layers: 1` in the matrix).
+        num_layers=(num_layers if num_layers is not None else 1),
         request=request,
         fp32_dest_acc_en=False,
         batch_size=batch_size,
-        input_sequence_length=(
-            input_sequence_length
-            if input_sequence_length is not None
-            else DEFAULT_INPUT_SEQUENCE_LENGTH
-        ),
-        optimization_level=(
-            optimization_level if optimization_level is not None else 1
-        ),  # flaky: occasionally hangs in CI with optimization_level=2
+        input_sequence_length=input_sequence_length,
+        optimization_level=optimization_level,
         required_pcc=0.90,
         experimental_weight_dtype=None,  # prefill needs to be bf16
         do_apply_weight_dtype_overrides=False,  # prefill needs to be bf16
