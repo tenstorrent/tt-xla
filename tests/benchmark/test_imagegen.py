@@ -145,3 +145,39 @@ def test_playground_v2_5(output_file, request):
         optimization_level=0,
         output_image_path="test_playground_v2_5_output.png",
     )
+
+
+def test_flux2_dev(output_file, request):
+    from benchmarks.flux2_pipeline import Flux2BenchmarkPipeline
+    from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+    )
+
+    def build_pipeline_fn(compile_options):
+        # Denoiser (Flux2Transformer2DModel, ~32B) runs on device tensor-parallel
+        # across the full mesh; the 24B text encoder and VAE stay on CPU. Mirrors
+        # third_party/.../flux2/pytorch/test_multichip.py.
+        pipeline = Flux2BenchmarkPipeline(compile_options=compile_options)
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(prompt=prompt, num_inference_steps=steps)
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="FLUX.2-dev",
+        output_file=output_file,
+        request=request,
+        prompt=PROMPT,
+        num_inference_steps=NUM_INFERENCE_STEPS,
+        height=HEIGHT,
+        width=WIDTH,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        output_image_path="test_flux2_dev_output.png",
+    )
