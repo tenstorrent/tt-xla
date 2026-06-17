@@ -117,6 +117,11 @@ static tt_pjrt_status launchDistributedRuntime() {
       std::getenv("TT_DISTRIBUTED_TCP_IFACE");
   // Path to an MPI rankfile, needed for >2 hosts when using a rank binding file
   const char *rank_file_path = std::getenv("TT_DISTRIBUTED_RANK_FILE_PATH");
+  // On/off toggle for routing every rank through `python -m tracy` via ttrun
+  const char *tracy_enabled = std::getenv("TT_DISTRIBUTED_TRACY");
+  // Args forwarded verbatim to `python -m tracy`.
+  // `-r` flag is required, else rank dirs stay empty.
+  const char *tracy_args_env = std::getenv("TT_DISTRIBUTED_TRACY_ARGS");
 
   if (!metal_home) {
     LOG_F(ERROR, "TT_METAL_RUNTIME_ROOT environment variable is not set");
@@ -193,6 +198,23 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   if (rank_file_path) {
     distributed_options.multiProcessArgs->withRankFilePath(rank_file_path);
+  }
+
+  if (tracy_enabled && std::string(tracy_enabled) != "0" &&
+      !std::string(tracy_enabled).empty()) {
+    distributed_options.multiProcessArgs->withTracy(true);
+
+    // NOTE: `-r` must be present in tracy_args_env for tracy to actually
+    // capture and write .tracy/csv output; without it the rank dirs stay empty.
+    std::vector<std::string> tracy_args;
+    if (tracy_args_env && !std::string(tracy_args_env).empty()) {
+      std::istringstream arg_stream(tracy_args_env);
+      std::string arg;
+      while (arg_stream >> arg) {
+        tracy_args.push_back(arg);
+      }
+    }
+    distributed_options.multiProcessArgs->withTracyArgs(tracy_args);
   }
 
   tt::runtime::setCurrentHostRuntime(tt::runtime::HostRuntime::Distributed);
