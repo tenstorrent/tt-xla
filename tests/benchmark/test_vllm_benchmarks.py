@@ -237,6 +237,7 @@ TP_CONFIGS = [
         _tp_config(
             "meta-llama/Llama-3.1-70B-Instruct",
             32,
+            gpu_memory_utilization=0.15,
             mesh_shape=[2, 4],
             enable_const_eval=True,
             experimental_weight_dtype="bfp_bf8",
