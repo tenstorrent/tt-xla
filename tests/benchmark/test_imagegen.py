@@ -168,12 +168,13 @@ def test_flux2_dev(output_file, request):
         # ~32B transformer/denoiser runs tensor-parallel on all visible chips;
         # the ~24B text encoder and the VAE decode stay on CPU (composite recipe,
         # mirrors tt_forge_models flux2/pytorch/test_multichip.py).
-        pipeline = Flux2Pipeline(
-            config=Flux2Config(
-                compile_options=compile_options,
-                weight_dtype_overrides="bfp_bf8",  # perf-tuning sweep
-            )
-        )
+        # weight_dtype_overrides left unset: bfp_bf8 was swept (commit
+        # "opt=0 trace=True bfp8") and gave no speedup — the denoiser step is
+        # comms/dispatch-bound at 128x128 batch-1, so lower-precision weights
+        # don't help, and there is no PCC gate here to validate the accuracy
+        # cost. The plumbing in flux2_pipeline.py is kept as a dormant tuning
+        # hook for future, higher-resolution geometries.
+        pipeline = Flux2Pipeline(config=Flux2Config(compile_options=compile_options))
         pipeline.setup()
 
         def generate_fn(prompt, steps):
@@ -190,7 +191,12 @@ def test_flux2_dev(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=0,  # perf-tuning sweep
-        trace_enabled=True,  # perf-tuning sweep
+        # Perf-tuning winner. optimization_level must stay 0: opt_level>=1 trips
+        # the OpModel optimizer, which assumes an unharvested 13-wide Blackhole
+        # grid and aborts on qb2-blackhole's harvested 11-wide system descriptor
+        # ("OpModel device worker grid does not match ... {10,13} vs {10,11}").
+        # trace_enabled=True is the best clean config measured (no numerics change).
+        optimization_level=0,
+        trace_enabled=True,
         output_image_path="test_flux2_dev_output.png",
     )
