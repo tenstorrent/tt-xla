@@ -1,0 +1,75 @@
+2026-06-17 11:57:07.354 | INFO     | pjrt_plugin_tt:setup_tt_pjrt_plugin_dir:46 - Using PJRT plugin directory: /localdev/ctr-akannan/17_jun_sjc/tt-xla/python_package/pjrt_plugin_tt
+2026-06-17 11:57:07.355 | INFO     | pjrt_plugin_tt:setup_tt_metal_home:107 - Using TT-Metal from the source tree: /localdev/ctr-akannan/17_jun_sjc/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+2026-06-17 11:57:07.641 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.0, pluggy-1.6.0 -- /localdev/ctr-akannan/17_jun_sjc/tt-xla/venv/bin/python
+cachedir: .pytest_cache
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-6.8.0-87-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.1.0', 'pluggy': '1.6.0'}, 'Plugins': {'anyio': '4.14.0', 'forked': '1.6.0', 'json-report': '1.5.0', 'metadata': '3.1.1', 'split': '0.11.0', 'jaxtyping': '0.3.11'}}
+rootdir: /localdev/ctr-akannan/17_jun_sjc/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.14.0, forked-1.6.0, json-report-1.5.0, metadata-3.1.1, split-0.11.0, jaxtyping-0.3.11
+collecting ... collected 1 item
+
+tests/torch/models/flux2/test_transformer_realwt_isolate.py::test_realwt Fetching 7 files:   0%|          | 0/7 [00:00<?, ?it/s]Fetching 7 files: 100%|██████████| 7/7 [00:00<00:00, 22344.09it/s]
+Loading checkpoint shards:   0%|          | 0/7 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 7/7 [00:00<00:00, 167.71it/s]
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 10567.66it/s]
+Loading weights:   0%|          | 0/585 [00:00<?, ?it/s]Loading weights: 100%|██████████| 585/585 [00:00<00:00, 7818.76it/s]
+The tied weights mapping and config for this model specifies to tie model.language_model.embed_tokens.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Kwargs passed to `processor.__call__` have to be in `processor_kwargs` dict, not in `**kwargs`
+2026-06-17 11:57:29.577846: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+2026-06-17 11:57:55.780945: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:57:55.833801: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:57:56.225468: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:57:57.268251: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:57:59.640592: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:57:59.737489: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:02.095870: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:03.103397: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:03.939740: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:05.016805: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:05.053159: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:07.869234: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:57.813781: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:58:58.962009: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:59:01.244366: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 11:59:02.200426: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 12:02:12.922331: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-17 12:02:13.091179: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:817] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+Created device mesh: (1, 4) with 4 devices.
+
+>>> REALWT-ISOLATE [real_nl8_ns46_bf16_sh] PCC = 0.812584
+
+PASSED
+
+=============================== warnings summary ===============================
+venv/lib/python3.12/site-packages/torch/jit/_script.py:362: 14 warnings
+  /localdev/ctr-akannan/17_jun_sjc/tt-xla/venv/lib/python3.12/site-packages/torch/jit/_script.py:362: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
+    warnings.warn(
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+tests/torch/models/flux2/test_transformer_realwt_isolate.py::test_realwt
+  /localdev/ctr-akannan/17_jun_sjc/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+    warnings.warn(
+
+tests/torch/models/flux2/test_transformer_realwt_isolate.py: 186 warnings
+  /usr/lib/python3.12/copyreg.py:99: FutureWarning: `isinstance(treespec, LeafSpec)` is deprecated, use `isinstance(treespec, TreeSpec) and treespec.is_leaf()` instead.
+    return cls.__new__(cls, *args)
+
+tests/torch/models/flux2/test_transformer_realwt_isolate.py::test_realwt
+  /localdev/ctr-akannan/17_jun_sjc/tt-xla/tests/conftest.py:524: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, torch.fx.GraphModule):
+
+tests/torch/models/flux2/test_transformer_realwt_isolate.py::test_realwt
+  /localdev/ctr-akannan/17_jun_sjc/tt-xla/tests/conftest.py:528: FutureWarning: `torch.distributed.reduce_op` is deprecated, please use `torch.distributed.ReduceOp` instead
+    if isinstance(obj, GraphInputMatcher):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 1 passed, 205 warnings in 367.50s (0:06:07) ==================
+sys:1: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
