@@ -119,7 +119,7 @@ def test_tensor_parallel_generation_llmbox_large(
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
-@pytest.mark.galaxy_wh_6u
+# @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
     ["model_name", "enable_const_eval", "experimental_weight_dtype", "mesh_shape"],
     [pytest.param("mistralai/Mistral-Large-Instruct-2411", True, "bfp_bf8", [4, 8])],
@@ -256,6 +256,50 @@ def test_tensor_parallel_generation_mistral_small(model_name: str):
 
     output_text = llm.chat(messages, sampling_params=sampling_params)[0].outputs[0].text
     print(f"prompt: {user_text}, output: {output_text}")
+    assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.galaxy_wh_6u
+@pytest.mark.parametrize(
+    ["model_name"],
+    [pytest.param("mistralai/Pixtral-Large-Instruct-2411")],
+)
+def test_tensor_parallel_generation_galaxy_wh_6u_large(model_name: str):
+    image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "What action do you think I should take in this situation?",
+                },
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        },
+    ]
+
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+    llm_args = {
+        "model": model_name,
+        "max_num_batched_tokens": 4906,
+        "max_num_seqs": 1,
+        "max_model_len": 1024,
+        "gpu_memory_utilization": 0.17,
+        "additional_config": {
+            "min_context_len": 1024,
+            "enable_tensor_parallel": True,
+            "experimental_weight_dtype": "bfp_bf8",
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.chat(messages, sampling_params=sampling_params)[0].outputs[0].text
+    print("output: ", output_text)
     assert_output_coherent(output_text)
 
     check_host_memory(model_name)
