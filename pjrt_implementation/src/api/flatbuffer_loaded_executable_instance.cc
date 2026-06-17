@@ -243,8 +243,9 @@ void FlatbufferLoadedExecutableInstance::materializeShellTensors(
 
     for (size_t i = 0; i < buffers.size(); ++i) {
       BufferInstance *buffer = buffers[i];
-
       const bool is_first = (i == 0);
+      
+      LOG_F(INFO, "[%s] worker_runtime_tensor materialized with shape %s",  (is_first ? "owned" : "unsafe_borrowed"), buffer->toShapeStr().c_str());
       tt::runtime::Tensor worker_runtime_tensor =
           is_first ? owned_tensor
                    : tt::runtime::createUnsafeBorrowedHostTensor(owned_tensor);
