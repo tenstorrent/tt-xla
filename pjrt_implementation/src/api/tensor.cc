@@ -95,8 +95,18 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
   TT_FATAL(m_runtime_tensor.has_value(),
            "Cannot ensure layout for shell-only PjrtTensor");
 
-  if (tt::runtime::hasLayout(*m_runtime_tensor, layout))
+  if (tt::runtime::hasLayout(*m_runtime_tensor, layout)) {
+    // Reuse path: the tensor is already in the requested layout, so we hand back
+    // the existing runtime tensor as-is (no new gid, no fresh retain). Log the
+    // current retain so a stale retain=false on a reused (e.g. KV-cache) input
+    // is visible here.
+    DLOG_F(LOG_DEBUG,
+           "ensure_layout reuse: global_id=%lu retain=%d (layout already "
+           "satisfied)",
+           static_cast<unsigned long>(m_runtime_tensor->getGlobalId()),
+           static_cast<int>(tt::runtime::getTensorRetain(*m_runtime_tensor)));
     return;
+  }
 
   const bool retain = tt::runtime::getTensorRetain(*m_runtime_tensor);
   m_runtime_tensor =
