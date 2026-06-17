@@ -3,20 +3,28 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Shared logic for the Wan component benchmarks (TI2V-5B and I2V-A14B).
+Performance benchmarks for the Wan 2.2 video-generation model components,
+covering both families:
+  - TI2V-5B  (z_dim=48, spatial scale 16, 30 DiT blocks, per-patch timestep)
+  - I2V-A14B (high-noise expert: z_dim=16, spatial scale 8, 40 DiT blocks,
+              in=36/out=16 channels, scalar timestep)
 
-Both families (``tests/torch/models/wan5b`` and ``.../wan14b``) expose the same
-public interface from their ``shared.py`` (loaders, wrappers, ``RESOLUTIONS``,
+Each component (UMT5-XXL text encoder, 3D Causal VAE encoder/decoder, WanDiT
+transformer) is parametrized over both families. Both families
+(``tests/torch/models/wan5b`` and ``.../wan14b``) expose the same public
+interface from their ``shared.py`` (loaders, wrappers, ``RESOLUTIONS``,
 ``LATENT_CHANNELS``, ``wan22_mesh``, ``shard_*_specs``,
 ``apply_dit_sp_activation_sharding``) and from their ``monkey_patch.py``
 (``_patch_wan_resample_rep_sentinel``, ``_patch_wan_time_embedder_dtype_probe``,
-``safe_xla_slicing``, ``torch_function_override_disabled``). The per-component
-benchmark bodies are therefore identical apart from a handful of family-specific
-choices captured in a :class:`WanFamily` manifest — and crucially everything is
-loaded **from each family's own directory** (5B from wan5b, A14B from wan14b),
-not shared, so the two stay cleanly separated. ``test_wan5b.py`` /
-``test_wan14b.py`` build one manifest each and delegate their (discoverable)
-test functions here.
+``safe_xla_slicing``, ``torch_function_override_disabled``), so the per-component
+benchmark bodies are identical apart from a handful of family-specific choices
+captured in a :class:`WanFamily` manifest. Crucially everything is loaded **from
+each family's own directory** (5B from wan5b, A14B from wan14b), not shared, so
+the two stay cleanly separated. The patches/contexts mirror each suite's
+component tests exactly.
+
+The family ``id`` is the leading node-id segment, e.g.
+``tests/benchmark/test_wan.py::test_wan_dit[14b-480p-sharded]``.
 """
 
 import json
@@ -32,6 +40,10 @@ from benchmarks.video_gen_benchmark import benchmark_video_gen_torch_xla
 from utils import aggregate_ttnn_perf_metrics, resolve_display_name
 
 from tests.infra.testers.compiler_config import CompilerConfig
+from tests.torch.models.wan5b import monkey_patch as wan5b_monkey_patch
+from tests.torch.models.wan5b import shared as wan5b_shared
+from tests.torch.models.wan14b import monkey_patch as wan14b_monkey_patch
+from tests.torch.models.wan14b import shared as wan14b_shared
 
 # Shared, family-independent benchmark constants.
 SEED = 42
@@ -41,7 +53,7 @@ DENOISE_TIMESTEP = 500.0  # arbitrary mid-schedule step for a single forward
 DIT_MAX_BLOCKS = 0  # 0 = run the full transformer (30 blocks 5B / 40 blocks A14B)
 
 # (resolution, sharded) variants, with clean node-ids for matrix references,
-# e.g. tests/benchmark/test_wan14b.py::test_wan_dit[480p-sharded]
+# e.g. tests/benchmark/test_wan.py::test_wan_dit[14b-480p-sharded]
 VARIANTS = [
     pytest.param("480p", False, id="480p-unsharded"),
     pytest.param("480p", True, id="480p-sharded"),
@@ -50,7 +62,7 @@ VARIANTS = [
 ]
 
 # Sharding-only variants for components whose output is resolution-independent
-# (the UMT5 text encoder), e.g. ...::test_wan_umt5[sharded]
+# (the UMT5 text encoder), e.g. ...::test_wan_umt5[14b-sharded]
 SHARDING_VARIANTS = [
     pytest.param(False, id="unsharded"),
     pytest.param(True, id="sharded"),
@@ -103,6 +115,25 @@ class WanFamily:
     dit_timestep: Callable[[dict], torch.Tensor]
     safe_xla_slicing: Callable
     dit_override_disabled: Callable
+
+
+def build_family(name_prefix, shared, monkey_patch, dit_timestep):
+    """Assemble a :class:`WanFamily` from a family's ``shared`` /
+    ``monkey_patch`` modules.
+
+    Both families' ``monkey_patch.py`` expose the same names, so the patch
+    wiring is identical and only ``name_prefix`` and the DiT ``dit_timestep``
+    convention (per-patch vs scalar) differ per family.
+    """
+    return WanFamily(
+        name_prefix=name_prefix,
+        shared=shared,
+        dit_patches=(monkey_patch._patch_wan_time_embedder_dtype_probe,),
+        vae_decoder_patches=(monkey_patch._patch_wan_resample_rep_sentinel,),
+        dit_timestep=dit_timestep,
+        safe_xla_slicing=monkey_patch.safe_xla_slicing,
+        dit_override_disabled=monkey_patch.torch_function_override_disabled,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -334,3 +365,53 @@ def benchmark_dit(family, resolution, sharded, output_file, request):
         request=request,
         compile_context=family.dit_override_disabled,
     )
+
+
+# ---------------------------------------------------------------------------
+# Family manifests + discoverable test functions
+# ---------------------------------------------------------------------------
+
+_FAMILY_5B = pytest.param(
+    build_family(
+        "Wan2.2-TI2V-5B", wan5b_shared, wan5b_monkey_patch, per_patch_timestep
+    ),
+    id="5b",
+)
+_FAMILY_14B = pytest.param(
+    build_family(
+        "Wan2.2-I2V-A14B", wan14b_shared, wan14b_monkey_patch, scalar_timestep
+    ),
+    id="14b",
+)
+
+# Per-family components (VAE encoder/decoder, DiT) run on both families.
+FAMILIES = [_FAMILY_5B, _FAMILY_14B]
+
+# The UMT5-XXL text encoder is identical across families, so it's benchmarked
+# once — on A14B — to avoid a redundant duplicate run.
+UMT5_FAMILIES = [_FAMILY_14B]
+
+
+# UMT5 output is resolution-independent, so only the sharding axis is varied.
+@pytest.mark.parametrize("sharded", SHARDING_VARIANTS)
+@pytest.mark.parametrize("family", UMT5_FAMILIES)
+def test_wan_umt5(family, sharded, output_file, request):
+    benchmark_umt5(family, sharded, output_file, request)
+
+
+@pytest.mark.parametrize("resolution,sharded", VARIANTS)
+@pytest.mark.parametrize("family", FAMILIES)
+def test_wan_vae_encoder(family, resolution, sharded, output_file, request):
+    benchmark_vae_encoder(family, resolution, sharded, output_file, request)
+
+
+@pytest.mark.parametrize("resolution,sharded", VARIANTS)
+@pytest.mark.parametrize("family", FAMILIES)
+def test_wan_vae_decoder(family, resolution, sharded, output_file, request):
+    benchmark_vae_decoder(family, resolution, sharded, output_file, request)
+
+
+@pytest.mark.parametrize("resolution,sharded", VARIANTS)
+@pytest.mark.parametrize("family", FAMILIES)
+def test_wan_dit(family, resolution, sharded, output_file, request):
+    benchmark_dit(family, resolution, sharded, output_file, request)
