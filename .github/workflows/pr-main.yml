@@ -42,7 +42,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'release,explorer,manylinux' || 'release,explorer' }}
+      build_types: ${{ needs.inspect-changes.outputs.wheel-changes == 'true' && 'release,explorer' || 'release,explorer' }}
 
   build-ttxla-debug:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
