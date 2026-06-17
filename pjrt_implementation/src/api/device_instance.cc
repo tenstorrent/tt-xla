@@ -41,6 +41,7 @@ void DeviceInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Device_LocalHardwareId = internal::onDeviceLocalHardwareId;
   api->PJRT_Device_AddressableMemories = internal::onDeviceAddressableMemories;
   api->PJRT_Device_DefaultMemory = internal::onDeviceDefaultMemory;
+  api->PJRT_Device_GetAttributes = internal::onDeviceGetAttributes;
 }
 
 namespace internal {
@@ -92,6 +93,26 @@ PJRT_Error *onDeviceDefaultMemory(PJRT_Device_DefaultMemory_Args *args) {
   DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_DefaultMemory");
 
   args->memory = *(DeviceInstance::unwrap(args->device)->getDefaultMemory());
+
+  return nullptr;
+};
+
+PJRT_Error *onDeviceGetAttributes(PJRT_Device_GetAttributes_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "DeviceInstance::PJRT_Device_GetAttributes");
+
+  // JAX 0.9's PjRtCApiDevice::InitAttributes calls this during client creation,
+  // asserts `attributes_deleter != nullptr`, and aborts on UNIMPLEMENTED. The
+  // attribute storage is owned by the DeviceDescription (lifetime == client),
+  // so the deleter is a no-op — but it must be non-null.
+  const std::vector<PJRT_NamedValue> &attributes =
+      DeviceInstance::unwrap(args->device)
+          ->getDeviceDescription()
+          .getAttributes();
+  args->attributes = attributes.data();
+  args->num_attributes = attributes.size();
+  args->device_attributes = nullptr;
+  args->attributes_deleter = +[](PJRT_Device_Attributes *) {};
 
   return nullptr;
 };

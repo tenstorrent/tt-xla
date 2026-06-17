@@ -71,6 +71,14 @@ public:
     return m_addressable_devices;
   }
 
+  // Returns logical (replica, partition) ids for the addressable devices, in
+  // the same order as `getAddressableDevices()`. Lazily computed; lifetime
+  // matches the loaded executable instance. tt-xla does not currently use SPMD
+  // partitioning, so each device is reported as a distinct replica with
+  // partition=0 — enough for JAX 0.9's CompileAndLoad to succeed without
+  // hard-aborting on UNIMPLEMENTED.
+  const std::vector<PJRT_LogicalDeviceIds> &getAddressableDeviceLogicalIds();
+
   // Returns true if the client was initialized in compile-only mode.
   bool isCompileOnly() const;
 
@@ -169,6 +177,10 @@ protected:
 
   // Client instance that created this loaded executable.
   ClientInstance *m_client_instance;
+
+  // Lazily-computed logical ids matching `m_addressable_devices`. Mutable to
+  // allow population from a const-style accessor.
+  std::vector<PJRT_LogicalDeviceIds> m_addressable_device_logical_ids;
 };
 
 namespace internal {
@@ -183,6 +195,10 @@ onLoadedExecutableGetExecutable(PJRT_LoadedExecutable_GetExecutable_Args *args);
 // Implements PJRT_LoadedExecutable_AddressableDevices API function.
 PJRT_Error *onLoadedExecutableAddressableDevices(
     PJRT_LoadedExecutable_AddressableDevices_Args *args);
+
+// Implements PJRT_LoadedExecutable_AddressableDeviceLogicalIds API function.
+PJRT_Error *onLoadedExecutableAddressableDeviceLogicalIds(
+    PJRT_LoadedExecutable_AddressableDeviceLogicalIds_Args *args);
 
 // Implements PJRT_LoadedExecutable_Delete API function.
 PJRT_Error *onLoadedExecutableDelete(PJRT_LoadedExecutable_Delete_Args *args);
