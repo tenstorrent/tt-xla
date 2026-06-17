@@ -189,16 +189,38 @@ tt_pjrt_status LoadedExecutableInstance::getInputRuntimeTensors(
 
     input_tensors.push_back(*prepared_tensor);
 
+    // Build a descriptor of the offending input so the failures below are
+    // self-identifying: the runtime tensor global id plus each shard's
+    // BufferInstance UID and shape.
+    std::string shard_descriptor;
+    for (size_t i = 0; i < arg_buffers.size(); ++i) {
+      if (i != 0) {
+        shard_descriptor += ", ";
+      }
+      shard_descriptor += "uid=" + std::to_string(arg_buffers[i]->getUID()) +
+                          " shape=" + arg_buffers[i]->toShapeStr();
+    }
+
     // Safety check to ensure no input tensor can be accidentally
     //  deallocated during execution, as it may be reused in a future graph.
     if (!tt::runtime::getTensorRetain(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor should have retain=true or it may "
-                   "be deallocated during execution.");
+      LOG_F(ERROR,
+            "Prepared input tensor should have retain=true or it may be "
+            "deallocated during execution. arg_index=%zu global_id=%lu "
+            "shards=[%s]",
+            arg_index,
+            static_cast<unsigned long>(prepared_tensor->getGlobalId()),
+            shard_descriptor.c_str());
       return tt_pjrt_status::kInternal;
     }
     if (!tt::runtime::isTensorAllocated(*prepared_tensor)) {
-      LOG_F(ERROR, "Prepared input tensor is not allocated on device. This "
-                   "means it was deallocated by a previous operation.");
+      LOG_F(ERROR,
+            "Prepared input tensor is not allocated on device. This means it "
+            "was deallocated by a previous operation. arg_index=%zu "
+            "global_id=%lu shards=[%s]",
+            arg_index,
+            static_cast<unsigned long>(prepared_tensor->getGlobalId()),
+            shard_descriptor.c_str());
       return tt_pjrt_status::kInternal;
     }
   }

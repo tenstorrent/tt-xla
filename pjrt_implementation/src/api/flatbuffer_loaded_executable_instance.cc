@@ -245,7 +245,7 @@ void FlatbufferLoadedExecutableInstance::materializeShellTensors(
       BufferInstance *buffer = buffers[i];
       const bool is_first = (i == 0);
       
-      LOG_F(INFO, "[%s] worker_runtime_tensor materialized with shape %s",  (is_first ? "owned" : "unsafe_borrowed"), buffer->toShapeStr().c_str());
+      // LOG_F(INFO, "[%s] worker_runtime_tensor materialized with shape %s",  (is_first ? "owned" : "unsafe_borrowed"), buffer->toShapeStr().c_str());
       tt::runtime::Tensor worker_runtime_tensor =
           is_first ? owned_tensor
                    : tt::runtime::createUnsafeBorrowedHostTensor(owned_tensor);
@@ -310,7 +310,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
   // Assuming only one program per flatbuffer for now.
   std::uint32_t program_index = 0;
 
-  logRuntimeDebugStats("before getInputRuntimeTensors");
+  // logRuntimeDebugStats("before getInputRuntimeTensors");
 
   std::vector<tt::runtime::Tensor> input_tensors;
   input_tensors.reserve(args->num_args);
@@ -321,7 +321,7 @@ tt_pjrt_status FlatbufferLoadedExecutableInstance::execute(
     return status;
   }
 
-  logRuntimeDebugStats("after getInputRuntimeTensors");
+  // logRuntimeDebugStats("after getInputRuntimeTensors");
   if (m_executable_image->getCompileOptions().export_tensors) {
     dumpInputs(input_tensors);
   }
