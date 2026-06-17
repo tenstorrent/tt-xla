@@ -24,11 +24,19 @@ What's exercised
    per thread, CB descriptors, and core ranges -- but **no**
    TensorAccessor compile-time args; those are filled in at launch
    time by the tt-mlir runtime.
-5. ``TTNNToFlatbuffer.cpp`` translates the artifact into a
-   ``GenericOp`` flatbuffer record. For each NOC kernel it writes one
-   ``KernelArgTensorAccessorArgs`` marker per operand (in declaration
-   order); compute kernels keep just the CB-index prefix.
-6. The TTNN runtime (``runtime/lib/ttnn/operations/generic/
+5. tt-mlir's ``--ttnn-lower-tt-lang-to-generic`` pass rewrites the
+   resolved ``ttnn.tt_lang_op`` into an equivalent ``ttnn.generic`` op.
+   It parses the ``kernel_artifact`` JSON and builds a ``#ttnn.program``
+   whose kernels carry their C++ body inline via the
+   ``#ttnn.source_{compute,read,write}_kernel`` attributes (rather than a
+   ttkernel symbol). For each NOC kernel it appends one
+   ``#ttnn.kernel_arg_tensor_accessor_args`` marker per operand (in
+   declaration order); compute kernels keep just the CB-index prefix.
+6. ``TTNNToFlatbuffer.cpp`` emits that ``ttnn.generic`` through the
+   ordinary generic-kernel path into a ``GenericOp`` flatbuffer record --
+   no tt-lang-specific handling: the inline source and accessor markers
+   come straight from the program attribute built in step 5.
+7. The TTNN runtime (``runtime/lib/ttnn/operations/generic/
    generic_op.cpp``) resolves each marker to ``io_tensors[i].buffer()``
    at launch time, calls
    ``::tt::tt_metal::TensorAccessorArgs(buffer).get_compile_time_args()``,
@@ -36,7 +44,7 @@ What's exercised
    compile-time args. The kernel then executes on silicon with
    correct addresses, page sizes, and alignments derived from the
    real buffer.
-7. The result is copied back to CPU and compared against the torch
+8. The result is copied back to CPU and compared against the torch
    golden under bfloat16 atol/rtol.
 
 Gating
@@ -184,7 +192,7 @@ def _make_eltwise_add_operation(operation_id: str):
 def test_tt_lang_eltwise_add_e2e(shape, request):
     """Compile and execute a tt-lang elementwise-add kernel on the TT
     device through the full @tt_torch.tt_lang_operation -> stablehlo.custom_call
-    -> tt_lang_op -> kernel_artifact -> flatbuffer -> GenericOp
+    -> tt_lang_op -> kernel_artifact -> ttnn.generic -> flatbuffer GenericOp
     pipeline; verify the result matches the bf16 torch.add golden.
     """
 
