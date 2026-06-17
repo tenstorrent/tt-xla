@@ -32,6 +32,10 @@ NL = int(os.environ.get("FLUX_NL", "4"))
 NS = int(os.environ.get("FLUX_NS", "20"))
 WDTYPE = os.environ.get("FLUX_WDTYPE", "")
 SHARDED = os.environ.get("FLUX_SHARDED", "1") != "0"
+# FLUX_2D=1 → declare a 2-D (4, 8) mesh and shard weights across both axes
+# (shard_transformer_specs(two_d=True)), to validate the Galaxy (4, 8) fabric path
+# on a truncated model before the full 32B run. Requires 32 devices.
+TWO_D = os.environ.get("FLUX_2D", "0") != "0"
 
 
 def _pcc(a, b):
@@ -76,11 +80,17 @@ def test_realwt():
     mode = os.environ.get("FLUX_SHARD_MODE", "all")  # all | blocks_only | mod_only
     if SHARDED:
         n = xr.global_runtime_device_count()
-        mesh = get_mesh((1, n), MESH_NAMES)
+        if TWO_D:
+            if n != 32:
+                raise RuntimeError(f"FLUX_2D needs 32 devices, got {n}")
+            mesh_shape = (4, 8)
+        else:
+            mesh_shape = (1, n)
+        mesh = get_mesh(mesh_shape, MESH_NAMES)
 
         def _spec_fn(m):
             t = m.transformer
-            specs = shard_transformer_specs(t)
+            specs = shard_transformer_specs(t, two_d=TWO_D)
             if mode == "all":
                 return specs
             # Identify the "modulation / embedder / norm_out" (non per-block-matmul)
@@ -128,7 +138,8 @@ def test_realwt():
     compiler_config = (
         CompilerConfig(experimental_weight_dtype=WDTYPE) if WDTYPE else None
     )
-    tag = f"real_nl{NL}_ns{NS}_{WDTYPE or 'bf16'}_{'sh' if SHARDED else 'unsh'}"
+    mesh_tag = "2d" if (SHARDED and TWO_D) else ("sh" if SHARDED else "unsh")
+    tag = f"real_nl{NL}_ns{NS}_{WDTYPE or 'bf16'}_{mesh_tag}"
     run_graph_test(
         model,
         inputs,
