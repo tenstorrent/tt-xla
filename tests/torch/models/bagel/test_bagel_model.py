@@ -29,6 +29,7 @@ MODEL_INFO = ModelLoader._get_model_info(ModelVariant.BAGEL_MODEL)
 
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.llmbox
 @pytest.mark.tensor_parallel
 @pytest.mark.record_test_properties(
     category=Category.MODEL_TEST,
