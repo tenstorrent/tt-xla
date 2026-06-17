@@ -273,7 +273,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.enable_data_parallel = False
 
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
-        self.use_2d_mesh = self.tt_config.use_2d_mesh
 
         model_config = self.model_config
         cache_config = self.cache_config
@@ -289,7 +288,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Setup for parallel execution.
         if self.enable_tensor_parallel or self.enable_data_parallel:
             mesh_shape = determine_mesh_shape(
-                self.num_devices, use_2d_mesh=self.use_2d_mesh
+                self.num_devices, self.tt_config.use_2d_mesh, self.tt_config.mesh_shape
             )
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
