@@ -35,6 +35,7 @@ from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
     build_xla_export_name,
     compute_pcc,
+    compute_rel_l2,
     create_benchmark_result,
     get_benchmark_metadata,
     get_xla_device_arch,
@@ -44,6 +45,7 @@ from utils import (
 xr.set_device_type("TT")
 
 MIN_STEPS = 16
+DEFAULT_EXPERTS_IMPLEMENTATION = "batched_mm"
 
 # Default input prompt
 DEFAULT_INPUT_PROMPT = (
@@ -54,7 +56,7 @@ MODULE_EXPORT_PATH = "modules"
 
 
 def setup_model_and_tokenizer(
-    model_loader, model_variant
+    model_loader, model_variant, experts_implementation: Optional[str] = None
 ) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
     """
     Instantiate model and tokenizer.
@@ -62,19 +64,25 @@ def setup_model_and_tokenizer(
     Args:
         model_loader: Loader of the HuggingFace model.
         model_variant: Specific variant of the model.
+        expert_implementation: Expert implementation type
 
     Returns:
         Tuple of (model, tokenizer)
     """
     print(f"Loading model {model_loader.get_model_info(variant=model_variant).name}...")
 
-    model = model_loader.load_model(dtype_override=torch.bfloat16)
+    model_kwargs = {}
+    if experts_implementation is not None:
+        model_kwargs["experts_implementation"] = experts_implementation
+    model = model_loader.load_model(dtype_override=torch.bfloat16, **model_kwargs)
     if hasattr(model.config, "layer_types"):
         model.config.layer_types = ["full_attention"] * len(model.config.layer_types)
     # Use static dense experts forward to avoid graph breaks from data-dependent
     # loops in the original experts and _grouped_mm CPU crashes.
     if hasattr(model.config, "_experts_implementation"):
-        model.config._experts_implementation = "dense"
+        model.config._experts_implementation = (
+            experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
+        )
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
@@ -258,6 +266,7 @@ def benchmark_llm_torch_xla(
     check_fusions_enabled: bool = False,
     use_indexer_cache: bool = False,
     enable_create_d2m_subgraphs: bool = False,
+    experts_implementation: Optional[str] = None,
 ):
     """
     Benchmark an LLM (Large Language Model) using PyTorch and torch-xla.
@@ -285,7 +294,7 @@ def benchmark_llm_torch_xla(
         accuracy_testing: Whether to perform token accuracy testing
         model_name_for_accuracy: Model name for .refpt file lookup (required if accuracy_testing=True)
         hf_model_name_for_accuracy: Full HuggingFace model name for on-demand .refpt generation
-
+        expert_implementation: Expert implementation type
     Returns:
         Benchmark result containing token generation performance metrics and model information
     """
@@ -347,7 +356,11 @@ def benchmark_llm_torch_xla(
     device: torch.device = torch_xla.device()
 
     # Instantiate model and tokenizer
-    model, tokenizer = setup_model_and_tokenizer(model_loader, model_variant)
+    model, tokenizer = setup_model_and_tokenizer(
+        model_loader,
+        model_variant,
+        experts_implementation=experts_implementation,
+    )
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
     # Initialize accuracy testing if enabled
@@ -388,7 +401,9 @@ def benchmark_llm_torch_xla(
     if max_output_tokens is None:
         max_output_tokens = max_cache_len - input_args["input_ids"].shape[1]
 
-    # Run CPU prefill (used as PCC baseline, or as decode-only prefill)
+    # Run CPU prefill (used as PCC baseline, or as decode-only prefill).
+    # tt_* experts/attention backends auto-fall-back to HF builtins for CPU
+    # tensors, so no backend swap is needed here.
     if not accuracy_testing:
         cpu_wrapper = LLMSamplingWrapper(model, read_logits_fn, return_logits=True)
         cpu_wrapper.eval()
@@ -799,32 +814,43 @@ def benchmark_llm_torch_xla(
         )
     elif decode_only:
         decode_pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[1][0])
+        decode_rel_l2_value = compute_rel_l2(
+            cpu_output_logits[1][0], output_logits[0][0]
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                decode_pcc_value, decode_rel_l2_value
             )
         )
     else:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
+        rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
         assert (
             pcc_value >= required_pcc
         ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
-        print("Prefill PCC verification passed with PCC={:.6f}".format(pcc_value))
+        print(
+            "Prefill PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                pcc_value, rel_l2_value
+            )
+        )
         # Check PCC for first decode token
         assert (
             len(output_logits) > 1 and len(cpu_output_logits) > 1
         ), "Not enough logits to check PCC"
         decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+        decode_rel_l2_value = compute_rel_l2(
+            cpu_output_logits[1][0], output_logits[1][0]
+        )
         assert (
             decode_pcc_value >= required_pcc
         ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}".format(
-                decode_pcc_value
+            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
+                decode_pcc_value, decode_rel_l2_value
             )
         )
 

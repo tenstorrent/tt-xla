@@ -29,6 +29,7 @@ from .passes import (
     bypass_assert_tensor_metadata,
     bypass_dtype_promotion_and_redundant_cast,
     bypass_redundant_getitem,
+    clamp_neg_slice_bounds,
     handle_composite_ops,
     insert_argument_type_markers,
     rewrite_adaptive_avgpool_to_mean,
@@ -71,6 +72,13 @@ def torch_pass_pipeline(
         strict=False,
     )
     program = program.run_decompositions(decompositions)
+
+    # Clamp out-of-range negative slice start/end bounds to -dim_size (CPU
+    # __getitem__ semantics) on the exported graph, where nodes still carry shape
+    # meta (program.module() drops it). XLA's strict aten.slice otherwise rejects
+    # them. In torch_pass_pipeline so both legacy and experimental paths get it.
+    # Refs: tt-xla #5199.
+    clamp_neg_slice_bounds(program.graph_module)
 
     compiled_graph = program.module()
     # When torch.compile traces a model, it flattens the module hierarchy and
@@ -115,6 +123,7 @@ class XLAExecutor:
         signature: torch.export.ExportGraphSignature,
         node_info: dict[str, str],
         legacy_compile_enabled: bool,
+        lazy_execution: bool = False,
     ):
         self.module = module
         self.signature = signature
@@ -136,6 +145,7 @@ class XLAExecutor:
         self.legacy_compile_enabled = legacy_compile_enabled
         self.params_and_consts = None
         self.compiled_graph = None
+        self.lazy_execution = lazy_execution
 
     # Extract the param and consts from the exported program.
     def _build_params_and_consts(self, ep: ExportedProgram) -> Tuple[torch.Tensor]:
@@ -235,6 +245,10 @@ class XLAExecutor:
                 output = interp.run(*args)
         else:
             output = self.module(*args)
+
+        if self.lazy_execution:
+            return output
+
         gm_has_functional_output_kind: bool = True
 
         for el in self.signature.output_specs:
@@ -277,6 +291,7 @@ def fw_compiler(
     )
 
     legacy_compile = False
+    lazy_execution = False
     if options:
         if "tt_experimental_compile" in options:
             print(
@@ -286,8 +301,12 @@ def fw_compiler(
             legacy_compile = not bool(options["tt_experimental_compile"])
         if "tt_legacy_compile" in options:
             legacy_compile = bool(options["tt_legacy_compile"])
+        if "tt_lazy_execution" in options:
+            lazy_execution = bool(options["tt_lazy_execution"])
 
-    return XLAExecutor(module, graph_signature, node_info, legacy_compile)
+    return XLAExecutor(
+        module, graph_signature, node_info, legacy_compile, lazy_execution
+    )
 
 
 def aot_backend(

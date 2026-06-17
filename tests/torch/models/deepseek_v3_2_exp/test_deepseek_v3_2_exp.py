@@ -11,8 +11,6 @@ import torch_xla
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 from infra.evaluators import ComparisonConfig, PccConfig
-from modified_model import ModelArgs
-from modified_model import Transformer as ModifiedTransformer
 from safetensors.torch import load_file as safetensors_load_file
 from torch_xla.distributed.spmd import Mesh
 from transformers import PreTrainedTokenizerFast
