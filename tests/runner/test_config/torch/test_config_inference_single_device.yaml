@@ -868,12 +868,14 @@ test_config:
     status: EXPECTED_PASSING
 
   qwen_2_5_vl/pytorch-3B_Instruct-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
+    # status: KNOWN_FAILURE_XFAIL
+    markers: [testing]
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   qwen_2_5_vl/pytorch-7B_Instruct-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
+    # status: KNOWN_FAILURE_XFAIL
+    markers: [testing]
     reason: "error: failed to legalize operation 'ttir.convolution' - https://github.com/tenstorrent/tt-xla/issues/1662"
 
   llama/sequence_classification/pytorch-3.2_1B-single_device-inference:
