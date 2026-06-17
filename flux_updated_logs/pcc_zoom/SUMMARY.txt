@@ -1,0 +1,11 @@
+=== 11:33:45 START NL=8 NS=38 -> flux_updated_logs/pcc_zoom/nl8_ns38.log ===
+    NL=8 NS=38  rc=0  PCC = 0.925695  [1 passed]
+=== 11:39:15 START NL=8 NS=40 -> flux_updated_logs/pcc_zoom/nl8_ns40.log ===
+    NL=8 NS=40  rc=0  PCC = 0.898024  [1 passed]
+=== 11:44:58 START NL=8 NS=42 -> flux_updated_logs/pcc_zoom/nl8_ns42.log ===
+    NL=8 NS=42  rc=0  PCC = 0.917192  [1 passed]
+=== 11:50:52 START NL=8 NS=44 -> flux_updated_logs/pcc_zoom/nl8_ns44.log ===
+    NL=8 NS=44  rc=0  PCC = 0.914771  [1 passed]
+=== 11:57:00 START NL=8 NS=46 -> flux_updated_logs/pcc_zoom/nl8_ns46.log ===
+    NL=8 NS=46  rc=0  PCC = 0.812584  [1 passed]
+=== 12:03:22 ZOOM DONE ===

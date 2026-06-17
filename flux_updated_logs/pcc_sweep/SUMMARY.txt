@@ -1,0 +1,15 @@
+=== 11:10:29 START NL=1 NS=0 -> flux_updated_logs/pcc_sweep/nl1_ns0.log ===
+    NL=1 NS=0  rc=0  PCC = 0.999399  [1 passed]
+=== 11:11:22 START NL=4 NS=0 -> flux_updated_logs/pcc_sweep/nl4_ns0.log ===
+    NL=4 NS=0  rc=0  PCC = 0.998133  [1 passed]
+=== 11:12:40 START NL=8 NS=0 -> flux_updated_logs/pcc_sweep/nl8_ns0.log ===
+    NL=8 NS=0  rc=0  PCC = 0.996972  [1 passed]
+=== 11:14:32 START NL=8 NS=12 -> flux_updated_logs/pcc_sweep/nl8_ns12.log ===
+    NL=8 NS=12  rc=0  PCC = 0.981656  [1 passed]
+=== 11:17:30 START NL=8 NS=24 -> flux_updated_logs/pcc_sweep/nl8_ns24.log ===
+    NL=8 NS=24  rc=0  PCC = 0.980143  [1 passed]
+=== 11:21:37 START NL=8 NS=36 -> flux_updated_logs/pcc_sweep/nl8_ns36.log ===
+    NL=8 NS=36  rc=0  PCC = 0.951618  [1 passed]
+=== 11:26:53 START NL=8 NS=48 -> flux_updated_logs/pcc_sweep/nl8_ns48.log ===
+    NL=8 NS=48  rc=0  PCC = 0.650287  [1 passed]
+=== 11:33:28 SWEEP DONE ===

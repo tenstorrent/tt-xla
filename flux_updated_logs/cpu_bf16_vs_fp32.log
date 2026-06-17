@@ -1,0 +1,32 @@
+2026-06-17 12:08:44.518 | INFO     | pjrt_plugin_tt:setup_tt_pjrt_plugin_dir:46 - Using PJRT plugin directory: /localdev/ctr-akannan/17_jun_sjc/tt-xla/python_package/pjrt_plugin_tt
+2026-06-17 12:08:44.518 | INFO     | pjrt_plugin_tt:setup_tt_metal_home:107 - Using TT-Metal from the source tree: /localdev/ctr-akannan/17_jun_sjc/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+2026-06-17 12:08:44.808 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+>>> loading fp32 transformer ...
+/localdev/ctr-akannan/17_jun_sjc/tt-xla/venv/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py:205: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Fetching 7 files:   0%|          | 0/7 [00:00<?, ?it/s]Fetching 7 files: 100%|██████████| 7/7 [00:00<00:00, 13888.42it/s]
+Loading checkpoint shards:   0%|          | 0/7 [00:00<?, ?it/s]Loading checkpoint shards:  14%|█▍        | 1/7 [00:01<00:07,  1.32s/it]Loading checkpoint shards:  29%|██▊       | 2/7 [00:02<00:06,  1.30s/it]Loading checkpoint shards:  43%|████▎     | 3/7 [00:03<00:05,  1.28s/it]Loading checkpoint shards:  57%|█████▋    | 4/7 [00:05<00:03,  1.28s/it]Loading checkpoint shards:  71%|███████▏  | 5/7 [00:06<00:02,  1.34s/it]Loading checkpoint shards:  86%|████████▌ | 6/7 [00:08<00:01,  1.38s/it]Loading checkpoint shards: 100%|██████████| 7/7 [00:08<00:00,  1.19s/it]Loading checkpoint shards: 100%|██████████| 7/7 [00:08<00:00,  1.27s/it]
+>>> loading bf16 transformer ...
+Fetching 7 files:   0%|          | 0/7 [00:00<?, ?it/s]Fetching 7 files: 100%|██████████| 7/7 [00:00<00:00, 24734.73it/s]
+Loading checkpoint shards:   0%|          | 0/7 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 7/7 [00:00<00:00, 172.83it/s]
+>>> building inputs (fp32) ...
+Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]Fetching 10 files: 100%|██████████| 10/10 [00:00<00:00, 23045.63it/s]
+Loading weights:   0%|          | 0/585 [00:00<?, ?it/s]Loading weights:   0%|          | 1/585 [00:00<01:37,  5.99it/s]Loading weights:   4%|▍         | 22/585 [00:00<00:08, 68.00it/s]Loading weights:   5%|▌         | 32/585 [00:00<00:07, 74.27it/s]Loading weights:   7%|▋         | 41/585 [00:00<00:07, 76.17it/s]Loading weights:   8%|▊         | 49/585 [00:00<00:06, 77.05it/s]Loading weights:  10%|▉         | 58/585 [00:00<00:06, 76.94it/s]Loading weights:  11%|█▏        | 67/585 [00:00<00:06, 79.35it/s]Loading weights:  13%|█▎        | 76/585 [00:01<00:07, 72.64it/s]Loading weights:  15%|█▍        | 86/585 [00:01<00:06, 73.26it/s]Loading weights:  16%|█▋        | 96/585 [00:01<00:06, 78.19it/s]Loading weights:  18%|█▊        | 105/585 [00:01<00:06, 79.06it/s]Loading weights:  19%|█▉        | 113/585 [00:01<00:06, 78.37it/s]Loading weights:  21%|██        | 122/585 [00:01<00:05, 79.90it/s]Loading weights:  22%|██▏       | 131/585 [00:01<00:06, 69.90it/s]Loading weights:  25%|██▌       | 148/585 [00:01<00:05, 78.21it/s]Loading weights:  27%|██▋       | 157/585 [00:02<00:05, 80.19it/s]Loading weights:  28%|██▊       | 166/585 [00:02<00:05, 80.16it/s]Loading weights:  30%|██▉       | 175/585 [00:02<00:05, 81.39it/s]Loading weights:  31%|███▏      | 184/585 [00:02<00:05, 77.45it/s]Loading weights:  33%|███▎      | 193/585 [00:02<00:05, 76.91it/s]Loading weights:  35%|███▍      | 203/585 [00:02<00:04, 79.74it/s]Loading weights:  36%|███▌      | 212/585 [00:02<00:04, 77.81it/s]Loading weights:  38%|███▊      | 220/585 [00:02<00:04, 77.65it/s]Loading weights:  39%|███▉      | 229/585 [00:03<00:04, 78.60it/s]Loading weights:  41%|████      | 238/585 [00:03<00:04, 77.66it/s]Loading weights:  42%|████▏     | 247/585 [00:03<00:04, 78.03it/s]Loading weights:  44%|████▍     | 256/585 [00:03<00:04, 80.13it/s]Loading weights:  45%|████▌     | 265/585 [00:03<00:04, 77.07it/s]Loading weights:  47%|████▋     | 274/585 [00:03<00:03, 77.87it/s]Loading weights:  48%|████▊     | 282/585 [00:03<00:04, 71.94it/s]Loading weights:  50%|████▉     | 290/585 [00:03<00:04, 68.52it/s]Loading weights:  51%|█████     | 297/585 [00:04<00:06, 44.10it/s]Loading weights:  52%|█████▏    | 303/585 [00:04<00:07, 37.78it/s]Loading weights:  53%|█████▎    | 310/585 [00:04<00:06, 40.87it/s]Loading weights:  55%|█████▍    | 319/585 [00:04<00:06, 39.56it/s]Loading weights:  56%|█████▌    | 328/585 [00:05<00:08, 30.04it/s]Loading weights:  58%|█████▊    | 337/585 [00:05<00:08, 30.08it/s]Loading weights:  59%|█████▉    | 346/585 [00:05<00:07, 30.75it/s]Loading weights:  61%|██████    | 355/585 [00:06<00:07, 29.94it/s]Loading weights:  72%|███████▏  | 422/585 [00:06<00:01, 111.30it/s]Loading weights:  88%|████████▊ | 512/585 [00:06<00:00, 232.12it/s]Loading weights:  95%|█████████▍| 554/585 [00:06<00:00, 238.50it/s]Loading weights: 100%|██████████| 585/585 [00:06<00:00, 89.51it/s] 
+The tied weights mapping and config for this model specifies to tie model.language_model.embed_tokens.weight to lm_head.weight, but both are present in the checkpoints with different values, so we will NOT tie them. You should update the config with `tie_word_embeddings=False` to silence this warning.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Flax classes are deprecated and will be removed in Diffusers v1.0.0. We recommend migrating to PyTorch classes or pinning your version of Diffusers.
+Kwargs passed to `processor.__call__` have to be in `processor_kwargs` dict, not in `**kwargs`
+
+  NS |   CPU-bf16 vs CPU-fp32 | note
+------------------------------------------------------------
+  48 |               0.998175 |
+  46 |               0.999210 |
+  24 |               0.999968 |
+  12 |               0.999980 |
+
+=== SUMMARY (CPU-bf16 vs CPU-fp32, NL=8) ===
+  NS= 12  inherent_bf16_PCC = 0.999980
+  NS= 24  inherent_bf16_PCC = 0.999968
+  NS= 46  inherent_bf16_PCC = 0.999210
+  NS= 48  inherent_bf16_PCC = 0.998175
+CPU_DECOMP_DONE
