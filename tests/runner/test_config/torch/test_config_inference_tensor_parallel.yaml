@@ -30,6 +30,10 @@ test_config:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
 
+  gemma4/pytorch-12B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, galaxy-wh-6u, lb-blackhole]
     status: EXPECTED_PASSING
