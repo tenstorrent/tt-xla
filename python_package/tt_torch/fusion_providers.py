@@ -180,29 +180,6 @@ class RMSNormFusionProvider(FusionProvider):
         return result.to(dtype)
 
     @staticmethod
-    def pattern_x_weight_order(
-        hidden_states: Tensor, weight: Tensor, eps: float, dtype
-    ) -> Tensor:
-        """
-        vLLM TTRMSNorm variant: cast happens before multiply with weight, and the
-        weight is the trailing operand (x * weight, not weight * x).
-
-        Matches: hidden_states.to(input_dtype) * weight
-
-        Note:
-            FX subgraph rewriter does not normalize positional vs kwarg form for
-            method calls, so `mean(dim=-1, keepdim=True)` is used here to match
-            vLLM TTRMSNorm exactly (its forward calls .mean(dim=-1, keepdim=True)).
-        """
-        hidden_fp32 = hidden_states.to(torch.float32)
-        variance = hidden_fp32.pow(2).mean(dim=-1, keepdim=True)
-        variance_eps = variance.add(eps)
-        rsqrt_var = torch.rsqrt(variance_eps)
-        hidden_normalized = hidden_fp32.mul(rsqrt_var)
-        hidden_cast = hidden_normalized.to(dtype)
-        return hidden_cast.mul(weight)
-
-    @staticmethod
     def replacement(hidden_states: Tensor, weight: Tensor, eps: float, dtype) -> Tensor:
         """Shared replacement for RMS norm pattern variants."""
         return torch.nn.functional.rms_norm(
@@ -298,7 +275,6 @@ class RMSNormFusionProvider(FusionProvider):
         return [
             (self.pattern, self.replacement),
             (self.pattern_cast_after_mul, self.replacement),
-            (self.pattern_x_weight_order, self.replacement),
             (self.pattern_gemma, self.replacement_gemma),
             (self.pattern_gemma4, self.replacement_gemma4),
             (self.pattern_gemma4_no_scale, self.replacement_gemma4_no_scale),
