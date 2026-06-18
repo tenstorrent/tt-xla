@@ -4,6 +4,7 @@
 
 import bisect
 import gc
+import os
 import time
 from typing import TYPE_CHECKING, Any, Literal, Optional, Union, cast
 from unittest.mock import patch
@@ -1851,8 +1852,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Multimodal configs (e.g. Gemma-4) nest the language model and
         # don't expose lm_head on the top-level module. Walk the module
         # tree to find any ParallelLMHead instance.
-        self.is_sharded_compute_logits = self.enable_tensor_parallel and any(
+        self._lmhead_vocab_sharded = self.enable_tensor_parallel and any(
             isinstance(m, ParallelLMHead) for m in self.model.modules()
+        )
+        # Perf-comparison toggle (default off; behavior unchanged when unset):
+        # TT_LEGACY_REPLICATE_LOGITS=1 reproduces the pre-sharded-topk path —
+        # compute_logits all_gathers the full-vocab logits and the sampler runs
+        # unsharded argmax/topk — so old-vs-new can be measured on one build.
+        self._legacy_replicate_logits = (
+            os.environ.get("TT_LEGACY_REPLICATE_LOGITS") == "1"
+        )
+        self.is_sharded_compute_logits = (
+            self._lmhead_vocab_sharded and not self._legacy_replicate_logits
+        )
+        logger.warning(
+            "TOPK_PATH _lmhead_vocab_sharded=%s legacy=%s -> "
+            "is_sharded_compute_logits=%s",
+            self._lmhead_vocab_sharded,
+            self._legacy_replicate_logits,
+            self.is_sharded_compute_logits,
         )
 
         # Per-tensor weight dtype overrides (mixed precision), mirroring the
@@ -2560,6 +2578,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # downstream sampler runs sharding-aware topk via composite_topk and
         # only all_gathers the tiny [batch, k] candidates, avoiding a
         # full-vocab all_gather every decode step.
+        if (
+            self.enable_tensor_parallel
+            and self._lmhead_vocab_sharded
+            and not self.is_sharded_compute_logits
+        ):
+            # Legacy (pre-PR) path: all_gather full-vocab logits so the
+            # downstream argmax/topk run unsharded (TT_LEGACY_REPLICATE_LOGITS).
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         return logits
 
     @torch.compile(backend="tt", fullgraph=True, dynamic=False)
@@ -2670,10 +2696,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits = self.model.compute_logits(hidden)
         if (
             self.enable_tensor_parallel
-            and not self.use_2d_mesh
             and not self.is_sharded_compute_logits
+            and (not self.use_2d_mesh or self._lmhead_vocab_sharded)
         ):
-            # 1D mesh, non-sharded compute_logits: force replicated.
+            # Force replicated logits for the unsharded sampling path. Fires
+            # for: 1D mesh non-sharded compute_logits, and the legacy
+            # (TT_LEGACY_REPLICATE_LOGITS) full-vocab all_gather on a 2D mesh
+            # whose LM head is vocab-sharded.
             logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
         # When is_sharded_compute_logits: no explicit constraint on logits.
         # The tt-mlir CustomCallTopKConversionPattern walks back through the
