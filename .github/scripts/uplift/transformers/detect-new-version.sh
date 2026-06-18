@@ -38,8 +38,10 @@ RELEASE_TAGS=$(gh release list --repo huggingface/transformers \
   --limit 100 --json tagName,isPrerelease \
   -q '.[] | select(.isPrerelease == false) | .tagName')
 
-# TEMP: pinned to 5.8.0 for transformers-uplift pipeline testing.
-# Restore the python block below before this change merges.
+# TEMP: pinned to 5.9.0 for transformers-uplift pipeline testing.
+# 5.5.2 (the previous test target) had no errors; jumping further to
+# exercise the loop against substantive API churn. Restore the python
+# block below before this change merges.
 LATEST="5.9.0"
 # LATEST=$(python3 - "$CURRENT" <<PY
 # import sys
@@ -53,7 +55,7 @@ LATEST="5.9.0"
 #         continue
 #     if v > cur:
 #         nexts.append(v)
-# print(max(nexts) if nexts else "")
+# print(min(nexts) if nexts else "")
 # PY
 # )
 
