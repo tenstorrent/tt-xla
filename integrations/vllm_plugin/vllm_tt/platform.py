@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Portions (c) 2025 Tenstorrent AI ULC
 
 import contextlib
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Union, cast
 
@@ -420,6 +421,38 @@ class TTPlatform(Platform):
                 scheduler_config.max_num_batched_tokens = budget
                 scheduler_config.max_num_encoder_input_tokens = budget
                 scheduler_config.encoder_cache_size = budget
+
+        # --- TT-XLA branch/config probe (TEMPORARY — remove before merge) -------------
+        # Raw print to stderr (NOT logger.info) so it survives tt-media-server, which
+        # runs the vllm_tt.* / vllm loggers at WARNING and would drop INFO lines (this
+        # is why `non-default args` / `KV cache sizing` don't appear in the server log).
+        # Runs at config time — before model load / warmup / trace-capture — so it is
+        # hit even if the model later DRAM-OOMs during warmup. Grep for the marker.
+        try:
+            print(
+                "[TT-XLA-CONFIG-PROBE] resolved engine config "
+                f"(pid={__import__('os').getpid()}): "
+                f"model={getattr(model_config, 'model', None)} "
+                f"max_model_len={getattr(model_config, 'max_model_len', None)} "
+                f"dtype={getattr(model_config, 'dtype', None)} "
+                f"max_num_seqs={getattr(scheduler_config, 'max_num_seqs', None)} "
+                f"max_num_batched_tokens={getattr(scheduler_config, 'max_num_batched_tokens', None)} "
+                f"enable_chunked_prefill={getattr(scheduler_config, 'enable_chunked_prefill', None)} "
+                f"prefill_chunk_size={getattr(scheduler_config, 'prefill_chunk_size', None)} "
+                f"gpu_memory_utilization={getattr(cache_config, 'gpu_memory_utilization', None)} "
+                f"block_size={getattr(cache_config, 'block_size', None)} "
+                f"tp={getattr(parallel_config, 'tensor_parallel_size', None)} "
+                f"additional_config={additional_config}",
+                file=sys.stderr,
+                flush=True,
+            )
+        except Exception as _e:  # never let the probe break engine init
+            print(
+                f"[TT-XLA-CONFIG-PROBE] (failed to format: {_e})",
+                file=sys.stderr,
+                flush=True,
+            )
+        # ------------------------------------------------------------------------------
 
     @classmethod
     def update_block_size_for_backend(cls, vllm_config: "VllmConfig") -> int:

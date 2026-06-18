@@ -39,6 +39,12 @@ _BENCH_WEIGHT_DTYPE = os.environ.get("TT_BENCHMARK_WEIGHT_DTYPE")
 _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 _BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
 _BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
+# KV-slowdown repro shape (env-driven static test). ISL/OSL default to 128.
+_BENCH_ISL = int(os.environ.get("TT_BENCHMARK_ISL", "128"))
+_BENCH_OSL = int(os.environ.get("TT_BENCHMARK_OSL", "128"))
+# Raw value (None when unset) so the kv_slowdown test can auto-derive max_model_len
+# from ISL+OSL when the user didn't pin it. _BENCH_MAX_MODEL_LEN above defaults 128.
+_BENCH_MAX_MODEL_LEN_EXPLICIT = os.environ.get("TT_BENCHMARK_MAX_MODEL_LEN")
 _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
 _BENCH_FP32_DEST_ACC = os.environ.get("TT_BENCHMARK_FP32_DEST_ACC")
 
@@ -51,6 +57,7 @@ def _config(
     optimization_level: int = 0,
     experimental_weight_dtype: str = "bfp_bf8",
     fp32_dest_acc_en: bool | None = False,
+    max_model_len: int | None = None,
     **additional_config_extra,
 ):
     if _BENCH_OPTIMIZATION_LEVEL is not None:
@@ -88,7 +95,9 @@ def _config(
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
-        max_model_len=_BENCH_MAX_MODEL_LEN,
+        max_model_len=(
+            max_model_len if max_model_len is not None else _BENCH_MAX_MODEL_LEN
+        ),
         max_num_batched_tokens=(
             int(_BENCH_MAX_NUM_BATCHED_TOKENS)
             if _BENCH_MAX_NUM_BATCHED_TOKENS is not None
@@ -365,3 +374,186 @@ def test_vllm_benchmark(config, output_file, request):
 @pytest.mark.parametrize("config", TP_CONFIGS)
 def test_vllm_tp_benchmark(config, output_file, request):
     _run_vllm_benchmark(config, output_file, request)
+
+
+# ---------------------------------------------------------------------------
+# Qwen3-8B decode-rate sweep (single chip P150). Mirrors the additional_config
+# from tt-inference-server's launch_qwen3_8b.sh so this is a faithful tt-xla
+# repro of the online server's decode path, minus the serving/streaming layer:
+#   opt=1, gmu=0.30, weights bfp8, KV bfp8, on-device chunked prefill 2048,
+#   fp32_dest_acc_en=false, enable_trace, device sampling, enable_const_eval.
+#
+# num_hidden_layers=1 trims the model to a single decoder layer (NUM_HIDDEN_LAYERS=1
+# on the server) so device matmul is negligible. That isolates any per-decode-step
+# / host overhead that grows with the number of GENERATED tokens — the suspected
+# cause of the decode-rate decay seen on the online server (decode tok/s falls as
+# OSL grows, yet is flat vs prefilled ISL depth).
+#
+# Sweep OSL at fixed ISL and read avg_tokens_per_sec ("samples_per_sec" in the
+# result) — decode tok/s the engine computes from last_token_ts - first_token_ts,
+# i.e. excluding prefill. If it falls as OSL grows, the slowdown reproduces in
+# pure tt-xla (engine/device), not just the serving layer. Each (isl, osl) is an
+# individual test.
+# (isl, osl) datapoints — ISL fixed, OSL swept.
+_QWEN3_8B_DECODE_PAIRS = [(128, 128), (128, 1024), (128, 4096)]
+
+
+def _round_up_256(n: int) -> int:
+    return ((n + 255) // 256) * 256
+
+
+# ONE fixed context length for the whole sweep so the compiled graph/config is
+# identical across every point and only max_tokens (OSL) varies. Deriving
+# max_model_len per-OSL changes the graph AND, once it exceeds prefill_chunk_size
+# (2048), tt-xla chunked prefill requires max_model_len % 256 == 0 — e.g. 4736
+# raises NotImplementedError. Round up to a multiple of 256 with headroom.
+_SWEEP_MAX_MODEL_LEN = _round_up_256(
+    max(i + o for i, o in _QWEN3_8B_DECODE_PAIRS) + 256
+)
+
+
+def _qwen3_8b_decode_config(isl: int, osl: int):
+    cfg = _config(
+        "Qwen/Qwen3-8B",
+        batch_size=1,
+        gpu_memory_utilization=0.30,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        fp32_dest_acc_en=False,
+        # Fixed across the sweep (multiple of 256) so the graph is identical for
+        # every OSL — only max_tokens changes between points.
+        max_model_len=_SWEEP_MAX_MODEL_LEN,
+        experimental_kv_cache_dtype="bfp_bf8",
+        prefill_chunk_size=2048,
+        enable_const_eval=True,
+        min_context_len=32,
+        num_hidden_layers=1,
+    )
+    cfg.max_tokens = osl
+    # "word " is ~1 BPE token, so this is ~isl input tokens. ISL barely affects
+    # decode rate (decode is flat vs prefilled depth), so approximate ISL is fine;
+    # the measured prompt_tokens is printed by the benchmark.
+    cfg.prompt = ("word " * isl).strip()
+    return cfg
+
+
+_QWEN3_8B_DECODE_SWEEP = [
+    pytest.param(isl, osl, id=f"isl{isl}_osl{osl}")
+    for isl, osl in _QWEN3_8B_DECODE_PAIRS
+]
+
+
+@pytest.mark.parametrize("isl,osl", _QWEN3_8B_DECODE_SWEEP)
+def test_vllm_qwen3_8b_decode_sweep(isl, osl, output_file, request):
+    _run_vllm_benchmark(_qwen3_8b_decode_config(isl, osl), output_file, request)
+
+
+# Same OSL sweep, but with the engine configured like the tt-inference-server
+# online server (max_num_seqs=32, max_model_len=40960, min_context_len=128) while
+# submitting a SINGLE request (num_prompts=1). IR comparison showed the online
+# decode graph runs at batch 32 (32x4096 hidden, 32x151936 logits/sampling every
+# token) vs batch 1 offline — this variant reproduces that batch-32 / large-context
+# graph. Purpose: if decode tok/s slows with OSL here, the slowdown is the engine
+# config (batch-32 / big context); if it stays flat (like the batch-1 sweep), the
+# slowdown is in the serving path, not tt-xla.
+def _qwen3_8b_decode_config_match_online(isl: int, osl: int):
+    cfg = _config(
+        "Qwen/Qwen3-8B",
+        batch_size=32,  # -> max_num_seqs=32, like the server's MAX_NUM_SEQS
+        gpu_memory_utilization=0.30,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        fp32_dest_acc_en=False,
+        max_model_len=40960,  # server MAX_MODEL_LENGTH (multiple of 256)
+        experimental_kv_cache_dtype="bfp_bf8",
+        prefill_chunk_size=2048,
+        enable_const_eval=True,
+        min_context_len=128,  # server min_context_len
+        num_hidden_layers=1,
+    )
+    cfg.num_prompts = 1  # ONE active request on the batch-32 engine
+    cfg.max_num_batched_tokens = 2048  # chunked-prefill cap, like the server
+    cfg.max_tokens = osl
+    cfg.prompt = ("word " * isl).strip()
+    return cfg
+
+
+@pytest.mark.parametrize("isl,osl", _QWEN3_8B_DECODE_SWEEP)
+def test_vllm_qwen3_8b_decode_sweep_match_online(isl, osl, output_file, request):
+    _run_vllm_benchmark(
+        _qwen3_8b_decode_config_match_online(isl, osl), output_file, request
+    )
+
+
+# ---------------------------------------------------------------------------
+# Qwen3-8B KV-depth decode/prefill slowdown repro (env-driven, single static
+# test). Measures decode + prefill throughput at a chosen KV-cache depth, where
+# the depth can be built two ways — selected purely by ISL vs OSL:
+#
+#   * KV built from PREFILL : large TT_BENCHMARK_ISL, small TT_BENCHMARK_OSL
+#                             (e.g. ISL=16384 OSL=128). The prefill-heavy case
+#                             to focus perf debugging on.
+#   * KV built from DECODE  : small ISL, large OSL (e.g. ISL=128 OSL=16384).
+#                             Decode walks the KV cache up to the same depth.
+#
+# At equal final depth, decode t/s should match if the slowdown is pure
+# device-side KV-attention cost; a gap implies host-side per-generated-token
+# overhead (the O(N^2) decode path). The live `loggers.py` "Avg generation
+# throughput" pulse (disable_log_stats=False) traces the decay token-by-token.
+#
+# Everything except the shape is hardcoded, so the repro is one command plus a
+# couple of env vars:
+#   TT_BENCHMARK_ISL            input (prompt) length          [default 128]
+#   TT_BENCHMARK_OSL            output (generated) length      [default 128]
+#   TT_BENCHMARK_BATCH_SIZE     1 = b1-prefill graph; 32 = batch-32 server graph
+#   TT_BENCHMARK_MAX_MODEL_LEN  context; default auto = round_up_256(ISL+OSL+256)
+#   TT_BENCHMARK_GMU            gpu_memory_utilization         [default 0.30]
+# Prefix caching is OFF (so the warmup can't turn the measured prefill into a
+# cache hit) and warmup generation is capped at 128 tokens (warmup only needs to
+# trigger trace capture, not regenerate a long OSL).
+# ---------------------------------------------------------------------------
+def _qwen3_8b_kv_slowdown_config():
+    isl = _BENCH_ISL
+    osl = _BENCH_OSL
+    batch_size = int(_BENCH_BATCH_SIZE) if _BENCH_BATCH_SIZE is not None else 1
+    # max_model_len: explicit env override, else derive to fit ISL+OSL (+headroom),
+    # rounded to a multiple of 256 (required by chunked prefill).
+    if _BENCH_MAX_MODEL_LEN_EXPLICIT is not None:
+        max_model_len = int(_BENCH_MAX_MODEL_LEN_EXPLICIT)
+    else:
+        max_model_len = _round_up_256(isl + osl + 256)
+    # b1 and the batch-32 server graph differ only in these derived knobs.
+    server_like = batch_size > 1
+    cfg = _config(
+        "Qwen/Qwen3-8B",
+        batch_size=batch_size,
+        gpu_memory_utilization=0.30,
+        optimization_level=1,
+        experimental_weight_dtype="bfp_bf8",
+        fp32_dest_acc_en=False,
+        max_model_len=max_model_len,
+        experimental_kv_cache_dtype="bfp_bf8",
+        prefill_chunk_size=2048,
+        enable_const_eval=True,
+        min_context_len=128 if server_like else 32,
+        # NOTE: no num_hidden_layers override -> FULL model.
+    )
+    if server_like:
+        cfg.num_prompts = 1  # one active request on the batch-32 engine
+    cfg.max_num_batched_tokens = 2048
+    cfg.enable_prefix_caching = False  # don't let warmup cache-hit the measured prefill
+    cfg.warmup_max_tokens = 128  # warmup only needs trace capture, not the full OSL
+    cfg.max_tokens = osl
+    # "word " is ~1 BPE token, so this is ~isl input tokens; the measured
+    # prompt_tokens is printed per request by the benchmark.
+    cfg.prompt = ("word " * isl).strip()
+    # Fold the shape into the export name so modules/ IR dumps + naming stay
+    # distinct across runs of this one static test.
+    cfg.additional_config["export_model_name"] = (
+        f"vllm_qwen3_8b_kv_slowdown_isl{isl}_osl{osl}_bs{batch_size}"
+    )
+    return cfg
+
+
+def test_vllm_qwen3_8b_kv_slowdown(output_file, request):
+    _run_vllm_benchmark(_qwen3_8b_kv_slowdown_config(), output_file, request)
