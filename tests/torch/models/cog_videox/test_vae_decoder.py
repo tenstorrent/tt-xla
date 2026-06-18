@@ -20,6 +20,9 @@ def test_vae_decoder():
     _run(sharded=False)
 
 
+@pytest.mark.xfail(
+    reason="error: 'ttnn.group_norm' op flattened height must be tile-aligned - https://github.com/tenstorrent/tt-xla/issues/5479"
+)
 @pytest.mark.nightly
 @pytest.mark.model_test
 def test_vae_decoder_sharded():
