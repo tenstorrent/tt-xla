@@ -47,6 +47,10 @@ class VLLMBenchmarkConfig:
 
     # Benchmark params
     batch_size: int = 1
+    # Number of prompts actually submitted. Defaults to batch_size; set lower to
+    # drive a high-max_num_seqs engine with fewer active requests (e.g. 1 request
+    # on a batch_size=32 engine, to mirror an online server's batch-32 graph).
+    num_prompts: Optional[int] = None
     max_tokens: int = 128
     warmup_iterations: int = 1
     prompt: str = DEFAULT_PROMPT
@@ -235,14 +239,16 @@ def benchmark_vllm(
 
     # chat() applies the model's chat template; generate() feeds the raw
     # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
+    n_prompts = (
+        config.num_prompts if config.num_prompts is not None else config.batch_size
+    )
     if config.use_chat_template:
         inputs = [
-            [{"role": "user", "content": config.prompt}]
-            for _ in range(config.batch_size)
+            [{"role": "user", "content": config.prompt}] for _ in range(n_prompts)
         ]
         run_fn = llm.chat
     else:
-        inputs = [config.prompt] * config.batch_size
+        inputs = [config.prompt] * n_prompts
         run_fn = llm.generate
 
     def _run() -> List[vllm.RequestOutput]:
