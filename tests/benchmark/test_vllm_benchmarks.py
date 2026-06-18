@@ -241,6 +241,25 @@ TP_CONFIGS = [
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
         id="opt-125m-fused-measure",
     ),
+    # Devstral-2-123B on the BH-galaxy (32 chips) in a 4x8 DP+TP layout:
+    # mesh_shape=[4, 8] -> (batch=4 DP, model=8 TP). The 123B does not fit in a
+    # TP-4 weight slice, so it needs model=8 (Qwen3-32B uses 8x4 instead; see
+    # the qwen3-32b-bhglx branch). fp8 checkpoint -> bf16 via the dequant hook,
+    # then stored as bfp8. shard_weights_on_batch_axis=False -> weights are
+    # replicated across the 4 DP replicas (classic DP+TP, fewer CCLs). batch 32
+    # -> 8 sequences/replica. Run with TT_RUNTIME_USING_BH_GALAXY=1.
+    pytest.param(
+        _tp_config(
+            "mistralai/Devstral-2-123B-Instruct-2512",
+            32,
+            mesh_shape=[4, 8],
+            experimental_weight_dtype="bfp_bf8",
+            gpu_memory_utilization=0.05,
+            enable_data_parallel=True,
+            shard_weights_on_batch_axis=False,
+        ),
+        id="devstral-123b-galaxy-tp",
+    ),
 ]
 
 
