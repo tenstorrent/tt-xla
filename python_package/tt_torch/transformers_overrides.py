@@ -52,6 +52,36 @@ def override_cache_sliding_window_layers(
         cache.layers[i] = tt_layer
 
 
+def override_cache_static_layers(cache: StaticCache) -> None:
+    """
+    Replace each StaticLayer in cache.layers with TTStaticLayer.
+
+    This avoids the index_copy_ legalization failure on TT hardware by using
+    torch.where + copy_() instead.  Skips LinearAttentionLayer and any
+    already-overridden TTStaticSlidingWindowLayer instances.
+    """
+    for i, layer in enumerate(cache.layers):
+        if not isinstance(layer, StaticLayer):
+            continue
+        if isinstance(layer, (TTStaticSlidingWindowLayer, TTStaticLayer)):
+            continue
+
+        tt_layer = TTStaticLayer(max_cache_len=layer.max_cache_len)
+        if layer.is_initialized:
+            tt_layer.keys = layer.keys
+            tt_layer.values = layer.values
+            tt_layer.is_initialized = True
+            tt_layer.device = layer.device
+            tt_layer.dtype = layer.dtype
+            tt_layer.max_batch_size = layer.max_batch_size
+            tt_layer.num_heads = layer.num_heads
+            tt_layer.v_head_dim = layer.v_head_dim
+            tt_layer.k_head_dim = layer.k_head_dim
+        if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
+            tt_layer.cumulative_length = layer.cumulative_length
+        cache.layers[i] = tt_layer
+
+
 def tt_create_sliding_window_causal_mask(
     config,
     inputs_embeds: torch.Tensor,
@@ -154,6 +184,53 @@ def tt_create_sliding_window_causal_mask(
         torch.tensor(0.0, dtype=dtype, device=device),
         torch.tensor(min_val, dtype=dtype, device=device),
     )
+
+
+class TTStaticLayer(StaticLayer):
+    """
+    Full-attention cache layer that avoids index_copy_ (which fails legalization
+    on TT hardware) by using torch.where for position-indexed writes.
+
+    Maintains the same position-indexed layout as the upstream StaticLayer
+    so standard causal masks work correctly: tokens are written at positions
+    cumulative_length..cumulative_length+n-1, and self.keys/self.values
+    (shape max_cache_len) are always returned.
+    """
+
+    def update(
+        self,
+        key_states: torch.Tensor,
+        value_states: torch.Tensor,
+        *args,
+        **kwargs,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if not self.is_initialized:
+            self.lazy_initialization(key_states, value_states)
+
+        n = key_states.shape[-2]
+
+        if n >= self.max_cache_len:
+            self.keys.copy_(key_states[:, :, -self.max_cache_len :, :])
+            self.values.copy_(value_states[:, :, -self.max_cache_len :, :])
+        elif n > 1:
+            new_keys = self.keys.clone()
+            new_values = self.values.clone()
+            new_keys[:, :, : n, :] = key_states
+            new_values[:, :, : n, :] = value_states
+            self.keys.copy_(new_keys)
+            self.values.copy_(new_values)
+        else:
+            idx = torch.arange(self.max_cache_len, device=self.keys.device)
+            mask = (idx == self.cumulative_length).reshape(1, 1, -1, 1)
+            self.keys.copy_(
+                torch.where(mask, key_states.expand_as(self.keys), self.keys)
+            )
+            self.values.copy_(
+                torch.where(mask, value_states.expand_as(self.values), self.values)
+            )
+
+        self.cumulative_length.add_(n)
+        return self.keys, self.values
 
 
 class TTStaticSlidingWindowLayer(StaticLayer):
