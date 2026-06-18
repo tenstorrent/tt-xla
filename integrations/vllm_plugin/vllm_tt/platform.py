@@ -325,9 +325,17 @@ class TTPlatform(Platform):
 
         from .attention import TTAttentionBackend
 
-        cache_config.block_size = TTAttentionBackend.get_page_size(
-            vllm_config
-        )  # type: ignore[assignment]
+        # Keep any upstream-expanded block size (e.g., hybrid Attention+Mamba
+        # models), but enforce TT's minimum preferred page size.
+        tt_min_page_size = TTAttentionBackend.get_page_size(vllm_config)
+        current_block_size = (
+            cache_config.block_size
+            if cache_config.block_size is not None
+            else tt_min_page_size
+        )
+        cache_config.block_size = cast(  # type: ignore[assignment]
+            BlockSize, max(current_block_size, tt_min_page_size)
+        )
 
         parallel_config = vllm_config.parallel_config
         scheduler_config = vllm_config.scheduler_config
@@ -427,3 +435,20 @@ class TTPlatform(Platform):
             max_model_len,
         )
         return max_model_len
+
+    @classmethod
+    def current_device(cls) -> torch.device:
+        # vLLM's GatedDeltaNetAttention (and other Mamba-style layers) read
+        # current_platform.current_device() in __init__ to pick where to allocate
+        # working buffers. Without this override, the base Platform.current_device
+        # is None and None() raises TypeError. We return an xla device so
+        # construction can proceed; downstream Triton kernels still won't lower
+        # through the "tt" backend.
+        device = getattr(cls, "device", None)
+        if device is None:
+            device = torch.device("xla:0")
+        return device
+
+    @classmethod
+    def support_hybrid_kv_cache(cls) -> bool:
+        return True

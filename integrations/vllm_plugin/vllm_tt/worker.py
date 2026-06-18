@@ -32,7 +32,12 @@ from vllm.tasks import SupportedTask
 from vllm.utils.math_utils import cdiv
 from vllm.utils.torch_utils import STR_DTYPE_TO_TORCH_DTYPE, set_random_seed
 from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
-from vllm.v1.kv_cache_interface import AttentionSpec, KVCacheConfig, KVCacheSpec
+from vllm.v1.kv_cache_interface import (
+    AttentionSpec,
+    KVCacheConfig,
+    KVCacheSpec,
+    MambaSpec,
+)
 from vllm.v1.outputs import ModelRunnerOutput
 from vllm.v1.utils import report_usage_stats
 from vllm.v1.worker.utils import bind_kv_cache
@@ -222,6 +227,16 @@ class TTWorker:
                 # it by reference, rather by specializing on the value ``None``.
                 tpu_kv_cache = torch.tensor([0], dtype=dtype).to(self.device)
                 kv_caches[layer_name] = tpu_kv_cache
+            elif isinstance(layer_spec, MambaSpec):
+                # GDN/Mamba-style layers bind a tuple/list of recurrent state
+                # tensors rather than K/V caches. For memory sizing we only need
+                # lightweight placeholders that preserve the expected structure.
+                kv_caches[layer_name] = [
+                    torch.zeros((1, *state_shape), dtype=state_dtype).to(self.device)
+                    for state_shape, state_dtype in zip(
+                        layer_spec.shapes, layer_spec.dtypes
+                    )
+                ]
             else:
                 raise NotImplementedError(
                     f"Unsupported KV cache spec '{type(layer_spec)}'"

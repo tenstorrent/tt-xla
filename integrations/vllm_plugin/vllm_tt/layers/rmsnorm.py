@@ -4,6 +4,7 @@
 
 import torch
 import torch.nn as nn
+from vllm.model_executor.layers.layernorm import GemmaRMSNorm as VllmGemmaRMSNorm
 from vllm.model_executor.layers.layernorm import RMSNorm
 
 
@@ -76,6 +77,49 @@ class TTRMSNorm(nn.Module):
         return x, residual
 
 
+class TTGemmaRMSNorm(nn.Module):
+    """TT-compatible replacement for vLLM GemmaRMSNorm.
+
+    vLLM GemmaRMSNorm uses ``self.weight.data`` in forward_native, which is not
+    FakeTensor-safe during torch.compile/torch.export tracing. This replacement
+    keeps Gemma math semantics while avoiding ``.data`` access.
+    """
+
+    def __init__(self, layer: nn.Module):
+        super().__init__()
+        assert isinstance(layer, VllmGemmaRMSNorm)
+        self.weight = layer.weight
+        self.variance_epsilon = layer.variance_epsilon
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        residual: torch.Tensor | None = None,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        orig_dtype = x.dtype
+
+        if residual is not None:
+            x = (
+                x.float() + residual.float()
+                if orig_dtype == torch.float16
+                else x + residual
+            )
+            residual = x
+
+        x = x.float()
+        variance = x.pow(2).mean(dim=-1, keepdim=True)
+        x = x * torch.rsqrt(variance + self.variance_epsilon)
+        x = x * (1.0 + self.weight.float())
+        x = x.to(orig_dtype)
+
+        if residual is None:
+            return x
+        return x, residual
+
+
 def override_rmsnorm_module(layer: torch.nn.Module) -> torch.nn.Module:
-    assert isinstance(layer, RMSNorm)
-    return TTRMSNorm(layer)
+    if isinstance(layer, RMSNorm):
+        return TTRMSNorm(layer)
+    if isinstance(layer, VllmGemmaRMSNorm):
+        return TTGemmaRMSNorm(layer)
+    raise TypeError(f"Unsupported layer type for RMSNorm override: {type(layer)}")
