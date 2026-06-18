@@ -13,7 +13,7 @@ What's exercised
 3. tt-xla's PJRT plugin walks through SHLO -> TTIR -> TTNN, leaves a
    ``ttnn.tt_lang_op`` carrying ``kernel_id`` / ``version_tag`` /
    ``arg_roles``.
-4. ``ModuleBuilder::resolveTtLangKernels`` runs tt-mlir's
+4. ``ModuleBuilder::resolveTTLangKernels`` runs tt-mlir's
    ``--ttnn-resolve-tt-lang-kernels`` pass, which calls
    ``tt_torch.tt_lang.resolve_operation`` (via pybind11, under the GIL)
    with the final shard-local shapes and printed layout encodings. The

@@ -53,7 +53,7 @@ StableHLO -> TTIR               (ttir.tt_lang_op, attributes preserved)
    v
 TTIR -> TTNN                    (ttnn.tt_lang_op, kernel_artifact = empty)
    |
-   v  ModuleBuilder::resolveTtLangKernels (compile time, post-TTNN)
+   v  ModuleBuilder::resolveTTLangKernels (compile time, post-TTNN)
 tt-mlir's --ttnn-resolve-tt-lang-kernels pass walks the module for
 `ttnn.tt_lang_op`s and calls
     tt_torch.tt_lang.resolve_operation(operation_id, version_tag, shapes, dtypes, ...)
@@ -78,13 +78,13 @@ already-bound kernel -- no Python on the hot path.
 | `@tt_torch.tt_lang_operation` decorator | `python_package/tt_torch/tt_lang.py` | done |
 | `operation_id -> OperationEntry` registry | `python_package/tt_torch/tt_lang.py` | done |
 | `resolve_operation(...)` entry point | `python_package/tt_torch/tt_lang.py` | **stub** -- raises `NotImplementedError`; signature is stable for the plugin to call against |
-| Embedded-Python resolver (`pybind11`, calls `tt_torch.tt_lang.resolve_operation`) | tt-mlir `--ttnn-resolve-tt-lang-kernels` pass (`lib/Dialect/TTNN/Transforms/TTNNResolveTtLangKernels*.cpp`) | done |
-| `ModuleBuilder::resolveTtLangKernels(...)` compile-time hook (runs the tt-mlir pass via a `PassManager`) | `pjrt_implementation/src/api/module_builder/module_builder.cc` | done -- no-op until tt-mlir emits `ttnn.tt_lang_op` |
+| Embedded-Python resolver (`pybind11`, calls `tt_torch.tt_lang.resolve_operation`) | tt-mlir `--ttnn-resolve-tt-lang-kernels` pass (`lib/Dialect/TTNN/Transforms/TTNNResolveTTLangKernels*.cpp`) | done |
+| `ModuleBuilder::resolveTTLangKernels(...)` compile-time hook (runs the tt-mlir pass via a `PassManager`) | `pjrt_implementation/src/api/module_builder/module_builder.cc` | done -- no-op until tt-mlir emits `ttnn.tt_lang_op` |
 
 The pybind11 / libpython dependency lives entirely in tt-mlir's
 `MLIRTTNNTransforms` library. The pybind11 call surface is isolated in a
 single `-frtti -fexceptions` translation unit
-(`TTNNResolveTtLangKernelsPython.cpp`) so the `mlir::Pass`-derived class
+(`TTNNResolveTTLangKernelsPython.cpp`) so the `mlir::Pass`-derived class
 stays `-fno-rtti` like the rest of MLIR. The plugin (`TTPJRTApi`) keeps
 `-fno-rtti` throughout and no longer links pybind11 directly: it pulls
 `libpython3.12.so.1.0` transitively through `libTTMLIRCompiler.so`. At
@@ -143,7 +143,7 @@ default) because the kernel internals are opaque to the TTNN cost model.
 
 ### 2. Plugin: runtime resolve hook (done)
 
-`ModuleBuilder::resolveTtLangKernels` runs between TTIR -> TTNN conversion
+`ModuleBuilder::resolveTTLangKernels` runs between TTIR -> TTNN conversion
 and the runtime backend handoff. It drives tt-mlir's
 `--ttnn-resolve-tt-lang-kernels` pass through a standalone `PassManager`
 (forwarding the mesh shape as a comma-separated pipeline option). The pass:
@@ -187,7 +187,7 @@ pybind11 rather than going through a separate `dlopen`'d shim. Rationale:
   transitively. At runtime that resolves to the host's already-loaded
   copy. We never call `Py_Initialize`.
 * The pybind11 calls live in a single `.cc`
-  (`TTNNResolveTtLangKernelsPython.cpp`) compiled with `-frtti
+  (`TTNNResolveTTLangKernelsPython.cpp`) compiled with `-frtti
   -fexceptions` so pybind11's typeid/exception usage works while the
   `mlir::Pass`-derived class and the rest of `MLIRTTNNTransforms` keep
   `-fno-rtti -fno-exceptions` (inherited from LLVM/MLIR).
@@ -217,7 +217,7 @@ monkey-patch and the env-var dance.
 ### 4b. TTNN flatbuffer emitter (T4)
 
 `tt-mlir`'s `TTNNToFlatbuffer.cpp` contains
-`createOp(FlatbufferObjectCache &, TtLangOp)`, which parses the
+`createOp(FlatbufferObjectCache &, TTLangOp)`, which parses the
 `kernel_artifact` JSON (gated on `format_version == 1`) and emits a
 `GenericOp` flatbuffer record:
 
@@ -274,7 +274,7 @@ The mechanics, end to end:
    ```
    The marker is the only `KernelArg*` variant that expands to a
    variable number of uint32s at launch (everything else is 1:1).
-2. **Emitter** (`TTNNToFlatbuffer.cpp::createOp(TtLangOp)`): for each
+2. **Emitter** (`TTNNToFlatbuffer.cpp::createOp(TTLangOp)`): for each
    NOC kernel, append one marker per operand of the op in declaration
    order. The marker stores the io_tensors index, computed from the
    `inIndices`/`outIndices` walk so the runtime sees a stable mapping
@@ -401,7 +401,7 @@ coverage.
    topmost rows by coincidence).
    The fix lives in
    `third_party/tt-mlir/.../TTNN/IR/TTNNOps.td` on
-   `TTNN_TtLangOp`: register a `Layout::Tile` workaround on every
+   `TTNN_TTLangOp`: register a `Layout::Tile` workaround on every
    input and result so the layout pass inserts `ttnn.to_layout` on
    row-major inputs and on the function-return path. (The op-aware
    `createEmptyTTNNOperandsWorkarounds(op)` overload pre-fills one
@@ -420,7 +420,7 @@ coverage.
    the subsequent `return` call would FATAL with "Tensor not found in
    tensor pool."
 
-   The handling falls out of `DestinationStyleOpInterface`. `TtLangOp`
+   The handling falls out of `DestinationStyleOpInterface`. `TTLangOp`
    (both TTIR and TTNN) implements `getDpsInitsMutable()`: `arg_roles` is
    constrained to `in* out+`, so the trailing `"out"` operands are the
    DPS init operands and result `i` ties to the `i`-th init. The
@@ -485,10 +485,10 @@ python_package/tt_torch/
                             # (_ARTIFACT_FORMAT_VERSION is the schema gate)
 
 pjrt_implementation/inc/api/module_builder/
-└── module_builder.h        # ModuleBuilder::resolveTtLangKernels declaration
+└── module_builder.h        # ModuleBuilder::resolveTTLangKernels declaration
 
 pjrt_implementation/src/api/module_builder/
-└── module_builder.cc       # ModuleBuilder::resolveTtLangKernels: runs the
+└── module_builder.cc       # ModuleBuilder::resolveTTLangKernels: runs the
                             # tt-mlir --ttnn-resolve-tt-lang-kernels pass via
                             # a PassManager (no pybind11 in this TU)
 
@@ -513,13 +513,13 @@ lib/Conversion/TTIRToTTNN/TTIRToTTNN.cpp
                             # ttir.tt_lang_op -> ttnn.tt_lang_op (kernel_artifact empty)
 
 lib/Target/TTNN/TTNNToFlatbuffer.cpp
-                            # createOp(TtLangOp) emits GenericOp + ProgramDescriptor
+                            # createOp(TTLangOp) emits GenericOp + ProgramDescriptor
                             # from the JSON kernel_artifact (T4)
 
-lib/Dialect/TTNN/Transforms/TTNNResolveTtLangKernels.cpp
+lib/Dialect/TTNN/Transforms/TTNNResolveTTLangKernels.cpp
                             # --ttnn-resolve-tt-lang-kernels pass: IR walk +
                             # mesh-shape parsing (-fno-rtti, no pybind11)
-lib/Dialect/TTNN/Transforms/TTNNResolveTtLangKernelsPython.cpp
+lib/Dialect/TTNN/Transforms/TTNNResolveTTLangKernelsPython.cpp
                             # pybind11 call into tt_torch.tt_lang.resolve_operation
                             # (-frtti -fexceptions)
 

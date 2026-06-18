@@ -29,7 +29,7 @@ from tt_torch import tt_lang as tt_lang_mod
 from tt_torch.custom_ops import _validate_tt_lang_op_out_indices
 from tt_torch.tt_lang import (
     OperationEntry,
-    TtLangError,
+    TTLangError,
     get_registered_operation,
     iter_registered_operations,
     resolve_operation,
@@ -250,7 +250,7 @@ def test_resolve_operation_version_tag_mismatch_raises(clean_registry):
     )
     def k(x, out): ...
 
-    with pytest.raises(TtLangError):
+    with pytest.raises(TTLangError):
         resolve_operation(
             operation_id="unit.vtag.v1",
             version_tag="stale-vt",
@@ -633,7 +633,7 @@ def test_resolve_operation_restores_patch_on_compile_error(clean_registry, fake_
 def test_resolve_operation_shape_dtype_count_mismatch(clean_registry, fake_ttl):
     _operation_that_calls_compile("unit.resolve.shape_mismatch.v1")
 
-    with pytest.raises(TtLangError):
+    with pytest.raises(TTLangError):
         resolve_operation(
             operation_id="unit.resolve.shape_mismatch.v1",
             version_tag="vt0",
@@ -644,7 +644,7 @@ def test_resolve_operation_shape_dtype_count_mismatch(clean_registry, fake_ttl):
 
 def test_resolve_operation_raises_when_ttl_missing(clean_registry):
     """When the user's Python doesn't have tt-lang installed, surface a
-    clear ``TtLangError`` rather than an opaque ``ImportError``.
+    clear ``TTLangError`` rather than an opaque ``ImportError``.
     """
 
     @tt_lang_operation(
@@ -656,7 +656,7 @@ def test_resolve_operation_raises_when_ttl_missing(clean_registry):
     sys.modules["ttl"] = None  # type: ignore[assignment]
     sys.modules["ttl.ttl_api"] = None  # type: ignore[assignment]
     try:
-        with pytest.raises(TtLangError, match="tt-lang is not importable"):
+        with pytest.raises(TTLangError, match="tt-lang is not importable"):
             resolve_operation(
                 operation_id="unit.no_ttl.v1",
                 version_tag="vt0",
