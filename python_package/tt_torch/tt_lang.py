@@ -9,7 +9,7 @@ a tt-lang operation (typically also decorated with ``@ttl.operation``) with
 a stable ``operation_id`` and invocations on XLA tensors become
 ``stablehlo.custom_call @tt.tt_lang_op`` ops that flow through the
 SHLO -> TTIR -> TTNN pipeline. The plugin's
-``ModuleBuilder::resolveTtLangKernels`` calls back into
+``ModuleBuilder::resolveTTLangKernels`` calls back into
 :func:`resolve_operation` here to populate each op's ``kernel_artifact``.
 
 The full pipeline and design notes live in
@@ -32,7 +32,7 @@ from tt_torch.custom_ops import tt_lang_op_dispatch
 
 __all__ = [
     "OperationEntry",
-    "TtLangError",
+    "TTLangError",
     "tt_lang_operation",
     "get_registered_operation",
     "iter_registered_operations",
@@ -50,7 +50,7 @@ _ARTIFACT_FORMAT_VERSION = 1
 _VALID_ROLES = frozenset({"in", "out"})
 
 
-class TtLangError(RuntimeError):
+class TTLangError(RuntimeError):
     """Raised when the tt-lang integration is asked to do something it can't."""
 
 
@@ -517,7 +517,7 @@ def _make_deviceless_ttnn_args(
     if not layouts:
         layouts = [""] * len(shapes)
     if len(shapes) != len(dtypes) or len(shapes) != len(layouts):
-        raise TtLangError(
+        raise TTLangError(
             f"resolve_operation: shapes/dtypes/layouts length mismatch "
             f"({len(shapes)}/{len(dtypes)}/{len(layouts)})."
         )
@@ -553,7 +553,7 @@ def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
     try:
         import ttl.ttl_api as _ttl_api  # type: ignore
     except ImportError as e:
-        raise TtLangError(
+        raise TTLangError(
             "resolve_operation: tt-lang is not importable in the current "
             "Python environment. Install the tt-lang wheel into the same "
             "venv that loaded the pjrt_plugin_tt plugin so the compile "
@@ -643,7 +643,7 @@ def _drive_ttl_compile(entry: "OperationEntry", mock_args: Sequence[Any]):
                 os.environ["TTLANG_COMPILE_ONLY"] = prev_env
 
     if not captured or captured[0] is None:
-        raise TtLangError(
+        raise TTLangError(
             f"tt-lang compile did not produce a CompiledTTNNKernel for "
             f"operation_id={entry.operation_id!r}. The operation may have hit "
             f"a compile error (check stderr for tt-lang diagnostics)."
@@ -698,7 +698,7 @@ def _dtype_to_flatbuffer_name(dtype: Any) -> str:
     """Map an arbitrary tensor dtype to the ttcore DataType enum name.
 
     Accepts ``ttnn.DataType`` enums, ``torch.dtype`` values, and string
-    forms (e.g. ``"bfloat16"``). Raises ``TtLangError`` if the value
+    forms (e.g. ``"bfloat16"``). Raises ``TTLangError`` if the value
     can't be mapped, because emitting a wrong enum would produce a
     silently-broken flatbuffer.
     """
@@ -706,7 +706,7 @@ def _dtype_to_flatbuffer_name(dtype: Any) -> str:
         try:
             return _TORCH_DTYPE_TO_FB[dtype]
         except KeyError as e:
-            raise TtLangError(
+            raise TTLangError(
                 f"resolve_operation: cannot map torch dtype {dtype!r} to a "
                 f"ttcore DataType."
             ) from e
@@ -715,7 +715,7 @@ def _dtype_to_flatbuffer_name(dtype: Any) -> str:
     try:
         return _TTNN_DTYPE_NAME_TO_FB[name]
     except KeyError as e:
-        raise TtLangError(
+        raise TTLangError(
             f"resolve_operation: cannot map ttnn DataType {name!r} to a "
             f"ttcore DataType."
         ) from e
@@ -765,7 +765,7 @@ def _serialize_kernel_config(thread_type: str, cfg: Any, noc_kernel_idx: int) ->
         if noc_kernel_idx == 0:
             return {"type": "ReaderKernelConfig"}
         return {"type": "WriterKernelConfig"}
-    raise TtLangError(
+    raise TTLangError(
         f"resolve_operation: unknown kernel thread_type {thread_type!r}; "
         f"expected 'compute' or 'noc'."
     )
@@ -825,7 +825,7 @@ def _serialize_cb_config(cb: Any) -> dict:
     page_size = _tile_bytes_from_dtype_name(data_format)
     shape = tuple(int(s) for s in cb.shape)
     if len(shape) < 2:
-        raise TtLangError(
+        raise TTLangError(
             f"resolve_operation: DFB shape {shape!r} must have at least 2 dims."
         )
     num_tiles = shape[0] * shape[1] * int(cb.block_count)
@@ -854,7 +854,7 @@ def _serialize_compiled_operation(
     """Turn a tt-lang ``CompiledTTNNKernel`` into a JSON byte blob.
 
     The schema is internal to tt-xla: produced here, consumed by the TTNN
-    flatbuffer emitter in tt-mlir (``createProgramDescriptorFromTtLangArtifact``
+    flatbuffer emitter in tt-mlir (``createProgramDescriptorFromTTLangArtifact``
     in ``lib/Target/TTNN/TTNNToFlatbuffer.cpp``). Keep both ends in sync
     via ``_ARTIFACT_FORMAT_VERSION`` (bump on any breaking change).
 
@@ -983,7 +983,7 @@ def resolve_operation(
     """
     entry = get_registered_operation(operation_id)
     if entry.version_tag != version_tag:
-        raise TtLangError(
+        raise TTLangError(
             f"version_tag mismatch for operation_id={operation_id!r}: "
             f"registered={entry.version_tag!r}, requested={version_tag!r}. "
             f"This usually means the operation source was edited after the "
