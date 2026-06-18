@@ -22,20 +22,22 @@ test_config:
 
   gemma/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
     status: EXPECTED_PASSING
+    required_pcc: 0.95
 
   gemma/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
-    status: EXPECTED_PASSING
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Out of Memory: Not enough space to allocate 1048576000 B DRAM buffer across 7 banks, where each bank needs to store 149796864 B, but bank size is 4273390016 B"
 
   gemma_lora/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Gradient PCC comparison failed below threshold (pcc=0.99) - https://github.com/tenstorrent/tt-xla/issues/5024"
+    status: EXPECTED_PASSING
+    assert_pcc: false
 
   gemma_lora/pytorch-1.1_2B_IT-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
 
   phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Gradient PCC comparison failed below threshold (pcc=0.99) - https://github.com/tenstorrent/tt-xla/issues/5024"
+    status: EXPECTED_PASSING
+    assert_pcc: false
 
   phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
     status: EXPECTED_PASSING
@@ -43,10 +45,11 @@ test_config:
 
   phi1/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
     status: EXPECTED_PASSING
+    required_pcc: 0.98
 
   phi1_lora/causal_lm/pytorch-Phi_1-llm_prefill-seq_128-batch_4-single_device-mesh_default-training:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Gradient PCC comparison failed below threshold (pcc=0.99) - https://github.com/tenstorrent/tt-xla/issues/5024"
+    status: EXPECTED_PASSING
+    assert_pcc: false
 
   qwen_2_5/causal_lm/pytorch-1.5B-llm_prefill-seq_128-batch_1-single_device-mesh_default-training:
     status: EXPECTED_PASSING

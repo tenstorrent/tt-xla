@@ -5,46 +5,38 @@ from typing import Any, Optional
 
 import torch
 from transformers.cache_utils import StaticCache, StaticLayer, StaticSlidingWindowLayer
-from transformers.masking_utils import create_sliding_window_causal_mask
+from transformers.masking_utils import (
+    create_causal_mask,
+    create_chunked_causal_mask,
+    create_sliding_window_causal_mask,
+)
 
 
-def override_gpt_oss_sliding_window_causal_mask():
+def override_model_sliding_window_causal_mask(model):
+    """Apply TT-friendly in-place rewrites to a HuggingFace model's modeling module.
+
+    Generic replacement for the per-model ``override_<name>_sliding_window_causal_mask``
+    helpers: the modeling module is resolved from ``type(model).__module__``
+    and its ``create_sliding_window_causal_mask`` is rebound to the
+    compile-friendly TT variant.
+
+    Args:
+        model: A HuggingFace ``PreTrainedModel`` instance.
     """
-    Override gpt_oss's modeling so that its
-    create_sliding_window_causal_mask points to the TT-friendly version.
+    import importlib
 
-    Call this before torch.compile so that dynamo traces through the
-    patched function.
-    """
-    import transformers.models.gpt_oss.modeling_gpt_oss as gpt_oss_mod
+    mod = importlib.import_module(type(model).__module__)
+    mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
 
-    gpt_oss_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
-
-
-def override_olmo3_sliding_window_causal_mask():
-    """
-    Override olmo3's modeling so that its
-    create_sliding_window_causal_mask points to the TT-friendly version.
-    """
-    import transformers.models.olmo3.modeling_olmo3 as olmo3_mod
-
-    olmo3_mod.create_sliding_window_causal_mask = tt_create_sliding_window_causal_mask
-
-
-def override_ministral_sliding_window_causal_mask():
-    """
-    Override ministral's modeling so that its
-    create_sliding_window_causal_mask points to the TT-friendly version.
-
-    Note: ministral (mistralai/Ministral-*) uses a separate module
-    transformers.models.ministral.modeling_ministral, distinct from
-    transformers.models.mistral.modeling_mistral.
-    """
-    import transformers.models.ministral.modeling_ministral as ministral_mod
-
-    ministral_mod.create_sliding_window_causal_mask = (
-        tt_create_sliding_window_causal_mask
-    )
+    # Multimodal models (e.g. Gemma3) do not call `create_sliding_window_causal_mask`
+    # directly; instead they build the whole mask mapping up front via
+    # `create_causal_mask_mapping` -> `create_masks_for_generate` and pass it down
+    # as a dict. Patch that path too so the sliding-window entry uses the TT mask
+    # whose key/value length matches the always-roll cache (`sliding_window +
+    # query_length`). Text-only models (e.g. Olmo3) do not import this symbol, so
+    # the `hasattr` guard keeps them on the direct-call path above.
+    if hasattr(mod, "create_masks_for_generate"):
+        mod.create_masks_for_generate = tt_create_masks_for_generate
 
 
 def override_cache_sliding_window_layers(
@@ -77,18 +69,26 @@ def override_cache_sliding_window_layers(
 def tt_create_sliding_window_causal_mask(
     config,
     inputs_embeds: torch.Tensor,
-    attention_mask: Optional[torch.Tensor],
-    cache_position: torch.Tensor,
+    attention_mask: Optional[torch.Tensor] = None,
+    cache_position: Optional[torch.Tensor] = None,
     past_key_values=None,
+    position_ids: Optional[torch.Tensor] = None,
+    or_mask_function=None,
+    and_mask_function=None,
     **kwargs,
 ) -> torch.Tensor:
     """
     Compile-friendly sliding-window causal mask for the always-roll cache layout.
 
-    Builds a 4D additive mask (batch, 1, query_length, sliding_window) using
-    only broadcasting tensor operations — no get_mask_sizes(),
-    and no mutable Python state.  Designed to run with torch.compile on TT
-    hardware as part of the model forward graph.
+    Builds a 4D additive mask (batch, 1, query_length, sliding_window +
+    query_length) using only broadcasting tensor operations — no
+    get_mask_sizes(), and no mutable Python state. Designed to run with
+    torch.compile on TT hardware as part of the model forward graph.
+
+    `cache_position` is optional: callers that only provide `position_ids`
+    (e.g. olmo3's decoder forward, or gemma3's `create_masks_for_generate`)
+    have it derived here. `or_mask_function` / `and_mask_function` allow models
+    like Gemma3 to overlay their image (token-type) bidirectional mask.
     """
     if past_key_values is None:
         return create_sliding_window_causal_mask(
@@ -96,12 +96,33 @@ def tt_create_sliding_window_causal_mask(
             inputs_embeds,
             attention_mask,
             cache_position,
-            past_key_values,
+            past_key_values=past_key_values,
+            position_ids=position_ids,
+            or_mask_function=or_mask_function,
+            and_mask_function=and_mask_function,
             **kwargs,
         )
 
     if isinstance(attention_mask, torch.Tensor) and attention_mask.ndim == 4:
         return attention_mask
+
+    # gpt_oss builds `mask_kwargs` without either `cache_position` or
+    # `position_ids`, so derive the absolute query position directly from
+    # `past_key_values.get_seq_length()` (the same primitive upstream relies on)
+    # offset by the query length implied by `inputs_embeds`. We can't simply
+    # call upstream `_preprocess_mask_arguments` instead: it is private, takes a
+    # `layer_idx`, returns a 7-tuple, and never returns `cache_position`, so we
+    # would still have to build the arange here anyway. Caches whose
+    # `get_seq_length()` returns a 0-D tensor stay graph-friendly; ones that
+    # return a Python int will specialize per decode step (recompile risk).
+    if cache_position is None:
+        q_length = inputs_embeds.shape[1]
+        past_seen_tokens = past_key_values.get_seq_length()
+        if isinstance(past_seen_tokens, torch.Tensor):
+            past_seen_tokens = past_seen_tokens.to(inputs_embeds.device)
+        cache_position = (
+            torch.arange(q_length, device=inputs_embeds.device) + past_seen_tokens
+        )
 
     if hasattr(past_key_values, "is_sliding") and True in past_key_values.is_sliding:
         layer_idx = past_key_values.is_sliding.index(True)
@@ -133,21 +154,103 @@ def tt_create_sliding_window_causal_mask(
     causal = kv_pos.unsqueeze(0) <= cache_position.unsqueeze(1)
     in_window = kv_pos.unsqueeze(0) > (cache_position.unsqueeze(1) - sliding_window)
 
-    mask = valid.unsqueeze(0) & causal & in_window
+    # (query_length, kv_length) boolean "allowed" matrix.
+    mask = (valid.unsqueeze(0) & causal & in_window).unsqueeze(0).unsqueeze(0)
+    mask = mask.expand(batch_size, 1, query_length, kv_pos.shape[0])
 
     if attention_mask is not None and attention_mask.ndim == 2:
         padding_mask = attention_mask.to(device=device, dtype=torch.bool)
         kv_pos_idx = kv_pos.clamp(min=0).long()
         padding = padding_mask[:, kv_pos_idx]
-        mask = mask.unsqueeze(0).unsqueeze(0) & padding.unsqueeze(1).unsqueeze(1)
-    else:
-        mask = mask.unsqueeze(0).unsqueeze(0).expand(batch_size, 1, -1, -1)
+        mask = mask & padding.unsqueeze(1).unsqueeze(1)
+
+    # Overlay model-specific mask functions (e.g. Gemma3 image bidirectional
+    # attention via token_type_ids). These operate on absolute token positions,
+    # so index queries by `cache_position` and keys by `kv_pos`. Never re-enable
+    # out-of-range cache slots (kv_pos < 0).
+    if or_mask_function is not None or and_mask_function is not None:
+        # Mask functions index into per-token tensors (e.g. group_ids) by these
+        # indices, so clamp out-of-range cache slots to 0 to stay in bounds;
+        # they are removed afterwards via `valid_kv`.
+        q_idx = cache_position.clamp(min=0).view(query_length, 1)
+        kv_idx = kv_pos.clamp(min=0).view(1, kv_pos.shape[0])
+        valid_kv = (kv_pos >= 0).view(1, 1, 1, kv_pos.shape[0])
+        if or_mask_function is not None:
+            extra = torch.stack(
+                [
+                    or_mask_function(
+                        torch.tensor(b, device=device), None, q_idx, kv_idx
+                    ).to(torch.bool)
+                    for b in range(batch_size)
+                ],
+                dim=0,
+            ).unsqueeze(
+                1
+            )  # (batch, 1, query_length, kv_length)
+            mask = mask | (extra & valid_kv)
+        if and_mask_function is not None:
+            restrict = torch.stack(
+                [
+                    and_mask_function(
+                        torch.tensor(b, device=device), None, q_idx, kv_idx
+                    ).to(torch.bool)
+                    for b in range(batch_size)
+                ],
+                dim=0,
+            ).unsqueeze(1)
+            mask = mask & restrict
 
     return torch.where(
         mask,
         torch.tensor(0.0, dtype=dtype, device=device),
         torch.tensor(min_val, dtype=dtype, device=device),
     )
+
+
+def tt_create_masks_for_generate(
+    config,
+    inputs_embeds: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
+    past_key_values=None,
+    position_ids: Optional[torch.Tensor] = None,
+    or_mask_function=None,
+    and_mask_function=None,
+    **kwargs,
+):
+    """TT-compatible replacement for `create_masks_for_generate`.
+
+    Mirrors the stock implementation but routes `sliding_attention` layers to
+    the always-roll TT sliding-window mask so the mask key/value length matches
+    `TTStaticSlidingWindowLayer` (sliding_window + query_length). Used by models
+    that build their mask mapping up front (e.g. Gemma3 multimodal).
+    """
+    effective_config = config.get_text_config()
+    mask_kwargs = {
+        "config": effective_config,
+        "inputs_embeds": inputs_embeds,
+        "attention_mask": attention_mask,
+        "past_key_values": past_key_values,
+        "position_ids": position_ids,
+        "or_mask_function": or_mask_function,
+        "and_mask_function": and_mask_function,
+    }
+
+    def _build(pattern):
+        if pattern == "sliding_attention":
+            return tt_create_sliding_window_causal_mask(**mask_kwargs)
+        if pattern == "chunked_attention":
+            return create_chunked_causal_mask(**mask_kwargs)
+        return create_causal_mask(**mask_kwargs)
+
+    if hasattr(effective_config, "layer_types"):
+        return {
+            pattern: _build(pattern) for pattern in set(effective_config.layer_types)
+        }
+    if getattr(effective_config, "sliding_window", None) is not None:
+        return tt_create_sliding_window_causal_mask(**mask_kwargs)
+    if getattr(effective_config, "attention_chunk_size", None) is not None:
+        return create_chunked_causal_mask(**mask_kwargs)
+    return create_causal_mask(**mask_kwargs)
 
 
 class TTStaticSlidingWindowLayer(StaticLayer):

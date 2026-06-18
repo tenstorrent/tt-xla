@@ -14,6 +14,7 @@
 // PJRT implementation headers
 #include "api/buffer_instance.h"
 #include "api/client_instance.h"
+#include "api/event_instance.h"
 
 namespace tt::pjrt::tests {
 
@@ -106,6 +107,18 @@ TEST_F(BufferInstanceUnitTests, deleteData_multipleCallsSafe) {
   m_buffer->deleteData();
   m_buffer->deleteData(); // should not crash
   EXPECT_TRUE(m_buffer->isDataDeleted());
+}
+
+// Tests the data-ready contract that allocateUninitialized fulfills: once a
+// buffer is marked ready, a freshly created data-ready event fires immediately.
+TEST_F(BufferInstanceUnitTests, markAsDataReady_firesDataReadyEvent) {
+  m_buffer->markAsDataReady();
+
+  EventInstance *ready_event_raw = nullptr;
+  ASSERT_EQ(m_buffer->createDataReadyEvent(&ready_event_raw),
+            tt_pjrt_status::kSuccess);
+  std::unique_ptr<EventInstance> ready_event(ready_event_raw);
+  EXPECT_TRUE(ready_event->isReady());
 }
 
 // Tests PJRT API for getting buffer element type.

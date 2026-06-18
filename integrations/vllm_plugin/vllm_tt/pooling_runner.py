@@ -97,7 +97,11 @@ from .logger import tt_init_logger
 from .overrides import replace_modules
 from .platform import TTConfig
 from .vllm_distributed_utils import shard_model
-from .vllm_utils import determine_mesh_shape, prev_power_of_2
+from .vllm_utils import (
+    apply_hidden_layer_override,
+    determine_mesh_shape,
+    prev_power_of_2,
+)
 
 if TYPE_CHECKING:
     from vllm.v1.core.sched.output import GrammarOutput, SchedulerOutput
@@ -269,7 +273,6 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.enable_data_parallel = False
 
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
-        self.use_2d_mesh = self.tt_config.use_2d_mesh
 
         model_config = self.model_config
         cache_config = self.cache_config
@@ -285,7 +288,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Setup for parallel execution.
         if self.enable_tensor_parallel or self.enable_data_parallel:
             mesh_shape = determine_mesh_shape(
-                self.num_devices, use_2d_mesh=self.use_2d_mesh
+                self.num_devices, self.tt_config.use_2d_mesh, self.tt_config.mesh_shape
             )
             device_ids = np.array(range(self.num_devices))
             self.mesh = xs.Mesh(device_ids, mesh_shape, ("batch", "model"))
@@ -499,19 +502,12 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         # Override number of hidden layers if specified in TTConfig
-        self._original_num_layers = None
-        self._target_num_layers = None
-        target_num_layers = self.tt_config.num_hidden_layers
-        original_num_layers = vllm_config.model_config.hf_config.num_hidden_layers
-
-        if target_num_layers > 0 and target_num_layers < original_num_layers:
-            vllm_config.model_config.hf_config.num_hidden_layers = target_num_layers
-            logger.info(
-                f"Overriding num_hidden_layers from {original_num_layers} to {target_num_layers} for debugging and testing purposes."
+        self._original_num_layers, self._target_num_layers = (
+            apply_hidden_layer_override(
+                vllm_config.model_config.hf_config,
+                self.tt_config.num_hidden_layers,
             )
-            # Store original layer count for weight filtering
-            self._original_num_layers = original_num_layers
-            self._target_num_layers = target_num_layers
+        )
 
     def _filter_weights_for_layer_override(self, weights_iterator):
         """Filter weights to only include layers that exist in the modified model."""

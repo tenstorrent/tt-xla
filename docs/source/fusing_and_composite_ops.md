@@ -2,7 +2,7 @@
 
 When PyTorch models are compiled through `torch.compile("tt")`, high-level operations like `RMSNorm` or `GELU` are typically decomposed by XLA into many primitive ops. TT-XLA addresses this with two different mechanisms:
 
-- **Composite Ops**: a StableHLO-level mechanism that gives us option to wrap high-level ops (for example `tenstorrent.rms_norm`) and preserve them as single ops in TT-MLIR.
+- **Composite Ops**: a StableHLO-level mechanism that lets you wrap high-level ops (for example, `tenstorrent.rms_norm`) and preserve them as single ops in TT-MLIR.
 - **Torch FX Fusing**: a graph-rewrite mechanism that pattern-matches multi-op FX subgraphs and rewrites them into standard torch ops (for example `torch.nn.functional.rms_norm`).
 
 These mechanisms are different, but they are designed to work together. In practice, fusing is only useful because composites exist: fusion rewrites user code into composite-eligible ops, and composites are what preserve that intent through decomposition so TT-MLIR can lower it to optimized TTNN operations. There is also an advanced MLIR-level fusing system in the `tt-mlir` repo, covered briefly at the end.
@@ -108,7 +108,7 @@ Step 6: TTIR legalization
   → Compiled to TTNN and executed on hardware
 ```
 
-Without fusion, users who write their own RMSNorm implementation rather than calling `torch.nn.functional.rms_norm` directly (e.g. LlamaRMSNorm in huggingface transformers), would not benefit from the composite optimization. The fusion pass bridges this gap.
+Without fusion, users who write their own RMSNorm implementation rather than calling `torch.nn.functional.rms_norm` directly (for example, LlamaRMSNorm in Hugging Face transformers) would not benefit from the composite optimization. The fusion pass bridges this gap.
 
 ## Composite Ops
 
@@ -116,7 +116,7 @@ Without fusion, users who write their own RMSNorm implementation rather than cal
 
 StableHLO composite ops are a mechanism for wrapping a sequence of operations and giving them a *name* that custom backends can recognize.
 
-TT-XLA uses the naming convention `tenstorrent.<op_name>` (e.g., `tenstorrent.gelu`, `tenstorrent.rms_norm`, `tenstorrent.layer_norm`). When these composites reach TT-MLIR, the `LegalizeStableHLOCompositeToTTIR` pass recognizes them and maps them to optimized TTIR operations.
+TT-XLA uses the naming convention `tenstorrent.<op_name>` (for example, `tenstorrent.gelu`, `tenstorrent.rms_norm`, `tenstorrent.layer_norm`). When these composites reach TT-MLIR, the `LegalizeStableHLOCompositeToTTIR` pass recognizes them and maps them to optimized TTIR operations.
 
 ### How They Work
 
@@ -126,13 +126,13 @@ Each composite op follows a 3-step pattern using `StableHLOCompositeBuilder`:
 2. **Run the original op** — call the standard torch op
 3. **Mark outputs** — call `builder.mark_outputs(...)` on the result
 
-Here is `composite_gelu` example. [View full source](https://github.com/tenstorrent/tt-xla/blob/main/python_package/tt_torch/composite_ops.py)
+Here is the `composite_gelu` example. [View full source](https://github.com/tenstorrent/tt-xla/blob/main/python_package/tt_torch/composite_ops.py)
 
 ```python
 {{#include ../../../python_package/tt_torch/composite_ops.py:30:47}}
 ```
 
-The `name` parameter becomes the composite name in StableHLO (e.g., `tenstorrent.gelu`). The `attr` dictionary passes metadata attributes to the compiler (e.g., epsilon value).
+The `name` parameter becomes the composite name in StableHLO (for example, `tenstorrent.gelu`). The `attr` dictionary passes metadata attributes to the compiler (for example, the epsilon value).
 
 ### The Replacements Dictionary
 
@@ -153,9 +153,9 @@ The `handle_composite_ops` pass iterates over the FX graph and uses this diction
 ```
 
 There are three replacement categories:
-- **Single-output function replacements** (`call_function` nodes): The value is a function. The node's `target` is swapped directly (e.g., `torch.nn.functional.gelu` → `composite_gelu`).
-- **Multi-output function replacements** (`call_function` nodes): The value is a `dict` mapping `frozenset`s of output indices to composite functions. `handle_composite_ops` inspects which outputs are actually consumed and selects the matching variant (e.g., `torch.topk`).
-- **Module replacements** (`call_module` nodes): A replacement function (e.g., `replace_layer_norm_module`) creates new `get_attr` nodes for the module's parameters and replaces the `call_module` node with a `call_function` node targeting the composite function.
+- **Single-output function replacements** (`call_function` nodes): The value is a function. The node's `target` is swapped directly (for example, `torch.nn.functional.gelu` → `composite_gelu`).
+- **Multi-output function replacements** (`call_function` nodes): The value is a `dict` mapping `frozenset`s of output indices to composite functions. `handle_composite_ops` inspects which outputs are consumed and selects the matching variant (for example, `torch.topk`).
+- **Module replacements** (`call_module` nodes): A replacement function (for example, `replace_layer_norm_module`) creates new `get_attr` nodes for the module's parameters and replaces the `call_module` node with a `call_function` node targeting the composite function.
 
 ### How to Add a New Composite Op
 
@@ -179,7 +179,7 @@ There are three replacement categories:
    }
    ```
 
-   **For ops that return multiple outputs** (e.g. a tuple of tensors), define one composite function per output combination and map to a `dict` keyed by `frozenset` of output indices instead:
+   **For ops that return multiple outputs** (for example, a tuple of tensors), define one composite function per output combination and map to a `dict` keyed by `frozenset` of output indices instead:
 
    ```python
    # One variant per combination of outputs the caller might use
@@ -200,7 +200,7 @@ There are three replacement categories:
    }
    ```
 
-   `handle_composite_ops` automatically detects the dict form, inspects which outputs are actually consumed in the graph and selects the matching variant. See `torch.topk` in `composite_ops.py` for a complete example.
+   `handle_composite_ops` automatically detects the dict form, inspects which outputs are consumed in the graph, and selects the matching variant. See `torch.topk` in `composite_ops.py` for a complete example.
 
   >[!IMPORTANT]
   > If the composite op you're adding has an equivalent form as a tensor method (for example: `torch.topk(input, k, ...)` can also be written as `input.topk(k, ...)`), then you should also add an entry for that function in the `method_name_to_function` dictionary.
@@ -240,7 +240,7 @@ Torch FX fusing uses PyTorch's `replace_pattern_with_filters` API, which perform
 - **`pattern`**: A function that constructs the subgraph you want to find. When traced, it becomes a template that the matcher searches for in the model's FX graph.
 - **`replacement`**: A function with the same signature that constructs the replacement subgraph.
 
-The matcher finds all occurrences of the pattern subgraph and substitutes them with the replacement. An optional **`match_filter`** function can inspect each match and decide whether to accept or reject it (e.g., based on tensor shapes or hardware constraints).
+The matcher finds all occurrences of the pattern subgraph and substitutes them with the replacement. An optional **`match_filter`** function can inspect each match and decide whether to accept or reject it (for example, based on tensor shapes or hardware constraints).
 
 ### The FusionProvider Framework
 
@@ -347,7 +347,7 @@ This filter uses `node.meta["example_value"]` to inspect tensor shapes at match 
 
 4. **Implement `replacement`**: Write a function with the same signature that produces the desired replacement. This is typically a single torch op like `torch.nn.functional.rms_norm`.
 
-5. **Optionally implement `match_filter`**: If the pattern should only match under certain conditions (tensor shapes, dtypes, etc.), override `match_filter` to inspect `match.nodes_map` and return `False` for invalid matches.
+5. **Optionally implement `match_filter`**: If the pattern should only match under certain conditions (such as tensor shapes or dtypes), override `match_filter` to inspect `match.nodes_map` and return `False` for invalid matches.
 
 6. **For multiple pattern variants**, override `get_patterns` instead of defining a single `pattern`:
    ```python
@@ -382,7 +382,7 @@ This filter uses `node.meta["example_value"]` to inspect tensor shapes at match 
 ### Tips and Pitfalls
 
 - **Use method calls, not operators.** In the pattern function, always use `.add()`, `.mul()`, `.sub()`, `.div()` instead of `+`, `*`, `-`, `/`. Dynamo traces these differently.
-- **Fusion runs before composites.** The pipeline runs fusion first, then composite wrapping. This means your fused replacement op (e.g., `rms_norm`) can then be picked up by the composite system.
+- **Fusion runs before composites.** The pipeline runs fusion first, then composite wrapping. Your fused replacement op (for example, `rms_norm`) can then be picked up by the composite system.
 - **Test with and without fusion.** Verify your fusion produces numerically correct results by comparing against the unfused model.
 - **Inspect the FX graph.** To debug pattern matching issues, call `gm.print_readable()` before and after `run_fusion_passes()` in the pipeline. This outputs the graph as readable Python code (see [PyTorch docs](https://docs.pytorch.org/docs/stable/fx.html)).
 

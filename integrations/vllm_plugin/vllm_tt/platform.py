@@ -68,9 +68,23 @@ class TTConfig:
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
 
+    # Per-tensor weight dtype overrides for mixed precision. Either a dict
+    # mapping fnmatch globs over (vLLM) parameter names to dtype strings
+    # ("bfp_bf4"/"bfp_bf8"/"bf16"), with an optional "default" key for
+    # unmatched weights, or a path to a JSON file of the same shape. Takes
+    # precedence over experimental_weight_dtype for matched tensors. None
+    # disables.
+    weight_dtype_overrides: Optional[Union[dict, str]] = None
+
     # Toggle the tt-mlir permute+matmul fusion optimization. Mirrors the PJRT
     # compile option; defaults to True to match the PJRT default.
     experimental_enable_permute_matmul_fusion: bool = True
+
+    # Enable fp32 destination accumulation in matmul/reduction kernels.
+    fp32_dest_acc_en: Optional[bool] = None
+
+    # Override the on-device KV cache element dtype.
+    experimental_kv_cache_dtype: Optional[str] = None
 
     # Perform token sampling on CPU instead of compiling a sampling graph for device
     cpu_sampling: bool = False
@@ -97,6 +111,11 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
+    # execution. When None, use_2d_mesh is used to determine the mesh shape.
+    # When set, it overrides use_2d_mesh.
+    mesh_shape: Optional[list[int]] = None
+
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
     flat_model_io: bool = False
@@ -107,22 +126,6 @@ class TTConfig:
     export_path: Optional[str] = None
     export_model_name: Optional[str] = None
 
-    def __post_init__(self):
-        # tt::sampling + enable_trace + optimization_level >= 1 hits a
-        # tt-mlir compile bug: TTNNGreedyMemoryLayoutPropagation falls
-        # back to system_memory on the sampling op's output, breaking
-        # ttnn.capture_or_execute_trace. Tracked in tt-xla #4570.
-        # Workarounds: optimization_level=0, cpu_sampling=True, or
-        # enable_trace=False.
-        if self.enable_trace and self.optimization_level >= 1 and not self.cpu_sampling:
-            raise ValueError(
-                "tt::sampling + enable_trace=True + optimization_level>=1 "
-                "triggers a tt-mlir compile-time bug (tt-xla #4570). Set "
-                "additional_config={'cpu_sampling': True}, or "
-                "{'optimization_level': 0}, or {'enable_trace': False}. "
-                "Remove this guard once the kernel-side OpModel fix lands."
-            )
-
     def get_pjrt_compile_config(self) -> dict:
         cfg = {
             "enable_const_eval": self.enable_const_eval,
@@ -132,6 +135,10 @@ class TTConfig:
             "enable_trace": "true" if self.enable_trace else "false",
             "experimental_enable_permute_matmul_fusion": self.experimental_enable_permute_matmul_fusion,
         }
+        if self.fp32_dest_acc_en is not None:
+            cfg["fp32_dest_acc_en"] = self.fp32_dest_acc_en
+        if self.experimental_kv_cache_dtype is not None:
+            cfg["experimental-kv-cache-dtype"] = self.experimental_kv_cache_dtype
         if self.export_path:
             cfg["export_path"] = self.export_path
         if self.export_model_name:

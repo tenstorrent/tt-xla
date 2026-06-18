@@ -130,7 +130,6 @@
   _STUB(PJRT_Client_CreateAliasBuffer);
   _STUB(PJRT_Client_FulfillAliasBuffer);
   _STUB(PJRT_Client_CreateErrorBuffer);
-  _STUB(PJRT_Client_CreateUninitializedBuffer);
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
@@ -166,6 +165,8 @@
   _STUB(PJRT_TopologyDescription_Attributes);
   _STUB(PJRT_TopologyDescription_Deserialize);
   _STUB(PJRT_TopologyDescription_Fingerprint);
+  _STUB(PJRT_TopologyDescription_MakeCanonicalShapeForMemorySpace);
+  _STUB(PJRT_TopologyDescription_GetMemorySpaceKindIds);
   _STUB(PJRT_Compile);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Destroy);
   _STUB(PJRT_AsyncHostToDeviceTransferManager_Device);
