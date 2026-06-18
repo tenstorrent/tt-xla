@@ -1536,6 +1536,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             ) = self._prepare_model_call_tensors(
                 input_ids, self.position_ids, inputs_embeds
             )
+
+            # Build sampling_metadata and grammar inputs before the backbone so
+            # there is no Python work between the backbone dispatch and the
+            # decode_postprocess dispatch.  Both only read from CPU state
+            # (input_batch, config) and do not depend on hidden_states.
+            sampling_device = (
+                torch.device("cpu") if self.tt_config.cpu_sampling else self.device
+            )
+            logger.warning_once(
+                "Sampling on %s (cpu_sampling=%s)",
+                sampling_device,
+                self.tt_config.cpu_sampling,
+            )
+            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+                self.input_batch,
+                self.max_num_reqs,
+                sampling_device,
+                vocab_size=self.vocab_size,
+            )
+            if not self.tt_config.cpu_sampling:
+                # Prepare grammar tensors for the fused path.  The function only
+                # needs the device and num_reqs, not actual logit values, so we
+                # pass a shape proxy instead of waiting for hidden_states.
+                if grammar_output is not None:
+                    _shape_proxy = torch.empty(
+                        self.max_num_reqs, self.vocab_size, device=self.device
+                    )
+                    require_struct_decoding, grammar_bitmask_padded, bitmasks = (
+                        self.prepare_structured_decoding_input(
+                            _shape_proxy, grammar_output
+                        )
+                    )
+                else:
+                    self.require_structured_out_cpu.zero_()
+                    require_struct_decoding = self.require_structured_out_cpu[
+                        : self.max_num_reqs
+                    ].to(self.device)
+                    grammar_bitmask_padded = self.grammar_bitmask_cpu[
+                        : self.max_num_reqs
+                    ].to(self.device)
+                    bitmasks = self.structured_decode_bitmasks.to(self.device)
             torch_xla.sync(wait=False)
             # Run the decoder
             with (
@@ -1557,31 +1598,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hidden_states, hidden_state_shape
             )
 
-            # Save hidden states (before position selection) for prompt
-            # logprobs.  Only extract rows for requests that actually need
-            # them, keyed by batch index, so we never copy the full
-            # [max_num_reqs, padded_seq_len, H] tensor to CPU.
-            if self.num_prompt_logprobs:
-                for i in range(start_index, end_index):
-                    req_id = self.input_batch.req_ids[i]
-                    if req_id in self.num_prompt_logprobs:
-                        local_idx = i - start_index
-                        prompt_lp_hs[i] = hidden_states[local_idx].cpu()
+            # Keep a reference to the full backbone output before any reshape so
+            # we can extract prompt logprob hidden states after the compiled
+            # dispatch completes.  Doing the .cpu() here (before decode_postprocess)
+            # would force a mid-graph sync and prevent backbone+decode_postprocess
+            # from being fused into a single dispatch.
+            hidden_states_pre_select = hidden_states
 
-            sampling_device = (
-                torch.device("cpu") if self.tt_config.cpu_sampling else self.device
-            )
-            logger.warning_once(
-                "Sampling on %s (cpu_sampling=%s)",
-                sampling_device,
-                self.tt_config.cpu_sampling,
-            )
-            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
-                self.input_batch,
-                self.max_num_reqs,
-                sampling_device,
-                vocab_size=self.vocab_size,
-            )
             if self.tt_config.cpu_sampling:
                 # cpu_sampling path: select + compute on device, sample on CPU
                 hidden_states = self.select_hidden_states(hidden_states, logits_indices)
@@ -1617,25 +1640,6 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits_indices = torch.zeros(
                         self.max_num_reqs, dtype=torch.int32, device=self.device
                     )
-                if grammar_output is not None:
-                    # prepare_structured_decoding_input only uses logits for shape/device
-                    _shape_proxy = hidden_states.new_empty(
-                        self.max_num_reqs, self.vocab_size
-                    )
-                    require_struct_decoding, grammar_bitmask_padded, bitmasks = (
-                        self.prepare_structured_decoding_input(
-                            _shape_proxy, grammar_output
-                        )
-                    )
-                else:
-                    self.require_structured_out_cpu.zero_()
-                    require_struct_decoding = self.require_structured_out_cpu[
-                        : self.max_num_reqs
-                    ].to(self.device)
-                    grammar_bitmask_padded = self.grammar_bitmask_cpu[
-                        : self.max_num_reqs
-                    ].to(self.device)
-                    bitmasks = self.structured_decode_bitmasks.to(self.device)
                 selected_token_ids, logits = self.decode_postprocess(
                     hidden_states,
                     logits_indices,
@@ -1644,6 +1648,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     grammar_bitmask_padded,
                     bitmasks,
                 )
+            # Extract prompt logprob hidden states after the compiled dispatch so
+            # the .cpu() call does not create a mid-graph sync between backbone
+            # and decode_postprocess.  hidden_states_pre_select holds the full
+            # backbone output [max_num_reqs, seq_len, H] before any reshape.
+            if self.num_prompt_logprobs:
+                for i in range(start_index, end_index):
+                    req_id = self.input_batch.req_ids[i]
+                    if req_id in self.num_prompt_logprobs:
+                        local_idx = i - start_index
+                        prompt_lp_hs[i] = hidden_states_pre_select[local_idx].cpu()
+
             # NOTE (NickLucche) Use the original logits (before any penalties or
             # temperature scaling) for the top-k logprobs. We can't enforce it
             # due to recompilations outside torch.compiled code, so just make
@@ -2039,6 +2054,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compiling the model with different input shapes.")
         start = time.perf_counter()
         for num_tokens in self.num_tokens_paddings:
+            if num_tokens == 1 and not self.tt_config.cpu_sampling:
+                # Decode shape (num_tokens=1) is compiled inside
+                # _precompile_decode_combined so backbone+decode_postprocess
+                # fuse into one XLA program.  Compiling backbone(n=1) alone
+                # here would cause XLA to split the combined lazy graph at
+                # the cached backbone boundary, giving 2 dispatches instead
+                # of 1.  For cpu_sampling=True backbone(n=1) must be compiled
+                # standalone because decode_postprocess doesn't run on device.
+                continue
             logger.info("  -- num_tokens: %d", num_tokens)
             self._dummy_run(
                 num_tokens, self.num_reqs_max_model_len, self.max_num_blocks_per_req
@@ -2271,6 +2295,72 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logger.info("Compilation finished in %.2f [secs].", end - start)
         self._update_num_xla_graphs("decode_postprocess")
 
+    def _precompile_decode_combined(self) -> None:
+        """Precompile backbone (num_tokens=1) + decode_postprocess as one XLA program.
+
+        Traces both in a single lazy-execution window (no wait_device_ops between
+        them) so XLA compiles them into one cached program.  During inference,
+        backbone and decode_postprocess accumulate in the same lazy graph (Task 1
+        ensures no Python between them), which should match this cached program and
+        dispatch as a single chip operation instead of two.
+        """
+        torch._dynamo.config.dynamic_shapes = False
+        logger.info("Compiling backbone + decode_postprocess combined (decode path).")
+        start = time.perf_counter()
+
+        indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(self.device)
+        dummy_require = self.require_structured_out_cpu[: self.max_num_reqs].to(
+            self.device
+        )
+        dummy_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(self.device)
+        bitmasks = self.structured_decode_bitmasks.to(self.device)
+
+        for all_greedy in [False, True]:
+            logger.info("  -- all_greedy: %s", all_greedy)
+            sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
+                self.input_batch,
+                self.max_num_reqs,
+                self.device,
+                not all_greedy,
+                vocab_size=self.vocab_size,
+            )
+            sampling_metadata.all_greedy = all_greedy
+
+            # Trace backbone with num_tokens=1 (decode shape).  This populates
+            # the lazy graph with backbone ops.  _dummy_run sets
+            # self._hidden_states_dtype as a side-effect.
+            with self.maybe_select_dummy_loras(
+                self.lora_config, np.array([1], dtype=np.int32)
+            ):
+                self._dummy_run(
+                    1, self.num_reqs_max_model_len, self.max_num_blocks_per_req
+                )
+                # Immediately trace decode_postprocess using the backbone output
+                # shape — no wait_device_ops between them so they stay in the
+                # same lazy graph.
+                dummy_hidden = torch.zeros(
+                    (self.max_num_reqs, 1, self.model_config.get_hidden_size()),
+                    dtype=self._hidden_states_dtype,
+                ).to(self.device)
+                if self.enable_tensor_parallel and self.use_2d_mesh:
+                    xs.mark_sharding(dummy_hidden, self.mesh, (None, None, "model"))
+                self.decode_postprocess(
+                    dummy_hidden,
+                    indices,
+                    sampling_metadata,
+                    dummy_require,
+                    dummy_bitmask,
+                    bitmasks,
+                )
+            # Compile this variant as one combined program before tracing the next.
+            # Without this sync the two variants would merge into one double-sized
+            # lazy graph that never matches the single backbone+dp graph used during
+            # inference.
+            xm.wait_device_ops()
+        end = time.perf_counter()
+        logger.info("Combined decode compilation finished in %.2f [secs].", end - start)
+        self._update_num_xla_graphs("decode_combined")
+
     def capture_model(self) -> None:
         """
         Precompile all the subgraphs with possible input shapes.
@@ -2282,8 +2372,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 return
             self._precompile_mm_encoder()
             if not self.tt_config.cpu_sampling:
-                # decode_postprocess handles both decode (num_tokens=1) and
-                # prefill (last token pre-selected eagerly before the call).
+                # Combined must run before decode_postprocess so that neither
+                # backbone(n=1) nor decode_postprocess is cached separately when
+                # the combined trace runs.  If either is already cached XLA will
+                # dispatch the combined lazy graph using the two existing programs
+                # (2 dispatches) rather than compiling a new single fused program.
+                self._precompile_decode_combined()
+                # decode_postprocess standalone: needed for the prefill path where
+                # backbone runs with n>1 tokens and decode_postprocess is called
+                # separately on the last hidden state.
                 self._precompile_decode_postprocess()
             else:
                 # cpu_sampling: fused decode_postprocess skipped (sampling on CPU);
