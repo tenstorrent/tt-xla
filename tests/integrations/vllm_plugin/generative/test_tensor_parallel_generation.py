@@ -170,46 +170,57 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
-@pytest.mark.llmbox
-def test_tensor_parallel_generation_llmbox_deepseek_v32_single_layer():
-    """Single-layer DeepSeek-V3.2 (DSA) compile/run smoke on llmbox.
+@pytest.mark.bh_galaxy
+def test_tensor_parallel_generation_bh_galaxy_deepseek_v32():
+    """Full DeepSeek-V3.2 (DSA) generation on Blackhole Galaxy with real weights.
 
-    Exercises the DeepSeek Sparse Attention path end-to-end: the
-    ``num_hidden_layers=1`` override compiles only decoder layer 0, which is a
-    dense layer (``n_dense_layers=1``) so this brings up MLA + the lightning
-    indexer (see vllm_tt/attention_dsa.py) without the MoE experts.
+    Runs the complete model — all decoder layers (dense layer 0 + the MoE
+    layers) with real weights — exercising the DeepSeek Sparse Attention path
+    (MLA + the lightning indexer, see vllm_tt/attention_dsa.py) plus the MoE
+    experts end-to-end. With correct weights the model produces coherent text,
+    so this asserts ``assert_output_coherent`` (unlike the earlier single-layer
+    dummy-weight smoke, which could only check that tokens were emitted).
 
-    NOTE: one layer cannot produce coherent text, so this asserts only that the
-    DSA graph compiles, runs, and emits the requested tokens — NOT
-    ``assert_output_coherent``.
+    FP8 handling: DeepSeek-V3.2 ships block-wise ``fp8_e4m3`` weights with
+    per-128×128-block ``weight_scale_inv`` scales, but there is no FP8 matmul
+    anywhere in the TT stack (see FP8_INDEXER_GAP.md), and vLLM's
+    ``Fp8LinearMethod`` has no OOT-platform kernel (KeyError on
+    PlatformEnum.OOT). So we drop ``quantization_config`` to build plain bf16
+    linears and set ``dequantize_block_fp8=True`` to dequantize the checkpoint to
+    bf16 at load time (``W_real = fp8_weight * weight_scale_inv`` per block, see
+    vllm_tt/block_fp8.py). This applies the block scales (a plain fp8→bf16 cast
+    would drop them and corrupt every block) and consumes the orphan
+    ``weight_scale_inv`` tensors (which would otherwise KeyError the loader).
 
-    Uses ``load_format="dummy"`` (random weights): the full DeepSeek-V3.2
-    checkpoint is ~600 GB of block-wise FP8, and a single layer is gibberish
-    regardless, so this validates the DSA compile/run path on device without the
-    download. Swap to real weights to sanity-check numerics once available.
+    NOTE: this loads the full ~600 GB block-wise FP8 checkpoint and dequantizes
+    it to bf16 in host memory — a heavy download + RAM footprint. The on-device
+    weights are then re-stored as 8-bit block-float via
+    ``experimental_weight_dtype="bfp_bf8"`` below.
     """
     model_name = "deepseek-ai/DeepSeek-V3.2-Exp"
     prompts = ["I like taking walks in the"]
-    max_tokens = 16
+    max_tokens = 32
     sampling_params = vllm.SamplingParams(
         temperature=0.0, top_p=1.0, max_tokens=max_tokens
     )
     llm_args = {
         "model": model_name,
-        "load_format": "dummy",
         # DeepSeek-V3.2 ships block-wise FP8, but vLLM's FP8 linear kernel has no
-        # OOT-platform entry (KeyError on PlatformEnum.OOT). With dummy weights we
-        # don't need the real FP8 checkpoint, so drop the quantization_config and
-        # build the layer unquantized in bf16. (Real FP8 support on TT is a
-        # separate effort, orthogonal to DSA attention.)
+        # OOT-platform entry (KeyError on PlatformEnum.OOT). Drop the
+        # quantization_config and build the model unquantized in bf16; the FP8
+        # checkpoint is dequantized to bf16 at load time (dequantize_block_fp8
+        # below). (Real FP8 support on TT is a separate effort, orthogonal to
+        # DSA attention.)
         "hf_overrides": {"quantization_config": None},
         "max_num_batched_tokens": 32,
         "max_num_seqs": 1,
         "max_model_len": 32,
         "gpu_memory_utilization": 0.1,
         "additional_config": {
-            # Compile only the first (dense) decoder layer.
-            "num_hidden_layers": 1,
+            # Apply the block-wise FP8 weight_scale_inv scales and dequantize the
+            # checkpoint to bf16 at load time (see block_fp8.py). Required for
+            # correct numerics with quantization_config=None.
+            "dequantize_block_fp8": True,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             # Convert *only* the weights DeepSeek-V3.2 ships as block-wise
@@ -230,16 +241,16 @@ def test_tensor_parallel_generation_llmbox_deepseek_v32_single_layer():
             #
             # Requires const-eval: the bf16 -> bfp8_b conversion is a host-side
             # typecast that const-eval hoists and caches once per weight (else it
-            # would run as a device<->host roundtrip every forward). Storing the
-            # full model per graph is not a concern with a single dense layer.
+            # would run as a device<->host roundtrip every forward).
             "enable_const_eval": True,
+            "flat_model_io": True,
             "experimental_weight_dtype": "bfp_bf8",
             "weight_dtype_overrides": {
                 "*weights_proj.weight": "bf16",
                 "*lm_head.weight": "bf16",
-                # MoE router gate (GateLinear) ships unquantized. Only matches once
-                # MoE layers are compiled; a no-op (harmless "did not match"
-                # warning) for this single dense layer.
+                # MoE router gate (GateLinear) ships unquantized; the full model
+                # compiles the MoE layers, so this override matches and pins it
+                # back to bf16.
                 "*.gate.weight": "bf16",
             },
         },
@@ -248,8 +259,9 @@ def test_tensor_parallel_generation_llmbox_deepseek_v32_single_layer():
 
     output = llm.generate(prompts, sampling_params)[0].outputs[0]
     print(f"prompt: {prompts[0]}, output: {output.text!r}")
-    # A single layer is gibberish; only assert the path ran and produced tokens.
-    assert len(output.token_ids) > 0, "DSA single-layer run produced no tokens"
+    assert_output_coherent(output.text)
+
+    check_host_memory(model_name)
 
 
 @pytest.mark.nightly

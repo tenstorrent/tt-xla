@@ -1833,6 +1833,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     # Temporarily replace the method
                     model_loader.get_all_weights = filtered_get_all_weights
 
+                # Dequantize DeepSeek block-wise FP8 checkpoints to bf16 at load
+                # time. Wraps whatever get_all_weights currently is (possibly the
+                # layer-override filter above), so dropped layers are filtered
+                # before dequant runs. Consumes the "…weight_scale_inv" tensors
+                # so the downstream loader sees a plain bf16 checkpoint.
+                if self.tt_config.dequantize_block_fp8 and hasattr(
+                    model_loader, "get_all_weights"
+                ):
+                    from .block_fp8 import dequantize_block_fp8_weights
+
+                    inner_get_all_weights = model_loader.get_all_weights
+
+                    def dequantized_get_all_weights(model_config, model):
+                        return dequantize_block_fp8_weights(
+                            inner_get_all_weights(model_config, model)
+                        )
+
+                    model_loader.get_all_weights = dequantized_get_all_weights
+
                 with set_current_vllm_config(self.vllm_config):
                     model = model_loader.load_model(
                         vllm_config=self.vllm_config, model_config=self.model_config

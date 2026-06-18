@@ -76,6 +76,15 @@ class TTConfig:
     # disables.
     weight_dtype_overrides: Optional[Union[dict, str]] = None
 
+    # Dequantize DeepSeek block-wise FP8 checkpoints to bf16 at load time.
+    # When True, each FP8 "…weight" is multiplied by its "…weight_scale_inv"
+    # per-128×128-block scale (see block_fp8.py) before the model loads, and the
+    # scale tensors are consumed. Required to run a real DeepSeek-V3.x checkpoint
+    # with quantization_config=None: there is no FP8 matmul on TT, so weights
+    # must be dequantized to bf16 (optionally re-stored as 8-bit on device via
+    # experimental_weight_dtype="bfp_bf8"). No-op for non-FP8 checkpoints.
+    dequantize_block_fp8: bool = False
+
     # Toggle the tt-mlir permute+matmul fusion optimization. Mirrors the PJRT
     # compile option; defaults to True to match the PJRT default.
     experimental_enable_permute_matmul_fusion: bool = True
