@@ -16,4 +16,9 @@ register_backend(
 def register():
     # Setting worker multiprocessing method to spawn to avoid hangs in consecutive vllm pytest runs
     os.environ["VLLM_WORKER_MULTIPROC_METHOD"] = "spawn"
+
+    # NOTE: the fp8->bf16 dequant hook is installed worker-side (in
+    # TTModelRunner.load_model() and TTPlatform.check_and_update_config()),
+    # NOT here — importing vllm's fp8 module during early platform discovery
+    # breaks platform resolution (empty device_type).
     return "vllm_tt.platform.TTPlatform"
