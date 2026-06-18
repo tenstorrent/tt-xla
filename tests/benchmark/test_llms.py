@@ -1710,6 +1710,11 @@ def test_llama_3_1_70b_tp(
     )
 
     variant = ModelVariant.LLAMA_3_1_70B_INSTRUCT
+    # Accuracy runs for this model use batch size 16 (previously set via the perf
+    # matrix's batch-size field); keep that default now that batch size is owned by
+    # the test. An explicit --batch-size still wins.
+    if accuracy_testing and batch_size is None:
+        batch_size = 16
     test_llm_tp(
         ModelLoader,
         variant,

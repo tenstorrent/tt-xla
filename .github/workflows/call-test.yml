@@ -160,6 +160,15 @@ jobs:
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
+        # Staging dir for the per-format StableHLO/TTIR/TTNN dumps that benchmark tests
+        # write to ./modules/irs (uploaded as separate *-mlir-* artifacts).
+        echo "perf_report_path=$(pwd)/perf_reports" >> "$GITHUB_OUTPUT"
+        # Perf benchmark device_type (CI runner-pool family) written into each perf
+        # report for the regression check / superset. Mirrors the historical
+        # runs-on-original value; the only remap is the dedicated n150 perf pool.
+        perf_device_type="${{ matrix.build.runs-on-original || matrix.build.runs-on }}"
+        if [[ "$perf_device_type" == "n150-perf" ]]; then perf_device_type="n150"; fi
+        echo "perf_device_type=$perf_device_type" >> "$GITHUB_OUTPUT"
         # Override wheel_build to release if matrix.build.require is 'release' or 'alchemist'
         if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" || "${{ matrix.build.multihost }}" == "true" ]]; then
           wheel_build=release
@@ -246,104 +255,30 @@ jobs:
     - name: Check for re-run attempt
       id: check-rerun-attempt
       shell: bash
-      run: |
-        source venv/activate
-        rm -f .pytest_tests_to_run
-        if [ "${{ github.run_attempt }}" -gt 1 ]; then
-          echo "Rerun attempt detected"
-          attempt=$((${{ github.run_attempt }} - 1))
-          rm -rf old-reports
-          mkdir old-reports
-          set +e
-          result=1
-          while [ $attempt -ge 1 ]; do
-            echo "Downloading test reports from attempt $attempt"
-            gh run download ${{ github.run_id }} \
-              --repo ${{ github.repository }} \
-              --pattern "test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-$attempt.${{ strategy.job-index }}-*" \
-              -D old-reports
-            result=$?
-            if [ $result -eq 0 ]; then
-              break
-            fi
-            attempt=$((attempt - 1))
-          done
-          if [ $result -ne 0 ]; then
-            echo "No previous test reports found"
-          else
-            echo "Found test reports from attempt $attempt"
-            python .github/scripts/find_all_failed_tests.py old-reports
-            if [ -f ".pytest_tests_to_run" ]; then
-              echo "There are tests to rerun"
-              echo "rerun_attempt=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "All tests will rerun"
-            fi
-          fi
-        else
-          echo "First attempt"
-        fi
+      env:
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+        RUN_ID: ${{ github.run_id }}
+        REPO: ${{ github.repository }}
+        JOB_INDEX: ${{ strategy.job-index }}
+        MATRIX_HASH: ${{ needs.generate-matrix-test.outputs.test_matrix_hash }}
+      run: bash .github/scripts/check_rerun_attempt.sh
 
     - name: Set pytest command
       shell: bash
-      run: |
-        # NOTE: Torch tests must be run in separate processes to avoid current issues with test isolation
-        # See issue: https://github.com/tenstorrent/tt-xla/issues/795
-        PYTEST_FORKED=""
-        if [[ "${{ matrix.build.forked }}" == "true" ]]; then
-          PYTEST_FORKED="--forked"
-        fi
-
-        # Set verbosity: default to -sv, switch to -vv when forking to get progress percentage
-        if [[ -n "$PYTEST_FORKED" ]]; then
-          VERBOSITY="-vv"
-        else
-          VERBOSITY="-sv"
-        fi
-
-        # Pass arch to forge models tests to resolve arch_overrides in test_config files.
-        ARCH=""
-        if [[ "${{ matrix.build.forge-models }}" == "true" ]]; then
-          ARCH="--arch ${{ matrix.build.runs-on-original || matrix.build.runs-on }}"
-        fi
-
-        MARKS="${{ matrix.build.test-mark }}"
-        MARKS_ARG=""
-        if [[ -n "$MARKS" ]]; then
-          MARKS_ARG="-m '$MARKS'"
-        fi
-
-        CONTAINS="${{ matrix.build.contains }}"
-        CONTAINS_ARG=""
-        if [[ -n "$CONTAINS" ]]; then
-          CONTAINS_ARG="-k '$CONTAINS'"
-        fi
-
-        if [ "${{ steps.check-rerun-attempt.outputs.rerun_attempt }}" == "true" ]; then
-          echo "Only running previously failed tests"
-          PYTEST_SPLITS=""
-        else
-          echo "Running all tests"
-          PYTEST_SPLITS="--splits ${{ matrix.build.parallel-groups || 1}} \
-            --group ${{ matrix.build.group-id || 1}} \
-            --splitting-algorithm least_duration"
-        fi
-
-        # Add -m/-k only when provided to avoid empty-argument parsing issues.
-        BASE_PYTEST_CMD="$PYTEST_FORKED --log-memory \
-          --durations=0 \
-          ${{ matrix.build.dir }} \
-          $ARCH \
-          $MARKS_ARG ${{ matrix.build.args }} \
-          $CONTAINS_ARG \
-          $PYTEST_SPLITS"
-
-        if [[ "${{ inputs.dump_irs }}" == "true" ]]; then
-          BASE_PYTEST_CMD="$BASE_PYTEST_CMD --dump-irs"
-        fi
-
-        echo "BASE_PYTEST_CMD=$BASE_PYTEST_CMD" >> $GITHUB_ENV
-        echo "VERBOSITY=$VERBOSITY" >> $GITHUB_ENV
+      env:
+        FORKED: ${{ matrix.build.forked }}
+        FORGE_MODELS: ${{ matrix.build.forge-models }}
+        RUNS_ON_ORIGINAL: ${{ matrix.build.runs-on-original }}
+        RUNS_ON: ${{ matrix.build.runs-on }}
+        TEST_MARK: ${{ matrix.build.test-mark }}
+        CONTAINS: ${{ matrix.build.contains }}
+        RERUN_ATTEMPT: ${{ steps.check-rerun-attempt.outputs.rerun_attempt }}
+        PARALLEL_GROUPS: ${{ matrix.build.parallel-groups }}
+        GROUP_ID: ${{ matrix.build.group-id }}
+        DIR: ${{ matrix.build.dir }}
+        EXTRA_ARGS: ${{ matrix.build.args }}
+        DUMP_IRS: ${{ inputs.dump_irs }}
+      run: bash .github/scripts/set_pytest_command.sh
 
     - name: Install System Deps for Forge Models Tests
       if: ${{ matrix.build.forge-models == true }}
@@ -351,6 +286,14 @@ jobs:
       run: |
         apt-get update
         apt install -y libgl1 libglx-mesa0
+
+    # try without installing these reqs, if they are really needed add to the base docker image
+    # - name: Install System Deps for Benchmark Tests
+    #   if: ${{ contains(matrix.build.dir, 'tests/benchmark') }}
+    #   shell: bash
+    #   run: |
+    #     apt-get update
+    #     apt install -y libgl1 libglib2.0-0
 
     # Ensure test_config files for tt-forge-models test are valid, especially on PR's for uplifting tt-forge-models
     # but still run tests even in case of failure here, will still treat overall job as failed.
@@ -395,6 +338,9 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
         ENABLE_BRINGUP_STAGE_LOGGING: 1
+        # Consumed by tests/benchmark perf reports (device_info.device_type); ignored
+        # by non-perf tests.
+        TT_XLA_PERF_DEVICE_TYPE: ${{ steps.strings.outputs.perf_device_type }}
       shell: bash
       run: |
         source venv/activate
@@ -435,10 +381,117 @@ jobs:
       uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
-        name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
+        # Keep the historical perf artifact name (job id only): the downstream
+        # collect_data ingester only requires the "perf-reports-" prefix, and superset
+        # keys on run id + JSON content, not the artifact name. job.check_run_id is
+        # unique per job/attempt, so batched benchmark jobs never collide.
+        name: perf-reports-${{ job.check_run_id }}
         path: ${{ steps.strings.outputs.perf_report_dir }}
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
+
+    # Per-format IR dumps for benchmark jobs (ported from the old call-perf-test.yml).
+    # Benchmark tests write StableHLO/TTIR/TTNN to ./modules/irs during compile; these
+    # steps stage and upload them as separate *-mlir-* artifacts. Gated to benchmark
+    # jobs (model tests use the --dump-irs / collected_irs path above instead).
+    - name: Dump stablehlo to report
+      id: dump-stablehlo
+      if: (success() || failure()) && contains(matrix.build.dir, 'tests/benchmark')
+      shell: bash
+      run: |
+        echo "Dump stablehlo to report"
+        mkdir -p ${{ steps.strings.outputs.perf_report_path }}/stablehlo
+        stablehlo_artifact_name="stablehlo-mlir-${{ job.check_run_id }}"
+        if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
+          cp ./modules/${{ matrix.build.name }}_stablehlo.mlir ${{ steps.strings.outputs.perf_report_path }}/stablehlo/stablehlo.mlir 2>/dev/null || true
+        else
+          cp ./modules/irs/shlo_*.mlir ${{ steps.strings.outputs.perf_report_path }}/stablehlo/ 2>/dev/null || true
+        fi
+        # Group StableHLO MLIR files under a folder named like the files but without the gN segment
+        stablehlo_first_file="$(ls -1 ${{ steps.strings.outputs.perf_report_path }}/stablehlo/shlo_*.mlir 2>/dev/null | head -n 1 || true)"
+        if [ -n "$stablehlo_first_file" ]; then
+          stablehlo_base_name="$(basename "$stablehlo_first_file")"
+          stablehlo_folder_name="$(echo "$stablehlo_base_name" | sed -E 's/_g[0-9]+_/_/' | sed -E 's/_run[0-9a-fA-F]+_/_/' | sed -E 's/\.mlir$//')"
+          mkdir -p "${{ steps.strings.outputs.perf_report_path }}/stablehlo/${stablehlo_folder_name}"
+          mv ${{ steps.strings.outputs.perf_report_path }}/stablehlo/shlo_*.mlir "${{ steps.strings.outputs.perf_report_path }}/stablehlo/${stablehlo_folder_name}/"
+          stablehlo_artifact_name="stablehlo-mlir-${stablehlo_folder_name}"
+        fi
+        echo "artifact_name=${stablehlo_artifact_name}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload StableHLO MLIR
+      id: upload-stablehlo-mlir
+      uses: actions/upload-artifact@v6
+      if: (success() || failure()) && contains(matrix.build.dir, 'tests/benchmark')
+      with:
+        name: ${{ steps.dump-stablehlo.outputs.artifact_name }}
+        path: ${{ steps.strings.outputs.perf_report_path }}/stablehlo/
+        if-no-files-found: ignore
+
+    - name: Dump ttir to report
+      id: dump-ttir
+      if: (success() || failure()) && contains(matrix.build.dir, 'tests/benchmark')
+      shell: bash
+      run: |
+        echo "Dump ttir to report"
+        mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttir
+        ttir_artifact_name="ttir-mlir-${{ job.check_run_id }}"
+        if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
+          cp ./modules/${{ matrix.build.name }}_ttir.mlir ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir.mlir
+        else
+          cp ./modules/irs/ttir_*.mlir ${{ steps.strings.outputs.perf_report_path }}/ttir/
+        fi
+        # Group TTIR MLIR files under a folder named like the files but without the gN segment
+        ttir_first_file="$(ls -1 ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir_*.mlir 2>/dev/null | head -n 1 || true)"
+        if [ -n "$ttir_first_file" ]; then
+          ttir_base_name="$(basename "$ttir_first_file")"
+          ttir_folder_name="$(echo "$ttir_base_name" | sed -E 's/_g[0-9]+_/_/' | sed -E 's/_run[0-9a-fA-F]+_/_/' | sed -E 's/\.mlir$//')"
+          mkdir -p "${{ steps.strings.outputs.perf_report_path }}/ttir/${ttir_folder_name}"
+          mv ${{ steps.strings.outputs.perf_report_path }}/ttir/ttir_*.mlir "${{ steps.strings.outputs.perf_report_path }}/ttir/${ttir_folder_name}/"
+          ttir_artifact_name="ttir-mlir-${ttir_folder_name}"
+        fi
+        echo "artifact_name=${ttir_artifact_name}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload TTIR MLIR
+      id: upload-ttir-mlir
+      uses: actions/upload-artifact@v6
+      if: (success() || failure()) && contains(matrix.build.dir, 'tests/benchmark')
+      with:
+        name: ${{ steps.dump-ttir.outputs.artifact_name }}
+        path: ${{ steps.strings.outputs.perf_report_path }}/ttir/
+        if-no-files-found: ignore
+
+    - name: Dump ttnn to report
+      id: dump-ttnn
+      if: (success() || failure()) && contains(matrix.build.dir, 'tests/benchmark')
+      shell: bash
+      run: |
+        echo "Dump ttnn to report"
+        mkdir -p ${{ steps.strings.outputs.perf_report_path }}/ttnn
+        ttnn_artifact_name="ttnn-mlir-${{ job.check_run_id }}"
+        if [ "${{ matrix.build.name }}" == "resnet_jax" ]; then
+          cp ./modules/${{ matrix.build.name }}_ttnn.mlir ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn.mlir
+        else
+          cp ./modules/irs/ttnn_*.mlir ${{ steps.strings.outputs.perf_report_path }}/ttnn/
+        fi
+        # Group TTNN MLIR files under a folder named like the files but without the gN segment
+        ttnn_first_file="$(ls -1 ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn_*.mlir 2>/dev/null | head -n 1 || true)"
+        if [ -n "$ttnn_first_file" ]; then
+          ttnn_base_name="$(basename "$ttnn_first_file")"
+          ttnn_folder_name="$(echo "$ttnn_base_name" | sed -E 's/_g[0-9]+_/_/' | sed -E 's/_run[0-9a-fA-F]+_/_/' | sed -E 's/\.mlir$//')"
+          mkdir -p "${{ steps.strings.outputs.perf_report_path }}/ttnn/${ttnn_folder_name}"
+          mv ${{ steps.strings.outputs.perf_report_path }}/ttnn/ttnn_*.mlir "${{ steps.strings.outputs.perf_report_path }}/ttnn/${ttnn_folder_name}/"
+          ttnn_artifact_name="ttnn-mlir-${ttnn_folder_name}"
+        fi
+        echo "artifact_name=${ttnn_artifact_name}" >> "$GITHUB_OUTPUT"
+
+    - name: Upload TTNN MLIR
+      id: upload-ttnn-mlir
+      uses: actions/upload-artifact@v6
+      if: (success() || failure()) && contains(matrix.build.dir, 'tests/benchmark')
+      with:
+        name: ${{ steps.dump-ttnn.outputs.artifact_name }}
+        path: ${{ steps.strings.outputs.perf_report_path }}/ttnn/
+        if-no-files-found: ignore
 
     - name: Prune oversized IR dump folders
       if: inputs.dump_irs && (success() || failure())

@@ -132,4 +132,11 @@ Vision and encoder tests follow the same pattern — import the existing `ModelL
 
 ### Adding the test to CI
 
-In order for a new test to run in CI, it needs to be added to `.github/workflows/perf-bench-matrix.json`.
+Perf benchmarks are selected in CI by pytest marks, not by an explicit per-test list. To run a new test in CI, add an entry to [`perf_marks.json`](./perf_marks.json), keyed by `<file>.py::<test name>` (include the parametrization for parametrized tests, e.g. `test_vllm_benchmark[variant]`), listing the marks it should carry:
+
+- **Hardware** — one or more of `n150`, `p150`, `n300_llmbox`, `galaxy_wh_6u`, `qb2_blackhole`.
+- `benchmark` — runs as a perf test (perf mode).
+- `accuracy` — supports accuracy testing (the accuracy preset runs it with `--accuracy-testing`).
+- `vllm` — requires the vLLM wheel.
+
+`conftest.py` applies these as pytest marks at collection time. The perf presets in `.github/workflows/test-matrix-presets/perf-*.json` then select tests with `-m` expressions (e.g. `benchmark and n150 and not vllm`) and run them through `call-test.yml`, the same workflow used by the model tests. Set `TT_XLA_DEBUG_PERF_MARKS=1` to log any `perf_marks.json` keys that don't match a collected test.

@@ -55,6 +55,9 @@ yolov6detect
 # bge-m3 model
 FlagEmbedding==1.3.5
 
+# kimi-k2 benchmark tokenizer (was a perf-bench-matrix per-test pyreq)
+tiktoken
+
 # whisper and wav2vec2 models
 torchcodec
 

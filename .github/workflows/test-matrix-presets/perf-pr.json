@@ -1,0 +1,5 @@
+[
+  { "runs-on": "n150-perf",    "name": "perf_pr_n150",        "dir": "./tests/benchmark", "test-mark": "benchmark and n150 and not vllm",         "contains": "resnet or llama_3_1_8b or qwen3_embedding_4b", "args": "--confcutdir=tests/benchmark" },
+  { "runs-on": "n300-llmbox",  "name": "perf_pr_n300_llmbox", "dir": "./tests/benchmark", "test-mark": "benchmark and n300_llmbox and not vllm",  "contains": "llama_3_1_70b_tp or gpt_oss_20b_tp",          "args": "--confcutdir=tests/benchmark" },
+  { "runs-on": "galaxy-wh-6u", "name": "perf_pr_galaxy",      "dir": "./tests/benchmark", "test-mark": "benchmark and galaxy_wh_6u and not vllm", "contains": "llama_3_1_70b_tp_galaxy",                     "args": "--confcutdir=tests/benchmark" }
+]

@@ -1,0 +1,11 @@
+[
+  { "runs-on": "n150-perf",     "name": "perf_n150",             "dir": "./tests/benchmark", "test-mark": "benchmark and n150 and not vllm",          "args": "--confcutdir=tests/benchmark" },
+  { "runs-on": "n150-perf",     "name": "perf_vllm_n150",        "dir": "./tests/benchmark", "test-mark": "benchmark and n150 and vllm",              "args": "--confcutdir=tests/benchmark", "extra-wheel": "vllm" },
+  { "runs-on": "p150-perf",     "name": "perf_p150",             "dir": "./tests/benchmark", "test-mark": "benchmark and p150 and not vllm",          "args": "--confcutdir=tests/benchmark" },
+  { "runs-on": "p150-perf",     "name": "perf_vllm_p150",        "dir": "./tests/benchmark", "test-mark": "benchmark and p150 and vllm",              "args": "--confcutdir=tests/benchmark", "extra-wheel": "vllm" },
+  { "runs-on": "n300-llmbox",   "name": "perf_n300_llmbox",      "dir": "./tests/benchmark", "test-mark": "benchmark and n300_llmbox and not vllm",   "args": "--confcutdir=tests/benchmark" },
+  { "runs-on": "n300-llmbox",   "name": "perf_vllm_n300_llmbox", "dir": "./tests/benchmark", "test-mark": "benchmark and n300_llmbox and vllm",       "args": "--confcutdir=tests/benchmark", "extra-wheel": "vllm" },
+  { "runs-on": "galaxy-wh-6u",  "name": "perf_galaxy",           "dir": "./tests/benchmark", "test-mark": "benchmark and galaxy_wh_6u and not vllm",  "args": "--confcutdir=tests/benchmark" },
+  { "runs-on": "qb2-blackhole", "name": "perf_qb2",              "dir": "./tests/benchmark", "test-mark": "benchmark and qb2_blackhole and not vllm", "args": "--confcutdir=tests/benchmark" },
+  { "runs-on": "qb2-blackhole", "name": "perf_vllm_qb2",         "dir": "./tests/benchmark", "test-mark": "benchmark and qb2_blackhole and vllm",     "args": "--confcutdir=tests/benchmark", "extra-wheel": "vllm" }
+]

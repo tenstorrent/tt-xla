@@ -1,0 +1,4 @@
+[
+  { "runs-on": "n300-llmbox",  "name": "accuracy_pr_n300_llmbox", "dir": "./tests/benchmark", "test-mark": "accuracy and n300_llmbox",  "contains": "llama_3_1_8b_instruct_tp or llama_3_1_70b_tp", "args": "--confcutdir=tests/benchmark --accuracy-testing" },
+  { "runs-on": "galaxy-wh-6u", "name": "accuracy_pr_galaxy",      "dir": "./tests/benchmark", "test-mark": "accuracy and galaxy_wh_6u", "contains": "llama_3_1_70b_tp",                             "args": "--confcutdir=tests/benchmark --accuracy-testing" }
+]

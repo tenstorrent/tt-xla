@@ -1,6 +1,11 @@
 # SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import json
+import os
+import pathlib
+import re
+
 import pytest
 import torch
 
@@ -104,10 +109,54 @@ def pytest_addoption(parser):
         ),
     )
 
+    # --perf-report-dir / --perf-id are also defined in the top-level tests/conftest.py.
+    # Benchmark perf jobs run with --confcutdir=tests/benchmark so that the top-level
+    # conftest is NOT loaded (it would pull in device-connector init and CIv2 cache
+    # cleanup that the benchmark suite intentionally avoids). Register them here too so
+    # the options still exist under confcutdir. The try/except covers the local case of
+    # collecting the whole tests/ tree, where both conftests load.
+    for _name, _help in [
+        (
+            "--perf-report-dir",
+            "Output directory for perf benchmark reports (one JSON per test).",
+        ),
+        ("--perf-id", "Perf ID used in per-test report filenames."),
+    ]:
+        try:
+            parser.addoption(_name, action="store", default=None, help=_help)
+        except ValueError:
+            # Already registered by tests/conftest.py (whole-tree local run).
+            pass
+
 
 @pytest.fixture
 def output_file(request):
-    return request.config.getoption("--output-file")
+    """Resolve where a benchmark test writes its JSON result.
+
+    Precedence:
+      1. ``--output-file``: explicit single-file path (local / single-test runs).
+      2. ``--perf-report-dir`` (+ ``--perf-id``): one file per test named
+         ``report_perf_<test>_<perf_id>.json``. This lets many benchmark tests be
+         batched into a single CI job without overwriting each other's report.
+         The trailing ``_<perf_id>`` is required by the downstream collect_data
+         parser, which derives the GitHub job id from the filename's last token.
+
+    ``--perf-report-dir`` / ``--perf-id`` are registered in the top-level
+    ``tests/conftest.py`` (the same options the model tests use); ``default=None``
+    keeps this safe if a benchmark test is ever run without that conftest loaded.
+    """
+    explicit = request.config.getoption("--output-file")
+    if explicit:
+        return explicit
+
+    perf_dir = request.config.getoption("--perf-report-dir", default=None)
+    if perf_dir:
+        perf_id = request.config.getoption("--perf-id", default=None) or "local"
+        os.makedirs(perf_dir, exist_ok=True)
+        safe_name = re.sub(r"[^0-9A-Za-z._-]+", "_", request.node.name)
+        return os.path.join(perf_dir, f"report_perf_{safe_name}_{perf_id}.json")
+
+    return None
 
 
 @pytest.fixture
@@ -149,3 +198,57 @@ def check_fusions(request):
 def seed_torch():
     """Seed torch before every benchmark test for reproducible PCC runs."""
     torch.manual_seed(0)
+
+
+# Single source of truth for which hardware / run-type each benchmark test belongs
+# to, migrated from the old perf-bench-matrix.json. Keyed by "<file>.py::<test name>"
+# relative to this directory (params included for parametrized tests).
+_PERF_MARKS_FILE = pathlib.Path(__file__).parent / "perf_marks.json"
+
+
+def _load_perf_marks():
+    try:
+        with open(_PERF_MARKS_FILE) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+
+def pytest_collection_modifyitems(items):
+    """Apply perf-suite selection marks to benchmark tests.
+
+    Marks — hardware (``n150`` / ``p150`` / ``n300_llmbox`` / ``galaxy_wh_6u`` /
+    ``qb2_blackhole``), mode (``benchmark`` for perf, ``accuracy``), and ``vllm`` —
+    are defined centrally in ``perf_marks.json`` and applied here so the perf CI can
+    select tests with ``-m`` expressions (e.g. ``benchmark and n150 and not vllm``)
+    exactly like the model tests, instead of listing one ``file::test`` per job.
+    """
+    mark_map = _load_perf_marks()
+    if not mark_map:
+        return
+
+    bench_dir = pathlib.Path(__file__).parent
+    matched = set()
+    for item in items:
+        fspath = str(getattr(item, "path", None) or item.fspath)
+        try:
+            rel = pathlib.Path(fspath).relative_to(bench_dir).as_posix()
+        except ValueError:
+            continue  # not a benchmark test; leave it untouched
+        key = f"{rel}::{item.name}"
+        marks = mark_map.get(key)
+        if not marks:
+            continue
+        matched.add(key)
+        for mark in marks:
+            item.add_marker(getattr(pytest.mark, mark))
+
+    # Diagnostic (opt-in): flag perf_marks.json keys that matched no collected test,
+    # e.g. a renamed test or a stale vLLM param id. Useful during the CI migration.
+    if os.environ.get("TT_XLA_DEBUG_PERF_MARKS"):
+        unmatched = sorted(set(mark_map) - matched)
+        if unmatched:
+            print(
+                "\n[perf_marks] WARNING: no collected test matched these "
+                "perf_marks.json keys:\n  " + "\n  ".join(unmatched)
+            )

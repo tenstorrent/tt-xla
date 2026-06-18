@@ -1,0 +1,5 @@
+[
+  { "runs-on": "n150",         "name": "accuracy_n150",         "dir": "./tests/benchmark", "test-mark": "accuracy and n150",         "args": "--confcutdir=tests/benchmark --accuracy-testing", "shared-runners": "true" },
+  { "runs-on": "n300-llmbox",  "name": "accuracy_n300_llmbox",  "dir": "./tests/benchmark", "test-mark": "accuracy and n300_llmbox",  "args": "--confcutdir=tests/benchmark --accuracy-testing" },
+  { "runs-on": "galaxy-wh-6u", "name": "accuracy_galaxy",       "dir": "./tests/benchmark", "test-mark": "accuracy and galaxy_wh_6u", "args": "--confcutdir=tests/benchmark --accuracy-testing" }
+]

@@ -1,0 +1,125 @@
+name: Perf Regression Check (call)
+
+# Post-processing regression check, decoupled from the perf test jobs. Downloads the
+# perf-reports-* artifacts produced by call-test.yml during this run and, for each
+# benchmark report, queries the previous nightly/experimental measurement from superset
+# and compares it (samples/sec for perf, top1/top5 for accuracy). Replaces the old
+# in-job "Set perf query strings -> Check perf regression" steps from call-perf-test.yml.
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "Regression mode: 'perf' (compare vs last nightly) or 'accuracy' (compare vs last experimental)"
+        required: false
+        type: string
+        default: perf
+      artifact_run_id:
+        description: "Run ID whose perf-reports-* artifacts to check. Defaults to the current run."
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  regression-check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MODE: ${{ inputs.mode }}
+      RUN_ID: ${{ inputs.artifact_run_id || github.run_id }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      # Same role/region the superset-api composite action uses; we call its
+      # call_api.py directly so we can query once per report in a loop.
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::533267429815:role/github-actions-api-gateway-role
+          aws-region: us-east-2
+
+      - name: Install dependencies
+        shell: bash
+        run: pip install boto3 requests
+
+      - name: Download perf reports
+        shell: bash
+        run: |
+          gh run download "$RUN_ID" --repo "$REPO" \
+            --pattern "perf-reports-*" --dir perf_reports || echo "No perf reports found"
+
+      - name: Check perf regression
+        shell: bash
+        run: |
+          # Pick the baseline pipeline to compare against, matching the old behaviour:
+          #   perf     -> last completed nightly on main
+          #   accuracy -> last completed experimental benchmark on main
+          if [ "$MODE" = "accuracy" ]; then
+            BASELINE_WF="schedule-benchmark-experimental.yml"
+          else
+            BASELINE_WF="schedule-nightly.yml"
+          fi
+          BASELINE_RUN_ID=$(gh api \
+            "repos/$REPO/actions/workflows/$BASELINE_WF/runs?status=completed&branch=main&per_page=1" \
+            --jq '.workflow_runs[0].id // ""')
+          echo "Baseline workflow: $BASELINE_WF (run id: ${BASELINE_RUN_ID:-none})"
+          if [ -z "$BASELINE_RUN_ID" ]; then
+            echo "No baseline run found; skipping regression check."
+            exit 0
+          fi
+
+          mapfile -t reports < <(find perf_reports -name "report_perf_*.json" 2>/dev/null | sort)
+          if [ "${#reports[@]}" -eq 0 ]; then
+            echo "No benchmark reports to check."
+            exit 0
+          fi
+
+          FAILED=0
+          for report in "${reports[@]}"; do
+            display_name=$(jq -r '.config.display_name // ""' "$report")
+            arch=$(jq -r '.device_info.arch // ""' "$report")
+            device_type=$(jq -r '.device_info.device_type // ""' "$report")
+
+            # Benchmark reports carry display_name + arch + device_type. Model-test perf
+            # reports (uploaded under the same perf-reports-* prefix) lack arch/device_type,
+            # so this guard keeps the regression check scoped to benchmark perf reports.
+            if [ -z "$display_name" ] || [ -z "$arch" ] || [ -z "$device_type" ]; then
+              echo "Skipping $report (missing display_name/arch/device_type)"
+              continue
+            fi
+
+            echo "::group::Regression: $display_name ($arch / $device_type)"
+            query_params=$(jq -nc \
+              --arg p "tt-forge/tt-xla" \
+              --arg d "$display_name" \
+              --arg g "$BASELINE_RUN_ID" \
+              --arg a "$arch" \
+              --arg dt "$device_type" \
+              '{project:$p, display_name:$d, github_pipeline_id:$g, arch:$a, device_type:$dt}')
+
+            prev=$(API_QUERY="benchmarks/last_measurement" \
+                   API_QUERY_PARAMS="$query_params" \
+                   python3 .github/actions/superset-api/call_api.py)
+
+            python3 .github/scripts/check_regression.py \
+              --prev-report "$prev" \
+              --current-report "$report" \
+              --mode "$MODE" || FAILED=1
+            echo "::endgroup::"
+          done
+
+          exit $FAILED

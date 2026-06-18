@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       test_filter:
-        description: "Filter tests based on the name property. One or more strings which are contained (case insensitive) in the name (e.g. 'resn' or 'resn,mni,yol')"
+        description: "Filter tests by name (pytest -k expression), e.g. 'resnet' or 'resnet or mnist'"
         required: false
         type: string
       runs-on-filter:
@@ -23,21 +23,11 @@ on:
           - galaxy-wh-6u
           - qb2-blackhole
         default: n150
-      skip-device-perf:
-        description: "Skip device performance measurement"
-        required: false
-        type: boolean
-        default: true
       regression_check:
         description: "Enable perf metrics regression testing"
         required: false
         type: boolean
         default: false
-      sh-runner:
-        description: "Run on shared runner"
-        required: false
-        type: boolean
-        default: true
       torchxla_build_run_id:
         description: 'Manual torch-xla build run ID'
         required: false
@@ -80,58 +70,103 @@ jobs:
       docker_image_manylinux: ${{ needs.docker-build.outputs.docker-image-manylinux }}
       build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
 
+  # Build a Custom test-matrix-preset (one batched perf job per selected architecture)
+  # from the dispatch inputs. The test name filter maps to pytest -k (contains); perf
+  # selection is by mark, exactly like the nightly perf preset. vLLM benchmarks are not
+  # included here (use the nightly perf suite for those).
   set-inputs:
     runs-on: ubuntu-latest
     outputs:
-      filter: ${{ steps.set-perf-benchmarks.outputs.filter }}
+      test_suite_custom: ${{ steps.build-suite.outputs.test_suite_custom }}
     steps:
-    - name: Set Inputs and Summary
-      id: set-perf-benchmarks
+    - name: Build custom perf test suite
+      id: build-suite
       shell: bash
+      env:
+        RUNS_ON_FILTER: ${{ inputs.runs-on-filter }}
+        TEST_FILTER: ${{ inputs.test_filter }}
+        CHECK_FUSIONS: ${{ inputs.check_fusions }}
       run: |
-        # Prepare the advanced filter for the perf benchmarks
-        echo "[" > adv_filter.json
-        if [ "${{ inputs.runs-on-filter }}" = "All" ]; then
-          echo '{ "skip": false, "accuracy-testing": false }' >> adv_filter.json
+        if [ "$RUNS_ON_FILTER" = "All" ]; then
+          archs=(n150 p150-perf n300-llmbox galaxy-wh-6u qb2-blackhole)
         else
-          echo '{"runs-on": "${{ inputs.runs-on-filter }}", "accuracy-testing": false }' >> adv_filter.json
+          archs=("$RUNS_ON_FILTER")
         fi
-        if [ -n "${{ inputs.test_filter }}" ]; then
-          echo ',{"filter": "${{ inputs.test_filter }}"}' >> adv_filter.json
-        fi
-        echo "]" >> adv_filter.json
-        filter=$(cat adv_filter.json | jq -r -c '.')
-        echo "filter=$filter" >> $GITHUB_OUTPUT
 
-        # Set up the summary for the job
-        echo "### Perf benchmarks inputs" >> $GITHUB_STEP_SUMMARY
-        echo "Test filter: ${{ inputs.test_filter }}" >> $GITHUB_STEP_SUMMARY
-        echo "Runs-on filter: ${{ inputs.runs-on-filter }}" >> $GITHUB_STEP_SUMMARY
-        echo "Skip device perf: ${{ inputs.skip-device-perf }}" >> $GITHUB_STEP_SUMMARY
-        echo "Perf regression check: ${{ inputs.regression_check }}" >> $GITHUB_STEP_SUMMARY
-        echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}" >> $GITHUB_STEP_SUMMARY
+        # Dedicated perf runner label per architecture (only n150 differs from its mark).
+        runner_for() { case "$1" in n150) echo n150-perf;; *) echo "$1";; esac; }
+        mark_for() {
+          case "$1" in
+            n150) echo n150;;
+            p150-perf) echo p150;;
+            n300-llmbox) echo n300_llmbox;;
+            galaxy-wh-6u) echo galaxy_wh_6u;;
+            qb2-blackhole) echo qb2_blackhole;;
+          esac
+        }
+
+        args="--confcutdir=tests/benchmark"
+        if [ "$CHECK_FUSIONS" = "true" ]; then args="$args --check-fusions"; fi
+
+        entries="[]"
+        for a in "${archs[@]}"; do
+          runner=$(runner_for "$a")
+          mark=$(mark_for "$a")
+          entry=$(jq -nc \
+            --arg runner "$runner" \
+            --arg name "perf_${mark}" \
+            --arg mark "benchmark and ${mark} and not vllm" \
+            --arg args "$args" \
+            '{"runs-on":$runner, name:$name, dir:"./tests/benchmark", "test-mark":$mark, args:$args}')
+          if [ -n "$TEST_FILTER" ]; then
+            entry=$(echo "$entry" | jq -c --arg c "$TEST_FILTER" '. + {contains:$c}')
+          fi
+          entries=$(echo "$entries" | jq -c --argjson e "$entry" '. + [$e]')
+        done
+
+        echo "Custom perf suite:"
+        echo "$entries" | jq .
+        {
+          echo "test_suite_custom<<EOF"
+          echo "$entries"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+
+        {
+          echo "### Perf benchmark inputs"
+          echo "Runs-on filter: $RUNS_ON_FILTER"
+          echo "Test filter: ${TEST_FILTER:-<none>}"
+          echo "Regression check: ${{ inputs.regression_check }}"
+          echo "Wheel type: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}"
+        } >> "$GITHUB_STEP_SUMMARY"
 
   run-perf-benchmarks:
     needs: [docker-build, set-inputs, build]
     if: ${{ !cancelled() && needs.set-inputs.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     secrets: inherit
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    uses: ./.github/workflows/call-test.yml
     with:
-      adv_filter: ${{ needs.set-inputs.outputs.filter }}
-      docker_image: ${{ needs.docker-build.outputs.docker-image }}
+      test_suite: Custom
+      test_suite_custom: ${{ needs.set-inputs.outputs.test_suite_custom }}
+      docker_image: ${{ needs.docker-build.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build.outputs.artifact_suffix }}
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
-      skip-device-perf: ${{ inputs.skip-device-perf || false }}
-      regression_check: ${{ inputs.regression_check || false }}
-      sh-runner: ${{ inputs.sh-runner || false }}
       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
-      check_fusions: ${{ inputs.check_fusions }}
+
+  perf-regression-check:
+    needs: [run-perf-benchmarks]
+    if: ${{ inputs.regression_check && (success() || failure()) }}
+    secrets: inherit
+    uses: ./.github/workflows/call-perf-regression-check.yml
+    with:
+      mode: perf
 
   fail-notify:
     if: always()
     needs:
       - run-perf-benchmarks
+      - perf-regression-check
     runs-on: ubuntu-latest
     outputs:
       failed: ${{ steps.check.outputs.failure }}
@@ -140,4 +175,5 @@ jobs:
         id: check
         uses: re-actors/alls-green@release/v1
         with:
+          allowed-skips: perf-regression-check
           jobs: ${{ toJSON(needs) }}

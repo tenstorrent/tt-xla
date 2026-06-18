@@ -25,42 +25,28 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  run-n150-accuracy-benchmarks:
+  run-accuracy-benchmarks:
     needs: [build-image, build-ttxla]
     secrets: inherit
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    uses: ./.github/workflows/call-test.yml
     with:
-      adv_filter: '[ {"runs-on": "n150", "accuracy-testing": true} ]'
+      test_suite: perf-accuracy.json
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      sh-runner: true
-      regression_check: true
 
-  run-llmbox-accuracy-benchmarks:
-    needs: [build-image, build-ttxla]
+  perf-regression-check:
+    needs: [run-accuracy-benchmarks]
+    if: success() || failure()
     secrets: inherit
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    uses: ./.github/workflows/call-perf-regression-check.yml
     with:
-      adv_filter: '[ {"runs-on": "n300-llmbox", "accuracy-testing": true} ]'
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      regression_check: true
-
-  run-galaxy-accuracy-benchmarks:
-    needs: [build-image, build-ttxla]
-    secrets: inherit
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
-    with:
-      adv_filter: '[ {"runs-on": "galaxy-wh-6u", "accuracy-testing": true} ]'
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      regression_check: true
+      mode: accuracy
 
   fail-notify:
     needs:
-      - run-n150-accuracy-benchmarks
-      - run-llmbox-accuracy-benchmarks
-      - run-galaxy-accuracy-benchmarks
+      - run-accuracy-benchmarks
+      - perf-regression-check
     if: always()
     runs-on: ubuntu-latest
     steps:

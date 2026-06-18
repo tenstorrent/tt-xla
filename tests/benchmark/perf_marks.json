@@ -1,0 +1,558 @@
+{
+  "test_vision.py::test_mnist": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_resnet50": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_mobilenetv2": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_efficientnet": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_segformer": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_swin": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_ufld_v2": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_unet": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_vit": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vision.py::test_vovnet": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_imagegen.py::test_playground_v2_5": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_encoders.py::test_bge_m3": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_bge_m3_batch1": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_bge_m3_batch32": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_llms.py::test_llama_3_2_1b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_llama_3_2_3b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_llama_3_1_8b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_falcon3_10b_tp": [
+    "accuracy",
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_llama_3_1_8b_instruct_tp": [
+    "accuracy",
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_mistral_small_24b_instruct_2501_tp": [
+    "accuracy",
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_qwen_2_5_coder_32b_instruct_tp": [
+    "accuracy",
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_qwen_3_32b_tp": [
+    "accuracy",
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_llama_3_1_70b_tp": [
+    "accuracy",
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_llama_3_1_70b_tp_galaxy": [
+    "accuracy",
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_gpt_oss_20b_tp": [
+    "accuracy",
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_gpt_oss_20b_tp_batch_size_1": [
+    "benchmark",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_gpt_oss_20b_tp_galaxy_batch_size_64": [
+    "accuracy",
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_gpt_oss_120b_tp_dp_galaxy_batch_size_128": [
+    "accuracy",
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_gpt_oss_120b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_falcon3_7b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_falcon3_10b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_llama_3_1_8b_instruct_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_ministral_8b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_mistral_nemo_instruct_2407_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_mistral_small_24b_instruct_2501_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_qwen_2_5_14b_instruct_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_qwen_2_5_coder_32b_instruct_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_qwen_3_8b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_qwen_3_14b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_qwen_3_32b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_gpt_oss_20b_tp_qb2": [
+    "benchmark",
+    "qb2_blackhole"
+  ],
+  "test_llms.py::test_phi1": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_phi1_5": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_phi2": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_gemma_1_1_2b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_falcon3_1b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_falcon3_3b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_falcon3_7b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_2_5_0_5b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_2_5_1_5b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_2_5_3b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_3_0_6b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_3_1_7b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_3_4b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_3_8b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_qwen_2_5_7b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_mistral_7b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_ministral_8b": [
+    "accuracy",
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_encoders.py::test_qwen3_embedding_4b": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_qwen3_embedding_4b_batch1": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_encoders.py::test_bert": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_encoders.py::test_unet_for_conditional_generation": [
+    "benchmark",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_deepseek_v3_1_tp_galaxy_4_layers": [
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_deepseek_v3_2_exp_tp_galaxy_2_layers": [
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_glm_4_7_tp_galaxy_4_layers": [
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_kimi_k2_tp_galaxy_2_layers": [
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_kimi_k2_5_tp_galaxy_2_layers": [
+    "benchmark",
+    "galaxy_wh_6u"
+  ],
+  "test_llms.py::test_gemma_2_2b": [
+    "accuracy",
+    "n150",
+    "p150"
+  ],
+  "test_llms.py::test_falcon3_7b_tp": [
+    "accuracy",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_ministral_8b_tp": [
+    "accuracy",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_mistral_nemo_instruct_2407_tp": [
+    "accuracy",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_qwen_2_5_14b_instruct_tp": [
+    "accuracy",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_qwen_3_8b_tp": [
+    "accuracy",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_qwen_3_14b_tp": [
+    "accuracy",
+    "n300_llmbox"
+  ],
+  "test_llms.py::test_gpt_oss_120b_tp_galaxy_batch_size_64": [
+    "accuracy",
+    "galaxy_wh_6u"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-3b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.2-1b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[llama-3.1-8b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-0.5b-instruct]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-1.5b-instruct]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-3b-instruct]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen2.5-7b-instruct]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-0.6b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-1.7b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-4b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[qwen3-8b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[phi-1]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[phi-1_5]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[phi-2]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-1b-base]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-3b-base]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[falcon3-7b-base]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[mistral-7b-instruct]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_benchmark[ministral-8b]": [
+    "benchmark",
+    "n150",
+    "p150",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-7b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[falcon3-10b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-8b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-14b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-32b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[gemma4-31b-it-tp]": [
+    "benchmark",
+    "qb2_blackhole",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen3-32b-qb2-tp]": [
+    "benchmark",
+    "qb2_blackhole",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-14b-instruct-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[qwen2.5-coder-32b-instruct-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[ministral-8b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-nemo-instruct-2407-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[mistral-small-24b-instruct-2501-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-8b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ],
+  "test_vllm_benchmarks.py::test_vllm_tp_benchmark[llama-3.1-70b-tp]": [
+    "benchmark",
+    "n300_llmbox",
+    "vllm"
+  ]
+}

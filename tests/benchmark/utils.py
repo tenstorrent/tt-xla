@@ -494,7 +494,10 @@ def create_benchmark_result(
             "arch": arch,
             "device_count": device_count,
             "mesh_shape": mesh_shape,
-            "device_type": None,
+            # device_type is the CI runner-pool family (e.g. "n150"), used by the
+            # perf regression check / superset. It used to be patched in by the perf
+            # workflow; now call-test.yml exports it so the report is self-contained.
+            "device_type": os.environ.get("TT_XLA_PERF_DEVICE_TYPE") or None,
         },
     }
 

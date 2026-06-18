@@ -67,37 +67,34 @@ jobs:
   perf-benchmark:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
     needs: [ inspect-changes, build-image, build-ttxla ]
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
+      test_suite: perf-pr.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      adv_filter: '[
-        { "accuracy-testing": false },
-        { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
-        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_70b_tp", "gpt_oss_20b_tp"] },
-        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'
-      sh-runner: false
-      skip-device-perf: true
-      regression_check: false
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
 
   perf-benchmark-accuracy:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false' && needs.inspect-changes.outputs.only-run-forge-models != 'true' && vars.RUN_PERF_ON_UPLIFT == 'true' && github.event_name == 'pull_request' && (contains(needs.inspect-changes.outputs.detected-uplifts, 'tt-mlir') || contains(needs.inspect-changes.outputs.detected-uplifts, 'transformers'))
     needs: [ inspect-changes, build-image, build-ttxla ]
-    uses: ./.github/workflows/call-filtered-perf-tests.yml
+    uses: ./.github/workflows/call-test.yml
     secrets: inherit
     with:
+      test_suite: perf-pr-accuracy.json
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      adv_filter: '[
-        { "accuracy-testing": true },
-        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp"] },
-        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_8b_instruct_tp","llama_3_1_70b_tp"] } ]'
-      sh-runner: false
-      skip-device-perf: true
-      regression_check: true
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+
+  # Accuracy regression check (was inline regression_check: true on the old accuracy
+  # perf job). Runs only when the accuracy perf job actually ran.
+  perf-benchmark-accuracy-regression:
+    needs: [ inspect-changes, perf-benchmark-accuracy ]
+    if: always() && needs.perf-benchmark-accuracy.result != 'skipped' && needs.perf-benchmark-accuracy.result != 'cancelled'
+    uses: ./.github/workflows/call-perf-regression-check.yml
+    secrets: inherit
+    with:
+      mode: accuracy
 
   test_forge_models_push:
     if: needs.inspect-changes.outputs.skip-build-and-test == 'false'
@@ -152,11 +149,12 @@ jobs:
       - test-tools
       - perf-benchmark
       - perf-benchmark-accuracy
+      - perf-benchmark-accuracy-regression
       - build-docs
     runs-on: Ubuntu-latest
     steps:
     - name: Check if the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
-        allowed-skips: build-image, build-ttxla, build-ttxla-debug, test, test_forge_models_push, test-uplift-extended, test-tools, perf-benchmark, perf-benchmark-accuracy, build-docs
+        allowed-skips: build-image, build-ttxla, build-ttxla-debug, test, test_forge_models_push, test-uplift-extended, test-tools, perf-benchmark, perf-benchmark-accuracy, perf-benchmark-accuracy-regression, build-docs
         jobs: ${{ toJSON(needs) }}
