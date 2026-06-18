@@ -2,17 +2,21 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import socket
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import vllm
 from utils import (
     create_benchmark_result,
     get_benchmark_metadata,
     print_benchmark_results,
 )
+
+_ACCURACY_TOTAL_LENGTH = 128
 
 DEFAULT_PROMPT = (
     "Here is an exhaustive list of the best practices for writing clean code:"
@@ -215,74 +219,187 @@ def _assert_no_preemptions(llm: vllm.LLM):
 def benchmark_vllm(
     config: VLLMBenchmarkConfig,
     display_name: str,
+    accuracy_testing: bool = False,
 ) -> Dict[str, Any]:
     """Run a vLLM benchmark and return a standardised result dict."""
-    sampling_params = vllm.SamplingParams(
-        max_tokens=config.max_tokens,
-        ignore_eos=True,
-        temperature=config.temperature,
+    from llm_utils.reference_generator import (
+        _REFERENCE_DIR,
+        generate_reference_outputs,
     )
+    from llm_utils.token_accuracy import TokenAccuracy
+
+    token_accuracy = None
+    if accuracy_testing:
+        model_name_for_accuracy = config.model.split("/")[-1]
+        hf_model_name = config.model
+
+        if TokenAccuracy.needs_regeneration(model_name_for_accuracy):
+            output_file = os.path.join(
+                _REFERENCE_DIR, f"{model_name_for_accuracy}.refpt"
+            )
+            print(
+                f"Generating reference outputs for {model_name_for_accuracy} on CPU "
+                f"(this may take a minute)..."
+            )
+            generate_reference_outputs(
+                total_length=_ACCURACY_TOTAL_LENGTH,
+                output_file=output_file,
+                model_name=hf_model_name,
+            )
+            print(f"Reference generation complete: {output_file}")
+
+        # Bump max_model_len so the full 128-token prompt + 1 generated token fits.
+        # 256 is the next power of 2 above 128; vllm_tt precompiles at powers of 2
+        # so the KV cache (8 blocks × 32 = 256) exactly covers the largest shape.
+        config.max_model_len = max(config.max_model_len, 256)
+        half = _ACCURACY_TOTAL_LENGTH // 2
+        token_accuracy = TokenAccuracy(
+            model_name=model_name_for_accuracy,
+            max_prefill_tokens=half,
+            max_decode_tokens=half,
+        )
 
     llm = _create_llm(config)
 
-    # chat() applies the model's chat template; generate() feeds the raw
-    # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
-    if config.use_chat_template:
-        inputs = [
-            [{"role": "user", "content": config.prompt}]
-            for _ in range(config.batch_size)
+    avg_ttft_ms = 0.0
+    avg_decode_time_s = 0.0
+    avg_tokens_per_sec = 0.0
+    total_samples = 0
+    custom_measurements = []
+
+    if not accuracy_testing:
+        sampling_params = vllm.SamplingParams(
+            max_tokens=config.max_tokens,
+            ignore_eos=True,
+            temperature=config.temperature,
+        )
+
+        # chat() applies the model's chat template; generate() feeds the raw
+        # prompt. Same (inputs, sampling_params) -> List[RequestOutput] signature.
+        if config.use_chat_template:
+            inputs = [
+                [{"role": "user", "content": config.prompt}]
+                for _ in range(config.batch_size)
+            ]
+            run_fn = llm.chat
+        else:
+            inputs = [config.prompt] * config.batch_size
+            run_fn = llm.generate
+
+        def _run() -> List[vllm.RequestOutput]:
+            return run_fn(inputs, sampling_params)
+
+        if config.warmup_iterations > 0:
+            print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
+            for _ in range(config.warmup_iterations):
+                _run()
+            print("Warmup complete.")
+
+        print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
+        outputs: List[vllm.RequestOutput] = _run()
+
+        # Print generated text for output-quality inspection.
+        for i, output in enumerate(outputs):
+            print(f"  [{i}] {output.prompt!r} -> {output.outputs[0].text!r}")
+
+        # Assert decode is consistent
+        _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
+        _assert_no_preemptions(llm)
+
+        (
+            avg_ttft_ms,
+            tokens_per_user,
+            avg_decode_time_s,
+            avg_tokens_per_sec,
+        ) = _extract_metrics(outputs)
+        total_samples = sum(tokens_per_user)
+
+        custom_measurements = [
+            {
+                "measurement_name": "ttft",
+                "value": avg_ttft_ms,
+                "target": -1,
+            },
+            {
+                "measurement_name": "samples_per_sec",
+                "value": avg_tokens_per_sec,
+                "target": -1,
+            },
         ]
-        run_fn = llm.chat
-    else:
-        inputs = [config.prompt] * config.batch_size
-        run_fn = llm.generate
-
-    def _run() -> List[vllm.RequestOutput]:
-        return run_fn(inputs, sampling_params)
-
-    if config.warmup_iterations > 0:
-        print(f"\nWarming up ({config.warmup_iterations} iteration(s)) ...")
-        for _ in range(config.warmup_iterations):
-            _run()
-        print("Warmup complete.")
-
-    print(f"\nStarting benchmark ({config.max_tokens} tokens) ...")
-    outputs: List[vllm.RequestOutput] = _run()
-
-    # Print generated text for output-quality inspection.
-    for i, output in enumerate(outputs):
-        print(f"  [{i}] {output.prompt!r} -> {output.outputs[0].text!r}")
-
-    # Assert decode is consistent
-    _assert_token_counts(outputs, config.max_tokens, config.max_model_len)
-    _assert_no_preemptions(llm)
-
-    (
-        avg_ttft_ms,
-        tokens_per_user,
-        avg_decode_time_s,
-        avg_tokens_per_sec,
-    ) = _extract_metrics(outputs)
-    total_samples = sum(tokens_per_user)
 
     metadata = get_benchmark_metadata()
     full_model_name = config.model
     model_type = "text-generation"
     dataset_name = "Random Data"
-    # vLLM doesn't expose raw logits, so PCC comparison is not possible.
     evaluation_score = 0.0
-    custom_measurements = [
-        {
-            "measurement_name": "ttft",
-            "value": avg_ttft_ms,
-            "target": -1,
-        },
-        {
-            "measurement_name": "samples_per_sec",
-            "value": avg_tokens_per_sec,
-            "target": -1,
-        },
-    ]
+
+    if accuracy_testing:
+        full_sequence = (
+            token_accuracy.input_prompt.tolist()
+            + token_accuracy.reference_tokens.tolist()
+        )
+        split_point = len(token_accuracy.input_prompt)
+
+        accuracy_params = vllm.SamplingParams(
+            max_tokens=1,
+            ignore_eos=True,
+            temperature=0.0,
+            prompt_logprobs=5,
+        )
+        print(
+            f"\nRunning accuracy test ({len(full_sequence)}-token sequence, "
+            f"batch_size={config.batch_size})..."
+        )
+        accuracy_outputs = llm.generate(
+            [{"prompt_token_ids": full_sequence}] * config.batch_size,
+            accuracy_params,
+        )
+
+        all_top1 = []
+        all_top5 = []
+        for output in accuracy_outputs:
+            prompt_logprobs = output.prompt_logprobs
+            predicted_tokens = []
+            for i in range(split_point, len(full_sequence)):
+                logprobs_at_pos = prompt_logprobs[i]
+                if logprobs_at_pos is None:
+                    continue
+                top1_token = max(
+                    logprobs_at_pos, key=lambda k: logprobs_at_pos[k].logprob
+                )
+                predicted_tokens.append(top1_token)
+            top1, top5 = token_accuracy.compute_accuracy(predicted_tokens)
+            all_top1.append(top1)
+            all_top5.append(top5)
+
+        all_top1 = np.array(all_top1)
+        all_top5 = np.array(all_top5)
+
+        top1_p5 = float(np.percentile(all_top1, 5))
+        top5_p5 = float(np.percentile(all_top5, 5))
+        top1_mean = float(all_top1.mean())
+        top5_mean = float(all_top5.mean())
+
+        evaluation_score = top1_p5
+        dataset_name = "Tale of Two Cities (Reference Data)"
+        num_users = len(all_top1)
+        print(
+            f"Token accuracy over {num_users} users:\n"
+            f"  TOP1 — min={all_top1.min()*100:.2f}%  p5={top1_p5*100:.2f}%  "
+            f"median={np.median(all_top1)*100:.2f}%  mean={all_top1.mean()*100:.2f}%  "
+            f"max={all_top1.max()*100:.2f}%\n"
+            f"  TOP5 — min={all_top5.min()*100:.2f}%  p5={top5_p5*100:.2f}%  "
+            f"median={np.median(all_top5)*100:.2f}%  mean={all_top5.mean()*100:.2f}%  "
+            f"max={all_top5.max()*100:.2f}%"
+        )
+        custom_measurements.extend(
+            [
+                {"measurement_name": "top1_accuracy_p5", "value": top1_p5 * 100},
+                {"measurement_name": "top5_accuracy_p5", "value": top5_p5 * 100},
+                {"measurement_name": "top1_accuracy_mean", "value": top1_mean * 100},
+                {"measurement_name": "top5_accuracy_mean", "value": top5_mean * 100},
+            ]
+        )
 
     print_benchmark_results(
         model_title=full_model_name,

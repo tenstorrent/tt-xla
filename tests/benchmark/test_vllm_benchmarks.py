@@ -244,7 +244,7 @@ TP_CONFIGS = [
 ]
 
 
-def _run_vllm_benchmark(config, output_file, request):
+def _run_vllm_benchmark(config, output_file, request, accuracy_testing=False):
     resolved_display_name = resolve_display_name(request=request, fallback=config.model)
     display_name = (
         resolved_display_name
@@ -262,7 +262,14 @@ def _run_vllm_benchmark(config, output_file, request):
         "export_model_name", sanitize_model_name(display_name)
     )
 
-    results = benchmark_vllm(config, display_name)
+    if accuracy_testing:
+        # Accuracy testing sends a 128-token prompt + 1 generated token = 129.
+        # vllm_tt precompiles at powers-of-2; 256 is the next power of 2 above
+        # 128, so the KV cache (8 blocks × 32 = 256) exactly covers the largest
+        # compile shape.
+        config.max_model_len = max(config.max_model_len, 256)
+
+    results = benchmark_vllm(config, display_name, accuracy_testing=accuracy_testing)
 
     if output_file:
         results["project"] = "tt-forge/tt-xla"
@@ -335,10 +342,10 @@ def test_vllm_bge_m3_batch32(output_file, request):
 
 
 @pytest.mark.parametrize("config", SINGLE_DEVICE_CONFIGS)
-def test_vllm_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
 
 
 @pytest.mark.parametrize("config", TP_CONFIGS)
-def test_vllm_tp_benchmark(config, output_file, request):
-    _run_vllm_benchmark(config, output_file, request)
+def test_vllm_tp_benchmark(config, output_file, request, accuracy_testing):
+    _run_vllm_benchmark(config, output_file, request, accuracy_testing=accuracy_testing)
