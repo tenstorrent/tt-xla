@@ -186,6 +186,38 @@ def generate_attn_mask(
     return attn_mask.detach().to(device)
 
 
+def _build_prefill_attn_mask(
+    num_computed: np.ndarray,
+    suffix_len: int,
+    kv_len: int,
+    num_users: int,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Per-user causal mask for prefill SDPA over a paged KV slab.
+
+    Shape: ``[num_users, 1, suffix_len, kv_len]``. ``mask[u, 0, i, j]`` is
+    ``0`` when query token ``i`` of user ``u`` may attend to K/V slot ``j``,
+    and ``-inf`` otherwise. Position ``i`` of user ``u`` is the absolute
+    sequence index ``num_computed[u] + i``; causal attention allows
+    ``j <= num_computed[u] + i``. Slots past the user's logical sequence end
+    (stale paged blocks) are also -inf'd.
+
+    Inactive rows (``u >= len(num_computed)``) fall back to the cold-prefill
+    causal pattern (``num_computed=0``). Their Q rows are zero so the SDPA
+    output is don't-care, but the mask values stay finite to avoid NaN.
+    """
+    nc = np.zeros(num_users, dtype=np.int64)
+    nc[: len(num_computed)] = num_computed
+    nc_t = torch.from_numpy(nc)
+    i_range = torch.arange(suffix_len, dtype=torch.int64)
+    j_range = torch.arange(kv_len, dtype=torch.int64)
+    abs_pos = nc_t.unsqueeze(1) + i_range.unsqueeze(0)
+    invalid = j_range.view(1, 1, kv_len) > abs_pos.unsqueeze(-1)
+    mask = torch.zeros(num_users, suffix_len, kv_len, dtype=dtype)
+    mask.masked_fill_(invalid, float("-inf"))
+    return mask.unsqueeze(1)
+
+
 #########################################################
 # Ways to avoid recompilation
 #########################################################
@@ -502,6 +534,36 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             self._cache_position_dev_most = _alloc_dev(
                 (self.num_reqs_most_model_len,), self.seq_lens_cpu.dtype
             )
+
+        # Prefill SDPA mask buffers — one per prefill bucket (num_tokens > 1).
+        # Shape per bucket: [num_reqs, 1, num_tokens, num_blocks * block_size].
+        # Constant shape lets warmup and runtime share a single traced graph.
+        self._prefill_attn_mask_dev_max: dict[int, torch.Tensor] = {}
+        self._prefill_attn_mask_dev_most: dict[int, torch.Tensor] = {}
+        for _nt in self.num_tokens_paddings:
+            if _nt <= 1:
+                continue
+            self._prefill_attn_mask_dev_max[_nt] = _alloc_dev(
+                (
+                    self.num_reqs_max_model_len,
+                    1,
+                    _nt,
+                    self.max_num_blocks_per_req * self.block_size,
+                ),
+                self.dtype,
+            )
+            if self.most_model_len is not None:
+                assert self.num_reqs_most_model_len is not None
+                assert self.num_blocks_per_most_len_req is not None
+                self._prefill_attn_mask_dev_most[_nt] = _alloc_dev(
+                    (
+                        self.num_reqs_most_model_len,
+                        1,
+                        _nt,
+                        self.num_blocks_per_most_len_req * self.block_size,
+                    ),
+                    self.dtype,
+                )
 
         # Layer pairings for cross-layer KV sharing.
         # If an Attention layer `layer_name` is in the keys of this dict, it
@@ -1200,11 +1262,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
             self.set_active_loras(self.input_batch, padded_num_scheduled_tokens_per_req)
 
+        # Build the prefill SDPA attention mask. The mask encodes per-user
+        # ``num_computed_tokens`` so the same compiled graph services both
+        # cold prefill (zeros) and cached prefill — torch.compile with
+        # NoGuards bakes Python branches at trace time, so we cannot switch
+        # on a runtime flag. Skipped for the decode bucket (suffix=1) where
+        # attn_mask stays ``None`` and the decode kernel handles the pattern
+        # via ``cache_position``.
+        attn_mask: torch.Tensor | None = None
+        if padded_total_num_scheduled_tokens > 1:
+            num_computed = self.input_batch.num_computed_tokens_cpu[:num_reqs]
+            if use_max_model_len:
+                num_users_bucket = self.num_reqs_max_model_len
+                kv_len = self.max_num_blocks_per_req * self.block_size
+                attn_mask_dev_buf = self._prefill_attn_mask_dev_max[
+                    padded_total_num_scheduled_tokens
+                ]
+            else:
+                num_users_bucket = self.num_reqs_most_model_len
+                kv_len = self.num_blocks_per_most_len_req * self.block_size
+                attn_mask_dev_buf = self._prefill_attn_mask_dev_most[
+                    padded_total_num_scheduled_tokens
+                ]
+            attn_mask_cpu = _build_prefill_attn_mask(
+                num_computed=num_computed,
+                suffix_len=padded_total_num_scheduled_tokens,
+                kv_len=kv_len,
+                num_users=num_users_bucket,
+                dtype=self.dtype,
+            )
+            attn_mask_dev_buf.copy_(attn_mask_cpu)
+            attn_mask = attn_mask_dev_buf
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
+            # Prefill carries an explicit mask (single source of truth — the
+            # SDPA op asserts is_causal=False when a mask is provided);
+            # decode leaves the mask None and the decode kernel handles
+            # causality via cache_position.
+            is_causal=attn_mask is None,
+            attn_mask=attn_mask,
             fill_page_table=fill_page_table,
         )
         # NOTE(woosuk): Due to chunked prefills, there can be at most 1 partial
@@ -1943,11 +2041,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
+        # Match runtime: prefill buckets carry a constant-shape attn_mask so
+        # the traced graph picks up the SDPA-with-mask code path; decode
+        # bucket (num_tokens=1) leaves mask=None and uses the decode kernel.
+        attn_mask = None
+        if num_tokens > 1:
+            attn_mask = _build_prefill_attn_mask(
+                num_computed=np.zeros(num_reqs, dtype=np.int32),
+                suffix_len=num_tokens,
+                kv_len=num_blocks * self.block_size,
+                num_users=num_reqs,
+                dtype=self.dtype,
+            ).to(self.device)
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
+            # Match _prepare_inputs: mask present ⇒ is_causal=False (the
+            # SDPA op asserts this) so warmup and runtime trace the same
+            # graph regardless of has_paged_cache.
+            is_causal=attn_mask is None,
+            attn_mask=attn_mask,
         )
 
         per_layer_attn_metadata = dict.fromkeys(
