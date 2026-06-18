@@ -1048,11 +1048,11 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   // Run the common TTIR-to-TTNN pipeline.
   mlir::tt::ttnn::createTTIRToTTNNCommonPipeline(ttir_to_ttnn_pm, options);
 
-  // The resolveTtLangKernels pass walks `ttnn.tt_lang_op` ops and invokes the
+  // The resolveTTLangKernels pass walks `ttnn.tt_lang_op` ops and invokes the
   // tt-lang compiler to compile each kernel through the
   // tt_torch.tt_lang.resolve_operation via pybind11. The output of the compiler
   // is then added back as the `kernel_artifact` attribute on the op.
-  mlir::tt::ttnn::TTNNResolveTtLangKernelsOptions resolve_options;
+  mlir::tt::ttnn::TTNNResolveTTLangKernelsOptions resolve_options;
   // The pass takes mesh-shape as a comma-separated string so the
   // pipeline-options machinery (which doesn't natively support
   // std::vector<uint32_t>) can round-trip it. Empty -> the pass defaults
@@ -1066,10 +1066,10 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   }
   resolve_options.meshShape = std::move(mesh_csv);
   ttir_to_ttnn_pm.addPass(
-      mlir::tt::ttnn::createTTNNResolveTtLangKernels(resolve_options));
+      mlir::tt::ttnn::createTTNNResolveTTLangKernels(resolve_options));
 
   // Lower each now-resolved `ttnn.tt_lang_op` to `ttnn.generic` op
-  ttir_to_ttnn_pm.addPass(mlir::tt::ttnn::createTTNNLowerTtLangToGeneric());
+  ttir_to_ttnn_pm.addPass(mlir::tt::ttnn::createTTNNLowerTTLangToGeneric());
 
   enableVerboseIRPrinting(ttir_to_ttnn_pm);
 
