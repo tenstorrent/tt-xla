@@ -159,6 +159,58 @@ INVALID_TOKEN_ID = -1
 MIN_NUM_SEQS = 1
 
 
+def _force_inline_moe_forward() -> None:
+    """Make vLLM's MoE runner call the raw python MoE functions inline instead of
+    the ``torch.ops.vllm.moe_forward[_shared]`` custom ops on TT.
+
+    Those custom ops are registered with ``mutates_args=["hidden_states"]``, so
+    ``torch.compile`` wraps every call in an ``auto_functionalized_v2`` higher-order
+    op. When torch_xla's CPU-fallback collector
+    (``partition_fx_graph_for_cpu_fallback`` -> ``collector.run``) re-executes that
+    HOP, the opaque op body runs the shared-experts MLP's
+    ``F.linear(hidden_states, weight)`` with a *functional* ``hidden_states`` but
+    plain (non-functional) module weights, tripping the composite-op
+    functionalization fallback assert ("...inputs all not to be functional
+    tensors"; see ATen FunctionalTensorWrapper.cpp). This is what crashes
+    DeepSeek-V3.2 (and any shared-experts MoE) during ``capture_model``.
+
+    vLLM already sidesteps this on its other XLA backend (TPU) and on CPU by
+    returning the raw functions from ``DefaultMoERunner._select_forward``; TT is
+    ``PlatformEnum.OOT`` so it fell into the custom-op branch. Mirror the TPU/CPU
+    choice. The raw functions run inline (traced by dynamo) so functionalization is
+    applied uniformly and there is no functional/non-functional mismatch.
+
+    Idempotent, and a safe no-op if vLLM's MoE-runner internals move.
+    """
+    try:
+        from vllm.model_executor.layers.fused_moe.runner import (
+            default_moe_runner as dmr,
+        )
+    except Exception as e:  # pragma: no cover - vLLM version drift
+        logger.warning("[TT] Could not patch MoE runner (skipping): %s", e)
+        return
+
+    runner_cls = getattr(dmr, "DefaultMoERunner", None)
+    if runner_cls is None or getattr(runner_cls, "_tt_inline_moe_patched", False):
+        return
+    if not (hasattr(dmr, "_moe_forward") and hasattr(dmr, "_moe_forward_shared")):
+        return
+
+    def _tt_select_forward(self, layer):
+        return (
+            dmr._moe_forward
+            if self.shared_experts is None
+            else dmr._moe_forward_shared
+        )
+
+    runner_cls._select_forward = _tt_select_forward
+    runner_cls._tt_inline_moe_patched = True
+    logger.info(
+        "[TT] MoE runner: selecting raw inline moe_forward (no auto_functionalized "
+        "custom op) to avoid the functionalization-fallback assert."
+    )
+
+
 def generate_attn_mask(
     context_lens: torch.Tensor,
     num_query_tokens: int,
@@ -1792,6 +1844,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
     def load_model(self) -> None:
         logger.info("CALLING LOAD MODEL")
         self.device = self.device_config.device
+
+        # Select vLLM's raw inline MoE forward (like TPU/CPU) instead of the
+        # auto_functionalized moe_forward custom op, before the MoE runners are
+        # constructed during model load. See _force_inline_moe_forward.
+        _force_inline_moe_forward()
 
         # NOTE(woosuk): While the executor assigns the TP ranks to the worker
         # process, the ranks can be different from the ranks internally assigned
