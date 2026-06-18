@@ -273,6 +273,7 @@ class TTPoolingModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.enable_data_parallel = False
 
         self.enable_tensor_parallel = self.tt_config.enable_tensor_parallel
+        self.use_2d_mesh = self.tt_config.use_2d_mesh
 
         if self.enable_data_parallel and self.enable_tensor_parallel:
             self.parallel_mode = ParallelismMode.DATA_TENSOR_PARALLEL
