@@ -65,12 +65,12 @@ class TTRMSNorm(nn.Module):
 
             x_var = x[:, :, : self.variance_size_override]
 
-        variance = x_var.pow(2).mean(dim=-1, keepdim=True)
+        variance = x_var.pow(2).mean(-1, keepdim=True)
 
         x = x * torch.rsqrt(variance + self.variance_epsilon)
         x = x.to(orig_dtype)
         if self.has_weight and self.weight is not None:
-            x = x * self.weight
+            x = self.weight * x
         if residual is None:
             return x
         return x, residual

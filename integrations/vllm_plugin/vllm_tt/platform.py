@@ -111,6 +111,11 @@ class TTConfig:
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
 
+    # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
+    # execution. When None, use_2d_mesh is used to determine the mesh shape.
+    # When set, it overrides use_2d_mesh.
+    mesh_shape: Optional[list[int]] = None
+
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
     flat_model_io: bool = False
