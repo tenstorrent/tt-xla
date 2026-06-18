@@ -241,6 +241,25 @@ TP_CONFIGS = [
         _config("facebook/opt-125m", 1, gpu_memory_utilization=0.001),
         id="opt-125m-fused-measure",
     ),
+    # Qwen3-32B on the BH-galaxy (32 chips) in an 8x4 pure-DP+TP layout:
+    # mesh_shape=[8, 4] -> (batch=8 DP, model=4 TP). Qwen3-32B fits in a TP-4
+    # weight slice replicated across the 8 DP replicas, and its 8 KV heads /
+    # tp=4 = 2/device keeps SDPA-decode under the cores/head cap (the 123B
+    # needs more TP, so it uses 4x8 instead; see the devstral-wip branch).
+    # bf16 checkpoint stored as bfp8 -- no fp8 dequant hook needed. batch 32
+    # -> 4 sequences/replica. Run with TT_RUNTIME_USING_BH_GALAXY=1.
+    pytest.param(
+        _tp_config(
+            "Qwen/Qwen3-32B",
+            32,
+            mesh_shape=[8, 4],
+            experimental_weight_dtype="bfp_bf8",
+            enable_const_eval=True,
+            enable_data_parallel=True,
+            shard_weights_on_batch_axis=False,
+        ),
+        id="qwen3-32b-galaxy-tp",
+    ),
 ]
 
 
