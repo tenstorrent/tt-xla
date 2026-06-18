@@ -325,7 +325,7 @@ jobs:
           # wrote one (per the transformers-uplift-fix skill's
           # "Output format" section); otherwise fall back to a generic
           # message tagged with scope/tag/iter.
-          SUMMARY_FILE=".github/transformers-uplift/fix-summary.md"
+          SUMMARY_FILE="${GITHUB_WORKSPACE}/.github/transformers-uplift/fix-summary.md"
           if [[ -s "$SUMMARY_FILE" ]]; then
             COMMIT_FLAG=(-F "$SUMMARY_FILE")
           else
