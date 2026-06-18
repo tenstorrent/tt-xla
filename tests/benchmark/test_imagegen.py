@@ -145,3 +145,49 @@ def test_playground_v2_5(output_file, request):
         optimization_level=0,
         output_image_path="test_playground_v2_5_output.png",
     )
+
+
+def test_sdxl_lightning(output_file, request):
+    from benchmarks.sdxl_lightning_pipeline import (
+        SDXLLightningConfig,
+        SDXLLightningPipeline,
+    )
+
+    # SDXL-Lightning: distilled 4-step model, guidance_scale=0 (no CFG).
+    prompt = "A girl smiling"
+    num_inference_steps = 4
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        # Text encoders + UNet on TT; VAE on CPU. The VAE OOMs from GroupNorm
+        # decomposition at opt_level=0; opt_level=1 enables the composite
+        # ttnn.group_norm which lets the VAE pass, but switching opt level
+        # (UNet opt 0 -> VAE opt 1) trips a device-hash mismatch
+        # (https://github.com/tenstorrent/tt-xla/issues/5176). So keep the VAE on
+        # CPU until tt-metal https://github.com/tenstorrent/tt-metal/pull/46959 lands.
+        pipeline = SDXLLightningPipeline(
+            config=SDXLLightningConfig(vae_on_tt=False, compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="sdxl-lightning",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,
+        output_image_path="test_sdxl_lightning_output.png",
+    )
