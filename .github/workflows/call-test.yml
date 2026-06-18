@@ -406,6 +406,8 @@ jobs:
       run: |
         source venv/activate
         [[ -f topology_exports.sh ]] && source topology_exports.sh
+        echo "=== Active transformers version ==="
+        python -c "import transformers; print('transformers ==', transformers.__version__, 'from', transformers.__file__)"
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
           --junitxml=${{ steps.strings.outputs.test_report_path }} \
           --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \

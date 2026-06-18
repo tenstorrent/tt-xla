@@ -197,6 +197,8 @@ jobs:
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
 
         source venv/activate
+        echo "=== Active transformers version ==="
+        python -c "import transformers; print('transformers ==', transformers.__version__, 'from', transformers.__file__)"
         pytest -svv --confcutdir=tests/benchmark ${{ matrix.build.pytest }} ${{ matrix.build.accuracy-testing && '--accuracy-testing' || '' }} ${{ matrix.build.batch-size && format('--batch-size {0}', matrix.build.batch-size) || '' }} ${{ inputs.check_fusions && '--check-fusions' || '' }} --output-file ${{ steps.strings.outputs.perf_report_json_file }}
 
     - name: Dump stablehlo to report

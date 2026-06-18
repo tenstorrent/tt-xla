@@ -32,16 +32,6 @@ on:
       current_version:
         type: string
         required: true
-      artifact_release_run_id:
-        type: string
-        required: true
-      artifact_suffix:
-        type: string
-        required: false
-        default: ""
-      docker_image:
-        type: string
-        required: true
   workflow_dispatch:
     inputs:
       iteration:
@@ -54,16 +44,6 @@ on:
         type: string
         required: true
       current_version:
-        type: string
-        required: true
-      artifact_release_run_id:
-        type: string
-        required: true
-      artifact_suffix:
-        type: string
-        required: false
-        default: ""
-      docker_image:
         type: string
         required: true
 
@@ -90,9 +70,36 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Setup: create the WIP branch + bump the pin on iter 1; otherwise just
-  # fetch the existing branch. Computes the test filter and matrix for
-  # base-coverage and the wallclock-budget gate.
+  # Build the docker image AND the tt-xla wheel at the WIP branch ref.
+  # Because the workflow is dispatched with `--ref transformers-uplift/<NEW>`,
+  # `actions/checkout` inside these reusable workflows resolves to the WIP
+  # branch by default — so the docker image's pre-baked venv is resolved
+  # against the BUMPED requirements-dev.txt (new transformers in from the
+  # start), and the wheel is built against the same venv. No runtime
+  # force-install needed.
+  # ---------------------------------------------------------------------------
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      dockbuild: all
+
+  build-ttxla:
+    needs: build-image
+    name: "Build tt-xla"
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image:          ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types:           release
+
+  # ---------------------------------------------------------------------------
+  # Setup: normalize the iteration input, gate on the wallclock budget,
+  # and compute the base-coverage matrix from the current last_failed list.
+  # The WIP branch already exists (created by schedule-transformers-uplift.yml
+  # on iter 1, or carried forward across self-dispatches on iter 2+) — this
+  # job just CONSUMES that branch state, no longer creates it.
   # ---------------------------------------------------------------------------
   setup:
     runs-on: ubuntu-latest
@@ -116,44 +123,6 @@ jobs:
           # Normalize to an integer for arithmetic + comparison.
           ITER=$(printf '%d' "${ITER_RAW}")
           echo "iteration=$ITER" >> "$GITHUB_OUTPUT"
-
-      - name: Initialize branch (iteration 1)
-        if: steps.params.outputs.iteration == '1'
-        env:
-          BRANCH: ${{ inputs.branch }}
-          NEW: ${{ inputs.target_version }}
-          CUR: ${{ inputs.current_version }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git checkout -b "$BRANCH"
-          bash .github/scripts/uplift/transformers/bump-transformers.sh "$NEW"
-
-          mkdir -p "$(dirname "$STATE_FILE")"
-          cat > "$STATE_FILE" <<EOF
-          {
-            "target_version":  "$NEW",
-            "current_version": "$CUR",
-            "started_at":      "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF
-
-          # First iteration runs the FULL base-coverage list.
-          cp "$BASE_COVERAGE_FULL_FILE" "$LAST_FAILED_FILE"
-
-          git add "$STATE_FILE" "$LAST_FAILED_FILE" venv/requirements-dev.txt
-          git commit -m "transformers uplift: bump pin ${CUR} -> ${NEW}"
-          git push origin "$BRANCH"
-
-      - name: Switch to WIP branch (iteration 2+)
-        if: steps.params.outputs.iteration != '1'
-        env:
-          BRANCH: ${{ inputs.branch }}
-        run: |
-          git fetch origin "$BRANCH"
-          git checkout "$BRANCH"
 
       - name: Check wallclock budget
         id: budget
@@ -201,11 +170,11 @@ jobs:
   # 2+ it's a single regression check.
   # ---------------------------------------------------------------------------
   api-check:
-    needs: setup
+    needs: [setup, build-image, build-ttxla]
     if: needs.setup.outputs.under_budget == 'true'
     runs-on: ubuntu-latest
     container:
-      image: ${{ inputs.docker_image }}
+      image: ${{ needs.build-image.outputs.docker-image-base }}
     outputs:
       passed: ${{ steps.run.outputs.passed }}
     steps:
@@ -213,46 +182,44 @@ jobs:
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE/third_party/tt_forge_models"
-
+  
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.branch }}
           token: ${{ secrets.GH_TOKEN }}
           submodules: recursive
-
+  
       - name: Download tt-xla wheel
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          WHEEL_ARTIFACT="xla-whl-release${{ inputs.artifact_suffix }}"
-          echo "Downloading $WHEEL_ARTIFACT from run ${{ inputs.artifact_release_run_id }}"
-          gh run download "${{ inputs.artifact_release_run_id }}" \
+          WHEEL_ARTIFACT="xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}"
+          echo "Downloading $WHEEL_ARTIFACT from run ${{ needs.build-ttxla.outputs.artifacts_run_id }}"
+          gh run download "${{ needs.build-ttxla.outputs.artifacts_run_id }}" \
             --repo "${{ github.repository }}" \
             --dir wheels \
             --name "$WHEEL_ARTIFACT"
           ls -la wheels
-
-      - name: Install wheel + uplifted transformers
+  
+      - name: Install wheel
         shell: bash
-        env:
-          TARGET_VERSION: ${{ inputs.target_version }}
         run: |
           source venv/activate
           uv pip install wheels/*.whl
-          # The wheel was built against the OLD pin; force-install the
-          # uplifted version so api-check exercises the target API.
-          uv pip install --force-reinstall --no-deps \
-            "transformers==${TARGET_VERSION}"
+          # No transformers force-install needed: the docker image's baked
+          # venv was resolved against the WIP branch's bumped requirements
+          # (because this workflow was dispatched with --ref <wip>), so the
+          # venv already has TARGET_VERSION.
           python -c "import transformers; print('transformers', transformers.__version__)"
-
+  
       - name: Install Claude Code CLI
         shell: bash
         run: |
           curl -fsSL https://nodejs.org/dist/v20.11.1/node-v20.11.1-linux-x64.tar.xz | tar -xJ --strip-components=1 -C /usr/local/
           npm install -g @anthropic-ai/claude-code
           claude --version
-
+  
       - name: Run api-check with Claude sub-loop
         id: run
         shell: bash
@@ -271,7 +238,7 @@ jobs:
             --max-subloops 5
           # The script exits 0 iff api-check ends green.
           echo "passed=true" >> "$GITHUB_OUTPUT"
-
+  
       - name: Push any Claude-applied fixes
         if: always()
         shell: bash
@@ -281,7 +248,7 @@ jobs:
         run: |
           git config --global user.name  "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
+  
           # Prefer Claude's structured summary file (see the
           # transformers-uplift-fix skill's "Output format" section);
           # fall back to a generic message if it wasn't written.
@@ -291,7 +258,7 @@ jobs:
           else
             COMMIT_FLAG=(-m "transformers uplift: api-check fixes (iter ${ITER})")
           fi
-
+  
           # 1. tt-forge-models submodule — `git add -A` in the parent only
           #    updates the submodule POINTER, not the submodule's contents.
           #    Commit + push inside the submodule first.
@@ -303,7 +270,7 @@ jobs:
             git push origin "$BRANCH"
             popd >/dev/null
           fi
-
+  
           # 2. tt-xla parent — picks up the new submodule pointer + any
           #    other edits Claude made under the allowlist.
           if ! git diff --quiet || [[ -n "$(git status --porcelain)" ]]; then
@@ -311,7 +278,7 @@ jobs:
             git commit "${COMMIT_FLAG[@]}"
             git push origin "$BRANCH"
           fi
-
+ 
   # ===========================================================================
   # The jobs below are DISABLED for the iterative-test phase. Re-enable in
   # order:
@@ -319,7 +286,7 @@ jobs:
   #   2. `test-and-fix-full` + `perf-benchmark`
   #   3. `open-prs`
   # ===========================================================================
-
+  
   # ---------------------------------------------------------------------------
   # Base coverage stage: narrow hardware matrix + Claude fix pass. All
   # three actions (run-tests → extract → claude-fix) live in the shared
@@ -327,7 +294,7 @@ jobs:
   # directly during PR review.
   # ---------------------------------------------------------------------------
   test-and-fix-base:
-    needs: [setup, api-check]
+    needs: [setup, build-image, build-ttxla, api-check]
     if: ${{ needs.setup.outputs.under_budget == 'true' && needs['api-check'].outputs.passed == 'true' && needs.setup.outputs.filter_empty == 'false' }}
     uses: ./.github/workflows/call-test-uplift.yml
     with:
@@ -339,11 +306,11 @@ jobs:
       iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
       target_version:          ${{ inputs.target_version }}
       current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-      artifact_suffix:         ${{ inputs.artifact_suffix }}
-      docker_image:            ${{ inputs.docker_image }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
     secrets: inherit
-
+ 
   # ---------------------------------------------------------------------------
   # Decide: self-dispatch the next iteration, or hand off to finalize.
   # ---------------------------------------------------------------------------
@@ -380,7 +347,7 @@ jobs:
           else
             echo "action=redispatch" >> "$GITHUB_OUTPUT"
           fi
-
+  
       - name: Self-dispatch next iteration
         if: steps.next.outputs.action == 'redispatch'
         env:
@@ -389,22 +356,43 @@ jobs:
         run: |
           NEXT=$((NEXT_ITER + 1))
           echo "Re-dispatching as iteration $NEXT"
-          gh workflow run workflow-transformers-uplift.yml \
-            --ref ${{ github.ref_name }} \
-            -f iteration="$NEXT" \
-            -f branch="${{ inputs.branch }}" \
-            -f target_version="${{ inputs.target_version }}" \
-            -f current_version="${{ inputs.current_version }}" \
-            -f artifact_release_run_id="${{ inputs.artifact_release_run_id }}" \
-            -f artifact_suffix="${{ inputs.artifact_suffix }}" \
-            -f docker_image="${{ inputs.docker_image }}"
-
+          # `gh workflow run <filename>` resolves the workflow ID via the
+          # default branch (main). This workflow file isn't on main yet
+          # during the iterative-testing phase, so look up the workflow
+          # ID by path and dispatch via the REST API directly. Swap back
+          # to `gh workflow run` once the file lands on main. See the
+          # matching dispatch in schedule-transformers-uplift.yml.
+          WORKFLOW_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.path == ".github/workflows/workflow-transformers-uplift.yml") | .id')
+          if [[ -z "$WORKFLOW_ID" ]]; then
+            echo "::warning::workflow not found on first page — dumping all registered workflow paths for diagnosis:" >&2
+            gh api "repos/${{ github.repository }}/actions/workflows?per_page=100" \
+              --jq '.total_count as $n | "(total=\($n))", (.workflows[].path)' >&2
+            echo "::error::workflow-transformers-uplift.yml is not registered" >&2
+            exit 1
+          fi
+          # `--ref github.ref_name` is the WIP branch — the run we're in
+          # was dispatched there, so the next iteration's build-image /
+          # build-ttxla jobs run at the same ref (picking up any source
+          # fixes Claude pushed during this iteration).
+          # Use `-f` (raw-field) instead of `-F` (typed) so numeric-looking
+          # values like iteration="$NEXT" aren't coerced to JSON numbers
+          # — the workflow_dispatch input is declared `type: string`.
+          gh api -X POST \
+            "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/dispatches" \
+            -f ref="${{ github.ref_name }}" \
+            -f "inputs[iteration]=$NEXT" \
+            -f "inputs[branch]=${{ inputs.branch }}" \
+            -f "inputs[target_version]=${{ inputs.target_version }}" \
+            -f "inputs[current_version]=${{ inputs.current_version }}"
+  
       - name: Log finalize handoff
         if: steps.next.outputs.action == 'finalize'
         run: |
           echo "Loop terminating: ${{ steps.next.outputs.reason }}"
           echo "Finalize jobs will run in this same workflow run."
-
+  
   # ===========================================================================
   # FINALIZE STAGE — only fires when decide picks `action == 'finalize'`.
   # On the redispatch path these jobs are skipped (visible-but-skipped in
@@ -419,7 +407,7 @@ jobs:
   # attempt at a fix before the PR is opened.
   # ---------------------------------------------------------------------------
   test-and-fix-full:
-    needs: [setup, decide]
+    needs: [setup, build-image, build-ttxla, decide]
     if: always() && needs.decide.outputs.action == 'finalize'
     uses: ./.github/workflows/call-test-uplift.yml
     with:
@@ -430,18 +418,18 @@ jobs:
       iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
       target_version:          ${{ inputs.target_version }}
       current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-      artifact_suffix:         ${{ inputs.artifact_suffix }}
-      docker_image:            ${{ inputs.docker_image }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
     secrets: inherit
-
+  
   # ---------------------------------------------------------------------------
   # Perf benchmark sweep — wraps call-perf-uplift.yml (run-perf →
   # extract-failures → claude-fix, same shape as test-and-fix-full).
   # Humans can also dispatch the callable manually during PR review.
   # ---------------------------------------------------------------------------
   perf-benchmark:
-    needs: [setup, decide]
+    needs: [setup, build-image, build-ttxla, decide]
     if: always() && needs.decide.outputs.action == 'finalize'
     uses: ./.github/workflows/call-perf-uplift.yml
     secrets: inherit
@@ -451,15 +439,15 @@ jobs:
       tag:                     perf
       target_version:          ${{ inputs.target_version }}
       current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ inputs.artifact_release_run_id }}
-      artifact_suffix:         ${{ inputs.artifact_suffix }}
-      docker_image:            ${{ inputs.docker_image }}
-
-  # # ---------------------------------------------------------------------------
-  # # Open the two PRs. tt-forge-models first (if its branch has commits),
-  # # then tt-xla with the report and a link to the forge-models PR.
-  # # Both DRAFT. Reviewers gate the actual landing.
-  # # ---------------------------------------------------------------------------
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+  #
+  # ---------------------------------------------------------------------------
+  # Open the two PRs. tt-forge-models first (if its branch has commits),
+  # then tt-xla with the report and a link to the forge-models PR.
+  # Both DRAFT. Reviewers gate the actual landing.
+  # ---------------------------------------------------------------------------
   # open-prs:
   #   needs: [setup, decide, test-and-fix-full, perf-benchmark]
   #   if: |
@@ -473,12 +461,12 @@ jobs:
   #         ref: ${{ inputs.branch }}
   #         token: ${{ secrets.GH_TOKEN }}
   #         submodules: recursive
-  #
+  # #
   #     - uses: actions/download-artifact@v4
   #       with:
   #         # call-test-uplift uploads under this name with scope + tag + iteration.
   #         name: uplift-failures-model-test-uplifts-full-iter-${{ needs.setup.outputs.iteration }}
-  #
+  # #
   #     - name: Build PR body
   #       env:
   #         ITER_REASON: ${{ needs.decide.outputs.reason }}
@@ -508,7 +496,7 @@ jobs:
   #           echo "🤖 Generated by the transformers-uplift pipeline."
   #         } > pr-body.md
   #         echo "Built pr-body.md ($(wc -l < pr-body.md) lines)"
-  #
+  # #
   #     - name: Open tt-forge-models PR (if branch has commits)
   #       id: forge-pr
   #       env:
@@ -543,7 +531,7 @@ jobs:
   #           --label transformers-uplift)
   #         echo "Opened tt-forge-models PR: $URL"
   #         echo "url=$URL" >> "$GITHUB_OUTPUT"
-  #
+  # #
   #     - name: Append submodule PR link to body
   #       if: steps.forge-pr.outputs.url != ''
   #       env:
@@ -555,7 +543,7 @@ jobs:
   #           echo "Companion tt-forge-models PR: ${FORGE_PR_URL}"
   #           echo "Merge that PR first; this one bumps the submodule pointer to its tip."
   #         } >> pr-body.md
-  #
+  # #
   #     - name: Open tt-xla PR
   #       env:
   #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
@@ -576,7 +564,7 @@ jobs:
   #           --body-file pr-body.md \
   #           --draft \
   #           --label transformers-uplift
-  #
+  # #
   #     - name: Append PR body to job summary
   #       if: always()
   #       run: cat pr-body.md >> "$GITHUB_STEP_SUMMARY"

@@ -1,20 +1,24 @@
 # Nightly check for a new `transformers` release on PyPI.
-# If one is available, invokes the transformers uplift orchestrator
-# (iteration 1) as a reusable workflow which then runs the test+fix loop
-# until termination via self-dispatch.
 #
-# This workflow only DETECTS and KICKS OFF the loop — it does not run
-# tests or modify the repo itself.
+# Thin bootstrap: detect a new version, push a WIP branch with the bumped
+# `requirements-dev.txt` (and starter state files), then dispatch
+# workflow-transformers-uplift.yml at that branch ref. Everything else —
+# docker image, tt-xla wheel, api-check, model tests, perf, claude-fix,
+# PR creation — runs INSIDE that dispatched workflow so it picks up the
+# WIP branch state from the very first step (the docker image's baked
+# venv is resolved against the new transformers pin).
+#
+# This workflow does NOT build anything itself.
 
 name: Schedule Transformers Uplift
 
 permissions:
-  contents: write       # build + test workflows commit / push artifacts
-  actions:  write       # dispatch downstream reusable workflows
-  checks:   write       # build / test workflows publish check runs
-  packages: write       # build-image pushes to GHCR
-  id-token: write       # OIDC for any cloud-auth steps in build/test
-  pull-requests: write  # finalize stage opens draft PRs (when re-enabled)
+  contents: write       # push the WIP branch
+  actions:  write       # gh workflow run downstream
+  checks:   none
+  packages: none
+  id-token: none
+  pull-requests: none
 
 on:
   # Cron disabled during iterative testing — uncomment to re-enable
@@ -30,15 +34,20 @@ concurrency:
   group: schedule-transformers-uplift
   cancel-in-progress: false
 
+env:
+  STATE_FILE:              .github/transformers-uplift/state.json
+  LAST_FAILED_FILE:        .github/transformers-uplift/last_failed.txt
+  BASE_COVERAGE_FULL_FILE: .github/transformers-uplift/base-coverage.txt
+
 jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      has_update: ${{ steps.check.outputs.has_update }}
-      new_version: ${{ steps.check.outputs.new_version }}
+      has_update:      ${{ steps.check.outputs.has_update }}
+      new_version:     ${{ steps.check.outputs.new_version }}
       current_version: ${{ steps.check.outputs.current_version }}
-      skip: ${{ steps.branch-check.outputs.skip }}
-      branch: ${{ steps.branch-check.outputs.branch }}
+      skip:            ${{ steps.branch-check.outputs.skip }}
+      branch:          ${{ steps.branch-check.outputs.branch }}
     steps:
       - uses: actions/checkout@v6
         # No `ref:` — use whatever ref triggered the workflow. During
@@ -66,38 +75,76 @@ jobs:
             echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
           fi
 
-  # Build the tt-xla docker image and wheel once per uplift run. The
-  # wheel is reused across every orchestrator iteration via the
-  # `artifact_release_run_id` input — transformers is a runtime dep, not
-  # a build-time one, so one build covers the whole uplift attempt.
-  build-image:
+  # Create the WIP branch with the version bump + state files committed,
+  # then trigger workflow-transformers-uplift.yml at that ref. Iteration 1
+  # is the only iteration this workflow ever dispatches — iterations 2+ are
+  # self-dispatched by the iteration workflow's `decide` job, also at the
+  # WIP branch ref.
+  bump-and-dispatch:
     needs: detect
     if: ${{ needs.detect.outputs.has_update == 'true' && needs.detect.outputs.skip == 'false' }}
-    uses: ./.github/workflows/call-build-docker.yml
-    secrets: inherit
-    with:
-      dockbuild: all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
 
-  build-ttxla:
-    needs: build-image
-    name: "Build tt-xla"
-    uses: ./.github/workflows/call-build.yml
-    secrets: inherit
-    with:
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: release
+      - name: Bump pin + push WIP branch
+        env:
+          BRANCH: ${{ needs.detect.outputs.branch }}
+          NEW:    ${{ needs.detect.outputs.new_version }}
+          CUR:    ${{ needs.detect.outputs.current_version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-  run-uplift:
-    needs: [detect, build-image, build-ttxla]
-    if: ${{ needs.detect.outputs.has_update == 'true' && needs.detect.outputs.skip == 'false' }}
-    uses: ./.github/workflows/workflow-transformers-uplift.yml
-    with:
-      iteration: 1
-      branch: ${{ needs.detect.outputs.branch }}
-      target_version: ${{ needs.detect.outputs.new_version }}
-      current_version: ${{ needs.detect.outputs.current_version }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-    secrets: inherit
+          git checkout -b "$BRANCH"
+          bash .github/scripts/uplift/transformers/bump-transformers.sh "$NEW"
+
+          mkdir -p "$(dirname "$STATE_FILE")"
+          cat > "$STATE_FILE" <<EOF
+          {
+            "target_version":  "$NEW",
+            "current_version": "$CUR",
+            "started_at":      "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+          # First iteration runs the FULL base-coverage list.
+          cp "$BASE_COVERAGE_FULL_FILE" "$LAST_FAILED_FILE"
+
+          git add "$STATE_FILE" "$LAST_FAILED_FILE" venv/requirements-dev.txt
+          git commit -m "transformers uplift: bump pin ${CUR} -> ${NEW}"
+          git push origin "$BRANCH"
+
+      - name: Dispatch iteration 1 at WIP branch ref
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          BRANCH:   ${{ needs.detect.outputs.branch }}
+          NEW:      ${{ needs.detect.outputs.new_version }}
+          CUR:      ${{ needs.detect.outputs.current_version }}
+        run: |
+
+          WORKFLOW_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows?per_page=100" \
+            --jq '.workflows[] | select(.path == ".github/workflows/workflow-transformers-uplift.yml") | .id')
+          if [[ -z "$WORKFLOW_ID" ]]; then
+            echo "::warning::workflow not found on first page — dumping all registered workflow paths for diagnosis:" >&2
+            gh api "repos/${{ github.repository }}/actions/workflows?per_page=100" \
+              --jq '.total_count as $n | "(total=\($n))", (.workflows[].path)' >&2
+            echo "::error::workflow-transformers-uplift.yml is not registered — push it on any branch first to register it" >&2
+            exit 1
+          fi
+
+          # Use `-f` (raw-field) instead of `-F` (typed) so numeric-looking
+          # values like iteration="1" aren't coerced to JSON numbers — the
+          # workflow_dispatch input is declared `type: string` and the API
+          # rejects mismatched JSON types with HTTP 422.
+          gh api -X POST \
+            "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/dispatches" \
+            -f ref="$BRANCH" \
+            -f "inputs[iteration]=1" \
+            -f "inputs[branch]=$BRANCH" \
+            -f "inputs[target_version]=$NEW" \
+            -f "inputs[current_version]=$CUR"
