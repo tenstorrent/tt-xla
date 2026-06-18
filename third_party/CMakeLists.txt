@@ -5,7 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-    set(TT_MLIR_VERSION "464a5f341908d5a3f790e697be5ffa6fd3fb6f32")
+    set(TT_MLIR_VERSION "kdimic/kv-cache-dtype-read-path")
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
