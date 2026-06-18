@@ -98,6 +98,19 @@ moduleHasAnyFuncArguments(const mlir::OwningOpRef<mlir::ModuleOp> &m) {
   return public_func_ops[0].getNumArguments() > 0;
 }
 
+// Returns true if any sharding genuinely partitions a tensor across devices
+// (`MeshShardType::Devices`). Replicate / presharded-replicate shardings do not
+// count, since they do not require a multi-device mesh.
+static bool anyShardedAcrossDevices(
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &shardings) {
+  return std::any_of(
+      shardings.begin(), shardings.end(),
+      [](const mlir::tt::sharding_utils::MeshSharding &sharding) {
+        return sharding.getShardType() ==
+               mlir::tt::ttcore::MeshShardType::Devices;
+      });
+}
+
 // Maps per-axis fabric config to TTNN mesh topology for CCL operations.
 static std::vector<mlir::tt::ttcore::Topology>
 fabricConfigToMeshTopology(const tt::runtime::MeshFabricConfig &fabricConfig) {
@@ -350,8 +363,9 @@ ModuleBuilder::buildModule(
                   : std::nullopt;
 
   status = runCompilerStableHLOPipeline(
-      mlir_module, result_presharded, compile_options.export_path,
-      compile_options.export_model_name, current_mesh_shape);
+      mlir_module, result_presharded, output_shardings,
+      compile_options.export_path, compile_options.export_model_name,
+      current_mesh_shape);
   if (!tt_pjrt_status_is_ok(status)) {
     return {status, nullptr};
   }
@@ -726,6 +740,7 @@ std::vector<int64_t> ModuleBuilder::collectResultPresharded(
 tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
     const std::vector<int64_t> &result_presharded,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
     const std::optional<std::string> &export_path,
     const std::string &model_name,
     const std::optional<std::vector<uint32_t>> &current_mesh_shape) {
@@ -734,7 +749,9 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2) {
+  if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
+      (moduleHasAnyFuncArguments(mlir_module) ||
+       anyShardedAcrossDevices(output_shardings))) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};

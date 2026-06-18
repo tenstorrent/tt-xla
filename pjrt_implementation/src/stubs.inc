@@ -130,7 +130,6 @@
   _STUB(PJRT_Client_CreateAliasBuffer);
   _STUB(PJRT_Client_FulfillAliasBuffer);
   _STUB(PJRT_Client_CreateErrorBuffer);
-  _STUB(PJRT_Client_CreateUninitializedBuffer);
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
