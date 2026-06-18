@@ -30,6 +30,25 @@ test_config:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
 
+  gemma4/pytorch-12B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
+  gemma4/pytorch-12B-image-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.96 # measured pcc=0.9675; floor set below to absorb run-to-run noise. image+text multimodal path runs end-to-end but the vision tower and KV are replicated (out of the shard map), leaving an accuracy gap. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5277
+
+  gemma4/pytorch-12B-audio-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.92 # measured pcc=0.9249; floor set below to absorb run-to-run noise. audio+text multimodal path runs end-to-end but the audio tower and KV are replicated (out of the shard map), leaving an accuracy gap. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5277
+
+  gemma4/pytorch-12B-video-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+    required_pcc: 0.92 # measured pcc=0.9249 (num_frames=4); floor set below to absorb run-to-run noise. video+text multimodal path runs end-to-end but the vision tower and KV are replicated (out of the shard map), leaving an accuracy gap. Restore 0.99 per https://github.com/tenstorrent/tt-xla/issues/5277
+
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, galaxy-wh-6u, lb-blackhole]
     status: EXPECTED_PASSING
