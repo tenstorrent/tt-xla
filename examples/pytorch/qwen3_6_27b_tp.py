@@ -225,7 +225,11 @@ def qwen3_6_27b_tp():
     log(f"Loading model weights (bfloat16, low_cpu_mem_usage=True, 8 layers)...")
     t0 = time.time()
     config = AutoConfig.from_pretrained(model_id)
-    # config.num_hidden_layers = 4
+    # num_layers = 4
+    # text_cfg = config.text_config if hasattr(config, "text_config") else config
+    # text_cfg.num_hidden_layers = num_layers
+    # if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
+    #     text_cfg.layer_types = text_cfg.layer_types[:num_layers]
     model = AutoModelForCausalLM.from_pretrained(
         model_id, config=config, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
     )

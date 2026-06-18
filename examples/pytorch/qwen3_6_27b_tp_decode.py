@@ -200,7 +200,7 @@ def qwen3_6_27b_tp_decode():
     # --- Configuration ---
     model_id = "Qwen/Qwen3.6-27B"
     max_cache_len = 256
-    max_new_tokens = 50
+    max_new_tokens = 3
     batch_size = 1
 
     # --- Load model and tokenizer ---
@@ -212,12 +212,18 @@ def qwen3_6_27b_tp_decode():
     log(f"Loading model weights (bfloat16)...")
     t0 = time.time()
     config = AutoConfig.from_pretrained(model_id)
-    config.num_hidden_layers = 4
+    # Limiting the number of layers to 4
+    # num_layers = 4
+    # text_cfg = config.text_config if hasattr(config, "text_config") else config
+    # text_cfg.num_hidden_layers = num_layers
+    # if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
+    #     text_cfg.layer_types = text_cfg.layer_types[:num_layers]
     model = AutoModelForCausalLM.from_pretrained(
         model_id, config=config, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
     )
     model.eval()
     log(f"Model loaded in {time.time() - t0:.1f}s")
+    log(f"Model layers: {len(model.model.layers)}, params: {sum(p.numel() for p in model.parameters()) / 1e9:.1f}B")
 
     apply_graph_break_patches(model)
 
@@ -360,7 +366,7 @@ def qwen3_6_27b_tp_decode():
 
             # --- Update inputs for next decode step (fixed shapes) ---
             # Input is just the new token: shape [batch, 1]
-            input_args["input_ids"] = next_token_id.unsqueeze(0).unsqueeze(0).to(device)
+            input_args["input_ids"] = next_token_id.view(1, 1).to(device)
 
             # Advance cache_position by 1: shape [1]
             new_cache_pos = torch.tensor([prompt_len + step], dtype=torch.long)
