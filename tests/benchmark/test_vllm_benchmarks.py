@@ -37,6 +37,10 @@ _BENCH_WEIGHT_OVERRIDES = os.environ.get("TT_BENCHMARK_WEIGHT_OVERRIDES")
 _BENCH_GMU = os.environ.get("TT_BENCHMARK_GMU")
 _BENCH_BATCH_SIZE = os.environ.get("TT_BENCHMARK_BATCH_SIZE")
 _BENCH_TRACE = os.environ.get("TT_BENCHMARK_TRACE")
+# Opt-in chunked prefill (tt-xla #4986): caps per-step prefill budget so
+# compile time + peak prefill DRAM are bounded by the chunk size, not
+# max_model_len. 0 / unset = disabled (unchanged behavior).
+_BENCH_PREFILL_CHUNK_SIZE = os.environ.get("TT_BENCHMARK_PREFILL_CHUNK_SIZE")
 
 
 def _config(
@@ -77,6 +81,8 @@ def _config(
         additional["weight_dtype_overrides"] = _BENCH_WEIGHT_OVERRIDES
     if _BENCH_TRACE is not None:
         additional["enable_trace"] = _BENCH_TRACE == "1"
+    if _BENCH_PREFILL_CHUNK_SIZE is not None:
+        additional["prefill_chunk_size"] = int(_BENCH_PREFILL_CHUNK_SIZE)
     return VLLMBenchmarkConfig(
         model=model,
         batch_size=batch_size,
