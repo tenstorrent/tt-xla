@@ -9,7 +9,20 @@ import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 
+from tests.infra.testers.compiler_config import CompilerConfig
+
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
+
+
+# Single-chip fit attempt: bf16 weights (~23.8 GB) plus intermediate activations
+# marginally overflow Blackhole DRAM during execution. Convert matmul/linear
+# weights to block-float8 (bfp_bf8) to roughly halve weight residency (~12 GB),
+# leaving headroom for the ~4.8 GB activation buffer. opt-level 0 keeps the
+# compile fast.
+_COMPILER_CONFIG = CompilerConfig(
+    optimization_level=0,
+    experimental_weight_dtype="bfp_bf8",
+)
 
 
 @pytest.mark.skip(
@@ -37,4 +50,5 @@ def test_transformer():
         model,
         inputs,
         framework=Framework.TORCH,
+        compiler_config=_COMPILER_CONFIG,
     )
