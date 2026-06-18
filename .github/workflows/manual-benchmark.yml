@@ -21,6 +21,7 @@ on:
           - p150-perf
           - n300-llmbox
           - galaxy-wh-6u
+          - galaxy-bh
           - qb2-blackhole
           - galaxy-bh
         default: n150-perf
