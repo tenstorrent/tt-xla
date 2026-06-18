@@ -137,6 +137,7 @@ def _gemma4_tp_config(model: str, batch_size: int):
         experimental_weight_dtype="",
         cpu_sampling=False,
         flat_model_io=True,
+        shard_weights_on_batch_axis=True,
     )
     cfg.limit_mm_per_prompt = {"image": 0, "video": 0, "audio": 0}
     cfg.min_num_batched_tokens = 2560
@@ -207,7 +208,10 @@ TP_CONFIGS = [
         _tp_config("Qwen/Qwen3-14B", 32, mesh_shape=[2, 4]), id="qwen3-14b-tp"
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen3-32B", 32, mesh_shape=[2, 4]), id="qwen3-32b-tp"
+        _tp_config(
+            "Qwen/Qwen3-32B", 32, mesh_shape=[2, 4], shard_weights_on_batch_axis=True
+        ),
+        id="qwen3-32b-tp",
     ),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
     pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-qb2-tp"),
@@ -216,7 +220,12 @@ TP_CONFIGS = [
         id="qwen2.5-14b-instruct-tp",
     ),
     pytest.param(
-        _tp_config("Qwen/Qwen2.5-Coder-32B-Instruct", 32, mesh_shape=[2, 4]),
+        _tp_config(
+            "Qwen/Qwen2.5-Coder-32B-Instruct",
+            32,
+            mesh_shape=[2, 4],
+            shard_weights_on_batch_axis=True,
+        ),
         id="qwen2.5-coder-32b-instruct-tp",
     ),
     pytest.param(
@@ -243,6 +252,7 @@ TP_CONFIGS = [
             mesh_shape=[2, 4],
             enable_const_eval=True,
             experimental_weight_dtype="bfp_bf8",
+            shard_weights_on_batch_axis=True,
         ),
         id="llama-3.1-70b-tp",
     ),
