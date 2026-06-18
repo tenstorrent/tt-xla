@@ -109,21 +109,24 @@ def pytest_addoption(parser):
         ),
     )
 
-    # --perf-report-dir / --perf-id are also defined in the top-level tests/conftest.py.
-    # Benchmark perf jobs run with --confcutdir=tests/benchmark so that the top-level
-    # conftest is NOT loaded (it would pull in device-connector init and CIv2 cache
-    # cleanup that the benchmark suite intentionally avoids). Register them here too so
-    # the options still exist under confcutdir. The try/except covers the local case of
-    # collecting the whole tests/ tree, where both conftests load.
-    for _name, _help in [
-        (
-            "--perf-report-dir",
-            "Output directory for perf benchmark reports (one JSON per test).",
-        ),
-        ("--perf-id", "Perf ID used in per-test report filenames."),
-    ]:
+    # These options are defined in the top-level tests/conftest.py, but benchmark perf
+    # jobs run with --confcutdir=tests/benchmark so that conftest is NOT loaded (it would
+    # pull in device-connector init and CIv2 cache cleanup the benchmark suite avoids).
+    # The shared call-test.yml pipeline injects them into every pytest invocation
+    # (--log-memory always; --perf-report-dir/--perf-id on the run; --dump-irs when
+    # enabled), so register them here too or pytest rejects them under confcutdir.
+    # --log-memory / --dump-irs are accepted as no-ops here (their fixtures live in
+    # tests/conftest.py); --perf-report-dir/--perf-id drive the per-test report path.
+    # The try/except covers the local whole-tree run where both conftests load.
+    _pipeline_options = [
+        ("--log-memory", dict(action="store_true", default=False)),
+        ("--dump-irs", dict(action="store_true", default=False)),
+        ("--perf-report-dir", dict(action="store", default=None)),
+        ("--perf-id", dict(action="store", default=None)),
+    ]
+    for _name, _kwargs in _pipeline_options:
         try:
-            parser.addoption(_name, action="store", default=None, help=_help)
+            parser.addoption(_name, help="Accepted for call-test.yml compatibility.", **_kwargs)
         except ValueError:
             # Already registered by tests/conftest.py (whole-tree local run).
             pass
