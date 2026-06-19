@@ -9,7 +9,7 @@ from vllm.model_executor.layers.mamba.gdn_linear_attn import GatedDeltaNetAttent
 from vllm.model_executor.layers.rotary_embedding.base import RotaryEmbedding
 from vllm.model_executor.layers.rotary_embedding.mrope import MRotaryEmbedding
 
-from .layers.gdn_linear_attn import override_gdn_linear_attn_module
+from .layers.gdn.attention import override_gdn_linear_attn_module
 from .layers.mm_embeddings import install_static_shape_merge_multimodal_embeddings
 from .layers.mrope import override_mrope_module
 from .layers.multimodal_attention import override_vision_attention

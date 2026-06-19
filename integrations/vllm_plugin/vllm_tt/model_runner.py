@@ -879,6 +879,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_prefill_tokens = int(
                 np.sum(num_scheduled_tokens_per_req[num_scheduled_tokens_per_req > 1])
             )
+        # A request carries an initial recurrent/conv state when it has already
+        # had tokens processed (chunked-prefill continuation). Fresh prefills
+        # start from zero state. (Only consumed by the prefill path; decode reads
+        # ssm_state in place.)
+        if force_gdn_prefill:
+            has_initial_state = torch.zeros(
+                num_reqs, dtype=torch.bool, device=query_start_loc.device
+            )
+        else:
+            computed = np.asarray(self.input_batch.num_computed_tokens_cpu[:num_reqs])
+            has_initial_state = torch.from_numpy(computed > 0).to(
+                query_start_loc.device
+            )
         gdn_attn_metadata = GDNAttentionMetadata(
             num_prefills=num_prefills,
             num_prefill_tokens=num_prefill_tokens,
@@ -887,6 +900,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_spec_decodes=0,
             num_spec_decode_tokens=0,
             num_actual_tokens=total_num_scheduled_tokens,
+            has_initial_state=has_initial_state,
             non_spec_query_start_loc=query_start_loc,
             non_spec_state_indices_tensor=tt_attn_metadata.page_table[:num_reqs, 0],
         )
@@ -2231,6 +2245,63 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     )
                     # Apply sharding constraints to the model weights.
                     shard_model(model, self.mesh, shard_on_batch_axis)
+
+                import os as _os
+
+                if _os.environ.get("TT_DUMP_SHARDING"):
+
+                    num_dev = self.mesh.size()
+                    rows = []
+                    by_spec = {}
+                    total_global = 0
+                    total_resident = 0
+                    for name, p in model.named_parameters():
+                        nb = p.numel() * p.element_size()
+                        try:
+                            spec = torch_xla._XLAC._get_xla_sharding_spec(p)
+                        except Exception as e:
+                            spec = f"<err {e}>"
+                        # effective shard factor: parse devices=[...]; replicated => 1
+                        factor = 1
+                        if "devices=[" in spec:
+                            dims = spec.split("devices=[")[1].split("]")[0]
+                            tile = 1
+                            for d in dims.split(","):
+                                tile *= int(d)
+                            if "last_tile_dim_replicate" in spec:
+                                # last tile dim is replication, not sharding
+                                last = int(dims.split(",")[-1])
+                                factor = tile // last
+                            else:
+                                factor = tile
+                        resident = nb / factor
+                        total_global += nb
+                        total_resident += resident
+                        by_spec.setdefault(spec, [0, 0])
+                        by_spec[spec][0] += nb
+                        by_spec[spec][1] += resident
+                        rows.append((nb, name, tuple(p.shape), factor, spec))
+                    print("\n===== SHARDING DUMP (num_devices=%d) =====" % num_dev)
+                    print("--- top 30 params by global size ---")
+                    for nb, name, shp, factor, spec in sorted(rows, reverse=True)[:30]:
+                        print(
+                            "  %8.1f MB  /%d  %-55s %s  %s"
+                            % (nb / 1e6, factor, name, shp, spec)
+                        )
+                    print("--- grouped by sharding spec ---")
+                    for spec, (g, r) in sorted(
+                        by_spec.items(), key=lambda kv: -kv[1][0]
+                    ):
+                        print(
+                            "  global %8.1f MB -> resident/dev %8.1f MB   %s"
+                            % (g / 1e6, r / 1e6, spec)
+                        )
+                    print(
+                        "TOTAL global=%.2f GB  resident/dev=%.2f GB (params only)"
+                        % (total_global / 1e9, total_resident / 1e9)
+                    )
+                    if _os.environ.get("TT_DUMP_SHARDING") == "exit":
+                        raise SystemExit("TT_DUMP_SHARDING done")
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "
@@ -3496,8 +3567,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                         kv_cache_spec.shapes, kv_cache_spec.dtypes
                     ):
                         target_shape = (num_blocks, *state_shape)
-                        tensor = torch.zeros(
-                            target_shape, dtype=state_dtype, device=self.device
+                        tensor = torch.zeros(target_shape, dtype=state_dtype).to(
+                            self.device
                         )
                         state_tensors.append(tensor)
                     kv_caches[layer_name] = state_tensors
