@@ -50,6 +50,12 @@ class TTConfig:
     enable_const_eval_on_cpu: bool = True
 
     min_context_len: int = 128
+
+    # Minimum request-batch size to preallocate and precompile for. This is
+    # used as the lower bound for request-count shape warmup.
+    # If unset, it resolves to scheduler_config.max_num_seqs.
+    min_num_seqs: Optional[int] = None
+
     batch_size: int = 1
     enable_precompile_all: bool = True
 
@@ -267,11 +273,23 @@ class TTPlatform(Platform):
     def check_and_update_config(cls, vllm_config: VllmConfig) -> None:
         from vllm.config import CompilationMode, CUDAGraphMode
 
-        additional_config = vllm_config.additional_config or {}
+        if vllm_config.additional_config is None:
+            vllm_config.additional_config = {}
+        additional_config = vllm_config.additional_config
+        tt_config = TTConfig(**additional_config)
         if "batch_size" in additional_config:
             logger.warning(
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
+            )
+        if tt_config.min_num_seqs is None:
+            additional_config["min_num_seqs"] = (
+                vllm_config.scheduler_config.max_num_seqs
+            )
+            tt_config.min_num_seqs = additional_config["min_num_seqs"]
+        elif tt_config.min_num_seqs < 1:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
             )
 
         # Stash cpu_sampling so validate_request() can read it without

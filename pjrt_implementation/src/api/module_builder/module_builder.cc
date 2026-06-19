@@ -380,8 +380,8 @@ ModuleBuilder::buildModule(
   }
 
   std::string optimized_mlir_code = getMlirCode(sanitized_module);
-  printModule(sanitized_module, compile_options.export_path,
-              "shlo_compiler_cleaned");
+  // printModule(sanitized_module, compile_options.export_path,
+  //             "shlo_compiler_cleaned");
 
   // Output shardings collected before the SHLO compiler pipeline are Replicate
   // for Shardy inputs (the output sharding is only derived during propagation).
@@ -471,7 +471,7 @@ ModuleBuilder::createVHLOModule(const std::string_view &mlir_code,
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(vhlo_module, export_path, "vhlo", model_name);
+  // printModule(vhlo_module, export_path, "vhlo", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -504,7 +504,7 @@ tt_pjrt_status ModuleBuilder::runFrontendSHLOPipeline(
   tt_pjrt_status status =
       frontend_passes::annotateArgumentAttributes(mlir_module);
 
-  printModule(mlir_module, export_path, "shlo_frontend", model_name);
+  // printModule(mlir_module, export_path, "shlo_frontend", model_name);
 
   return status;
 }
@@ -775,7 +775,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(mlir_module, export_path, "shlo_compiler", model_name);
+  // printModule(mlir_module, export_path, "shlo_compiler", model_name);
 
   if (!tt_pjrt_status_is_ok(
           frontend_passes::setProperSdyMeshAttributeInSpmdMode(
@@ -784,7 +784,7 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
     return tt_pjrt_status::kInternal;
   }
 
-  printModule(mlir_module, export_path, "shlo_set_mesh_attr", model_name);
+  // printModule(mlir_module, export_path, "shlo_set_mesh_attr", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -812,7 +812,7 @@ tt_pjrt_status ModuleBuilder::convertFromSHLOToTTIR(
 
   ttir_mlir = getMlirCode(mlir_module);
 
-  printModule(mlir_module, export_path, "ttir", model_name);
+  // printModule(mlir_module, export_path, "ttir", model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -1059,8 +1059,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
 
   ttnn_mlir = getMlirCode(mlir_module);
 
-  printModule(mlir_module, compile_options.export_path, "ttnn",
-              compile_options.export_model_name);
+  // printModule(mlir_module, compile_options.export_path, "ttnn",
+  //             compile_options.export_model_name);
 
   return tt_pjrt_status::kSuccess;
 }
@@ -1255,8 +1255,8 @@ ModuleBuilder::buildModuleForTTNNRuntime(
     return {tt_pjrt_status::kInternal, nullptr};
   }
 
-  printModule(mlir_module, compile_options.export_path, "ttnn_runtime",
-              compile_options.export_model_name);
+  // printModule(mlir_module, compile_options.export_path, "ttnn_runtime",
+  //             compile_options.export_model_name);
 
   tt::runtime::Binary flatbuffer(nullptr);
   tt_pjrt_status status = createFlatbufferBinary(mlir_module, input_shardings,

@@ -156,8 +156,6 @@ if TYPE_CHECKING:
 logger = tt_init_logger(__name__)
 
 INVALID_TOKEN_ID = -1
-# Smallest output size
-MIN_NUM_SEQS = 1
 
 
 def generate_attn_mask(
@@ -317,9 +315,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             if self.most_model_len is not None
             else None
         )
-        # InputBatch needs to work with sampling tensors greater than padding
-        # to avoid dynamic shapes. Also, avoid suboptimal alignment.
-        self.max_num_reqs = max(scheduler_config.max_num_seqs, MIN_NUM_SEQS)
+        self.max_num_reqs = scheduler_config.max_num_seqs
+        resolved_min_num_seqs = self.tt_config.min_num_seqs
+        if resolved_min_num_seqs is None:
+            resolved_min_num_seqs = self.max_num_reqs
+        self.min_num_seqs = resolved_min_num_seqs
         if scheduler_config.max_num_batched_tokens < self.tt_config.min_context_len:
             logger.warning(
                 f"max_num_batched_tokens {scheduler_config.max_num_batched_tokens} is less than min_context_len {self.tt_config.min_context_len}, setting min_context_len to max_num_batched_tokens"
@@ -458,31 +458,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             return torch.zeros(shape, dtype=dtype, device="cpu").to(self.device)
 
         self._input_ids_dev = {
-            n: _alloc_dev((self.max_num_reqs, n), torch.int32)
-            for n in self.num_tokens_paddings
+            (num_reqs, num_tokens): _alloc_dev((num_reqs, num_tokens), torch.int32)
+            for num_reqs in {self.min_num_seqs, self.max_num_reqs}
+            for num_tokens in self.num_tokens_paddings
         }
         self._position_ids_dev = {
-            n: _alloc_dev(
+            (num_reqs, num_tokens): _alloc_dev(
                 (
-                    (3, self.max_num_reqs, n)
+                    (3, num_reqs, num_tokens)
                     if self.uses_mrope
-                    else (self.max_num_reqs, n)
+                    else (num_reqs, num_tokens)
                 ),
                 torch.int32,
             )
-            for n in self.num_tokens_paddings
+            for num_reqs in {self.min_num_seqs, self.max_num_reqs}
+            for num_tokens in self.num_tokens_paddings
         }
-        self._logits_indices_dev = _alloc_dev((self.max_num_reqs,), torch.int32)
+        self._logits_indices_dev = {
+            num_reqs: _alloc_dev((num_reqs,), torch.int32)
+            for num_reqs in {self.min_num_seqs, self.max_num_reqs}
+        }
         self._page_table_dev_max = _alloc_dev(
             (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
+            self.block_table_cpu.dtype,
+        )
+        self._page_table_dev_min = _alloc_dev(
+            (self.min_num_seqs, self.max_num_blocks_per_req),
             self.block_table_cpu.dtype,
         )
         self._fill_page_table_dev_max = _alloc_dev(
             (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
             self.block_table_cpu.dtype,
         )
+        self._fill_page_table_dev_min = _alloc_dev(
+            (self.min_num_seqs, self.max_num_blocks_per_req),
+            self.block_table_cpu.dtype,
+        )
         self._cache_position_dev_max = _alloc_dev(
             (self.num_reqs_max_model_len,), self.seq_lens_cpu.dtype
+        )
+        self._cache_position_dev_min = _alloc_dev(
+            (self.min_num_seqs,), self.seq_lens_cpu.dtype
         )
         if self.most_model_len is not None:
             assert self.num_reqs_most_model_len is not None
@@ -1012,6 +1028,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         assert max_num_scheduled_tokens_all_reqs > 0
 
         num_reqs = len(num_scheduled_tokens_per_req)
+        actual_num_reqs = num_reqs
+
+        # Decode always runs with max request shape. For prefill, keep runtime
+        # request shape aligned with warmup by selecting min or max bucket.
+        is_decode_step = max_num_scheduled_tokens_all_reqs == 1
+        if is_decode_step:
+            target_num_reqs = self.max_num_reqs
+        else:
+            target_num_reqs = (
+                self.min_num_seqs
+                if actual_num_reqs <= self.min_num_seqs
+                else self.max_num_reqs
+            )
+
+        # Respect backend row limits for the selected KV path.
+        if use_max_model_len:
+            assert self.num_reqs_max_model_len is not None
+            target_num_reqs = min(target_num_reqs, self.num_reqs_max_model_len)
+        else:
+            assert self.num_reqs_most_model_len is not None
+            target_num_reqs = min(target_num_reqs, self.num_reqs_most_model_len)
 
         # Compute the padded total number of scheduled tokens so that all requests
         # in the batch share a common, hardware-compatible sequence length.
@@ -1020,8 +1057,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
 
         # Allocate a zero-initialized position tensor. For MRoPE models, keep
-        # three identical position planes [3, max_num_reqs, padded_tokens] to
-        # match the runtime input convention; otherwise use [max_num_reqs,
+        # three identical position planes [3, target_num_reqs, padded_tokens] to
+        # match the runtime input convention; otherwise use [target_num_reqs,
         # padded_tokens]. Entries beyond the actual number of scheduled tokens
         # per request remain zero (padding).
         # NOTE: When M-RoPE is enabled, position ids are 3D regardless of the
@@ -1030,9 +1067,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # See page 5 of https://arxiv.org/abs/2409.12191
 
         arange_shape = (
-            (3, self.max_num_reqs, padded_total_num_scheduled_tokens)
+            (3, target_num_reqs, padded_total_num_scheduled_tokens)
             if self.uses_mrope
-            else (self.max_num_reqs, padded_total_num_scheduled_tokens)
+            else (target_num_reqs, padded_total_num_scheduled_tokens)
         )
         arange = torch.zeros(arange_shape, dtype=torch.int32)
 
@@ -1067,10 +1104,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 arange[i, :n] = positions
 
         # Allocate a zero-padded input_ids tensor of shape
-        # [max_num_reqs, padded_total_num_scheduled_tokens].
+        # [target_num_reqs, padded_total_num_scheduled_tokens].
         # Only the first n tokens per request are populated; the rest are padding.
         input_ids_cpu = torch.zeros(
-            (self.max_num_reqs, padded_total_num_scheduled_tokens),
+            (target_num_reqs, padded_total_num_scheduled_tokens),
             dtype=torch.int32,
             device="cpu",
         )
@@ -1086,14 +1123,16 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Move input_ids and position_ids to the target device for execution.
         # Reuse persistent device buffers and update in place via copy_ to
         # avoid issuing a fresh H2D transfer (and on-device alloc) per step.
-        # 'padded_total_num_scheduled_tokens' is used as the key into the
-        # preallocated buffer dictionaries (self._input_ids_dev and
-        # self._position_ids_dev) to select the buffer whose second dimension
-        # matches this step's padded token width.
-        input_ids_dev = self._input_ids_dev[padded_total_num_scheduled_tokens]
+        # The tuple key captures both runtime dimensions so the cached buffer
+        # matches this batch exactly instead of slicing a larger one.
+        input_ids_dev = self._input_ids_dev[
+            (target_num_reqs, padded_total_num_scheduled_tokens)
+        ]
         input_ids_dev.copy_(input_ids_cpu)
         self.input_ids = input_ids_dev
-        position_ids_dev = self._position_ids_dev[padded_total_num_scheduled_tokens]
+        position_ids_dev = self._position_ids_dev[
+            (target_num_reqs, padded_total_num_scheduled_tokens)
+        ]
         position_ids_dev.copy_(arange)
         self.position_ids = position_ids_dev
 
@@ -1112,26 +1151,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         if use_max_model_len:
             assert self.num_reqs_max_model_len is not None
             page_table = self.block_table_cpu[
-                : self.num_reqs_max_model_len, : self.max_num_blocks_per_req
+                :target_num_reqs, : self.max_num_blocks_per_req
             ]
-            page_table[:num_reqs, : self.max_num_blocks_per_req] = (
-                self.input_batch.block_table[0].get_cpu_tensor()[:num_reqs]
+            page_table[:actual_num_reqs, : self.max_num_blocks_per_req] = (
+                self.input_batch.block_table[0].get_cpu_tensor()[:actual_num_reqs]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_max_model_len]
         else:
+            assert self.num_reqs_most_model_len is not None
             page_table = self.block_table_cpu[
-                : self.num_reqs_most_model_len, : self.num_blocks_per_most_len_req
+                :target_num_reqs, : self.num_blocks_per_most_len_req
             ]
-            page_table[:num_reqs, : self.num_blocks_per_most_len_req] = (
+            page_table[:actual_num_reqs, : self.num_blocks_per_most_len_req] = (
                 self.input_batch.block_table[0].get_cpu_tensor()[
-                    :num_reqs, : self.num_blocks_per_most_len_req
+                    :actual_num_reqs, : self.num_blocks_per_most_len_req
                 ]
             )
             seq_lens = self.seq_lens_cpu[: self.num_reqs_most_model_len]
 
         cache_position = seq_lens - 1
+        cache_position = cache_position[:target_num_reqs]
 
-        if num_reqs == 1:
+        if actual_num_reqs == 1:
             cache_position[1:] = -1
             page_table[1:, :] = 0
 
@@ -1141,13 +1182,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # different prefix length, so we roll per-row. Done outside the
         # compiled graph to avoid shape-change recompilation.
         offsets = (
-            self.input_batch.num_computed_tokens_cpu[:num_reqs] // self.block_size
-            if num_reqs > 0
+            self.input_batch.num_computed_tokens_cpu[:actual_num_reqs]
+            // self.block_size
+            if actual_num_reqs > 0
             else np.array([], dtype=np.int64)
         )
         if np.any(offsets > 0):
             fill_page_table = page_table.clone()
-            for i in range(num_reqs):
+            for i in range(actual_num_reqs):
                 if offsets[i] > 0:
                     fill_page_table[i] = torch.roll(
                         page_table[i], shifts=-int(offsets[i])
@@ -1156,9 +1198,21 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             fill_page_table = page_table
 
         if use_max_model_len:
-            cache_position_dev = self._cache_position_dev_max
-            page_table_dev = self._page_table_dev_max
-            fill_page_table_dev_buf = self._fill_page_table_dev_max
+            cache_position_dev = (
+                self._cache_position_dev_min
+                if target_num_reqs == self.min_num_seqs
+                else self._cache_position_dev_max
+            )
+            page_table_dev = (
+                self._page_table_dev_min
+                if target_num_reqs == self.min_num_seqs
+                else self._page_table_dev_max
+            )
+            fill_page_table_dev_buf = (
+                self._fill_page_table_dev_min
+                if target_num_reqs == self.min_num_seqs
+                else self._fill_page_table_dev_max
+            )
         else:
             cache_position_dev = self._cache_position_dev_most
             page_table_dev = self._page_table_dev_most
@@ -1166,10 +1220,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         # Clear unused rows so persistent device buffers don't keep stale
         # block indices from a previous call (would surface as KV bleed).
-        cache_position[num_reqs:] = -1
-        page_table[num_reqs:, :] = 0
+        cache_position[actual_num_reqs:] = -1
+        page_table[actual_num_reqs:, :] = 0
         if fill_page_table is not page_table:
-            fill_page_table[num_reqs:, :] = 0
+            fill_page_table[actual_num_reqs:, :] = 0
 
         cache_position_dev.copy_(cache_position)
         page_table_dev.copy_(page_table)
@@ -1206,12 +1260,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # partial request, we do so for simplicity. We will ignore the sampled
         # token from the partial request.
         # Per-user last-token index within each padded slot.
-        logits_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32)
-        logits_indices[: len(num_scheduled_tokens_per_req)] = (
+        logits_indices = torch.zeros(target_num_reqs, dtype=torch.int32)
+        logits_indices[:actual_num_reqs] = (
             torch.from_numpy(num_scheduled_tokens_per_req) - 1
         )
-        self._logits_indices_dev.copy_(logits_indices)
-        logits_indices = self._logits_indices_dev
+        logits_indices_dev = self._logits_indices_dev[target_num_reqs]
+        logits_indices_dev.copy_(logits_indices)
+        logits_indices = logits_indices_dev
 
         if self.lora_config is not None:
             # We need to respect padding when activating LoRA adapters
@@ -1230,7 +1285,8 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return (
             per_layer_attn_metadata,
             logits_indices,
-            num_reqs,
+            actual_num_reqs,
+            target_num_reqs,
             end_index,
         )
 
@@ -1518,12 +1574,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 attn_metadata,
                 logits_indices,
                 num_reqs,
+                target_num_reqs,
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
+            input_ids = self.input_ids
+            inputs_embeds = None
+
             self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
+            logger.info(
+                f"input_ids: {input_ids.shape}, position_ids: {self.position_ids.shape}"
+            )
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -1535,7 +1598,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
                 self.input_batch,
-                self.max_num_reqs,
+                target_num_reqs,
                 sampling_device,
                 vocab_size=self.vocab_size,
             )
@@ -1549,7 +1612,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     grammar_bitmask_padded,
                     bitmask_arange,
                 ) = self.prepare_structured_decoding_input(
-                    grammar_output, self.max_num_reqs
+                    grammar_output, target_num_reqs
                 )
             torch_xla.sync(wait=False)
 
@@ -2095,14 +2158,17 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         configs = [
             {
                 "num_tokens": num_tokens,
+                "num_reqs": num_reqs,
                 "all_greedy": all_greedy,
                 "apply_grammar": apply_grammar,
             }
             for (
+                num_reqs,
                 num_tokens,
                 all_greedy,
                 apply_grammar,
             ) in product(
+                [self.min_num_seqs, self.max_num_reqs],
                 num_tokens_paddings,
                 all_greedy_options,
                 apply_grammar_options,
@@ -2111,6 +2177,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         for config in configs:
             logger.info(f"Compiling graph for config={config}")
+            if config["num_tokens"] == 1 and config["num_reqs"] == self.min_num_seqs:
+                logger.info(
+                    f"Skipping decode path with num_tokens=1 and num_reqs={self.min_num_seqs}."
+                )
+                continue
             (
                 dummy_inputs,
                 dummy_positions,
@@ -2164,26 +2235,25 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         Build dummy tensors and metadata for fused-path warmup.
         """
         num_tokens = config["num_tokens"]
+        num_reqs = config["num_reqs"]
         all_greedy = config["all_greedy"]
         apply_grammar = config["apply_grammar"]
         hsize = self.model_config.get_hidden_size()
 
-        dummy_inputs = torch.zeros(
-            (self.max_num_reqs, num_tokens), dtype=torch.int32
-        ).to(self.device)
-        dummy_positions = torch.zeros(
-            (self.max_num_reqs, num_tokens), dtype=torch.int32
-        ).to(self.device)
+        dummy_inputs = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
+            self.device
+        )
+        dummy_positions = torch.zeros((num_reqs, num_tokens), dtype=torch.int32).to(
+            self.device
+        )
         dummy_inputs_embeds = torch.zeros(
-            (self.max_num_reqs, num_tokens, hsize), dtype=self._hidden_states_dtype
+            (num_reqs, num_tokens, hsize), dtype=self._hidden_states_dtype
         ).to(self.device)
         page_table = torch.zeros(
-            (self.num_reqs_max_model_len, self.max_num_blocks_per_req),
+            (num_reqs, self.max_num_blocks_per_req),
             dtype=torch.int32,
         ).to(self.device)
-        cache_position = torch.ones(
-            (self.num_reqs_max_model_len,), dtype=torch.int32
-        ).to(self.device)
+        cache_position = torch.ones((num_reqs,), dtype=torch.int32).to(self.device)
 
         attn_metadata = TTMetadata(
             page_table=page_table,
@@ -2201,14 +2271,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         )
         self._pin_input_shardings(dummy_inputs, dummy_positions, dummy_inputs_embeds)
 
-        dummy_indices = torch.zeros(self.max_num_reqs, dtype=torch.int32).to(
-            self.device
-        )
+        dummy_indices = torch.zeros(num_reqs, dtype=torch.int32).to(self.device)
 
         generate_params_if_all_greedy = not all_greedy
         dummy_sampling_metadata = XLASupportedSamplingMetadata.from_input_batch(
             self.input_batch,
-            self.max_num_reqs,
+            num_reqs,
             self.device,
             generate_params_if_all_greedy,
             vocab_size=self.vocab_size,
@@ -2220,12 +2288,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         dummy_bitmasks = None
         if apply_grammar:
             dummy_require_struct_decoding = self.require_structured_out_cpu[
-                : self.max_num_reqs
+                :num_reqs
             ].to(self.device)
-            dummy_grammar_bitmask = self.grammar_bitmask_cpu[: self.max_num_reqs].to(
-                self.device
-            )
+            dummy_grammar_bitmask = self.grammar_bitmask_cpu[:num_reqs].to(self.device)
             dummy_bitmasks = self.structured_decode_bitmasks.to(self.device)
+        logger.info(
+            f"dummy_inputs: {dummy_inputs.shape}, dummy_positions: {dummy_positions.shape}, "
+        )
 
         return (
             dummy_inputs,
