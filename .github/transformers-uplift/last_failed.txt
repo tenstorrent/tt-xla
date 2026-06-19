@@ -1,1 +1,1 @@
-tests/runner/test_models.py::test_all_models_torch[maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference]
+tests/benchmark/test_llms.py::test_phi2

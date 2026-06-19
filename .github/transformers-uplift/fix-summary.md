@@ -1,7 +1,7 @@
-transformers uplift: model-test-uplifts fixes — no uplift-induced failures
+transformers uplift: model-perf-uplift — no uplift-induced failures
 
 ## Skipped (left for human review)
-- maskformer_swin_b/pytorch-Swin_Base_Coco-single_device-inference: pre-existing on baseline — same node id with identical root cause (`ValueError: Error code: 13` from `_xla_warm_up_cache`, same traceback through `modeling_maskformer.py:1915`) appears in baseline_failures.txt; not uplift-induced.
+- tests/benchmark/test_llms.py::test_phi2 (n150): fails with `RuntimeError: Bad StatusOr access: INTERNAL: Error code: 13` raised inside `torch_xla.sync()` (`_xla_step_marker`), not from benchmark infra. The model loads and `model(**input_args)` traces fine; the error is a backend compile/runtime failure, not a transformers API change. The runner also hit a hugepages infra failure ("Failed to get requested 4 hugepages, only got 2"). The same "Error code: 13" class affects 84 tests on the baseline nightly, so this is a pre-existing backend issue / infra flake, not attributable to a transformers diff. No source-side fix.
 
 ## Stats
 - Failures input: 1
