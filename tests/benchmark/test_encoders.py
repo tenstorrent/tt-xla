@@ -498,6 +498,72 @@ def test_bge_m3(output_file, request):
     )
 
 
+# opt_level kept at 0: qb2-blackhole is a harvested board (11-wide grid); the
+# OpModel at opt_level>=1 assumes a 13-wide grid and aborts. Trace disabled to
+# match the conservative bringup defaults.
+def test_longcat_image_transformer(output_file, request):
+    """LongCat-Image transformer (the headline ~6B MMDiT denoising net).
+
+    meituan-longcat/LongCat-Image is a multi-component text-to-image pipeline; the
+    transformer is the perf-critical net (run once per denoising step). Like the
+    SDXL UNet above, it is a diffusion backbone with a tensor-only forward, so it
+    rides the encoder harness: load_inputs builds the synthetic latents/timestep/
+    text-condition tensors, preprocess maps them to the forward kwargs, and the
+    output processor returns the predicted noise tensor for PCC.
+    """
+    from third_party.tt_forge_models.longcat_image.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = "bfloat16"
+    batch_size = 1
+    # Reporting-only: text-condition (cross-attention) sequence length.
+    input_sequence_length = 512
+
+    # Load model (transformer component only)
+    variant = ModelVariant.TRANSFORMER
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    # The loader returns inputs as a positional list matching the wrapper's
+    # forward(hidden_states, timestep, encoder_hidden_states); map them to kwargs.
+    load_inputs_fn = lambda batch_size: loader.load_inputs(
+        batch_size=batch_size, dtype_override=DTYPE_MAP[data_format]
+    )
+
+    def preprocess_fn(raw_inputs, device):
+        hidden_states, timestep, encoder_hidden_states = raw_inputs
+        return {
+            "hidden_states": hidden_states.to(device),
+            "timestep": timestep.to(device),
+            "encoder_hidden_states": encoder_hidden_states.to(device),
+        }
+
+    # Wrapper forward already returns the predicted-noise tensor.
+    output_processor_fn = lambda out, inputs: out
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="longcat_image_transformer",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=input_sequence_length,
+        loop_count=32,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
+
+
 # Trace disabled: output tensor not on device (https://github.com/tenstorrent/tt-xla/issues/3937)
 def test_unet_for_conditional_generation(output_file, request):
     """Test UNet for Conditional Generation model. This is a core component of the Stable Diffusion XL pipeline (https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)"""

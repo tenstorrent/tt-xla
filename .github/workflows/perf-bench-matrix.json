@@ -226,6 +226,11 @@
         "runs-on": "qb2-blackhole"
       },
       {
+        "name": "longcat_image_transformer_qb2",
+        "pytest": "tests/benchmark/test_encoders.py::test_longcat_image_transformer",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "microsoft_phi-1",
         "pytest": "tests/benchmark/test_llms.py::test_phi1"
       },
