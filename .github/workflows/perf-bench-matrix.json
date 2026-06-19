@@ -343,12 +343,11 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
-        "name": "ring_fabric_all_reduce",
-        "pytest": "tests/benchmark/test_ring_fabric.py::test_ring_fabric_all_reduce",
+        "name": "ring_fabric_open",
+        "pytest": "tests/benchmark/test_ring_fabric.py::test_ring_fabric_open",
         "runs-on": [
           "n300-llmbox",
-          "galaxy-wh-6u",
-          "qb2-blackhole"
+          "galaxy-wh-6u"
         ]
       },
       {
