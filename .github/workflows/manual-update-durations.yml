@@ -1,112 +1,223 @@
-name: Update Test Durations
+name: Refresh system descriptors
 
-# This workflow updates test durations based on the latest nightly, weekly, weekly training and push workflow runs.
-# It processes the JUnit XML reports from the last successful nightly, weekly, weekly training and push workflows,
-# calculates the test durations, and creates a pull request to update the `.test_durations` file.
+# Draft of a workflow to refresh checked-in system descriptors before the nightly
+# CPU compile-only test (tests/cpu_compile_only).
+#
+# Flow:
+#   1. Per arch (matrix on real HW): regenerate <arch>_system_desc.ttsys and
+#      upload as an artifact. HW unavailable / job timeout = no artifact for
+#      that arch; the workflow continues.
+#   2. On CPU: download whatever descriptor artifacts exist into system_descs/.
+#   3. Open a PR with the refreshed descriptors via peter-evans/create-pull-request.
+#   4. Auto-merge on the PR.
+#
 
 on:
   workflow_dispatch:
+  # TODO: Determine reasonable time before the main nightly workflow to perform the refresh
+  # schedule:
+  #   - cron: '0 4 * * *'   # enable after manual runs verified
 
 permissions:
-  actions: read
+  actions: write
+  packages: write
+  checks: write
   contents: write
-  issues: write
   pull-requests: write
 
 jobs:
-  update_test_durations:
-    runs-on: ubuntu-latest
+  # ===========================================================================
+  # BUILD CI DOCKER IMAGE
+  # ===========================================================================
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      dockbuild: ci
+
+  # ===========================================================================
+  # BUILD TT-XLA RELEASE WHEEL
+  # ===========================================================================
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: release
+
+  # ===========================================================================
+  # GENERATE SYSTEM DESCRIPTOR PER ARCH (on TT hardware)
+  # ===========================================================================
+  generate:
+    needs: [ build-image, build-ttxla ]
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [ n150, n300, n300-llmbox, p150 ]
+    # One arch's HW being unavailable/timing-out shouldn't fail the workflow.
+    # The aggregator handles missing artifacts (that arch's checked-in file
+    # is left untouched).
+    continue-on-error: true
+    # TODO: determine a reasonable timeout-minutes duration if wanted, may not get hardware to perform the task
+    timeout-minutes: 60
+    runs-on: [ "${{ matrix.arch }}", "in-service" ]
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
     steps:
+      - name: Mark repo as safe for git
+        run: git config --global --add safe.directory /__w/tt-xla/tt-xla
+
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
-          # ref: main
-      - uses: actions/setup-python@v6
-      - name: Process test durations from latest workflows
-        id: get-test-durations
+          submodules: recursive
+
+      - name: Download and install wheel
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          repo="tenstorrent/tt-xla"
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          source venv/activate
+          uv pip install wheels/*.whl
+      - name: Save system descriptor
+        shell: bash
+        run: |
+          source venv/activate
+          cd tests/cpu_compile_only
+          python save_system_desc.py system_descs/${{ matrix.arch }}
+          ls -la system_descs/
+      - name: Upload descriptor
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-desc-${{ matrix.arch }}
+          path: tests/cpu_compile_only/system_descs/${{ matrix.arch }}_system_desc.ttsys
 
-          get_test_results_from_wf() {
-            local wf_name="$1"
-            local conclusions="$2"
-            local num=5
+  # ===========================================================================
+  # AGGREGATE DESCRIPTORS, OPEN PR + AUTO-MERGE
+  # ===========================================================================
+  aggregate-and-pr:
+    needs: [ build-image, build-ttxla, generate ]
+    # if: always() — run even if some `generate` matrix entries failed; we
+    # still want to PR whichever archs succeeded.
+    if: always()
+    runs-on: cpu
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+    steps:
+      - name: Mark repo as safe for git
+        run: git config --global --add safe.directory /__w/tt-xla/tt-xla
 
-            # get json of the last $num workflow runs
-            gh run list --workflow $wf_name -R $repo -b main -L $num --status completed --json attempt,conclusion,databaseId >runs.json
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
-            counter=0
-            while true; do
-              # Check the status of 'conclusion'
-              conclusion=$(jq -r ".[$counter].conclusion" runs.json)
+      - name: Download and install wheel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          source venv/activate
+          uv pip install wheels/*.whl
+      # Pull whatever descriptor artifacts were uploaded by the `generate`
+      # matrix. error-on-missing: false → archs whose HW jobs failed simply
+      # contribute nothing here, leaving their checked-in descriptor untouched.
+      - name: Download generated descriptors
+        uses: actions/download-artifact@v4
+        with:
+          error-on-missing: false
+          pattern: system-desc-*
+          merge-multiple: true
+          path: tests/cpu_compile_only/system_descs
 
-              if echo "$conclusions" | grep -q -w "$conclusion"; then
-                break
-              else
-                ((++counter))
+      # Sets changed=true only on a *meaningful* descriptor change, gating the
+      # PR/auto-merge steps below.
+      # We compare schema hashes:
+      #   - schema hash changed  -> meaningful drift, keep the new file, PR it
+      #   - schema hash unchanged -> leave checked-in file as-is
+      #   - brand-new arch file   -> no checked-in version to compare, always keep
+      - name: Gate PR on schema-hash drift
+        id: diff
+        shell: bash
+        run: |
+          source venv/activate
+          desc_dir="tests/cpu_compile_only/system_descs"
+          changed=false
 
-                # Exit if the counter reaches $num
-                if [ $counter -ge $num ]; then
-                  echo "ERROR: Did not found good workflow within last $num. Exiting."
-                  exit 1
-                fi
-              fi
-            done
-            curr_wf_id=$(jq -r ".[$counter].databaseId" runs.json)
-            curr_wf_att=$(jq -r ".[$counter].attempt" runs.json)
-            echo "curr_$3_wf_link=\"https://github.com/$repo/actions/runs/$curr_wf_id/attempts/$curr_wf_att\"" >> "$GITHUB_OUTPUT"
-            rm -f runs.json
+          # New (untracked) descriptors have no checked-in version to compare
+          # against, so any new arch is treated as a meaningful change.
+          for f in $(git ls-files --others --exclude-standard "$desc_dir"); do
+            echo "New descriptor (no prior version): $f"
+            changed=true
+          done
 
-            gh run download $curr_wf_id --pattern "test-reports-*" -R $repo -D ${{runner.temp}}/reports
-          }
+          # Modified descriptors: meaningful only if the schema hash changed.
+          for f in $(git diff --name-only -- "$desc_dir"); do
+            old=$(mktemp --suffix=.ttsys)
+            git show "HEAD:$f" > "$old"
+            if python tests/cpu_compile_only/check_schema_hash.py "$old" "$f" >/dev/null; then
+              echo "Schema unchanged for $f — reverting byte-only diff."
+              git checkout HEAD -- "$f"
+            else
+              echo "Schema-hash drift detected for $f — will be included in PR."
+              changed=true
+            fi
+            rm -f "$old"
+          done
 
-          # get test results from the last nightly that was success or failure
-          get_test_results_from_wf "schedule-nightly.yml" "success,failure" "nightly"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          if [ "$changed" = "true" ]; then
+            git diff --stat -- "$desc_dir"
+          else
+            echo "No meaningful (schema-hash) descriptor changes."
+          fi
 
-          # get test results from the last successful push
-          get_test_results_from_wf "push-main.yml" "success" "push"
-
-          # get test results from the last weekly that was success or failure
-          get_test_results_from_wf "schedule-weekly.yml" "success,failure" "weekly"
-
-          # get test results from the last weekly training that was success or failure
-          get_test_results_from_wf "schedule-weekly-training.yml" "success,failure" "weekly-training"
-
-          python .github/scripts/get_test_duration_from_junit_xmls.py ${{runner.temp}}/reports .test_durations
-          echo "" >> .test_durations
-          echo "----- NEW DURATIONS"
-          cat .test_durations
-
-          echo "TODAY=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-
-      - name: Create Pull Request
+      # Only opens a PR when changed=true. If no diff, this step is skipped
+      # and `create-pr` produces no outputs, so the auto-merge step below
+      # also skips.
+      - name: Open PR with refreshed descriptors
+        if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v8
         id: create-pr
         with:
-          branch: test-durations-update
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          base: main
-          commit-message: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          title: "Update test durations based on latest workflows ${{ steps.get-test-durations.outputs.TODAY }}"
-          body: "This PR updates test durations based on latest nightly (${{ steps.get-test-durations.outputs.curr_nightly_wf_link }}), latest weekly (${{ steps.get-test-durations.outputs.curr_weekly_wf_link }}), latest weekly training (${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }}) and latest push (${{ steps.get-test-durations.outputs.curr_push_wf_link }})"
+          # TODO: testing only — targets a feature branch so the auto-merge
+          # lands into that branch instead of main. Remove this line before
+          # merging the workflow to main so PRs target the default branch.
+          base: jmac/cpu_compile_only
+          branch: refresh-system-descs
+          title: "Refresh checked-in system descriptors"
+          commit-message: "Refresh checked-in system descriptors"
+          body: |
+            Auto-generated by the refresh-system-descs workflow.
+            Updates checked-in descriptors that drifted from current schema.
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           labels: tooling
           delete-branch: true
           token: ${{ github.token }}
 
-      - name: Enable Pull Request Automerge
+      # Queue auto-merge
+      - name: Enable auto-merge
         if: ${{ steps.create-pr.outputs.pull-request-number }}
         run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Generate Summary
-        run: |
-          echo "## Test duration report" >> $GITHUB_STEP_SUMMARY
-          echo "Used [Nightly](${{ steps.get-test-durations.outputs.curr_nightly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Push](${{ steps.get-test-durations.outputs.curr_push_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly](${{ steps.get-test-durations.outputs.curr_weekly_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "And [Weekly Training](${{ steps.get-test-durations.outputs.curr_weekly_training_wf_link }})" >> $GITHUB_STEP_SUMMARY
-          echo "Generated test durations in [Pull Request](${{ steps.create-pr.outputs.pull-request-url }})" >> $GITHUB_STEP_SUMMARY
+  # The CPU compile-only test moved to the manual "Run Test" workflow
+  # (manual-test.yml). Run it manually after this workflow's refresh PR merges,
+  # so it checks out and tests the merged descriptors.

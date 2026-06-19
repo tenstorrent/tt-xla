@@ -1,70 +1,10 @@
 name: Run Test
 
-# This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
-# It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
+# Used to manually run the CPU compile-only test 
+# TODO: REVERT this file before merging to main
 
 on:
   workflow_dispatch:
-    inputs:
-      test_suite:
-        description: 'Test suite preset options or custom'
-        required: true
-        type: choice
-        options:
-          - 'basic-test.json'
-          - 'basic-test-nightly.json'
-          - 'basic-test-nightly-experimental.json'
-          - 'model-test-push.json'
-          - 'model-test-full.json'
-          - 'on-pr.json'
-          - 'schedule-nightly.json'
-          - 'model-test-passing.json'
-          - 'model-test-xfail.json'
-          - 'model-test-experimental.json'
-          - 'model-test-training-xfail-weekly.json'
-          - 'model-test-extended.json'
-          - 'full-mlir-uplift-qualification.json'
-          - 'model-test-passing-weekly.json'
-          - 'model-test-weekly.json'
-          - 'vllm-model-tests.json'
-          - 'vllm-model-tests-nightly.json'
-          - 'fusion-tests.json'
-          - 'model-test-lb-blackhole-nightly.json'
-          - 'model-test-lb-blackhole-weekly.json'
-          - 'model-test-emitpy.json'
-          - 'basic-multihost-test.json'
-          - 'Custom'
-      test_suite_custom:
-        description: 'Custom test suite json'
-        required: false
-        type: string
-      mlir_override:
-        description: 'Git SHA of commit in tenstorrent/tt-mlir'
-        required: false
-        type: string
-      forge_models_override:
-        description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
-        required: false
-        type: string
-      manylinux_build:
-        description: 'Build and use manylinux wheel'
-        required: false
-        type: boolean
-        default: false
-      torchxla_build_run_id:
-        description: 'Manual torch-xla build run ID'
-        required: false
-        type: string
-        default: ''
-      artifact_sha:
-        description: 'tt-xla commit SHA to reuse pre-built artifacts from instead of building (leave empty to build fresh)'
-        required: false
-        type: string
-      dump_irs:
-        description: 'Pass --dump-irs to pytest and upload collected IRs as artifacts'
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   actions: write
@@ -72,15 +12,12 @@ permissions:
   checks: write
   contents: read
 
-run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
-
 jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
     secrets: inherit
     with:
-      mlir_override: ${{ inputs.mlir_override }}
-      dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
+      dockbuild: ci
 
   build-ttxla:
     needs: build-image
@@ -89,22 +26,146 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      mlir_override: ${{ inputs.mlir_override }}
-      build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
-      artifact_sha: ${{ inputs.artifact_sha }}
+      build_types: release
 
-  test:
-    if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
-    uses: ./.github/workflows/call-test.yml
+  test-compile-only:
     needs: [ build-image, build-ttxla ]
-    secrets: inherit
-    with:
-      test_suite: ${{ inputs.test_suite }}
-      test_suite_custom: ${{ inputs.test_suite_custom }}
-      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
-      artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
-      torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
-      forge_models_override: ${{ inputs.forge_models_override }}
-      dump_irs: ${{ inputs.dump_irs }}
+    runs-on: cpu
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+    steps:
+      - name: Mark repo as safe for git
+        run: git config --global --add safe.directory /__w/tt-xla/tt-xla
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Download and install wheel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          source venv/activate
+          uv pip install wheels/*.whl
+
+      - name: Run CPU compile-only test
+        shell: bash
+        run: |
+          source venv/activate
+          pytest -sv ./tests/cpu_compile_only -m "nightly and cpu" --forked
+
+# name: Run Test
+#
+# # This workflow allows manual triggering of tests with customizable presets, hardware targets, and directories.
+# # It builds the Docker image and project, sets up test parameters, and runs tests using the specified configuration.
+#
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       test_suite:
+#         description: 'Test suite preset options or custom'
+#         required: true
+#         type: choice
+#         options:
+#           - 'basic-test.json'
+#           - 'basic-test-nightly.json'
+#           - 'basic-test-nightly-experimental.json'
+#           - 'model-test-push.json'
+#           - 'model-test-full.json'
+#           - 'on-pr.json'
+#           - 'schedule-nightly.json'
+#           - 'model-test-passing.json'
+#           - 'model-test-xfail.json'
+#           - 'model-test-experimental.json'
+#           - 'model-test-training-xfail-weekly.json'
+#           - 'model-test-extended.json'
+#           - 'full-mlir-uplift-qualification.json'
+#           - 'model-test-passing-weekly.json'
+#           - 'model-test-weekly.json'
+#           - 'vllm-model-tests.json'
+#           - 'vllm-model-tests-nightly.json'
+#           - 'fusion-tests.json'
+#           - 'model-test-lb-blackhole-nightly.json'
+#           - 'model-test-lb-blackhole-weekly.json'
+#           - 'model-test-emitpy.json'
+#           - 'basic-multihost-test.json'
+#           - 'Custom'
+#       test_suite_custom:
+#         description: 'Custom test suite json'
+#         required: false
+#         type: string
+#       mlir_override:
+#         description: 'Git SHA of commit in tenstorrent/tt-mlir'
+#         required: false
+#         type: string
+#       forge_models_override:
+#         description: 'Git SHA of commit (or branch name) in tenstorrent/tt-forge-models'
+#         required: false
+#         type: string
+#       manylinux_build:
+#         description: 'Build and use manylinux wheel'
+#         required: false
+#         type: boolean
+#         default: false
+#       torchxla_build_run_id:
+#         description: 'Manual torch-xla build run ID'
+#         required: false
+#         type: string
+#         default: ''
+#       artifact_sha:
+#         description: 'tt-xla commit SHA to reuse pre-built artifacts from instead of building (leave empty to build fresh)'
+#         required: false
+#         type: string
+#       dump_irs:
+#         description: 'Pass --dump-irs to pytest and upload collected IRs as artifacts'
+#         required: false
+#         type: boolean
+#         default: false
+#
+# permissions:
+#   actions: write
+#   packages: write
+#   checks: write
+#   contents: read
+#
+# run-name: 'Test ( Suite: ${{ inputs.test_suite }} )'
+#
+# jobs:
+#   build-image:
+#     uses: ./.github/workflows/call-build-docker.yml
+#     secrets: inherit
+#     with:
+#       mlir_override: ${{ inputs.mlir_override }}
+#       dockbuild: ${{ inputs.manylinux_build && 'all' || 'ci' }}
+#
+#   build-ttxla:
+#     needs: build-image
+#     uses: ./.github/workflows/call-build.yml
+#     secrets: inherit
+#     with:
+#       docker_image: ${{ needs.build-image.outputs.docker-image }}
+#       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+#       mlir_override: ${{ inputs.mlir_override }}
+#       build_types: ${{ inputs.manylinux_build && 'release,manylinux' || 'release' }}
+#       artifact_sha: ${{ inputs.artifact_sha }}
+#
+#   test:
+#     if: always() && !cancelled() && !failure() && inputs.preset != 'tt_forge_models'
+#     uses: ./.github/workflows/call-test.yml
+#     needs: [ build-image, build-ttxla ]
+#     secrets: inherit
+#     with:
+#       test_suite: ${{ inputs.test_suite }}
+#       test_suite_custom: ${{ inputs.test_suite_custom }}
+#       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+#       artifact_release_run_id: ${{ inputs.manylinux_build && github.run_id || needs.build-ttxla.outputs.artifacts_run_id }}
+#       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+#       wheel_build: ${{ inputs.manylinux_build && 'manylinux' || 'release' }}
+#       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
+#       forge_models_override: ${{ inputs.forge_models_override }}
+#       dump_irs: ${{ inputs.dump_irs }}
