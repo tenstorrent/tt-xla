@@ -498,9 +498,11 @@ def test_bge_m3(output_file, request):
     )
 
 
-# opt_level kept at 0: qb2-blackhole is a harvested board (11-wide grid); the
-# OpModel at opt_level>=1 assumes a 13-wide grid and aborts. Trace disabled to
-# match the conservative bringup defaults.
+# Tuned config: opt_level kept at 0 because qb2-blackhole is a harvested board
+# (11-wide grid) and the OpModel at opt_level>=1 assumes a 13-wide grid and aborts
+# (LLVM OpModel grid-mismatch). trace + bfp8 weights are the only viable perf knobs
+# here; batch_size=2 is the throughput sweet spot (batch>=4 regresses — the ~6B
+# transformer saturates the board so per-step time scales superlinearly).
 def test_longcat_image_transformer(output_file, request):
     """LongCat-Image transformer (the headline ~6B MMDiT denoising net).
 
@@ -518,7 +520,7 @@ def test_longcat_image_transformer(output_file, request):
 
     # Configuration
     data_format = "bfloat16"
-    batch_size = 4
+    batch_size = 2
     # Reporting-only: text-condition (cross-attention) sequence length.
     input_sequence_length = 512
 
