@@ -13,6 +13,8 @@ def flatten_matrix(data):
     for proj in data:
         test_defaults = proj.get("test-defaults", {})
         for test in proj.get("tests", []):
+            if test.get("skip"):
+                continue
             merged_test = {**test_defaults, **test, "project": proj["project"]}
 
             runs_on = merged_test.get("runs-on", [])
