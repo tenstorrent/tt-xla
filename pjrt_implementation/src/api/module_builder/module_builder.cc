@@ -995,6 +995,8 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
   options.enableCreateD2MSubgraphs =
       compile_options.enable_create_d2m_subgraphs;
   options.ttnnPerfMetricsEnabled = compile_options.ttnn_perf_metrics_enabled;
+  options.allReduceWorkaroundEnabled =
+      compile_options.all_reduce_workaround_enabled;
 
   // Auto-number performance metrics output file if enabled
   if (compile_options.ttnn_perf_metrics_enabled &&

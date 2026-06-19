@@ -129,6 +129,10 @@ struct CompileOptions {
   // Enable collection of TTNN performance metrics during execution.
   bool ttnn_perf_metrics_enabled = false;
 
+  // Enable the all_reduce decomposition workaround which breaks all_reduce down
+  // into reduce_scatter + all_gather (or all_gather + local reduce).
+  bool all_reduce_workaround_enabled = true;
+
   // Enables "try to recover structure" option for TTNN IR. Tries to match the
   // structure of the original graph. This generates a more readable solution,
   // useful when generating code.
