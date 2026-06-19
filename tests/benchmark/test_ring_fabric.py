@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """
 Minimal perf benchmark that exercises *only* the device + fabric open path the
-LLM perf benchmark goes through, and forces a ring fabric to be opened.
+LLM perf benchmark goes through, and forces a 2D torus fabric to be opened.
 
 How the perf benchmark opens device + fabric (see
 ``tests/benchmark/benchmarks/llm_benchmark.py``):
@@ -15,17 +15,26 @@ How the perf benchmark opens device + fabric (see
     mesh = Mesh(range(N), mesh_shape, axis_names) # device mesh
     # ... mark_sharding + torch.compile(backend="tt") + execute
 
-The fabric itself is selected inside the PJRT plugin when the mesh device is
-opened: ``ClientInstance::openMeshDevice`` -> ``computeFabricConfig`` ->
+The fabric is selected inside the PJRT plugin when the mesh device is opened:
+``ClientInstance::openMeshDevice`` -> ``computeFabricConfig`` ->
 ``tt::runtime::computeMeshFabricConfig`` (see
-``pjrt_implementation/src/api/client_instance.cc``). On a Wormhole galaxy the
-mesh axis has a wrap-around ethernet connection, so the runtime auto-detects
-``FABRIC_1D_RING`` and calls ``setFabricConfig(FABRIC_1D_RING)``.
+``pjrt_implementation/src/api/client_instance.cc`` and
+``runtime/lib/common/mesh_fabric_config.cpp``). Each mesh axis is classified
+independently: an axis whose lines wrap around becomes ``FABRIC_1D_RING``,
+otherwise ``FABRIC_1D``. The per-axis configs map to per-axis mesh topology
+(``Ring``/``Linear``) in ``module_builder.cc``, so:
 
-This test does the minimum needed to drive that path: open the device, build a
-1D mesh over the model axis, and run a single row-parallel matmul whose
-contraction dim is sharded. That lowers to an all-reduce across the ring axis,
-which requires the ring fabric to be up.
+  - a 1D ``(1, N)`` mesh -> ``[Disabled, Ring]``         (a single 1D ring)
+  - a 2D ``(R, C)`` mesh  -> ``[Ring, Ring]``            (a torus)
+
+To actually open and exercise a torus we therefore need a 2D mesh with both
+axes > 1 (and hardware that wraps on both axes, i.e. a Wormhole galaxy). This
+test builds such a mesh and shards the matmul's contraction dim across *both*
+axes, so the resulting all-reduce traverses both ring dimensions of the torus.
+
+Note: on the 32-device Blackhole galaxy (UBB), ``computeFabricConfig`` currently
+force-overrides to ``FABRIC_1D`` (RING_RING is rejected as TORUS_XY), so the
+torus auto-detection is meaningful on the Wormhole galaxy.
 """
 
 import json
@@ -54,11 +63,20 @@ ITERATIONS = 16
 DISPLAY_NAME = "ring_fabric_all_reduce"
 
 
+def _factor_2d(n: int) -> tuple:
+    """Largest near-square 2D factorization (rows, cols) with rows <= cols."""
+    best = 1
+    for i in range(1, int(n**0.5) + 1):
+        if n % i == 0:
+            best = i
+    return (best, n // best)
+
+
 def test_ring_fabric_all_reduce(output_file):
     """
-    Open device + ring fabric the same way the perf benchmark does, then run a
-    single all-reduce over the ring axis, verify it matches CPU, and record a
-    minimal perf result (all-reduce iterations/sec).
+    Open device + torus fabric the same way the perf benchmark does, then run a
+    single all-reduce that traverses both ring axes of the torus, verify it
+    matches CPU, and record a minimal perf result (all-reduce iterations/sec).
     """
     # Mirror the benchmark's multichip device-open sequence.
     enable_spmd()  # sets CONVERT_SHLO_TO_SHARDY=1 and xr.use_spmd()
@@ -66,17 +84,26 @@ def test_ring_fabric_all_reduce(output_file):
 
     num_devices = xr.global_runtime_device_count()
     assert num_devices > 1, (
-        f"Ring fabric needs >1 device, found {num_devices}. "
+        f"Fabric needs >1 device, found {num_devices}. "
         "This benchmark targets multi-chip systems (llmbox / wh galaxy / bh galaxy)."
     )
 
-    # 1D mesh over all devices; the "model" axis forms the ring.
-    mesh_shape = (1, num_devices)
-    mesh = Mesh(np.arange(num_devices), mesh_shape, ("batch", "model"))
+    # 2D mesh over all devices. Both axes > 1 so the runtime can classify each
+    # axis as a ring and open a torus ([Ring, Ring]) on hardware that wraps on
+    # both axes (Wormhole galaxy).
+    rows, cols = _factor_2d(num_devices)
+    assert rows > 1 and cols > 1, (
+        f"Torus needs a 2D mesh with both axes > 1; device count {num_devices} "
+        f"factors to {(rows, cols)}. Run on a system whose device count is composite "
+        "(e.g. 8 -> 2x4, 32 -> 4x8)."
+    )
+    mesh_shape = (rows, cols)
+    mesh = Mesh(np.arange(num_devices), mesh_shape, ("x", "y"))
     print(f"Created device mesh: {mesh_shape} with {num_devices} devices.")
 
-    # Row-parallel matmul: contraction dim sharded along "model" -> all-reduce.
-    # ``hidden`` must be divisible by the model-axis size for an even shard.
+    # Matmul whose contraction dim is sharded across BOTH mesh axes. The partial
+    # products must be summed via an all-reduce that traverses both ring axes of
+    # the torus. ``hidden`` must be divisible by rows*cols (== num_devices).
     batch, hidden, out = 32, 64 * num_devices, 128
 
     class RowParallelMM(torch.nn.Module):
@@ -94,10 +121,10 @@ def test_ring_fabric_all_reduce(output_file):
     model = model.to(device)
     activation = activation.to(device)
 
-    # Shard the contraction dim of both operands across the ring axis. The
-    # partial products must be summed via an all-reduce that traverses the ring.
-    xs.mark_sharding(activation, mesh, ("batch", "model"))
-    xs.mark_sharding(model.w, mesh, ("model", None))
+    # Shard the contraction dim of both operands across both axes ("x", "y").
+    # Reducing over a dim sharded on both axes => all-reduce over the full torus.
+    xs.mark_sharding(activation, mesh, (None, ("x", "y")))
+    xs.mark_sharding(model.w, mesh, (("x", "y"), None))
 
     torch_xla.set_custom_compile_options({"optimization_level": 0})
     compiled = torch.compile(model, backend="tt")
