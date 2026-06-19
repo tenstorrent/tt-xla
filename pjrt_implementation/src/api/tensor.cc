@@ -100,11 +100,11 @@ void PjrtTensor::ensure_layout(const tt::runtime::Device &device,
     // the existing runtime tensor as-is (no new gid, no fresh retain). Log the
     // current retain so a stale retain=false on a reused (e.g. KV-cache) input
     // is visible here.
-    DLOG_F(LOG_DEBUG,
-           "ensure_layout reuse: global_id=%lu retain=%d (layout already "
-           "satisfied)",
-           static_cast<unsigned long>(m_runtime_tensor->getGlobalId()),
-           static_cast<int>(tt::runtime::getTensorRetain(*m_runtime_tensor)));
+    LOG_F(INFO,
+          "ensure_layout reuse: global_id=%lu retain=%d (layout already "
+          "satisfied)",
+          static_cast<unsigned long>(m_runtime_tensor->getGlobalId()),
+          static_cast<int>(tt::runtime::getTensorRetain(*m_runtime_tensor)));
     return;
   }
 
