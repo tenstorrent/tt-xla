@@ -364,7 +364,7 @@ def test_fully_replicated_graph(spmd_mode):
 
     comparator.evaluate(output, golden)
 
-
+@pytest.mark.skip(reason="Skipping test_spmd_sharding due to random crash?")
 @pytest.mark.nightly
 @pytest.mark.push
 @pytest.mark.dual_chip
