@@ -12,6 +12,7 @@ import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
 from infra import Framework, run_op_test
 from infra.evaluators import TorchComparisonEvaluator
+from infra.utilities.torch_multichip_utils import get_mesh
 from infra.workloads import TorchWorkload
 from torch_xla.distributed.spmd import Mesh
 from tt_torch.sharding import sharding_constraint_hook
@@ -448,6 +449,53 @@ def test_spmd_sharding_constraints(request):
         shard_spec_fn=shard_spec_function,
     )
     tester.test(workload, request=request)
+
+
+@pytest.mark.nightly
+@pytest.mark.bh_galaxy
+def test_megatron_mlp_tensor_parallel():
+    class MegatronMLP(torch.nn.Module):
+        def __init__(self, hidden, ffn, dtype=torch.bfloat16):
+            super().__init__()
+            # Column-parallel weight: [hidden, ffn]
+            self.w1 = torch.nn.Parameter(torch.randn(hidden, ffn, dtype=dtype))
+            # Row-parallel weight: [ffn, hidden]
+            self.w2 = torch.nn.Parameter(torch.randn(ffn, hidden, dtype=dtype))
+
+        def forward(self, x):
+            h = torch.matmul(x, self.w1)  # column-parallel matmul
+            return torch.matmul(h, self.w2)  # row-parallel matmul -> all-reduce
+
+    num_devices = xr.global_runtime_device_count()
+    assert (
+        num_devices == 32
+    ), f"This test targets a single blackhole galaxy (32 devices), got {num_devices}."
+
+    mesh_shape = (4, 8)
+    mesh = get_mesh(mesh_shape, ("batch", "model"))
+
+    dtype = torch.bfloat16
+    # ffn must be divisible by the "model" axis size (8) for even sharding.
+    batch, hidden, ffn = 32, 64, 128
+    model = MegatronMLP(hidden, ffn, dtype=dtype)
+
+    def get_shard_spec(model, args, kwargs):
+        # Shard only along the "model" axis; "batch" stays replicated.
+        return {
+            model.w1: (None, "model"),  # column-parallel (shard output dim)
+            model.w2: ("model", None),  # row-parallel (shard contraction dim)
+        }
+
+    activation = torch.randn(batch, hidden, dtype=dtype)
+
+    run_op_test(
+        model,
+        [activation],
+        framework=Framework.TORCH,
+        comparison_config=ComparisonConfig(),
+        mesh=mesh,
+        shard_spec_fn=get_shard_spec,
+    )
 
 
 @pytest.mark.push

@@ -1207,6 +1207,12 @@ test_config:
   stable_diffusion_unet/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
 
+  sana/pytorch-1600M_1024px-single_device-inference:
+    # ~30 min end-to-end (PCC ok). Wall-time is dominated by single-threaded
+    # TTNN conv2d host-side weight prep + the CPU golden reference, not compile.
+    # Covered by the 240-min default CI timeout (not yet in .test_durations).
+    status: EXPECTED_PASSING
+
   unet_for_conditional_generation/pytorch-Base-single_device-inference:
     status: EXPECTED_PASSING
     optimization_level: 1
@@ -2711,10 +2717,12 @@ test_config:
     status: EXPECTED_PASSING
 
   gemma3/multimodal/pytorch-google/gemma-3-4b-it-single_device-inference:
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007 "
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+    assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
+
 
   gemma3/multimodal/pytorch-google/gemma-3-12b-it-single_device-inference:
     supported_archs: ["p150"]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+    status: EXPECTED_PASSING
+    assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
