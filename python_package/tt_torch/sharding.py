@@ -50,8 +50,10 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
     replace with actual axis names from the mesh definition.
 
     Mesh axes with size 1 are treated as replicated (empty set).
-    Placeholder indices are relative to non-degenerate axes only, since
-    degenerate (size-1) axes are dropped from the compiled mesh definition.
+    Placeholder index i maps to the i-th mesh axis, counting ALL axes
+    (including size-1 ones). This matches tt-mlir's positional resolution in
+    replaceMeshIdxPlaceholders (ShardyUtils.cpp), which keeps degenerate axes
+    in the compiled mesh.
 
     Example:
         partition_spec = ("batch", None, None)
@@ -60,19 +62,9 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
 
         partition_spec = (None, "model")
         mesh.axis_names = ("batch", "model"), mesh_shape = (1, 2)
-        → '#sdy.sharding_per_value<[<@mesh, [{}, {"mesh_idx_0"}]>]>'
-        (batch axis is degenerate so model becomes mesh_idx_0)
+        → '#sdy.sharding_per_value<[<@mesh, [{}, {"mesh_idx_1"}]>]>'
+        (model is axis index 1; mesh_idx_1 resolves to the model axis)
     """
-    # Build mapping from raw axis index to non-degenerate placeholder index.
-    # Degenerate axes (size 1) are dropped from the compiled mesh, so
-    # placeholder indices must count only non-degenerate axes.
-    non_degenerate_idx = {}
-    counter = 0
-    for i, size in enumerate(mesh.mesh_shape):
-        if size > 1:
-            non_degenerate_idx[i] = counter
-            counter += 1
-
     dim_shardings = []
     for axis in partition_spec:
         if axis is None:
@@ -80,17 +72,15 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
         elif isinstance(axis, str):
             try:
                 axis_idx = mesh.axis_names.index(axis)
-                if axis_idx in non_degenerate_idx:
-                    placeholder_idx = non_degenerate_idx[axis_idx]
-                    dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{placeholder_idx}"}}')
+                if mesh.mesh_shape[axis_idx] > 1:
+                    dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis_idx}"}}')
                 else:
                     dim_shardings.append("{}")
             except ValueError:
                 dim_shardings.append("{}")
         elif isinstance(axis, int):
-            if axis in non_degenerate_idx:
-                placeholder_idx = non_degenerate_idx[axis]
-                dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{placeholder_idx}"}}')
+            if mesh.mesh_shape[axis] > 1:
+                dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
             else:
                 dim_shardings.append("{}")
         elif isinstance(axis, (list, tuple)):
@@ -99,15 +89,13 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
                 if isinstance(ax_name, str):
                     try:
                         axis_idx = mesh.axis_names.index(ax_name)
-                        if axis_idx in non_degenerate_idx:
-                            placeholder_idx = non_degenerate_idx[axis_idx]
-                            axis_refs.append(f'"{_MESH_IDX_PREFIX}{placeholder_idx}"')
+                        if mesh.mesh_shape[axis_idx] > 1:
+                            axis_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
                     except ValueError:
                         pass
                 elif isinstance(ax_name, int):
-                    if ax_name in non_degenerate_idx:
-                        placeholder_idx = non_degenerate_idx[ax_name]
-                        axis_refs.append(f'"{_MESH_IDX_PREFIX}{placeholder_idx}"')
+                    if mesh.mesh_shape[ax_name] > 1:
+                        axis_refs.append(f'"{_MESH_IDX_PREFIX}{ax_name}"')
             if axis_refs:
                 dim_shardings.append("{" + ", ".join(axis_refs) + "}")
             else:
@@ -125,15 +113,13 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
             if isinstance(ax, str):
                 try:
                     axis_idx = mesh.axis_names.index(ax)
-                    if axis_idx in non_degenerate_idx:
-                        placeholder_idx = non_degenerate_idx[axis_idx]
-                        unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{placeholder_idx}"')
+                    if mesh.mesh_shape[axis_idx] > 1:
+                        unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
                 except ValueError:
                     pass
             elif isinstance(ax, int):
-                if ax in non_degenerate_idx:
-                    placeholder_idx = non_degenerate_idx[ax]
-                    unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{placeholder_idx}"')
+                if mesh.mesh_shape[ax] > 1:
+                    unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{ax}"')
         if unreduced_refs:
             unreduced_str = f", unreduced={{{', '.join(unreduced_refs)}}}"
 
