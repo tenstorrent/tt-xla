@@ -22,6 +22,7 @@ the TP-sharded on-device denoiser and time each component into ``self._perf`` fo
 the imagegen harness.
 """
 
+import os
 import time
 from typing import Optional
 
@@ -74,6 +75,16 @@ class _DeviceDenoiser:
             transformer.tie_weights()
         for tensor, spec in shard_transformer_specs(transformer).items():
             xs.mark_sharding(tensor, mesh, spec)
+        # Optional perf knob (model-perf-tuning): per-weight dtype override on the
+        # TP-sharded denoiser. Applied AFTER mark_sharding so the sharding
+        # annotations sit on the leaf weights; the override op then runs per-shard
+        # inside the compiled graph. Off by default — opt in via FLUX2_WEIGHT_DTYPE.
+        weight_dtype = os.environ.get("FLUX2_WEIGHT_DTYPE")
+        if weight_dtype:
+            from tt_torch.weight_dtype import apply_weight_dtype_overrides
+
+            applied = apply_weight_dtype_overrides(transformer, weight_dtype)
+            print(f"Applied weight_dtype_override={weight_dtype} to {len(applied)} tensors")
         self._compiled = torch.compile(transformer, backend="tt")
 
     def __call__(self, **kwargs):
