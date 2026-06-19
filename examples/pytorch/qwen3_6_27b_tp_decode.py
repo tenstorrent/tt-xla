@@ -42,7 +42,7 @@ import torch_xla.runtime as xr
 from torch_xla.distributed.spmd import Mesh
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.cache_utils import StaticCache
-from tt_torch.transformers_overrides import override_cache_static_layers
+from tt_torch.transformers_overrides import TTStaticLayer, override_cache_static_layers
 
 
 def log(msg):
@@ -213,11 +213,11 @@ def qwen3_6_27b_tp_decode():
     t0 = time.time()
     config = AutoConfig.from_pretrained(model_id)
     # Limiting the number of layers to 4
-    # num_layers = 4
-    # text_cfg = config.text_config if hasattr(config, "text_config") else config
-    # text_cfg.num_hidden_layers = num_layers
-    # if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
-    #     text_cfg.layer_types = text_cfg.layer_types[:num_layers]
+    num_layers = 4
+    text_cfg = config.text_config if hasattr(config, "text_config") else config
+    text_cfg.num_hidden_layers = num_layers
+    if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
+        text_cfg.layer_types = text_cfg.layer_types[:num_layers]
     model = AutoModelForCausalLM.from_pretrained(
         model_id, config=config, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
     )
@@ -238,21 +238,41 @@ def qwen3_6_27b_tp_decode():
     )
     prompt_len = inputs["input_ids"].shape[1]
 
-    # StaticCache pre-allocates KV buffers for attention layers (StaticLayer)
-    # and uses LinearAttentionLayer for DeltaNet layers (inherently static —
-    # fixed-size recurrent state that doesn't grow with sequence length).
-    # Both layer types lazily initialize their buffers during the first forward
-    # pass, so they'll be created directly on the XLA device.
+    # StaticCache pre-allocates KV buffers for attention layers (StaticLayer).
+    # DeltaNet layers use LinearAttentionLayer (fixed-size recurrent state) and
+    # lazily initialize under torch.compile with is_torchdynamo_compiling() guards.
     static_cache = StaticCache(
         config=model.config,
+        max_batch_size=batch_size,
         max_cache_len=max_cache_len,
+        device="cpu",
+        dtype=torch.bfloat16,
     )
     override_cache_static_layers(static_cache)
 
-    # Pre-allocate attention mask to max_cache_len to avoid shape changes
-    # during decode steps. Positions beyond current sequence are masked as 1
-    # (will be filled as we generate).
-    full_attention_mask = torch.zeros(
+    # Eagerly initialize TTStaticLayer (attention) cache layers on CPU to prevent
+    # lazy_initialization from firing inside the torch.compile trace, which would
+    # bake tensor allocation ops into the compiled StableHLO graph.
+    # LinearAttentionLayer (DeltaNet) layers are left to lazily initialize since
+    # they have is_torchdynamo_compiling() guards and use different state shapes.
+    num_key_value_heads = model.config.num_key_value_heads
+    head_dim = getattr(
+        model.config, "head_dim",
+        model.config.hidden_size // model.config.num_attention_heads,
+    )
+    for layer in static_cache.layers:
+        if isinstance(layer, TTStaticLayer) and not layer.is_initialized:
+            fake_kv = torch.zeros(
+                (batch_size, num_key_value_heads, 0, head_dim),
+                dtype=torch.bfloat16,
+                device="cpu",
+            )
+            layer.lazy_initialization(fake_kv, fake_kv)
+
+    # Pre-allocate attention mask to max_cache_len with all 1s to avoid per-step
+    # mask updates. Zero-initialized cache slots contribute nothing to attention
+    # output, so attending to unfilled positions is harmless.
+    full_attention_mask = torch.ones(
         (batch_size, max_cache_len), dtype=inputs["attention_mask"].dtype
     )
     full_attention_mask[:, :prompt_len] = inputs["attention_mask"]
@@ -290,10 +310,14 @@ def qwen3_6_27b_tp_decode():
     input_args["position_ids"] = input_args["position_ids"].to(device)
     input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
-    # Cache KV buffers lazily initialize on-device during the first forward pass.
-    # However, StaticLayer.cumulative_length is a CPU tensor created at __init__
-    # time — move it to device to avoid the "non-XLA tensor" warning.
+    # Transfer eagerly-initialized cache tensors (keys, values, cumulative_length)
+    # to device. LinearAttentionLayer (DeltaNet) layers lazily initialize on-device
+    # during the first forward pass and are skipped here.
     for layer in input_args["past_key_values"].layers:
+        if isinstance(layer, TTStaticLayer):
+            layer.keys = layer.keys.to(device)
+            layer.values = layer.values.to(device)
+            layer.device = device
         if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
             layer.cumulative_length = layer.cumulative_length.to(device)
 
@@ -312,21 +336,36 @@ def qwen3_6_27b_tp_decode():
                 shard_specs[mlp.down_proj.weight] = (None, "model")
 
         attn = getattr(layer, "self_attn", None)
-        if attn is None:
-            continue
+        if attn is not None:
+            if hasattr(attn, "q_proj"):
+                shard_specs[attn.q_proj.weight] = ("model", None)
+            if hasattr(attn, "k_proj"):
+                shard_specs[attn.k_proj.weight] = ("model", None)
+            if hasattr(attn, "v_proj"):
+                shard_specs[attn.v_proj.weight] = ("model", None)
+            if hasattr(attn, "o_proj"):
+                shard_specs[attn.o_proj.weight] = (None, "model")
 
-        if hasattr(attn, "q_proj"):
-            shard_specs[attn.q_proj.weight] = ("model", None)
-        if hasattr(attn, "k_proj"):
-            shard_specs[attn.k_proj.weight] = ("model", None)
-        if hasattr(attn, "v_proj"):
-            shard_specs[attn.v_proj.weight] = ("model", None)
-        if hasattr(attn, "o_proj"):
-            shard_specs[attn.o_proj.weight] = (None, "model")
+        # DeltaNet (linear_attn) projections are intentionally NOT sharded.
+        # The depthwise conv1d inside GatedDeltaNet causes a feature_group_count
+        # mismatch when the channel dimension is partitioned across devices
+        # (see https://github.com/tenstorrent/tt-xla/issues/3508).
+        # The MLP within DeltaNet layers is still sharded above.
+
+    if hasattr(model, "lm_head") and hasattr(model.lm_head, "weight"):
+        shard_specs[model.lm_head.weight] = ("model", None)
 
     log(f"Applying sharding annotations ({len(shard_specs)} tensors)...")
     for tensor, spec in shard_specs.items():
         xs.mark_sharding(tensor, mesh, spec)
+
+    # Shard KV cache along the head dimension to match attention weight sharding.
+    # Only TTStaticLayer (attention) layers have KV cache; DeltaNet layers use
+    # recurrent state that doesn't need the same head-parallel sharding.
+    for layer in input_args["past_key_values"].layers:
+        if isinstance(layer, TTStaticLayer):
+            xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
+            xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
     log("Sharding annotations applied.")
 
     # --- Compile ---
@@ -338,44 +377,46 @@ def qwen3_6_27b_tp_decode():
 
     with torch.no_grad():
         for step in range(max_new_tokens):
+            t_step = time.time()
+
             if step == 0:
                 log("Running prefill (triggers compilation for prefill graph)...")
                 t0 = time.time()
 
             output = compiled_model(**input_args)
 
+            t_fwd = time.time()
+
+            # Argmax on device, then transfer only the token ID (1 scalar)
+            # instead of the full (1, seq, 248320) logits tensor.
             if step == 0:
-                log(f"Prefill completed in {time.time() - t0:.1f}s")
+                next_token_id = output.logits[0, prompt_len - 1, :].argmax(dim=-1)
+            else:
+                next_token_id = output.logits[0, -1, :].argmax(dim=-1)
+
+            next_token_cpu = next_token_id.to("cpu")
+            t_sync = time.time()
+
+            if step == 0:
+                log(f"Prefill completed in {t_sync - t0:.1f}s")
                 log("Starting decode...")
                 t_decode = time.time()
 
-            # Get next token from last non-padding position (prefill) or
-            # position 0 (decode, since input is [batch, 1])
-            logits = output.logits
-            if step == 0:
-                last_real_pos = inputs["attention_mask"].sum(dim=-1).to(device) - 1
-                next_token_id = logits[0, last_real_pos[0], :].argmax(dim=-1)
-            else:
-                next_token_id = logits[:, -1, :].argmax(dim=-1)
+            token_val = next_token_cpu.item()
+            generated_tokens.append(token_val)
 
-            generated_tokens.append(next_token_id.item())
+            step_elapsed = time.time() - t_step
+            log(f"Step {step}: fwd={t_fwd - t_step:.3f}s sync={t_sync - t_fwd:.3f}s total={step_elapsed:.3f}s")
 
-            # Check EOS
-            if next_token_id.item() == tokenizer.eos_token_id:
+            if token_val == tokenizer.eos_token_id:
                 break
 
             # --- Update inputs for next decode step (fixed shapes) ---
-            # Input is just the new token: shape [batch, 1]
-            input_args["input_ids"] = next_token_id.view(1, 1).to(device)
+            input_args["input_ids"] = next_token_cpu.view(1, 1).to(device)
 
-            # Advance cache_position by 1: shape [1]
             new_cache_pos = torch.tensor([prompt_len + step], dtype=torch.long)
             input_args["cache_position"] = new_cache_pos.to(device)
             input_args["position_ids"] = new_cache_pos.unsqueeze(0).to(device)
-
-            # Update attention mask at the new position
-            full_attention_mask[:, prompt_len + step] = 1
-            input_args["attention_mask"] = full_attention_mask.to(device)
 
     if generated_tokens:
         decode_time = time.time() - t_decode
