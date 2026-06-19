@@ -71,11 +71,16 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      # NOTE: these filters intentionally exclude perf benchmarks that hang/fail on PR
+      # while keeping them live in the nightly matrix (see perf-bench-matrix.json):
+      #   - llama_3_1_8b_instruct (n150): hang (#5282, fix tt-metal#47221)
+      #   - gpt_oss_20b_tp / gpt_oss_20b_tp_batch_size_1 (n300-llmbox): #5151, #5207
+      #   - llama_3_1_70b_tp_galaxy (galaxy-wh-6u): fabric pinning (#5210)
+      #   - vllm_llama_3_1_70b_tp (n300-llmbox): temporarily removed from On PR because flaky, tracked in issue #5294
       adv_filter: '[
         { "accuracy-testing": false },
-        { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
-        { "runs-on": "n300-llmbox", "filter": ["llama_3_1_70b_tp", "gpt_oss_20b_tp"] },
-        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'
+        { "runs-on": "n150", "filter": ["resnet","qwen_3_4b_embedding"] },
+        { "runs-on": "n300-llmbox", "filter": ["test_llama_3_1_70b_tp"] } ]'
       sh-runner: false
       skip-device-perf: true
       regression_check: false
@@ -89,9 +94,10 @@ jobs:
     secrets: inherit
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      # NOTE: galaxy-wh-6u accuracy is excluded on PR (only entry is the failing
+      # llama_3_1_70b_tp_galaxy, fabric pinning #5210); still runs in nightly.
       adv_filter: '[
         { "accuracy-testing": true },
-        { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp"] },
         { "runs-on": "n300-llmbox", "filter": ["llama_3_1_8b_instruct_tp","llama_3_1_70b_tp"] } ]'
       sh-runner: false
       skip-device-perf: true
