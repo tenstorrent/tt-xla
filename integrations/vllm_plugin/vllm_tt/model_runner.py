@@ -2251,6 +2251,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     bitmasks,
                 )
 
+            # cpu_sampling path: sample on host to avoid feeding CPU tensors to the tt.sampling kernel.
             selected_token_ids = self.sample_from_logits_cpu(logits, sampling_metadata)
 
         return hidden_states, logits, selected_token_ids, kv_connector_output
