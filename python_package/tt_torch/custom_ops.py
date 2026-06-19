@@ -920,6 +920,120 @@ def paged_scaled_dot_product_attention_decode_fake(
 
 
 @torch.library.custom_op(
+    "tt::chunked_scaled_dot_product_attention",
+    mutates_args=[],
+    device_types=["xla", "cpu"],
+)
+def chunked_scaled_dot_product_attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    chunk_start_idx_tensor: torch.Tensor,
+    scale: float = None,
+) -> torch.Tensor:
+    """Chunked prefill attention over a paged K/V cache (tt-xla #4986).
+
+    A prefill chunk of ``query`` (whose prefix is already resident in the paged
+    cache) attends causally over ``[0, chunk_start_idx + chunk_len)`` read from
+    the cache via ``page_table`` -- entirely on device, with the prefix offset
+    supplied by the device tensor ``chunk_start_idx_tensor`` (the tensor overload
+    of ``ttnn.transformer.chunked_scaled_dot_product_attention``, required so the
+    op is trace-compatible). Replaces the host gather + masked-SDPA workaround.
+
+    Shapes:
+        query                 [users, n_heads, chunk_len, head]
+        key / value (cache)   [num_blocks, n_kv_heads, block_size, head]
+        page_table            [users, num_blocks_per_user]   (full prefix+chunk)
+        chunk_start_idx_tensor [1] int32  (= num_computed)
+    Result: same shape/dtype as ``query``.
+    """
+    device = query.device
+
+    if device.type == "xla":
+        attrs = {}
+        if scale is not None:
+            attrs["scale"] = str(scale)
+        inputs = [query, key, value, page_table, chunk_start_idx_tensor]
+        return stablehlo_custom_call.stablehlo_custom_call(
+            inputs,
+            "tt.chunked_scaled_dot_product_attention",
+            [query.shape],
+            [query.dtype],
+            frontend_attributes=attrs,
+        )
+    elif device.type == "cpu":
+        # Reference: gather the full prefix+chunk K/V from the paged cache (the
+        # same math as the gather workaround in vllm_tt/attention.py), then run
+        # causal+offset masked SDPA. Doubles as the equivalence oracle.
+        users, n_heads, chunk_len, head_size = query.shape
+        num_kv_heads = key.shape[1]
+        block_size = key.shape[2]
+        num_blocks_per_user = page_table.shape[1]
+        s_len = num_blocks_per_user * block_size
+        chunk_start = int(chunk_start_idx_tensor.reshape(-1)[0].item())
+
+        # [users, num_kv_heads, s_len, head_size] gathered per user.
+        flat_indices = page_table.reshape(-1)
+        gathered_k = torch.index_select(key, 0, flat_indices).view(
+            users, num_blocks_per_user, num_kv_heads, block_size, head_size
+        )
+        gathered_v = torch.index_select(value, 0, flat_indices).view(
+            users, num_blocks_per_user, num_kv_heads, block_size, head_size
+        )
+        gathered_k = (
+            gathered_k.permute(0, 2, 1, 3, 4)
+            .contiguous()
+            .reshape(users, num_kv_heads, s_len, head_size)
+        )
+        gathered_v = (
+            gathered_v.permute(0, 2, 1, 3, 4)
+            .contiguous()
+            .reshape(users, num_kv_heads, s_len, head_size)
+        )
+
+        # GQA: broadcast KV heads up to query heads.
+        if num_kv_heads != n_heads:
+            rep = n_heads // num_kv_heads
+            gathered_k = gathered_k.repeat_interleave(rep, dim=1)
+            gathered_v = gathered_v.repeat_interleave(rep, dim=1)
+
+        scale_val = 1.0 / head_size**0.5 if scale is None else scale
+        attn = torch.matmul(query, gathered_k.transpose(-2, -1)) * scale_val
+
+        # Causal+offset mask: query row i is absolute position chunk_start + i;
+        # it may attend key column j iff j <= chunk_start + i (and j < s_len).
+        q_pos = chunk_start + torch.arange(chunk_len, device=query.device).view(
+            chunk_len, 1
+        )
+        k_pos = torch.arange(s_len, device=query.device).view(1, s_len)
+        allowed = k_pos <= q_pos  # [chunk_len, s_len]
+        mask = torch.where(
+            allowed,
+            torch.zeros((), dtype=attn.dtype, device=query.device),
+            torch.full((), float("-inf"), dtype=attn.dtype, device=query.device),
+        )
+        attn = attn + mask.view(1, 1, chunk_len, s_len)
+        attn = torch.softmax(attn, dim=-1)
+        out = torch.matmul(attn, gathered_v)
+        return out  # [users, n_heads, chunk_len, head_size]
+    else:
+        raise ValueError(f"Unsupported device type: {device.type}")
+
+
+@chunked_scaled_dot_product_attention.register_fake
+def chunked_scaled_dot_product_attention_fake(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    page_table: torch.Tensor,
+    chunk_start_idx_tensor: torch.Tensor,
+    scale: float = None,
+) -> torch.Tensor:
+    return torch.zeros_like(query)
+
+
+@torch.library.custom_op(
     "tt::sparse_matmul", mutates_args=[], device_types=["xla", "cpu"]
 )
 def sparse_matmul(
