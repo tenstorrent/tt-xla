@@ -64,8 +64,25 @@ def _load_cases():
     return out
 
 
+def _resolve_device(name):
+    """Map a friendly name to a real torch device.
+
+    ``"tt"`` is the project's torch.compile *backend* name, not a torch device
+    string (``tensor.to("tt")`` raises). The TT card is reached through
+    torch_xla as an ``xla`` device, so route both ``tt`` and ``xla`` there.
+    The ops are pure PyTorch and run eagerly on the xla device (lazy execution
+    is forced by the ``.cpu()`` in the assertion), which exercises the on-card
+    numerics without needing ``torch.compile``.
+    """
+    if name in ("tt", "xla"):
+        import torch_xla.core.xla_model as xm
+
+        return xm.xla_device()
+    return name
+
+
 _CASES = _load_cases()
-_DEVICE = os.environ.get("GDN_TEST_DEVICE", "cpu")
+_DEVICE = _resolve_device(os.environ.get("GDN_TEST_DEVICE", "cpu"))
 
 
 def _dev(t):
