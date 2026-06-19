@@ -223,7 +223,7 @@ def test_flux2_dev(output_file, request):
         num_inference_steps=NUM_INFERENCE_STEPS,
         height=HEIGHT,
         width=WIDTH,
-        optimization_level=0,
-        trace_enabled=True,
+        optimization_level=0,  # opt>=1 hits OpModel grid mismatch on harvested BH; opt=0 only viable level
+        trace_enabled=False,  # trace perf-neutral (inert for this TP composite); keep bringup default
         output_image_path="test_flux2_dev_output.png",
     )
