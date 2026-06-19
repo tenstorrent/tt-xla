@@ -518,7 +518,7 @@ def test_longcat_image_transformer(output_file, request):
 
     # Configuration
     data_format = "bfloat16"
-    batch_size = 2
+    batch_size = 4
     # Reporting-only: text-condition (cross-attention) sequence length.
     input_sequence_length = 512
 
