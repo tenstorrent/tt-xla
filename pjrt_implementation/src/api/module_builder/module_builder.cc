@@ -61,6 +61,7 @@
 #include "ttmlir/Dialect/TTNN/Pipelines/TTNNPipelines.h"
 #include "ttmlir/Dialect/TTNN/Transforms/Passes.h"
 #include "ttmlir/Dialect/TTNN/Utils/BFPDtypeParser.h"
+#include "ttmlir/Dialect/TTNN/Utils/PassOverrides.h"
 #include "ttmlir/RegisterAll.h"
 #include "ttmlir/Target/Python/PythonEmitter.h"
 #include "ttmlir/Target/TTNN/TTNNToFlatbuffer.h"
@@ -975,6 +976,26 @@ tt_pjrt_status ModuleBuilder::convertFromTTIRToTTNN(
     }
     options.experimentalKVCacheDtype = dtype.value();
   }
+  // Forward the per-op Conv3d config override to the tt-mlir pipeline. The
+  // override is matched by NameLoc and only takes effect when the optimizer
+  // runs (optimization_level >= 1). Reuse tt-mlir's parser so the grammar
+  // stays in lockstep with the pipeline option.
+  if (compile_options.override_conv3d_config.has_value()) {
+    llvm::StringMap<mlir::tt::ttnn::Conv3dConfigOverrideParams>
+        conv3d_overrides;
+    mlir::tt::ttnn::Conv3dConfigOverrideParser conv3d_parser(
+        options.overrideConv3dConfig);
+    if (conv3d_parser.parse(options.overrideConv3dConfig,
+                            mlir::tt::ttnn::OptionNames::overrideConv3dConfig,
+                            compile_options.override_conv3d_config.value(),
+                            conv3d_overrides)) {
+      LOG_F(ERROR, "Failed to parse override_conv3d_config: '%s'",
+            compile_options.override_conv3d_config.value().c_str());
+      return tt_pjrt_status::kInvalidArgument;
+    }
+    options.overrideConv3dConfig = conv3d_overrides;
+  }
+
   options.enableTrace = compile_options.enable_trace;
   options.systemDescPath = system_descriptor_path.data();
   options.enableConstEval = compile_options.enable_const_eval;

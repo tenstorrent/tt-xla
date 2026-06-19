@@ -122,6 +122,16 @@ struct CompileOptions {
   // Enable DRAM space saving optimization pass (TTNNMemoryManagement).
   bool experimental_enable_dram_space_saving_optimization = false;
 
+  // Per-op Conv3d config override string, forwarded verbatim to tt-mlir's
+  // --override-conv3d-config pipeline option. Ops are matched by NameLoc.
+  // Grammar (mirrors override-conv2d-config):
+  //   "loc1=weights_dtype#bf16:t_out_block#3:h_out_block#2:w_out_block#2:
+  //    c_in_block#128:c_out_block#32,loc2=c_in_block#64"
+  // Recognized fields: weights_dtype, t_out_block, w_out_block, h_out_block,
+  // c_out_block, c_in_block. Only effective when optimization_level >= 1
+  // (the optimizer must run for the override to be applied).
+  std::optional<std::string> override_conv3d_config = std::nullopt;
+
   // Enable D2M subgraph creation pass for d2m elementwise fusion.
   // Only effective when optimization_level >= 1 (optimizer must be enabled)
   bool enable_create_d2m_subgraphs = false;

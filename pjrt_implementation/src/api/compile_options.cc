@@ -73,6 +73,8 @@ CompileOptions CompileOptions::parse(
   options.enable_create_d2m_subgraphs =
       internal::parseBoolOption(compile_options, "enable_create_d2m_subgraphs")
           .value_or(options.enable_create_d2m_subgraphs);
+  options.override_conv3d_config =
+      internal::parseStringOption(compile_options, "override_conv3d_config");
   options.ttnn_perf_metrics_enabled =
       internal::parseBoolOption(compile_options, "ttnn_perf_metrics_enabled")
           .value_or(false);

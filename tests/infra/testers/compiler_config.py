@@ -81,6 +81,15 @@ class CompilerConfig:
     # Only effective when optimization_level >= 1 (optimizer must be enabled)
     enable_create_d2m_subgraphs: bool = False
 
+    # Per-op Conv3d config override, forwarded to tt-mlir's
+    # --override-conv3d-config pipeline option. Ops are matched by NameLoc.
+    # Grammar (mirrors override-conv2d-config):
+    #   "loc1=weights_dtype#bf16:t_out_block#3:h_out_block#2:w_out_block#2:
+    #    c_in_block#128:c_out_block#32,loc2=c_in_block#64"
+    # Recognized fields: weights_dtype, t_out_block, w_out_block, h_out_block,
+    # c_out_block, c_in_block. Only effective when optimization_level >= 1.
+    override_conv3d_config: Optional[str] = None
+
     def to_jax_compiler_options(self) -> Dict[str, str]:
         """
         Convert CompilerConfig to JAX compiler_options dictionary format.
@@ -113,6 +122,9 @@ class CompilerConfig:
 
         if self.experimental_enable_dram_space_saving_optimization:
             options["experimental-enable-dram-space-saving-optimization"] = "true"
+
+        if self.override_conv3d_config is not None:
+            options["override_conv3d_config"] = self.override_conv3d_config
 
         if self.enable_trace:
             options["enable_trace"] = "true"
