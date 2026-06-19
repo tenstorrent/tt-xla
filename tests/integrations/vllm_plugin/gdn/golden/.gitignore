@@ -1,0 +1,4 @@
+# Large full-layer goldens are rsync'd, not committed. Keep the small per-op
+# bundle (gdn_golden.pt) tracked; ignore large variants.
+*_full.pt
+*_layer.pt

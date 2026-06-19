@@ -631,6 +631,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_prefill_tokens = int(
                 np.sum(num_scheduled_tokens_per_req[num_scheduled_tokens_per_req > 1])
             )
+        # A request carries an initial recurrent/conv state when it has already
+        # had tokens processed (chunked-prefill continuation). Fresh prefills
+        # start from zero state. (Only consumed by the prefill path; decode reads
+        # ssm_state in place.)
+        if force_gdn_prefill:
+            has_initial_state = torch.zeros(
+                num_reqs, dtype=torch.bool, device=query_start_loc.device
+            )
+        else:
+            computed = np.asarray(self.input_batch.num_computed_tokens_cpu[:num_reqs])
+            has_initial_state = torch.from_numpy(computed > 0).to(
+                query_start_loc.device
+            )
         gdn_attn_metadata = GDNAttentionMetadata(
             num_prefills=num_prefills,
             num_prefill_tokens=num_prefill_tokens,
@@ -639,6 +652,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             num_spec_decodes=0,
             num_spec_decode_tokens=0,
             num_actual_tokens=total_num_scheduled_tokens,
+            has_initial_state=has_initial_state,
             non_spec_query_start_loc=query_start_loc,
             non_spec_state_indices_tensor=tt_attn_metadata.page_table[:num_reqs, 0],
         )
