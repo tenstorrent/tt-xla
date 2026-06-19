@@ -491,3 +491,53 @@ def test_vovnet(output_file, request):
         batch_size=batch_size,
         data_format=data_format,
     )
+
+
+def test_longcat_image_transformer(output_file, request):
+    # LongCat-Image (meituan-longcat/LongCat-Image) is a bilingual text-to-image
+    # MMDiT pipeline exposed per-component by the loader (text_encoder /
+    # transformer / vae); the full pipeline is never loaded. We benchmark the
+    # headline ~6B denoiser (LongCatImageTransformer2DModel, the loader's
+    # DEFAULT_VARIANT) -- the compute-dominant component, and the only one that
+    # fits a single 32 GB Blackhole chip alongside nothing else. It is exercised
+    # as a standalone forward pass on unit-scale synthetic inputs, the
+    # configuration in which it passes PCC in isolation. The transformer takes
+    # three positional tensors (hidden_states, timestep, encoder_hidden_states),
+    # which the vision harness forwards via the multi-input path.
+    from third_party.tt_forge_models.longcat_image.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = torch.bfloat16
+    batch_size = 1
+
+    # Load model
+    variant = ModelVariant.TRANSFORMER
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model(dtype_override=data_format)
+    model = model.eval()
+
+    def load_inputs_fn(batch_size, dtype):
+        return loader.load_inputs(dtype_override=dtype, batch_size=batch_size)
+
+    def extract_output_tensor_fn(output):
+        return output
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        # metadata only (reported, not used to build inputs):
+        # (batch, packed latent seq, in-channels) of hidden_states.
+        input_size=(1, 256, 64),
+        data_format=data_format,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

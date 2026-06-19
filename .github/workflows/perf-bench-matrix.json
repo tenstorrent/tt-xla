@@ -71,6 +71,11 @@
         "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning"
       },
       {
+        "name": "longcat_image_transformer_qb2",
+        "pytest": "tests/benchmark/test_vision.py::test_longcat_image_transformer",
+        "runs-on": "qb2-blackhole"
+      },
+      {
         "name": "bge_m3_encode",
         "pyreq": "transformers==4.57.1 FlagEmbedding",
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"

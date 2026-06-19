@@ -26,6 +26,27 @@ WARMUP_STEPS = 32
 MODULE_EXPORT_PATH = "modules"
 
 
+def _move_inputs_to_device(inputs, device):
+    """Move model inputs to ``device``.
+
+    Supports both single-tensor models and multi-input modules (e.g. diffusion
+    transformers) whose ``load_inputs_fn`` returns a list/tuple of positional
+    tensors. Non-tensor entries (e.g. ``None``) are passed through untouched.
+    """
+    if isinstance(inputs, (list, tuple)):
+        return type(inputs)(
+            t.to(device) if torch.is_tensor(t) else t for t in inputs
+        )
+    return inputs.to(device)
+
+
+def _call_model(model, inputs):
+    """Invoke ``model`` with a single tensor or a sequence of positional tensors."""
+    if isinstance(inputs, (list, tuple)):
+        return model(*inputs)
+    return model(inputs)
+
+
 def execute_and_measure_fps(
     model, inputs, device, loop_count, extract_output_tensor_fn
 ):
@@ -58,11 +79,11 @@ def execute_and_measure_fps(
         outputs = []
         for i in range(loop_count):
             start_iteration_time = time.perf_counter_ns()
-            # Move input to device
-            device_input = inputs[i].to(device)
+            # Move input(s) to device
+            device_input = _move_inputs_to_device(inputs[i], device)
 
             # Model forward, non blocking
-            output = model(device_input)
+            output = _call_model(model, device_input)
 
             # Extract output tensor
             output = extract_output_tensor_fn(output)
@@ -137,7 +158,7 @@ def benchmark_vision_torch_xla(
     # Generate golden output for PCC calculation (run on CPU)
     golden_input = inputs[0]
     with torch.no_grad():
-        golden_output = framework_model(golden_input)
+        golden_output = _call_model(framework_model, golden_input)
         golden_output = extract_output_tensor_fn(golden_output)
 
     export_model_name = build_xla_export_name(
