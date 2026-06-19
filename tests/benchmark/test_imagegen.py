@@ -230,7 +230,7 @@ def test_flux2_dev(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=1,  # perf-tuning sweep
+        optimization_level=0,  # perf-tuning sweep
         trace_enabled=True,  # perf-tuning sweep
         output_image_path="test_flux2_dev_output.png",
     )
