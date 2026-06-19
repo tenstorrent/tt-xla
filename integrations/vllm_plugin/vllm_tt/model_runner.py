@@ -2183,7 +2183,13 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     bitmasks,
                 )
 
-            selected_token_ids = self.sample_from_logits(logits, sampling_metadata)
+            # _model_unfused is the cpu_sampling=True path: sampling_metadata
+            # is built on CPU (see sampling_device above) and no device
+            # sampling graph is precompiled in the unfused warmup path, so we
+            # must sample host-side. Using the device sampler here fed CPU
+            # tensors into the tt.sampling kernel ("Input tensor is not an XLA
+            # tensor: CPUIntType") for non-greedy requests.
+            selected_token_ids = self.sample_from_logits_cpu(logits, sampling_metadata)
 
         return hidden_states, logits, selected_token_ids, kv_connector_output
 
