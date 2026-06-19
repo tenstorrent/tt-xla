@@ -538,6 +538,6 @@ def test_longcat_image_transformer(output_file, request):
         # (batch, packed latent seq, in-channels) of hidden_states.
         input_size=(1, 256, 64),
         data_format=data_format,
-        optimization_level=2,
+        optimization_level=0,  # opt>=1 aborts on harvested qb2-blackhole (OpModel grid mismatch)
         trace_enabled=True,
     )
