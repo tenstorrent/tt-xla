@@ -2,13 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Text-to-image (diffusion) benchmarks.
+"""Text-to-image benchmarks.
 
 Config-driven entry points (one ``test_<model>`` per model) that drive
-per-model pipelines through the shared harness in
-``benchmarks/imagegen_benchmark.py``. This mirrors the ``test_vision.py`` /
-``vision_benchmark.py`` split: model-specific config lives here, the reusable
-measurement logic lives in ``benchmarks/``.
+per-model pipelines through a shared harness in ``benchmarks/``. This mirrors
+the ``test_vision.py`` / ``vision_benchmark.py`` split: model-specific config
+lives here, the reusable measurement logic lives in ``benchmarks/``.
+
+Diffusion models use ``benchmarks/imagegen_benchmark.py``; autoregressive
+image-token models (Janus-Pro) use ``benchmarks/ar_imagegen_benchmark.py``,
+which reports decode tokens/second instead of per-step denoising metrics.
 """
 
 import json
@@ -190,4 +193,99 @@ def test_sdxl_lightning(output_file, request):
         width=width,
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
+    )
+
+
+def _run_janus_pro_benchmark(
+    model_id, model_info_name, output_image_path, output_file, request
+):
+    """Shared Janus-Pro AR benchmark body (1B and 7B differ only by ``model_id``).
+
+    Unlike the diffusion models above, Janus-Pro generates the image
+    autoregressively (576 image tokens), so it uses the AR harness in
+    ``benchmarks/ar_imagegen_benchmark.py``. The ``janus`` runtime package is
+    not in the base env, so the whole run is wrapped in ``RequirementsManager``
+    (same as the nightly pipeline test).
+    """
+    import inspect
+
+    from benchmarks.ar_imagegen_benchmark import benchmark_ar_imagegen_torch_xla
+    from benchmarks.janus_pro_pipeline import IMG_SIZE, JanusProConfig, JanusProPipeline
+
+    import third_party.tt_forge_models.janus_pro.text_to_image.pytorch.loader as janus_loader
+    from tests.runner.requirements import RequirementsManager
+
+    prompt = (
+        "A close-up high-contrast photo of Sydney Opera House sitting next to "
+        "Eiffel tower, under a blue night sky of roiling energy, exploding "
+        "yellow stars, and radiating swirls of blue."
+    )
+    num_image_tokens = 576
+
+    def build_pipeline_fn(compile_options):
+        pipeline = JanusProPipeline(
+            config=JanusProConfig(model_id=model_id, compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, num_tokens):
+            return pipeline.generate(
+                prompt=prompt, num_image_tokens=num_tokens, seed=DEFAULT_SEED
+            )
+
+        return pipeline, generate_fn
+
+    resolved_display_name = resolve_display_name(
+        request=request, fallback=model_info_name
+    )
+    ttnn_perf_metrics_output_file = f"tt_xla_{resolved_display_name}_perf_metrics"
+
+    loader_path = inspect.getsourcefile(janus_loader)
+    with RequirementsManager.for_loader(loader_path, framework="torch"):
+        results = benchmark_ar_imagegen_torch_xla(
+            build_pipeline_fn=build_pipeline_fn,
+            model_info_name=model_info_name,
+            display_name=resolved_display_name,
+            prompt=prompt,
+            num_image_tokens=num_image_tokens,
+            image_size=IMG_SIZE,
+            # opt_level=0 matches the nightly pipeline (which runs at the
+            # compiler default); opt_level=1 stalls the Janus LM/vision compile.
+            optimization_level=0,
+            trace_enabled=DEFAULT_TRACE_ENABLED,
+            ttnn_perf_metrics_output_file=ttnn_perf_metrics_output_file,
+            output_image_path=output_image_path,
+        )
+
+    if output_file:
+        results["project"] = "tt-forge/tt-xla"
+        results["model_rawname"] = model_info_name
+        aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results)
+        with open(output_file, "w") as file:
+            json.dump(results, file, indent=2)
+
+
+def test_janus_pro(output_file, request):
+    """Janus-Pro-1B autoregressive text-to-image benchmark."""
+    from benchmarks.janus_pro_pipeline import REPO_ID_PRO_1B
+
+    _run_janus_pro_benchmark(
+        model_id=REPO_ID_PRO_1B,
+        model_info_name="janus-pro-1b",
+        output_image_path="test_janus_pro_output.png",
+        output_file=output_file,
+        request=request,
+    )
+
+
+def test_janus_pro_7b(output_file, request):
+    """Janus-Pro-7B autoregressive text-to-image benchmark (blackhole)."""
+    from benchmarks.janus_pro_pipeline import REPO_ID_PRO_7B
+
+    _run_janus_pro_benchmark(
+        model_id=REPO_ID_PRO_7B,
+        model_info_name="janus-pro-7b",
+        output_image_path="test_janus_pro_7b_output.png",
+        output_file=output_file,
+        request=request,
     )
