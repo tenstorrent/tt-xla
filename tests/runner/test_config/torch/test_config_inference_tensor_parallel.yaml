@@ -30,6 +30,10 @@ test_config:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
 
+  gemma4/pytorch-12B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox]
+    status: EXPECTED_PASSING
+
   gpt_oss/pytorch-20B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, galaxy-wh-6u, lb-blackhole]
     status: EXPECTED_PASSING
@@ -251,8 +255,8 @@ test_config:
 
   gemma3/multimodal/pytorch-google/gemma-3-27b-it-tensor_parallel-inference:
     supported_archs: [n300-llmbox,lb-blackhole]
-    status: KNOWN_FAILURE_XFAIL
-    reason: "Out of Memory: Not enough space to allocate 2904555520 B DRAM buffer across 12 banks, where each bank needs to store 242049024 B, but bank size is 1071821792 B - https://github.com/tenstorrent/tt-xla/issues/4007"
+    status: EXPECTED_PASSING
+    assert_pcc: false #issue: https://github.com/tenstorrent/tt-xla/issues/5117
 
   command/pytorch-command-a-reasoning-08-2025-tensor_parallel-inference:
     supported_archs: [galaxy-wh-6u]
@@ -268,3 +272,53 @@ test_config:
     supported_archs: [qb2-blackhole]
     status: EXPECTED_PASSING
     enable_weight_bfp8_conversion: true
+
+  phind/pytorch-Phind-CodeLlama-34B-v2-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  phi3/causal_lm/pytorch-Medium_4K_Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  mistral/codestral/pytorch-Codestral-22B-v0.1-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  deepseek/deepseek_coder/pytorch-33B_Instruct-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  coherlabs/pytorch-Coherelabs_aya_expanse_32b-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  coherlabs/pytorch-Coherelabs_c4ai_command_r_v01-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  coherlabs/pytorch-Coherelabs_aya_23_35b-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  nous_research/pytorch-Nous-Hermes-2-Yi-34B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  deepseek/qwen/pytorch-R1_Distill_14B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+
+  deepseek/deepseek_chat/pytorch-chat_67b-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+
+  abacusai/pytorch-Smaug-72B-v0.1-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true
+
+  nvidia/open_reasoning/pytorch-Nvidia_OpenReasoning_Nemotron_32B-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING

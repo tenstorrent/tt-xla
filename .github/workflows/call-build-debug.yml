@@ -33,12 +33,6 @@ jobs:
             submodules: recursive
             repository: 'tenstorrent/tt-xla'
 
-      - name: Fetch job ID
-        id: fetch-job-id
-        uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
-        with:
-          job_name: "Build tt-xla (debug)"
-
       - name: Override tt-mlir SHA if mlir_override is set
         if: ${{ inputs.mlir_override }}
         shell: bash
@@ -52,7 +46,7 @@ jobs:
         run: |
             echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
             echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
-            echo "test-report-name=report_${{ steps.fetch-job-id.outputs.job_id }}.xml" >> "$GITHUB_OUTPUT"
+            echo "test-report-name=report_${{ job.check_run_id }}.xml" >> "$GITHUB_OUTPUT"
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2.22
@@ -82,14 +76,14 @@ jobs:
         if: success() || failure()
         uses: actions/upload-artifact@v6
         with:
-          name: test-log-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+          name: test-log-pjrt-unit-tests-${{ github.run_attempt }}-${{ job.check_run_id }}
           path: ${{ steps.strings.outputs.build-output-dir }}/ctest.log
 
       - name: Upload test report
         if: success() || failure()
         uses: actions/upload-artifact@v6
         with:
-            name: test-reports-pjrt-unit-tests-${{ github.run_attempt }}-${{ steps.fetch-job-id.outputs.job_id }}
+            name: test-reports-pjrt-unit-tests-${{ github.run_attempt }}-${{ job.check_run_id }}
             path: ${{ steps.strings.outputs.build-output-dir }}/${{ steps.strings.outputs.test-report-name }}
 
       - name: Show unit test report
