@@ -3,16 +3,21 @@
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Qwen3.6-27B inference with tensor parallelism on Tenstorrent hardware.
+Qwen3.6-27B multi-token generation with tensor parallelism on Tenstorrent hardware.
 
-This script demonstrates running the Qwen3.6-27B model across multiple chips
-using PyTorch/XLA SPMD tensor parallelism. The model uses a hybrid architecture
-(Gated DeltaNet + Gated Attention) across 64 layers.
+This script demonstrates autoregressive token generation using the Qwen3.6-27B
+model across multiple chips with PyTorch/XLA SPMD tensor parallelism.
+No KV cache is used — each forward pass processes the full (padded) sequence
+with newly generated tokens appended into the padding slots, keeping tensor
+shapes fixed to avoid recompilation.
 
 Architecture: 16 × (3 × (Gated DeltaNet → FFN) → 1 × (Gated Attention → FFN))
 - Gated DeltaNet: 48 V heads / 16 QK heads, head_dim=128
 - Gated Attention: 24 Q heads / 4 KV heads, head_dim=256
 - MLP intermediate_size: 17408
+
+Environment variables:
+    TTXLA_MAX_NEW_TOKENS: Number of tokens to generate (default: 20)
 
 Usage:
     python examples/pytorch/qwen3_6_27b_tp.py
@@ -309,29 +314,68 @@ def qwen3_6_27b_tp():
     # Run inference — pad sequence length to a multiple of 128 for tile alignment.
     # TT hardware operates on 32×32 tiles; seq_len % 128 == 0 avoids misalignment
     # crashes (SIGABRT/SIGSEGV) observed during Qwen3.5 bringup.
+    max_seq_len = 128
+    max_new_tokens = int(os.environ.get("TTXLA_MAX_NEW_TOKENS", "20"))
+
     prompt = "The capital of France is"
     inputs = tokenizer(
-        prompt, return_tensors="pt", padding="max_length", max_length=128
+        prompt, return_tensors="pt", padding="max_length", max_length=max_seq_len
     )
-    input_ids = inputs["input_ids"].to(device)
-    attention_mask = inputs["attention_mask"].to(device)
+    input_ids = inputs["input_ids"].clone()
+    attention_mask = inputs["attention_mask"].clone()
+    prompt_len = int(attention_mask.sum(dim=-1).item())
 
-    log("Running first forward pass (triggers actual compilation)...")
-    t0 = time.time()
+    generated_tokens = []
+
+    log(f"Generating up to {max_new_tokens} tokens (prompt_len={prompt_len}, max_seq_len={max_seq_len})...")
     with torch.no_grad():
-        outputs = compiled_model(input_ids, attention_mask=attention_mask)
-    log(f"First forward pass completed in {time.time() - t0:.1f}s")
+        for step in range(max_new_tokens):
+            ids_device = input_ids.to(device)
+            mask_device = attention_mask.to(device)
 
-    log("Decoding output token...")
-    with torch.no_grad():
-        last_real_pos = attention_mask.sum(dim=-1) - 1
-        next_token = outputs.logits[0, last_real_pos[0], :].argmax(dim=-1)
-        decoded = tokenizer.decode(next_token)
-        print(f"Prompt: {prompt}")
-        print(f"Next token: {decoded}")
-        print(f"Next token undecoded: {next_token[0]}")
+            if step == 0:
+                log("Running first forward pass (triggers actual compilation)...")
+                t0 = time.time()
 
-    return decoded
+            outputs = compiled_model(ids_device, attention_mask=mask_device)
+
+            if step == 0:
+                log(f"First forward pass completed in {time.time() - t0:.1f}s")
+                t_decode = time.time()
+
+            cur_pos = prompt_len + step - 1
+            next_token_id = outputs.logits[0, cur_pos, :].argmax(dim=-1)
+            token_id = next_token_id.item()
+            generated_tokens.append(token_id)
+
+            decoded_so_far = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+            log(f"Step {step + 1}: token={token_id} | generated so far: {decoded_so_far!r}")
+
+            if token_id == tokenizer.eos_token_id:
+                log("EOS token generated, stopping.")
+                break
+
+            if prompt_len + step >= max_seq_len:
+                log(f"Reached max sequence length ({max_seq_len}), stopping.")
+                break
+
+            input_ids[0, prompt_len + step] = token_id
+            attention_mask[0, prompt_len + step] = 1
+
+    total_time = time.time() - t_decode
+    num_decode_steps = len(generated_tokens)
+    if num_decode_steps > 1:
+        tok_per_sec = (num_decode_steps - 1) / total_time
+        log(f"Generation complete: {num_decode_steps} tokens in {total_time:.1f}s ({tok_per_sec:.2f} tok/s)")
+    else:
+        log(f"Generation complete: {num_decode_steps} token in {total_time:.1f}s")
+
+    generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
+    print(f"\nPrompt: {prompt}")
+    print(f"Generated: {generated_text}")
+    print(f"Full: {prompt}{generated_text}")
+
+    return generated_text
 
 
 if __name__ == "__main__":
