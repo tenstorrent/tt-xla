@@ -30,7 +30,7 @@ jobs:
 
   test-compile-only:
     needs: [ build-image, build-ttxla ]
-    runs-on: cpu
+    runs-on: tt-ubuntu-2204-large-stable
     container:
       image: ${{ needs.build-image.outputs.docker-image-base }}
     steps:
