@@ -7,7 +7,9 @@
 
 // c++ standard library includes
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -88,6 +90,49 @@ CompileOptions CompileOptions::parse(
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
+  options.codegen_load_path =
+      internal::parseStringOption(compile_options, "codegen_load_path");
+
+  // Env vars provide defaults for emit/load of Python codegen so workflows
+  // that can't set compile options (e.g. vLLM) can opt in externally.
+  // Explicit compile options always win.
+  const char *emit_dir = std::getenv("TTXLA_CODEGEN_EXPORT_DIR");
+  const char *load_dir = std::getenv("TTXLA_CODEGEN_LOAD_DIR");
+  if (load_dir && !options.codegen_load_path.has_value()) {
+    options.codegen_load_path = load_dir;
+  }
+  if ((emit_dir || options.codegen_load_path.has_value()) &&
+      !compile_options.count("backend")) {
+    options.backend = BackendRuntime::TTNNCodegenPy;
+  }
+  if (options.backend == BackendRuntime::TTNNCodegenPy &&
+      !compile_options.count("dry_run") &&
+      (emit_dir || options.codegen_load_path.has_value())) {
+    options.dry_run = false;
+  }
+  if (!options.export_path.has_value()) {
+    if (options.codegen_load_path.has_value()) {
+      // Placeholder root; load mode replaces it with the matched graph dir.
+      options.export_path = options.codegen_load_path;
+    } else if (emit_dir) {
+      options.export_path = emit_dir;
+    }
+  }
+  if (options.codegen_load_path.has_value()) {
+    if (options.backend != BackendRuntime::TTNNCodegenPy) {
+      ABORT_F("codegen_load_path is only supported with the 'codegen_py' "
+              "backend");
+    }
+    // Don't clobber the saved tensors/ dir when running loaded code.
+    options.export_tensors =
+        internal::parseBoolOption(compile_options, "export_tensors")
+            .value_or(false);
+  } else if (emit_dir && options.backend == BackendRuntime::TTNNCodegenPy) {
+    // Env-triggered emit should export tensors like explicit codegen does.
+    options.export_tensors =
+        internal::parseBoolOption(compile_options, "export_tensors")
+            .value_or(true);
+  }
 
   if (!options.export_path.has_value() &&
       options.backend != BackendRuntime::TTNNFlatbuffer) {
@@ -95,18 +140,20 @@ CompileOptions CompileOptions::parse(
             "'TTNNFlatbuffer'");
   }
 
-  // Codegen backends write fixed-name files (main.py, ttnn.mlir, tensors/...)
-  // into export_path, so a second compile in the same process would clobber
-  // the first. Give each compile its own subdirectory under the user-provided
-  // export_path. Counter is keyed by the user-provided path so independent
-  // export_paths each start at graph_0; reusing the same path keeps numbering
-  // monotonic and never clobbers an earlier compile in the same process.
-  // Flatbuffer outputs are timestamped and don't collide, so they're skipped.
+  // C++ codegen writes fixed-name files (main.cpp, ttnn.mlir, ...) into
+  // export_path, so a second compile in the same process would clobber the
+  // first. Give each compile its own subdirectory. Python codegen gets its
+  // subdirectory assigned in ModuleBuilder, keyed by graph hash. Flatbuffer
+  // outputs are timestamped and don't collide, so they're skipped.
   if (options.export_path.has_value() &&
-      (options.backend == BackendRuntime::TTNNCodegenPy ||
-       options.backend == BackendRuntime::TTNNCodegenCpp)) {
+      options.backend == BackendRuntime::TTNNCodegenCpp) {
+    static std::mutex counters_mutex;
     static std::unordered_map<std::string, int> counters;
-    int graph_index = counters[*options.export_path]++;
+    int graph_index;
+    {
+      std::lock_guard<std::mutex> lock(counters_mutex);
+      graph_index = counters[*options.export_path]++;
+    }
     options.export_path = (std::filesystem::path(*options.export_path) /
                            ("graph_" + std::to_string(graph_index)))
                               .string();
