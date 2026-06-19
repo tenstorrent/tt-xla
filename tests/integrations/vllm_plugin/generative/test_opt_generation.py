@@ -10,23 +10,28 @@ import vllm
 def test_opt_generation():
     prompts = [
         "Hello, my name is",
+        "What is captial of France",
+        "what is the largest mammal",
+        "what is 1+1?",
     ]
     sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
     llm_args = {
         "model": "facebook/opt-125m",
-        "max_num_batched_tokens": 128,
-        "max_num_seqs": 1,
-        "max_model_len": 128,
+        "max_num_batched_tokens": 32 * 16,
+        "max_num_seqs": 16,
+        "max_model_len": 32,
         "gpu_memory_utilization": 0.001,
         "additional_config": {
             "enable_const_eval": False,
             "min_context_len": 32,
+            "min_num_seqs": 1,
         },
     }
     llm = vllm.LLM(**llm_args)
 
-    output_text = llm.generate(prompts, sampling_params)[0].outputs[0].text
-    print(f"prompt: {prompts[0]}, output: {output_text}")
+    outputs = llm.generate(prompts, sampling_params)
+    for i, output in enumerate(outputs):
+        print(f"prompt: {prompts[i]}, output: {output.outputs[0].text}")
 
 
 @pytest.mark.push

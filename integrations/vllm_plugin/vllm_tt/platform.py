@@ -51,6 +51,14 @@ class TTConfig:
     enable_const_eval_on_cpu: bool = True
 
     min_context_len: int = 128
+
+    # Lower bound for the prefill request-batch warmup (b1-prefill, tt-xla #5281).
+    # When set below max_num_seqs, the runner also precompiles a smaller-batch
+    # prefill graph (e.g. b1) and selects it for low-concurrency prefills (lower
+    # TTFT) while decode stays at max_num_seqs. None resolves to max_num_seqs
+    # (single batch size = legacy behavior).
+    min_num_seqs: Optional[int] = None
+
     batch_size: int = 1
     enable_precompile_all: bool = True
 
@@ -273,6 +281,19 @@ class TTPlatform(Platform):
                 "additional_config['batch_size'] is deprecated and will be removed "
                 "in a future release. Use max_num_seqs instead."
             )
+
+        # b1-prefill (tt-xla #5281): resolve min_num_seqs default to max_num_seqs
+        # (single batch size = legacy) and persist it so the model runner sees a
+        # concrete value; validate >= 1.
+        if additional_config.get("min_num_seqs") is None:
+            additional_config["min_num_seqs"] = (
+                vllm_config.scheduler_config.max_num_seqs
+            )
+        elif int(additional_config["min_num_seqs"]) < 1:
+            raise ValueError(
+                "additional_config['min_num_seqs'] must be >= 1 for the TT backend."
+            )
+        vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.
