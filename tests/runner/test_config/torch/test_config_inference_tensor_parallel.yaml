@@ -191,6 +191,31 @@ test_config:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
 
+  # bloom/causal_lm/pytorch-176B-tensor_parallel-inference:
+  #   supported_archs: [galaxy-wh-6u]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true  # 176B; bf8 for DRAM headroom on Wormhole galaxy
+  #   required_pcc: 0.94  # relaxed for bf8 weights; tune after first run
+
+  # qwen_2_5/causal_lm/pytorch-Math_72B_Instruct-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true
+
+  # exaone_3_5/pytorch-EXAONE-3.5-32B-Instruct-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING  # remote code is 5.x-compatible; runs on stock transformers via trust_remote_code
+
+  llama2_70b_chat/pytorch-Llama-2-70b-chat-hf-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true  # 70B does not fit at bf16 on 4 devices; bf8 ~17.5 GB/device
+
+  # internlm2/pytorch-internlm2-chat-20b-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "InternLM2 remote code (modeling_internlm2.py, written for transformers 4.x) is incompatible with the installed transformers 5.x: its forward produces NaN logits on CPU in every config (use_cache true/false, bf16/fp32, eager) and also calls the removed DynamicCache.from_legacy_cache. Not fixable in the loader."
+
   qwen_3/causal_lm/pytorch-30B_A3b-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: NOT_SUPPORTED_SKIP
