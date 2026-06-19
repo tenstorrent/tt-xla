@@ -112,18 +112,23 @@ def filter_matrix_adv(matrix, adv_filter):
     return filtered_matrix
 
 
-def update_runners(matrix, sh_runner):
+def update_runners(matrix):
     """Update runner names based on shared runner flag."""
-    runner_map = (
-        {"p150": "p150b", "p150-perf": "p150b"} if sh_runner else {"n150": "n150-perf"}
-    )
+    runner_map = {"p150-perf": "p150b", "n150-perf": "n150"}
 
-    for item in matrix:
-        item["runs-on-original"] = item.get("runs-on")
-        if item.get("runs-on") in runner_map:
-            item["runs-on"] = runner_map[item["runs-on"]]
+    for item in list(matrix):
+        runs_on = item.get("runs-on")
+        if runs_on in ("galaxy-wh-6u", "qb2-blackhole"):
+            print(
+                f"::warning::Requested runner '{runs_on}' is not available in the shared runners pool. Removing test '{item.get('name', 'unknown')}' from matrix.",
+                file=sys.stderr,
+            )
+            matrix.remove(item)
+            continue
 
-    return matrix
+        item["runs-on-original"] = runs_on
+        if runs_on in runner_map:
+            item["runs-on"] = runner_map[runs_on]
 
 
 def main():
@@ -145,7 +150,8 @@ def main():
         matrix = flatten_matrix(data)
         filtered = filter_matrix_adv(matrix, adv_filter)
 
-        update_runners(filtered, args.sh_runner)
+        if args.sh_runner:
+            update_runners(filtered)
 
         if not filtered:
             print("Error: No matching tests found", file=sys.stderr)
