@@ -230,7 +230,11 @@ def test_flux2_dev(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=0,  # perf-tuning sweep
-        trace_enabled=True,  # perf-tuning sweep
+        # Winning config from model-perf-tuning: opt=0, trace=False (baseline).
+        # opt>=1 aborts with an OpModel worker-grid mismatch (system desc 10x11 vs
+        # device 10x13); trace and bfp_bf8 weights were both perf-neutral at the
+        # 128x128 bringup resolution. See the tuning report / branch git log.
+        optimization_level=0,
+        trace_enabled=False,
         output_image_path="test_flux2_dev_output.png",
     )
