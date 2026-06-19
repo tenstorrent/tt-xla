@@ -252,7 +252,7 @@ void GlobalClientInstanceSingleton::destroyClient() {
 }
 
 GlobalClientInstanceSingleton &GlobalClientInstanceSingleton::getInstance() {
-  static GlobalClientInstanceSingleton singleton =
+  static thread_local GlobalClientInstanceSingleton singleton =
       GlobalClientInstanceSingleton(nullptr);
   return singleton;
 }
@@ -335,6 +335,8 @@ void ClientInstance::bindApi(PJRT_Api *api) {
   api->PJRT_Client_DefaultDeviceAssignment =
       internal::onClientDefaultDeviceAssignment;
   api->PJRT_Client_BufferFromHostBuffer = internal::onBufferFromHostBuffer;
+  api->PJRT_Client_CreateUninitializedBuffer =
+      internal::onCreateUninitializedBuffer;
 }
 
 tt_pjrt_status ClientInstance::populateDevices() {
@@ -407,8 +409,19 @@ tt_pjrt_status ClientInstance::populateDevices() {
 
   // Mesh device requires physical hardware; skip in compile-only mode.
   if (!m_compile_only) {
-    m_parent_mesh =
-        getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    // [Workaround] On a 32-device galaxy (UBB) a 1D {1, N} parent mesh can't be
+    // reshaped to the 2D (4, 8) executable mesh (the MGD solver fails); open
+    // (4, 8) directly.
+    if (m_devices.size() == 32) {
+      LOG_F(WARNING, "32-device galaxy: opening the parent mesh directly as "
+                     "(4, 8); the 1D {1, N} -> (4, 8) reshape fails in the MGD "
+                     "solver. See "
+                     "https://github.com/tenstorrent/tt-metal/issues/43210");
+      m_parent_mesh = getOrCreateMeshDevice({4, 8});
+    } else {
+      m_parent_mesh =
+          getOrCreateMeshDevice({1, static_cast<uint32_t>(m_devices.size())});
+    }
   }
 
   return tt_pjrt_status::kSuccess;
@@ -510,6 +523,21 @@ ClientInstance::computeFabricConfig(const std::vector<uint32_t> &mesh_shape) {
                         : tt::runtime::FabricConfig::DISABLED;
     return tt::runtime::MeshFabricConfig{global, {}};
   }
+  // [Workaround] The Blackhole galaxy (UBB) lacks a both-axis wrap, so
+  // computeMeshFabricConfig's RING_RING is rejected as TORUS_XY by the
+  // TopologyMapper; force FABRIC_1D there. Other 32-device galaxies (e.g.
+  // Wormhole) have the wrap, so keep their auto-detected fabric.
+  bool is_blackhole = m_system_descriptor->chip_descs()->size() > 0 &&
+                      m_system_descriptor->chip_descs()->Get(0)->arch() ==
+                          ::tt::target::Arch::Blackhole;
+  if (is_blackhole && m_devices.size() == 32) {
+    LOG_F(WARNING,
+          "Auto-overriding fabric config to FABRIC_1D for the "
+          "32-device Blackhole galaxy (UBB); this is a workaround, not "
+          "expected behaviour.");
+    return tt::runtime::MeshFabricConfig{tt::runtime::FabricConfig::FABRIC_1D,
+                                         {}};
+  }
   return tt::runtime::computeMeshFabricConfig(m_system_descriptor, mesh_shape);
 }
 
@@ -568,7 +596,6 @@ tt::runtime::Device ClientInstance::getOrCreateMeshDevice(
 }
 
 void ClientInstance::closeMeshDevice() {
-  closeOptimizerSubmesh();
   closeParentMesh();
   loguru::flush();
 }
@@ -622,44 +649,6 @@ void ClientInstance::closeParentMesh() {
     m_parent_mesh.reset();
     m_fabric_config.reset();
   }
-}
-
-void ClientInstance::closeOptimizerSubmesh() {
-  if (m_optimizer_submesh.has_value()) {
-    DLOG_F(LOG_DEBUG, "Closing optimizer submesh.");
-    tt::runtime::releaseSubMeshDevice(*m_optimizer_submesh);
-    m_optimizer_submesh.reset();
-  }
-}
-
-tt::runtime::Device ClientInstance::getOrCreateOptimizerSubmesh(
-    const std::vector<uint32_t> &target_mesh_shape) {
-
-  // Ensure parent mesh exists with the correct shape
-  tt::runtime::Device parent_mesh = getOrCreateMeshDevice(target_mesh_shape);
-
-  if (m_optimizer_submesh.has_value()) {
-    std::vector<uint32_t> optimizer_submesh_shape =
-        tt::runtime::getMeshShape(*m_optimizer_submesh);
-
-    if (optimizer_submesh_shape == target_mesh_shape) {
-      DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - reusing "
-                        "already created optimizer submesh");
-      return *m_optimizer_submesh;
-    }
-
-    // If shape changed, parent mesh was closed and reopened in
-    // getOrCreateMeshDevice, which automatically closed the submesh.
-    // Clear the stale reference.
-    m_optimizer_submesh.reset();
-  }
-
-  DLOG_F(LOG_DEBUG, "ClientInstance::getOrCreateOptimizerSubmesh - "
-                    "creating optimizer submesh");
-  m_optimizer_submesh =
-      tt::runtime::createSubMeshDevice(parent_mesh, target_mesh_shape);
-
-  return *m_optimizer_submesh;
 }
 
 namespace internal {
@@ -865,6 +854,51 @@ PJRT_Error *onClientDefaultDeviceAssignment(
   return nullptr;
 }
 
+// Resolves the target device and memory space for a new buffer from the
+// `memory` and `device` PJRT arguments, applying the validation shared by the
+// buffer-creation entry points. On success `out_memory` and `out_device` are
+// set to non-null instances; on failure the reason is logged and an error
+// status is returned.
+static tt_pjrt_status
+resolveBufferDeviceAndMemory(PJRT_Memory *memory_arg, PJRT_Device *device_arg,
+                             MemoryInstance **out_memory,
+                             DeviceInstance **out_device) {
+  MemoryInstance *memory_instance = MemoryInstance::unwrap(memory_arg);
+  DeviceInstance *device_instance = DeviceInstance::unwrap(device_arg);
+
+  // From PJRT specification: "If nullptr, host data will be copied to `device`,
+  // otherwise we copy data to `memory`."
+  if (memory_instance) {
+    if (device_instance && device_instance != memory_instance->getDevice()) {
+      LOG_F(ERROR, "Device set in `device` arg is different from the memory "
+                   "space device set in `memory` arg");
+      return tt_pjrt_status::kInvalidArgument;
+    }
+    device_instance = memory_instance->getDevice();
+  } else {
+    if (!device_instance) {
+      LOG_F(ERROR, "Device is not set either in `device` arg nor in device "
+                   "from `memory` arg");
+      return tt_pjrt_status::kInvalidArgument;
+    }
+    memory_instance = device_instance->getDefaultMemory();
+  }
+
+  if (!memory_instance) {
+    LOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
+                 "device from `device` arg");
+    return tt_pjrt_status::kInvalidArgument;
+  }
+  if (memory_instance->isHostMemory()) {
+    LOG_F(ERROR, "We only support creating buffers on device memory");
+    return tt_pjrt_status::kUnimplemented;
+  }
+
+  *out_memory = memory_instance;
+  *out_device = device_instance;
+  return tt_pjrt_status::kSuccess;
+}
+
 // Constructing buffer instance for the first time.
 PJRT_Error *
 onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
@@ -885,38 +919,12 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
                 .release();
   }
 
-  MemoryInstance *memory_instance = MemoryInstance::unwrap(args->memory);
-  DeviceInstance *device_instance = DeviceInstance::unwrap(args->device);
-
-  // From PJRT specification: "If nullptr, host data will be copied to `device`,
-  // otherwise we copy data to `memory`."
-  if (memory_instance) {
-    if (device_instance && device_instance != memory_instance->getDevice()) {
-      LOG_F(ERROR, "Device set in `device` arg is different from the memory "
-                   "space device set in `memory` arg");
-      return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
-                  .release();
-    }
-    device_instance = memory_instance->getDevice();
-  } else {
-    memory_instance = device_instance->getDefaultMemory();
-  }
-
-  if (!memory_instance) {
-    LOG_F(ERROR, "Memory space is not set either in `memory` arg nor in "
-                 "device from `device` arg");
-    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
-                .release();
-  }
-  if (memory_instance->isHostMemory()) {
-    LOG_F(ERROR, "We only support creating buffers on device memory");
-    return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented).release();
-  }
-  if (!device_instance) {
-    LOG_F(ERROR, "Device is not set either in `device` arg nor in device from "
-                 "`memory` arg");
-    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
-                .release();
+  MemoryInstance *memory_instance = nullptr;
+  DeviceInstance *device_instance = nullptr;
+  tt_pjrt_status resolve_status = resolveBufferDeviceAndMemory(
+      args->memory, args->device, &memory_instance, &device_instance);
+  if (!tt_pjrt_status_is_ok(resolve_status)) {
+    return *ErrorInstance::makeError(resolve_status).release();
   }
 
   std::unique_ptr<BufferInstance> buffer =
@@ -943,6 +951,61 @@ onBufferFromHostBuffer(PJRT_Client_BufferFromHostBuffer_Args *args) {
   }
 
   // Releasing the ownership to the PJRT API caller since the caller is
+  // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
+  args->buffer = *buffer.release();
+
+  return nullptr;
+}
+
+// Allocating an uninitialized device buffer (no host data). The contents are
+// written later by a compiled program (e.g. KV caches, scratch space).
+PJRT_Error *
+onCreateUninitializedBuffer(PJRT_Client_CreateUninitializedBuffer_Args *args) {
+  ZoneScoped;
+  DLOG_F(LOG_DEBUG, "ClientInstance::PJRT_Client_CreateUninitializedBuffer");
+  ClientInstance *client_instance = ClientInstance::unwrap(args->client);
+
+  const std::int64_t *byte_strides = nullptr;
+  size_t num_byte_strides = 0;
+  if (args->shape_layout) {
+    if (args->shape_layout->type != PJRT_Buffer_MemoryLayout_Type_Strides) {
+      LOG_F(ERROR, "Creating uninitialized buffer is supported only with "
+                   "strided memory layout");
+      return *ErrorInstance::makeError(tt_pjrt_status::kUnimplemented)
+                  .release();
+    }
+    byte_strides = args->shape_layout->strides.byte_strides;
+    num_byte_strides = args->shape_layout->strides.num_byte_strides;
+  }
+
+  if (num_byte_strides != 0 && num_byte_strides != args->shape_num_dims) {
+    LOG_F(ERROR, "Invalid value of num_byte_strides argument");
+    return *ErrorInstance::makeError(tt_pjrt_status::kInvalidArgument)
+                .release();
+  }
+
+  MemoryInstance *memory_instance = nullptr;
+  DeviceInstance *device_instance = nullptr;
+  tt_pjrt_status resolve_status = resolveBufferDeviceAndMemory(
+      args->memory, args->device, &memory_instance, &device_instance);
+  if (!tt_pjrt_status_is_ok(resolve_status)) {
+    return *ErrorInstance::makeError(resolve_status).release();
+  }
+
+  std::unique_ptr<BufferInstance> buffer =
+      BufferInstance::createInputBufferInstance(
+          args->shape_element_type, args->shape_dims, args->shape_num_dims,
+          device_instance, memory_instance);
+
+  if (client_instance->isCompileOnly()) {
+    DLOG_F(LOG_DEBUG,
+           "Compile-only mode: PJRT_Client_CreateUninitializedBuffer no-op ");
+    buffer->markAsDataReady();
+  } else {
+    buffer->allocateUninitialized(byte_strides, num_byte_strides);
+  }
+
+  // Releasing the ownership to the caller since the caller is
   // responsible for calling `PJRT_Buffer_Destroy` on the buffer.
   args->buffer = *buffer.release();
 

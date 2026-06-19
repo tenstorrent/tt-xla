@@ -13,6 +13,8 @@ def flatten_matrix(data):
     for proj in data:
         test_defaults = proj.get("test-defaults", {})
         for test in proj.get("tests", []):
+            if test.get("skip"):
+                continue
             merged_test = {**test_defaults, **test, "project": proj["project"]}
 
             runs_on = merged_test.get("runs-on", [])
@@ -112,7 +114,9 @@ def filter_matrix_adv(matrix, adv_filter):
 
 def update_runners(matrix, sh_runner):
     """Update runner names based on shared runner flag."""
-    runner_map = {"p150": "p150b"} if sh_runner else {"n150": "n150-perf"}
+    runner_map = (
+        {"p150": "p150b", "p150-perf": "p150b"} if sh_runner else {"n150": "n150-perf"}
+    )
 
     for item in matrix:
         item["runs-on-original"] = item.get("runs-on")

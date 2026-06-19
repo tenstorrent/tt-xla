@@ -79,7 +79,6 @@ jobs:
 
     runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on  }}
 
-    # Keep this name in sync with the fetch-job-id step
     name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     container:
@@ -100,12 +99,6 @@ jobs:
         SSH_AUTH_SOCK: /var/run/mpirun/id_rsa_multihost_ssh_agent_sock
 
     steps:
-
-    - name: Fetch job id
-      id: fetch-job-id
-      uses: tenstorrent/tt-github-actions/.github/actions/job_id@main
-      with:
-        job_name: "test ${{ matrix.build.test-mark }} (${{ matrix.build.runs-on }}, ${{ matrix.build.name }}, ${{ strategy.job-index }})"
 
     - name: Mark repo as safe for git
       run: |
@@ -161,19 +154,19 @@ jobs:
       id: strings
       shell: bash
       env:
-        JOB_ID: ${{ steps.fetch-job-id.outputs.job_id }}
+        JOB_ID: ${{ job.check_run_id }}
       run: |
         echo "work-dir=$(pwd)" >> "$GITHUB_OUTPUT"
         echo "build-output-dir=$(pwd)/build" >> "$GITHUB_OUTPUT"
         echo "test_report_path=report_$JOB_ID.xml" >> "$GITHUB_OUTPUT"
         echo "perf_report_dir=$(pwd)/benchmark_reports" >> "$GITHUB_OUTPUT"
         # Override wheel_build to release if matrix.build.require is 'release' or 'alchemist'
-        if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" ]]; then
-          echo "wheel_build=release" >> "$GITHUB_OUTPUT"
+        if [[ "${{ matrix.build.require }}" == "release" || "${{ matrix.build.require }}" == "alchemist" || "${{ matrix.build.multihost }}" == "true" ]]; then
+          wheel_build=release
         else
-          echo "wheel_build=${{ inputs.wheel_build }}" >> "$GITHUB_OUTPUT"
+          wheel_build="${{ inputs.wheel_build }}"
         fi
-        echo "wheel_artifact_name=xla-whl-${{ inputs.wheel_build }}${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
+        echo "wheel_artifact_name=xla-whl-$wheel_build${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
         echo "wheel_release_vllm_tt_artifact_name=vllm-tt-whl-release${{inputs.artifact_suffix}}" >> "$GITHUB_OUTPUT"
         echo "alchemist_artifact_name=alchemist-lib-release${{ inputs.artifact_suffix }}" >> "$GITHUB_OUTPUT"
 
@@ -409,7 +402,7 @@ jobs:
         python -m pytest ${{ env.VERBOSITY }} ${{ env.BASE_PYTEST_CMD }} \
           --junitxml=${{ steps.strings.outputs.test_report_path }} \
           --perf-report-dir=${{ steps.strings.outputs.perf_report_dir }} \
-          --perf-id=${{ steps.fetch-job-id.outputs.job_id }} \
+          --perf-id=${{ job.check_run_id }} \
           2>&1 | tee pytest.log
 
     # produce_cicd_data silently drops artifacts with spaces in the name, must replace spaces with underscores
@@ -425,7 +418,7 @@ jobs:
       uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
-        name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-log-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
         path: pytest.log
         if-no-files-found: ignore
 
@@ -433,7 +426,7 @@ jobs:
       uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
-        name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: test-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
         path: ${{ steps.strings.outputs.test_report_path }}
         if-no-files-found: ignore
 
@@ -442,7 +435,7 @@ jobs:
       uses: actions/upload-artifact@v6
       if: success() || failure()
       with:
-        name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: perf-reports-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
         path: ${{ steps.strings.outputs.perf_report_dir }}
         # If --perf-report-dir is not given, no files will be generated so this ignore is needed to avoid failing the job.
         if-no-files-found: 'ignore'
@@ -473,7 +466,7 @@ jobs:
       if: inputs.dump_irs && (success() || failure())
       uses: actions/upload-artifact@v6
       with:
-        name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ steps.fetch-job-id.outputs.job_id }}
+        name: ir-dumps-${{ needs.generate-matrix-test.outputs.test_matrix_hash }}-${{ github.run_attempt }}.${{ strategy.job-index }}-${{ matrix.build.runs-on }}-${{ steps.sanitize.outputs.test_mark }}-${{ job.check_run_id }}
         path: collected_irs/
         if-no-files-found: ignore
 

@@ -56,6 +56,14 @@ private:
                      tt::runtime::Device device, size_t num_devices,
                      std::uint32_t program_index, size_t arg_index) override;
 
+  // In distributed runtime, runtime inputs from BufferFromHostBuffer are not
+  // pushed to device until prepareInputTensor. See issue #4011, due to a
+  // fundamental lack of information from PJRT API that would let us safely
+  // share memory on workers. This function actually pushes controller host
+  // "shell" runtime tensors to workers and discards the shells.
+  void
+  materializeShellTensors(const std::vector<BufferInstance *> &arg_buffers);
+
   // Creates flatbuffer loaded executable instance from the executable image.
   FlatbufferLoadedExecutableInstance(
       std::shared_ptr<FlatbufferExecutableImage> executable_image,

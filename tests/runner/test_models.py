@@ -1,6 +1,7 @@
 # SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
+import contextlib
 import os
 import shutil
 import socket
@@ -108,8 +109,16 @@ def _run_model_test_impl(
     model_info = ModelLoader.get_model_info(variant=variant)
     print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
-    # Ensure per-model requirements are installed, and roll back after the test
-    with RequirementsManager.for_loader(loader_path, framework=str(framework)):
+    # Ensure per-model requirements are installed, and roll back after the test.
+    # Skip installation entirely for NOT_SUPPORTED_SKIP tests (unless --force-run):
+    force_run = request.config.getoption("--force-run", default=False)
+    will_run = test_metadata.status != ModelTestStatus.NOT_SUPPORTED_SKIP or force_run
+    requirements_ctx = (
+        RequirementsManager.for_loader(loader_path, framework=str(framework))
+        if will_run
+        else contextlib.nullcontext()
+    )
+    with requirements_ctx:
 
         ir_dump_path = ""
         # Dump all collected IRs if --dump-irs option is enabled
@@ -144,7 +153,6 @@ def _run_model_test_impl(
 
         comparison_config = test_metadata.to_comparison_config()
 
-        force_run = request.config.getoption("--force-run", default=False)
         try:
             # Only run the actual model test if not marked for skip. The record properties
             # function in finally block will always be called and handles the pytest.skip.

@@ -1070,6 +1070,10 @@ def test_ministral_8b(
     )
 
 
+# The n150 perf entry (llama_3_1_8b_instruct) is excluded from the onPR perf filter
+# (still runs in nightly): device hang during uplift
+# (https://github.com/tenstorrent/tt-xla/issues/5282, fix in
+# https://github.com/tenstorrent/tt-metal/pull/47221). The accuracy entry still runs.
 def test_llama_3_1_8b(
     output_file,
     num_layers,
@@ -1750,6 +1754,8 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
 
 
 # Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/issues/4192)
+# The n300-llmbox perf entry (gpt_oss_20b_tp) is excluded from the onPR perf filter
+# (still runs in nightly): hangs on n300-llmbox (https://github.com/tenstorrent/tt-xla/issues/5151).
 def test_gpt_oss_20b_tp(
     output_file,
     num_layers,
@@ -1826,6 +1832,8 @@ def test_gpt_oss_20b_tp_d2m(
     )
 
 
+# Excluded from the onPR perf filter (still runs in nightly): slice op requires
+# tile-aligned height (https://github.com/tenstorrent/tt-xla/issues/5207).
 def test_gpt_oss_20b_tp_batch_size_1(
     output_file,
     num_layers,
@@ -1861,6 +1869,8 @@ def test_gpt_oss_20b_tp_batch_size_1(
     )
 
 
+# Excluded from the onPR perf filter (still runs in nightly): galaxy fabric "Failed
+# to add pinning constraints" (https://github.com/tenstorrent/tt-xla/issues/5210).
 def test_llama_3_1_70b_tp_galaxy(
     output_file,
     num_layers,
@@ -2216,7 +2226,7 @@ def test_deepseek_v3_2_exp_tp_galaxy_2_layers(
         experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
-        required_pcc=-0.92,
+        required_pcc=0.92,
     )
 
 
@@ -2585,6 +2595,64 @@ def test_gpt_oss_20b_tp_qb2(
     )
 
 
+def _deepseek_v3_1_shard_spec_fn(model_loader, model):
+    """Sharding specs for DeepSeek V3.1 on 4x8 galaxy mesh with TP 8, DP 4, EP 32."""
+    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, "model")
+    shard_specs[model.model.norm.weight] = ("model",)
+    shard_specs[model.lm_head.weight] = (None, "model")
+
+    for layer in model.model.layers:
+        sa = layer.self_attn
+        shard_specs[sa.q_a_proj.weight] = (None, "model")
+        shard_specs[sa.q_b_proj.weight] = ("model", None)
+        shard_specs[sa.kv_a_proj_with_mqa.weight] = (None, "model")
+        shard_specs[sa.kv_b_proj.weight] = ("model", None)
+        shard_specs[sa.o_proj.weight] = (None, "model")
+
+        shard_specs[layer.input_layernorm.weight] = ("model",)
+        shard_specs[layer.post_attention_layernorm.weight] = ("model",)
+
+        mlp = layer.mlp
+        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
+            inner = mlp.mlp if hasattr(mlp, "mlp") else mlp
+            shard_specs[inner.router.gate.weight] = (None, "model")
+            shard_specs[inner.experts.gate_proj] = (
+                ("batch", "model"),
+                None,
+                None,
+            )
+            shard_specs[inner.experts.up_proj] = (
+                ("batch", "model"),
+                None,
+                None,
+            )
+            shard_specs[inner.experts.down_proj] = (
+                ("batch", "model"),
+                None,
+                None,
+            )
+            for bias_name in ("gate_proj_bias", "up_proj_bias", "down_proj_bias"):
+                b = getattr(inner.experts, bias_name, None)
+                if b is not None:
+                    shard_specs[b] = (("batch", "model"), None)
+
+            shared = getattr(mlp, "shared_experts", None)
+            if shared is not None:
+                shard_specs[shared.gate_proj.weight] = (None, "model")
+                shard_specs[shared.up_proj.weight] = (None, "model")
+                shard_specs[shared.down_proj.weight] = ("model", None)
+        else:
+            shard_specs[mlp.gate_proj.weight] = ("batch", "model")
+            shard_specs[mlp.up_proj.weight] = ("batch", "model")
+            shard_specs[mlp.down_proj.weight] = ("model", "batch")
+
+    return shard_specs
+
+
 # This test only runs 4 layers so we expect to see incoherent output
 def test_deepseek_v3_1_tp_galaxy_4_layers(
     output_file,
@@ -2615,9 +2683,67 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         use_mla_cache=True,
         optimization_level=0,
         trace_enabled=False,
+        shard_spec_fn=_deepseek_v3_1_shard_spec_fn,
         required_pcc=0.96,
         experimental_kv_cache_dtype=None,
     )
+
+
+def _glm_4_7_shard_spec_fn(model_loader, model):
+    """Hidden-replicated sharding spec for GLM-4 on the 4x8 galaxy mesh.
+    TP - 8 : DP - 4 : EP - 32
+    The residual hidden dim is kept replicated along the model axis so the RMS norms reduce locally instead of lowering to a distributed all_gather norm.
+    Embedding is replicated, lm_head is vocab-parallel, and attention / dense MLP / shared experts are col->row parallel along model axis TP - 8.
+    Routed expert weights are sharded across both model and batch axes EP - 32, matching DeepSeek V3.x / Kimi K2.
+    """
+    from tt_torch.sparse_mlp import A2aSparseMLPWithSharedExperts
+
+    shard_specs = {}
+
+    shard_specs[model.model.embed_tokens.weight] = (None, None)
+    shard_specs[model.model.norm.weight] = (None,)
+    shard_specs[model.lm_head.weight] = ("model", None)
+
+    for layer in model.model.layers:
+        shard_specs[layer.input_layernorm.weight] = (None,)
+        shard_specs[layer.post_attention_layernorm.weight] = (None,)
+
+        attn = layer.self_attn
+        shard_specs[attn.q_proj.weight] = ("model", None)
+        shard_specs[attn.k_proj.weight] = ("model", None)
+        shard_specs[attn.v_proj.weight] = ("model", None)
+        shard_specs[attn.o_proj.weight] = (None, "model")
+
+        if attn.q_proj.bias is not None:
+            shard_specs[attn.q_proj.bias] = ("model",)
+            shard_specs[attn.k_proj.bias] = ("model",)
+            shard_specs[attn.v_proj.bias] = ("model",)
+
+        if hasattr(attn, "q_norm"):
+            shard_specs[attn.q_norm.weight] = (None,)
+            shard_specs[attn.k_norm.weight] = (None,)
+
+        mlp = layer.mlp
+
+        if isinstance(mlp, A2aSparseMLPWithSharedExperts):
+            inner = mlp.mlp
+            shard_specs[inner.router.gate.weight] = (None, None)
+            shard_specs[inner.experts.gate_proj] = (("batch", "model"), None, None)
+            shard_specs[inner.experts.up_proj] = (("batch", "model"), None, None)
+            shard_specs[inner.experts.down_proj] = (("batch", "model"), None, None)
+
+            shared = getattr(mlp, "shared_experts", None)
+            if shared is not None:
+                shard_specs[shared.gate_proj.weight] = ("model", None)
+                shard_specs[shared.up_proj.weight] = ("model", None)
+                shard_specs[shared.down_proj.weight] = (None, "model")
+
+        else:
+            shard_specs[mlp.gate_proj.weight] = ("model", None)
+            shard_specs[mlp.up_proj.weight] = ("model", None)
+            shard_specs[mlp.down_proj.weight] = (None, "model")
+
+    return shard_specs
 
 
 # This test only runs 4 layers so we expect to see incoherent output
@@ -2649,7 +2775,8 @@ def test_glm_4_7_tp_galaxy_4_layers(
         decode_only=decode_only,
         optimization_level=0,
         trace_enabled=False,
+        shard_spec_fn=_glm_4_7_shard_spec_fn,
         input_output_sharding_spec=("batch", None),
-        kv_cache_sharding_spec=("batch", None, None, None),
-        required_pcc=0.86,
+        kv_cache_sharding_spec=("batch", "model", None, None),
+        required_pcc=0.99,
     )
