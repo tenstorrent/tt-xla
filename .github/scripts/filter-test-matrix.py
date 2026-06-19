@@ -15,33 +15,11 @@ def flatten_matrix(data):
         for test in proj.get("tests", []):
             merged_test = {**test_defaults, **test, "project": proj["project"]}
 
-            # Expand a "pytest-sweep" (list of pytest parametrization ids) into one
-            # entry per id: the id is appended to the pytest node and the name, e.g.
-            # "...::test_x_prefill" + "bs1_sl1024_opt0" ->
-            # "...::test_x_prefill[bs1_sl1024_opt0]" / "<name>_bs1_sl1024_opt0".
-            # This lets a single matrix entry fan out over all parametrizations while
-            # each combo still runs as its own job (own output file / dashboard row).
-            sweep = merged_test.pop("pytest-sweep", None)
-            if sweep:
-                variants = [
-                    {
-                        **merged_test,
-                        "pytest": f"{merged_test['pytest']}[{pytest_id}]",
-                        "name": f"{merged_test['name']}_{pytest_id}",
-                    }
-                    for pytest_id in sweep
-                ]
+            runs_on = merged_test.get("runs-on", [])
+            if isinstance(runs_on, list):
+                matrix.extend({**merged_test, "runs-on": runner} for runner in runs_on)
             else:
-                variants = [merged_test]
-
-            for variant in variants:
-                runs_on = variant.get("runs-on", [])
-                if isinstance(runs_on, list):
-                    matrix.extend(
-                        {**variant, "runs-on": runner} for runner in runs_on
-                    )
-                else:
-                    matrix.append(variant)
+                matrix.append(merged_test)
 
     return matrix
 
@@ -59,7 +37,6 @@ def filter_matrix_adv(matrix, adv_filter):
       - "runs-on": machine(s) on which the test should run. If ommited, condition will be applied to all unskipped machines. Parameter can be string or array of strings.
       - "filter": string that should be present in the test name.
       - "accuracy-testing": whether to include accuracy testing or not.
-      - "perf-prefill": whether to include perf prefill or not.
       - "skip": whether to skip tests matching the condition or not. If ommited, it is assumed to be true.
     """
     # Create initial structure with all runners marked as skip=True
@@ -108,8 +85,6 @@ def filter_matrix_adv(matrix, adv_filter):
                 runner_conditions[runner]["accuracy-testing"] = condition[
                     "accuracy-testing"
                 ]
-            if condition.get("perf-prefill") is not None:
-                runner_conditions[runner]["perf-prefill"] = condition["perf-prefill"]
             if condition.get("skip") is not None:
                 runner_conditions[runner]["skip"] = condition["skip"]
 
@@ -129,10 +104,6 @@ def filter_matrix_adv(matrix, adv_filter):
             if "accuracy-testing" in conditions and conditions[
                 "accuracy-testing"
             ] != item.get("accuracy-testing", False):
-                continue
-            if "perf-prefill" in conditions and conditions["perf-prefill"] != item.get(
-                "perf-prefill", False
-            ):
                 continue
             filtered_matrix.append(item)
 
