@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""FLUX.1-dev — AutoencoderKL decoder component test (128x128)."""
+"""FLUX.1-dev — AutoencoderKL decoder component test (1024x1024)."""
 
 import pytest
 import torch

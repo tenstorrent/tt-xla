@@ -2,38 +2,36 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""FLUX.1-dev — FluxTransformer2DModel component test (128x128 latent geometry)."""
+"""FLUX.1-dev — FluxTransformer2DModel component test (1024x1024 latent geometry)."""
 
 import pytest
 import torch
 import torch_xla.runtime as xr
 from infra import Framework, run_graph_test
 
-from tests.infra.testers.compiler_config import CompilerConfig
-
 from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
 
-# Single-chip fit attempt: bf16 weights (~23.8 GB) plus intermediate activations
-# marginally overflow Blackhole DRAM during execution. Convert matmul/linear
-# weights to block-float8 (bfp_bf8) to roughly halve weight residency (~12 GB),
-# leaving headroom for the ~4.8 GB activation buffer. opt-level 0 keeps the
-# compile fast.
-_COMPILER_CONFIG = CompilerConfig(
-    optimization_level=0,
-    experimental_weight_dtype="bfp_bf8",
-)
-
-
-@pytest.mark.skip(
-    reason="Single-chip device DRAM OOM during execution. On Blackhole (~34 GB: "
-    "8 banks x 4.27 GB) the ~23.8 GB weights fit and execution starts, but an "
-    "intermediate ~4.8 GB activation buffer can't allocate (~30 GB already used, "
-    "<0.5 GB/bank free) - marginally over; needs memory opt (bfp8 weights / "
-    "optimization_level=2). On Wormhole (12 GB) it OOMs outright. The full "
-    "run_graph_test also needs >31 GB host RAM (weights + trace + CPU reference). "
-    "skip (not xfail) because a host OOM-kill / device TT_FATAL aborts the "
-    "process rather than raising. Tracking issue TBD."
+# Single-chip Blackhole DRAM OOM: the ~23.8 GB bf16 weights overflow DRAM during
+# the weight load (LoadCachedOp->ToDeviceOp) - a 132 MB buffer can't allocate
+# with <0.5 MB/bank free. Single-chip fit attempts that did NOT work:
+#   - bf16 opt_level=1 and opt_level=2 (memory-layout / DRAM space-saving passes):
+#     the optimizer compile is CPU-bound but does not converge in a practical
+#     time (>2 h, no result) - impractical.
+#   - bf16 experimental_enable_dram_space_saving_optimization / fp32_dest_acc_en
+#     =False at opt_level=0: byte-identical OOM (these flags don't touch the
+#     failing weight buffer).
+#   - bfp8 weights (experimental_weight_dtype="bfp_bf8"): would halve weight
+#     residency and fit, but segfaults in tt-metal pack_as_bfp_tiles during the
+#     host float->bfp8 weight conversion (a prebuilt libtt_metal.so bug, reached
+#     by both the compiler-option and apply_weight_dtype_overrides paths).
+# Fix requires multichip tensor-parallel sharding (P300, 2x Blackhole) - deferred.
+@pytest.mark.xfail(
+    reason="Single-chip Blackhole DRAM OOM: ~23.8 GB bf16 weights overflow DRAM "
+    "during weight load (132 MB buffer can't allocate, <0.5 MB/bank free). bf16 "
+    "opt_level=1/2 compiles don't converge in a practical time; bfp8 weights "
+    "segfault in tt-metal pack_as_bfp_tiles host packer. Needs multichip "
+    "tensor-parallel sharding (deferred). Tracking issue #5251."
 )
 @pytest.mark.single_device
 @pytest.mark.nightly
@@ -50,5 +48,4 @@ def test_transformer():
         model,
         inputs,
         framework=Framework.TORCH,
-        compiler_config=_COMPILER_CONFIG,
     )
