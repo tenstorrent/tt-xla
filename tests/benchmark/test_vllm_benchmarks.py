@@ -188,7 +188,7 @@ SINGLE_DEVICE_CONFIGS = [
 TP_CONFIGS = [
     pytest.param(
         _tp_config(
-            "tiiuae/Falcon3-7B-Base", 32, mesh_shape=[2, 4], num_hidden_layers=4
+            "tiiuae/Falcon3-7B-Base", 32, mesh_shape=[2, 4],
         ),
         id="falcon3-7b-tp",
     ),
