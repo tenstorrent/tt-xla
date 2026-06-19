@@ -511,7 +511,7 @@ def test_longcat_image_transformer(output_file, request):
 
     # Configuration
     data_format = torch.bfloat16
-    batch_size = 1
+    batch_size = 2
 
     # Load model
     variant = ModelVariant.TRANSFORMER
@@ -539,5 +539,5 @@ def test_longcat_image_transformer(output_file, request):
         input_size=(1, 256, 64),
         data_format=data_format,
         optimization_level=0,  # opt>=1 aborts on harvested qb2-blackhole (OpModel grid mismatch)
-        trace_enabled=True,
+        trace_enabled=False,  # trace=True collapses PCC (0.038) with no speedup
     )
