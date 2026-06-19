@@ -39,11 +39,6 @@ on:
         required: false
         type: boolean
         default: false
-      sh-runner:
-        description: "Use shared runner"
-        required: false
-        type: boolean
-        default: false
       check_fusions:
         description: "Verify expected fusion ops are present in compiled IR"
         required: false
@@ -64,12 +59,12 @@ jobs:
       matrix:
         build: ${{ fromJson(inputs.matrix) }}
 
-    runs-on: ${{ !inputs.sh-runner && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || format('tt-ubuntu-2204-{0}-stable', matrix.build.runs-on) }}
+    runs-on: ${{ !matrix.build.shared-runners && fromJson(format('["{0}", "in-service"]', matrix.build.runs-on)) || matrix.build.runs-on }}
 
     name: "perf ${{ matrix.build.name }} (${{ matrix.build.runs-on-original || matrix.build.runs-on }})"
 
     container:
-      image: ${{ !inputs.sh-runner && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
+      image: ${{ !matrix.build.shared-runners && inputs.docker_image || format('harbor.ci.tenstorrent.net/{0}', inputs.docker_image) }}
       options: --device /dev/tenstorrent
       volumes:
         - /dev/hugepages:/dev/hugepages
@@ -87,7 +82,7 @@ jobs:
     - name: Set caching env variables
       shell: bash
       run: |
-        if [[ "${{ inputs.sh-runner }}" == "false" || "${{ inputs.sh-runner }}" == "" ]]; then
+        if [[ "${{ matrix.build.shared-runners }}" != "true" ]]; then
           echo "DOCKER_CACHE_ROOT=/mnt/dockercache" >> $GITHUB_ENV
         fi
 
