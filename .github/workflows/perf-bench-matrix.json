@@ -766,6 +766,12 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "hunyuanimage3_transformer_block_qb2",
+        "pyreq": "diffusers==0.38.0 einops",
+        "pytest": "tests/benchmark/test_vision.py::test_hunyuanimage3_transformer_block",
+        "runs-on": "qb2-blackhole"
       }
     ]
   }

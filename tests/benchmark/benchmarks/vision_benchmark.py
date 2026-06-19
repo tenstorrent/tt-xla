@@ -26,6 +26,20 @@ WARMUP_STEPS = 32
 MODULE_EXPORT_PATH = "modules"
 
 
+def _to_device(inputs, device):
+    """Move a single tensor or a list/tuple of tensors to ``device``."""
+    if isinstance(inputs, (list, tuple)):
+        return [t.to(device) for t in inputs]
+    return inputs.to(device)
+
+
+def _forward(model, inputs):
+    """Call ``model`` with a single tensor or a list/tuple of positional tensors."""
+    if isinstance(inputs, (list, tuple)):
+        return model(*inputs)
+    return model(inputs)
+
+
 def execute_and_measure_fps(
     model, inputs, device, loop_count, extract_output_tensor_fn
 ):
@@ -58,11 +72,11 @@ def execute_and_measure_fps(
         outputs = []
         for i in range(loop_count):
             start_iteration_time = time.perf_counter_ns()
-            # Move input to device
-            device_input = inputs[i].to(device)
+            # Move input(s) to device (single tensor or list/tuple of tensors)
+            device_input = _to_device(inputs[i], device)
 
             # Model forward, non blocking
-            output = model(device_input)
+            output = _forward(model, device_input)
 
             # Extract output tensor
             output = extract_output_tensor_fn(output)
@@ -121,7 +135,9 @@ def benchmark_vision_torch_xla(
         data_format: torch.dtype for model precision (e.g., torch.bfloat16, torch.float32)
         ttnn_perf_metrics_output_file: Path to save TTNN performance metrics
         load_inputs_fn: Function to load a single batch of preprocessed inputs.
-            Signature: fn(batch_size, dtype: torch.dtype) -> Tensor
+            Signature: fn(batch_size, dtype: torch.dtype) -> Tensor | list[Tensor].
+            A list/tuple is splatted into the model as positional args, supporting
+            multi-input modules (e.g. per-component model bring-ups).
         extract_output_tensor_fn: Function to extract tensor from model outputs (e.g. get .logits).
         required_pcc: Minimum PCC threshold for output validation
 
@@ -137,7 +153,7 @@ def benchmark_vision_torch_xla(
     # Generate golden output for PCC calculation (run on CPU)
     golden_input = inputs[0]
     with torch.no_grad():
-        golden_output = framework_model(golden_input)
+        golden_output = _forward(framework_model, golden_input)
         golden_output = extract_output_tensor_fn(golden_output)
 
     export_model_name = build_xla_export_name(
