@@ -374,10 +374,11 @@ class XLASupportedSamplingMetadata:
             repetition_penalties_t = input_batch.repetition_penalties_cpu_tensor[
                 :padded_num_reqs
             ].to(xla_device)
-            output_token_counts = cls._compute_token_counts(
-                input_batch.req_output_token_ids,
-                padded_num_reqs,
-                vocab_size,
+            # Incremental count update (#4278): fold only newly-generated tokens
+            # into a persistent [num_reqs, vocab] tensor instead of re-scanning
+            # the full output history every step (was O(N^2) per request).
+            output_token_counts = input_batch.update_output_token_counts(
+                padded_num_reqs
             ).to(xla_device)
             prompt_token_mask_t = cls._compute_prompt_mask(
                 input_batch.num_prompt_tokens,
