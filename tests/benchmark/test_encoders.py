@@ -559,7 +559,7 @@ def test_longcat_image_transformer(output_file, request):
         batch_size=batch_size,
         input_sequence_length=input_sequence_length,
         loop_count=32,
-        optimization_level=2,
+        optimization_level=0,
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
     )
