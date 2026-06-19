@@ -113,7 +113,7 @@ jobs:
     # if: always() — run even if some `generate` matrix entries failed; we
     # still want to PR whichever archs succeeded.
     if: always()
-    runs-on: cpu
+    runs-on: tt-ubuntu-2204-large-stable
     container:
       image: ${{ needs.build-image.outputs.docker-image-base }}
     steps:
