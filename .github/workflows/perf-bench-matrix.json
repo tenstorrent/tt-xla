@@ -343,6 +343,15 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "ring_fabric_all_reduce",
+        "pytest": "tests/benchmark/test_ring_fabric.py::test_ring_fabric_all_reduce",
+        "runs-on": [
+          "n300-llmbox",
+          "galaxy-wh-6u",
+          "qb2-blackhole"
+        ]
+      },
+      {
         "name": "llama_3_2_1b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b",
         "accuracy-testing": true
