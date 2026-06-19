@@ -185,8 +185,8 @@ static tt_pjrt_status launchDistributedRuntime() {
   } else {
     char hostname[256];
     if (gethostname(hostname, sizeof(hostname)) != 0) {
-      DLOG_F(
-          WARNING,
+      LOG_F(
+          ERROR,
           "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set "
           "and gethostname "
           "failed: %s",
