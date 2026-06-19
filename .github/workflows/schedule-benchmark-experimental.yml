@@ -30,7 +30,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: '[ {"runs-on": "n150", "accuracy-testing": true} ]'
+      adv_filter: '[ {"perf-prefill": false}, {"runs-on": "n150", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       sh-runner: true
@@ -41,7 +41,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: '[ {"runs-on": "n300-llmbox", "accuracy-testing": true} ]'
+      adv_filter: '[ {"perf-prefill": false}, {"runs-on": "n300-llmbox", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       regression_check: true
@@ -51,7 +51,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: '[ {"runs-on": "galaxy-wh-6u", "accuracy-testing": true} ]'
+      adv_filter: '[ {"perf-prefill": false}, {"runs-on": "galaxy-wh-6u", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       regression_check: true

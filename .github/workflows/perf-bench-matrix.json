@@ -98,12 +98,22 @@
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b"
       },
       {
+        "name": "llama_3_2_1b_instruct_prefill",
+        "perf-prefill": true,
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b_prefill"
+      },
+      {
         "name": "llama_3_2_3b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_3b"
       },
       {
         "name": "llama_3_1_8b_instruct",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b"
+      },
+      {
+        "name": "llama_3_1_8b_instruct_prefill",
+        "perf-prefill": true,
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_8b_prefill"
       },
       {
         "name": "falcon3_10b_tp",
@@ -133,6 +143,12 @@
       {
         "name": "test_llama_3_1_70b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp",
+        "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "test_llama_3_1_70b_tp_prefill",
+        "perf-prefill": true,
+        "pytest": "tests/benchmark/test_llms.py::test_llama_3_1_70b_tp_prefill",
         "runs-on": "n300-llmbox"
       },
       {
@@ -231,6 +247,11 @@
         "pytest": "tests/benchmark/test_llms.py::test_phi1"
       },
       {
+        "name": "microsoft_phi-1_prefill",
+        "perf-prefill": true,
+        "pytest": "tests/benchmark/test_llms.py::test_phi1_prefill"
+      },
+      {
         "name": "microsoft_phi-1_5",
         "pytest": "tests/benchmark/test_llms.py::test_phi1_5"
       },
@@ -281,6 +302,11 @@
       {
         "name": "qwen_3_8b",
         "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b"
+      },
+      {
+        "name": "qwen_3_8b_prefill",
+        "perf-prefill": true,
+        "pytest": "tests/benchmark/test_llms.py::test_qwen_3_8b_prefill"
       },
       {
         "name": "qwen_2_5_7b_instruct",

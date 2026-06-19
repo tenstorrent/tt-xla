@@ -72,7 +72,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       adv_filter: '[
-        { "accuracy-testing": false },
+        { "accuracy-testing": false, "perf-prefill": false },
         { "runs-on": "n150", "filter": ["resnet","llama_3_1_8b_instruct","qwen_3_4b_embedding"] },
         { "runs-on": "n300-llmbox", "filter": ["llama_3_1_70b_tp", "gpt_oss_20b_tp"] },
         { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp_galaxy"] } ]'
@@ -90,7 +90,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image-base }}
       adv_filter: '[
-        { "accuracy-testing": true },
+        { "accuracy-testing": true, "perf-prefill": false },
         { "runs-on": "galaxy-wh-6u", "filter": ["llama_3_1_70b_tp"] },
         { "runs-on": "n300-llmbox", "filter": ["llama_3_1_8b_instruct_tp","llama_3_1_70b_tp"] } ]'
       sh-runner: false

@@ -88,10 +88,29 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+        "--skip-pcc",
+        action="store_true",
+        default=False,
+        help="Skip PCC entirely: no CPU reference is computed and no device PCC run is "
+        "performed, so PCC is neither measured nor asserted. Perf is still reported and "
+        "the results JSON is still written.",
+    )
+
+    parser.addoption(
         "--decode-only",
         action="store_true",
         default=False,
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
+    )
+
+    parser.addoption(
+        "--enable-trace",
+        action="store",
+        default=None,
+        choices=["on", "off"],
+        help="Override device trace for prefill benchmarks ('on' or 'off'). When unset, "
+        "each test's built-in default is used. Lets a single sweep run trace vs no-trace "
+        "without editing the tests.",
     )
 
     parser.addoption(
@@ -136,8 +155,22 @@ def max_output_tokens(request):
 
 
 @pytest.fixture
+def skip_pcc(request):
+    return request.config.getoption("--skip-pcc")
+
+
+@pytest.fixture
 def decode_only(request):
     return request.config.getoption("--decode-only")
+
+
+@pytest.fixture
+def trace_override(request):
+    """Resolved --enable-trace override: True/False when set, None to use the test default."""
+    val = request.config.getoption("--enable-trace")
+    if val is None:
+        return None
+    return val == "on"
 
 
 @pytest.fixture
