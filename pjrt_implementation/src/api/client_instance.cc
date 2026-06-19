@@ -11,10 +11,15 @@
 #include "api/client_instance.h"
 
 // c++ standard library includes
+#include <cerrno>
 #include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <map>
 #include <optional>
+
+// system includes
+#include <unistd.h>
 
 // tracy includes
 #include "tracy/Tracy.hpp"
@@ -129,13 +134,8 @@ static tt_pjrt_status launchDistributedRuntime() {
     return tt_pjrt_status::kInternal;
   }
 
-  // On a single node setup (eg. split llmbox), these environment variables are
-  // not set.
-  if (!controller_host_name) {
-    DLOG_F(
-        WARNING,
-        "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set");
-  }
+  // On a single-node setup (eg. split llmbox) the hosts env vars are not set;
+  // warn but continue, since MPI can still run locally.
   if (!hosts_list && !hosts_file) {
     DLOG_F(WARNING, "Neither TT_DISTRIBUTED_HOSTS_LIST nor "
                     "TT_DISTRIBUTED_HOSTS_FILE environment variable is set");
@@ -143,6 +143,7 @@ static tt_pjrt_status launchDistributedRuntime() {
 
   tt::runtime::setMetalHome(metal_home);
 
+  // Parse the comma-separated hosts list (if provided) into a vector.
   std::vector<std::string> hosts_list_vec;
   if (hosts_list) {
     std::string host;
@@ -152,6 +153,7 @@ static tt_pjrt_status launchDistributedRuntime() {
     }
   }
 
+  // Run MPI over self+TCP; optionally override the remote-exec (rsh) agent.
   std::map<std::string, std::string> mca_options = {{"btl", "self,tcp"}};
   if (plm_rsh_agent) {
     mca_options["plm_rsh_agent"] = plm_rsh_agent;
@@ -175,16 +177,37 @@ static tt_pjrt_status launchDistributedRuntime() {
           .withAllowRunAsRoot(true)
           .withMcaOptions(mca_options);
 
+  // Controller hostname: prefer the explicit env-var override, otherwise fall
+  // back to this machine's hostname.
+  if (controller_host_name) {
+    distributed_options.multiProcessArgs->withControllerHostname(
+        controller_host_name);
+  } else {
+    char hostname[256];
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+      DLOG_F(
+          WARNING,
+          "TT_DISTRIBUTED_CONTROLLER_HOST_NAME environment variable is not set "
+          "and gethostname "
+          "failed: %s",
+          strerror(errno));
+    } else {
+      // gethostname may not null-terminate on truncation; do it ourselves.
+      hostname[sizeof(hostname) - 1] = '\0';
+      distributed_options.multiProcessArgs->withControllerHostname(hostname);
+      LOG_F(INFO,
+            "TT_DISTRIBUTED_CONTROLLER_HOST_NAME not set; defaulted "
+            "controller hostname to: %s",
+            hostname);
+    }
+  }
+
   if (tt_distributed_tcp_iface) {
     distributed_options.multiProcessArgs->withTcpInterface(
         tt_distributed_tcp_iface);
   }
 
-  if (controller_host_name) {
-    distributed_options.multiProcessArgs->withControllerHostname(
-        controller_host_name);
-  }
-
+  // Hosts list and hosts file are mutually exclusive (validated above).
   if (!hosts_list_vec.empty()) {
     distributed_options.multiProcessArgs->withHosts(hosts_list_vec);
   } else if (hosts_file) {
