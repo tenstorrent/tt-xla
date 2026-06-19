@@ -175,6 +175,172 @@ def _patched_chunk_gated_delta_rule(
     return core_attn_out, last_recurrent_state
 
 
+def _depthwise_conv1d_as_matmul_update(
+    hidden_states,
+    conv_state,
+    weight,
+    bias=None,
+    activation=None,
+):
+    """Replace depthwise conv1d in decode path with element-wise multiply + sum.
+
+    The conv_state stores the last conv_kernel_size tokens, so after concatenation
+    with the new token(s), the input has length (state_len + seq_len). The depthwise
+    conv1d (groups=C, kernel_size=K, padding=0) slides over this producing
+    (state_len + seq_len - K + 1) outputs; we take the last seq_len.
+
+    For decode (seq_len=1, state_len=K=4): input is [B, C, 5], conv produces [B, C, 2],
+    we take the last 1. The last output position is the dot product of weight with the
+    last K elements of the concatenated input.
+    """
+    _, hidden_size, seq_len = hidden_states.shape
+    state_len = conv_state.shape[-1]
+    K = weight.shape[-1]
+
+    hidden_states_new = torch.cat([conv_state, hidden_states], dim=-1).to(weight.dtype)
+    conv_state.copy_(hidden_states_new[:, :, -state_len:])
+
+    # For each output position t in [0, seq_len):
+    #   out[b, c, t] = sum_k weight[c, k] * input[b, c, state_len - K + 1 + t + k]
+    # For seq_len=1: just dot the weight with input[:, :, -K:]
+    # For general seq_len: unroll (same as prefill logic but on the short concatenated input)
+    n_out = state_len + seq_len - K + 1
+    if seq_len == 1:
+        out = (hidden_states_new[:, :, -K:] * weight.unsqueeze(0)).sum(dim=-1, keepdim=True)
+    else:
+        out = torch.zeros(
+            hidden_states_new.shape[0], hidden_size, n_out,
+            dtype=hidden_states_new.dtype, device=hidden_states_new.device,
+        )
+        for k in range(K):
+            out = out + hidden_states_new[:, :, k : k + n_out] * weight[:, k].unsqueeze(0).unsqueeze(-1)
+        out = out[:, :, -seq_len:]
+
+    if bias is not None:
+        out = out + bias.unsqueeze(0).unsqueeze(-1)
+    out = F.silu(out)
+    out = out.to(hidden_states.dtype)
+    return out
+
+
+def _depthwise_conv1d_as_matmul_prefill(conv1d_module, mixed_qkv, seq_len):
+    """Replace depthwise conv1d in prefill path with unrolled shifted multiplies.
+
+    nn.Conv1d(padding=K-1) pads both sides by K-1, then we slice [:seq_len].
+    This is equivalent to left-padding by K-1 and computing cross-correlation:
+        y[t] = w[0]*x[t-(K-1)] + w[1]*x[t-(K-2)] + ... + w[K-1]*x[t]
+    (with x[i]=0 for i<0)
+    """
+    weight = conv1d_module.weight.squeeze(1)  # [C, K]
+    bias = conv1d_module.bias
+    K = weight.shape[-1]
+
+    x_padded = F.pad(mixed_qkv, (K - 1, 0))  # [B, C, L + K - 1], causal left-pad
+    out = torch.zeros_like(mixed_qkv[:, :, :seq_len])
+    for k in range(K):
+        # x_padded[:, :, k : k+seq_len] at position t gives x_padded[k+t] = x[t+k-(K-1)]
+        # so out[t] += w[k] * x[t + k - (K-1)], matching F.conv1d cross-correlation
+        out = out + x_padded[:, :, k : k + seq_len] * weight[:, k].unsqueeze(0).unsqueeze(-1)
+    if bias is not None:
+        out = out + bias.unsqueeze(0).unsqueeze(-1)
+    return F.silu(out)
+
+
+def _patch_conv1d_forward(layer):
+    """Monkey-patch a GatedDeltaNet layer to replace conv1d with matmul equivalents.
+
+    Supports both Qwen3_5GatedDeltaNet (in_proj_qkv + in_proj_z/b/a)
+    and Qwen3NextGatedDeltaNet (in_proj_qkvz + in_proj_ba).
+    """
+    is_qwen3_5 = hasattr(layer, "in_proj_qkv")
+
+    def patched_forward(hidden_states, cache_params=None, attention_mask=None):
+        from transformers.models.qwen3_5.modeling_qwen3_5 import apply_mask_to_padding_states
+
+        hidden_states = apply_mask_to_padding_states(hidden_states, attention_mask)
+        batch_size, seq_len, _ = hidden_states.shape
+
+        use_precomputed_states = (
+            cache_params is not None and cache_params.has_previous_state(layer.layer_idx) and seq_len == 1
+        )
+
+        if use_precomputed_states:
+            conv_state = cache_params.layers[layer.layer_idx].conv_states
+            recurrent_state = cache_params.layers[layer.layer_idx].recurrent_states
+
+        if is_qwen3_5:
+            mixed_qkv = layer.in_proj_qkv(hidden_states)
+            mixed_qkv = mixed_qkv.transpose(1, 2)
+            z = layer.in_proj_z(hidden_states)
+            z = z.reshape(batch_size, seq_len, -1, layer.head_v_dim)
+            b = layer.in_proj_b(hidden_states)
+            a = layer.in_proj_a(hidden_states)
+        else:
+            projected_states_qkvz = layer.in_proj_qkvz(hidden_states)
+            projected_states_ba = layer.in_proj_ba(hidden_states)
+            query, key, value, z, b, a = layer.fix_query_key_value_ordering(projected_states_qkvz, projected_states_ba)
+            query, key, value = (x.reshape(x.shape[0], x.shape[1], -1) for x in (query, key, value))
+            mixed_qkv = torch.cat((query, key, value), dim=-1)
+            mixed_qkv = mixed_qkv.transpose(1, 2)
+
+        if use_precomputed_states:
+            mixed_qkv = _depthwise_conv1d_as_matmul_update(
+                mixed_qkv,
+                conv_state,
+                layer.conv1d.weight.squeeze(1),
+                layer.conv1d.bias,
+                layer.activation,
+            )
+        else:
+            if cache_params is not None:
+                conv_state_val = F.pad(mixed_qkv, (layer.conv_kernel_size - mixed_qkv.shape[-1], 0))
+                conv_state_val = cache_params.update_conv_state(conv_state_val, layer.layer_idx)
+            mixed_qkv = _depthwise_conv1d_as_matmul_prefill(layer.conv1d, mixed_qkv, seq_len)
+
+        mixed_qkv = mixed_qkv.transpose(1, 2)
+        query, key, value = torch.split(
+            mixed_qkv,
+            [layer.key_dim, layer.key_dim, layer.value_dim],
+            dim=-1,
+        )
+        query = query.reshape(batch_size, seq_len, -1, layer.head_k_dim)
+        key = key.reshape(batch_size, seq_len, -1, layer.head_k_dim)
+        value = value.reshape(batch_size, seq_len, -1, layer.head_v_dim)
+
+        beta = b.sigmoid()
+        g = -layer.A_log.float().exp() * F.softplus(a.float() + layer.dt_bias)
+        if layer.num_v_heads // layer.num_k_heads > 1:
+            query = query.repeat_interleave(layer.num_v_heads // layer.num_k_heads, dim=2)
+            key = key.repeat_interleave(layer.num_v_heads // layer.num_k_heads, dim=2)
+
+        if not use_precomputed_states:
+            core_attn_out, last_recurrent_state = layer.chunk_gated_delta_rule(
+                query, key, value, g, beta,
+                initial_state=None,
+                output_final_state=cache_params is not None,
+                use_qk_l2norm_in_kernel=True,
+            )
+        else:
+            core_attn_out, last_recurrent_state = layer.recurrent_gated_delta_rule(
+                query, key, value, g, beta,
+                initial_state=recurrent_state,
+                output_final_state=cache_params is not None,
+                use_qk_l2norm_in_kernel=True,
+            )
+
+        if cache_params is not None:
+            cache_params.update_recurrent_state(last_recurrent_state, layer.layer_idx)
+
+        core_attn_out = core_attn_out.reshape(-1, layer.head_v_dim)
+        z = z.reshape(-1, layer.head_v_dim)
+        core_attn_out = layer.norm(core_attn_out, z)
+        core_attn_out = core_attn_out.reshape(batch_size, seq_len, -1)
+        hidden_states = layer.out_proj(core_attn_out)
+        return hidden_states
+
+    layer.forward = patched_forward
+
+
 def apply_graph_break_patches(model):
     """Apply monkey patches to eliminate graph breaks in Qwen3.6 on TT hardware."""
     model_cls = type(model.model)
@@ -183,8 +349,9 @@ def apply_graph_break_patches(model):
     for layer in model.model.layers:
         if hasattr(layer, "linear_attn"):
             layer.linear_attn.chunk_gated_delta_rule = _patched_chunk_gated_delta_rule
+            _patch_conv1d_forward(layer.linear_attn)
 
-    log("Applied graph-break patches (linear_attn_mask + chunk_gated_delta_rule)")
+    log("Applied graph-break patches (linear_attn_mask + chunk_gated_delta_rule + conv1d→matmul)")
 
 
 def qwen3_6_27b_tp_decode():
@@ -200,7 +367,7 @@ def qwen3_6_27b_tp_decode():
     # --- Configuration ---
     model_id = "Qwen/Qwen3.6-27B"
     max_cache_len = 256
-    max_new_tokens = 3
+    max_new_tokens = 10
     batch_size = 1
 
     # --- Load model and tokenizer ---
@@ -213,11 +380,11 @@ def qwen3_6_27b_tp_decode():
     t0 = time.time()
     config = AutoConfig.from_pretrained(model_id)
     # Limiting the number of layers to 4
-    num_layers = 4
-    text_cfg = config.text_config if hasattr(config, "text_config") else config
-    text_cfg.num_hidden_layers = num_layers
-    if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
-        text_cfg.layer_types = text_cfg.layer_types[:num_layers]
+    # num_layers = 4
+    # text_cfg = config.text_config if hasattr(config, "text_config") else config
+    # text_cfg.num_hidden_layers = num_layers
+    # if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
+    #     text_cfg.layer_types = text_cfg.layer_types[:num_layers]
     model = AutoModelForCausalLM.from_pretrained(
         model_id, config=config, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
     )
@@ -346,11 +513,20 @@ def qwen3_6_27b_tp_decode():
             if hasattr(attn, "o_proj"):
                 shard_specs[attn.o_proj.weight] = (None, "model")
 
-        # DeltaNet (linear_attn) projections are intentionally NOT sharded.
-        # The depthwise conv1d inside GatedDeltaNet causes a feature_group_count
-        # mismatch when the channel dimension is partitioned across devices
-        # (see https://github.com/tenstorrent/tt-xla/issues/3508).
-        # The MLP within DeltaNet layers is still sharded above.
+        # DeltaNet (linear_attn) projections can now be sharded because the
+        # depthwise conv1d has been replaced with element-wise ops (see
+        # _patch_conv1d_forward). Previously, groups= partitioning caused a
+        # feature_group_count mismatch (tt-xla#3508).
+        linear_attn = getattr(layer, "linear_attn", None)
+        if linear_attn is not None:
+            if hasattr(linear_attn, "in_proj_qkv"):
+                shard_specs[linear_attn.in_proj_qkv.weight] = ("model", None)
+            if hasattr(linear_attn, "in_proj_qkvz"):
+                shard_specs[linear_attn.in_proj_qkvz.weight] = ("model", None)
+            if hasattr(linear_attn, "in_proj_ba"):
+                shard_specs[linear_attn.in_proj_ba.weight] = ("model", None)
+            if hasattr(linear_attn, "out_proj"):
+                shard_specs[linear_attn.out_proj.weight] = (None, "model")
 
     if hasattr(model, "lm_head") and hasattr(model.lm_head, "weight"):
         shard_specs[model.lm_head.weight] = ("model", None)
