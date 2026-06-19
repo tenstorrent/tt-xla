@@ -25,8 +25,10 @@ def test_mrope():
         "limit_mm_per_prompt": {"image": 0, "video": 0, "audio": 0},
         "additional_config": {
             "min_context_len": 32,
-            # "num_hidden_layers": 4,
+            "num_hidden_layers": 4,
             "enable_tensor_parallel": True,
+            "use_2d_mesh": True,
+            "enable_const_eval": True,
         },
     }
     llm = vllm.LLM(**llm_args)

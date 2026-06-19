@@ -29,11 +29,21 @@ from .logger import tt_init_logger
 logger = tt_init_logger(__name__)
 
 
+# A single tensor dimension annotated with BOTH mesh axes is sharded across
+# their product (batch*model = 8 here), i.e. /8 across all chips. Used for every
+# weight whose sharded dim divides 8; K/V use plain "model" (/4 + batch-replicated)
+# because their head count (4) does not divide 8.
+SHARD_ALL = ("batch", "model")
+
+
 def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
     """xs.mark_sharding that replicates any dim whose size is not divisible
-    by the mesh axis it would be sharded on. When ``strict`` is True, raise
-    instead of falling back to replication — use this from call sites where
-    silent replication would mask a perf regression."""
+    by the mesh axis (or product of axes) it would be sharded on. A partition
+    spec entry may be a single axis name or a tuple of axis names (multiple mesh
+    axes sharding one tensor dim); the latter requires divisibility by the
+    product of those axes' sizes. When ``strict`` is True, raise instead of
+    falling back to replication — use this where silent replication would mask a
+    perf regression."""
     if not hasattr(mesh, "shape"):
         axis_sizes = dict(zip(mesh.axis_names, mesh.mesh_shape))
     else:
@@ -44,11 +54,18 @@ def safe_mark_sharding(tensor, mesh, partition_spec, strict=False):
         if axis is None or i >= tensor.ndim:
             safe_spec.append(None)
             continue
-        mesh_axis_size = axis_sizes.get(axis)
-        if mesh_axis_size is None or tensor.shape[i] % mesh_axis_size != 0:
+        axes = axis if isinstance(axis, (tuple, list)) else (axis,)
+        combined = 1
+        for a in axes:
+            s = axis_sizes.get(a)
+            if s is None:
+                combined = None
+                break
+            combined *= s
+        if combined is None or tensor.shape[i] % combined != 0:
             msg = (
                 f"safe_mark_sharding: dim {i} (size {tensor.shape[i]}) "
-                f"not divisible by mesh axis {axis!r} (size {mesh_axis_size})"
+                f"not divisible by mesh axis {axis!r} (combined size {combined})"
             )
             if strict:
                 raise ValueError(msg + "; strict=True")

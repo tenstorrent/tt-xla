@@ -1,0 +1,802 @@
+2026-06-19 09:35:18.904 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0
+rootdir: /localdev/sgligorijevic/tt-xla
+configfile: pytest.ini
+plugins: anyio-4.13.0, jaxtyping-0.3.10, forked-1.6.0, json-report-1.5.0, metadata-3.1.1, split-0.11.0
+collected 1 item
+
+tests/integrations/vllm_plugin/generative/test_mrope.py INFO 06-19 09:35:23 [__init__.py:44] Available plugins for group vllm.platform_plugins:
+INFO 06-19 09:35:23 [__init__.py:46] - tt -> vllm_tt:register
+INFO 06-19 09:35:23 [__init__.py:49] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+INFO 06-19 09:35:23 [__init__.py:239] Platform plugin tt is activated
+INFO 06-19 09:35:25 [utils.py:233] non-default args: {'max_model_len': 32, 'gpu_memory_utilization': 0.2, 'max_num_batched_tokens': 512, 'max_num_seqs': 1, 'disable_log_stats': True, 'limit_mm_per_prompt': {'image': 0, 'video': 0, 'audio': 0}, 'additional_config': {'min_context_len': 32, 'enable_tensor_parallel': True, 'use_2d_mesh': True, 'enable_const_eval': False}, 'model': 'Qwen/Qwen3.6-27B'}
+WARNING 06-19 09:35:25 [arg_utils.py:1390] The global random seed is set to 0. Since VLLM_ENABLE_V1_MULTIPROCESSING is set to False, this may affect the random state of the Python process that launched vLLM.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+INFO 06-19 09:35:26 [model.py:549] Resolved architecture: Qwen3_5ForConditionalGeneration
+INFO 06-19 09:35:26 [model.py:1678] Using max model len 32
+INFO 06-19 09:35:26 [scheduler.py:238] Chunked prefill is enabled with max_num_batched_tokens=512.
+WARNING 06-19 09:35:26 [scheduler.py:281] max_num_batched_tokens (512) exceeds max_num_seqs * max_model_len (32). This may lead to unexpected behavior.
+[TT debug hybrid] arch=Qwen3_5ForConditionalGeneration is_hybrid=True MAP_cls=Qwen3_5ForConditionalGenerationConfig block_size_before=16
+INFO 06-19 09:35:26 [importing.py:44] Triton is installed but 0 active driver(s) found (expected 1). Disabling Triton to prevent runtime errors.
+INFO 06-19 09:35:26 [importing.py:68] Triton not installed or not compatible; certain GPU-related functions will not be available.
+WARNING 06-19 09:35:26 [interface.py:229] Failed to import from vllm._C: ImportError('libcudart.so.12: cannot open shared object file: No such file or directory')
+`Qwen2VLImageProcessorFast` is deprecated. The `Fast` suffix for image processors has been removed; use `Qwen2VLImageProcessor` instead.
+INFO 06-19 09:35:26 [config.py:281] Setting attention block size to 784 tokens to ensure that attention page size is >= mamba page size.
+INFO 06-19 09:35:26 [config.py:312] Padding mamba page size by 0.13% to ensure that mamba page size and attention page size are exactly equal.
+[TT debug hybrid] post: block_size_after=784 mamba_page_size_padded=3211264
+INFO 06-19 09:35:26 [vllm.py:790] Asynchronous scheduling is enabled.
+INFO:vllm_tt.platform:[TT] Forcing DYNAMO_TRACE_ONCE compilation level, and disabling cudagraph.
+WARNING:vllm_tt.platform:TT does not support running Multimodal models without setting `--disable_chunked_mm_input`. Forcing --disable_chunked_mm_input.
+INFO 06-19 09:35:26 [compilation.py:292] Enabled custom fusions: norm_quant, act_quant
+INFO 06-19 09:35:28 [registry.py:126] All limits of multimodal modalities supported by the model are set to 0, running in text-only mode.
+[TT debug ec init] EngineCoreProc.__init__ block_size=784 mamba_page_size_padded=3211264 model_config.config_updated=True
+INFO 06-19 09:35:30 [core.py:113] Initializing a V1 LLM engine (v0.19.1) with config: model='Qwen/Qwen3.6-27B', speculative_config=None, tokenizer='Qwen/Qwen3.6-27B', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=32, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=True, quantization=None, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=xla, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=Qwen/Qwen3.6-27B, enable_prefix_caching=False, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.DYNAMO_TRACE_ONCE: 2>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'tt', 'custom_ops': ['all'], 'splitting_ops': [], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_images_per_batch': 0, 'compile_sizes': None, 'compile_ranges_endpoints': [512], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.NONE: 0>, 'cudagraph_num_of_warmups': 0, 'cudagraph_capture_sizes': None, 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': True, 'fuse_act_quant': True, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False}, 'max_cudagraph_capture_size': None, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': True, 'static_all_moe_layers': []}
+WARNING:vllm_tt.platform:Pin memory is not supported on TT.
+INFO 06-19 09:35:30 [parallel_state.py:1400] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://172.17.0.2:47585 backend=gloo
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+[Gloo] Rank 0 is connected to 0 peer ranks. Expected number of connected peer ranks is : 0
+INFO 06-19 09:35:30 [parallel_state.py:1716] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A, EPLB rank N/A
+2026-06-19 09:35:32.294 (  13.389s) [        D5019140]              stubs.inc:122   WARN| STUB: PJRT_Client_TopologyDescription
+2026-06-19 09:35:32.294312: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+INFO:vllm_tt.vllm_utils:Using predefined mesh shape for 8 devices: (2, 4)
+INFO:vllm_tt.model_runner:Using exponential token paddings:
+INFO:vllm_tt.model_runner:Token paddings: [1, 32]
+INFO:vllm_tt.model_runner:Model supports multimodal inputs: False
+INFO:vllm_tt.model_runner:CALLING LOAD MODEL
+INFO 06-19 09:35:32 [interface.py:275] Using default backend AttentionBackendEnum.TORCH_SDPA for vit attention
+INFO 06-19 09:35:32 [mm_encoder_attention.py:230] Using AttentionBackendEnum.TORCH_SDPA for MMEncoderAttention.
+INFO 06-19 09:35:32 [gdn_linear_attn.py:147] Using Triton/FLA GDN prefill kernel
+INFO:vllm_tt.platform:Cannot use None backend on TT devices.
+INFO:vllm_tt.platform:Using TT Attention layer.
+Loading safetensors checkpoint shards:   0% Completed | 0/15 [00:00<?, ?it/s]
+Loading safetensors checkpoint shards:   7% Completed | 1/15 [00:00<00:03,  4.46it/s]
+Loading safetensors checkpoint shards:  13% Completed | 2/15 [00:00<00:03,  3.86it/s]
+Loading safetensors checkpoint shards:  20% Completed | 3/15 [00:00<00:03,  3.69it/s]
+Loading safetensors checkpoint shards:  27% Completed | 4/15 [00:01<00:03,  3.61it/s]
+Loading safetensors checkpoint shards:  33% Completed | 5/15 [00:01<00:02,  3.56it/s]
+Loading safetensors checkpoint shards:  40% Completed | 6/15 [00:01<00:02,  3.49it/s]
+Loading safetensors checkpoint shards:  47% Completed | 7/15 [00:01<00:02,  3.59it/s]
+Loading safetensors checkpoint shards:  53% Completed | 8/15 [00:02<00:01,  3.54it/s]
+Loading safetensors checkpoint shards:  60% Completed | 9/15 [00:02<00:01,  3.50it/s]
+Loading safetensors checkpoint shards:  67% Completed | 10/15 [00:02<00:01,  3.46it/s]
+Loading safetensors checkpoint shards:  73% Completed | 11/15 [00:03<00:01,  3.44it/s]
+Loading safetensors checkpoint shards:  80% Completed | 12/15 [00:03<00:00,  3.31it/s]
+Loading safetensors checkpoint shards:  87% Completed | 13/15 [00:03<00:00,  3.46it/s]
+Loading safetensors checkpoint shards:  93% Completed | 14/15 [00:03<00:00,  3.44it/s]
+Loading safetensors checkpoint shards: 100% Completed | 15/15 [00:04<00:00,  4.26it/s]
+Loading safetensors checkpoint shards: 100% Completed | 15/15 [00:04<00:00,  3.67it/s]
+
+INFO 06-19 09:35:37 [default_loader.py:384] Loading weights took 4.10 seconds
+INFO:vllm_tt.overrides:Replacing vLLM modules with TT-compatible overrides where necessary...
+INFO:vllm_tt.vllm_distributed_utils:Applying parallel sharding to the model...
+INFO:vllm_tt.model_runner:Compiled model: 
+Qwen3_5ForConditionalGeneration(
+  (visual): StageMissingLayer(stage_name='vision_tower')
+  (language_model): Qwen3_5ForCausalLM(
+    (model): Qwen3_5Model(
+      (embed_tokens): VocabParallelEmbedding(num_embeddings=248320, embedding_dim=5120, org_vocab_size=248320, num_embeddings_padded=248320, tp_size=1)
+      (layers): ModuleList(
+        (0-2): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (3): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (4-6): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (7): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (8-10): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (11): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (12-14): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (15): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (16-18): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (19): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (20-22): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (23): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (24-26): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (27): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (28-30): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (31): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (32-34): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (35): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (36-38): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (39): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (40-42): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (43): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (44-46): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (47): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (48-50): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (51): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (52-54): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (55): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (56-58): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (59): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (60-62): 3 x Qwen3_5DecoderLayer(
+          (linear_attn): GatedDeltaNetAttention(
+            (act): SiLUActivation()
+            (conv1d): ColumnParallelLinear(in_features=4, output_features=10240, bias=False, tp_size=1, gather_output=False)
+            (in_proj_qkvz): XlaMergedColumnParallelLinear()
+            (in_proj_ba): XlaMergedColumnParallelLinear()
+            (norm): RMSNormGated()
+            (out_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (chunk_gated_delta_rule): ChunkGatedDeltaRule()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+        (63): Qwen3_5DecoderLayer(
+          (self_attn): Qwen3NextAttention(
+            (qkv_proj): XlaQKVParallelLinear()
+            (o_proj): RowParallelLinear(in_features=6144, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (rotary_emb): MRotaryEmbedding(
+              (apply_rotary_emb): ApplyRotaryEmb(is_neox_style=True, enable_fp32_compute=False)
+            )
+            (attn): Attention(head_size=256, num_heads=24, num_kv_heads=4, scale=0.0625, backend=TTAttentionBackendImpl)
+            (q_norm): TTGemmaRMSNorm()
+            (k_norm): TTGemmaRMSNorm()
+          )
+          (mlp): Qwen2MoeMLP(
+            (gate_up_proj): XlaMergedColumnParallelLinear()
+            (down_proj): RowParallelLinear(in_features=17408, output_features=5120, bias=False, tp_size=1, reduce_results=True)
+            (act_fn): SiluAndMul()
+          )
+          (input_layernorm): TTGemmaRMSNorm()
+          (post_attention_layernorm): TTGemmaRMSNorm()
+        )
+      )
+      (norm): TTGemmaRMSNorm()
+    )
+    (lm_head): ParallelLMHead(num_embeddings=248320, embedding_dim=5120, org_vocab_size=248320, num_embeddings_padded=248320, tp_size=1)
+    (logits_processor): LogitsProcessor(vocab_size=248320, org_vocab_size=248320, scale=1.0, logits_as_input=False)
+  )
+)
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+[TT debug spec] Attention.get_kv_cache_spec block_size=784
+INFO:vllm_tt.model_runner:Clear dynamo cache and cached dynamo bytecode.
+INFO:vllm_tt.worker:KV cache sizing: device DRAM = 12.00 GiB, gpu_memory_utilization = 0.200, KV cache budget = 2.40 GiB
+INFO 06-19 09:36:00 [kv_cache_utils.py:1338] GPU KV cache size: 384 tokens
+INFO 06-19 09:36:00 [kv_cache_utils.py:1343] Maximum concurrency for 32 tokens per request: 12.50x
+INFO:vllm_tt.model_runner:Capturing model with different input shapes.
+INFO:vllm_tt.model_runner:Compiling the model with different input shapes.
+INFO:vllm_tt.model_runner:  -- num_tokens: 1
+2026-06-19 09:36:01.004373: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-19 09:36:01.090 (  42.185s) [        D5019140]      module_builder.cc:846   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-19 09:36:01.090 (  42.185s) [        D5019140]      module_builder.cc:860   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-19 09:36:01.090 (  42.185s) [        D5019140]      module_builder.cc:870   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape
+2026-06-19 09:36:01.127 (  42.222s) [        D5019140]              stubs.inc:81    WARN| STUB: PJRT_Executable_GetCompiledMemoryStats
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation GetDeviceOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1021.169 MB, largestContiguousBytesFreePerBank: 1021.169 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation FullOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1021.169 MB, largestContiguousBytesFreePerBank: 1021.169 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation ConstantOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 0.002 MB, totalBytesFreePerBank: 1021.167 MB, largestContiguousBytesFreePerBank: 1021.167 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation NamedFullOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 0.006 MB, totalBytesFreePerBank: 1021.163 MB, largestContiguousBytesFreePerBank: 1021.163 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation NamedFullOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 2.611 MB, totalBytesFreePerBank: 1018.557 MB, largestContiguousBytesFreePerBank: 1018.557 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation ToLayoutOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.111 MB, totalBytesFreePerBank: 1006.057 MB, largestContiguousBytesFreePerBank: 1006.057 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation DeallocateOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.117 MB, totalBytesFreePerBank: 1006.052 MB, largestContiguousBytesFreePerBank: 1006.052 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation ReshapeOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.117 MB, totalBytesFreePerBank: 1006.052 MB, largestContiguousBytesFreePerBank: 1006.052 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation DeallocateOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.117 MB, totalBytesFreePerBank: 1006.052 MB, largestContiguousBytesFreePerBank: 1006.052 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation ToLayoutOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.117 MB, totalBytesFreePerBank: 1006.052 MB, largestContiguousBytesFreePerBank: 1006.052 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation DeallocateOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.121 MB, totalBytesFreePerBank: 1006.048 MB, largestContiguousBytesFreePerBank: 1006.048 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation ReshapeOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.121 MB, totalBytesFreePerBank: 1006.048 MB, largestContiguousBytesFreePerBank: 1006.048 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation DeallocateOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.121 MB, totalBytesFreePerBank: 1006.048 MB, largestContiguousBytesFreePerBank: 1006.048 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device memory state before operation RepeatOp
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device DRAM memory state: MemoryView{numBanks: 12, totalBytesPerBank: 1021.169 MB, totalBytesAllocatedPerBank: 15.121 MB, totalBytesFreePerBank: 1006.048 MB, largestContiguousBytesFreePerBank: 1006.048 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1 memory state: MemoryView{numBanks: 64, totalBytesPerBank: 1.268 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 1.268 MB, largestContiguousBytesFreePerBank: 1.268 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device L1_SMALL memory state: MemoryView{numBanks: 64, totalBytesPerBank: 0.062 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.062 MB, largestContiguousBytesFreePerBank: 0.062 MB}
+[32m                 Always[0m | [1m[38;5;69m    INFO[0m | Device TRACE memory state: MemoryView{numBanks: 12, totalBytesPerBank: 0.000 MB, totalBytesAllocatedPerBank: 0.000 MB, totalBytesFreePerBank: 0.000 MB, largestContiguousBytesFreePerBank: 0.000 MB}
+2026-06-19 09:39:07.611315: W torch_xla/csrc/runtime/pjrt_computation_client.cpp:703] Failed to deserialize executable: UNIMPLEMENTED: Deserializing serialized executable not supported.
+2026-06-19 09:39:51.258 ( 272.353s) [        D5019140]      module_builder.cc:846   WARN| `mhlo.num_partitions` attribute not found, assuming default number of partitions: 1
+2026-06-19 09:39:51.258 ( 272.353s) [        D5019140]      module_builder.cc:860   WARN| `mhlo.num_replicas` attribute not found, assuming default number of replicas: 1
+2026-06-19 09:39:51.258 ( 272.353s) [        D5019140]      module_builder.cc:870   WARN| Num replicas and num partitions are not set, inferring the number of devices from mesh shape

@@ -1848,6 +1848,63 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 if self.enable_tensor_parallel:
                     # Apply sharding constraints to the model weights.
                     shard_model(model, self.mesh)
+
+                import os as _os
+
+                if _os.environ.get("TT_DUMP_SHARDING"):
+
+                    num_dev = self.mesh.size()
+                    rows = []
+                    by_spec = {}
+                    total_global = 0
+                    total_resident = 0
+                    for name, p in model.named_parameters():
+                        nb = p.numel() * p.element_size()
+                        try:
+                            spec = torch_xla._XLAC._get_xla_sharding_spec(p)
+                        except Exception as e:
+                            spec = f"<err {e}>"
+                        # effective shard factor: parse devices=[...]; replicated => 1
+                        factor = 1
+                        if "devices=[" in spec:
+                            dims = spec.split("devices=[")[1].split("]")[0]
+                            tile = 1
+                            for d in dims.split(","):
+                                tile *= int(d)
+                            if "last_tile_dim_replicate" in spec:
+                                # last tile dim is replication, not sharding
+                                last = int(dims.split(",")[-1])
+                                factor = tile // last
+                            else:
+                                factor = tile
+                        resident = nb / factor
+                        total_global += nb
+                        total_resident += resident
+                        by_spec.setdefault(spec, [0, 0])
+                        by_spec[spec][0] += nb
+                        by_spec[spec][1] += resident
+                        rows.append((nb, name, tuple(p.shape), factor, spec))
+                    print("\n===== SHARDING DUMP (num_devices=%d) =====" % num_dev)
+                    print("--- top 30 params by global size ---")
+                    for nb, name, shp, factor, spec in sorted(rows, reverse=True)[:30]:
+                        print(
+                            "  %8.1f MB  /%d  %-55s %s  %s"
+                            % (nb / 1e6, factor, name, shp, spec)
+                        )
+                    print("--- grouped by sharding spec ---")
+                    for spec, (g, r) in sorted(
+                        by_spec.items(), key=lambda kv: -kv[1][0]
+                    ):
+                        print(
+                            "  global %8.1f MB -> resident/dev %8.1f MB   %s"
+                            % (g / 1e6, r / 1e6, spec)
+                        )
+                    print(
+                        "TOTAL global=%.2f GB  resident/dev=%.2f GB (params only)"
+                        % (total_global / 1e9, total_resident / 1e9)
+                    )
+                    if _os.environ.get("TT_DUMP_SHARDING") == "exit":
+                        raise SystemExit("TT_DUMP_SHARDING done")
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Unable to load model, a likely reason is the model is "

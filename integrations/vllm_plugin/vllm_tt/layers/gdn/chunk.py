@@ -36,6 +36,34 @@ from .l2norm import tt_l2norm_fwd
 CHUNK_SIZE = 64
 
 
+def _inv_unit_lower_tri(L: torch.Tensor) -> torch.Tensor:
+    """Exact inverse of a unit-lower-triangular matrix, matmul-only.
+
+    ``L`` is ``[..., C, C]`` with unit diagonal. Uses the block identity
+    ``[[A,0],[M,D]]^{-1} = [[A^-1,0],[-D^-1 M A^-1, D^-1]]`` recursively, so it
+    is pure cat/matmul (no ``torch.linalg.solve_triangular``, which is a CPU
+    fallback that breaks the torch.compile(backend="tt") graph partitioner).
+    ``C`` is static under ``dynamic=False``, so the recursion unrolls at trace
+    time (depth ~log2(C)).
+    """
+    C = L.shape[-1]
+    if C == 1:
+        return L  # 1x1 unit block is [[1]]; its inverse is itself.
+    h = C // 2
+    A = L[..., :h, :h]
+    D = L[..., h:, h:]
+    M = L[..., h:, :h]
+    Ainv = _inv_unit_lower_tri(A)
+    Dinv = _inv_unit_lower_tri(D)
+    Binv = -Dinv @ M @ Ainv
+    zero = torch.zeros(
+        L.shape[:-2] + (h, C - h), dtype=L.dtype, device=L.device
+    )
+    top = torch.cat([Ainv, zero], dim=-1)
+    bot = torch.cat([Binv, Dinv], dim=-1)
+    return torch.cat([top, bot], dim=-2)
+
+
 def _process_chunk(qc, kc, vc, gc, betac, S0, scale):
     """One chunk. Tensors are head-major: q/k ``[HV,Lc,K]``, v ``[HV,Lc,V]``,
     g/beta ``[HV,Lc]``, ``S0`` ``[HV,V,K]``. Returns ``(o [HV,Lc,V], S_new)``."""
@@ -68,7 +96,9 @@ def _process_chunk(qc, kc, vc, gc, betac, S0, scale):
 
     # B = beta_m * (v_m - exp(c_m) * S_0 k_m)
     B = betac.unsqueeze(2) * (vc - exp_c.unsqueeze(2) * KS0)  # [HV,Lc,V]
-    U = torch.linalg.solve_triangular(LA, B, upper=False, unitriangular=False)
+    # Solve (I + A) U = B via an explicit matmul-only inverse (solve_triangular
+    # is a CPU fallback that breaks the TT compile graph).
+    U = _inv_unit_lower_tri(LA) @ B
 
     # Readout.
     expo_M = diff.masked_fill(~lower_incl, float("-inf"))
@@ -135,10 +165,21 @@ def tt_chunk_gated_delta_rule(
     bf = beta.to(torch.float32)
 
     if cu_seqlens is not None:
-        bounds = [
-            (0, int(cu_seqlens[n]), int(cu_seqlens[n + 1]))
-            for n in range(len(cu_seqlens) - 1)
-        ]
+        # cu_seqlens.shape is static under dynamic=False, but its *values* are
+        # not — reading them with int() makes the chunk loop trip count
+        # data-dependent, which dynamo cannot unroll and which crashes the
+        # torch.compile(backend="tt") graph partitioner. For a single packed
+        # sequence (the common max_num_seqs=1 case) the bounds are simply
+        # [0, T] from the static shape, so we avoid int() entirely. Multiple
+        # packed sequences still read the values (eager-only path).
+        n_seq = cu_seqlens.shape[0] - 1
+        if n_seq == 1:
+            bounds = [(0, 0, T)]
+        else:
+            bounds = [
+                (0, int(cu_seqlens[n]), int(cu_seqlens[n + 1]))
+                for n in range(n_seq)
+            ]
     else:
         bounds = [(b, 0, T) for b in range(B)]
     n_states = len(bounds)

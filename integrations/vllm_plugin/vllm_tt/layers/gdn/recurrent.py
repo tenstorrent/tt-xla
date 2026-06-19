@@ -74,12 +74,21 @@ def tt_fused_recurrent_gated_delta_rule(
     gf = g.to(torch.float32)
     bf = beta.to(torch.float32)
 
-    # Build the per-sequence (start, end, slot) schedule.
+    # Build the per-sequence (bi, start, end, slot) schedule. Avoid reading
+    # cu_seqlens *values* with int() for a single packed sequence (the common
+    # max_num_seqs=1 case): that would make the token loop trip count
+    # data-dependent and crash the torch.compile(backend="tt") partitioner.
+    # cu_seqlens.shape is static, so the single-sequence bounds [0, T] come
+    # straight from the shape. Multiple packed sequences keep the value path.
     if cu_seqlens is not None:
-        bounds = [
-            (int(cu_seqlens[n]), int(cu_seqlens[n + 1])) for n in range(len(cu_seqlens) - 1)
-        ]
-        seqs = [(0, s, e, n) for n, (s, e) in enumerate(bounds)]
+        n_seq = cu_seqlens.shape[0] - 1
+        if n_seq == 1:
+            seqs = [(0, 0, T, 0)]
+        else:
+            seqs = [
+                (0, int(cu_seqlens[n]), int(cu_seqlens[n + 1]), n)
+                for n in range(n_seq)
+            ]
     else:
         seqs = [(b, 0, T, b) for b in range(B)]
 
@@ -97,8 +106,14 @@ def tt_fused_recurrent_gated_delta_rule(
     o = torch.zeros((B, T, HV, V), dtype=torch.float32, device=q.device)
 
     for (bi, start, end, seq_idx) in seqs:
-        slot = int(ssm_state_indices[seq_idx]) if ssm_state_indices is not None else seq_idx
-        S = final_state[slot].to(torch.float32)  # [HV, V, K]
+        # Read the entering state by tensor index (avoid int(slot), which is a
+        # graph break under torch.compile(backend="tt")). seq_idx is a static
+        # python int from the schedule, so the [seq_idx:seq_idx+1] slice is fine.
+        if ssm_state_indices is not None:
+            slot_idx = ssm_state_indices[seq_idx:seq_idx + 1]
+            S = final_state.index_select(0, slot_idx)[0].to(torch.float32)
+        else:
+            S = final_state[seq_idx].to(torch.float32)  # [HV, V, K]
         for t in range(start, end):
             decay = torch.exp(gf[bi, t]).view(HV, 1, 1)  # [HV,1,1]
             S = S * decay
@@ -108,6 +123,11 @@ def tt_fused_recurrent_gated_delta_rule(
             S = S + torch.einsum("hv,hd->hvd", u, k_t)  # [HV, V, K]
             q_t = qf[bi, t] * scale  # [HV, K]
             o[bi, t] = torch.einsum("hvd,hd->hv", S, q_t)  # [HV, V]
-        final_state[slot] = S.to(final_state.dtype)
+        if ssm_state_indices is not None:
+            final_state.index_copy_(
+                0, slot_idx, S.unsqueeze(0).to(final_state.dtype)
+            )
+        else:
+            final_state[seq_idx] = S.to(final_state.dtype)
 
     return o.to(v.dtype), final_state

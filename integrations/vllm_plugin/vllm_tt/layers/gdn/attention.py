@@ -28,6 +28,37 @@ from . import (
     tt_fused_recurrent_gated_delta_rule,
 )
 
+# EXPERIMENT: run prefill through the sequential recurrence instead of the
+# chunk-parallel form. The chunk form materializes a dense [HV, C, C]
+# unit-lower-triangular inverse (via _inv_unit_lower_tri) plus C x C score/decay
+# matrices, which is a suspected source of device-DRAM / tile-padding blowup.
+# The recurrence avoids all C x C tensors; for short sequences the token loop is
+# cheap. Flip back to False to restore the chunk-parallel path.
+_PREFILL_USE_RECURRENT = False
+
+
+def _prefill_delta_rule(q, k, v, g, beta, scale, initial_state, cu_seqlens):
+    """Prefill core: sequential recurrence (no C x C inverse) or chunk-parallel,
+    selected by ``_PREFILL_USE_RECURRENT``. Both return ``(o, final_state)``."""
+    if _PREFILL_USE_RECURRENT:
+        return tt_fused_recurrent_gated_delta_rule(
+            q, k, v, g, beta,
+            scale=scale,
+            initial_state=initial_state,
+            inplace_final_state=False,
+            cu_seqlens=cu_seqlens,
+            ssm_state_indices=None,
+            use_qk_l2norm_in_kernel=True,
+        )
+    return tt_chunk_gated_delta_rule(
+        q, k, v, g, beta,
+        scale=scale,
+        initial_state=initial_state,
+        output_final_state=True,
+        cu_seqlens=cu_seqlens,
+        use_qk_l2norm_in_kernel=True,
+    )
+
 
 def _input_projection(self: GatedDeltaNetAttention, hidden_states: torch.Tensor):
     """Upstream forward Part 1 — returns ``(mixed_qkv, z, b, a)``.
@@ -115,25 +146,18 @@ def _core_prefill(
     scale = self.head_k_dim**-0.5
 
     if ssm_state is not None:
-        init = ssm_state[indices].contiguous().to(torch.float32)
-        init[~has_initial_state] = 0
-        o, final_state = tt_chunk_gated_delta_rule(
-            q, k, v, g, beta,
-            scale=scale,
-            initial_state=init,
-            output_final_state=True,
-            cu_seqlens=query_start_loc,
-            use_qk_l2norm_in_kernel=True,
+        # Gather/zero/scatter the recurrent state with tensor index ops and a
+        # mask-multiply (no boolean-mask assignment), so the graph traces
+        # cleanly through backend="tt".
+        init = ssm_state.index_select(0, indices).to(torch.float32)
+        init = init * has_initial_state.to(init.dtype).view(-1, 1, 1, 1)
+        o, final_state = _prefill_delta_rule(
+            q, k, v, g, beta, scale, init, query_start_loc
         )
-        ssm_state[indices] = final_state.to(ssm_state.dtype)
+        ssm_state.index_copy_(0, indices, final_state.to(ssm_state.dtype))
     else:
-        o, _ = tt_chunk_gated_delta_rule(
-            q, k, v, g, beta,
-            scale=scale,
-            initial_state=None,
-            output_final_state=False,
-            cu_seqlens=query_start_loc,
-            use_qk_l2norm_in_kernel=True,
+        o, _ = _prefill_delta_rule(
+            q, k, v, g, beta, scale, None, query_start_loc
         )
 
     core_attn_out[:num_actual] = o.squeeze(0).to(core_attn_out.dtype)
