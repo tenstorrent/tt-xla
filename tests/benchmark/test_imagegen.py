@@ -191,3 +191,39 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_flux2_dev(output_file, request):
+    from benchmarks.flux2_pipeline import Flux2BenchmarkPipeline
+    from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+    )
+
+    def build_pipeline_fn(compile_options):
+        # Denoiser (Flux2Transformer2DModel, ~32B) runs on device tensor-parallel
+        # across the full mesh; the 24B text encoder and VAE stay on CPU. Mirrors
+        # third_party/.../flux2/pytorch/test_multichip.py.
+        pipeline = Flux2BenchmarkPipeline(compile_options=compile_options)
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(prompt=prompt, num_inference_steps=steps)
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="FLUX.2-dev",
+        output_file=output_file,
+        request=request,
+        prompt=PROMPT,
+        num_inference_steps=NUM_INFERENCE_STEPS,
+        height=HEIGHT,
+        width=WIDTH,
+        optimization_level=0,  # opt>=1 hits OpModel grid mismatch on harvested BH; opt=0 only viable level
+        trace_enabled=False,  # trace perf-neutral (inert for this TP composite); keep bringup default
+        output_image_path="test_flux2_dev_output.png",
+    )
