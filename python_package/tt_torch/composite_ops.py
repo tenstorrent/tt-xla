@@ -251,6 +251,13 @@ def composite_scaled_dot_product_attention(
     )
 
     if attn_mask is not None:
+        # Fused SDPA adds the mask to the scores, and ttnn.scaled_dot_product_attention
+        # accepts only a float mask (BF16/BFP8/BFP4 — TT_FATALs otherwise), so convert a
+        # bool mask to additive form (True -> 0, False -> -inf).
+        # torch reference: https://github.com/pytorch/pytorch/blob/9f48642d4bf84566ca3191576c7ff30138953af8/torch/nn/functional.py#L6365
+        # ttnn check: tt-metal .../transformer/sdpa/device/sdpa_device_operation.cpp ("must be in BF16, BFP8, or BFP4 dataformat")
+        if attn_mask.dtype == torch.bool:
+            attn_mask = torch.where(attn_mask, 0.0, float("-inf")).to(query.dtype)
         query, key, value, attn_mask = builder.mark_inputs(query, key, value, attn_mask)
     else:
         query, key, value = builder.mark_inputs(query, key, value)
@@ -460,9 +467,10 @@ def replace_rms_norm_module(
 
 def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
     """
-    Check that SDPA inputs are bfloat16, the only dtype our composite supports.
-    Also, check for dropout_p > 0, which is not supported in composite SDPA.
-    If either of these conditions are met, skip the composite and use the native implementation.
+    Check that the SDPA Q/K/V inputs are bfloat16 (the only dtype our composite
+    supports) and that dropout_p == 0. The attn_mask is not gated on dtype, so a
+    bool or additive-float mask does not disqualify the composite.
+    If a constraint fails, skip the composite and use the native implementation.
     """
     # Dropout is not supported in composite SDPA
     dropout_p = node.kwargs.get("dropout_p", 0.0)
@@ -473,17 +481,18 @@ def _check_sdpa_constraints(node: torch.fx.Node) -> bool:
         )
         return False
 
-    # Check all inputs are bfloat16
-    tensor_args = list(node.args) + [
-        v for v in node.kwargs.values() if isinstance(v, torch.fx.Node)
+    # Gate only Q/K/V on dtype (the first three operands, positional or named);
+    # attn_mask (operand 4) is excluded on purpose.
+    qkv = list(node.args[:3]) + [
+        node.kwargs[name] for name in ("query", "key", "value") if name in node.kwargs
     ]
-    for arg in tensor_args:
-        if hasattr(arg, "meta"):
+    for arg in qkv:
+        if isinstance(arg, torch.fx.Node) and hasattr(arg, "meta"):
             val = arg.meta.get("example_value", None)
             if val is not None and val.dtype != torch.bfloat16:
                 logger.debug(
-                    "composite scaled_dot_product_attention only supports bfloat16 inputs, "
-                    "skipping composite and using native implementation."
+                    "composite scaled_dot_product_attention only supports bfloat16 "
+                    "Q/K/V inputs, skipping composite and using native implementation."
                 )
                 return False
 
