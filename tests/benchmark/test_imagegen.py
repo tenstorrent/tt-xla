@@ -191,3 +191,46 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_flux2_dev(output_file, request):
+    from benchmarks.flux2_dev_pipeline import Flux2DevConfig, Flux2DevPipeline
+    from third_party.tt_forge_models.flux2.pytorch.src.model_utils import (
+        HEIGHT,
+        NUM_INFERENCE_STEPS,
+        PROMPT,
+        WIDTH,
+    )
+
+    # Composite FLUX.2-dev: denoiser tensor-parallel on device (full mesh),
+    # text encoder (~24B) and VAE on CPU. Bringup resolution is 128x128 with a
+    # short schedule (see model_utils); override via FLUX2_* env vars.
+    prompt = PROMPT
+    num_inference_steps = NUM_INFERENCE_STEPS
+    height = HEIGHT
+    width = WIDTH
+
+    def build_pipeline_fn(compile_options):
+        pipeline = Flux2DevPipeline(
+            config=Flux2DevConfig(compile_options=compile_options)
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(prompt=prompt, num_inference_steps=steps)
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="flux2-dev",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        output_image_path="test_flux2_dev_output.png",
+    )
