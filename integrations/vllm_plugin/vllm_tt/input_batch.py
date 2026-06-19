@@ -153,6 +153,21 @@ class InputBatch:
         self.repetition_penalties_cpu = self.repetition_penalties_cpu_tensor.numpy()
         self.repetition_penalties_reqs: set[str] = set()
 
+        # Persistent per-token output counts for penalties (#4278).
+        # The penalty path needs a [num_reqs, vocab] tensor counting how many
+        # times each token appeared in each request's output so far. Rebuilding
+        # it every decode step by re-scanning the entire output history is
+        # O(output_len) per step -> O(N^2) per request, which dominates host
+        # time as generation grows. Instead keep this tensor persistent and fold
+        # only the newly-generated tokens each step (O(1) amortized). Kept in
+        # sync with the slot pool by add_request/remove_request/swap_states/
+        # condense; consumed by update_output_token_counts().
+        self.output_token_counts_cpu = torch.zeros(
+            (max_num_reqs, vocab_size), dtype=torch.float32, device="cpu"
+        )
+        # Number of output tokens already folded into the count for each slot.
+        self._output_counts_counted = np.zeros(max_num_reqs, dtype=np.int64)
+
         # Speculative decoding
         self.num_accepted_tokens_cpu_tensor = torch.ones(
             (max_num_reqs,), dtype=torch.int64, device="cpu", pin_memory=pin_memory
@@ -245,6 +260,21 @@ class InputBatch:
         start_idx = num_prompt_tokens
         end_idx = start_idx + len(request.output_token_ids)
         self.token_ids_cpu[req_index, start_idx:end_idx] = request.output_token_ids
+
+        # Reset the persistent penalty count row for this (re)assigned slot and
+        # fold in any pre-existing output tokens (resumed/preempted requests
+        # carry output history). Cursor tracks how many are already counted.
+        # (#4278)
+        self.output_token_counts_cpu[req_index].zero_()
+        out_ids = request.output_token_ids
+        if out_ids:
+            ids = torch.tensor(out_ids, dtype=torch.long)
+            ids = ids[ids < self.vocab_size]
+            if ids.numel() > 0:
+                self.output_token_counts_cpu[req_index].index_add_(
+                    0, ids, torch.ones(ids.numel(), dtype=torch.float32)
+                )
+        self._output_counts_counted[req_index] = len(out_ids)
         # Number of token ids in token_ids_cpu.
         # NOTE(woosuk): This may include spec decode tokens.
         self.num_tokens[req_index] = request.num_tokens
@@ -485,6 +515,17 @@ class InputBatch:
         )
         self.min_p_cpu[i1], self.min_p_cpu[i2] = self.min_p_cpu[i2], self.min_p_cpu[i1]
 
+        # Swap persistent penalty count rows + cursors (#4278). Indexed row
+        # assignment copies data, so a temp clone is needed (same caveat as the
+        # token_ids_cpu swap above).
+        tmp_counts = self.output_token_counts_cpu[i1].clone()
+        self.output_token_counts_cpu[i1] = self.output_token_counts_cpu[i2]
+        self.output_token_counts_cpu[i2] = tmp_counts
+        self._output_counts_counted[i1], self._output_counts_counted[i2] = (
+            self._output_counts_counted[i2],
+            self._output_counts_counted[i1],
+        )
+
         swap_dict_values(self.generators, i1, i2)
         swap_dict_values(self.min_tokens, i1, i2)
         swap_dict_values(self.bad_words_token_ids, i1, i2)
@@ -551,6 +592,14 @@ class InputBatch:
             self.num_computed_tokens_cpu[empty_index] = self.num_computed_tokens_cpu[
                 last_req_index
             ]
+            # Move the persistent penalty count row + cursor with the slot
+            # (#4278). The vacated last_req_index row is reset on next add.
+            self.output_token_counts_cpu[empty_index] = self.output_token_counts_cpu[
+                last_req_index
+            ]
+            self._output_counts_counted[empty_index] = self._output_counts_counted[
+                last_req_index
+            ]
             # Only manage block tables for models that need KV cache
             if len(self.block_table.block_tables) > 0:
                 self.block_table.move_row(last_req_index, empty_index)
@@ -596,6 +645,43 @@ class InputBatch:
         # Trim lists to the batch size.
         del self._req_ids[num_reqs:]
         del self.req_output_token_ids[num_reqs:]
+
+    def update_output_token_counts(self, padded_num_reqs: int) -> torch.Tensor:
+        """Fold newly-generated output tokens into the persistent count tensor
+        and return its [:padded_num_reqs] slice. (#4278)
+
+        Replaces re-scanning each request's full output history every step.
+        For each active slot, only the tokens appended since the last call are
+        added (O(new tokens) per step instead of O(output_len)). Returns the
+        same [padded_num_reqs, vocab] semantics as the previous full rebuild:
+        padding rows (i >= num_reqs) are left untouched and are penalty no-ops
+        because their repetition/presence/frequency coefficients default to
+        1.0/0.0 in from_input_batch().
+        """
+        n_lists = len(self.req_output_token_ids)
+        for i in range(min(padded_num_reqs, n_lists)):
+            toks = self.req_output_token_ids[i]
+            if not toks:
+                continue
+            counted = int(self._output_counts_counted[i])
+            n = len(toks)
+            if n < counted:
+                # output_token_ids is append-only in this runner, so this should
+                # not happen; rebuild the row from scratch as a safety net.
+                self.output_token_counts_cpu[i].zero_()
+                new_ids = toks
+            elif n > counted:
+                new_ids = toks[counted:]
+            else:
+                continue
+            ids = torch.tensor(new_ids, dtype=torch.long)
+            ids = ids[ids < self.vocab_size]
+            if ids.numel() > 0:
+                self.output_token_counts_cpu[i].index_add_(
+                    0, ids, torch.ones(ids.numel(), dtype=torch.float32)
+                )
+            self._output_counts_counted[i] = n
+        return self.output_token_counts_cpu[:padded_num_reqs]
 
     def _make_sampling_metadata(self) -> SamplingMetadata:
         num_reqs = self.num_reqs
