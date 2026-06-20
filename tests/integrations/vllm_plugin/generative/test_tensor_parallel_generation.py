@@ -103,7 +103,7 @@ def test_tensor_parallel_mla_prefill_decode(model_name: str, use_2d_mesh: bool):
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": use_2d_mesh,
-            # "flat_model_io": False,
+            "flat_model_io": True,
         },
     }
     llm = vllm.LLM(**llm_args)
