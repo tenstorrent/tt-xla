@@ -210,7 +210,7 @@ def test_tensor_parallel_generation_gemma4_31b(
 
     check_host_memory(model_name)
 
-
+@pytest.mark.done
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
