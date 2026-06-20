@@ -3272,11 +3272,24 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         logits: torch.Tensor,
         bitmasks: torch.Tensor,
     ) -> torch.Tensor:
-        return torch.where(
+        # Grammar masking operates over the full vocab via a packed bitmask laid
+        # out as (vocab/32, 32); vocab/32 is not divisible by the model-axis
+        # mesh size, so the mask cannot be vocab-sharded. Gather the (possibly
+        # vocab-sharded) lm_head logits to replicated first. No-op when not
+        # tensor-parallel; only paid on the grammar path, which needs full vocab.
+        if self.enable_tensor_parallel:
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, None))
+        masked = torch.where(
             require_struct_decoding,
             self.apply_grammar_bitmask(logits, grammar_bitmask, bitmasks),
             logits,
         )
+        if self.enable_tensor_parallel:
+            # Anchor the result replicated so a downstream vocab-sharding
+            # constraint (sample_from_logits) does not back-propagate into the
+            # unshardable grammar-mask reshape.
+            masked = sharding_constraint_tensor(masked, self.mesh, (None, None))
+        return masked
 
     def apply_grammar_bitmask(
         self,
