@@ -299,8 +299,16 @@ def partition_parallel_lm_head(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
+    # Mirror the row/column linears: when shard_weights_on_batch_axis is set,
+    # also shard the lm_head hidden (contraction) dim on the batch axis so it
+    # matches the batch-sharded activation produced by the final
+    # RowParallelLinear. Otherwise (batch_axis=None) this is identical to the
+    # previous ("model", None) spec. Keeping the lm_head consistent with the
+    # activation avoids the partitioner inserting an all_to_all to reshuffle the
+    # weight's contraction dim before the logits matmul.
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
     logger.debug("Applied parallel sharding to %s", layer)
-    xs.mark_sharding(layer.weight, mesh, ("model", None))
     return layer
 
 
