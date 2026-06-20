@@ -69,7 +69,9 @@ def _reference(query, key, value, page_table, chunk_start, scale):
 @pytest.mark.parametrize(
     "n_heads,n_kv", [(8, 8), (8, 2), (32, 8)], ids=["mha", "gqa-4x", "gqa-4x-32h"]
 )
-@pytest.mark.parametrize("chunk_start", [0, 64, 96], ids=["start0", "start64", "start96"])
+@pytest.mark.parametrize(
+    "chunk_start", [0, 64, 96], ids=["start0", "start64", "start96"]
+)
 def test_chunked_sdpa_cpu_matches_reference(n_heads, n_kv, chunk_start):
     """The op's CPU branch must match offset-causal SDPA over the gathered prefix.
 
@@ -116,6 +118,8 @@ def test_chunked_sdpa_cpu_start0_is_plain_causal():
     )
     dense_k = key.permute(1, 0, 2, 3).reshape(1, n_heads, s_len, head)
     dense_v = value.permute(1, 0, 2, 3).reshape(1, n_heads, s_len, head)
-    ref = F.scaled_dot_product_attention(query, dense_k, dense_v, is_causal=True, scale=scale)
+    ref = F.scaled_dot_product_attention(
+        query, dense_k, dense_v, is_causal=True, scale=scale
+    )
 
     torch.testing.assert_close(out, ref, atol=1e-4, rtol=1e-4)
