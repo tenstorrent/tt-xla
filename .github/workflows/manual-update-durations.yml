@@ -45,7 +45,7 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
-      build_types: release
+      build_types: release,explorer
 
   # ===========================================================================
   # GENERATE SYSTEM DESCRIPTOR PER ARCH (on TT hardware)
@@ -61,7 +61,7 @@ jobs:
     # is left untouched).
     continue-on-error: true
     # TODO: determine a reasonable timeout-minutes duration if wanted, may not get hardware to perform the task
-    timeout-minutes: 60
+    timeout-minutes: 120
     runs-on: [ "${{ matrix.arch }}", "in-service" ]
     container:
       image: ${{ needs.build-image.outputs.docker-image-base }}
@@ -132,16 +132,12 @@ jobs:
           gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
             --repo ${{ github.repository }} \
             --dir wheels \
-            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+            --name xla-whl-explorer${{ needs.build-ttxla.outputs.artifact_suffix }}
           source venv/activate
           uv pip install wheels/*.whl
-      # Pull whatever descriptor artifacts were uploaded by the `generate`
-      # matrix. error-on-missing: false → archs whose HW jobs failed simply
-      # contribute nothing here, leaving their checked-in descriptor untouched.
       - name: Download generated descriptors
         uses: actions/download-artifact@v4
         with:
-          error-on-missing: false
           pattern: system-desc-*
           merge-multiple: true
           path: tests/cpu_compile_only/system_descs
@@ -199,7 +195,7 @@ jobs:
           # TODO: testing only — targets a feature branch so the auto-merge
           # lands into that branch instead of main. Remove this line before
           # merging the workflow to main so PRs target the default branch.
-          base: jmac/cpu_compile_only
+          base: jmac/cpu-compile-only
           branch: refresh-system-descs
           title: "Refresh checked-in system descriptors"
           commit-message: "Refresh checked-in system descriptors"
