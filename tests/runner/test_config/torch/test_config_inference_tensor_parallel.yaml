@@ -191,6 +191,79 @@ test_config:
     supported_archs: [galaxy-wh-6u]
     status: EXPECTED_PASSING
 
+  # bloom/causal_lm/pytorch-176B-tensor_parallel-inference:
+  #   supported_archs: [galaxy-wh-6u]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true  # 176B; bf8 for DRAM headroom on Wormhole galaxy
+  #   required_pcc: 0.94  # relaxed for bf8 weights; tune after first run
+
+  falcon/pytorch-180B_Chat-tensor_parallel-inference:
+    supported_archs: [galaxy-wh-6u]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true  # 180B; bf8 for DRAM headroom on Wormhole galaxy
+
+  # qwen_2_5/causal_lm/pytorch-Math_72B_Instruct-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true
+
+  # exaone_3_5/pytorch-EXAONE-3.5-32B-Instruct-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING  # remote code is 5.x-compatible; runs on stock transformers via trust_remote_code
+
+  # starcoder2/pytorch-15B-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+
+  # orion/pytorch-14B_Chat-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "Orion remote code (modeling_orion.py) is 4.x-era and cascades on transformers 5.x: rope_scaling['type'] (5.x renamed to rope_type) and use_cache injected into its strict __init__ (via add_generation_mixin_to_remote_model). Architecture is fine (llama-style MHA, 40/40 heads). Needs transformers <4.46 pin or remote-code patching. Deferred (same class as InternLM2)."
+
+  # codellama/pytorch-CodeLlama-34b-Instruct-hf-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+
+  # phi4/causal_lm/pytorch-Phi_4_reasoning_plus-tensor_parallel-inference:
+  #   supported_archs: [n300-llmbox, lb-blackhole]
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "Phi3-family fused-projection TP gap (affects base Phi_4 too). Single-device passes pcc=0.9996; TP fails (~0.31). qkv_proj/gate_up_proj are FUSED with contiguous slicing, so no weight-shard split preserves per-head q/k/v (fused=0.31, unfuse+concat=0.28/compile-err). Correct fix needs a Phi3 forward patch to use separate projections (like diffusiongemma/gpt_oss). Deferred."
+
+  # # 70B finetunes on qb2 (4 devices): bf8 to fit (~17.5 GB/device); bf8 caps PCC ~0.94
+  # wizardlm_70b/pytorch-WizardLM-70B-V1.0-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true
+  #   required_pcc: 0.94
+
+  # wizardmath_70b/pytorch-WizardMath-70B-V1.0-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true
+  #   required_pcc: 0.94
+
+  # metamath_70b/pytorch-MetaMath-70B-V1.0-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true
+  #   required_pcc: 0.94
+
+  # hermes_4_70b/pytorch-Hermes-4-70B-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: EXPECTED_PASSING
+  #   enable_weight_bfp8_conversion: true
+  #   required_pcc: 0.94
+
+  llama2_70b_chat/pytorch-Llama-2-70b-chat-hf-tensor_parallel-inference:
+    supported_archs: [qb2-blackhole]
+    status: EXPECTED_PASSING
+    enable_weight_bfp8_conversion: true  # 70B does not fit at bf16 on 4 devices; bf8 ~17.5 GB/device
+
+  # internlm2/pytorch-internlm2-chat-20b-tensor_parallel-inference:
+  #   supported_archs: [qb2-blackhole]
+  #   status: KNOWN_FAILURE_XFAIL
+  #   reason: "InternLM2 remote code (modeling/tokenization_internlm2.py) is 4.x-only and can't be satisfied by the available transformers: on 5.x it calls the removed DynamicCache.from_legacy_cache and emits NaN logits; on 4.57.1 the slow->native tokenizer conversion breaks its tokenizer (SentencePieceExtractor 'add_bos_token' mismatch -> tiktoken fallback can't read the sentencepiece tokenizer.model). It needs a narrow older-4.x window that conflicts with the tt-xla stack. Not worth further version-threading."
+
   qwen_3/causal_lm/pytorch-30B_A3b-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: NOT_SUPPORTED_SKIP
