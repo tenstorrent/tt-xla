@@ -186,6 +186,46 @@ class RMSNormFusionProvider(FusionProvider):
             hidden_states, normalized_shape=weight.shape, weight=weight, eps=eps
         )
 
+    # ----- Residual-fused variant (vLLM RMSNorm called as norm(x, residual)) -----
+
+    @staticmethod
+    def pattern_residual(
+        hidden_states: Tensor, residual: Tensor, weight: Tensor, eps: float, dtype
+    ):
+        """
+        vLLM fuses the residual add into the norm: it casts to fp32, adds the
+        residual, returns the (cast) sum as the new residual, AND norms the sum.
+        Because the fp32 cast happens *before* the add, the non-residual patterns
+        (which anchor on ``hidden_states.to(float32) -> pow``) never match -- here
+        ``pow`` consumes the add output. This pattern matches that fused form.
+
+        ``summed`` is dual-used (norm input + residual output), so the pattern is
+        multi-output. The add and the residual tee are preserved in the
+        replacement; only the norm becomes the rms_norm composite.
+        """
+        hidden_fp32 = hidden_states.to(torch.float32)
+        summed = hidden_fp32.add(residual)
+        residual_out = summed.to(dtype)
+        variance = summed.pow(2).mean(-1, keepdim=True)
+        variance_eps = variance.add(eps)
+        rsqrt_var = torch.rsqrt(variance_eps)
+        hidden_normalized = summed.mul(rsqrt_var)
+        hidden_cast = hidden_normalized.to(dtype)
+        return weight.mul(hidden_cast), residual_out
+
+    @staticmethod
+    def replacement_residual(
+        hidden_states: Tensor, residual: Tensor, weight: Tensor, eps: float, dtype
+    ):
+        """Keep the residual add + tee; route the norm through the composite."""
+        hidden_fp32 = hidden_states.to(torch.float32)
+        summed = hidden_fp32.add(residual)
+        residual_out = summed.to(dtype)
+        normed = torch.nn.functional.rms_norm(
+            residual_out, normalized_shape=weight.shape, weight=weight, eps=eps
+        )
+        return normed, residual_out
+
     # ----- Gemma family (Gemma / Gemma2 / Gemma3) -----
 
     @staticmethod
@@ -275,6 +315,7 @@ class RMSNormFusionProvider(FusionProvider):
         return [
             (self.pattern, self.replacement),
             (self.pattern_cast_after_mul, self.replacement),
+            (self.pattern_residual, self.replacement_residual),
             (self.pattern_gemma, self.replacement_gemma),
             (self.pattern_gemma4, self.replacement_gemma4),
             (self.pattern_gemma4_no_scale, self.replacement_gemma4_no_scale),
