@@ -2987,60 +2987,47 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Re-annotate vocab-sharding at the entry of this separately-compiled
         # graph: sharding does not carry across the compiled-graph boundary
         # from compute_logits.
-        #
-        # Sharded sampling (the sampler's two-output composite_topk) only works
-        # on a 2D (non-degenerate) mesh. On a degenerate 1xN mesh that composite
-        # crashes torch_xla's BuildStableHLOCompositePass: SPMD reorders ops
-        # inside the marked composite region, so a boundary marker loses its
-        # ordering number ("failed to build composite", #4494). There we gather
-        # the vocab-sharded logits to replicated and sample the non-sharded way
-        # — one extra full-vocab all_gather, paid only on the low-throughput
-        # 1xN topology (2-chip n300); the 2D meshes that matter for perf
-        # (llmbox 2x4, galaxy 4x8) keep the fast sharded path.
-        use_sharded_sampling = self.is_sharded_compute_logits and self.use_2d_mesh
         if self.is_sharded_compute_logits:
-            # On a 2D mesh keep logits vocab-sharded; on a 1xN mesh anchor them
-            # (and the [batch, vocab] metadata) replicated.
-            shard_spec = (None, "model") if use_sharded_sampling else (None, None)
-            logits = sharding_constraint_tensor(logits, self.mesh, shard_spec)
+            logits = sharding_constraint_tensor(logits, self.mesh, (None, "model"))
             # On 1D mesh, Shardy has a single axis and may assign it to batch
             # dims of metadata tensors (since batch is typically divisible by
             # mesh size). This axis-swap with the vocab-sharded logits triggers
             # unimplemented collective_permute (tt-mlir#3370). Explicitly anchor
-            # [batch, vocab] metadata to the same spec as the logits so Shardy
-            # propagates a single consistent sharding.
+            # [batch, vocab] metadata to (None, "model") so Shardy propagates
+            # only vocab-sharding, and the replicated→sharded transition uses
+            # the implemented all_slice path.
             if not sampling_metadata.no_penalties:
                 sampling_metadata.output_token_counts = sharding_constraint_tensor(
                     sampling_metadata.output_token_counts,
                     self.mesh,
-                    shard_spec,
+                    (None, "model"),
                 )
                 sampling_metadata.prompt_token_mask = sharding_constraint_tensor(
                     sampling_metadata.prompt_token_mask,
                     self.mesh,
-                    shard_spec,
+                    (None, "model"),
                 )
             if not sampling_metadata.no_logit_bias:
                 sampling_metadata.logit_bias_tensor = sharding_constraint_tensor(
                     sampling_metadata.logit_bias_tensor,
                     self.mesh,
-                    shard_spec,
+                    (None, "model"),
                 )
             if not sampling_metadata.no_bad_words:
                 sampling_metadata.bad_words_mask = sharding_constraint_tensor(
-                    sampling_metadata.bad_words_mask, self.mesh, shard_spec
+                    sampling_metadata.bad_words_mask, self.mesh, (None, "model")
                 )
             if not sampling_metadata.no_allowed_token_ids:
                 sampling_metadata.allowed_token_ids_mask = sharding_constraint_tensor(
                     sampling_metadata.allowed_token_ids_mask,
                     self.mesh,
-                    shard_spec,
+                    (None, "model"),
                 )
             if not sampling_metadata.no_min_tokens:
                 sampling_metadata.min_tokens_mask = sharding_constraint_tensor(
                     sampling_metadata.min_tokens_mask,
                     self.mesh,
-                    shard_spec,
+                    (None, "model"),
                 )
         if (
             sampling_metadata.all_greedy
@@ -3051,7 +3038,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             and sampling_metadata.no_min_tokens
             and sampling_metadata.no_generators
         ):
-            if use_sharded_sampling:
+            if self.is_sharded_compute_logits:
                 # Use indices-only variant: the two-output composite_topk with
                 # a discarded values output crashes torch_xla's
                 # BuildStableHLOCompositePass.
@@ -3059,12 +3046,11 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, k=1, dim=-1, largest=True, sorted=False
                 )
             else:
-                # Replicated logits (non-TP, or 1xN mesh gathered above):
-                # plain argmax returns the correct global token.
                 out_tokens = torch.argmax(logits, dim=-1, keepdim=True)
         else:
+            vocab_sharded = self.is_sharded_compute_logits
             out_tokens = self.sampler(
-                logits, sampling_metadata, vocab_sharded=use_sharded_sampling
+                logits, sampling_metadata, vocab_sharded=vocab_sharded
             ).sampled_token_ids
         return out_tokens
 
