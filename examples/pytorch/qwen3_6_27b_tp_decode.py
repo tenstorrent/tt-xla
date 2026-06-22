@@ -403,7 +403,8 @@ def qwen3_6_27b_tp_decode():
         max_length=128,
         return_attention_mask=True,
     )
-    prompt_len = inputs["input_ids"].shape[1]
+    padded_len = inputs["input_ids"].shape[1]
+    prompt_len = int(inputs["attention_mask"].sum(dim=-1).item())
 
     # StaticCache pre-allocates KV buffers for attention layers (StaticLayer).
     # DeltaNet layers use LinearAttentionLayer (fixed-size recurrent state) and
@@ -442,10 +443,10 @@ def qwen3_6_27b_tp_decode():
     full_attention_mask = torch.ones(
         (batch_size, max_cache_len), dtype=inputs["attention_mask"].dtype
     )
-    full_attention_mask[:, :prompt_len] = inputs["attention_mask"]
+    full_attention_mask[:, :padded_len] = inputs["attention_mask"]
 
     # cache_position tells the model which positions are being processed
-    cache_position = torch.arange(0, prompt_len)
+    cache_position = torch.arange(0, padded_len)
 
     # Explicit position_ids prevent the model from calling
     # past_key_values.get_seq_length() internally (which bakes a per-step
