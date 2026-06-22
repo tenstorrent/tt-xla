@@ -77,18 +77,18 @@ def test_tensor_parallel_generation_llmbox_small(
 @pytest.mark.tensor_parallel
 @pytest.mark.llmbox
 @pytest.mark.parametrize(
-    ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
+    ["model_name", "enable_const_eval", "experimental_weight_dtype", "mesh_shape"],
     [
-        pytest.param("Qwen/Qwen3-32B", False, "", True),
-        pytest.param("Qwen/Qwen3-8B", False, "", False),
-        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", True),
+        pytest.param("Qwen/Qwen3-32B", False, "", [2, 4]),
+        pytest.param("Qwen/Qwen3-8B", False, "", [1, 8]),
+        pytest.param("meta-llama/Llama-3.1-70B", True, "bfp_bf8", [2, 4]),
     ],
 )
 def test_tensor_parallel_generation_llmbox_large(
     model_name: str,
     enable_const_eval: bool,
     experimental_weight_dtype: str,
-    use_2d_mesh: bool,
+    mesh_shape: list[int],
 ):
     prompts = [
         "I like taking walks in the",
@@ -105,7 +105,7 @@ def test_tensor_parallel_generation_llmbox_large(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
-            "use_2d_mesh": use_2d_mesh,
+            "mesh_shape": mesh_shape,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -121,14 +121,14 @@ def test_tensor_parallel_generation_llmbox_large(
 @pytest.mark.tensor_parallel
 @pytest.mark.galaxy_wh_6u
 @pytest.mark.parametrize(
-    ["model_name", "enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
-    [pytest.param("mistralai/Mistral-Large-Instruct-2411", True, "bfp_bf8", True)],
+    ["model_name", "enable_const_eval", "experimental_weight_dtype", "mesh_shape"],
+    [pytest.param("mistralai/Mistral-Large-Instruct-2411", True, "bfp_bf8", [4, 8])],
 )
 def test_tensor_parallel_generation_galaxy_wh_6u_large(
     model_name: str,
     enable_const_eval: bool,
     experimental_weight_dtype: str,
-    use_2d_mesh: bool,
+    mesh_shape: list[int],
 ):
     inputs = ["How many days ago was Mistral founded?"]
 
@@ -144,7 +144,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
             "min_context_len": 64,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
-            "use_2d_mesh": use_2d_mesh,
+            "mesh_shape": mesh_shape,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -158,18 +158,25 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
 
 @pytest.mark.nightly
 @pytest.mark.tensor_parallel
-@pytest.mark.bhqb
 @pytest.mark.parametrize(
-    ["enable_const_eval", "experimental_weight_dtype", "use_2d_mesh"],
+    ["enable_const_eval", "experimental_weight_dtype"],
     [
-        pytest.param(True, "", False),
+        pytest.param(True, ""),
     ],
 )
-def test_tensor_parallel_generation_bhqb_gemma4_31b(
+@pytest.mark.parametrize(
+    "mesh_shape",
+    [
+        pytest.param([1, 4], marks=pytest.mark.bhqb),
+        pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
+    ],
+)
+def test_tensor_parallel_generation_gemma4_31b(
+    mesh_shape: list[int],
     enable_const_eval: bool,
     experimental_weight_dtype: str,
-    use_2d_mesh: bool,
 ):
+
     model_name = "google/gemma-4-31B-it"
 
     messages = [[{"role": "user", "content": "Describe Tenstorrent in one sentence."}]]
@@ -190,7 +197,7 @@ def test_tensor_parallel_generation_bhqb_gemma4_31b(
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "experimental_weight_dtype": experimental_weight_dtype,
-            "use_2d_mesh": use_2d_mesh,
+            "mesh_shape": mesh_shape,
             "cpu_sampling": False,
             "flat_model_io": True,
         },
@@ -199,6 +206,53 @@ def test_tensor_parallel_generation_bhqb_gemma4_31b(
 
     output_text = llm.chat(messages, sampling_params)[0].outputs[0].text
     print(f"output: {output_text}")
+    assert_output_coherent(output_text)
+
+    check_host_memory(model_name)
+
+
+@pytest.mark.nightly
+@pytest.mark.tensor_parallel
+@pytest.mark.llmbox
+@pytest.mark.parametrize(
+    ["model_name"],
+    [
+        pytest.param("mistralai/Mistral-Small-3.1-24B-Instruct-2503"),
+        pytest.param("mistralai/Mistral-Small-3.2-24B-Instruct-2506"),
+    ],
+)
+def test_tensor_parallel_generation_mistral_small(model_name: str):
+    image_url = "https://static.wikia.nocookie.net/essentialsdocs/images/7/70/Battle.png/revision/latest?cb=20220523172438"
+
+    user_text = "What action do you think I should take in this situation? "
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_text},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ],
+        },
+    ]
+    sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=32)
+
+    llm_args = {
+        "model": model_name,
+        "limit_mm_per_prompt": {"image": 1},
+        "max_num_batched_tokens": 3025,
+        "max_num_seqs": 1,
+        "max_model_len": 512,
+        "gpu_memory_utilization": 0.01,
+        "additional_config": {
+            "min_context_len": 32,
+            "enable_tensor_parallel": True,
+            "experimental_weight_dtype": "bfp_bf8",
+        },
+    }
+    llm = vllm.LLM(**llm_args)
+
+    output_text = llm.chat(messages, sampling_params=sampling_params)[0].outputs[0].text
+    print(f"prompt: {user_text}, output: {output_text}")
     assert_output_coherent(output_text)
 
     check_host_memory(model_name)
