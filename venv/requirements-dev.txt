@@ -1,4 +1,5 @@
 --extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.eng.aws.tenstorrent.com/
 black
 clang-format
 cmake==4.2.1
@@ -60,3 +61,6 @@ torchcodec
 
 # for CLIP metric in tests
 open_clip_torch==2.32.0
+
+# tt-lang (light build, 05/29)
+tt_lang==1.1.1.dev20260529+light
