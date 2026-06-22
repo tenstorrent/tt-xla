@@ -24,38 +24,17 @@ jobs:
     with:
       docker_image: ${{ needs.build-image.outputs.docker-image }}
 
-  # This is a single test job that runs all experimental/unknown status tt-forge-models tests.
-  test_forge_models_experimental:
+  # Focused experimental nightly: run only the Torch Wan 2.2 tests on BH Galaxy.
+  # The Wan-only subset is selected via the "nightly and bh_galaxy" mark over
+  # ./tests/torch, where non-Wan tests have had their bh_galaxy mark removed on
+  # the nvukobrat/wan2214B_glx_test branch.
+  test_torch_wan22_bh_galaxy:
     uses: ./.github/workflows/call-test.yml
     secrets: inherit
     needs: [ build-image, build-ttxla ]
     if: success() || failure()
     with:
-      test_suite: model-test-experimental.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      include_passed: true
-
-  test_forge_models_lb_blackhole:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    if: success() || failure()
-    with:
-      test_suite: model-test-lb-blackhole-nightly.json
-      docker_image: ${{ needs.build-image.outputs.docker-image }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      include_passed: true
-
-  test_bh_galaxy:
-    uses: ./.github/workflows/call-test.yml
-    secrets: inherit
-    needs: [ build-image, build-ttxla ]
-    if: success() || failure()
-    with:
-      test_suite: basic-test-nightly-experimental.json
+      test_suite: wan22-galaxy-experimental.json
       docker_image: ${{ needs.build-image.outputs.docker-image }}
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
@@ -64,9 +43,7 @@ jobs:
   fail-notify:
     if: always()
     needs:
-      - test_forge_models_experimental
-      - test_forge_models_lb_blackhole
-      - test_bh_galaxy
+      - test_torch_wan22_bh_galaxy
       - build-image
       - build-ttxla
     runs-on: Ubuntu-latest
