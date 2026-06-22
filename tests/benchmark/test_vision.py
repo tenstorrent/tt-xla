@@ -458,6 +458,50 @@ def test_vit(output_file, request):
     )
 
 
+def test_janus_pro_7b_und_vision(output_file, request):
+    from third_party.tt_forge_models.janus_pro.image_text_to_text.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = torch.bfloat16  # matches the loader's native DTYPE
+    batch_size = 1
+    # SigLIP understanding tower: 384x384 RGB input -> 576 image tokens.
+    input_size = (3, 384, 384)
+
+    # Load model: SigLIP vision tower + understanding aligner (pixels -> LM embeds).
+    variant = ModelVariant.UND_VISION_7B
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model(dtype_override=data_format)
+    model = model.eval()
+
+    # The loader returns {"pixel_values": ...}; the benchmark feeds a bare tensor.
+    def load_inputs_fn(batch_size, dtype):
+        return loader.load_inputs(dtype_override=dtype, batch_size=batch_size)[
+            "pixel_values"
+        ]
+
+    # JanusUndVision.forward returns the embedding tensor directly.
+    def extract_output_tensor_fn(output):
+        return output
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        input_size=input_size,
+        data_format=data_format,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
+
+
 def test_vovnet(output_file, request):
     from third_party.tt_forge_models.vovnet.pytorch.loader import (
         ModelLoader,
