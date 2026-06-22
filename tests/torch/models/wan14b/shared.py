@@ -572,6 +572,20 @@ def apply_dit_sp_activation_sharding(dit, mesh: Mesh) -> None:
     """
     from tt_torch.sharding import sharding_constraint_hook, sharding_constraint_tensor
 
+    from .monkey_patch import _patch_pad_seq_len_to_tile_aligned
+
+    # SP shards the patchified sequence dim L. For the SP scatter (ttnn.mesh_partition)
+    # and the distributed reductions to stay tile-aligned, the padded L must be a
+    # multiple of SP*32, so each of the SP shards is a whole number of 32-row tiles.
+    # Pad to that target in two coordinated places, both keyed off `tile`:
+    #   - hidden_states: _patch_pad_seq_len_to_tile_aligned (model forward + K/V slice)
+    #   - rope freqs: the _rope_hook below (while replicated, before the SP shard)
+    # Both pads live here so the benchmark and the correctness suite get the fix
+    # purely by calling apply_dit_sp_activation_sharding (no per-test wiring).
+    sp = mesh.shape()[SP_AXIS]
+    tile = sp * 32
+    _patch_pad_seq_len_to_tile_aligned(tile=tile)
+
     def _block_entry_pre_hook(module, args):
         hidden_states = args[0]
         hidden_states = sharding_constraint_tensor(
@@ -585,13 +599,24 @@ def apply_dit_sp_activation_sharding(dit, mesh: Mesh) -> None:
     dit.blocks[0].register_forward_pre_hook(_block_entry_pre_hook)
 
     def _rope_hook(module, input, output):
+        import torch.nn.functional as F
+
         freqs_cos, freqs_sin = output
+        # Replicated anchor (terminates the reshape back-propagation).
         freqs_cos = sharding_constraint_tensor(
             freqs_cos, mesh, (None, None, None, None)
         )
         freqs_sin = sharding_constraint_tensor(
             freqs_sin, mesh, (None, None, None, None)
         )
+        # Pad L to `tile` (= SP*32) WHILE REPLICATED, so the SP shard below splits
+        # into whole 32-row tiles — same target as the hidden_states pad in
+        # _patch_pad_seq_len_to_tile_aligned. Padding a sharded dim would pile all
+        # padding on the last shard (uneven), so it must happen before the SP shard.
+        pad = (-freqs_cos.shape[1]) % tile
+        if pad:
+            freqs_cos = F.pad(freqs_cos, (0, 0, 0, 0, 0, pad))
+            freqs_sin = F.pad(freqs_sin, (0, 0, 0, 0, 0, pad))
         freqs_cos = sharding_constraint_tensor(
             freqs_cos, mesh, (None, SP_AXIS, None, None)
         )
