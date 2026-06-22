@@ -351,6 +351,14 @@
         ]
       },
       {
+        "name": "ring_fabric_open_light",
+        "pytest": "tests/benchmark/test_ring_fabric.py::test_ring_fabric_open_light",
+        "runs-on": [
+          "n300-llmbox",
+          "galaxy-wh-6u"
+        ]
+      },
+      {
         "name": "llama_3_2_1b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b",
         "accuracy-testing": true
