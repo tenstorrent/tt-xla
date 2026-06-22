@@ -377,20 +377,32 @@ class TTPlatform(Platform):
             chunk_size = int(additional_config.get("prefill_chunk_size", 0))
             if chunk_size > 0:
                 floor = max(cache_config.block_size, scheduler_config.max_num_seqs)
+                # Per-step scheduler budget = the batched prefill graph's token
+                # capacity = max_num_seqs * prefill_chunk_size (the graph is
+                # [max_num_reqs, prefill_chunk_size]). This fills the batch rows
+                # from a burst in one prefill call instead of ~2 rows (the TTFT
+                # staircase). prefill_chunk_size remains the per-request chunk cap
+                # (the graph's seq dim, set on model_runner.prefill_chunk_budget),
+                # so the graph shape / DRAM is unchanged. Derived from existing
+                # knobs; see DEBUG_chunked_prefill_batch_budget.md.
                 budget = max(
-                    min(scheduler_config.max_num_batched_tokens, chunk_size), floor
+                    scheduler_config.max_num_seqs * chunk_size, floor, chunk_size
                 )
                 if budget != scheduler_config.max_num_batched_tokens:
                     logger.info(
-                        "[TT] Chunked prefill: capping max_num_batched_tokens "
-                        "%d -> %d (prefill_chunk_size=%d) to bound prefill "
-                        "compile time and DRAM.",
+                        "[TT] Chunked prefill: max_num_batched_tokens %d -> %d "
+                        "(per-STEP budget = prefill-graph capacity; "
+                        "prefill_chunk_size=%d per-REQUEST chunk cap) — batch "
+                        "short-prefill bursts while bounding single prefills/DRAM.",
                         scheduler_config.max_num_batched_tokens,
                         budget,
                         chunk_size,
                     )
                 scheduler_config.enable_chunked_prefill = True
                 scheduler_config.chunked_prefill_enabled = True
+                # Per-request chunk cap consumed by AscendScheduler (distinct from
+                # the per-step max_num_batched_tokens budget).
+                scheduler_config.prefill_chunk_size = chunk_size
                 scheduler_config.max_num_batched_tokens = budget
                 scheduler_config.max_num_encoder_input_tokens = budget
                 scheduler_config.encoder_cache_size = budget
