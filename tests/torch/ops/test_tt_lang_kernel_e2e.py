@@ -67,13 +67,14 @@ import pytest
 import torch
 
 # Import torch_xla before tt_torch so the plugin registers on torch_xla
-# startup. ttl (tt-lang) is an optional dependency -- skip if absent.
+# startup.
 import torch_xla  # noqa: F401
 import torch_xla.core.xla_model as xm
 
-ttl = pytest.importorskip("ttl", exc_type=ImportError)
+import ttl
 
 import tt_torch  # noqa: F401  -- registers torch.ops.tt.*
+from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from tt_torch import tt_lang as tt_lang_mod
 from tt_torch.tt_lang import tt_lang_operation
 
@@ -188,6 +189,8 @@ def _make_eltwise_add_operation(operation_id: str):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize("shape", [(64, 32), (128, 64)], ids=lambda s: f"{s[0]}x{s[1]}")
 def test_tt_lang_eltwise_add_e2e(shape, request):
     """Compile and execute a tt-lang elementwise-add kernel on the TT
@@ -211,26 +214,24 @@ def test_tt_lang_eltwise_add_e2e(shape, request):
     b_xla = b_cpu.to(device)
     out_xla = out_cpu.to(device)
 
-    try:
-        result_xla = add_op(a_xla, b_xla, out_xla)
-        # mark_step triggers compile + execute. Errors from the bridge
-        # (e.g. resolve_operation failure) surface here as RuntimeError.
-        xm.mark_step()
-        result = result_xla.to("cpu")
-    except RuntimeError as e:
-        msg = str(e)
-        if "undefined symbol" in msg or "_ZN2tt8tt_metal" in msg:
-            pytest.skip("tt-metal ABI mismatch surfaced at compile time: " + msg[:300])
-        raise
+    result_xla = add_op(a_xla, b_xla, out_xla)
+    # mark_step triggers compile + execute. Errors from the bridge
+    # (e.g. resolve_operation failure) surface here as RuntimeError.
+    xm.mark_step()
+    result = result_xla.to("cpu")
 
     assert (
         result.shape == golden.shape
     ), f"shape mismatch: {result.shape} vs {golden.shape}"
 
-    # bfloat16 tile add: ~1ulp per op, leave headroom.
-    torch.testing.assert_close(result.float(), golden.float(), rtol=2e-2, atol=2e-2)
+    # bfloat16 tile add: compare with PCC.
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(result, golden)
 
 
+@pytest.mark.push
+@pytest.mark.single_device
 @pytest.mark.parametrize("shape", [(64, 32), (128, 64)], ids=lambda s: f"{s[0]}x{s[1]}")
 def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
     """Stitch a tt-lang operation between two ``torch.add`` ops inside the
@@ -299,6 +300,7 @@ def test_tt_lang_add_stitched_with_torch_add_e2e(shape, request):
         result.shape == golden.shape
     ), f"shape mismatch: {result.shape} vs {golden.shape}"
 
-    # Three bf16 adds chained: ~3 ulp accumulation worst case, leave
-    # headroom for tile rounding inside ttnn.add and the kernel.
-    torch.testing.assert_close(result.float(), golden.float(), rtol=3e-2, atol=3e-2)
+    # Three bf16 adds chained: compare with PCC.
+    comparison_config = ComparisonConfig(pcc=PccConfig(required_pcc=0.9999))
+    comparator = TorchComparisonEvaluator(comparison_config)
+    comparator.evaluate(result, golden)
