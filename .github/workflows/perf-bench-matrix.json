@@ -3,7 +3,7 @@
     "project": "tt-xla",
     "test-defaults": {
       "runs-on": [
-        "n150",
+        "n150-perf",
         "p150-perf"
       ],
       "dir": "",

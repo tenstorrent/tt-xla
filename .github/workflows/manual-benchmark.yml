@@ -17,12 +17,12 @@ on:
         type: choice
         options:
           - All
-          - n150
+          - n150-perf
           - p150-perf
           - n300-llmbox
           - galaxy-wh-6u
           - qb2-blackhole
-        default: n150
+        default: n150-perf
       skip-device-perf:
         description: "Skip device performance measurement"
         required: false
