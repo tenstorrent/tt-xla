@@ -1,0 +1,3 @@
+[
+  {"runs-on": "n300", "name": "run_codegen_tensor_parallel", "dir": "./tests/torch/codegen", "test-mark": "tensor_parallel and dual_chip", "require": "alchemist", "forked": true}
+]

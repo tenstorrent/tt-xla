@@ -57,10 +57,11 @@ _XFAIL_REASON = (
 )
 
 
-@pytest.mark.push
+# Requires tt-alchemist; runs only via the dedicated codegen-regression-tests.json preset, not the generic push/nightly tests/torch jobs (which lack alchemist).
+@pytest.mark.tensor_parallel
 @pytest.mark.dual_chip
-@pytest.mark.xfail(reason=_XFAIL_REASON)
-def test_codegen_export_tensors_preserves_sharding():
+@pytest.mark.xfail(strict=True, reason=_XFAIL_REASON)
+def test_codegen_export_tensors_sharding():
     """Codegen export_tensors must serialize full sharded tensors, not one shard."""
     import ttnn
 
