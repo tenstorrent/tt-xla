@@ -76,6 +76,7 @@
       },
       {
         "name": "janus_pro_7b",
+        "runs-on": ["p150-perf"],
         "pytest": "tests/benchmark/test_imagegen.py::test_janus_pro_7b"
       },
       {

@@ -279,8 +279,19 @@ def test_janus_pro(output_file, request):
 
 
 def test_janus_pro_7b(output_file, request):
-    """Janus-Pro-7B autoregressive text-to-image benchmark (blackhole)."""
+    """Janus-Pro-7B autoregressive text-to-image benchmark (blackhole).
+
+    Skips on wormhole (n150): the 7B model OOMs the DRAM there. The matrix pins
+    this entry to p150, so CI never schedules it on n150; this guard covers
+    manual/general runs. Requires blackhole (p150).
+    """
+    import torch_xla.runtime as xr
     from benchmarks.janus_pro_pipeline import REPO_ID_PRO_7B
+    from utils import get_xla_device_arch
+
+    xr.set_device_type("TT")
+    if get_xla_device_arch() == "wormhole":
+        pytest.skip("Janus-Pro-7B OOMs on n150 (wormhole); requires p150 (blackhole)")
 
     _run_janus_pro_benchmark(
         model_id=REPO_ID_PRO_7B,

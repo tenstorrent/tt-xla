@@ -53,6 +53,8 @@ from third_party.tt_forge_models.janus_pro.text_to_image.pytorch.src.model impor
     JanusGenVisionDecode,
 )
 
+from . import skip_pro_7b_image_token_on_wormhole
+
 MODEL_ID = model_utils.REPO_ID_PRO_1B
 PROMPT = model_utils.STANDARD_PROMPT
 SEED = 42
@@ -369,5 +371,10 @@ def test_janus_pro_pipeline():
     bringup_status=BringupStatus.PASSED,
 )
 def test_janus_pro_pipeline_7b():
-    """Run the full Janus-Pro-7B text-to-image pipeline on TT (blackhole)."""
+    """Run the full Janus-Pro-7B text-to-image pipeline on TT (blackhole).
+
+    Skips on wormhole (n150): the 7B model OOMs the DRAM there, same as the
+    Pro-7B ImageTokenStep component test. Requires blackhole (p150).
+    """
+    skip_pro_7b_image_token_on_wormhole()
     _run_pipeline_test(model_utils.REPO_ID_PRO_7B, "janus_pro_7b_output.png")
