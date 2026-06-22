@@ -497,8 +497,8 @@ def test_janus_pro_7b_und_vision(output_file, request):
         batch_size=batch_size,
         input_size=input_size,
         data_format=data_format,
-        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,
+        trace_enabled=True,
     )
 
 
