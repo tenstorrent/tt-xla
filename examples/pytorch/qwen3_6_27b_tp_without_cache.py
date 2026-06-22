@@ -230,7 +230,7 @@ def qwen3_6_27b_tp():
     log(f"Loading model weights (bfloat16, low_cpu_mem_usage=True, 8 layers)...")
     t0 = time.time()
     config = AutoConfig.from_pretrained(model_id)
-    # num_layers = 4
+    # num_layers = 8
     # text_cfg = config.text_config if hasattr(config, "text_config") else config
     # text_cfg.num_hidden_layers = num_layers
     # if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
@@ -315,7 +315,7 @@ def qwen3_6_27b_tp():
     # TT hardware operates on 32×32 tiles; seq_len % 128 == 0 avoids misalignment
     # crashes (SIGABRT/SIGSEGV) observed during Qwen3.5 bringup.
     max_seq_len = 128
-    max_new_tokens = int(os.environ.get("TTXLA_MAX_NEW_TOKENS", "20"))
+    max_new_tokens = int(os.environ.get("TTXLA_MAX_NEW_TOKENS", "3"))
 
     prompt = "The capital of France is"
     inputs = tokenizer(

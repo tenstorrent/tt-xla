@@ -1,36 +1,37 @@
-# SPDX-FileCopyrightText: (c) 2025 Tenstorrent AI ULC
+# SPDX-FileCopyrightText: (c) 2026 Tenstorrent AI ULC
 #
 # SPDX-License-Identifier: Apache-2.0
 
 """
-Qwen3.6-27B autoregressive decoding with tensor parallelism on Tenstorrent hardware.
+Qwen3.6-27B generation with tensor parallelism on Tenstorrent hardware.
 
-This script demonstrates token-by-token generation using a static KV cache and
-fixed tensor shapes to avoid recompilation between decode steps.
+This script reuses the modular generation-loop structure from the GPT-OSS 20B
+example (gpt_oss_20b.py) and adapts it to Qwen3.6-27B:
+- The graph-break-free monkey patches are copied from qwen3_6_27b_tp_decode.py.
+- The tensor-parallel sharding strategy follows the Qwen decode reference
+  (pure model-axis sharding of attention/MLP projections + KV cache).
 
-Architecture: 16 × (3 × (Gated DeltaNet → FFN) → 1 × (Gated Attention → FFN))
-- DeltaNet layers: recurrent state (fixed size, no cache growth)
-- Attention layers: static KV cache (pre-allocated to max_cache_len)
-
-Key patterns for avoiding recompilation on TT hardware:
-1. StaticCache with fixed max_cache_len — pre-allocates KV buffers
-2. Fixed input shape [batch, 1] in decode — no shape changes between steps
-3. Explicit position_ids — avoids per-step Python int baked into graph
-4. cache_position tracking — tells the cache where to write
+Architecture: mixture of Gated DeltaNet (linear attention, recurrent state) and
+Gated Attention (static KV cache) layers.
 
 Usage:
-    python examples/pytorch/qwen3_6_27b_tp_decode.py
+    python examples/pytorch/qwen3_6_27b_tp_3.py
+    python examples/pytorch/qwen3_6_27b_tp_3.py --interactive
 """
 
+import argparse
 import math
 import os
 import resource
 
+# Cap the process address space to avoid OOM-killing the host while loading and
+# tracing the large Qwen3.6 model on CPU before the device transfer.
 _MEM_LIMIT_GB = int(os.environ.get("TTXLA_MEM_LIMIT_GB", "230"))
 _MEM_LIMIT_BYTES = _MEM_LIMIT_GB * 1024**3
 resource.setrlimit(resource.RLIMIT_AS, (_MEM_LIMIT_BYTES, _MEM_LIMIT_BYTES))
 
 import time
+from typing import List
 
 import numpy as np
 import torch
@@ -39,10 +40,20 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.spmd as xs
 import torch_xla.runtime as xr
+from loguru import logger
 from torch_xla.distributed.spmd import Mesh
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import (
+    AutoConfig,
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    PreTrainedTokenizer,
+)
 from transformers.cache_utils import StaticCache
+from transformers.configuration_utils import PretrainedConfig
+from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.transformers_overrides import TTStaticLayer, override_cache_static_layers
+
+DEFAULT_PROMPTS = ["The capital of France is"]
 
 
 def log(msg):
@@ -51,6 +62,7 @@ def log(msg):
 
 # =============================================================================
 # Monkey patches for graph-break-free compilation on TT hardware.
+# Copied from qwen3_6_27b_tp_decode.py.
 # See github.com/tenstorrent/tt-xla/issues/3508 for background.
 # =============================================================================
 
@@ -255,9 +267,6 @@ def _patch_conv1d_forward(layer):
     is_qwen3_5 = hasattr(layer, "in_proj_qkv")
 
     def patched_forward(hidden_states, cache_params=None, attention_mask=None):
-        from transformers.models.qwen3_5.modeling_qwen3_5 import apply_mask_to_padding_states
-
-        hidden_states = apply_mask_to_padding_states(hidden_states, attention_mask)
         batch_size, seq_len, _ = hidden_states.shape
 
         use_precomputed_states = (
@@ -293,11 +302,22 @@ def _patch_conv1d_forward(layer):
             )
         else:
             if cache_params is not None:
+                # Save conv_state before masking — with left-padding the last K
+                # positions are real tokens so conv_state is correct as-is.
                 conv_state_val = F.pad(mixed_qkv, (layer.conv_kernel_size - mixed_qkv.shape[-1], 0))
                 conv_state_val = cache_params.update_conv_state(conv_state_val, layer.layer_idx)
             mixed_qkv = _depthwise_conv1d_as_matmul_prefill(layer.conv1d, mixed_qkv, seq_len)
 
         mixed_qkv = mixed_qkv.transpose(1, 2)
+
+        # Zero query/key/value at PAD positions AFTER conv. Both the linear
+        # projection bias and the conv1d bias produce non-zero outputs at PAD
+        # positions. With key=0 and value=0, the delta-rule update at PAD
+        # positions is beta * 0^T * 0 = 0, leaving recurrent_state unaffected.
+        if attention_mask is not None and seq_len > 1 and not use_precomputed_states:
+            pad_mask = attention_mask[:, :seq_len, None]  # [B, L, 1]
+            mixed_qkv = mixed_qkv * pad_mask
+
         query, key, value = torch.split(
             mixed_qkv,
             [layer.key_dim, layer.key_dim, layer.value_dim],
@@ -354,63 +374,208 @@ def apply_graph_break_patches(model):
     log("Applied graph-break patches (linear_attn_mask + chunk_gated_delta_rule + conv1d→matmul)")
 
 
-def qwen3_6_27b_tp_decode():
-    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
-    xr.use_spmd()
+# --------------------------------
+# Qwen3.6 27B Generation Loop Example
+# --------------------------------
+def qwen3_6_27b_tp(interactive: bool = False):
 
+    # Set up config variables.
+    max_cache_len: int = 256
+    model_name: str = "Qwen/Qwen3.6-27B"
+
+    setup_spmd()
+
+    # Connect the device and create an xla mesh.
+    device: torch.device = torch_xla.device()
+    mesh: Mesh = create_device_mesh()
+
+    # Instantiate model and tokenizer
+    model, tokenizer = setup_model_and_tokenizer(model_name)
+
+    while True:
+        if interactive:
+            user_prompt = input("Enter your prompt or quit() to exit: ")
+            batch_size: int = 1
+            if user_prompt.lower() == "quit()":
+                break
+            user_prompt = [user_prompt]
+        else:
+            user_prompt = DEFAULT_PROMPTS
+            batch_size: int = len(user_prompt)
+
+        # Construct inputs, including static cache
+        input_args, formatted_prompts = construct_inputs(
+            user_prompt, tokenizer, model.config, batch_size, max_cache_len
+        )
+
+        # Limit maximum generation count to fit within preallocated static cache
+        max_tokens_to_generate: int = max_cache_len - input_args["input_ids"].shape[1]
+
+        # Transfer model and inputs to device
+        model, input_args = transfer_to_device(model, input_args, device)
+
+        # Mark sharding on inputs and model internals
+        mark_sharding_on_inputs_and_model(model, input_args, mesh)
+
+        # Compile model
+        compiled_model = torch.compile(model, backend="tt")
+
+        # Run generation loop until EOS token generated or max tokens reached
+        run_generate(
+            compiled_model,
+            input_args,
+            tokenizer,
+            device,
+            mesh,
+            max_tokens_to_generate,
+            formatted_prompts,
+            interactive,
+        )
+
+        if not interactive:
+            break
+
+
+def setup_spmd():
+    """
+    Initializes SPMD mode in torch_xla.
+    """
+
+    print("Setting up XLA environment...")
+
+    # Converts the StableHLO emitted by torch-xla to the Shardy dialect
+    os.environ["CONVERT_SHLO_TO_SHARDY"] = "1"
+
+    # Initialize SPMD
+    xr.use_spmd()
+    print("XLA environment configured.")
+
+
+def create_device_mesh() -> Mesh:
+    """
+    Create device mesh for tensor parallelism.
+
+    Qwen3.6 uses pure model-axis (tensor parallel) sharding, so the mesh keeps a
+    singleton batch axis and spreads all devices across the model axis.
+
+    Returns:
+        Mesh object for SPMD operations
+    """
     num_devices = xr.global_runtime_device_count()
     assert num_devices >= 2, (
         f"This script requires at least 2 devices, but found {num_devices}. "
         f"Use the single-chip script for single-device inference."
     )
 
-    # --- Configuration ---
-    model_id = "Qwen/Qwen3.6-27B"
-    max_cache_len = 256
-    max_new_tokens = 10
-    batch_size = 1
+    mesh_shape = (1, num_devices)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    print(f"Created device mesh: {mesh_shape} with {num_devices} devices")
+    return mesh
 
-    # --- Load model and tokenizer ---
-    log(f"Loading tokenizer for {model_id}...")
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+
+def setup_model_and_tokenizer(
+    model_name: str,
+) -> tuple[torch.nn.Module, PreTrainedTokenizer]:
+    """
+    Instantiate model and tokenizer.
+
+    Args:
+        model_name: HuggingFace model name
+
+    Returns:
+        Tuple of (model, tokenizer)
+    """
+    log(f"Loading tokenizer for {model_name}...")
+    tokenizer: PreTrainedTokenizer = AutoTokenizer.from_pretrained(model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    # Left-padding is required for DeltaNet (linear attention) layers.
+    # With right-padding, conv_state and recurrent_state would accumulate
+    # PAD-token projections at the END of the sequence, corrupting decode.
+    # With left-padding, real tokens are last so the saved states reflect them.
+    tokenizer.padding_side = "left"
 
     log(f"Loading model weights (bfloat16)...")
     t0 = time.time()
-    config = AutoConfig.from_pretrained(model_id)
-    # Limiting the number of layers to 4
-    # num_layers = 4
+    config = AutoConfig.from_pretrained(model_name)
+    # Limiting the number of layers to keep host memory and compile time bounded.
+    # num_layers = int(os.environ.get("TTXLA_NUM_LAYERS", "4"))
     # text_cfg = config.text_config if hasattr(config, "text_config") else config
     # text_cfg.num_hidden_layers = num_layers
     # if hasattr(text_cfg, "layer_types") and text_cfg.layer_types is not None:
     #     text_cfg.layer_types = text_cfg.layer_types[:num_layers]
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id, config=config, torch_dtype=torch.bfloat16, low_cpu_mem_usage=True
-    )
-    model.eval()
-    log(f"Model loaded in {time.time() - t0:.1f}s")
-    log(f"Model layers: {len(model.model.layers)}, params: {sum(p.numel() for p in model.parameters()) / 1e9:.1f}B")
 
+    model: torch.nn.Module = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        config=config,
+        torch_dtype=torch.bfloat16,
+        low_cpu_mem_usage=True,
+    )
+    model = model.eval()
+    log(f"Model loaded in {time.time() - t0:.1f}s")
+    log(
+        f"Model layers: {len(model.model.layers)}, "
+        f"params: {sum(p.numel() for p in model.parameters()) / 1e9:.1f}B"
+    )
+
+    # Apply TT-friendly monkey patches (graph-break-free DeltaNet/conv1d/mask).
     apply_graph_break_patches(model)
 
-    # --- Construct inputs with static cache ---
-    prompt = "The capital of France is"
+    return model, tokenizer
+
+
+def construct_inputs(
+    input_prompt: List[str],
+    tokenizer: PreTrainedTokenizer,
+    model_config: PretrainedConfig,
+    batch_size: int,
+    max_cache_len: int,
+) -> tuple[dict, List[str]]:
+    """
+    Construct inputs including static cache.
+
+    Args:
+        input_prompt: Input text prompt(s) - can be a single string or list of strings
+        tokenizer: Tokenizer instance
+        model_config: Model configuration
+        batch_size: Batch size
+        max_cache_len: Maximum cache length
+
+    Returns:
+        Tuple of (input_args dictionary, formatted_prompts list)
+    """
+
+    # Apply chat template to format prompts
+    formatted_prompts = []
+    for prompt in input_prompt:
+        messages = [{"role": "user", "content": prompt}]
+        formatted_prompt = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        formatted_prompts.append(formatted_prompt)
+
+    prompt_lengths = [
+        len(tokenizer.encode(p, add_special_tokens=False)) for p in formatted_prompts
+    ]
+    max_length = max(prompt_lengths)
+
     inputs = tokenizer(
-        prompt,
+        formatted_prompts,
         return_tensors="pt",
+        max_length=max_length,
         padding="max_length",
-        max_length=128,
+        padding_side="left",
         return_attention_mask=True,
     )
-    padded_len = inputs["input_ids"].shape[1]
-    prompt_len = int(inputs["attention_mask"].sum(dim=-1).item())
 
-    # StaticCache pre-allocates KV buffers for attention layers (StaticLayer).
+    # StaticCache pre-allocates KV buffers for attention layers (TTStaticLayer).
     # DeltaNet layers use LinearAttentionLayer (fixed-size recurrent state) and
     # lazily initialize under torch.compile with is_torchdynamo_compiling() guards.
-    static_cache = StaticCache(
-        config=model.config,
+    # Static cache should be initialized on CPU and separately transferred to device
+    # due to a trace/fusion issue. See https://github.com/tenstorrent/tt-xla/issues/1645
+    static_cache: StaticCache = StaticCache(
+        config=model_config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device="cpu",
@@ -423,10 +588,11 @@ def qwen3_6_27b_tp_decode():
     # bake tensor allocation ops into the compiled StableHLO graph.
     # LinearAttentionLayer (DeltaNet) layers are left to lazily initialize since
     # they have is_torchdynamo_compiling() guards and use different state shapes.
-    num_key_value_heads = model.config.num_key_value_heads
+    num_key_value_heads = model_config.num_key_value_heads
     head_dim = getattr(
-        model.config, "head_dim",
-        model.config.hidden_size // model.config.num_attention_heads,
+        model_config,
+        "head_dim",
+        model_config.hidden_size // model_config.num_attention_heads,
     )
     for layer in static_cache.layers:
         if isinstance(layer, TTStaticLayer) and not layer.is_initialized:
@@ -437,24 +603,23 @@ def qwen3_6_27b_tp_decode():
             )
             layer.lazy_initialization(fake_kv, fake_kv)
 
-    # Pre-allocate attention mask to max_cache_len with all 1s to avoid per-step
-    # mask updates. Zero-initialized cache slots contribute nothing to attention
-    # output, so attending to unfilled positions is harmless.
-    full_attention_mask = torch.ones(
-        (batch_size, max_cache_len), dtype=inputs["attention_mask"].dtype
-    )
-    full_attention_mask[:, :padded_len] = inputs["attention_mask"]
-
-    # cache_position tells the model which positions are being processed
-    cache_position = torch.arange(0, padded_len)
-
-    # Explicit position_ids prevent the model from calling
-    # past_key_values.get_seq_length() internally (which bakes a per-step
-    # Python int into the graph, causing recompilation every decode step).
+    cache_position: torch.Tensor = torch.arange(0, inputs.input_ids.shape[1])
+    # Pass position_ids explicitly so the forward never enters the
+    # "position_ids is None" branch (which calls past_key_values.get_seq_length()
+    # and bakes a per-step Python int into the graph, causing dynamo to
+    # recompile on every decode step).
     position_ids = cache_position.unsqueeze(0)
 
+    # Attention mask is needed to ignore padding tokens in left-padded batches. The mask should match max_cache_len
+    # to prevent recompilation or implicit padding by transformers, which can cause degenerate output.
+    prompt_len = inputs.input_ids.shape[1]
+    full_attention_mask = torch.ones(
+        (batch_size, max_cache_len), dtype=inputs.attention_mask.dtype
+    )
+    full_attention_mask[:, :prompt_len] = inputs.attention_mask
+
     input_args = {
-        "input_ids": inputs["input_ids"],
+        "input_ids": inputs.input_ids,
         "past_key_values": static_cache,
         "cache_position": cache_position,
         "position_ids": position_ids,
@@ -462,22 +627,37 @@ def qwen3_6_27b_tp_decode():
         "attention_mask": full_attention_mask,
     }
 
-    # --- Create device mesh ---
-    mesh_shape = (1, num_devices)
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("batch", "model"))
+    #   Debug prints
+    print("\n=== DEBUG: construct_inputs ===")
+    print(f"Original prompts: {input_prompt}")
+    print(f"Formatted prompts (with chat template): {formatted_prompts}")
+    print(f"Input IDs shape: {inputs.input_ids.shape}")
+    print(f"Input IDs: {inputs.input_ids}")
+    print(f"Input attention mask shape: {inputs.attention_mask.shape}")
+    print(f"Full attention mask shape (pre-allocated): {full_attention_mask.shape}")
+    print(f"Full attention mask: {full_attention_mask}")
+    print(f"Cache position shape: {cache_position.shape}")
+    print(f"Cache position: {cache_position}")
+    print(f"Actual sequence length (non-padding): {inputs.attention_mask.sum().item()}")
+    print("=" * 50)
 
-    # --- Transfer to device ---
-    device = torch_xla.device()
-    log(f"Moving model to XLA device ({device})...")
-    t0 = time.time()
-    model = model.to(device)
+    return input_args, formatted_prompts
 
-    input_args["input_ids"] = input_args["input_ids"].to(device)
-    input_args["cache_position"] = input_args["cache_position"].to(device)
-    input_args["position_ids"] = input_args["position_ids"].to(device)
-    input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
+def transfer_to_device(
+    model: torch.nn.Module, input_args: dict, device: torch.device
+) -> tuple[torch.nn.Module, dict]:
+    """
+    Transfer model and inputs to device.
+
+    Args:
+        model: Model instance
+        input_args: Input arguments dictionary
+        device: Target device
+
+    Returns:
+        Tuple of (model, input_args) on device
+    """
     # Transfer eagerly-initialized cache tensors (keys, values, cumulative_length)
     # to device. LinearAttentionLayer (DeltaNet) layers lazily initialize on-device
     # during the first forward pass and are skipped here.
@@ -485,13 +665,44 @@ def qwen3_6_27b_tp_decode():
         if isinstance(layer, TTStaticLayer):
             layer.keys = layer.keys.to(device)
             layer.values = layer.values.to(device)
-            layer.device = device
+            # StaticLayer.update builds a fresh `cache_position` each call as
+            # `torch.arange(kv_length, device=self.device) + self.cumulative_length`,
+            # then passes it to `self.keys.index_copy_(2, cache_position, ...)`.
+            # If `self.device` is still "cpu" or `cumulative_length` is a CPU tensor,
+            # the resulting index is CPU and `index_copy_` on an XLA `keys` tensor
+            # raises `Check failed: xtensor: Input tensor is not an XLA tensor`.
+            if hasattr(layer, "device"):
+                layer.device = device
         if isinstance(getattr(layer, "cumulative_length", None), torch.Tensor):
             layer.cumulative_length = layer.cumulative_length.to(device)
 
-    log(f"Transferred to device in {time.time() - t0:.1f}s")
+    input_args["input_ids"] = input_args["input_ids"].to(device)
+    input_args["cache_position"] = input_args["cache_position"].to(device)
+    input_args["position_ids"] = input_args["position_ids"].to(device)
+    input_args["attention_mask"] = input_args["attention_mask"].to(device)
 
-    # --- Shard model weights ---
+    model = model.to(device)
+
+    return model, input_args
+
+
+def mark_sharding_on_inputs_and_model(
+    model: torch.nn.Module, input_args: dict, mesh: Mesh
+):
+    """
+    Mark sharding on inputs and model internals.
+    If mark_sharding is not called on a tensor, it is fully replicated across all devices.
+        i.e. on cache_positions, input_ids
+
+    Uses Qwen3.6 tensor-parallel sharding: attention/MLP projections are split
+    along the model axis. DeltaNet (linear_attn) layers stay replicated.
+
+    Args:
+        model: Model instance
+        input_args: Input arguments dictionary
+        mesh: Device mesh for SPMD operations
+    """
+
     shard_specs = {}
     for layer in model.model.layers:
         if hasattr(layer, "mlp"):
@@ -514,25 +725,16 @@ def qwen3_6_27b_tp_decode():
             if hasattr(attn, "o_proj"):
                 shard_specs[attn.o_proj.weight] = (None, "model")
 
-        # DeltaNet (linear_attn) projections can now be sharded because the
-        # depthwise conv1d has been replaced with element-wise ops (see
-        # _patch_conv1d_forward). Previously, groups= partitioning caused a
-        # feature_group_count mismatch (tt-xla#3508).
-        linear_attn = getattr(layer, "linear_attn", None)
-        if linear_attn is not None:
-            if hasattr(linear_attn, "in_proj_qkv"):
-                shard_specs[linear_attn.in_proj_qkv.weight] = ("model", None)
-            if hasattr(linear_attn, "in_proj_qkvz"):
-                shard_specs[linear_attn.in_proj_qkvz.weight] = ("model", None)
-            if hasattr(linear_attn, "in_proj_ba"):
-                shard_specs[linear_attn.in_proj_ba.weight] = ("model", None)
-            if hasattr(linear_attn, "out_proj"):
-                shard_specs[linear_attn.out_proj.weight] = (None, "model")
+        # DeltaNet (linear_attn) projections are NOT sharded yet.
+        # The conv1d has been replaced with element-wise ops (_patch_conv1d_forward),
+        # removing the feature_group_count blocker. However, full TP sharding also
+        # requires sharding in_proj_z/b/a and the conv weight to match in_proj_qkv,
+        # which needs more work. For now, DeltaNet layers remain replicated.
 
     if hasattr(model, "lm_head") and hasattr(model.lm_head, "weight"):
         shard_specs[model.lm_head.weight] = ("model", None)
 
-    log(f"Applying sharding annotations ({len(shard_specs)} tensors)...")
+    print(f"Applying sharding annotations ({len(shard_specs)} tensors)...")
     for tensor, spec in shard_specs.items():
         xs.mark_sharding(tensor, mesh, spec)
 
@@ -543,72 +745,113 @@ def qwen3_6_27b_tp_decode():
         if isinstance(layer, TTStaticLayer):
             xs.mark_sharding(layer.keys, mesh, (None, "model", None, None))
             xs.mark_sharding(layer.values, mesh, (None, "model", None, None))
-    log("Sharding annotations applied.")
+    print("Sharding annotations applied.")
 
-    # --- Compile ---
-    log("Compiling model with torch.compile(backend='tt')...")
-    compiled_model = torch.compile(model, backend="tt")
 
-    # --- Generation loop ---
-    generated_tokens = []
+def run_generate(
+    compiled_model: torch.nn.Module,
+    input_args: dict,
+    tokenizer: PreTrainedTokenizer,
+    device: torch.device,
+    mesh: Mesh = None,
+    max_tokens_to_generate: int = 128,
+    formatted_prompts: List[str] = [""],
+    is_interactive: bool = False,
+):
+    """
+    Run the generation loop.
+
+    Args:
+        compiled_model: Compiled model instance
+        input_args: Input arguments dictionary
+        tokenizer: Tokenizer instance
+        device: Device
+        mesh: Device mesh for SPMD operations (optional)
+        max_tokens_to_generate: Maximum number of tokens to generate
+        formatted_prompts: Formatted prompts with chat template applied
+        is_interactive: Whether running in interactive mode
+    """
+    num_users = input_args["input_ids"].shape[0]
+    output_tokens: List[List[str]] = [[] for _ in range(num_users)]
+
+    # Latency tracking. The `.to("cpu")` transfer of the logits below forces a
+    # device sync, so timing the forward pass plus that transfer gives an
+    # accurate per-step wall-clock latency.
+    prefill_time: float = 0.0
 
     with torch.no_grad():
-        for step in range(max_new_tokens):
-            t_step = time.time()
+        for step in range(max_tokens_to_generate):
+            if step == 0:
+                print("RUNNING PREFILL")
+                if is_interactive:
+                    print("=" * 80)
+                    print("PROMPT:")
+                    print(formatted_prompts[0])
+                    print("-" * 80)
+                    print("GENERATED:", end="", flush=True)
+
+            # Run forward pass (timed: forward + device→host sync)
+            step_start = time.perf_counter()
+            output: CausalLMOutputWithPast = compiled_model(**input_args)
+            output_logits: torch.Tensor = output.logits.to("cpu")
+            step_elapsed = time.perf_counter() - step_start
 
             if step == 0:
-                log("Running prefill (triggers compilation for prefill graph)...")
-                t0 = time.time()
-
-            output = compiled_model(**input_args)
-
-            t_fwd = time.time()
-
-            # Argmax on device, then transfer only the token ID (1 scalar)
-            # instead of the full (1, seq, 248320) logits tensor.
-            if step == 0:
-                next_token_id = output.logits[0, prompt_len - 1, :].argmax(dim=-1)
+                prefill_time = step_elapsed
+                log(f"Prefill latency: {prefill_time * 1e3:.2f} ms")
             else:
-                next_token_id = output.logits[0, -1, :].argmax(dim=-1)
+                log(
+                    f"Decode step {step} latency: {step_elapsed * 1e3:.2f} ms "
+                    f"({1.0 / step_elapsed:.2f} tok/s)"
+                )
 
-            next_token_cpu = next_token_id.to("cpu")
-            t_sync = time.time()
+            next_token_id = output_logits[:, -1].argmax(dim=-1)
+            output_text = [tokenizer.decode(next_token_id[i]) for i in range(num_users)]
+            for i, output_tokens_list in enumerate(output_tokens):
+                output_tokens_list.append(output_text[i])
+                if is_interactive:
+                    print(output_text[i], end="", flush=True)
 
-            if step == 0:
-                log(f"Prefill completed in {t_sync - t0:.1f}s")
-                log("Starting decode...")
-                t_decode = time.time()
-
-            token_val = next_token_cpu.item()
-            generated_tokens.append(token_val)
-
-            step_elapsed = time.time() - t_step
-            log(f"Step {step}: fwd={t_fwd - t_step:.3f}s sync={t_sync - t_fwd:.3f}s total={step_elapsed:.3f}s")
-
-            if token_val == tokenizer.eos_token_id:
+            # Check for EOS token and early exit
+            if torch.all(next_token_id == tokenizer.eos_token_id):
+                print()  # Add newline after generation completes
                 break
 
-            # --- Update inputs for next decode step (fixed shapes) ---
-            input_args["input_ids"] = next_token_cpu.view(1, 1).to(device)
+            # Update inputs for next iteration
+            input_args["input_ids"] = next_token_id.unsqueeze(-1).to(device)
 
-            new_cache_pos = torch.tensor([prompt_len + step], dtype=torch.long)
-            input_args["cache_position"] = new_cache_pos.to(device)
-            input_args["position_ids"] = new_cache_pos.unsqueeze(0).to(device)
+            host_cache_pos = input_args["cache_position"].to("cpu")
+            host_cache_pos = torch.tensor([host_cache_pos[-1:] + 1])
+            input_args["cache_position"] = host_cache_pos.to(device)
+            # keep position_ids in sync with cache_position (see construct_inputs)
+            input_args["position_ids"] = host_cache_pos.unsqueeze(0).to(device)
 
-    if generated_tokens:
-        decode_time = time.time() - t_decode
-        tokens_per_sec = (len(generated_tokens) - 1) / decode_time if decode_time > 0 else 0
-        log(f"Decode completed: {len(generated_tokens)} tokens in {decode_time:.1f}s "
-            f"({tokens_per_sec:.1f} tok/s)")
-
-    # --- Print result ---
-    generated_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-    print(f"\nPrompt: {prompt}")
-    print(f"Generated: {generated_text}")
-
-    return generated_text
+    print()
+    if not is_interactive:
+        for i in range(num_users):
+            print(f"=" * 80)
+            print(f"Result for user {i}:")
+            print(f"-" * 80)
+            print("PROMPT:")
+            print(formatted_prompts[i])
+            print(f"-" * 80)
+            print("GENERATED:")
+            print("".join(output_tokens[i]))
+            print(f"=" * 80)
+            print()
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Qwen3.6 27B generation example")
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Enable interactive mode for entering custom prompts",
+    )
+    args = parser.parse_args()
+
+    # By default torch_xla uses the CPU device so we have to set it to TT device.
     xr.set_device_type("TT")
-    qwen3_6_27b_tp_decode()
+
+    qwen3_6_27b_tp(interactive=args.interactive)
