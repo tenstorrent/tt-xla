@@ -185,7 +185,7 @@ jobs:
             docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}
             ```
 
-            #### Dependencies
+            #### Dependency commits
             tt-xla commit: ${{ inputs.xla_sha_override }}
             tt-mlir commit: ${{ steps.dependency-commits.outputs.ttmlir_sha }}
             tt-metal commit: ${{ steps.dependency-commits.outputs.ttmetal_sha }}
