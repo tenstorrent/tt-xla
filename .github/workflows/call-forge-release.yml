@@ -135,6 +135,31 @@ jobs:
             git push origin "refs/tags/$tag"
           fi
 
+      - name: Fetch tt-mlir and tt-metal commits
+        id: dependency-commits
+        shell: bash
+        run: |
+          ttxla_sha="${{ inputs.xla_sha_override }}"
+
+          ttmlir_sha="$(
+            git show "${ttxla_sha}:third_party/CMakeLists.txt" \
+              | grep 'set(TT_MLIR_VERSION' \
+              | sed -E 's/.*"(.*)".*/\1/'
+          )"
+
+          ttmetal_sha="$(
+            gh api "repos/tenstorrent/tt-mlir/contents/third_party/CMakeLists.txt?ref=${ttmlir_sha}" --jq '.content' \
+              | base64 -d \
+              | grep 'set(TT_METAL_VERSION' \
+              | sed -E 's/.*"(.*)".*/\1/'
+          )"
+
+          echo "tt-mlir:  $ttmlir_sha"
+          echo "tt-metal: $ttmetal_sha"
+
+          echo "ttmlir_sha=$ttmlir_sha" >> "$GITHUB_OUTPUT"
+          echo "ttmetal_sha=$ttmetal_sha" >> "$GITHUB_OUTPUT"
+
       - name: Publish github release
         uses: softprops/action-gh-release@v3
         with:
@@ -156,3 +181,7 @@ jobs:
             ```bash
             docker pull ${{ steps.build-docker.outputs.docker_image_base }}:${{ inputs.release_tag }}
             ```
+
+            #### Dependencies
+            tt-mlir commit: ${{ steps.dependency-commits.outputs.ttmlir_sha }}
+            tt-metal commit: ${{ steps.dependency-commits.outputs.ttmetal_sha }}
