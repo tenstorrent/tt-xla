@@ -427,7 +427,20 @@ ModuleBuilder::buildModule(
   // compiler determined mesh shape.
   if (current_mesh_shape.has_value() &&
       current_mesh_shape.value() != mesh_shape) {
-    client_instance->getOrCreateMeshDevice(mesh_shape);
+    auto product = [](const std::vector<uint32_t> &s) {
+      return std::accumulate(s.begin(), s.end(), static_cast<size_t>(1),
+                             std::multiplies<size_t>{});
+    };
+    // Pipeline-parallel: if the compiled graph uses strictly FEWER devices than
+    // the current parent mesh, KEEP the parent open and let execution carve a
+    // submesh for it, instead of collapsing the parent to the graph's shape
+    // (which would close any other stage's device and make device-to-device
+    // sockets impossible). Still reshape when the graph needs more devices
+    // (grow) OR the same device count in a different topology (e.g. {2,2} vs
+    // {1,4}), since a submesh can't re-topologise.
+    if (product(mesh_shape) >= product(current_mesh_shape.value())) {
+      client_instance->getOrCreateMeshDevice(mesh_shape);
+    }
   }
 
   // TODO(mrakita): Use the VHLO module name from the module builder, if it has

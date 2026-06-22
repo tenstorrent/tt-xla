@@ -265,4 +265,20 @@ TEST_F(BufferInstanceUnitTests, API_PJRT_Buffer_Destroy) {
   ASSERT_EQ(error, nullptr);
 }
 
+// Tests the pure predicate that decides whether a device-to-device copy is a
+// socket-eligible intra-parent TT submesh hop. See
+// plans/pipeline-parallel-basic.
+TEST(SocketTransferEligibility, BasicCases) {
+  // Parent [1,2]: device 0 -> device 1 is eligible when fabric is on.
+  EXPECT_TRUE(ClientInstance::isSocketTransferEligible(0, 1, {1, 2}, true));
+  // Fabric off -> not eligible.
+  EXPECT_FALSE(ClientInstance::isSocketTransferEligible(0, 1, {1, 2}, false));
+  // Same device -> not eligible.
+  EXPECT_FALSE(ClientInstance::isSocketTransferEligible(0, 0, {1, 2}, true));
+  // No parent open -> not eligible.
+  EXPECT_FALSE(ClientInstance::isSocketTransferEligible(0, 1, {}, true));
+  // Id out of range of the parent -> not eligible.
+  EXPECT_FALSE(ClientInstance::isSocketTransferEligible(0, 5, {1, 2}, true));
+}
+
 } // namespace tt::pjrt::tests
