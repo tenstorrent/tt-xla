@@ -142,7 +142,8 @@ jobs:
           ttxla_sha="${{ inputs.xla_sha_override }}"
 
           ttmlir_sha="$(
-            git show "${ttxla_sha}:third_party/CMakeLists.txt" \
+            gh api "repos/tenstorrent/tt-xla/contents/third_party/CMakeLists.txt?ref=${ttxla_sha}" --jq '.content' \
+              | base64 -d \
               | grep 'set(TT_MLIR_VERSION' \
               | sed -E 's/.*"(.*)".*/\1/'
           )"
