@@ -138,6 +138,8 @@ jobs:
       - name: Fetch tt-mlir and tt-metal commits
         id: dependency-commits
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           ttxla_sha="${{ inputs.xla_sha_override }}"
 
