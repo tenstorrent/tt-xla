@@ -32,9 +32,7 @@ def _binary_module():
         pass
 
     repo_root = Path(__file__).resolve().parents[2]
-    runtime_python = (
-        repo_root / "third_party/tt-mlir/src/tt-mlir/build/runtime/python"
-    )
+    runtime_python = repo_root / "third_party/tt-mlir/src/tt-mlir/build/runtime/python"
     if not runtime_python.exists():
         raise ModuleNotFoundError(
             "No flatbuffer binding found: install the pjrt_plugin_tt wheel or "
