@@ -191,3 +191,58 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+@pytest.mark.xfail(
+    reason=(
+        "Lumina2Transformer2DModel uses complex-valued rotary position embeddings "
+        "(freqs_cis), which lower to a 0-dim complex128 scalar_tensor(0j). The TT "
+        "backend rejects this during device transfer: 'Complex tensor with "
+        "num_dims == 0 is not supported.' Needs tt-xla/tt-mlir complex-tensor support."
+    ),
+    strict=False,
+)
+def test_lumina_image_2(output_file, request):
+    from benchmarks.lumina_image_pipeline import (
+        LuminaImage2Config,
+        LuminaImage2Pipeline,
+    )
+
+    # Lumina-Image-2.0: flow-match DiT with classifier-free guidance.
+    prompt = "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k"
+    num_inference_steps = 30
+    height = width = 1024
+
+    def build_pipeline_fn(compile_options):
+        # Text encoder (Gemma2) + transformer (Next-DiT) on TT; VAE on CPU.
+        # The 1024^2 VAE decode needs a single ~8.6 GB DRAM buffer that OOMs a
+        # single Wormhole chip, so it stays on CPU (same choice as SDXL).
+        pipeline = LuminaImage2Pipeline(
+            config=LuminaImage2Config(
+                vae_on_tt=False, compile_options=compile_options
+            )
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="lumina-image-2.0",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        # opt_level=0 safe default for bringup; perf-tuning will ramp.
+        optimization_level=0,
+        output_image_path="test_lumina_image_2_output.png",
+    )
