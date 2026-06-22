@@ -1891,7 +1891,7 @@ def test_llama_3_1_70b_tp_galaxy(
         ModelLoader,
         variant,
         output_file,
-        num_layers=num_layers,
+        num_layers=3 if num_layers is None else num_layers,
         request=request,
         accuracy_testing=accuracy_testing,
         batch_size=batch_size,
