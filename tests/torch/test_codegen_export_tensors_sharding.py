@@ -49,17 +49,8 @@ class Model(torch.nn.Module):
         return x + self.w
 
 
-_XFAIL_REASON = (
-    "codegen with export_tensors=True does not preserve TP/EP sharding: "
-    "single shard is serialized to tensors/arg*.tensorbin instead of the "
-    "full distributed tensor, so a sharded tensor is silently replicated across the "
-    "mesh - https://github.com/tenstorrent/tt-xla/issues/5177"
-)
-
-
 @pytest.mark.push
 @pytest.mark.dual_chip
-@pytest.mark.xfail(reason=_XFAIL_REASON)
 def test_codegen_export_tensors_preserves_sharding():
     """Codegen export_tensors must serialize full sharded tensors, not one shard."""
     import ttnn
@@ -95,6 +86,10 @@ def test_codegen_export_tensors_preserves_sharding():
     with torch.no_grad():
         model(x)
 
+    # We need to sync here - in order for everything to be exported
+    # before we proceed with verifying the exported artifacts.
+    torch_xla.sync(wait=True)
+
     tensorbins = sorted(
         glob.glob(
             os.path.join(export_path, "**", "tensors", "arg*.tensorbin"),
@@ -106,20 +101,19 @@ def test_codegen_export_tensors_preserves_sharding():
         "codegen export_tensors produced nothing."
     )
 
-    # Both inputs (x and w) are sharded on dim 0 over the "model" axis, so
-    # every exported tensorbin must reassemble to the full global volume and
-    # carry one shard per device.
-    expected_volume = ROWS * COLS
     expected_nshards = num_devices
+    expected_per_shard_volume = (ROWS // num_devices) * COLS
 
     for path in tensorbins:
         tensor = ttnn.load_tensor(path)
         nshards = len(ttnn.get_device_tensors(tensor))
-        volume = tensor.volume()
-        assert nshards == expected_nshards and volume == expected_volume, (
-            f"{path}: expected full sharded tensor "
-            f"(volume={expected_volume}, nshards={expected_nshards}) but got "
-            f"shape={list(tensor.shape)}, volume={volume}, nshards={nshards}. "
-            "Only a single device shard was serialized "
-            "(see tenstorrent/tt-xla#5177)."
+        per_shard_volume = tensor.volume()
+        assert (
+            nshards == expected_nshards
+            and per_shard_volume == expected_per_shard_volume
+        ), (
+            f"{path}: expected full sharded tensor"
+            f"(per_shard_volume={expected_per_shard_volume}, "
+            f"nshards={expected_nshards}) but got shape={list(tensor.shape)}, "
+            f"per_shard_volume={per_shard_volume}, nshards={nshards}. "
         )
