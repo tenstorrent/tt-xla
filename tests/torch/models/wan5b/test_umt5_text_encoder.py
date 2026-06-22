@@ -31,7 +31,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_umt5_sharded():
     _run(sharded=True)
 

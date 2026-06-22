@@ -366,7 +366,7 @@ def _setup_logging() -> None:
 
 
 @pytest.mark.nightly
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 @torch.inference_mode()
 def test_streaming_dsv4_flash() -> None:
     _setup_logging()

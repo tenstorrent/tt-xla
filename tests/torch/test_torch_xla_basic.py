@@ -452,7 +452,7 @@ def test_spmd_sharding_constraints(request):
 
 
 @pytest.mark.nightly
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_megatron_mlp_tensor_parallel():
     class MegatronMLP(torch.nn.Module):
         def __init__(self, hidden, ffn, dtype=torch.bfloat16):

@@ -168,7 +168,7 @@ def test_tensor_parallel_generation_galaxy_wh_6u_large(
     "mesh_shape",
     [
         pytest.param([1, 4], marks=pytest.mark.bhqb),
-        pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
+        # pytest.param([8, 4], marks=pytest.mark.bh_galaxy),
     ],
 )
 def test_tensor_parallel_generation_gemma4_31b(

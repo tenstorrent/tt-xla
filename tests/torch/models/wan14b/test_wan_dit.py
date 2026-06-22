@@ -58,7 +58,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
 @pytest.mark.bh_galaxy
-@pytest.mark.skip(reason="Skipping due to the long running time: > 40 minutes")
+# @pytest.mark.skip(reason="Skipping due to the long running time: > 40 minutes")
 def test_wan_dit_720p_sharded():
     _run("720p", sharded=True)
 

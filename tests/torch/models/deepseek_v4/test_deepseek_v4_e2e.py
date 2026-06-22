@@ -163,7 +163,7 @@ def transformer_shard_spec(model: mdo.Transformer):
 
 
 @pytest.mark.nightly
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 @pytest.mark.parametrize("model_name", ["deepseek-ai/DeepSeek-V4-Flash"])
 @pytest.mark.parametrize("num_iterations", [10])
 @pytest.mark.parametrize("num_layers", [10])

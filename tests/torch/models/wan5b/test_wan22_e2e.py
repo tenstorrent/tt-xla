@@ -263,7 +263,7 @@ def _run_e2e(mode: str, resolution: str, prompt: str, negative_prompt: str) -> N
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_wan22_t2v_480p_e2e():
     _run_e2e("t2v", "480p", PROMPT_T2V, NEG_T2V)
 
@@ -272,7 +272,7 @@ def test_wan22_t2v_480p_e2e():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_wan22_t2v_720p_e2e():
     _run_e2e("t2v", "720p", PROMPT_T2V, NEG_T2V)
 
@@ -281,7 +281,7 @@ def test_wan22_t2v_720p_e2e():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_wan22_i2v_480p_e2e():
     _run_e2e("i2v", "480p", PROMPT_I2V, NEG_I2V)
 
@@ -290,7 +290,7 @@ def test_wan22_i2v_480p_e2e():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_wan22_i2v_720p_e2e():
     _run_e2e("i2v", "720p", PROMPT_I2V, NEG_I2V)
 

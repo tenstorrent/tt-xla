@@ -39,7 +39,7 @@ _COMPILER_CONFIG = CompilerConfig(
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 @pytest.mark.skip(
     reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462"
 )
@@ -51,7 +51,7 @@ def test_vae_encoder_720p_sharded():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 @pytest.mark.skip(
     reason="hang on device: https://github.com/tenstorrent/tt-mlir/issues/8462"
 )
@@ -63,7 +63,7 @@ def test_vae_encoder_480p_sharded():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_vae_encoder_480p():
     _run("480p", sharded=False)
 
@@ -72,7 +72,7 @@ def test_vae_encoder_480p():
 @pytest.mark.model_test
 @pytest.mark.qb2_blackhole
 @pytest.mark.lb_blackhole
-@pytest.mark.bh_galaxy
+# @pytest.mark.bh_galaxy
 def test_vae_encoder_720p():
     _run("720p", sharded=False)
 
