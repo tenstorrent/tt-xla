@@ -186,5 +186,6 @@ jobs:
             ```
 
             #### Dependencies
+            tt-xla commit: ${{ inputs.xla_sha_override }}
             tt-mlir commit: ${{ steps.dependency-commits.outputs.ttmlir_sha }}
             tt-metal commit: ${{ steps.dependency-commits.outputs.ttmetal_sha }}
