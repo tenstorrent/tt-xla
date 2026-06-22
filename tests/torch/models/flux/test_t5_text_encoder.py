@@ -13,10 +13,7 @@ from third_party.tt_forge_models.flux.pytorch import ModelLoader, ModelVariant
 
 
 @pytest.mark.xfail(
-    reason="PCC 0.9588 < 0.99 on Blackhole (single-chip): compiles and runs e2e, "
-    "numerical-accuracy gap only. On Wormhole it instead hits a tt-mlir compiler "
-    "INTERNAL error (rank-0 scalar const-eval). Deferred per triage policy (PCC). "
-    "Tracking issue #5250."
+    reason="T5-XXL PCC ~0.9575 < 0.99 on Blackhole: accumulative bf16 device-matmul precision drift (issue #5250)."
 )
 @pytest.mark.single_device
 @pytest.mark.nightly
