@@ -1070,6 +1070,10 @@ def test_ministral_8b(
     )
 
 
+# The n150 perf entry (llama_3_1_8b_instruct) is excluded from the onPR perf filter
+# (still runs in nightly): device hang during uplift
+# (https://github.com/tenstorrent/tt-xla/issues/5282, fix in
+# https://github.com/tenstorrent/tt-metal/pull/47221). The accuracy entry still runs.
 def test_llama_3_1_8b(
     output_file,
     num_layers,
@@ -1750,6 +1754,8 @@ def _gpt_oss_20b_shard_spec_fn(model_loader, model):
 
 
 # Trace disabled: ~23% slower with trace on bs=32 (https://github.com/tenstorrent/tt-xla/issues/4192)
+# The n300-llmbox perf entry (gpt_oss_20b_tp) is excluded from the onPR perf filter
+# (still runs in nightly): hangs on n300-llmbox (https://github.com/tenstorrent/tt-xla/issues/5151).
 def test_gpt_oss_20b_tp(
     output_file,
     num_layers,
@@ -1826,6 +1832,8 @@ def test_gpt_oss_20b_tp_d2m(
     )
 
 
+# Excluded from the onPR perf filter (still runs in nightly): slice op requires
+# tile-aligned height (https://github.com/tenstorrent/tt-xla/issues/5207).
 def test_gpt_oss_20b_tp_batch_size_1(
     output_file,
     num_layers,
@@ -1861,6 +1869,8 @@ def test_gpt_oss_20b_tp_batch_size_1(
     )
 
 
+# Excluded from the onPR perf filter (still runs in nightly): galaxy fabric "Failed
+# to add pinning constraints" (https://github.com/tenstorrent/tt-xla/issues/5210).
 def test_llama_3_1_70b_tp_galaxy(
     output_file,
     num_layers,
