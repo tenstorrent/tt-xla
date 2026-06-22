@@ -151,3 +151,50 @@ def test_ring_fabric_open_light():
     # No reduction across shards => no CCL kernels to compile.
     compiled(activation)
     torch_xla.sync()
+
+
+def test_ring_fabric_open_light_opt1():
+    """
+    Identical to :func:`test_ring_fabric_open_light` but compiled at
+    ``optimization_level=1`` instead of ``0``.
+
+    This is the A/B probe for tenstorrent/tt-xla#5210: across the galaxy perf
+    benchmarks the pinning TT_FATAL fires *only* for tests configured with
+    ``optimization_level=1`` (llama_3_1_70b, gpt_oss_*), while every test that
+    opens the *same* (4, 8) torus at ``optimization_level=0`` (glm, kimi,
+    deepseek, and ``test_ring_fabric_open_light``) opens fabric cleanly. Mesh
+    shape, axes and sharding here are byte-for-byte identical to the opt-0 light
+    test; the only difference is the optimization level. If this variant hits the
+    pinning error while the opt-0 one passes on the same machine, the trigger is
+    isolated to ``optimization_level=1``.
+    """
+    enable_spmd()  # sets CONVERT_SHLO_TO_SHARDY=1 and xr.use_spmd()
+    device = torch_xla.device()
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = GALAXY_MESH_SHAPE if num_devices >= 32 else LLMBOX_MESH_SHAPE
+    mesh_devices = mesh_shape[0] * mesh_shape[1]
+    assert num_devices >= mesh_devices, (
+        f"Need at least {mesh_devices} devices for a {mesh_shape} mesh, "
+        f"found {num_devices}."
+    )
+
+    mesh = Mesh(np.arange(mesh_devices), mesh_shape, ("x", "y"))
+    print(f"Created device mesh: {mesh_shape} using {mesh_devices}/{num_devices} devices.")
+
+    batch, hidden = 32, 256
+
+    class ShardedElementwise(torch.nn.Module):
+        def forward(self, x):
+            return torch.relu(x) * 2.0
+
+    model = ShardedElementwise().eval().to(device)
+    activation = torch.randn(batch, hidden, dtype=torch.bfloat16).to(device)
+
+    xs.mark_sharding(activation, mesh, ("x", "y"))
+
+    torch_xla.set_custom_compile_options({"optimization_level": 1})
+    compiled = torch.compile(model, backend="tt")
+
+    compiled(activation)
+    torch_xla.sync()

@@ -359,6 +359,13 @@
         ]
       },
       {
+        "name": "ring_fabric_open_light_opt1",
+        "pytest": "tests/benchmark/test_ring_fabric.py::test_ring_fabric_open_light_opt1",
+        "runs-on": [
+          "galaxy-wh-6u"
+        ]
+      },
+      {
         "name": "llama_3_2_1b_instruct_accuracy",
         "pytest": "tests/benchmark/test_llms.py::test_llama_3_2_1b",
         "accuracy-testing": true
