@@ -5,11 +5,7 @@
 option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" OFF)
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
-<<<<<<< HEAD
     set(TT_MLIR_VERSION "aae51da94d33f0de5046338fa3e8a2d663e4081c")
-=======
-    set(TT_MLIR_VERSION "jackzhang/tt_lang_integration")
->>>>>>> 072a49c92 (Uplift third_party/tt-mlir for tt_lang_op support)
 endif()
 
 set(LOGURU_VERSION "4adaa185883e3c04da25913579c451d3c32cfac1")
