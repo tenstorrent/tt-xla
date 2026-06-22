@@ -3479,5 +3479,6 @@
     "tests/runner/test_models.py::test_all_models_torch[yolos/pytorch-data_parallel-inference]": 135.084,
     "tests/runner/test_models.py::test_all_models_torch[resnext/pytorch-14_32x4d_Osmr-data_parallel-inference]": 31.468,
     "tests/runner/test_models.py::test_all_models_torch[distilbert/masked_lm/pytorch-Base_Cased-data_parallel-inference]": 40.429,
-    "tests/torch/models/deepseek_v4/test_deepseek_v4_e2e.py::test_prefill_and_decode_pcc_e2e[True-10-deepseek-ai/DeepSeek-V4-Flash]": 21600.0
+    "tests/torch/models/deepseek_v4/test_deepseek_v4_e2e.py::test_prefill_and_decode_pcc_e2e[True-10-deepseek-ai/DeepSeek-V4-Flash]": 21600.0,
+    "tests/torch/models/deepseek_v4/test_deepseek_v4_e2e_streaming.py::test_streaming_dsv4_flash": 3000.0
 }

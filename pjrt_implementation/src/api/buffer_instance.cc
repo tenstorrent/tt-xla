@@ -201,6 +201,30 @@ void BufferInstance::fireDoneWithHostBufferEvent() {
   m_done_with_host_buffer_event = nullptr;
 }
 
+namespace {
+
+// Returns true if `byte_strides` describe a dense, row-major (C-contiguous)
+// layout for `dims`. `num_byte_strides == 0` is the PJRT sentinel meaning
+// "dense". Dimensions of size <= 1 are ignored, since their stride is
+// irrelevant to the memory layout.
+bool isDenseRowMajor(const std::int64_t *dims, size_t num_dims,
+                     const std::int64_t *byte_strides, size_t num_byte_strides,
+                     std::uint32_t element_size) {
+  if (num_byte_strides == 0) {
+    return true;
+  }
+  std::int64_t expected = static_cast<std::int64_t>(element_size);
+  for (size_t d = num_dims; d-- > 0;) {
+    if (dims[d] > 1 && byte_strides[d] != expected) {
+      return false;
+    }
+    expected *= dims[d];
+  }
+  return true;
+}
+
+} // namespace
+
 // Constructing buffer instance for the first time.
 void BufferInstance::copyFromHost(
     const void *host_buffer, PJRT_Buffer_Type data_type,
@@ -222,8 +246,18 @@ void BufferInstance::copyFromHost(
       tt::runtime::utils::dataTypeElementSize(runtime_data_type);
   std::vector<std::uint32_t> shape =
       calculateShape(dims, num_dims, m_data_type);
-  std::vector<std::uint32_t> strides =
+  std::vector<std::int64_t> strides =
       calculateStrides(num_dims, byte_strides, num_byte_strides, element_size);
+
+  // A buffer is treated as contiguous if it is a complex dtype (its `shape`
+  // carries an extra trailing dim with no matching `byte_strides` entry) or
+  // genuinely dense row-major. A non-contiguous (e.g. transposed/sliced) buffer
+  // is forced onto the owned path below so the runtime gathers it into a
+  // contiguous tensor: the borrowed/zero-copy path cannot alias non-contiguous
+  // memory and would read it linearly, corrupting the data.
+  bool is_contiguous = data_type_utils::isComplexPJRTType(m_data_type) ||
+                       isDenseRowMajor(dims, num_dims, byte_strides,
+                                       num_byte_strides, element_size);
 
   std::unique_ptr<EventInstance> done_with_host_buffer_event =
       EventInstance::createInstance();
@@ -248,7 +282,8 @@ void BufferInstance::copyFromHost(
   bool cannot_borrow_host_buffer =
       host_buffer_semantics ==
           PJRT_HostBufferSemantics_kImmutableOnlyDuringCall ||
-      !::tt::runtime::utils::isSupportedDataType(runtime_data_type);
+      !::tt::runtime::utils::isSupportedDataType(runtime_data_type) ||
+      !is_contiguous;
 
   if (is_distributed) {
     TT_ASSERT(host_buffer_semantics !=
@@ -317,7 +352,7 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
   std::vector<std::uint32_t> shape = calculateShape(
       src_buffer->getDimensionsRaw(), src_buffer->getNumberOfDimensions(),
       src_buffer->getDataType());
-  std::vector<std::uint32_t> strides = calculateStrides(
+  std::vector<std::int64_t> strides = calculateStrides(
       src_buffer->getNumberOfDimensions(), nullptr, 0, element_size);
 
   tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
@@ -325,6 +360,30 @@ void BufferInstance::copyFromBuffer(BufferInstance *src_buffer) {
 
   src_buffer->getPjrtTensor()->move_to_host();
   tt::runtime::memcpy(runtime_tensor, src_buffer->runtimeTensor());
+
+  PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
+
+  markAsDataReady();
+}
+
+void BufferInstance::allocateUninitialized(const std::int64_t *byte_strides,
+                                           size_t num_byte_strides) {
+  DLOG_F(LOG_DEBUG, "BufferInstance::allocateUninitialized");
+
+  ::tt::target::DataType runtime_data_type =
+      tt::pjrt::data_type_utils::convertPJRTToRuntimeDataType(m_data_type);
+  std::uint32_t element_size =
+      tt::runtime::utils::dataTypeElementSize(runtime_data_type);
+  std::vector<std::uint32_t> shape =
+      calculateShape(getDimensionsRaw(), getNumberOfDimensions(), m_data_type);
+  std::vector<std::int64_t> strides = calculateStrides(
+      getNumberOfDimensions(), byte_strides, num_byte_strides, element_size);
+
+  // Allocate an owned host tensor without copying any data in. The contents are
+  // written later by a compiled program (the runtime transfers it to device
+  // during execution). Passing nullptr as data allocates uninitialized storage.
+  tt::runtime::Tensor runtime_tensor = tt::runtime::createOwnedHostTensor(
+      /*data=*/nullptr, shape, strides, element_size, runtime_data_type);
 
   PjrtTensor::from_runtime_tensor({this}, std::move(runtime_tensor));
 
@@ -353,7 +412,7 @@ BufferInstance::calculateShape(const std::int64_t *dims, size_t num_dims,
   return shape;
 }
 
-std::vector<std::uint32_t> BufferInstance::calculateStrides(
+std::vector<std::int64_t> BufferInstance::calculateStrides(
     size_t num_dims, const std::int64_t *byte_strides, size_t num_byte_strides,
     std::uint32_t element_size) {
 
@@ -362,11 +421,11 @@ std::vector<std::uint32_t> BufferInstance::calculateStrides(
            "num_byte_strides={}, num_dims={}",
            num_byte_strides, num_dims);
 
-  std::vector<std::uint32_t> strides;
+  std::vector<std::int64_t> strides;
   for (size_t i = 0; i < num_dims; ++i) {
     // If no strides are given the array is assumed to have a dense layout with
     // dimensions in major-to-minor order.
-    std::uint32_t stride =
+    std::int64_t stride =
         num_byte_strides == 0
             ? 1
             : (byte_strides[i] / static_cast<std::int64_t>(element_size));
