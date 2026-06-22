@@ -19,12 +19,12 @@ from third_party.tt_forge_models.z_image.pytorch.src.model_utils import (
 
 @pytest.mark.model_test
 @pytest.mark.single_device
-@pytest.mark.xfail(
+@pytest.mark.skip(
     reason=(
-        "TT SHLO→TTIR RoPE complex legalization — "
+        "TT DRAM OOM on single chip — ToDeviceOp fails to allocate a ~896 MB "
+        "DRAM buffer (only ~31 MB free) for the ~6.2B DiT at 1280x720. "
         "https://github.com/tenstorrent/tt-xla/issues/4756"
-    ),
-    strict=False,
+    )
 )
 def test_transformer():
     _run(sharded=False)
@@ -36,8 +36,11 @@ def test_transformer():
 @pytest.mark.tensor_parallel
 @pytest.mark.xfail(
     reason=(
-        "TT SHLO→TTIR RoPE complex legalization — "
-        "https://github.com/tenstorrent/tt-xla/issues/4756"
+        "TT SHLO→TTIR complex<f32> legalization — ComplexDataTypeConversion does "
+        "not handle the Shardy-emitted collective (stablehlo.all_to_all) on "
+        "complex RoPE freqs_cis under sharding, leaving an unresolved "
+        "tensor<...x2xf32> -> tensor<...xcomplex<f32>> materialization. "
+        "https://github.com/tenstorrent/tt-xla/issues/5313"
     ),
     strict=False,
 )
