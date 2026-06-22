@@ -97,3 +97,57 @@ def test_ring_fabric_open():
     torch_xla.sync()
     # Block until execution completes; we only care that it ran, not the values.
     result.to("cpu")
+
+
+def test_ring_fabric_open_light():
+    """
+    Lighter-weight variant of :func:`test_ring_fabric_open`.
+
+    The #5210 topology-mapper TT_FATAL happens during device + fabric open (the
+    mesh device is created when the PJRT client initializes the system
+    descriptor), i.e. *before* any program executes. This variant therefore
+    exercises the exact same device + 2D (torus) fabric open path, but runs a
+    *sharded elementwise* op instead of a sharded all-reduce. An elementwise op
+    needs no cross-device communication, so it compiles no CCL (all-gather /
+    all-reduce) kernels -- which on a cold kernel cache can take many minutes --
+    while still opening the mesh device + fabric and executing a sharded program
+    across the full torus.
+
+    Use this as the fast fabric-open regression guard; ``test_ring_fabric_open``
+    additionally validates that fabric CCLs lower and run.
+    """
+    enable_spmd()  # sets CONVERT_SHLO_TO_SHARDY=1 and xr.use_spmd()
+    device = torch_xla.device()
+
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = GALAXY_MESH_SHAPE if num_devices >= 32 else LLMBOX_MESH_SHAPE
+    mesh_devices = mesh_shape[0] * mesh_shape[1]
+    assert num_devices >= mesh_devices, (
+        f"Need at least {mesh_devices} devices for a {mesh_shape} mesh, "
+        f"found {num_devices}."
+    )
+
+    mesh = Mesh(np.arange(mesh_devices), mesh_shape, ("x", "y"))
+    print(f"Created device mesh: {mesh_shape} using {mesh_devices}/{num_devices} devices.")
+
+    # ``batch`` (32) is divisible by mesh axis x (4 and 2); ``hidden`` (256) is
+    # divisible by mesh axis y (8 and 2). The activation is sharded across BOTH
+    # mesh axes so the program runs on every device of the torus.
+    batch, hidden = 32, 256
+
+    class ShardedElementwise(torch.nn.Module):
+        def forward(self, x):
+            return torch.relu(x) * 2.0
+
+    model = ShardedElementwise().eval().to(device)
+    activation = torch.randn(batch, hidden, dtype=torch.bfloat16).to(device)
+
+    xs.mark_sharding(activation, mesh, ("x", "y"))
+
+    torch_xla.set_custom_compile_options({"optimization_level": 0})
+    compiled = torch.compile(model, backend="tt")
+
+    # Executing the sharded program forces the mesh device + fabric to open.
+    # No reduction across shards => no CCL kernels to compile.
+    compiled(activation)
+    torch_xla.sync()
