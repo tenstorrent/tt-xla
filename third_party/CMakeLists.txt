@@ -6,9 +6,7 @@ option(USE_CUSTOM_TT_MLIR_VERSION "Flag to use TT_MLIR_VERSION set by the user" 
 
 if (NOT DEFINED TT_MLIR_VERSION OR NOT USE_CUSTOM_TT_MLIR_VERSION)
     # Pinned to the tt-mlir pipeline-parallel feature branch so this tt-xla
-    # branch builds against the runtime socket API. Bare branch name (NOT
-    # "origin/...") so tt-xla setup.py's raw.githubusercontent version fetch
-    # resolves. See plans/pipeline-parallel-basic.
+    # branch builds against the runtime socket API.
     set(TT_MLIR_VERSION "pp-basic")
 endif()
 
