@@ -95,6 +95,11 @@ test_config:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
 
+  qwen_3_5/causal_lm/pytorch-27B-tensor_parallel-inference:
+    supported_archs: [n300-llmbox, lb-blackhole]
+    status: KNOWN_FAILURE_XFAIL
+    reason: "Compiles but hangs the device during execution on a 5-D interleaved-tiled ttnn.permute: TT_THROW TIMEOUT device timeout in fetch queue wait, potential hang detected -> Fatal Python error: Aborted (exit 134)"
+
   qwen_3/embedding/pytorch-Embedding_8B-tensor_parallel-inference:
     supported_archs: [n300-llmbox, lb-blackhole]
     status: EXPECTED_PASSING
