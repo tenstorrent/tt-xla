@@ -62,7 +62,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  MAX_ITERATIONS:        1
+  MAX_ITERATIONS:        2
   MAX_WALLCLOCK_HOURS:   8
   STATE_FILE:            .github/transformers-uplift/state.json
   LAST_FAILED_FILE:      .github/transformers-uplift/last_failed.txt
@@ -406,42 +406,48 @@ jobs:
   # the finalize stage — anything the broader suite surfaces gets one
   # attempt at a fix before the PR is opened.
   # ---------------------------------------------------------------------------
-  test-and-fix-full:
-    needs: [setup, build-image, build-ttxla, decide]
-    if: always() && needs.decide.outputs.action == 'finalize'
-    uses: ./.github/workflows/call-test-uplift.yml
-    with:
-      test_suite:              model-test-passing.json
-      scope:                   model-test-uplifts
-      tag:                     full
-      branch:                  ${{ inputs.branch }}
-      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-      target_version:          ${{ inputs.target_version }}
-      current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-    secrets: inherit
-  
-  # ---------------------------------------------------------------------------
-  # Perf benchmark sweep — wraps call-perf-uplift.yml (run-perf →
-  # extract-failures → claude-fix, same shape as test-and-fix-full).
-  # Humans can also dispatch the callable manually during PR review.
-  # ---------------------------------------------------------------------------
-  perf-benchmark:
-    needs: [setup, build-image, build-ttxla, decide]
-    if: always() && needs.decide.outputs.action == 'finalize'
-    uses: ./.github/workflows/call-perf-uplift.yml
-    secrets: inherit
-    with:
-      branch:                  ${{ inputs.branch }}
-      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-      tag:                     perf
-      target_version:          ${{ inputs.target_version }}
-      current_version:         ${{ inputs.current_version }}
-      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
-      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+  # =============================================================================
+  # TEMP: test-and-fix-full + perf-benchmark disabled for the 2-iter loop
+  # validation. MAX_ITERATIONS=2 — first iter runs base-coverage + claude-fix,
+  # second iter retests on the fixed branch. Re-enable by stripping the leading
+  # `# ` from each line below.
+  # =============================================================================
+  # test-and-fix-full:
+  #   needs: [setup, build-image, build-ttxla, decide]
+  #   if: always() && needs.decide.outputs.action == 'finalize'
+  #   uses: ./.github/workflows/call-test-uplift.yml
+  #   with:
+  #     test_suite:              model-test-passing.json
+  #     scope:                   model-test-uplifts
+  #     tag:                     full
+  #     branch:                  ${{ inputs.branch }}
+  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+  #     target_version:          ${{ inputs.target_version }}
+  #     current_version:         ${{ inputs.current_version }}
+  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+  #     artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+  #     docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+  #   secrets: inherit
+  #
+  # # ---------------------------------------------------------------------------
+  # # Perf benchmark sweep — wraps call-perf-uplift.yml (run-perf →
+  # # extract-failures → claude-fix, same shape as test-and-fix-full).
+  # # Humans can also dispatch the callable manually during PR review.
+  # # ---------------------------------------------------------------------------
+  # perf-benchmark:
+  #   needs: [setup, build-image, build-ttxla, decide]
+  #   if: always() && needs.decide.outputs.action == 'finalize'
+  #   uses: ./.github/workflows/call-perf-uplift.yml
+  #   secrets: inherit
+  #   with:
+  #     branch:                  ${{ inputs.branch }}
+  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+  #     tag:                     perf
+  #     target_version:          ${{ inputs.target_version }}
+  #     current_version:         ${{ inputs.current_version }}
+  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+  #     artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+  #     docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
   #
   # ---------------------------------------------------------------------------
   # Open the two PRs. tt-forge-models first (if its branch has commits),
