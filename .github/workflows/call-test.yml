@@ -51,13 +51,16 @@ on:
       dump_irs:
         description: 'Pass --dump-irs to pytest and upload collected IRs as artifacts'
         required: false
-        default: false
+        default: true
         type: boolean
 
 env:
   GH_TOKEN: ${{ github.token }} # for gh cli tool
   TTMLIR_TOOLCHAIN_DIR: /opt/ttmlir-toolchain # We don't actually need this, venv/activate expects this to be set
   TT_XLA_CI: 1
+  # Emit source-location annotations (loc("file.py:line")) in dumped StableHLO/TTIR/TTNN IR,
+  # so collected_irs/ ops (e.g. ttnn.permute) can be mapped back to model source. Pairs with dump_irs.
+  XLA_HLO_DEBUG: 1
   TT_METAL_OPERATION_TIMEOUT_SECONDS: ${{ vars.TT_METAL_OPERATION_TIMEOUT_SECONDS || 300 }}
   TT_METAL_DISPATCH_TIMEOUT_COMMAND_TO_EXECUTE: "/opt/tt-triage-venv/bin/python -vvv /opt/tt-triage/tools/tt-triage.py 1>&2"
 

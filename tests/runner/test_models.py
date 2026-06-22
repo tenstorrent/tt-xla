@@ -99,7 +99,19 @@ def _run_model_test_impl(
     variant, ModelLoader = test_entry.variant_info
 
     # Get the model loader and model info from desired model, variant.
-    loader = ModelLoader(variant=variant)
+    # Debug knob: TT_XLA_NUM_LAYERS reduces the model to N transformer layers
+    # for fast bring-up (shrinks the slow CPU golden run). Only applied to
+    # loaders whose __init__ accepts num_layers; ignored otherwise.
+    import inspect
+
+    num_layers_override = os.environ.get("TT_XLA_NUM_LAYERS")
+    loader_kwargs = {"variant": variant}
+    if (
+        num_layers_override
+        and "num_layers" in inspect.signature(ModelLoader.__init__).parameters
+    ):
+        loader_kwargs["num_layers"] = int(num_layers_override)
+    loader = ModelLoader(**loader_kwargs)
     model_info = ModelLoader.get_model_info(variant=variant)
     print(f"Running {request.node.nodeid} - {model_info.name}", flush=True)
 
