@@ -239,13 +239,29 @@ class AscendScheduler(Scheduler):
                     request_queue.pop_request()
                     continue
 
-                if num_new_tokens > token_budget:
-                    if getattr(self.scheduler_config, "chunked_prefill_enabled", False):
-                        # Chunked prefill (tt-xla #4986): take only what fits the
-                        # budget this step; the rest continues next step (the
-                        # request is re-picked once num_computed_tokens advances).
+                chunked = getattr(
+                    self.scheduler_config, "chunked_prefill_enabled", False
+                )
+                # Per-request chunk cap is DECOUPLED from the per-step token
+                # budget (see DEBUG_chunked_prefill_batch_budget.md). Each request
+                # takes at most prefill_chunk_size tokens this step (bounds a
+                # single long prefill's on-device SDPA slice), while the step keeps
+                # admitting more requests until token_budget (the prefill-graph
+                # capacity) is spent — so a burst of short prefills batches into
+                # one call instead of serializing chunk_size tokens/step.
+                # prefill_chunk_size defaults to token_budget => legacy behavior.
+                per_request_cap = (
+                    getattr(self.scheduler_config, "prefill_chunk_size", token_budget)
+                    if chunked
+                    else token_budget
+                )
+                step_cap = min(per_request_cap, token_budget)
+                if num_new_tokens > step_cap:
+                    if chunked:
+                        # Take only step_cap this step; the rest continues next
+                        # step (request re-picked once num_computed_tokens advances).
                         num_new_tokens = self._block_aligned_chunk(
-                            num_new_tokens, token_budget
+                            num_new_tokens, step_cap
                         )
                         if num_new_tokens == 0:
                             # Remaining budget < one block: can't take a

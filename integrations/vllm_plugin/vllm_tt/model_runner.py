@@ -348,12 +348,19 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             )
             self.tt_config.min_context_len = scheduler_config.max_num_batched_tokens
 
-        # Per-step prefill budget: caps the precompile token buckets + prefill
-        # activation (compile time / DRAM) instead of max_model_len. KV-cache and
-        # page-table buffers below stay at max_model_len (KV spans full context).
-        self.prefill_chunk_budget = min(
-            scheduler_config.max_num_batched_tokens, self.max_model_len
-        )
+        # Per-request prefill chunk = the seq dim of the [max_num_reqs, num_tokens]
+        # prefill graph; caps the precompile token buckets + prefill activation
+        # (compile time / DRAM) instead of max_model_len. KV-cache and page-table
+        # buffers below stay at max_model_len (KV spans full context). Use
+        # prefill_chunk_size (per-request), NOT max_num_batched_tokens (the
+        # per-step batch budget) — the latter would inflate the graph's seq dim.
+        _chunk = getattr(scheduler_config, "prefill_chunk_size", 0)
+        if getattr(scheduler_config, "chunked_prefill_enabled", False) and _chunk > 0:
+            self.prefill_chunk_budget = min(_chunk, self.max_model_len)
+        else:
+            self.prefill_chunk_budget = min(
+                scheduler_config.max_num_batched_tokens, self.max_model_len
+            )
 
         # The on-device chunked SDPA op (tt-xla #4986) is only usable when
         # (a) chunking can actually occur at this config (per-step budget <
