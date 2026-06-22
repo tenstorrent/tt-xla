@@ -466,7 +466,7 @@ def test_janus_pro_7b_und_vision(output_file, request):
 
     # Configuration
     data_format = torch.bfloat16  # matches the loader's native DTYPE
-    batch_size = 8
+    batch_size = 4
     # SigLIP understanding tower: 384x384 RGB input -> 576 image tokens.
     input_size = (3, 384, 384)
 
