@@ -79,7 +79,7 @@ jobs:
       #   - vllm_llama_3_1_70b_tp (n300-llmbox): temporarily removed from On PR because flaky, tracked in issue #5294
       adv_filter: '[
         { "accuracy-testing": false },
-        { "runs-on": "n150", "filter": ["resnet","qwen_3_4b_embedding"] },
+        { "runs-on": "n150-perf", "filter": ["resnet","qwen_3_4b_embedding"] },
         { "runs-on": "n300-llmbox", "filter": ["test_llama_3_1_70b_tp"] } ]'
       sh-runner: false
       skip-device-perf: true

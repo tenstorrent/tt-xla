@@ -30,7 +30,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     with:
-      adv_filter: '[ {"runs-on": "n150", "accuracy-testing": true} ]'
+      adv_filter: '[ {"runs-on": "n150-perf", "accuracy-testing": true} ]'
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       sh-runner: true
