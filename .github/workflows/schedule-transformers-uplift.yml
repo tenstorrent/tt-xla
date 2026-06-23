@@ -35,7 +35,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  STATE_FILE:              .github/transformers-uplift/state.json
   LAST_FAILED_FILE:        .github/transformers-uplift/last_failed.txt
   BASE_COVERAGE_FULL_FILE: .github/transformers-uplift/base-coverage.txt
 
@@ -84,11 +83,33 @@ jobs:
     needs: detect
     if: ${{ needs.detect.outputs.has_update == 'true' && needs.detect.outputs.skip == 'false' }}
     runs-on: ubuntu-latest
+    outputs:
+      baseline_run_id: ${{ steps.baseline.outputs.run_id }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_TOKEN }}
+
+      - name: Resolve baseline nightly run
+        id: baseline
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          # Pick the most recent COMPLETED schedule-nightly run on main.
+          # No artifact-existence check — if the run's test-reports have
+          # aged out (>90d default retention), call-test-uplift.yml's
+          # gh-run-download step already emits a warning and proceeds
+          # without the baseline filter.
+          RUN_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/workflows/schedule-nightly.yml/runs?branch=main&status=completed&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')
+          if [[ -z "$RUN_ID" ]]; then
+            echo "::warning::no completed schedule-nightly runs on main found — claude-fix will run without a baseline filter"
+          else
+            echo "Picked baseline nightly run $RUN_ID"
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
 
       - name: Bump pin + push WIP branch
         env:
@@ -102,19 +123,18 @@ jobs:
           git checkout -b "$BRANCH"
           bash .github/scripts/uplift/transformers/bump-transformers.sh "$NEW"
 
-          mkdir -p "$(dirname "$STATE_FILE")"
-          cat > "$STATE_FILE" <<EOF
-          {
-            "target_version":  "$NEW",
-            "current_version": "$CUR",
-            "started_at":      "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          }
-          EOF
-
           # First iteration runs the FULL base-coverage list.
+          mkdir -p "$(dirname "$LAST_FAILED_FILE")"
           cp "$BASE_COVERAGE_FULL_FILE" "$LAST_FAILED_FILE"
 
-          git add "$STATE_FILE" "$LAST_FAILED_FILE" venv/requirements-dev.txt
+          # Ignore claude-fix's transient inputs/outputs on this branch
+          printf '\n%s\n%s\n%s\n%s\n' \
+            '# transformers-uplift: transient claude-fix artifacts (WIP branch only)' \
+            '/failure_context.txt' \
+            '/baseline_failures.txt' \
+            '/.github/transformers-uplift/fix-summary.md' >> .gitignore
+
+          git add "$LAST_FAILED_FILE" venv/requirements-dev.txt .gitignore
           git commit -m "transformers uplift: bump pin ${CUR} -> ${NEW}"
           git push origin "$BRANCH"
 
@@ -147,4 +167,5 @@ jobs:
             -f "inputs[iteration]=1" \
             -f "inputs[branch]=$BRANCH" \
             -f "inputs[target_version]=$NEW" \
-            -f "inputs[current_version]=$CUR"
+            -f "inputs[current_version]=$CUR" \
+            -f "inputs[baseline_run_id]=${{ steps.baseline.outputs.run_id }}"
