@@ -67,6 +67,11 @@ on:
       docker_image:
         type: string
         required: true
+      baseline_run_id:
+        description: 'On-nightly run ID (on main) whose test-reports artifacts seed the baseline-failures filter. Empty -> filter disabled (claude-fix sees ALL current failures).'
+        type: string
+        required: false
+        default: ""
     outputs:
       has_failures:
         description: 'true if extract-failures saw any uplift-induced failures'
@@ -74,47 +79,6 @@ on:
       failure_count:
         description: 'integer count of uplift-induced failures observed'
         value: ${{ jobs.extract-failures.outputs.failure_count }}
-
-  workflow_dispatch:
-    inputs:
-      test_suite:
-        type: string
-        required: true
-      test_suite_custom:
-        type: string
-        required: false
-        default: ""
-      scope:
-        type: choice
-        required: true
-        options: [model-test-uplifts]
-      tag:
-        type: string
-        required: false
-        default: "manual"
-      branch:
-        type: string
-        required: true
-      iteration:
-        type: string
-        required: false
-        default: "1"
-      target_version:
-        type: string
-        required: true
-      current_version:
-        type: string
-        required: true
-      artifact_release_run_id:
-        type: string
-        required: true
-      artifact_suffix:
-        type: string
-        required: false
-        default: ""
-      docker_image:
-        type: string
-        required: true
 
 env:
   LAST_FAILED_FILE: .github/transformers-uplift/last_failed.txt
@@ -170,9 +134,13 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          BASELINE_RUN_ID: "27517218376"
+          BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
         run: |
           mkdir -p baseline-results
+          if [[ -z "$BASELINE_RUN_ID" ]]; then
+            echo "::warning::baseline_run_id is empty (schedule found no on-nightly run with test-reports artifacts) — proceeding without baseline filter"
+            exit 0
+          fi
           if ! gh run download "$BASELINE_RUN_ID" \
               --repo "${{ github.repository }}" \
               --dir baseline-results \
@@ -338,9 +306,10 @@ jobs:
           if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
             pushd third_party/tt_forge_models >/dev/null
             git checkout -B "$BRANCH"
+            git fetch origin "$BRANCH" || true
             git add -A
             git commit "${COMMIT_FLAG[@]}"
-            git push origin "$BRANCH"
+            git push --force-with-lease origin "$BRANCH"
             popd >/dev/null
           fi
 
