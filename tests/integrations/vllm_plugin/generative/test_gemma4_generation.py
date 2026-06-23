@@ -30,6 +30,7 @@ def test_generation_single_device_gemma4_e4b():
             "use_2d_mesh": False,
             "cpu_sampling": False,
             "flat_model_io": True,
+            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)
@@ -59,6 +60,7 @@ def test_generation_bhqb_gemma4_26b_a4b():
             "min_context_len": 32,
             "enable_tensor_parallel": True,
             "use_2d_mesh": True,
+            "optimization_level": 0,
         },
     }
     llm = vllm.LLM(**llm_args)

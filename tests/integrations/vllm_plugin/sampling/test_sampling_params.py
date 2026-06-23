@@ -120,6 +120,7 @@ def vllm_n300_llmbox():
             "enable_const_eval": False,
             "min_context_len": 32,
             "enable_tensor_parallel": True,
+            "optimization_level": 0,
         },
     )
 
