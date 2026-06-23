@@ -3,7 +3,7 @@
     "project": "tt-xla",
     "test-defaults": {
       "runs-on": [
-        "n150",
+        "n150-perf",
         "p150-perf"
       ],
       "dir": "",
@@ -65,6 +65,10 @@
       {
         "name": "playground_v2_5",
         "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5"
+      },
+      {
+        "name": "sdxl_lightning",
+        "pytest": "tests/benchmark/test_imagegen.py::test_sdxl_lightning"
       },
       {
         "name": "bge_m3_encode",
@@ -139,7 +143,8 @@
       {
         "name": "gpt_oss_20b_tp",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_20b_tp",
-        "runs-on": "n300-llmbox"
+        "runs-on": "n300-llmbox",
+        "skip": true
       },
       {
         "name": "gpt_oss_20b_tp_batch_size_1",

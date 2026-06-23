@@ -67,6 +67,10 @@ class AscendScheduler(Scheduler):
         token_budget = self.max_num_scheduled_tokens
         # Spec decode-related.
         scheduled_spec_decode_tokens: dict[str, list[int]] = {}
+        # Encoder-related (multimodal). Tracks which encoder inputs need to be
+        # run by the model runner this step and the remaining encoder budget.
+        scheduled_encoder_inputs: dict[str, list[int]] = {}
+        encoder_compute_budget = self.max_num_encoder_input_tokens
 
         # For logging.
         scheduled_timestamp = time.monotonic()
@@ -131,6 +135,8 @@ class AscendScheduler(Scheduler):
 
             num_external_computed_tokens = 0
             load_kv_async = False
+            encoder_inputs_to_schedule: Optional[list[int]] = None
+            new_encoder_compute_budget = encoder_compute_budget
 
             # Get already-cached tokens.
             if request.num_computed_tokens == 0:
@@ -195,6 +201,27 @@ class AscendScheduler(Scheduler):
                 assert num_new_tokens > 0
                 blocks = new_computed_blocks.blocks[0]
 
+                # Schedule encoder inputs (multimodal). This may reduce
+                # num_new_tokens so we only schedule decoder tokens up to the
+                # point where the encoder output is available.
+                if request.has_encoder_inputs:
+                    (
+                        encoder_inputs_to_schedule,
+                        num_new_tokens,
+                        new_encoder_compute_budget,
+                        _external_load_encoder_input,
+                    ) = self._try_schedule_encoder_inputs(
+                        request,
+                        num_computed_tokens,
+                        num_new_tokens,
+                        encoder_compute_budget,
+                    )
+                    if num_new_tokens == 0:
+                        # The encoder budget or encoder cache is exhausted, so
+                        # the request cannot be scheduled this step.
+                        skip_cur_request()
+                        continue
+
             watermark = getattr(self.scheduler_config, "watermark", 0.01)
             if not self._check_watermark_for_prefill(
                 request, num_new_tokens, blocks, watermark
@@ -258,6 +285,16 @@ class AscendScheduler(Scheduler):
             # Count the number of prefix cached tokens.
             if request.num_cached_tokens < 0:
                 request.num_cached_tokens = num_computed_tokens
+
+            # Encoder-related: commit the scheduled encoder inputs and reserve
+            # space for their outputs in the encoder cache.
+            if encoder_inputs_to_schedule:
+                scheduled_encoder_inputs[request.request_id] = (
+                    encoder_inputs_to_schedule
+                )
+                for i in encoder_inputs_to_schedule:
+                    self.encoder_cache_manager.allocate(request, i)
+                encoder_compute_budget = new_encoder_compute_budget
 
         # Put back any skipped requests at the head of the waiting queue
         if step_skipped_waiting:
@@ -414,7 +451,7 @@ class AscendScheduler(Scheduler):
             num_scheduled_tokens=num_scheduled_tokens,
             total_num_scheduled_tokens=total_num_scheduled_tokens,
             scheduled_spec_decode_tokens=scheduled_spec_decode_tokens,
-            scheduled_encoder_inputs={},
+            scheduled_encoder_inputs=scheduled_encoder_inputs,
             num_common_prefix_blocks=num_common_prefix_blocks,
             preempted_req_ids=set(),
             # finished_req_ids is an existing state in the scheduler,
