@@ -95,7 +95,7 @@ def vllm_server():
         "--additional-config",
         json.dumps(
             {
-                "enable_const_eval": False,
+                "enable_const_eval": True,
                 "min_context_len": 32,
             }
         ),
