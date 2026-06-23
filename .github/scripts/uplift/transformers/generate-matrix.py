@@ -21,11 +21,21 @@ Usage:
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from pathlib import Path
 
+# Target test count per parallel shard. Below this many failures, scale
+# the matrix down to use fewer GHA runners. e.g. 33 failures, target=8
+# -> ceil(33/8)=5, capped by template's parallel-groups -> 4 shards;
+# 2 failures -> 1 shard.
+TESTS_PER_SHARD = 8
+
 # (runs-on, framework, test-mark, parallel-groups, forked)
+# `parallel-groups` here is the MAX shards used when there are enough
+# failures to justify them; actual shard count is derived from
+# `ceil(len(failed) / TESTS_PER_SHARD)` and clamped to this value.
 # Mirrors the device/framework/run-mode coverage of
 # .github/workflows/test-matrix-presets/model-test-passing.json so the
 # uplift exercises the same matrix as nightly, just narrowed.
@@ -74,8 +84,10 @@ def build_matrix(failed: list[str]) -> list[dict]:
     # pytest's -k accepts `<id> or <id> or ...` — boolean substring match
     # against test names.
     contains = " or ".join(param_ids)
+    n = len(param_ids)
     matrix = []
     for tmpl in TEMPLATES:
+        groups = max(1, min(tmpl["parallel-groups"], math.ceil(n / TESTS_PER_SHARD)))
         matrix.append(
             {
                 "runs-on": tmpl["runs-on"],
@@ -83,7 +95,7 @@ def build_matrix(failed: list[str]) -> list[dict]:
                 "dir": DIR_BY_FRAMEWORK[tmpl["framework"]],
                 "test-mark": tmpl["test-mark"],
                 "contains": contains,
-                "parallel-groups": tmpl["parallel-groups"],
+                "parallel-groups": groups,
                 "forge-models": True,
                 "forked": tmpl["forked"],
             }

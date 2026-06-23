@@ -5,8 +5,8 @@
 #         -> Claude fix pass
 #         -> decide: self-dispatch next iteration, OR fall through to finalize.
 #
-# When decide chooses "finalize" (loop terminated — all-green, iter-cap,
-# or wallclock-budget-exhausted), the same workflow continues into the
+# When decide chooses "finalize" (loop terminated — all-green or
+# iteration cap reached), the same workflow continues into the
 # finalize stage in this file: full nightly coverage + perf benchmark +
 # draft PRs in both repos. On the redispatch path those jobs are
 # skipped via `if: needs.decide.outputs.action == 'finalize'`.
@@ -32,6 +32,11 @@ on:
       current_version:
         type: string
         required: true
+      baseline_run_id:
+        description: 'On-nightly run ID (on main) whose test-reports artifacts seed the baseline-failures filter. Empty -> filter disabled.'
+        type: string
+        required: false
+        default: ""
   workflow_dispatch:
     inputs:
       iteration:
@@ -46,6 +51,10 @@ on:
       current_version:
         type: string
         required: true
+      baseline_run_id:
+        type: string
+        required: false
+        default: ""
 
 
 permissions:
@@ -63,8 +72,6 @@ concurrency:
 
 env:
   MAX_ITERATIONS:        2
-  MAX_WALLCLOCK_HOURS:   8
-  STATE_FILE:            .github/transformers-uplift/state.json
   LAST_FAILED_FILE:      .github/transformers-uplift/last_failed.txt
   BASE_COVERAGE_FULL_FILE: .github/transformers-uplift/base-coverage.txt
 
@@ -95,19 +102,19 @@ jobs:
       build_types:           release
 
   # ---------------------------------------------------------------------------
-  # Setup: normalize the iteration input, gate on the wallclock budget,
-  # and compute the base-coverage matrix from the current last_failed list.
-  # The WIP branch already exists (created by schedule-transformers-uplift.yml
-  # on iter 1, or carried forward across self-dispatches on iter 2+) — this
-  # job just CONSUMES that branch state, no longer creates it.
+  # Setup: normalize the iteration input and compute the base-coverage
+  # matrix from the current last_failed list. The WIP branch already
+  # exists (created by schedule-transformers-uplift.yml on iter 1, or
+  # carried forward across self-dispatches on iter 2+) — this job just
+  # CONSUMES that branch state, no longer creates it. Loop termination
+  # is gated by MAX_ITERATIONS only (no wallclock budget).
   # ---------------------------------------------------------------------------
   setup:
     runs-on: ubuntu-latest
     outputs:
-      iteration:     ${{ steps.params.outputs.iteration }}
-      under_budget:  ${{ steps.budget.outputs.under_budget }}
-      matrix:        ${{ steps.gen-matrix.outputs.matrix }}
-      filter_empty:  ${{ steps.gen-matrix.outputs.filter_empty }}
+      iteration:    ${{ steps.params.outputs.iteration }}
+      matrix:       ${{ steps.gen-matrix.outputs.matrix }}
+      filter_empty: ${{ steps.gen-matrix.outputs.filter_empty }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -123,26 +130,6 @@ jobs:
           # Normalize to an integer for arithmetic + comparison.
           ITER=$(printf '%d' "${ITER_RAW}")
           echo "iteration=$ITER" >> "$GITHUB_OUTPUT"
-
-      - name: Check wallclock budget
-        id: budget
-        run: |
-          STARTED=$(python3 -c "import json,sys; print(json.load(open('$STATE_FILE'))['started_at'])")
-          NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          ELAPSED_S=$(python3 -c "
-          import sys
-          from datetime import datetime
-          fmt = '%Y-%m-%dT%H:%M:%SZ'
-          d = (datetime.strptime('$NOW', fmt) - datetime.strptime('$STARTED', fmt)).total_seconds()
-          print(int(d))
-          ")
-          BUDGET_S=$((MAX_WALLCLOCK_HOURS * 3600))
-          if [[ "$ELAPSED_S" -lt "$BUDGET_S" ]]; then
-            echo "under_budget=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "under_budget=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Elapsed: ${ELAPSED_S}s / Budget: ${BUDGET_S}s"
 
       - name: Generate base-coverage matrix from current filter
         id: gen-matrix
@@ -171,7 +158,6 @@ jobs:
   # ---------------------------------------------------------------------------
   api-check:
     needs: [setup, build-image, build-ttxla]
-    if: needs.setup.outputs.under_budget == 'true'
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.build-image.outputs.docker-image-base }}
@@ -265,9 +251,10 @@ jobs:
           if [[ -n "$(cd third_party/tt_forge_models && git status --porcelain)" ]]; then
             pushd third_party/tt_forge_models >/dev/null
             git checkout -B "$BRANCH"
+            git fetch origin "$BRANCH" || true
             git add -A
             git commit "${COMMIT_FLAG[@]}"
-            git push origin "$BRANCH"
+            git push --force-with-lease origin "$BRANCH"
             popd >/dev/null
           fi
   
@@ -278,14 +265,6 @@ jobs:
             git commit "${COMMIT_FLAG[@]}"
             git push origin "$BRANCH"
           fi
- 
-  # ===========================================================================
-  # The jobs below are DISABLED for the iterative-test phase. Re-enable in
-  # order:
-  #   1. `test-and-fix-base` + `decide` (ENABLED — exercises the loop)
-  #   2. `test-and-fix-full` + `perf-benchmark`
-  #   3. `open-prs`
-  # ===========================================================================
   
   # ---------------------------------------------------------------------------
   # Base coverage stage: narrow hardware matrix + Claude fix pass. All
@@ -295,7 +274,7 @@ jobs:
   # ---------------------------------------------------------------------------
   test-and-fix-base:
     needs: [setup, build-image, build-ttxla, api-check]
-    if: ${{ needs.setup.outputs.under_budget == 'true' && needs['api-check'].outputs.passed == 'true' && needs.setup.outputs.filter_empty == 'false' }}
+    if: ${{ needs['api-check'].outputs.passed == 'true' && needs.setup.outputs.filter_empty == 'false' }}
     uses: ./.github/workflows/call-test-uplift.yml
     with:
       test_suite:              Custom
@@ -309,6 +288,7 @@ jobs:
       artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
       artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
       docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+      baseline_run_id:         ${{ inputs.baseline_run_id }}
     secrets: inherit
  
   # ---------------------------------------------------------------------------
@@ -326,19 +306,14 @@ jobs:
         id: next
         env:
           ITER:              ${{ needs.setup.outputs.iteration }}
-          UNDER_BUDGET:      ${{ needs.setup.outputs.under_budget }}
           API_CHECK_PASSED:  ${{ needs['api-check'].outputs.passed }}
           HAS_FAILURES:      ${{ needs['test-and-fix-base'].outputs.has_failures }}
           FILTER_EMPTY:      ${{ needs.setup.outputs.filter_empty }}
         run: |
           # Terminal conditions -> finalize:
-          #   - budget exhausted
           #   - iteration cap reached
           #   - api-check green AND no base-coverage failures
-          if [[ "$UNDER_BUDGET" != "true" ]]; then
-            echo "action=finalize" >> "$GITHUB_OUTPUT"
-            echo "reason=wallclock-budget-exhausted" >> "$GITHUB_OUTPUT"
-          elif [[ "$ITER" -ge "$MAX_ITERATIONS" ]]; then
+          if [[ "$ITER" -ge "$MAX_ITERATIONS" ]]; then
             echo "action=finalize" >> "$GITHUB_OUTPUT"
             echo "reason=iteration-cap" >> "$GITHUB_OUTPUT"
           elif [[ "$API_CHECK_PASSED" == "true" && "$HAS_FAILURES" == "false" && "$FILTER_EMPTY" == "false" ]]; then
@@ -356,12 +331,6 @@ jobs:
         run: |
           NEXT=$((NEXT_ITER + 1))
           echo "Re-dispatching as iteration $NEXT"
-          # `gh workflow run <filename>` resolves the workflow ID via the
-          # default branch (main). This workflow file isn't on main yet
-          # during the iterative-testing phase, so look up the workflow
-          # ID by path and dispatch via the REST API directly. Swap back
-          # to `gh workflow run` once the file lands on main. See the
-          # matching dispatch in schedule-transformers-uplift.yml.
           WORKFLOW_ID=$(gh api \
             "repos/${{ github.repository }}/actions/workflows?per_page=100" \
             --jq '.workflows[] | select(.path == ".github/workflows/workflow-transformers-uplift.yml") | .id')
@@ -372,20 +341,15 @@ jobs:
             echo "::error::workflow-transformers-uplift.yml is not registered" >&2
             exit 1
           fi
-          # `--ref github.ref_name` is the WIP branch — the run we're in
-          # was dispatched there, so the next iteration's build-image /
-          # build-ttxla jobs run at the same ref (picking up any source
-          # fixes Claude pushed during this iteration).
-          # Use `-f` (raw-field) instead of `-F` (typed) so numeric-looking
-          # values like iteration="$NEXT" aren't coerced to JSON numbers
-          # — the workflow_dispatch input is declared `type: string`.
+
           gh api -X POST \
             "repos/${{ github.repository }}/actions/workflows/${WORKFLOW_ID}/dispatches" \
             -f ref="${{ github.ref_name }}" \
             -f "inputs[iteration]=$NEXT" \
             -f "inputs[branch]=${{ inputs.branch }}" \
             -f "inputs[target_version]=${{ inputs.target_version }}" \
-            -f "inputs[current_version]=${{ inputs.current_version }}"
+            -f "inputs[current_version]=${{ inputs.current_version }}" \
+            -f "inputs[baseline_run_id]=${{ inputs.baseline_run_id }}"
   
       - name: Log finalize handoff
         if: steps.next.outputs.action == 'finalize'
@@ -406,49 +370,44 @@ jobs:
   # the finalize stage — anything the broader suite surfaces gets one
   # attempt at a fix before the PR is opened.
   # ---------------------------------------------------------------------------
-  # =============================================================================
-  # TEMP: test-and-fix-full + perf-benchmark disabled for the 2-iter loop
-  # validation. MAX_ITERATIONS=2 — first iter runs base-coverage + claude-fix,
-  # second iter retests on the fixed branch. Re-enable by stripping the leading
-  # `# ` from each line below.
-  # =============================================================================
-  # test-and-fix-full:
-  #   needs: [setup, build-image, build-ttxla, decide]
-  #   if: always() && needs.decide.outputs.action == 'finalize'
-  #   uses: ./.github/workflows/call-test-uplift.yml
-  #   with:
-  #     test_suite:              model-test-passing.json
-  #     scope:                   model-test-uplifts
-  #     tag:                     full
-  #     branch:                  ${{ inputs.branch }}
-  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-  #     target_version:          ${{ inputs.target_version }}
-  #     current_version:         ${{ inputs.current_version }}
-  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-  #     artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
-  #     docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-  #   secrets: inherit
-  #
-  # # ---------------------------------------------------------------------------
-  # # Perf benchmark sweep — wraps call-perf-uplift.yml (run-perf →
-  # # extract-failures → claude-fix, same shape as test-and-fix-full).
-  # # Humans can also dispatch the callable manually during PR review.
-  # # ---------------------------------------------------------------------------
-  # perf-benchmark:
-  #   needs: [setup, build-image, build-ttxla, decide]
-  #   if: always() && needs.decide.outputs.action == 'finalize'
-  #   uses: ./.github/workflows/call-perf-uplift.yml
-  #   secrets: inherit
-  #   with:
-  #     branch:                  ${{ inputs.branch }}
-  #     iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
-  #     tag:                     perf
-  #     target_version:          ${{ inputs.target_version }}
-  #     current_version:         ${{ inputs.current_version }}
-  #     artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
-  #     artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
-  #     docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
-  #
+  test-and-fix-full:
+    needs: [setup, build-image, build-ttxla, decide]
+    if: always() && needs.decide.outputs.action == 'finalize'
+    uses: ./.github/workflows/call-test-uplift.yml
+    with:
+      test_suite:              model-test-passing.json
+      scope:                   model-test-uplifts
+      tag:                     full
+      branch:                  ${{ inputs.branch }}
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+      baseline_run_id:         ${{ inputs.baseline_run_id }}
+    secrets: inherit
+
+  # ---------------------------------------------------------------------------
+  # Perf benchmark sweep — wraps call-perf-uplift.yml (run-perf →
+  # extract-failures → claude-fix, same shape as test-and-fix-full).
+  # Humans can also dispatch the callable manually during PR review.
+  # ---------------------------------------------------------------------------
+  perf-benchmark:
+    needs: [setup, build-image, build-ttxla, decide]
+    if: always() && needs.decide.outputs.action == 'finalize'
+    uses: ./.github/workflows/call-perf-uplift.yml
+    secrets: inherit
+    with:
+      branch:                  ${{ inputs.branch }}
+      iteration:               ${{ fromJSON(needs.setup.outputs.iteration) }}
+      tag:                     perf
+      target_version:          ${{ inputs.target_version }}
+      current_version:         ${{ inputs.current_version }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix:         ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      docker_image:            ${{ needs.build-image.outputs.docker-image-base }}
+
   # ---------------------------------------------------------------------------
   # Open the two PRs. tt-forge-models first (if its branch has commits),
   # then tt-xla with the report and a link to the forge-models PR.
@@ -467,6 +426,23 @@ jobs:
   #         ref: ${{ inputs.branch }}
   #         token: ${{ secrets.GH_TOKEN }}
   #         submodules: recursive
+  # #
+  #     - name: Strip uplift-only .gitignore entries
+  #       env:
+  #         BRANCH: ${{ inputs.branch }}
+  #       run: |
+  #         git config --global user.name  "github-actions[bot]"
+  #         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+  #         # Drop the marker comment + the 3 path lines that follow it.
+  #         sed -i '/^# transformers-uplift: transient claude-fix artifacts/,+3d' .gitignore
+  #         # Also drop the blank line printf prepended, if present (collapse
+  #         # consecutive blank lines at end of file to a single trailing newline).
+  #         awk 'BEGIN{blank=0} /^$/{blank++; next} {while(blank-->0) print ""; blank=0; print} END{print ""}' .gitignore > .gitignore.tmp && mv .gitignore.tmp .gitignore
+  #         if ! git diff --quiet .gitignore; then
+  #           git add .gitignore
+  #           git commit -m "transformers uplift: drop iteration-only .gitignore entries"
+  #           git push origin "$BRANCH"
+  #         fi
   # #
   #     - uses: actions/download-artifact@v4
   #       with:
