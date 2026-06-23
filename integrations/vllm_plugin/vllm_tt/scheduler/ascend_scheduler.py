@@ -486,6 +486,28 @@ class AscendScheduler(Scheduler):
             <= len(self.running) + num_partial_prefill_scheduled
         )
 
+        # [SCHED-PROBE] Per-step instrumentation (temporary; tt-inference-server #4326)
+        # to see whether prefills batch (waves of ~max_num_seqs) or trickle in
+        # under-filled, and whether they interrupt decode. A token count > 1 for a
+        # request means a prefill (fresh or chunked-prefix chunk); == 1 means decode.
+        # WARNING level so it prints regardless of VLLM_LOGGING_LEVEL. Grep "[SCHED-PROBE]".
+        # Confirmed cfg6 is burst-then-trickle (waiting=0 every prefill step). Disabled;
+        # uncomment to re-probe the co-scheduling follow-up.
+        # if total_num_scheduled_tokens > 0:
+        #     _pf = {r: t for r, t in num_scheduled_tokens.items() if t > 1}
+        #     _dec = sum(1 for t in num_scheduled_tokens.values() if t == 1)
+        #     _kind = "PREFILL" if _pf else ("DECODE" if _dec else "EMPTY")
+        #     logger.warning(
+        #         "[SCHED-PROBE] %-7s prefill_reqs=%2d prefill_toks=%-6d decode_reqs=%2d "
+        #         "| new=%d resumed=%d cont_chunk=%d partial=%d "
+        #         "| waiting=%d running=%d budget_used=%d/%d",
+        #         _kind, len(_pf), sum(_pf.values()), _dec,
+        #         len(scheduled_new_reqs), len(scheduled_resumed_reqs),
+        #         len(scheduled_running_reqs), num_partial_prefill_scheduled,
+        #         len(self.waiting), len(self.running),
+        #         total_num_scheduled_tokens, self.max_num_scheduled_tokens,
+        #     )
+
         # Get the longest common prefix among all requests in the running queue.
         # This can be potentially used for cascade attention.
         num_common_prefix_blocks: list[int] = [0] * len(
