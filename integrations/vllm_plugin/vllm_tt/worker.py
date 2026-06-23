@@ -300,6 +300,18 @@ class TTWorker:
             self.cache_config.gpu_memory_utilization,
             tpu_kv_cache_bytes / 1024**3,
         )
+        # TT-XLA branch/config probe (TEMPORARY — remove before merge). Raw stderr print
+        # so it survives tt-media-server's WARNING-level logging (the logger.info above is
+        # dropped there). Runs during KV sizing — before warmup/trace-capture — so it is
+        # hit even if warmup later DRAM-OOMs. Grep for the marker.
+        print(
+            "[TT-XLA-KV-PROBE] KV cache sizing "
+            f"(pid={os.getpid()}): device DRAM = {total_memory_size / 1024**3:.2f} GiB, "
+            f"gpu_memory_utilization = {self.cache_config.gpu_memory_utilization:.3f}, "
+            f"KV cache budget = {tpu_kv_cache_bytes / 1024**3:.2f} GiB",
+            file=sys.stderr,
+            flush=True,
+        )
         return int(tpu_kv_cache_bytes)
 
     def sample_tokens(self, grammar_output: "GrammarOutput") -> ModelRunnerOutput:
