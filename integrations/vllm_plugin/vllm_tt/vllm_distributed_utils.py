@@ -365,17 +365,6 @@ def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Modul
     return layer
 
 
-def partition_rms_norm(
-    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
-) -> torch.nn.Module:
-    # Shard norm scale on batch axis under FSDP; no-op for Megatron or scaleless norms.
-    batch_axis = "batch" if shard_weights_on_batch_axis else None
-    if batch_axis is not None and getattr(layer, "weight", None) is not None:
-        safe_mark_sharding(layer.weight, mesh, (batch_axis,))
-    logger.debug("Applied parallel sharding to %s", layer)
-    return layer
-
-
 MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
     [
         ("MergedColumnParallelLinear", partition_merged_column_parallel_linear),
@@ -384,7 +373,6 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
-        ("TTRMSNorm", partition_rms_norm),
         # Catch-all for plain nn.Linear layers (e.g. vision encoder projections
         # that are not wrapped in vLLM's parallel linear types). Must come last
         # so the more specific vLLM types above always take priority.
