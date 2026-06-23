@@ -2156,12 +2156,13 @@ def test_kimi_k2_tp_galaxy_2_layers(
         experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
+        required_pcc=0.99,
     )
 
 
 # Trace disabled: topk i64 indices can't reside in device DRAM inside capture_or_execute_trace
 # This test only runs 2 layers so we expect to see incoherent output
-def test_kimi_k2_5_tp_galaxy_2_layers(
+def test_kimi_k2_6_tp_galaxy_2_layers(
     output_file,
     num_layers,
     request,
@@ -2170,12 +2171,12 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
     max_output_tokens,
     decode_only,
 ):
-    from third_party.tt_forge_models.kimi_k2.k2_5.pytorch.loader import (
+    from third_party.tt_forge_models.kimi_k2.k2_6.pytorch.loader import (
         ModelLoader,
         ModelVariant,
     )
 
-    variant = ModelVariant.KIMI_K2_5_MODIFIED
+    variant = ModelVariant.KIMI_K2_6_MODIFIED
     test_llm_tp(
         ModelLoader,
         variant,
@@ -2191,6 +2192,7 @@ def test_kimi_k2_5_tp_galaxy_2_layers(
         experimental_kv_cache_dtype=None,
         optimization_level=0,
         trace_enabled=False,
+        required_pcc=0.99,
     )
 
 
@@ -2686,6 +2688,7 @@ def test_deepseek_v3_1_tp_galaxy_4_layers(
         shard_spec_fn=_deepseek_v3_1_shard_spec_fn,
         required_pcc=0.96,
         experimental_kv_cache_dtype=None,
+        required_pcc=0.99,
     )
 
 
