@@ -239,13 +239,36 @@ class AscendScheduler(Scheduler):
                     request_queue.pop_request()
                     continue
 
-                if num_new_tokens > token_budget:
-                    if getattr(self.scheduler_config, "chunked_prefill_enabled", False):
-                        # Chunked prefill (tt-xla #4986): take only what fits the
-                        # budget this step; the rest continues next step (the
-                        # request is re-picked once num_computed_tokens advances).
+                chunked_prefill = getattr(
+                    self.scheduler_config, "chunked_prefill_enabled", False
+                )
+                # Chunked prefill (tt-xla #4986): a request may take at most a
+                # PER-SEQUENCE chunk (tt_prefill_chunk_size) this step, not the
+                # whole batch-wide token_budget. The budget is sized
+                # chunk x max_num_seqs so multiple users batch into one prefill
+                # step; capping each request at the per-seq chunk both keeps the
+                # prefill activation/bucket bounded AND leaves budget for the
+                # other users' chunks. Without this cap one long prompt would
+                # consume the entire budget, re-serializing prefills.
+                if chunked_prefill:
+                    chunk_cap = min(
+                        token_budget,
+                        getattr(
+                            self.scheduler_config,
+                            "tt_prefill_chunk_size",
+                            token_budget,
+                        ),
+                    )
+                else:
+                    chunk_cap = token_budget
+
+                if num_new_tokens > chunk_cap:
+                    if chunked_prefill:
+                        # Take only the per-seq chunk that fits this step; the
+                        # rest continues next step (the request is re-picked once
+                        # num_computed_tokens advances).
                         num_new_tokens = self._block_aligned_chunk(
-                            num_new_tokens, token_budget
+                            num_new_tokens, chunk_cap
                         )
                         if num_new_tokens == 0:
                             # Remaining budget < one block: can't take a
