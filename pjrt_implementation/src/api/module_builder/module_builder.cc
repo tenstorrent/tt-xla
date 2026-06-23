@@ -323,14 +323,14 @@ ModuleBuilder::buildModule(
   const bool is_codegen_py =
       compile_options.backend == BackendRuntime::TTNNCodegenPy;
   const bool codegen_load_mode =
-      is_codegen_py && compile_options.codegen_load_path.has_value();
+      compile_options.backend == BackendRuntime::TTNNCodegenLoadPy;
   std::string codegen_export_root;
 
   // Python codegen emits fixed-name files (main.py, ttnn.mlir, tensors/...),
   // so each graph gets its own subdirectory under the user-provided
   // export_path. The subdirectory is matched on load by graph hash via the
   // module_key file, the counter only keeps names readable.
-  if (is_codegen_py && !codegen_load_mode) {
+  if (is_codegen_py) {
     codegen_export_root = *compile_options.export_path;
     static std::mutex counters_mutex;
     static std::unordered_map<std::string, int> counters;
@@ -368,7 +368,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  if (is_codegen_py) {
+  if (is_codegen_py || codegen_load_mode) {
     compile_options.graph_hash = computeGraphHash(mlir_module);
   }
 
@@ -1392,8 +1392,9 @@ ModuleBuilder::buildModuleForTTNNCodegen(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
-  if (!compile_options.codegen_load_path.has_value() ||
-      compile_options.backend != BackendRuntime::TTNNCodegenPy) {
+  // Load mode points the executable at saved code, so there's nothing to
+  // generate or record; every other backend runs codegen here.
+  if (compile_options.backend != BackendRuntime::TTNNCodegenLoadPy) {
     tt_pjrt_status status = performCodegen(ttnn_mlir, compile_options);
     if (!tt_pjrt_status_is_ok(status)) {
       return {status, nullptr};
@@ -1527,7 +1528,9 @@ std::string ModuleBuilder::computeGraphHash(
 tt_pjrt_status ModuleBuilder::resolveCodegenLoadDir(
     const CompileOptions &compile_options, std::string &matched_dir,
     std::vector<std::uint32_t> &mesh_shape, size_t &num_devices) {
-  const std::string &load_root = *compile_options.codegen_load_path;
+  // In load mode export_path is the user-provided directory of saved graphs;
+  // it's replaced with the matched graph's subdirectory once found.
+  const std::string &load_root = *compile_options.export_path;
   std::string available;
 
   // Sorted scan keeps matching deterministic if duplicate hashes ever exist

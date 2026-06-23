@@ -121,12 +121,14 @@ SOLoadedExecutableInstance::execute(PJRT_LoadedExecutable_Execute_Args *args) {
   }
 
   CompileOptions options = m_executable_image->getCompileOptions();
-  std::string lang =
-      options.backend == BackendRuntime::TTNNCodegenPy ? "Python" : "C++";
+  const bool is_python_codegen =
+      options.backend == BackendRuntime::TTNNCodegenPy ||
+      options.backend == BackendRuntime::TTNNCodegenLoadPy;
+  std::string lang = is_python_codegen ? "Python" : "C++";
   std::cout << lang << " codegen successful. Check "
             << options.export_path.value() << " for the results." << std::endl;
 
-  if (options.dry_run || options.backend != BackendRuntime::TTNNCodegenPy) {
+  if (options.dry_run || !is_python_codegen) {
     // dry_run mode or non-Python codegen: return zero-filled output buffers.
     tt_pjrt_status status =
         createDefaultOutputBuffers(args->output_lists, args->num_devices);

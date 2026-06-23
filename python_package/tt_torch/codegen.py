@@ -62,9 +62,8 @@ def load_codegen_py(
     compilation. Returns the model output."""
     real_compile_options = {
         **compiler_options,
-        "backend": "codegen_py",
-        "codegen_load_path": load_path,
-        "dry_run": "false",
+        "backend": "codegen_load_py",
+        "export_path": load_path,
     }
     torch_xla.set_custom_compile_options(real_compile_options)
     device = xm.xla_device()

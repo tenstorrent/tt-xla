@@ -337,9 +337,9 @@ private:
   static std::string
   computeGraphHash(const mlir::OwningOpRef<mlir::ModuleOp> &module);
 
-  // Finds the saved graph directory under codegen_load_path whose module_key
-  // matches the current graph hash, restoring the mesh shape and device count
-  // saved at emit time.
+  // Finds the saved graph directory under export_path whose module_key matches
+  // the current graph hash, restoring the mesh shape and device count saved at
+  // emit time.
   static tt_pjrt_status resolveCodegenLoadDir(
       const CompileOptions &compile_options, std::string &matched_dir,
       std::vector<std::uint32_t> &mesh_shape, size_t &num_devices);

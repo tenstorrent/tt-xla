@@ -249,7 +249,9 @@ TTXLA_CODEGEN_EXPORT_DIR=/path/to/export pytest <your test>
 TTXLA_CODEGEN_LOAD_DIR=/path/to/export pytest <your test>
 ```
 
-Each compiled graph gets its own subdirectory (`graph_N` or `{export_model_name}_gN`) containing `main.py`, `ttnn.mlir`, `tensors/` and a `module_key` file holding the graph's StableHLO hash, which is how graphs are matched on load (compile order doesn't matter). `manifest.json` at the export root maps hashes to directories. Loading fails with an error listing available graphs if a compiled graph has no saved match — re-emit to capture it. Explicit compile options override these env vars. From PyTorch you can also use `tt_torch.codegen.load_codegen_py(model, ..., load_path=...)`.
+Each compiled graph gets its own subdirectory (`graph_N` or `{export_model_name}_gN`) containing `main.py`, `ttnn.mlir`, `tensors/` and a `module_key` file holding the graph's StableHLO hash, which is how graphs are matched on load (compile order doesn't matter). `manifest.json` at the export root maps hashes to directories. Loading fails with an error listing available graphs if a compiled graph has no saved match — re-emit to capture it.
+
+The env vars are a convenience surface over the codegen backends: `TTXLA_CODEGEN_EXPORT_DIR` resolves to `backend="codegen_py"` and `TTXLA_CODEGEN_LOAD_DIR` to `backend="codegen_load_py"`, both with `export_path` set to the given directory. An explicit `backend` compile option always wins, so you can drive load directly with `backend="codegen_load_py"` + `export_path=...` wherever you can set compile options. From PyTorch you can also use `tt_torch.codegen.load_codegen_py(model, ..., load_path=...)`.
 
 ### Alternative: Code Generation via Serialization
 

@@ -21,7 +21,14 @@ enum class BackendRuntime {
   TTNNCodegenCpp,
 
   // Generates TTNN Python code.
-  TTNNCodegenPy
+  TTNNCodegenPy,
+
+  // Loads previously emitted (and possibly user-edited) TTNN Python codegen
+  // instead of compiling. The incoming graph is matched by StableHLO hash
+  // against the saved graph directories under export_path and the matched code
+  // is executed via PythonModelRunner. Compilation fails if no directory
+  // matches.
+  TTNNCodegenLoadPy
 };
 
 // POD struct containing various options used to customize module compilation.
@@ -156,13 +163,6 @@ struct CompileOptions {
   // Model name/identifier for exported file names (e.g., blk_phi1_bs32_a7f3).
   // The graph number (g0, g1, etc.) is automatically appended.
   std::string export_model_name = "";
-
-  // Directory containing previously emitted (and possibly user-edited) codegen
-  // graph subdirectories. When set, compilation skips emission and instead
-  // matches the incoming graph by hash against the saved subdirectories; the
-  // matched code is executed via PythonModelRunner. Compilation fails if no
-  // subdirectory matches.
-  std::optional<std::string> codegen_load_path = std::nullopt;
 
   // Stable identity of the compiled graph: hash of the StableHLO module text,
   // computed by the module builder after the frontend SHLO pipeline.

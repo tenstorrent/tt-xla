@@ -40,13 +40,32 @@ CompileOptions CompileOptions::parse(
               options.experimental_enable_fusing_conv2d_with_multiply_pattern);
   options.backend = internal::parseBackendOption(compile_options, "backend")
                         .value_or(options.backend);
+
+  // The codegen emit/load env vars are a surface over the codegen backends:
+  // they let a workflow opt in externally (e.g. an operator flipping emit/load
+  // on a running vLLM server without editing config code). They resolve here to
+  // a backend + export_path so the rest of parsing keys off the backend alone.
+  // An explicit `backend` compile option always wins.
+  const char *emit_dir = std::getenv("TTXLA_CODEGEN_EXPORT_DIR");
+  const char *load_dir = std::getenv("TTXLA_CODEGEN_LOAD_DIR");
+  if (!compile_options.count("backend")) {
+    if (load_dir) {
+      options.backend = BackendRuntime::TTNNCodegenLoadPy;
+    } else if (emit_dir) {
+      options.backend = BackendRuntime::TTNNCodegenPy;
+    }
+  }
+
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(options.enable_trace);
+  // Codegen emit/cpp export input and parameter tensors so generated code can
+  // load real data. Flatbuffer doesn't, and load mode reuses the tensors saved
+  // at emit time rather than overwriting them.
   options.export_tensors =
       internal::parseBoolOption(compile_options, "export_tensors")
-          .value_or(options.backend == BackendRuntime::TTNNFlatbuffer ? false
-                                                                      : true);
+          .value_or(options.backend != BackendRuntime::TTNNFlatbuffer &&
+                    options.backend != BackendRuntime::TTNNCodegenLoadPy);
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(options.enable_const_eval);
@@ -82,56 +101,29 @@ CompileOptions CompileOptions::parse(
       internal::parseStringOption(compile_options,
                                   "ttnn_perf_metrics_output_file")
           .value_or("");
-  options.dry_run =
-      internal::parseBoolOption(compile_options, "dry_run")
-          .value_or(options.backend != BackendRuntime::TTNNFlatbuffer);
+  // Codegen that only generates source (explicit codegen_py/codegen_cpp)
+  // defaults to a dry run. Flatbuffer, load mode, and env-triggered emit all
+  // execute: emit runs the generated Python live via PythonModelRunner, load
+  // runs the saved code.
+  const bool generate_only =
+      (options.backend == BackendRuntime::TTNNCodegenPy && !emit_dir) ||
+      options.backend == BackendRuntime::TTNNCodegenCpp;
+  options.dry_run = internal::parseBoolOption(compile_options, "dry_run")
+                        .value_or(generate_only);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
-  options.codegen_load_path =
-      internal::parseStringOption(compile_options, "codegen_load_path");
 
-  // Env vars provide defaults for emit/load of Python codegen so workflows
-  // that can't set compile options (e.g. vLLM) can opt in externally.
-  // Explicit compile options always win.
-  const char *emit_dir = std::getenv("TTXLA_CODEGEN_EXPORT_DIR");
-  const char *load_dir = std::getenv("TTXLA_CODEGEN_LOAD_DIR");
-  if (load_dir && !options.codegen_load_path.has_value()) {
-    options.codegen_load_path = load_dir;
-  }
-  if ((emit_dir || options.codegen_load_path.has_value()) &&
-      !compile_options.count("backend")) {
-    options.backend = BackendRuntime::TTNNCodegenPy;
-  }
-  if (options.backend == BackendRuntime::TTNNCodegenPy &&
-      !compile_options.count("dry_run") &&
-      (emit_dir || options.codegen_load_path.has_value())) {
-    options.dry_run = false;
-  }
+  // Supply export_path from the matching env var when not given explicitly.
+  // In load mode export_path is the directory to read saved graphs from.
   if (!options.export_path.has_value()) {
-    if (options.codegen_load_path.has_value()) {
-      // Placeholder root; load mode replaces it with the matched graph dir.
-      options.export_path = options.codegen_load_path;
+    if (options.backend == BackendRuntime::TTNNCodegenLoadPy && load_dir) {
+      options.export_path = load_dir;
     } else if (emit_dir) {
       options.export_path = emit_dir;
     }
-  }
-  if (options.codegen_load_path.has_value()) {
-    if (options.backend != BackendRuntime::TTNNCodegenPy) {
-      ABORT_F("codegen_load_path is only supported with the 'codegen_py' "
-              "backend");
-    }
-    // Don't clobber the saved tensors/ dir when running loaded code.
-    options.export_tensors =
-        internal::parseBoolOption(compile_options, "export_tensors")
-            .value_or(false);
-  } else if (emit_dir && options.backend == BackendRuntime::TTNNCodegenPy) {
-    // Env-triggered emit should export tensors like explicit codegen does.
-    options.export_tensors =
-        internal::parseBoolOption(compile_options, "export_tensors")
-            .value_or(true);
   }
 
   if (!options.export_path.has_value() &&
@@ -200,6 +192,8 @@ std::optional<BackendRuntime> parseBackendOption(
       return BackendRuntime::TTNNCodegenCpp;
     } else if (option_value == "codegen_py") {
       return BackendRuntime::TTNNCodegenPy;
+    } else if (option_value == "codegen_load_py") {
+      return BackendRuntime::TTNNCodegenLoadPy;
     }
     ABORT_F("Unknown backend option value: %s for %s", option_value.c_str(),
             option_name.c_str());
