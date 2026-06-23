@@ -2780,3 +2780,40 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Base (non-instruct) Llama-3.1-8B single-chip perf entry brought up on p150.
+# Modelled on test_llama_3_1_8b (instruct, single-chip); uses the base
+# ModelVariant.LLAMA_3_1_8B. Bringup safe defaults: optimization_level=0,
+# trace_enabled=False. model-perf-tuning will ramp these.
+def test_llama_3_1_8b_base(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level if optimization_level is not None else 0
+        ),
+        trace_enabled=False,
+    )
