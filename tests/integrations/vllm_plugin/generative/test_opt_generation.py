@@ -20,8 +20,7 @@ def test_opt_generation():
         "gpu_memory_utilization": 0.001,
         "additional_config": {
             "enable_const_eval": False,
-            "min_context_len": 128,
-            "num_hidden_layers": 1,
+            "min_context_len": 32,
         },
     }
     llm = vllm.LLM(**llm_args)

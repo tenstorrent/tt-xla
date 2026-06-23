@@ -215,7 +215,7 @@ def test_embed_qwen3_perf():
     max_seq_len = 2**14  # 16384
     prompts_list = []
 
-    i = 2**14
+    i = 128
     while i <= max_seq_len:
         prompts_list.append((i, ["hello " * (i - 2)]))
         i *= 2
