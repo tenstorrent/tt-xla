@@ -80,6 +80,20 @@ jobs:
       artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
       wheel_build: manylinux
 
+  # Dedicated job for standalone codegen (currently EmitPy only) regression guards (require alchemist).
+  test_codegen_regression:
+    uses: ./.github/workflows/call-test.yml
+    secrets: inherit
+    needs: [ build-image, build-ttxla ]
+    # This ensures the job runs regardless of success or failure of `nightly_tests`:
+    if: success() || failure()
+    with:
+      test_suite: codegen-regression-tests.json
+      docker_image: ${{ needs.build-image.outputs.docker-image-base }}
+      artifact_release_run_id: ${{ needs.build-ttxla.outputs.artifacts_run_id }}
+      artifact_suffix: ${{ needs.build-ttxla.outputs.artifact_suffix }}
+      wheel_build: manylinux
+
   perf-benchmark:
     uses: ./.github/workflows/call-filtered-perf-tests.yml
     needs: [ build-image, build-ttxla ]
@@ -207,6 +221,7 @@ jobs:
       - test_full_model
       - test_forge_models_passing
       - test_forge_models_xfail
+      - test_codegen_regression
       - build-image
       - build-ttxla
       - perf-benchmark
