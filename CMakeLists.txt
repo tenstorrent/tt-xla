@@ -43,6 +43,27 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 
+# Prefer the version-matched LLD linker for tt-xla's own targets, mirroring the
+# auto-detection in tt-mlir/tt-metal. Without this, pjrt_plugin_tt.so links with
+# the default GNU ld (BFD), whose text-first ELF layout stock patchelf corrupts
+# during `auditwheel repair` (executable .init/.plt relocated into a non-exec
+# segment -> SEGV at dlopen). Installing `lld` in the build image (see
+# .github/Dockerfile) makes this guard succeed so the whole wheel is LLD-linked.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  execute_process(COMMAND ${CMAKE_CXX_COMPILER} --version OUTPUT_VARIABLE _TTXLA_CLANG_VERSION_INFO ERROR_QUIET)
+  string(REGEX MATCH "version ([0-9]+)\\.[0-9]+" _TTXLA_CLANG_VERSION "${_TTXLA_CLANG_VERSION_INFO}")
+  set(_TTXLA_CLANG_VERSION_MAJOR ${CMAKE_MATCH_1})
+  find_program(_TTXLA_LLD NAMES "ld.lld-${_TTXLA_CLANG_VERSION_MAJOR}" ld.lld)
+  if(_TTXLA_LLD)
+    execute_process(COMMAND ${_TTXLA_LLD} --version OUTPUT_VARIABLE _TTXLA_LLD_VERSION_INFO ERROR_QUIET)
+    string(REGEX MATCH "LLD ([0-9]+)\\.[0-9]+" _TTXLA_LLD_VERSION "${_TTXLA_LLD_VERSION_INFO}")
+    if(_TTXLA_CLANG_VERSION_MAJOR EQUAL CMAKE_MATCH_1)
+      message(STATUS "tt-xla: using LLD linker: ${_TTXLA_LLD}")
+      set(CMAKE_LINKER_TYPE LLD)
+    endif()
+  endif()
+endif()
+
 option(TTMLIR_ENABLE_PERF_TRACE "Enable performance tracing in tt-mlir" ON)
 option(TTMLIR_ENABLE_BINDINGS_PYTHON "Enable Python bindings in tt-mlir" OFF)
 option(TTXLA_ENABLE_EXPLORER "Enable Explorer feature in tt-mlir" OFF)

@@ -53,41 +53,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Uninstall OpenMPI from EPEL to avoid conflicts
 RUN dnf remove -y epel-release openmpi openmpi-devel || true
 
-# Install build requirements
+# Install build requirements.
 RUN dnf install --refresh -y \
     protobuf-compiler \
     protobuf-devel \
     flex \
-    unzip
-
-# Replace patchelf with LIEF's patchelf (lief-patchelf). The stock patchelf
-# (including >= 0.18) corrupts the TT libraries when rewriting RPATH during
-# `auditwheel repair`. auditwheel (and our own setup.py /
-# CMakeLists.txt patchelf calls) invoke whichever `patchelf` is first on PATH;
-# the manylinux base ships it at /usr/local/bin/patchelf, so we shadow it there.
-# The musl build is statically linked and runs regardless of the container glibc.
-# LIEF 0.17.6 is the latest release at time of writing.
-#
-# The shadow is a wrapper rather than a symlink because auditwheel verifies
-# `patchelf --version` against the regex /^patchelf\s+\d+/ and requires >= 0.14;
-# lief-patchelf's own version banner would not match. The wrapper reports a
-# compatible version for that probe and delegates every real call to lief-patchelf.
-ARG LIEF_VERSION=0.17.6
-RUN wget -qO /tmp/lief-tools.zip \
-      "https://github.com/lief-project/LIEF/releases/download/${LIEF_VERSION}/lief-tools-x86_64-unknown-linux-musl.zip" && \
-    unzip -q /tmp/lief-tools.zip -d /tmp/lief-tools && \
-    install -m 0755 /tmp/lief-tools/bin/lief-patchelf /usr/local/bin/lief-patchelf && \
-    rm -rf /tmp/lief-tools /tmp/lief-tools.zip && \
-    printf '%s\n' \
-      '#!/bin/sh' \
-      'if [ "$1" = "--version" ]; then echo "patchelf 0.18.0 (lief-patchelf '"${LIEF_VERSION}"')"; exit 0; fi' \
-      'exec /usr/local/bin/lief-patchelf "$@"' \
-      > /usr/local/bin/patchelf && \
-    chmod 0755 /usr/local/bin/patchelf && \
-    hash -r && \
-    echo "Active patchelf: $(command -v patchelf)" && patchelf --version && \
-    test "$(command -v patchelf)" = /usr/local/bin/patchelf && \
-    patchelf --version | grep -q lief-patchelf
+    lld
 
 # Install ccache latest version from GitHub releases
 RUN CCACHE_VERSION="4.7.4" && \

@@ -81,27 +81,20 @@ jobs:
           CIBW_MANYLINUX_X86_64_IMAGE: ${{ vars.HARBOR_PREFIX }}${{ inputs.docker-image }}
           CIBW_PROJECT_REQUIRES_PYTHON: "==3.12.*"
           CIBW_SKIP: "*-musllinux_*"
-          # Fail fast if the patchelf auditwheel will invoke is not our
-          # lief-patchelf wrapper. Stock patchelf corrupts the TT libraries
-          # during `auditwheel repair`; this guards against PATH precedence
-          # silently picking up a different patchelf in the build container.
-          CIBW_BEFORE_BUILD: >-
-            mkdir -p /tmp/ccache && ccache -z && ccache -p &&
-            echo "Active patchelf: $(command -v patchelf)" &&
-            patchelf --version &&
-            patchelf --version | grep -q lief-patchelf
+          CIBW_BEFORE_BUILD: "mkdir -p /tmp/ccache && ccache -z && ccache -p"
         with:
           output-dir: ${{ steps.strings.outputs.wheel-output-dir }}
           package-dir: ${{ steps.strings.outputs.work-dir }}/python_package
           config-file: "${{ steps.strings.outputs.work-dir }}/python_package/pyproject.toml"
 
-      # Outcome gate: dlopen every shipped library and fail on SIGSEGV. Combined
-      # with the CIBW_BEFORE_BUILD patchelf assertion above, this removes any
-      # ambiguity -- if the build reached here, lief-patchelf was the active
-      # patchelf, so a segfault here means lief-patchelf itself corrupted the
-      # libraries (not that the wrong patchelf was silently picked up). Runs on
-      # the host (no TT hardware needed; corruption faults at dlopen, not at
-      # device init) with --no-deps since the sweep only needs the .so files.
+      # Outcome gate: dlopen every shipped library and fail on SIGSEGV. This
+      # catches the patchelf-corruption class of failure (executable .init/.plt
+      # relocated into a non-exec segment when a BFD-linked lib is RPATH-rewritten
+      # during auditwheel repair). With the TT libraries now LLD-linked (lld
+      # installed in the build image), the layout is patchelf-safe and this gate
+      # should pass. Runs on the host (no TT hardware needed; corruption faults at
+      # dlopen, not at device init) with --no-deps since the sweep only needs the
+      # .so files.
       - name: Smoke test repaired wheel (dlopen, no hardware)
         shell: bash
         run: |
