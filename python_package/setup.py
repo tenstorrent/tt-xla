@@ -476,6 +476,7 @@ class CMakeBuildPy(build_py):
         copy_py_module("ttmlir", ttmlir_build_dir, install_dir.parent)
         copy_py_module("chisel", ttmlir_build_dir, install_dir.parent)
         copy_py_module("golden", ttmlir_build_dir, install_dir.parent)
+        copy_py_module("op-by-op-infra", ttmlir_build_dir, install_dir.parent)
 
         # Detect the platform-specific extension name for the _ttmlir_runtime module
         import glob
