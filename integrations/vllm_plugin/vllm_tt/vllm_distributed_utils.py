@@ -321,13 +321,6 @@ def partition_parallel_lm_head(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, ParallelLMHead)
-    # Mirror the row/column linears: when shard_weights_on_batch_axis is set,
-    # also shard the lm_head hidden (contraction) dim on the batch axis so it
-    # matches the batch-sharded activation produced by the final
-    # RowParallelLinear. Otherwise (batch_axis=None) this is identical to the
-    # previous ("model", None) spec. Keeping the lm_head consistent with the
-    # activation avoids the partitioner inserting an all_to_all to reshuffle the
-    # weight's contraction dim before the logits matmul.
     batch_axis = "batch" if shard_weights_on_batch_axis else None
     safe_mark_sharding(layer.weight, mesh, ("model", batch_axis))
     logger.debug("Applied parallel sharding to %s", layer)
@@ -338,19 +331,12 @@ def partition_vocab_parallel_embedding(
     layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
 ) -> torch.nn.Module:
     assert isinstance(layer, VocabParallelEmbedding)
-    safe_mark_sharding(layer.weight, mesh, (None, "model"))
-    # Apply sharding constraint to the output. The output rank matches input
-    # rank + 1: 2D input_ids (batch, seq) → 3D output; 1D input_ids (seq,) →
-    # 2D output (e.g., during mm-encoder precompilation). Pre-compute both
-    # sharding strings to avoid per-call overhead and dispatch dynamically.
-    sdy_sharding_3d = _partition_spec_to_sdy_sharding(mesh, (None, None, None))
-    sdy_sharding_2d = _partition_spec_to_sdy_sharding(mesh, (None, None))
-
-    def rank_aware_hook(mod, input, output):
-        sdy = sdy_sharding_3d if output.dim() == 3 else sdy_sharding_2d
-        return torch.ops.tt.sharding_constraint(output, sdy)
-
-    layer.register_forward_hook(rank_aware_hook)
+    # Shard hidden dim on batch axis under FSDP; vocab dim is always replicated
+    # (SPMD can't shard an embedding's index dim).
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    safe_mark_sharding(layer.weight, mesh, (None, batch_axis))
+    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, batch_axis))
+    layer.register_forward_hook(hook_forward)
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
 
@@ -379,6 +365,17 @@ def partition_fused_moe(layer: torch.nn.Module, mesh: xs.Mesh) -> torch.nn.Modul
     return layer
 
 
+def partition_rms_norm(
+    layer: torch.nn.Module, mesh: xs.Mesh, shard_weights_on_batch_axis: bool = True
+) -> torch.nn.Module:
+    # Shard norm scale on batch axis under FSDP; no-op for Megatron or scaleless norms.
+    batch_axis = "batch" if shard_weights_on_batch_axis else None
+    if batch_axis is not None and getattr(layer, "weight", None) is not None:
+        safe_mark_sharding(layer.weight, mesh, (batch_axis,))
+    logger.debug("Applied parallel sharding to %s", layer)
+    return layer
+
+
 MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
     [
         ("MergedColumnParallelLinear", partition_merged_column_parallel_linear),
@@ -387,6 +384,7 @@ MODULE_TYPE_TO_WRAPPING_FUNC = OrderedDict(
         ("RowParallelLinear", partition_row_parallel_linear),
         ("ParallelLMHead", partition_parallel_lm_head),
         ("VocabParallelEmbedding", partition_vocab_parallel_embedding),
+        ("TTRMSNorm", partition_rms_norm),
         # Catch-all for plain nn.Linear layers (e.g. vision encoder projections
         # that are not wrapped in vLLM's parallel linear types). Must come last
         # so the more specific vLLM types above always take priority.
