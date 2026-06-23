@@ -100,6 +100,12 @@ class TTConfig:
     # (e.g. local debugging of decode-only tests).
     decode_only: bool = False
 
+    # Generate fused decode graphs containing both the model forward and post-processing
+    # (e.g. sampling, compute_logits, applying grammar constraints) in a single
+    # graph. This will generate 4 graphs capturing greedy/non-greedy sampling
+    # with and without grammar constraints.
+    enable_decode_fused_graphs: bool = False
+
     # Override number of hidden layers (0 = use model default)
     # For debugging and testing purposes, we allow overriding the number of hidden
     # layers in the model config to enable testing with smaller models or to
@@ -110,6 +116,11 @@ class TTConfig:
 
     # Flag to enable 2D mesh for tensor parallel execution.
     use_2d_mesh: bool = True
+
+    # Explicit (batch, model) SPMD mesh shape for tensor/data parallel
+    # execution. When None, use_2d_mesh is used to determine the mesh shape.
+    # When set, it overrides use_2d_mesh.
+    mesh_shape: Optional[list[int]] = None
 
     # Flatten model I/O to a flat token stream at the model-call boundary
     # (needed by HF forwards like Gemma-4's PLE path).
