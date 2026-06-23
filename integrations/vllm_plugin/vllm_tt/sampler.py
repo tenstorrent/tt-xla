@@ -224,6 +224,16 @@ class Sampler(nn.Module):
         if not all_random:
             greedy_sampled = self.greedy_sample(logits, vocab_sharded=vocab_sharded)
 
+        # Symmetric skip: when every row is greedy, the candidate/random path
+        # below is fully discarded by the torch.where. Skipping it avoids wasted
+        # compute and, on a vocab-sharded graph, removes a second composite_topk
+        # over the same logits. Two composites sharing one input can trip
+        # torch_xla's MHLO->StableHLO composite builder ("custom-call does not
+        # have a ordering number in its outer func", #4494). Random sampling is
+        # unaffected, so the sharded composite_topk fast path is preserved.
+        if sampling_metadata.all_greedy:
+            return greedy_sampled
+
         # Build the candidate set via chunked multi-core topk. The fused
         # tt::sampling kernel applies user top-k, top-p, softmax, and
         # multinomial downstream — no need to filter twice here.
