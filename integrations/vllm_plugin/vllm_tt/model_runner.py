@@ -2372,11 +2372,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             (self.num_reqs_max_model_len,), dtype=torch.int32
         ).to(self.device)
 
+        attn_mask = None
+        if num_tokens > 1:
+            attn_mask = self._prefill_attn_mask_dev_max[num_tokens]
+
         attn_metadata = TTMetadata(
             page_table=page_table,
             cache_position=cache_position,
-            is_causal=True,
-            attn_mask=None,
+            is_causal=attn_mask is None,
+            attn_mask=attn_mask,
             fill_page_table=page_table,
         )
         per_layer_attn_metadata = dict.fromkeys(
