@@ -96,7 +96,7 @@ def _tp_config(
 ):
     tp_defaults = {
         "enable_tensor_parallel": True,
-        "use_2d_mesh": False,
+        "use_2d_mesh": True,
         # Default to a 1D mesh (1, num_devices); each TP config passes an
         # explicit mesh_shape for its target machine.
         "mesh_shape": None,
@@ -214,7 +214,9 @@ TP_CONFIGS = [
         id="qwen3-32b-tp",
     ),
     pytest.param(_gemma4_tp_config("google/gemma-4-31B-it", 32), id="gemma4-31b-it-tp"),
-    pytest.param(_tp_config("Qwen/Qwen3-32B", 32), id="qwen3-32b-qb2-tp"),
+    pytest.param(
+        _tp_config("Qwen/Qwen3-32B", 32, use_2d_mesh=False), id="qwen3-32b-qb2-tp"
+    ),
     pytest.param(
         _tp_config("Qwen/Qwen2.5-14B-Instruct", 32, mesh_shape=[2, 4]),
         id="qwen2.5-14b-instruct-tp",
@@ -237,7 +239,12 @@ TP_CONFIGS = [
         id="mistral-nemo-instruct-2407-tp",
     ),
     pytest.param(
-        _tp_config("mistralai/Mistral-Small-24B-Instruct-2501", 32, mesh_shape=[2, 4]),
+        _tp_config(
+            "mistralai/Mistral-Small-24B-Instruct-2501",
+            32,
+            mesh_shape=[2, 4],
+            shard_weights_on_batch_axis=True,
+        ),
         id="mistral-small-24b-instruct-2501-tp",
     ),
     pytest.param(
