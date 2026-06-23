@@ -84,7 +84,10 @@ RUN wget -qO /tmp/lief-tools.zip \
       'exec /usr/local/bin/lief-patchelf "$@"' \
       > /usr/local/bin/patchelf && \
     chmod 0755 /usr/local/bin/patchelf && \
-    hash -r && command -v patchelf && patchelf --version
+    hash -r && \
+    echo "Active patchelf: $(command -v patchelf)" && patchelf --version && \
+    test "$(command -v patchelf)" = /usr/local/bin/patchelf && \
+    patchelf --version | grep -q lief-patchelf
 
 # Install ccache latest version from GitHub releases
 RUN CCACHE_VERSION="4.7.4" && \
