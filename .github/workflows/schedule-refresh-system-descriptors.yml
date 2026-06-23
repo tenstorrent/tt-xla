@@ -1,0 +1,188 @@
+name: Refresh System Descriptors
+
+# Regenerates checked-in system descriptors (tests/cpu_compile_only/system_descs/) and opens a PR if the schema drifts.
+# This keeps the CPU compile-only test (tests/cpu_compile_only/test_cpu_compile_only.py) from failing when
+# the schema hash changes.
+#
+# Flow:
+#   1. Per arch (n150, n300, n300-llmbox, p150): regenerate system descriptor on real HW.
+#   2. Aggregate: download generated descriptors, compare schema hashes against checked-in.
+#   3. If schema changed: open PR and auto-merge.
+#
+# TODO: Once this workflow is stable (after soaking for a few runs), add a condition to skip
+# the full on PR test suite on auto-generated descriptor refresh PRs.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 21 * * *'  
+
+permissions:
+  actions: write
+  packages: write
+  checks: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  build-image:
+    uses: ./.github/workflows/call-build-docker.yml
+    secrets: inherit
+    with:
+      dockbuild: ci
+
+  build-ttxla:
+    needs: build-image
+    uses: ./.github/workflows/call-build.yml
+    secrets: inherit
+    with:
+      docker_image: ${{ needs.build-image.outputs.docker-image }}
+      docker_image_manylinux: ${{ needs.build-image.outputs.docker-image-manylinux }}
+      build_types: release,explorer
+
+  generate:
+    name: "Generate system descriptor (${{ matrix.arch }})"
+    needs: [ build-image, build-ttxla ]
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per arch with a checked-in descriptor in tests/cpu_compile_only/system_descs/.
+        # Runner label matches the arch; one arch's HW unavailability doesn't fail the workflow.
+        arch: [ n150, n300, n300-llmbox, p150 ]
+    continue-on-error: true
+    timeout-minutes: 120
+    runs-on: [ "${{ matrix.arch }}", in-service ]
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+      options: --device /dev/tenstorrent
+      volumes:
+        - /dev/hugepages:/dev/hugepages
+        - /dev/hugepages-1G:/dev/hugepages-1G
+        - /etc/udev/rules.d:/etc/udev/rules.d
+        - /lib/modules:/lib/modules
+        - /opt/tt_metal_infra/provisioning/provisioning_env:/opt/tt_metal_infra/provisioning/provisioning_env
+        - /mnt/dockercache:/mnt/dockercache
+    steps:
+      - name: Mark repo as safe for git
+        run: git config --global --add safe.directory /__w/tt-xla/tt-xla
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Download and install wheel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-release${{ needs.build-ttxla.outputs.artifact_suffix }}
+          source venv/activate
+          uv pip install wheels/*.whl
+
+      - name: Save system descriptor
+        shell: bash
+        run: |
+          source venv/activate
+          cd tests/cpu_compile_only
+          python save_system_desc.py system_descs/${{ matrix.arch }}
+          ls -la system_descs/
+
+      - name: Upload descriptor
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-desc-${{ matrix.arch }}
+          path: tests/cpu_compile_only/system_descs/${{ matrix.arch }}_system_desc.ttsys
+
+  aggregate-and-pr:
+    name: "Aggregate and PR"
+    needs: [ build-image, build-ttxla, generate ]
+    if: always()  # Run even if some generate jobs failed; PR whichever archs succeeded.
+    runs-on: tt-ubuntu-2204-large-stable
+    container:
+      image: ${{ needs.build-image.outputs.docker-image-base }}
+    steps:
+      - name: Mark repo as safe for git
+        run: git config --global --add safe.directory /__w/tt-xla/tt-xla
+
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Download and install wheel
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download ${{ needs.build-ttxla.outputs.artifacts_run_id }} \
+            --repo ${{ github.repository }} \
+            --dir wheels \
+            --name xla-whl-explorer${{ needs.build-ttxla.outputs.artifact_suffix }}
+          source venv/activate
+          uv pip install wheels/*.whl
+
+      - name: Download generated descriptors
+        uses: actions/download-artifact@v4
+        with:
+          pattern: system-desc-*
+          merge-multiple: true
+          path: tests/cpu_compile_only/system_descs
+
+      - name: Gate PR on schema-hash drift
+        id: diff
+        shell: bash
+        run: |
+          source venv/activate
+          desc_dir="tests/cpu_compile_only/system_descs"
+          changed=false
+
+          # New descriptors (untracked) are always meaningful.
+          for f in $(git ls-files --others --exclude-standard "$desc_dir"); do
+            echo "New descriptor: $f"
+            changed=true
+          done
+
+          # Modified descriptors: keep only if schema hash changed, else revert.
+          for f in $(git diff --name-only -- "$desc_dir"); do
+            old=$(mktemp --suffix=.ttsys)
+            git show "HEAD:$f" > "$old"
+            if python tests/cpu_compile_only/check_schema_hash.py "$old" "$f" >/dev/null; then
+              echo "Schema unchanged for $f — reverting."
+              git checkout HEAD -- "$f"
+            else
+              echo "Schema drift detected for $f — including in PR."
+              changed=true
+            fi
+            rm -f "$old"
+          done
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          if [ "$changed" = "true" ]; then
+            git diff --stat -- "$desc_dir"
+          else
+            echo "No meaningful descriptor changes."
+          fi
+
+      - name: Open PR if changed
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        id: create-pr
+        with:
+          base: main
+          branch: refresh-system-descs
+          title: "Refresh system descriptors"
+          commit-message: "Refresh system descriptors"
+          body: |
+            Auto-generated: system descriptors drifted from current schema.
+            Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          labels: tooling
+          delete-branch: true
+          token: ${{ github.token }}
+
+      - name: Enable auto-merge
+        if: steps.create-pr.outputs.pull-request-number
+        run: gh pr merge --squash --auto "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
