@@ -1761,13 +1761,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                     logits, sampling_metadata
                 )
             else:
-                # fused path: decode_postprocess is compiled only for num_tokens=1.
-                # For prefill (num_tokens > 1), eagerly select the last token per
-                # request outside the compiled function so the shape is always
-                # (max_num_reqs, 1, hsize) — no extra compiled graphs needed.
+                # fused path: decode_postprocess is compiled per request-batch
+                # size. For prefill (num_tokens > 1), eagerly select the last
+                # token per request outside the compiled function so the shape is
+                # (target_num_reqs, 1, hsize). b1-prefill (tt-xla #5281) keeps the
+                # whole fused sampling path at target_num_reqs so it matches the
+                # backbone's request-batch graph (e.g. b1) and sampling_metadata
+                # above; decode always runs at max_num_reqs. This compiles one
+                # extra decode_postprocess graph at min_num_seqs when that path is
+                # enabled (min_num_seqs < max_num_seqs).
                 if hidden_states.shape[1] != 1:
                     batch_idx = torch.arange(
-                        self.max_num_reqs, dtype=torch.int32, device=self.device
+                        target_num_reqs, dtype=torch.int32, device=self.device
                     )
                     hidden_states = hidden_states[
                         batch_idx, logits_indices, :
@@ -1777,12 +1782,12 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             hidden_states, self.mesh, (None, None, "model")
                         )
                     logits_indices = torch.zeros(
-                        self.max_num_reqs, dtype=torch.int32, device=self.device
+                        target_num_reqs, dtype=torch.int32, device=self.device
                     )
                 if grammar_output is not None:
                     # prepare_structured_decoding_input only uses logits for shape/device
                     _shape_proxy = hidden_states.new_empty(
-                        self.max_num_reqs, self.vocab_size
+                        target_num_reqs, self.vocab_size
                     )
                     require_struct_decoding, grammar_bitmask_padded, bitmasks = (
                         self.prepare_structured_decoding_input(
@@ -1792,10 +1797,10 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 else:
                     self.require_structured_out_cpu.zero_()
                     require_struct_decoding = self.require_structured_out_cpu[
-                        : self.max_num_reqs
+                        :target_num_reqs
                     ].to(self.device)
                     grammar_bitmask_padded = self.grammar_bitmask_cpu[
-                        : self.max_num_reqs
+                        :target_num_reqs
                     ].to(self.device)
                     bitmasks = self.structured_decode_bitmasks.to(self.device)
                 selected_token_ids, logits = self.decode_postprocess(
