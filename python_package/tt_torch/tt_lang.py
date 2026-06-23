@@ -886,9 +886,11 @@ def _serialize_compiled_operation(
           ],
           "core_range":  {"start": [x, y], "end": [x, y]},
           "cb_configs":  [{...}, ...],            # see _serialize_cb_config
-          "num_tensors":            <int>,
-          "num_pipe_sync_semaphores": <int>,
-          "operand_metadata":       { ... }       # see resolve_operation
+          "num_tensors":                 <int>,
+          "num_pipe_sync_semaphores":     <int>,  # PipeNet sync-semaphore count
+          "pipe_sram_scratch_bytes":     <int>,  # per-core PipeNet SRAM scratch
+          "num_pipe_global_semaphores":  <int>,  # GlobalSemaphore ready counters
+          "operand_metadata":            { ... } # see resolve_operation
         }
 
     Every field is structured (no Python ``repr`` strings). The cpp
@@ -926,11 +928,22 @@ def _serialize_compiled_operation(
         "core_range": _serialize_core_range(compiled.core_ranges),
         "cb_configs": [_serialize_cb_config(c) for c in compiled.cb_configs],
         "num_tensors": int(compiled.num_tensors),
-        # PipeNet sync-semaphore count. tt-lang exposes this as
-        # CompiledTTNNKernel.num_pipe_sync_semaphores (renamed from
-        # num_pipe_nets in the post-1.1.1 uplift); the artifact uses the
-        # current name too.
-        "num_pipe_sync_semaphores": int(compiled.num_pipe_sync_semaphores),
+        # Emit tt-lang's CompiledTTNNKernel field name. Older ttl builds
+        # exposed this as num_pipe_nets; accept either when reading from
+        # `compiled`, but always serialize as num_pipe_sync_semaphores.
+        "num_pipe_sync_semaphores": int(
+            getattr(
+                compiled,
+                "num_pipe_sync_semaphores",
+                getattr(compiled, "num_pipe_nets", 0),
+            )
+        ),
+        "pipe_sram_scratch_bytes": int(
+            getattr(compiled, "pipe_sram_scratch_bytes", 0)
+        ),
+        "num_pipe_global_semaphores": int(
+            getattr(compiled, "num_pipe_global_semaphores", 0)
+        ),
     }
     if operand_metadata is not None:
         payload["operand_metadata"] = operand_metadata
