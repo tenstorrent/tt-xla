@@ -372,30 +372,43 @@ class TTPlatform(Platform):
             )
         elif model_config is not None and model_config.runner_type != "pooling":
             # Non-MLA generative: chunked prefill is opt-in via prefill_chunk_size
-            # (default 0 = off). When set, cap the per-step budget at it (min, so a
-            # smaller user max_num_batched_tokens still wins; floored at one
-            # block / decode step). See prefill_chunk_size above + tt-xla #4986.
+            # (default 0 = off). See prefill_chunk_size above + tt-xla #4986.
             #
             # NOTE: `chunked_prefill_enabled` is not a vLLM SchedulerConfig field;
             # it is a TT-internal flag the AscendScheduler and TTModelRunner read.
             # We set it alongside the real vLLM `enable_chunked_prefill`.
             chunk_size = int(additional_config.get("prefill_chunk_size", 0))
             if chunk_size > 0:
-                floor = max(cache_config.block_size, scheduler_config.max_num_seqs)
-                budget = max(
-                    min(scheduler_config.max_num_batched_tokens, chunk_size), floor
+                # prefill_chunk_size is a PER-SEQUENCE cap: it bounds the
+                # [batch, seq] prefill activation and the precompile token-padding
+                # ladder (compile time + DRAM), not a batch-wide token sum. Floor
+                # at one block so a chunk is always block-aligned.
+                per_seq_chunk = max(chunk_size, cache_config.block_size)
+
+                # max_num_batched_tokens is the scheduler's per-STEP budget across
+                # the WHOLE batch. The TT prefill graph is batched [max_num_seqs,
+                # chunk]: a single step prefills up to max_num_seqs users at once.
+                # The budget must therefore hold one chunk PER user; sizing it at
+                # per_seq_chunk alone lets only one user's chunk through per step,
+                # serializing prefills across users (the #4986 regression, same as
+                # tt-inference-server #4326). Scale by max_num_seqs so same-stage
+                # chunks for all waiting users batch into one prefill step.
+                budget = per_seq_chunk * scheduler_config.max_num_seqs
+                logger.info(
+                    "[TT] Chunked prefill: per-seq chunk %d, "
+                    "max_num_batched_tokens %d -> %d (= chunk x max_num_seqs %d) "
+                    "so up to %d users prefill per step.",
+                    per_seq_chunk,
+                    scheduler_config.max_num_batched_tokens,
+                    budget,
+                    scheduler_config.max_num_seqs,
+                    scheduler_config.max_num_seqs,
                 )
-                if budget != scheduler_config.max_num_batched_tokens:
-                    logger.info(
-                        "[TT] Chunked prefill: capping max_num_batched_tokens "
-                        "%d -> %d (prefill_chunk_size=%d) to bound prefill "
-                        "compile time and DRAM.",
-                        scheduler_config.max_num_batched_tokens,
-                        budget,
-                        chunk_size,
-                    )
                 scheduler_config.enable_chunked_prefill = True
                 scheduler_config.chunked_prefill_enabled = True
+                # TT-internal per-sequence chunk cap, read by AscendScheduler
+                # (per-request chunk sizing) and TTModelRunner (bucket ladder).
+                scheduler_config.tt_prefill_chunk_size = per_seq_chunk
                 scheduler_config.max_num_batched_tokens = budget
                 scheduler_config.max_num_encoder_input_tokens = budget
                 scheduler_config.encoder_cache_size = budget
