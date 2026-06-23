@@ -105,5 +105,4 @@ jobs:
       torchxla_build_run_id: ${{ inputs.torchxla_build_run_id }}
       skip-device-perf: ${{ inputs.skip-device-perf || false }}
       regression_check: ${{ inputs.regression_check || false }}
-      sh-runner: ${{ inputs.sh-runner || false }}
       check_fusions: ${{ inputs.check_fusions }}

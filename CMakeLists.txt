@@ -61,6 +61,7 @@ set_property(CACHE TTMLIR_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWith
 
 if(TTXLA_ENABLE_EXPLORER)
     set(TTMLIR_ENABLE_BINDINGS_PYTHON ON)
+    set(TT_RUNTIME_DEBUG ON)
 endif()
 
 option(TTXLA_TRACY_ZONES "Enable PJRT tracy zones" OFF)

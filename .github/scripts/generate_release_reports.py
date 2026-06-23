@@ -144,8 +144,29 @@ with open("model_coverage.md", "w") as f:
 
 # ── Model Performance ───────────────────────────────────────────────────────
 
-with open("perf.json") as f:
-    perf_data = json.load(f)
+# Each perf source is fetched per-architecture by the release-notes workflow;
+# the architecture determines the "Hardware" label shown in the tables.
+ARCHITECTURE_TO_HARDWARE = {
+    "wormhole": "n150",
+    "blackhole": "p150",
+}
+
+PERF_SOURCES = [
+    ("perf-n150.json", "wormhole"),
+    ("perf-p150.json", "blackhole"),
+]
+
+perf_data = []
+for perf_file, architecture in PERF_SOURCES:
+    with open(perf_file) as f:
+        rows = json.load(f)
+    for r in rows:
+        r["Hardware"] = ARCHITECTURE_TO_HARDWARE[architecture]
+    perf_data += rows
+
+# Keep the tables ordered by model name. Python's sort is stable, so rows that
+# share a model name keep their source order (n150 before p150).
+perf_data.sort(key=lambda r: r["Model"])
 
 llms = [
     r
@@ -162,7 +183,9 @@ non_llms = [
 # LLM CSV
 with open("model_performance_llms.csv", "w", newline="") as f:
     w = csv.writer(f, lineterminator="\n")
-    w.writerow(["Model", "Token/sec/user", "Batch", "Token/sec", "ttft (ms)"])
+    w.writerow(
+        ["Model", "Token/sec/user", "Batch", "Token/sec", "ttft (ms)", "Hardware"]
+    )
     for r in llms:
         w.writerow(
             [
@@ -171,36 +194,40 @@ with open("model_performance_llms.csv", "w", newline="") as f:
                 r["Batch"],
                 round(float(r["Tokens/sec"]), 2),
                 round(float(r["ttft (ms)"]), 2),
+                r["Hardware"],
             ]
         )
 
 # LLM MD
 with open("model_performance_llms.md", "w") as f:
     f.write("## LLM Performance\n\n")
-    f.write("| Model | Token/sec/user | Batch | Token/sec | ttft (ms) |\n")
-    f.write("| --- | --- | --- | --- | --- |\n")
+    f.write("| Model | Token/sec/user | Batch | Token/sec | ttft (ms) | Hardware |\n")
+    f.write("| --- | --- | --- | --- | --- | --- |\n")
     for r in llms:
         f.write(
             f"| {r['Model']} "
             f"| {round(float(r['Tokens/sec/user']), 2)} "
             f"| {r['Batch']} "
             f"| {round(float(r['Tokens/sec']), 2)} "
-            f"| {round(float(r['ttft (ms)']), 2)} |\n"
+            f"| {round(float(r['ttft (ms)']), 2)} "
+            f"| {r['Hardware']} |\n"
         )
 
 # Non-LLM CSV
 with open("model_performance_non_llms.csv", "w", newline="") as f:
     w = csv.writer(f, lineterminator="\n")
-    w.writerow(["Model", "Batch", "Sample/sec"])
+    w.writerow(["Model", "Batch", "Sample/sec", "Hardware"])
     for r in non_llms:
-        w.writerow([r["Model"], r["Batch"], sample_sec(r)])
+        w.writerow([r["Model"], r["Batch"], sample_sec(r), r["Hardware"]])
 
 # Non-LLM MD
 with open("model_performance_non_llms.md", "w") as f:
     f.write("## Non-LLM Performance\n\n")
-    f.write("| Model | Batch | Sample/sec |\n")
-    f.write("| --- | --- | --- |\n")
+    f.write("| Model | Batch | Sample/sec | Hardware |\n")
+    f.write("| --- | --- | --- | --- |\n")
     for r in non_llms:
-        f.write(f"| {r['Model']} | {r['Batch']} | {sample_sec(r)} |\n")
+        f.write(
+            f"| {r['Model']} | {r['Batch']} | {sample_sec(r)} | {r['Hardware']} |\n"
+        )
 
 print("All reports generated successfully")
