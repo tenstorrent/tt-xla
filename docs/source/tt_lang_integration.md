@@ -309,20 +309,13 @@ This avoids three problems an offline derivation would have:
    `{start, end}` pair. When tt-lang gains multi-rectangle kernels the
    schema bumps to `core_range_set: [{start, end}, ...]`.
 
-2. **PipeNet semaphores.** `num_pipe_nets` is carried in the artifact
-   but the emitter currently emits an empty semaphore list. Kernels
-   that use `ttl.PipeNet` for cross-thread synchronisation need a
-   future schema entry that lists each semaphore's id / core_range /
-   initial_value, mirroring
-   `kernel_runner.py::run_kernel_on_device`'s semaphore loop.
-
-3. **Sharded memory_config parsing.** `_ttnn_memory_config_from_layout`
+2. **Sharded memory_config parsing.** `_ttnn_memory_config_from_layout`
    currently only distinguishes DRAM vs L1 (both interleaved) -- the
    only two cases tt-lang's compile path accepts today. When tt-lang
    grows sharded-kernel support we need a full parser that threads
    grid + shard_spec through to `ttnn.MemoryConfig(...)`.
 
-4. **Reader vs writer NOC distinction.** The emitter writes
+3. **Reader vs writer NOC distinction.** The emitter writes
    `ReaderKernelConfig` for the first noc kernel (NCRISC) and
    `WriterKernelConfig` for the second (BRISC), matching tt-lang's
    `_compile_ttnn_kernel` assignment. The metal runtime maps these to
@@ -330,10 +323,20 @@ This avoids three problems an offline derivation would have:
 
 Simple value-blind tt-lang kernels (elementwise, reductions, matmul
 without auto-padded TensorAccessor reads) run end-to-end on silicon
-when invoked with DRAM / interleaved-L1 operands. (1)–(3) gate broader
+when invoked with DRAM / interleaved-L1 operands. (1)–(2) gate broader
 coverage.
 
-5. **Device-less compile path (DEMO HACK, currently shipped).** tt-lang's
+`ttl.PipeNet` cross-core kernels (multicast / gather / scatter) also run
+end-to-end: the `--ttnn-lower-tt-lang-to-generic` pass reads the
+artifact's `num_pipe_nets` count and declares that many worker
+semaphores (ids `0..N-1`, the program's full core range, initial value
+`0`) on the `#ttnn.program`, mirroring
+`kernel_runner.py::run_kernel_on_device`'s semaphore loop. The runtime
+materialises one tt-metal semaphore per descriptor; kernel sources
+reference them by baked-in id literals, so no per-kernel semaphore args
+are emitted.
+
+4. **Device-less compile path (DEMO HACK, currently shipped).** tt-lang's
    compile-only path doesn't actually need a live chip; it only needs
    `(shape, dtype, layout, memory_space, grid)` metadata. The reason
    the resolver used to call `ttnn.open_device(0)` was that tt-lang's
