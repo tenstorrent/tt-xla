@@ -767,6 +767,11 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "olmocr_2_7b_1025",
+        "pytest": "tests/benchmark/test_llms.py::test_olmocr_2_7b_1025",
+        "runs-on": "p150-perf"
       }
     ]
   }
