@@ -787,7 +787,7 @@ def _serialize_core_range(core_ranges: Any) -> dict:
     }
 
 
-def _serialize_cb_config(cb: Any) -> dict:
+def _serialize_cb_config(cb: Any, index: int) -> dict:
     """Turn a tt-lang DFB / ``CompilerAllocatedDFBConfig`` into a structured
     CB descriptor.
 
@@ -797,7 +797,22 @@ def _serialize_cb_config(cb: Any) -> dict:
     what tt-lang would have constructed at native launch time. Anything
     we don't recognise raises -- silent truncation here turns into a
     runtime fault later.
+
+    ``index`` is the CB's position in ``compiled.cb_configs``. tt-lang's
+    native ``build_cb_descriptors`` assigns ``buffer_index=i`` from that
+    same enumeration (see ``kernel_runner.py``), *not* from the DFB's
+    ``_cb_index``. The two agree for user-declared buffers (allocated in
+    order), but compiler-allocated CBs -- e.g. the scaler tile a
+    ``reduce_sum`` lowers to -- carry ``_cb_index == -1``, so reading that
+    field would emit ``buffer_index = -1`` and the lowering would reject
+    it. Use the positional index to stay byte-for-byte with native launch.
     """
+    if cb is None:
+        raise TTLangError(
+            f"resolve_operation: missing CB config at index {index}; all CB "
+            f"indices must have an associated buffer."
+        )
+
     # CompilerAllocatedDFBConfig is a dataclass with explicit fields.
     if (
         hasattr(cb, "data_format")
@@ -811,7 +826,7 @@ def _serialize_cb_config(cb: Any) -> dict:
         page_size = _tile_bytes_from_dtype_name(data_format)
         total_size = int(cb.num_tiles) * int(cb.block_count) * page_size
         return {
-            "buffer_index": int(getattr(cb, "_cb_index", -1)),
+            "buffer_index": index,
             "data_format": data_format,
             "page_size": page_size,
             "total_size": total_size,
@@ -830,7 +845,7 @@ def _serialize_cb_config(cb: Any) -> dict:
         )
     num_tiles = shape[0] * shape[1] * int(cb.block_count)
     return {
-        "buffer_index": int(getattr(cb, "_cb_index", -1)),
+        "buffer_index": index,
         "data_format": data_format,
         "page_size": page_size,
         "total_size": num_tiles * page_size,
@@ -907,7 +922,9 @@ def _serialize_compiled_operation(
         "format_version": _ARTIFACT_FORMAT_VERSION,
         "kernels": kernels,
         "core_range": _serialize_core_range(compiled.core_ranges),
-        "cb_configs": [_serialize_cb_config(c) for c in compiled.cb_configs],
+        "cb_configs": [
+            _serialize_cb_config(c, i) for i, c in enumerate(compiled.cb_configs)
+        ],
         "num_tensors": int(compiled.num_tensors),
         # tt-lang renamed CompiledTTNNKernel.num_pipe_nets ->
         # num_pipe_sync_semaphores (post-1.1.1 uplift); both name the same

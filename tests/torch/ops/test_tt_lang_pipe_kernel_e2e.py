@@ -56,10 +56,8 @@ import torch
 # startup.
 import torch_xla  # noqa: F401
 import torch_xla.core.xla_model as xm
-
-import ttl
-
 import tt_torch  # noqa: F401  -- registers torch.ops.tt.*
+import ttl
 from infra.evaluators import ComparisonConfig, PccConfig, TorchComparisonEvaluator
 from tt_torch.tt_lang import tt_lang_operation
 

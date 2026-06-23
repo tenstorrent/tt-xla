@@ -248,7 +248,12 @@ monkey-patch and the env-var dance.
   `_serialize_cb_config`. CB sizing mirrors
   `tt-lang/kernel_runner.py::build_cb_descriptors` exactly so the
   flatbuffer is byte-equivalent to what tt-lang would have built at
-  native launch time;
+  native launch time. `buffer_index` is the CB's *position* in
+  `cb_configs` (matching `build_cb_descriptors`'s `enumerate`), **not**
+  the DFB's `_cb_index`: the two agree for user buffers but
+  compiler-allocated CBs -- e.g. the scaler tile a `reduce_sum` lowers
+  to -- carry `_cb_index == -1`, so a positional index is required to
+  avoid emitting `buffer_index = -1`;
 * `core_ranges` constructed from the artifact's
   `{"start": [x, y], "end": [x, y]}` rectangle (currently a single
   rectangle; tt-lang only emits one).
