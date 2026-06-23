@@ -2812,8 +2812,7 @@ def test_llama_3_1_8b_base(
         batch_size=batch_size,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
-        optimization_level=(
-            optimization_level if optimization_level is not None else 0
-        ),
-        trace_enabled=False,
+        optimization_level=2,
+        trace_enabled=True,
+        weight_dtype_overrides={"default": "bfp_bf8"},
     )
