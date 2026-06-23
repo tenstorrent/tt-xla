@@ -59,21 +59,6 @@ RUN dnf install --refresh -y \
     protobuf-devel \
     flex
 
-# Upgrade patchelf to a version that correctly rewrites DT_RUNPATH on the
-# compact, multi-PT_LOAD ELF layout that newer clang/lld emit by default
-# (separate rosegment). The patchelf bundled in the pypa/manylinux base
-# miscomputes file offsets when it has to grow the binary during
-# `auditwheel repair`, corrupting .text/.rodata and segfaulting the plugin
-# on load. Pinning >= 0.18.0 fixes the relocation so we no longer need the
-# `-Wl,--no-rosegment` workaround. auditwheel invokes whichever `patchelf`
-# is first on PATH; the manylinux base keeps it at /usr/local/bin/patchelf,
-# so we overwrite it there.
-ARG PATCHELF_VERSION=0.18.0
-RUN wget -qO- "https://github.com/NixOS/patchelf/releases/download/${PATCHELF_VERSION}/patchelf-${PATCHELF_VERSION}-x86_64.tar.gz" \
-      | tar -xz -C /usr/local && \
-    hash -r && \
-    command -v patchelf && patchelf --version
-
 # Install ccache latest version from GitHub releases
 RUN CCACHE_VERSION="4.7.4" && \
     wget -qO ccache.tar.xz https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION-linux-x86_64.tar.xz && \
