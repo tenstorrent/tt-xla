@@ -94,6 +94,30 @@ def pytest_addoption(parser):
         help="Run prefill on CPU and only decode on device. Measures decode-only throughput.",
     )
 
+    # PCC-only iteration mode for LLM benchmarks: skip warmup and the timed perf
+    # loop and run a single PCC iteration, asserting only the selected phase(s).
+    # --pcc-only (or combining --pcc-prefill with --pcc-decode) asserts both.
+    parser.addoption(
+        "--pcc-only",
+        action="store_true",
+        default=False,
+        help="LLM PCC-only mode: skip perf, run one PCC iteration, assert prefill and decode.",
+    )
+
+    parser.addoption(
+        "--pcc-prefill",
+        action="store_true",
+        default=False,
+        help="LLM PCC-only mode asserting prefill only (implies --pcc-only).",
+    )
+
+    parser.addoption(
+        "--pcc-decode",
+        action="store_true",
+        default=False,
+        help="LLM PCC-only mode asserting first-decode only (implies --pcc-only).",
+    )
+
     parser.addoption(
         "--check-fusions",
         action="store_true",
