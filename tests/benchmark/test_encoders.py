@@ -606,7 +606,7 @@ def test_seamless_m4t_v2_large(output_file, request):
         batch_size=batch_size,
         input_sequence_length=loader.DECODER_SEQ_LEN,
         loop_count=32,
-        optimization_level=2,
+        optimization_level=1,
         trace_enabled=True,
         experimental_weight_dtype="bfp_bf8",
     )
