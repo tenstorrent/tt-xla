@@ -658,3 +658,68 @@ def test_hunyuan_image_2_1(output_file, request):
         optimization_level=0,
         output_image_path="test_hunyuan_image_2_1_output.png",
     )
+
+
+def test_lumina_image(output_file, request):
+    """Lumina-Image-2.0 flow-matching text-to-image benchmark (tensor-parallel).
+
+    All three learned components run tensor-parallel across the mesh -- the
+    Gemma-2 text encoder, the Lumina2Transformer2DModel DiT (2 forwards per
+    denoising step for CFG) and the AutoencoderKL decoder -- while the
+    tokenizer, FlowMatchEuler scheduler, latent sampling and the CFG combine
+    stay on CPU. Multichip -- wired to the 4-chip blackhole (qb2) in
+    perf-bench-matrix.json.
+    """
+    from benchmarks.lumina_image_pipeline import (
+        HEIGHT,
+        NEGATIVE_PROMPT,
+        PROMPT,
+        WIDTH,
+        LuminaImageConfig,
+        LuminaImagePipeline,
+    )
+
+    prompt = PROMPT
+    num_inference_steps = 30
+    height, width = HEIGHT, WIDTH
+
+    def build_pipeline_fn(compile_options):
+        # compile_options are forwarded into the Config (rather than left to the
+        # harness's global set_custom_compile_options) because setup() reinstalls
+        # them as the pipeline's baseline and the VAE decode restores to that
+        # baseline after its optimization_level bump -- passing a different dict
+        # here would silently drop the harness's export/perf-metrics options.
+        pipeline = LuminaImagePipeline(
+            config=LuminaImageConfig(
+                num_inference_steps=num_inference_steps,
+                compile_options=compile_options,
+            )
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                negative_prompt=NEGATIVE_PROMPT,
+                seed=DEFAULT_SEED,
+                num_inference_steps=steps,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="lumina-image-2.0",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        # opt_level=0 is what the nightly pipeline test validates against (it
+        # leaves the compiler at its default); the pipeline bumps the VAE decode
+        # to opt_level=1 on its own so GroupNorm stays a native ttnn op and the
+        # 1024x1024 decode does not OOM (tt-xla #4710).
+        optimization_level=0,
+        output_image_path="test_lumina_image_output.png",
+    )
