@@ -84,7 +84,19 @@ def setup_model_and_tokenizer(
             experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
         )
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    tokenizer = getattr(model_loader, "tokenizer", None)
+    if tokenizer is None:
+        # Image-text / multimodal loaders expose a `processor` rather than a
+        # `tokenizer`. The text-generation benchmark path drives the language
+        # model with text-only `input_ids`, so the processor's underlying text
+        # tokenizer is what we need.
+        processor = getattr(model_loader, "processor", None)
+        tokenizer = getattr(processor, "tokenizer", processor)
+    if tokenizer is None:
+        raise AttributeError(
+            f"{type(model_loader).__name__} exposes neither a `tokenizer` nor a "
+            "`processor` with a `tokenizer`; cannot run the LLM benchmark."
+        )
 
     return model, tokenizer
 

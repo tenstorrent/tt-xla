@@ -121,6 +121,10 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
+    # Multimodal / image-text configs (e.g. Qwen2.5-VL) nest the language-model
+    # params under a text sub-config; get_text_config() returns it (or the config
+    # itself for plain LLMs).
+    config = config.get_text_config() if hasattr(config, "get_text_config") else config
     if hasattr(config, "head_dim") and getattr(config, "head_dim"):
         head_dim = config.head_dim
     else:
