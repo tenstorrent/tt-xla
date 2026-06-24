@@ -281,7 +281,7 @@ TP_CONFIGS = [
             32,
             mesh_shape=[4, 8],
             experimental_weight_dtype="bfp_bf8",
-            gpu_memory_utilization=0.05,
+            gpu_memory_utilization=0.085,
             enable_data_parallel=True,
             shard_weights_on_batch_axis=False,
         ),
