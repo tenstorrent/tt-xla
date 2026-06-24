@@ -18,6 +18,10 @@ from vllm.v1.sample.metadata import SamplingMetadata
 from vllm.v1.worker.block_table import MultiGroupBlockTable
 from vllm.v1.worker.gpu_input_batch import CachedRequestState
 
+from .logger import tt_init_logger
+
+logger = tt_init_logger(__name__)
+
 _SAMPLING_EPS = 1e-5
 
 
@@ -228,9 +232,11 @@ class InputBatch:
         if req_index == len(self._req_ids):
             self._req_ids.append(req_id)
             self.req_output_token_ids.append(request.output_token_ids)
+            self.spec_token_ids.append([])
         else:
             self._req_ids[req_index] = req_id
             self.req_output_token_ids[req_index] = request.output_token_ids
+            self.spec_token_ids[req_index].clear()
 
         self.req_id_to_index[req_id] = req_index
 
@@ -345,6 +351,9 @@ class InputBatch:
         else:
             raise NotImplementedError(request)
 
+        # Speculative decoding: by default 1 token is generated per step.
+        self.num_accepted_tokens_cpu[req_index] = 1
+
         # Add request lora ID
         if request.lora_request:
             lora_id = request.lora_request.lora_int_id
@@ -373,6 +382,7 @@ class InputBatch:
             return None
         self._req_ids[req_index] = None
         self.req_output_token_ids[req_index] = None
+        self.spec_token_ids[req_index].clear()
 
         # LoRA
         lora_id = self.request_lora_mapping[req_index]
@@ -484,6 +494,10 @@ class InputBatch:
             self.repetition_penalties_cpu[i1],
         )
         self.min_p_cpu[i1], self.min_p_cpu[i2] = self.min_p_cpu[i2], self.min_p_cpu[i1]
+        self.num_accepted_tokens_cpu[i1], self.num_accepted_tokens_cpu[i2] = (
+            self.num_accepted_tokens_cpu[i2],
+            self.num_accepted_tokens_cpu[i1],
+        )
 
         swap_dict_values(self.generators, i1, i2)
         swap_dict_values(self.min_tokens, i1, i2)
@@ -543,6 +557,11 @@ class InputBatch:
             self.token_ids_cpu[empty_index, :num_tokens] = self.token_ids_cpu[
                 last_req_index, :num_tokens
             ]
+            (self.spec_token_ids[last_req_index], self.spec_token_ids[empty_index]) = (
+                self.spec_token_ids[empty_index],
+                self.spec_token_ids[last_req_index],
+            )
+            self.spec_token_ids[last_req_index].clear()
             self.num_tokens[empty_index] = num_tokens
             self.num_tokens_no_spec[empty_index] = self.num_tokens_no_spec[
                 last_req_index
@@ -572,6 +591,9 @@ class InputBatch:
                 last_req_index
             ]
             self.min_p_cpu[empty_index] = self.min_p_cpu[last_req_index]
+            self.num_accepted_tokens_cpu[empty_index] = self.num_accepted_tokens_cpu[
+                last_req_index
+            ]
             generator = self.generators.pop(last_req_index, None)
             if generator is not None:
                 self.generators[empty_index] = generator
@@ -596,6 +618,32 @@ class InputBatch:
         # Trim lists to the batch size.
         del self._req_ids[num_reqs:]
         del self.req_output_token_ids[num_reqs:]
+        del self.spec_token_ids[num_reqs:]
+
+    def update_req_spec_token_ids(
+        self, request: "CachedRequestState", scheduled_spec_tokens: dict[str, list[int]]
+    ) -> None:
+        """Write scheduled speculative token IDs into the input batch token buffer.
+
+        Called once per step (after _update_states) for each request that has
+        spec tokens scheduled.
+        """
+        req_id = request.req_id
+        req_index = self.req_id_to_index[req_id]
+        cur_spec_token_ids = self.spec_token_ids[req_index]
+        cur_spec_token_ids.clear()
+        spec_token_ids = scheduled_spec_tokens.get(req_id, ())
+        num_spec_tokens = len(spec_token_ids)
+        if not spec_token_ids:
+            return
+
+        start_index = self.num_tokens_no_spec[req_index]
+        end_token_index = start_index + num_spec_tokens
+        self.token_ids_cpu[req_index, start_index:end_token_index] = spec_token_ids
+        cur_spec_token_ids.extend(spec_token_ids)
+        logger.info(
+            f"Updated spec token IDs for request {req_id}: {cur_spec_token_ids}"
+        )
 
     def _make_sampling_metadata(self) -> SamplingMetadata:
         num_reqs = self.num_reqs

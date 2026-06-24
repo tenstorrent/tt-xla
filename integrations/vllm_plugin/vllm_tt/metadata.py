@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 import torch
+from vllm.v1.sample.logits_processor import LogitsProcessors
 
 from .input_batch import InputBatch
 
@@ -38,6 +39,7 @@ class XLASupportedSamplingMetadata:
     # out compile time and runtime, a fixed `max_number_logprobs` value is used
     # when gathering logprobs, regardless of the values specified in the batch.
     logprobs: bool = False
+    max_num_logprobs: int | None = None
 
     # Penalty support. no_penalties=True skips the penalty path entirely.
     no_penalties: bool = True
@@ -48,8 +50,9 @@ class XLASupportedSamplingMetadata:
     presence_penalties: torch.Tensor | None = None
     frequency_penalties: torch.Tensor | None = None
     repetition_penalties: torch.Tensor | None = None
-    prompt_token_ids = None
+    prompt_token_ids: torch.Tensor | None = None
     output_token_ids: list[list[int]] = field(default_factory=lambda: list())
+    spec_token_ids: list[list[int]] | None = None
 
     no_min_tokens: bool = True
     min_tokens_mask: Optional[torch.Tensor] = None
@@ -59,9 +62,15 @@ class XLASupportedSamplingMetadata:
 
     no_bad_words: bool = True
     bad_words_mask: Optional[torch.Tensor] = None
+    bad_words_token_ids: dict[int, list[list[int]]] = field(
+        default_factory=lambda: dict()
+    )
 
     no_allowed_token_ids: bool = True
     allowed_token_ids_mask: Optional[torch.Tensor] = None
+    allowed_token_ids_additive_mask: Optional[torch.Tensor] = None
+
+    logitsprocs: LogitsProcessors = field(default_factory=LogitsProcessors)
 
     # Per-request generators live in InputBatch, not here. from_input_batch()
     # drains them to build q_samples; this field is always constructed empty.
@@ -168,6 +177,27 @@ class XLASupportedSamplingMetadata:
         return mask
 
     @staticmethod
+    def _compute_prompt_token_ids(
+        num_prompt_tokens: np.ndarray,
+        token_ids_cpu: np.ndarray,
+        num_reqs: int,
+        vocab_size: int,
+        target_device: torch.device,
+    ) -> torch.Tensor:
+        max_prompt_len = int(num_prompt_tokens[:num_reqs].max())
+        prompt_token_ids_cpu_tensor = torch.empty(
+            (num_reqs, max_prompt_len),
+            device="cpu",
+            dtype=torch.int64,
+            pin_memory=False,
+        )
+        prompt_token_ids = prompt_token_ids_cpu_tensor.numpy()
+        prompt_token_ids[:] = token_ids_cpu[:num_reqs, :max_prompt_len]
+        for i in range(num_reqs):
+            prompt_token_ids[i, num_prompt_tokens[i] :] = vocab_size
+        return prompt_token_ids_cpu_tensor.to(device=target_device, non_blocking=True)
+
+    @staticmethod
     def _compute_min_tokens_mask(
         min_tokens: dict[int, tuple[int, set[int]]],
         req_output_token_ids: list[Optional[list[int]]],
@@ -222,6 +252,37 @@ class XLASupportedSamplingMetadata:
         )
         has_generators = bool(input_batch.generators)
         num_reqs = input_batch.num_reqs
+        needs_prompt_token_ids = (
+            not input_batch.no_penalties
+            or input_batch.logits_processing_needs_token_ids[:num_reqs].any()
+        )
+        prompt_token_ids = (
+            cls._compute_prompt_token_ids(
+                input_batch.num_prompt_tokens,
+                input_batch.token_ids_cpu,
+                num_reqs,
+                input_batch.vocab_size,
+                xla_device,
+            )
+            if needs_prompt_token_ids
+            else None
+        )
+        needs_output_token_ids = (
+            not input_batch.no_penalties
+            or bool(input_batch.bad_words_token_ids)
+            or input_batch.logitsprocs_need_output_token_ids
+        )
+        output_token_ids = (
+            cast(list[list[int]], input_batch.req_output_token_ids[:num_reqs])
+            if needs_output_token_ids
+            else []
+        )
+        spec_token_ids = cast(list[list[int]], input_batch.spec_token_ids[:num_reqs])
+        bad_words_token_ids = {
+            req_idx: bad_words
+            for req_idx, bad_words in input_batch.bad_words_token_ids.items()
+            if req_idx < num_reqs
+        }
 
         # Build logit_bias tensor before early return (needed even for greedy).
         has_logit_bias = any(b is not None for b in input_batch.logit_bias[:num_reqs])
@@ -259,21 +320,22 @@ class XLASupportedSamplingMetadata:
             no_bad_words = True
 
         # Bridge allowed_token_ids mask from InputBatch.
-        # InputBatch stores a bool mask (True = DISALLOWED). Convert to
-        # float32 additive mask (-inf / 0.0) on CPU before transfer to
-        # avoid on-device masked_fill with bool tensors, which hits
-        # hardware issues at certain batch×vocab shapes.
+        # InputBatch stores a bool mask (True = DISALLOWED). Preserve that
+        # upstream contract for speculative rejection, and also keep the TT
+        # additive mask variant used by the compiled sampler hot path.
         has_allowed = not input_batch.no_allowed_token_ids
         if has_allowed:
             bool_mask = input_batch.allowed_token_ids_mask_cpu_tensor[:padded_num_reqs]
+            allowed_token_ids_mask = bool_mask.to(xla_device)
             float_mask = torch.zeros(
                 padded_num_reqs, input_batch.vocab_size, dtype=torch.float32
             )
             float_mask.masked_fill_(bool_mask, float("-inf"))
-            allowed_token_ids_mask = float_mask.to(xla_device)
+            allowed_token_ids_additive_mask = float_mask.to(xla_device)
             no_allowed_token_ids = False
         else:
             allowed_token_ids_mask = None
+            allowed_token_ids_additive_mask = None
             no_allowed_token_ids = True
 
         # Build min_tokens mask: suppress stop/EOS tokens until min_tokens
@@ -325,14 +387,21 @@ class XLASupportedSamplingMetadata:
             return cls(
                 all_greedy=True,
                 logprobs=needs_logprobs,
+                max_num_logprobs=input_batch.max_num_logprobs,
+                prompt_token_ids=prompt_token_ids,
+                output_token_ids=output_token_ids,
+                spec_token_ids=spec_token_ids,
                 no_logit_bias=no_logit_bias,
                 logit_bias_tensor=logit_bias_tensor,
                 no_bad_words=no_bad_words,
                 bad_words_mask=bad_words_mask,
+                bad_words_token_ids=bad_words_token_ids,
                 no_allowed_token_ids=no_allowed_token_ids,
                 allowed_token_ids_mask=allowed_token_ids_mask,
+                allowed_token_ids_additive_mask=allowed_token_ids_additive_mask,
                 no_min_tokens=no_min_tokens,
                 min_tokens_mask=min_tokens_mask,
+                logitsprocs=input_batch.logitsprocs,
             )
 
         def fill_slice(cpu_tensor: torch.Tensor, fill_val) -> torch.Tensor:
@@ -397,20 +466,27 @@ class XLASupportedSamplingMetadata:
             top_k=input_batch.top_k_cpu_tensor[:padded_num_reqs].to(xla_device),
             min_p=input_batch.min_p_cpu_tensor[:padded_num_reqs].to(xla_device),
             logprobs=needs_logprobs,
+            max_num_logprobs=input_batch.max_num_logprobs,
             no_penalties=not has_penalties,
             output_token_counts=output_token_counts,
             prompt_token_mask=prompt_token_mask_t,
             presence_penalties=presence_penalties_t,
             frequency_penalties=frequency_penalties_t,
             repetition_penalties=repetition_penalties_t,
+            prompt_token_ids=prompt_token_ids,
+            output_token_ids=output_token_ids,
+            spec_token_ids=spec_token_ids,
             no_logit_bias=no_logit_bias,
             logit_bias_tensor=logit_bias_tensor,
             no_bad_words=no_bad_words,
             bad_words_mask=bad_words_mask,
+            bad_words_token_ids=bad_words_token_ids,
             no_allowed_token_ids=no_allowed_token_ids,
             allowed_token_ids_mask=allowed_token_ids_mask,
+            allowed_token_ids_additive_mask=allowed_token_ids_additive_mask,
             no_min_tokens=no_min_tokens,
             min_tokens_mask=min_tokens_mask,
+            logitsprocs=input_batch.logitsprocs,
             no_generators=not has_generators,
             q_samples=q_samples,
         )

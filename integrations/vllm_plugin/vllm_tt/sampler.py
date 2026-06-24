@@ -64,11 +64,14 @@ class Sampler(nn.Module):
         # and passes LogprobsLists directly to the engine.
         # logprobs_tensors is intentionally None in forward() — see comment there.
         super().__init__()
+        self.logprobs_mode = "processed_logprobs"
 
     def forward(
         self,
         logits: torch.Tensor,
         sampling_metadata: XLASupportedSamplingMetadata,
+        predict_bonus_token: bool = False,
+        logprobs_mode_override: str | None = None,
     ) -> SamplerOutput:
         # Use float32 for the logits.
         logits = logits.to(torch.float32)
@@ -169,7 +172,14 @@ class Sampler(nn.Module):
     ) -> torch.Tensor:
         # Apply allowed_token_ids mask (sets disallowed tokens to -inf).
         if not sampling_metadata.no_allowed_token_ids:
-            logits = logits + sampling_metadata.allowed_token_ids_mask
+            allowed_token_ids_mask = sampling_metadata.allowed_token_ids_additive_mask
+            if allowed_token_ids_mask is None:
+                allowed_token_ids_mask = sampling_metadata.allowed_token_ids_mask
+            assert allowed_token_ids_mask is not None
+            if allowed_token_ids_mask.dtype == torch.bool:
+                logits.masked_fill_(allowed_token_ids_mask, -float("inf"))
+            else:
+                logits = logits + allowed_token_ids_mask
 
         # Apply min_tokens mask (suppresses stop tokens until minimum is reached).
         if not sampling_metadata.no_min_tokens:
@@ -182,6 +192,9 @@ class Sampler(nn.Module):
         # Apply logit_bias before computing greedy argmax.
         if not sampling_metadata.no_logit_bias:
             logits = self.apply_logit_bias(logits, sampling_metadata.logit_bias_tensor)
+
+        if sampling_metadata.all_greedy:
+            return self.greedy_sample(logits)
 
         assert sampling_metadata.temperature is not None
 

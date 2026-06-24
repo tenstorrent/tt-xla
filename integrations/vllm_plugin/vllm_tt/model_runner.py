@@ -76,10 +76,17 @@ from vllm.v1.kv_cache_interface import (
 )
 from vllm.v1.outputs import (
     EMPTY_MODEL_RUNNER_OUTPUT,
+    DraftTokenIds,
     LogprobsLists,
     LogprobsTensors,
     ModelRunnerOutput,
 )
+from vllm.v1.sample.rejection_sampler import (
+    RejectionSampler,
+    apply_sampling_constraints,
+)
+from vllm.v1.spec_decode.metadata import SpecDecodeMetadata
+from vllm.v1.spec_decode.ngram_proposer import NgramProposer
 from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorModelRunnerMixin,
     KVConnectorOutput,
@@ -389,6 +396,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # NOTE(rob): num_prompt_logprobs only includes reqs
         # that are currently in the prefill phase.
         self.num_prompt_logprobs: dict[str, int] = {}
+
+        # Set up speculative decoding using ngram CPU proposer.
+        self.num_spec_tokens = 0
+        self.drafter: NgramProposer | None = None
+        self._draft_token_ids: list[list[int]] | None = None
+        self._draft_token_req_ids: list[str] | None = None
+
+        if self.speculative_config:
+            self.num_spec_tokens = self.speculative_config.num_speculative_tokens
+            # Initialize ngram CPU proposer for speculative decoding
+            if self.speculative_config.method == "ngram":
+                self.drafter = NgramProposer(vllm_config)
+
+        logger.info(
+            "[spec-debug] init: spec_config=%s method=%s num_spec_tokens=%d drafter=%s",
+            self.speculative_config is not None,
+            getattr(self.speculative_config, "method", None),
+            self.num_spec_tokens,
+            type(self.drafter).__name__ if self.drafter is not None else None,
+        )
 
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
@@ -712,6 +739,9 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 generator.manual_seed(sampling_params.seed)
             else:
                 generator = None
+            logger.info(
+                f"[spec-debug] _update_states: adding new req_id={req_id}; prompt_token_ids: {len(new_req_data.prompt_token_ids)} -- {new_req_data.prompt_token_ids} "
+            )
 
             self.requests[req_id] = CachedRequestState(
                 req_id=req_id,
@@ -782,6 +812,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # Condense the batched states if there are empty indices.
         if removed_req_indices:
             self.input_batch.condense(removed_req_indices)
+        logger.info(
+            f"[spec-debug]: scheduler_output.scheduled_spec_decode_tokens: {scheduler_output.scheduled_spec_decode_tokens}"
+        )
+
+        # Write scheduled speculative tokens into the input batch token buffer.
+        if scheduler_output.scheduled_spec_decode_tokens:
+            for req_id, req_state in self.requests.items():
+                if req_id in self.input_batch.req_id_to_index:
+                    self.input_batch.update_req_spec_token_ids(
+                        req_state,
+                        scheduler_output.scheduled_spec_decode_tokens,
+                    )
 
         return len(unscheduled_req_ids) > 0 or len(req_ids_to_add) > 0
 
@@ -1520,6 +1562,120 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
 
+    def propose_draft_token_ids(
+        self,
+        scheduler_output: "SchedulerOutput",
+        sampled_token_ids: torch.Tensor,
+    ) -> list[list[int]]:
+        """Propose draft token IDs for speculative decoding using ngram proposer.
+
+        Args:
+            scheduler_output: Scheduler output from execute_model
+            sampled_token_ids: Sampled token IDs from sampling
+
+        Returns:
+            List of draft token ID lists, one per request
+        """
+        if not self.drafter or not self.num_spec_tokens:
+            # Return empty draft tokens for all requests
+            logger.info(
+                "[spec-debug] propose: skipped drafter=%s num_spec_tokens=%d num_reqs=%d",
+                self.drafter is not None,
+                self.num_spec_tokens,
+                self.input_batch.num_reqs,
+            )
+            return [[] for _ in range(self.input_batch.num_reqs)]
+
+        # Convert sampled_token_ids to list of lists for ngram proposer
+        sampled_token_ids_list = sampled_token_ids.cpu().tolist()
+        if not isinstance(sampled_token_ids_list[0], list):
+            # If it's a 2D tensor with single column, wrap each id in a list
+            sampled_token_ids_list = [[int(tid)] for tid in sampled_token_ids_list]
+        else:
+            # Remove speculative padding markers from variable-length outputs.
+            sampled_token_ids_list = [
+                [int(tid) for tid in seq if tid != INVALID_TOKEN_ID]
+                for seq in sampled_token_ids_list
+            ]
+
+        # Get token counts for each request (number of tokens already in context)
+        num_tokens_no_spec = np.array(
+            [
+                self.input_batch.num_tokens_no_spec[i]
+                for i in range(self.input_batch.num_reqs)
+            ],
+            dtype=np.int32,
+        )
+        logger.info(f"[spec-debug] propose: num_tokens_no_spec={num_tokens_no_spec}")
+
+        # Get token IDs for each request
+        token_ids_cpu = np.zeros(
+            (self.input_batch.num_reqs, self.max_model_len), dtype=np.int32
+        )
+        for i in range(self.input_batch.num_reqs):
+            if self.input_batch.num_tokens_no_spec[i] > 0:
+                # Copy tokens from input_batch to numpy array
+                token_ids_cpu[i, : self.input_batch.num_tokens_no_spec[i]] = (
+                    self.input_batch.token_ids_cpu[
+                        i, : self.input_batch.num_tokens_no_spec[i]
+                    ]
+                )
+        logger.info(f"[spec-debug] propose: token_ids_cpu={token_ids_cpu}")
+
+        # Propose draft tokens using ngram proposer
+        draft_token_ids = self.drafter.propose(
+            sampled_token_ids_list,
+            num_tokens_no_spec,
+            token_ids_cpu,
+        )
+        logger.info(f"[spec-debug] propose: draft_token_ids={draft_token_ids}")
+
+        num_non_empty = sum(1 for t in draft_token_ids if t)
+        total_drafts = sum(len(t) for t in draft_token_ids)
+        logger.info(
+            "[spec-debug] propose: num_reqs=%d sampled_shape=%s non_empty=%d total_drafts=%d",
+            self.input_batch.num_reqs,
+            tuple(sampled_token_ids.shape),
+            num_non_empty,
+            total_drafts,
+        )
+        if num_non_empty:
+            first_idx = next(i for i, t in enumerate(draft_token_ids) if t)
+            logger.info(
+                "[spec-debug] propose: first_non_empty_req_idx=%d drafts=%s",
+                first_idx,
+                draft_token_ids[first_idx],
+            )
+
+        return draft_token_ids
+
+    def take_draft_token_ids(self) -> DraftTokenIds | None:
+        """Take draft token IDs and request IDs from proposer.
+
+        Returns:
+            DraftTokenIds with request IDs and draft token IDs, or None if no drafts
+        """
+        if not self._draft_token_ids or not self._draft_token_req_ids:
+            logger.info("[spec-debug] take_draft_token_ids: no pending drafts")
+            return None
+
+        draft_token_ids = self._draft_token_ids
+        req_ids = self._draft_token_req_ids
+
+        # Clear for next iteration
+        self._draft_token_ids = None
+        self._draft_token_req_ids = None
+
+        logger.info(
+            "[spec-debug] take_draft_token_ids: reqs=%d total_drafts=%d",
+            len(req_ids),
+            sum(len(t) for t in draft_token_ids),
+        )
+
+        temp = DraftTokenIds(req_ids, draft_token_ids)
+        logger.info(f"[spec-debug] take_draft_token_ids: returning {temp}")
+        return temp
+
     @torch.no_grad()
     def execute_model(
         self,
@@ -1531,9 +1687,18 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 "State error: sample_tokens() must be called "
                 "after execute_model() returns None."
             )
+        logger.info(f"execute_model: scheduler_output={scheduler_output}")
         torch._dynamo.config.dynamic_shapes = False
         # Update cached state
         self._update_states(scheduler_output)
+        if self.num_spec_tokens:
+            scheduled_spec = scheduler_output.scheduled_spec_decode_tokens
+            logger.info(
+                "[spec-debug] execute_model: total_sched_tokens=%d spec_reqs=%d spec_tokens=%d",
+                scheduler_output.total_num_scheduled_tokens,
+                len(scheduled_spec),
+                sum(len(v) for v in scheduled_spec.values()),
+            )
         if not scheduler_output.total_num_scheduled_tokens:
             if not has_kv_transfer_group():
                 # Return empty ModelRunnerOutput if there's no work to do.
@@ -1564,6 +1729,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         mm_embed_inputs = self.mm_embed_inputs
         self.scheduler_output = None
         self.mm_embed_inputs = None
+        logger.info(f"sample_tokens: scheduler_output={scheduler_output}")
 
         # Prepare inputs, the requests might be split into multiple
         # executions, combine the result of each execution.
@@ -1581,10 +1747,23 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 num_reqs,
                 end_index,
             ) = self._prepare_inputs(scheduler_output, start_index)
+
+            # Propagate per-request speculative sample counts into InputBatch
+            # before building sampling metadata. For non-spec requests this is 1.
+            if self.num_spec_tokens:
+                scheduled_spec = scheduler_output.scheduled_spec_decode_tokens
+                for i in range(start_index, end_index):
+                    req_id = self.input_batch.req_ids[i]
+                    draft_len = len(scheduled_spec.get(req_id, ()))
+                    self.input_batch.num_accepted_tokens_cpu[i] = draft_len + 1
+
             input_ids, inputs_embeds = self._get_model_inputs(
                 self.input_ids, mm_embed_inputs
             )
             self._pin_input_shardings(input_ids, self.position_ids, inputs_embeds)
+            logger.info(f"inputs: {input_ids.shape}")
+            logger.info(f"inputs: {input_ids}")
+            logger.info(f"position_ids: {self.position_ids}")
 
             sampling_device = (
                 torch.device("cpu") if self.tt_config.cpu_sampling else self.device
@@ -1666,6 +1845,28 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                             scheduler_output,
                         )
                     )
+            logger.info(
+                f"hidden_states: {hidden_states.shape}, logits: {logits.shape}, selected_token_ids: {selected_token_ids.shape}"
+            )
+            logger.info(f"selected_token_ids: {selected_token_ids}")
+
+            # Route speculative decode through an upstream-style metadata path:
+            # build [draft..., bonus] logits and let the rejection sampler
+            # produce variable-length outputs.
+            if self.num_spec_tokens and scheduler_output.scheduled_spec_decode_tokens:
+                if sampling_metadata.logprobs:
+                    raise NotImplementedError(
+                        "Speculative decoding with logprobs is not supported in the TT model runner yet."
+                    )
+                selected_token_ids = self._apply_speculative_rejection(
+                    hidden_states=hidden_states,
+                    logits=logits,
+                    selected_token_ids=selected_token_ids,
+                    scheduler_output=scheduler_output,
+                    start_index=start_index,
+                    end_index=end_index,
+                    sampling_metadata=sampling_metadata,
+                )
 
             # Save hidden states (before position selection) for prompt
             # logprobs.  Only extract rows for requests that actually need
@@ -1774,20 +1975,69 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 self.input_batch.token_ids_cpu[i, seq_len] = token_id
                 req_state.output_token_ids.append(token_id)
                 self.input_batch.num_tokens[i] += 1
+                self.input_batch.num_tokens_no_spec[i] += 1
 
         else:
-            valid_mask = selected_token_ids != INVALID_TOKEN_ID
-            gen_lens = valid_mask.sum(dim=1).tolist()
-            valid_sampled_token_ids = [
-                seq.tolist() for seq in selected_token_ids[valid_mask].split(gen_lens)
-            ]
+            valid_sampled_token_ids, _ = RejectionSampler.parse_output(
+                selected_token_ids,
+                self.vocab_size,
+                discard_sampled_tokens_req_indices,
+                logprobs_tensors=None,
+            )
+            gen_lens = [len(seq) for seq in valid_sampled_token_ids]
             self.input_batch.num_tokens[:num_reqs] += gen_lens
+            self.input_batch.num_tokens_no_spec[:num_reqs] += gen_lens
             for i, req_state, seq_len in request_seq_lens:
+                if not valid_sampled_token_ids[i]:
+                    continue
                 target_slice = slice(seq_len - gen_lens[i] + 1, seq_len + 1)
                 self.input_batch.token_ids_cpu[i, target_slice] = (
                     valid_sampled_token_ids[i]
                 )
                 req_state.output_token_ids.extend(valid_sampled_token_ids[i])
+
+        # Spec decode diagnostics: infer acceptance/rejection from generated
+        # token count vs scheduled draft count for each request.
+        if scheduler_output.scheduled_spec_decode_tokens:
+            total_drafts = 0
+            total_accepted = 0
+            total_rejected = 0
+            for req_id, generated_token_ids in zip(req_ids, valid_sampled_token_ids):
+                scheduled_drafts = scheduler_output.scheduled_spec_decode_tokens.get(
+                    req_id
+                )
+                if not scheduled_drafts:
+                    continue
+
+                num_drafts = len(scheduled_drafts)
+                num_generated = len(generated_token_ids)
+                num_accepted = max(num_generated - 1, 0)
+                num_rejected = max(num_drafts - num_accepted, 0)
+                total_drafts += num_drafts
+                total_accepted += num_accepted
+                total_rejected += num_rejected
+
+                logger.info(
+                    "[spec-debug] accept: req_id=%s drafts=%s generated=%s accepted=%d rejected=%d",
+                    req_id,
+                    scheduled_drafts,
+                    generated_token_ids,
+                    num_accepted,
+                    num_rejected,
+                )
+
+            logger.info(
+                "[spec-debug] accept: total_drafts=%d total_accepted=%d total_rejected=%d",
+                total_drafts,
+                total_accepted,
+                total_rejected,
+            )
+
+            if total_drafts > 0 and total_accepted == 0:
+                logger.warning(
+                    "[spec-debug] no speculative drafts accepted in this step; "
+                    "generated outputs remained single-token per request."
+                )
 
         model_runner_output = ModelRunnerOutput(
             req_ids=req_ids,
@@ -1799,11 +2049,255 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             kv_connector_output=kv_connector_output,
         )
 
+        # Propose draft tokens for speculative decoding
+        if self.num_spec_tokens and self.drafter:
+            # Get draft token proposals for all requests
+            all_draft_tokens = self.propose_draft_token_ids(
+                scheduler_output, selected_token_ids
+            )
+
+            # Filter to requests with non-empty draft tokens
+            self._draft_token_req_ids = []
+            self._draft_token_ids = []
+            for i, draft_tokens in enumerate(all_draft_tokens):
+                if draft_tokens:
+                    self._draft_token_req_ids.append(req_ids[i])
+                    self._draft_token_ids.append(draft_tokens)
+
+            logger.info(
+                "[spec-debug] sample_tokens: stored_draft_reqs=%d stored_draft_tokens=%d",
+                len(self._draft_token_req_ids),
+                sum(len(t) for t in self._draft_token_ids),
+            )
+
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
         self._verify_num_xla_graphs("execute_model")
+        logger.info(f"execute_model: model_runner_output={model_runner_output}")
 
         return model_runner_output
+
+    def _apply_speculative_rejection(
+        self,
+        hidden_states: torch.Tensor,
+        logits: torch.Tensor,
+        selected_token_ids: torch.Tensor,
+        scheduler_output: "SchedulerOutput",
+        start_index: int,
+        end_index: int,
+        sampling_metadata: XLASupportedSamplingMetadata,
+    ) -> torch.Tensor:
+        """Apply acceptance/rejection for scheduled speculative tokens.
+
+        The model forward already includes scheduled tokens. Here we build
+        target logits for draft positions and use rejection sampling to decide
+        accepted/rejected tokens plus the bonus token.
+        """
+        spec_decode_metadata, spec_decode_logits = self._build_spec_decode_metadata(
+            hidden_states,
+            logits,
+            scheduler_output,
+            start_index,
+            end_index,
+        )
+        if spec_decode_metadata is None or spec_decode_logits is None:
+            return selected_token_ids
+
+        try:
+            sampler_output = self.rejection_sampler(
+                spec_decode_metadata,
+                None,
+                spec_decode_logits,
+                sampling_metadata=sampling_metadata,
+            )
+            output_token_ids = sampler_output.sampled_token_ids
+            logger.info(
+                f"[spec-debug] rejection_sample: output_token_ids={output_token_ids}"
+            )
+        except TypeError as e:
+            logger.info(f"[spec-debug] rejection_sample: TypeError encountered: {e}")
+            if "unexpected keyword argument" in str(e):
+                raise
+            # vLLM's rejection_sample uses Triton kernels. On TT runs without
+            # CUDA/Triton runtime support, use a greedy CPU-compatible fallback.
+            if not sampling_metadata.all_greedy:
+                raise RuntimeError(
+                    "Speculative rejection fallback supports only greedy sampling."
+                ) from e
+            logger.warning(
+                "[spec-debug] Triton rejection kernel unavailable; "
+                "using greedy fallback rejection sampling."
+            )
+            bonus_logits = spec_decode_logits[spec_decode_metadata.bonus_logits_indices]
+            bonus_token_ids = (
+                bonus_logits.argmax(dim=-1, keepdim=True).to(torch.int32).cpu()
+            )
+            target_logits = (
+                spec_decode_logits[spec_decode_metadata.target_logits_indices]
+                .to(torch.float32)
+                .cpu()
+            )
+            target_logits = self.rejection_sampler.apply_logits_processors(
+                target_logits,
+                sampling_metadata,
+                spec_decode_metadata,
+            )
+            target_logits = apply_sampling_constraints(
+                target_logits,
+                spec_decode_metadata.cu_num_draft_tokens,
+                sampling_metadata,
+            )
+            output_token_ids = self._rejection_sample_greedy_fallback(
+                draft_token_ids=spec_decode_metadata.draft_token_ids,
+                num_draft_tokens=spec_decode_metadata.num_draft_tokens,
+                max_spec_len=spec_decode_metadata.max_spec_len,
+                cu_num_draft_tokens=spec_decode_metadata.cu_num_draft_tokens,
+                target_logits=target_logits,
+                bonus_token_ids=bonus_token_ids,
+            )
+        logger.info(
+            f"[spec-debug] rejection_sample: final output_token_ids={output_token_ids}"
+        )
+        return output_token_ids
+
+    def _build_spec_decode_metadata(
+        self,
+        hidden_states: torch.Tensor,
+        bonus_logits: torch.Tensor,
+        scheduler_output: "SchedulerOutput",
+        start_index: int,
+        end_index: int,
+    ) -> tuple[SpecDecodeMetadata | None, torch.Tensor | None]:
+        num_reqs = end_index - start_index
+        num_draft_tokens = [0] * num_reqs
+        draft_token_ids_flat: list[int] = []
+        spec_logits_chunks: list[torch.Tensor] = []
+        target_logits_indices: list[int] = []
+        bonus_logits_indices: list[int] = []
+        logits_offset = 0
+
+        for local_idx, global_idx in enumerate(range(start_index, end_index)):
+            req_id = self.input_batch.req_ids[global_idx]
+            draft_ids = scheduler_output.scheduled_spec_decode_tokens.get(req_id, [])
+            draft_len = len(draft_ids)
+            num_draft_tokens[local_idx] = draft_len
+
+            if draft_len:
+                target_hidden = hidden_states[local_idx, :draft_len, :]
+                target_logits = self.compute_logits(target_hidden)
+                spec_logits_chunks.append(target_logits)
+                draft_token_ids_flat.extend(draft_ids)
+                target_logits_indices.extend(
+                    range(logits_offset, logits_offset + draft_len)
+                )
+
+            spec_logits_chunks.append(bonus_logits[local_idx : local_idx + 1])
+            bonus_logits_indices.append(logits_offset + draft_len)
+            logits_offset += draft_len + 1
+
+        if not draft_token_ids_flat:
+            return None, None
+
+        device = bonus_logits.device
+        spec_decode_logits = torch.cat(spec_logits_chunks, dim=0)
+        cu_num_draft_tokens = torch.from_numpy(
+            np.cumsum(np.array(num_draft_tokens, dtype=np.int32), dtype=np.int32)
+        ).to(device)
+        cu_num_sampled_tokens = torch.from_numpy(
+            np.cumsum(
+                np.array(
+                    [draft_len + 1 for draft_len in num_draft_tokens],
+                    dtype=np.int32,
+                ),
+                dtype=np.int32,
+            )
+        ).to(device)
+        target_logits_indices_tensor = torch.tensor(
+            target_logits_indices,
+            dtype=torch.int32,
+            device=device,
+        )
+        bonus_logits_indices_tensor = torch.tensor(
+            bonus_logits_indices,
+            dtype=torch.int32,
+            device=device,
+        )
+        logits_indices = torch.arange(
+            spec_decode_logits.shape[0],
+            dtype=torch.int32,
+            device=device,
+        )
+        draft_token_ids = torch.tensor(
+            draft_token_ids_flat,
+            dtype=torch.int32,
+            device=device,
+        )
+
+        return (
+            SpecDecodeMetadata(
+                draft_token_ids=draft_token_ids,
+                num_draft_tokens=num_draft_tokens,
+                cu_num_draft_tokens=cu_num_draft_tokens,
+                cu_num_sampled_tokens=cu_num_sampled_tokens,
+                target_logits_indices=target_logits_indices_tensor,
+                bonus_logits_indices=bonus_logits_indices_tensor,
+                logits_indices=logits_indices,
+            ),
+            spec_decode_logits,
+        )
+
+    def _rejection_sample_greedy_fallback(
+        self,
+        draft_token_ids: torch.Tensor,
+        num_draft_tokens: list[int],
+        max_spec_len: int,
+        cu_num_draft_tokens: torch.Tensor,
+        target_logits: torch.Tensor,
+        bonus_token_ids: torch.Tensor,
+    ) -> torch.Tensor:
+        """Greedy rejection fallback for non-CUDA environments.
+
+        Accept consecutive draft tokens while they match target argmax.
+        On first mismatch, emit target argmax and stop. If all drafts are
+        accepted, emit the bonus token.
+        """
+        batch_size = len(num_draft_tokens)
+        draft_token_ids = draft_token_ids.to(torch.int32).cpu()
+        target_logits = target_logits.to(torch.float32).cpu()
+        bonus_token_ids = bonus_token_ids.to(torch.int32).cpu()
+        output_token_ids = torch.full(
+            (batch_size, max_spec_len + 1),
+            INVALID_TOKEN_ID,
+            dtype=torch.int32,
+            device="cpu",
+        )
+
+        target_argmax = target_logits.argmax(dim=-1).to(torch.int32)
+        cu = cu_num_draft_tokens.to(torch.int64).cpu().tolist()
+
+        for req_idx in range(batch_size):
+            draft_len = int(num_draft_tokens[req_idx])
+            if draft_len == 0:
+                output_token_ids[req_idx, 0] = bonus_token_ids[req_idx, 0]
+                continue
+
+            start = 0 if req_idx == 0 else int(cu[req_idx - 1])
+            all_accepted = True
+            for draft_pos in range(draft_len):
+                flat_idx = start + draft_pos
+                draft_tid = draft_token_ids[flat_idx]
+                target_tid = target_argmax[flat_idx]
+                if draft_tid == target_tid:
+                    output_token_ids[req_idx, draft_pos] = draft_tid
+                else:
+                    output_token_ids[req_idx, draft_pos] = target_tid
+                    all_accepted = False
+                    break
+
+            if all_accepted:
+                output_token_ids[req_idx, draft_len] = bonus_token_ids[req_idx, 0]
+
+        return output_token_ids
 
     def update_config(self, overrides: dict[str, Any]) -> None:
         # TODO: TPU config may need extra validation
@@ -1911,6 +2405,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         self.model.compile(backend="tt", dynamic=False)
         self.sampler = Sampler()
+        self.rejection_sampler = RejectionSampler(self.sampler)
         logger.info(f"Compiled model: \n{self.model}")
 
         # Cache attention layer names so we don't rebuild the per-layer
@@ -2681,6 +3176,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        return
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             if not self.tt_config.cpu_sampling:
