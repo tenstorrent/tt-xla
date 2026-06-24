@@ -550,3 +550,66 @@ def test_unet_for_conditional_generation(output_file, request):
         optimization_level=1,
         trace_enabled=False,
     )
+
+
+def test_pyramid_flow_sd3_transformer(output_file, request):
+    """Pyramid Flow SD3 MMDiT denoiser benchmark.
+
+    `rain1011/pyramid-flow-sd3` is a text-to-video flow-matching model with the
+    Stable-Diffusion-3 component layout. The MMDiT denoiser (the loader's
+    default `Transformer` variant) is the heavy compute target that must run on
+    device. Like the SDXL UNet above, it is not an encoder but a single-step
+    diffusion forward pass, so it is driven through the generic encoder harness
+    with custom input/output adapters (modelled after
+    test_unet_for_conditional_generation).
+    """
+    from third_party.tt_forge_models.pyramid_flow.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    def inputs_to_device(inputs, device):
+        """Move all tensor inputs to device, leaving non-tensors untouched."""
+        return {
+            key: (value.to(device) if isinstance(value, torch.Tensor) else value)
+            for key, value in inputs.items()
+        }
+
+    # Configuration
+    data_format = "bfloat16"
+    batch_size = 1
+    # MMDiT consumes a fixed-length T5 text-embedding sequence (SD3 caps T5 at
+    # 128 tokens); this is metadata for reporting, the loader builds the inputs.
+    text_seq_len = 128
+
+    # Load the MMDiT denoiser component (default variant).
+    variant = ModelVariant.TRANSFORMER
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    # The loader returns a fixed-shape (batch=1) set of synthetic denoising-step
+    # inputs; batch_size from the harness is ignored.
+    load_inputs_fn = lambda batch_size: loader.load_inputs(
+        dtype_override=DTYPE_MAP[data_format]
+    )
+    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
+    output_processor_fn = lambda out, inputs: loader.unpack_forward_output(out)
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="pyramid_flow_sd3_transformer",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=text_seq_len,
+        loop_count=32,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

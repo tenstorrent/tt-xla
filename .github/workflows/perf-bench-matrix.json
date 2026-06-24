@@ -316,6 +316,11 @@
         "pytest": "tests/benchmark/test_encoders.py::test_unet_for_conditional_generation"
       },
       {
+        "name": "pyramid_flow_sd3_transformer",
+        "pytest": "tests/benchmark/test_encoders.py::test_pyramid_flow_sd3_transformer",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "deepseek_v3_1_tp_galaxy_4_layers",
         "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_1_tp_galaxy_4_layers",
         "runs-on": "galaxy-wh-6u"
