@@ -218,6 +218,21 @@ def transfer_to_device(input_args: dict, device: torch.device) -> dict:
     return input_args
 
 
+def _restore_cumulative_length(past_key_values, cumulative_lengths):
+    """Restore each layer's cumulative_length from a post-prefill snapshot.
+
+    transfer_to_device() zeroes cumulative_length (it assumes a fresh cache that
+    prefill will fill). When a device decode is seeded from a pre-filled CPU
+    cache (decode-only and isolated-decode PCC) the length must instead be the
+    post-prefill value, or the decode reads an empty KV window at opt_level > 0.
+    """
+    for layer, cumulative_length in zip(past_key_values.layers, cumulative_lengths):
+        if cumulative_length is not None and hasattr(layer, "cumulative_length"):
+            layer.cumulative_length.copy_(
+                cumulative_length.to(layer.cumulative_length.device)
+            )
+
+
 def _shard_kv_cache(past_key_values, mesh, kv_cache_sharding_spec):
     kv_spec = kv_cache_sharding_spec
     for layer in past_key_values.layers:
@@ -323,6 +338,20 @@ def benchmark_llm_torch_xla(
     if decode_only and accuracy_testing:
         raise ValueError("--decode-only cannot be combined with --accuracy-testing")
 
+    # PCC-only iteration modes (env-gated): TT_PCC_MODE = "prefill" | "decode" |
+    # "both". Skips warmup and the timed perf loop and runs a single PCC
+    # iteration. Both prefill and decode PCC are always printed; only the
+    # selected mode's PCC(s) are asserted.
+    pcc_mode = os.environ.get("TT_PCC_MODE", "").strip().lower()
+    pcc_only = pcc_mode in ("prefill", "decode", "both")
+    assert_prefill = (not pcc_only) or (pcc_mode in ("both", "prefill"))
+    assert_decode = (not pcc_only) or (pcc_mode in ("both", "decode"))
+    # For "decode"/"both", isolate the decode PCC by reseeding the device KV
+    # cache from the CPU-golden post-prefill cache so it does not inherit the
+    # device prefill's numerical error. Prefill still runs first: the standalone
+    # decode graph crashes when compiled at optimization_level > 0.
+    pcc_isolated = pcc_mode in ("decode", "both")
+
     if task != "text-generation":
         raise ValueError(
             f"Only 'text-generation' task is supported for llm benchmark. Got: {task}. "
@@ -423,6 +452,17 @@ def benchmark_llm_torch_xla(
         first_decode_input_ids = input_args["input_ids"].clone()
         decode_only_cache_position = input_args["cache_position"].clone()
         decode_only_cache = input_args["past_key_values"]
+        # Post-prefill cumulative_length per layer, used to restore the
+        # reseeded isolated-decode cache (transfer_to_device zeroes it below).
+        decode_only_cumlen = [
+            (
+                layer.cumulative_length.detach().clone()
+                if hasattr(layer, "cumulative_length")
+                and layer.cumulative_length is not None
+                else None
+            )
+            for layer in decode_only_cache.layers
+        ]
 
         # Iter 1: first decode. Provides the PCC reference for device first decode.
         cpu_decode_logits, _ = generate_and_benchmark(
@@ -510,8 +550,8 @@ def benchmark_llm_torch_xla(
 
     warmup_kv_cache = None
 
-    # Warmup run (skip in decode-only mode)
-    if not decode_only:
+    # Warmup run (skip in decode-only mode and in pcc-only mode)
+    if not decode_only and not pcc_only:
         # Construct inputs for warmup run
         input_args = construct_inputs(
             tokenizer,
@@ -580,24 +620,28 @@ def benchmark_llm_torch_xla(
         _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+    if decode_only:
+        _restore_cumulative_length(input_args["past_key_values"], decode_only_cumlen)
 
     ground_truth_for_benchmark = (
         token_accuracy.reference_tokens if accuracy_testing else None
     )
 
-    # Run perf benchmark
-    print(f"\nStarting performance benchmark...")
-    _, iteration_times = generate_and_benchmark(
-        compiled_perf_model,
-        input_args,
-        device,
-        max_output_tokens,
-        verbose=True,
-        tokenizer=tokenizer,
-        ground_truth_tokens=ground_truth_for_benchmark,
-        collect_logits=False,
-    )
-    print("\nPerformance benchmark complete")
+    # Run perf benchmark (skipped in pcc-only mode for fast iteration)
+    iteration_times = []
+    if not pcc_only:
+        print(f"\nStarting performance benchmark...")
+        _, iteration_times = generate_and_benchmark(
+            compiled_perf_model,
+            input_args,
+            device,
+            max_output_tokens,
+            verbose=True,
+            tokenizer=tokenizer,
+            ground_truth_tokens=ground_truth_for_benchmark,
+            collect_logits=False,
+        )
+        print("\nPerformance benchmark complete")
 
     # ========================================================
     # PCC/TOPK BENCHMARK
@@ -614,7 +658,7 @@ def benchmark_llm_torch_xla(
     logits_wrapper.eval()
     compiled_logits = torch.compile(logits_wrapper, backend="tt")
 
-    logits_steps = max_output_tokens
+    logits_steps = (1 if decode_only else 2) if pcc_only else max_output_tokens
 
     # Reconstruct inputs for PCC/TOPK run
     input_args = construct_inputs(
@@ -638,6 +682,8 @@ def benchmark_llm_torch_xla(
         _shard_kv_cache(input_args["past_key_values"], mesh, kv_cache_sharding_spec)
     if input_output_sharding_spec:
         xs.mark_sharding(input_args["input_ids"], mesh, input_output_sharding_spec)
+    if decode_only:
+        _restore_cumulative_length(input_args["past_key_values"], decode_only_cumlen)
 
     print("\nStarting PCC/TOPK benchmark...")
 
@@ -655,10 +701,38 @@ def benchmark_llm_torch_xla(
 
         device_prefill_output_ids = input_args["input_ids"].to("cpu")
 
+        if pcc_isolated:
+            # Rebuild decode inputs from the CPU-golden post-prefill KV cache.
+            input_args = construct_inputs(
+                tokenizer,
+                model.config,
+                batch_size,
+                max_cache_len,
+                past_key_values=decode_only_cache,
+                input_prompt=custom_input_prompt,
+                input_prompt_tokens=(
+                    token_accuracy.input_prompt if accuracy_testing else None
+                ),
+                use_mla_cache=use_mla_cache,
+            )
+            input_args["input_ids"] = first_decode_input_ids.clone()
+            input_args["cache_position"] = decode_only_cache_position.clone()
+            input_args = transfer_to_device(input_args, device)
+            if is_multichip:
+                _shard_kv_cache(
+                    input_args["past_key_values"], mesh, kv_cache_sharding_spec
+                )
+            if input_output_sharding_spec:
+                xs.mark_sharding(
+                    input_args["input_ids"], mesh, input_output_sharding_spec
+                )
+            _restore_cumulative_length(
+                input_args["past_key_values"], decode_only_cumlen
+            )
         # Override device's first-decode input with CPU's prefill output when they
         # diverge, so the decode PCC reference is comparing apples to apples
         # (otherwise a poor prefill PCC compounds into the decode PCC — see #4614).
-        if not accuracy_testing and not torch.equal(
+        elif not accuracy_testing and not torch.equal(
             device_prefill_output_ids, first_decode_input_ids.cpu()
         ):
             logger.warning(
@@ -707,7 +781,7 @@ def benchmark_llm_torch_xla(
             per_user_predictions.append(user_tokens)
 
     # Calculate Time to First Token (TTFT)
-    ttft_ns = iteration_times[0] if not decode_only else 0.0
+    ttft_ns = iteration_times[0] if (not decode_only and iteration_times) else 0.0
     ttft_ms = ttft_ns / 1e6
 
     # Calculate decode time
@@ -817,42 +891,44 @@ def benchmark_llm_torch_xla(
         decode_rel_l2_value = compute_rel_l2(
             cpu_output_logits[1][0], output_logits[0][0]
         )
-        assert (
-            decode_pcc_value >= required_pcc
-        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
         print(
-            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
-                decode_pcc_value, decode_rel_l2_value
+            "First decode PCC={:.6f}, rel_l2={:.6e}, Required={}".format(
+                decode_pcc_value, decode_rel_l2_value, required_pcc
             )
         )
+        if assert_decode:
+            assert (
+                decode_pcc_value >= required_pcc
+            ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
     else:
         # Check PCC for prefill
         pcc_value = compute_pcc(output_logits[0][0], cpu_output_logits[0][0])
         rel_l2_value = compute_rel_l2(cpu_output_logits[0][0], output_logits[0][0])
-        assert (
-            pcc_value >= required_pcc
-        ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
         print(
-            "Prefill PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
-                pcc_value, rel_l2_value
+            "Prefill PCC={:.6f}, rel_l2={:.6e}, Required={}".format(
+                pcc_value, rel_l2_value, required_pcc
             )
         )
-        # Check PCC for first decode token
-        assert (
-            len(output_logits) > 1 and len(cpu_output_logits) > 1
-        ), "Not enough logits to check PCC"
-        decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
-        decode_rel_l2_value = compute_rel_l2(
-            cpu_output_logits[1][0], output_logits[1][0]
-        )
-        assert (
-            decode_pcc_value >= required_pcc
-        ), f"First decode PCC failed. PCC={decode_pcc_value:.6f}, Required={required_pcc}"
-        print(
-            "First decode PCC verification passed with PCC={:.6f}, rel_l2={:.6e}".format(
-                decode_pcc_value, decode_rel_l2_value
+        # Check PCC for first decode token (when available).
+        decode_pcc_value = None
+        if len(output_logits) > 1 and len(cpu_output_logits) > 1:
+            decode_pcc_value = compute_pcc(output_logits[1][0], cpu_output_logits[1][0])
+            decode_rel_l2_value = compute_rel_l2(
+                cpu_output_logits[1][0], output_logits[1][0]
             )
-        )
+            print(
+                "First decode PCC={:.6f}, rel_l2={:.6e}, Required={}".format(
+                    decode_pcc_value, decode_rel_l2_value, required_pcc
+                )
+            )
+        if assert_prefill:
+            assert (
+                pcc_value >= required_pcc
+            ), f"Prefill PCC failed. PCC={pcc_value:.6f}, Required={required_pcc}"
+        if assert_decode:
+            assert (
+                decode_pcc_value is not None and decode_pcc_value >= required_pcc
+            ), f"First decode PCC failed. PCC={decode_pcc_value}, Required={required_pcc}"
 
     # Get device count and mesh info for metrics
     arch = get_xla_device_arch()
