@@ -230,6 +230,8 @@ def compute_fisher_offloaded(
     calibration_data,
     weight_map=None,
     model_path=None,
+    lm_base="model.",
+    lm_head_base="",
     out_dir=None,
 ):
     """Layer-wise Fisher with CPU offloading and multi-GPU sample parallelism.
@@ -272,6 +274,8 @@ def compute_fisher_offloaded(
                 weight_names_set,
                 weight_map,
                 model_path,
+                lm_base,
+                lm_head_base,
                 out_dir,
                 shared_partials,
                 barrier,
@@ -288,7 +292,8 @@ def compute_fisher_offloaded(
 
 def _run_fisher_offload(args):
     print("Loading model shell for disk-based weight streaming...")
-    model, tokenizer, weight_map, model_path = load_model_shell(args.model)
+    model, tokenizer, weight_map, model_path, lm_base, lm_head_base = load_model_shell(args.model)
+    print(f"  Detected paths — lm_base: '{lm_base}', lm_head_base: '{lm_head_base}'")
     weight_params = collect_weights(model)
     calibration_data = get_calibration_data(tokenizer, NUM_SAMPLES)
     fii_path = args.save_path if args.save_path else get_fii_path(args.model)
@@ -302,6 +307,8 @@ def _run_fisher_offload(args):
         calibration_data,
         weight_map=weight_map,
         model_path=model_path,
+        lm_base=lm_base,
+        lm_head_base=lm_head_base,
         out_dir=out_dir,
     )
     del model
