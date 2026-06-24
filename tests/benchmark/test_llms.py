@@ -2810,5 +2810,4 @@ def test_olm_ocr_2_7b(
         decode_only=decode_only,
         optimization_level=1,
         trace_enabled=True,
-        weight_dtype_overrides={"default": "bfp_bf8"},
     )
