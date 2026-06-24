@@ -1106,6 +1106,8 @@ def test_llama_3_1_8b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
+        trace_enabled=True,
+        weight_dtype_overrides={"default": "bfp_bf8"},
         required_pcc=0.90,
     )
 
