@@ -550,3 +550,68 @@ def test_unet_for_conditional_generation(output_file, request):
         optimization_level=1,
         trace_enabled=False,
     )
+
+
+def test_bge_m3_embedding_generation(output_file, request):
+    """Test BGE-M3 dense embedding generation on the plain HuggingFace backbone.
+
+    Unlike test_bge_m3 (which wraps BAAI/bge-m3 in FlagEmbedding's BGEM3FlagModel),
+    this uses the bge_m3/embedding_generation loader, which exposes the XLM-RoBERTa
+    AutoModel directly. The loader sets return_dict=False, so the model output is a
+    tuple; out[0] is last_hidden_state. The dense embedding is the L2-normalized
+    [CLS] token, matching BGE-M3's dense vector definition.
+    """
+    from third_party.tt_forge_models.bge_m3.embedding_generation.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = "bfloat16"
+    input_sequence_length = 128
+
+    # Load model with specified dtype
+    variant = ModelVariant.BASE
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    # Create function for loading raw inputs
+    load_inputs_fn = get_default_inputs
+
+    # Create input preprocessing function
+    tokenizer = loader._load_tokenizer()
+    tokenizer.padding_side = "right"
+    preprocess_fn = lambda sentences, device: {
+        k: v.to(device)
+        for k, v in tokenizer(
+            sentences,
+            padding="max_length",
+            truncation=True,
+            max_length=input_sequence_length,
+            return_tensors="pt",
+        ).items()
+    }
+
+    # Output is a tuple (return_dict=False); out[0] is last_hidden_state.
+    # BGE-M3 dense embedding = L2-normalized [CLS] token.
+    output_processor_fn = lambda out, inputs: torch.nn.functional.normalize(
+        out[0][:, 0], p=2, dim=-1
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="bge_m3_embedding_generation",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        input_sequence_length=input_sequence_length,
+        loop_count=32,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
