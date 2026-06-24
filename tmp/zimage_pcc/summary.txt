@@ -1,0 +1,26 @@
+=== probe run NLAYERS=8 Wed Jun 24 09:53:18 UTC 2026 ===
+n8_model4: [PCC-PROBE] model4: pcc=0.869776  (all=[0.869776])
+n8_no_reduce: [PCC-PROBE] no_reduce: pcc=0.857362  (all=[0.857362])
+n8_model4_fp32: NO-PCC (rc=1) FAILED tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4_fp32 - ValueError: Error code: 13
+n8_no_attn_reduce: [PCC-PROBE] no_attn_reduce: pcc=0.857166  (all=[0.857166])
+n8_no_ffn_reduce: [PCC-PROBE] no_ffn_reduce: pcc=0.869822  (all=[0.869822])
+n8_model2: [PCC-PROBE] model2: pcc=0.920530  (all=[0.92053])
+=== done Wed Jun 24 10:13:20 UTC 2026 ===
+=== probe run2 NLAYERS=8 Wed Jun 24 10:14:32 UTC 2026 ===
+n8_repl_attn: [PCC-PROBE] repl_attn: pcc=0.856238  (all=[0.856238])
+n8_repl_ffn: [PCC-PROBE] repl_ffn: pcc=0.870090  (all=[0.87009])
+n8_model2_fp32: [PCC-PROBE] model2_fp32: pcc=0.919052  (all=[0.919052])
+=== done2 Wed Jun 24 10:28:34 UTC 2026 ===
+=== probe run3 NLAYERS=8 Wed Jun 24 10:30:44 UTC 2026 ===
+n8_replicated: [PCC-PROBE] replicated: pcc=0.999964  (all=[0.999964])
+n8_repl_embed: [PCC-PROBE] repl_embed: pcc=0.996897  (all=[0.996897])
+=== done3 Wed Jun 24 10:37:34 UTC 2026 ===
+=== probe run4 NLAYERS=8 Wed Jun 24 10:39:39 UTC 2026 ===
+n8_repl_adaln_only: [PCC-PROBE] repl_adaln_only: pcc=0.996914  (all=[0.996914])
+n8_repl_emb_only: [PCC-PROBE] repl_emb_only: pcc=0.996897  (all=[0.996897])
+=== done4 Wed Jun 24 10:44:41 UTC 2026 ===
+=== VERIFY fix NLAYERS=8 Wed Jun 24 10:49:45 UTC 2026 ===
+VERIFY_n8_model4: [PCC-PROBE] model4: pcc=0.996914  (all=[0.996914])
+VERIFY_n8_model2: [PCC-PROBE] model2: pcc=0.999970  (all=[0.99997])
+=== verify done Wed Jun 24 10:54:40 UTC 2026 ===
+=== opt-level 30-layer Wed Jun 24 11:14:20 UTC 2026 ===

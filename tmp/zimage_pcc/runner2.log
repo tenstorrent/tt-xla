@@ -1,0 +1,6 @@
+>>> running repl_attn (NLAYERS=8) -> tmp/zimage_pcc/n8_repl_attn.log
+n8_repl_attn: [PCC-PROBE] repl_attn: pcc=0.856238  (all=[0.856238])
+>>> running repl_ffn (NLAYERS=8) -> tmp/zimage_pcc/n8_repl_ffn.log
+n8_repl_ffn: [PCC-PROBE] repl_ffn: pcc=0.870090  (all=[0.87009])
+>>> running model2_fp32 (NLAYERS=8) -> tmp/zimage_pcc/n8_model2_fp32.log
+n8_model2_fp32: [PCC-PROBE] model2_fp32: pcc=0.919052  (all=[0.919052])

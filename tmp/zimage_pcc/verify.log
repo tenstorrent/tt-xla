@@ -1,0 +1,4 @@
+>>> verify model4 (NLAYERS=8) -> tmp/zimage_pcc/verify_n8_model4.log
+VERIFY_n8_model4: [PCC-PROBE] model4: pcc=0.996914  (all=[0.996914])
+>>> verify model2 (NLAYERS=8) -> tmp/zimage_pcc/verify_n8_model2.log
+VERIFY_n8_model2: [PCC-PROBE] model2: pcc=0.999970  (all=[0.99997])

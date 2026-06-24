@@ -1,0 +1,19 @@
+2026-06-24 11:52:33.051 | INFO     | pjrt_plugin_tt:setup_tt_pjrt_plugin_dir:46 - Using PJRT plugin directory: /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/python_package/pjrt_plugin_tt
+2026-06-24 11:52:33.056 | INFO     | pjrt_plugin_tt:setup_tt_metal_home:107 - Using TT-Metal from the source tree: /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/third_party/tt-mlir/src/tt-mlir/third_party/tt-metal/src/tt-metal
+2026-06-24 11:52:33.392 | WARNING  | torch_plugin_tt:__init__:40 - TT plugin is setting XLA_STABLEHLO_COMPILE to 1. This is required for TT PJRT plugin to work correctly.
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.1.1, pluggy-1.6.0 -- /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla/venv/bin/python3
+metadata: {'Python': '3.12.3', 'Platform': 'Linux-5.15.0-142-generic-x86_64-with-glibc2.39', 'Packages': {'pytest': '9.1.1', 'pluggy': '1.6.0'}, 'Plugins': {'json-report': '1.5.0', 'forked': '1.6.0', 'metadata': '3.1.1', 'split': '0.11.0', 'jaxtyping': '0.3.11', 'anyio': '4.14.0'}}
+rootdir: /proj_sw/user_dev/ctr-akannan/24_2_jun_yyz/tt-xla
+configfile: pytest.ini
+plugins: json-report-1.5.0, forked-1.6.0, metadata-3.1.1, split-0.11.0, jaxtyping-0.3.11, anyio-4.14.0
+collecting ... collected 1 item
+
+tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4_opt1 2026-06-24 11:53:12.687445: W torch_xla/csrc/runtime/profiler.cpp:88] Profiler API not found for PJRT plugin
+Fetching 2 files:   0%|          | 0/2 [00:00<?, ?it/s]Fetching 2 files: 100%|██████████| 2/2 [00:00<00:00, 384.32it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 35.18it/s]
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 11462.44it/s]
+2026-06-24 11:54:51.798 | WARNING  | tt_torch.backend.backend:_build_params_and_consts:180 - Found an argument on non-XLA device which was not a lifted constant: self___transformer_rope_embedder_freqs_cis_0. Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA.
+2026-06-24 11:54:51.799 | WARNING  | tt_torch.backend.backend:_build_params_and_consts:180 - Found an argument on non-XLA device which was not a lifted constant: self___transformer_rope_embedder_freqs_cis_1. Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA.
+2026-06-24 11:54:51.799 | WARNING  | tt_torch.backend.backend:_build_params_and_consts:180 - Found an argument on non-XLA device which was not a lifted constant: self___transformer_rope_embedder_freqs_cis_2. Passing a non-XLA tensor to TT compile was likely not intended. Force moving the argument to XLA.

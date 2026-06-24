@@ -1,0 +1,4 @@
+>>> running replicated (NLAYERS=8) -> tmp/zimage_pcc/n8_replicated.log
+n8_replicated: [PCC-PROBE] replicated: pcc=0.999964  (all=[0.999964])
+>>> running repl_embed (NLAYERS=8) -> tmp/zimage_pcc/n8_repl_embed.log
+n8_repl_embed: [PCC-PROBE] repl_embed: pcc=0.996897  (all=[0.996897])

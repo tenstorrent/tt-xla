@@ -1,0 +1,4 @@
+>>> running repl_adaln_only (NLAYERS=8) -> tmp/zimage_pcc/n8_repl_adaln_only.log
+n8_repl_adaln_only: [PCC-PROBE] repl_adaln_only: pcc=0.996914  (all=[0.996914])
+>>> running repl_emb_only (NLAYERS=8) -> tmp/zimage_pcc/n8_repl_emb_only.log
+n8_repl_emb_only: [PCC-PROBE] repl_emb_only: pcc=0.996897  (all=[0.996897])

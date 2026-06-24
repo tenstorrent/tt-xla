@@ -1,0 +1,12 @@
+>>> running model4 (NLAYERS=8) -> tmp/zimage_pcc/n8_model4.log
+n8_model4: [PCC-PROBE] model4: pcc=0.869776  (all=[0.869776])
+>>> running no_reduce (NLAYERS=8) -> tmp/zimage_pcc/n8_no_reduce.log
+n8_no_reduce: [PCC-PROBE] no_reduce: pcc=0.857362  (all=[0.857362])
+>>> running model4_fp32 (NLAYERS=8) -> tmp/zimage_pcc/n8_model4_fp32.log
+n8_model4_fp32: NO-PCC (rc=1) FAILED tests/torch/models/z_image/test_pcc_probe.py::test_pcc_model4_fp32 - ValueError: Error code: 13
+>>> running no_attn_reduce (NLAYERS=8) -> tmp/zimage_pcc/n8_no_attn_reduce.log
+n8_no_attn_reduce: [PCC-PROBE] no_attn_reduce: pcc=0.857166  (all=[0.857166])
+>>> running no_ffn_reduce (NLAYERS=8) -> tmp/zimage_pcc/n8_no_ffn_reduce.log
+n8_no_ffn_reduce: [PCC-PROBE] no_ffn_reduce: pcc=0.869822  (all=[0.869822])
+>>> running model2 (NLAYERS=8) -> tmp/zimage_pcc/n8_model2.log
+n8_model2: [PCC-PROBE] model2: pcc=0.920530  (all=[0.92053])
