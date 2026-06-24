@@ -121,13 +121,21 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # Resolve the text sub-config for composite/multimodal configs (e.g.
+    # Mistral3Config, gemma multimodal) where head dims live under text_config.
+    # get_text_config() returns the config itself for plain text models.
+    text_config = (
+        config.get_text_config(decoder=True)
+        if hasattr(config, "get_text_config")
+        else config
+    )
+    if hasattr(text_config, "head_dim") and getattr(text_config, "head_dim"):
+        head_dim = text_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = text_config.hidden_size // text_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        text_config, "num_key_value_heads", text_config.num_attention_heads
     )
 
     static_cache = StaticCache(
@@ -341,7 +349,11 @@ def generate_and_benchmark(
 
             input_args["cache_position"] = next_cache_position
 
-            if tokenizer:
+            # batch_decode is only used to build the optional human-readable
+            # generated_texts (printed when verbose); PCC/perf use the logits.
+            # Some loaders return a mistral_common MistralTokenizer that lacks
+            # the HF batch_decode API, so skip decoding for those.
+            if tokenizer and hasattr(tokenizer, "batch_decode"):
                 decoded = tokenizer.batch_decode(next_token_ids_replicated.to("cpu"))
                 for i in range(batch_size):
                     generated_texts[i] += decoded[i]

@@ -89,6 +89,31 @@ def setup_model_and_tokenizer(
     return model, tokenizer
 
 
+def _encode_with_mistral_common(tokenizer, input_prompts, max_cache_len):
+    """Tokenize prompts with a mistral_common ``MistralTokenizer``.
+
+    Some loaders (e.g. Mistral models shipping a ``tekken.json``, such as the
+    Mistral-Small-3.1/3.2 and Devstral/Magistral variants) return a
+    mistral_common ``MistralTokenizer`` rather than an HF tokenizer. These are
+    not callable like HF tokenizers; they expose ``encode_chat_completion``
+    instead. Returns a dict with a batched ``input_ids`` tensor matching the
+    shape of HF tokenizer output.
+    """
+    from mistral_common.protocol.instruct.messages import UserMessage
+    from mistral_common.protocol.instruct.request import ChatCompletionRequest
+
+    token_id_rows = []
+    for prompt in input_prompts:
+        encoded = tokenizer.encode_chat_completion(
+            ChatCompletionRequest(messages=[UserMessage(content=prompt)])
+        )
+        token_id_rows.append(encoded.tokens[:max_cache_len])
+
+    # All prompts are identical copies, so the encoded rows share a length.
+    input_ids = torch.tensor(token_id_rows, dtype=torch.long)
+    return {"input_ids": input_ids}
+
+
 def construct_inputs(
     tokenizer: PreTrainedTokenizer,
     model_config,
@@ -135,12 +160,20 @@ def construct_inputs(
             len(prompt) == prompt_len for prompt in input_prompt
         ), "All input prompts must have the same length"
 
-        inputs = tokenizer(
-            input_prompt,
-            return_tensors="pt",
-            max_length=max_cache_len,
-            truncation=True,
-        )
+        if callable(tokenizer):
+            inputs = tokenizer(
+                input_prompt,
+                return_tensors="pt",
+                max_length=max_cache_len,
+                truncation=True,
+            )
+        else:
+            # Non-callable tokenizers (mistral_common MistralTokenizer loaded
+            # from tekken.json) don't support the HF call signature; encode via
+            # their chat-completion API instead.
+            inputs = _encode_with_mistral_common(
+                tokenizer, input_prompt, max_cache_len
+            )
 
     if past_key_values is None:
         # Static cache should be initialized on CPU and separately transferred to device
