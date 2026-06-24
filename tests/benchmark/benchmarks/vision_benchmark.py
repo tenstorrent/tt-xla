@@ -58,11 +58,18 @@ def execute_and_measure_fps(
         outputs = []
         for i in range(loop_count):
             start_iteration_time = time.perf_counter_ns()
-            # Move input to device
-            device_input = inputs[i].to(device)
+            # Move input to device. A model may take a single tensor or several
+            # positional tensors; load_inputs_fn signals the latter by returning
+            # a tuple/list, which we splat into the forward call.
+            if isinstance(inputs[i], (tuple, list)):
+                device_input = tuple(t.to(device) for t in inputs[i])
+                # Model forward, non blocking
+                output = model(*device_input)
+            else:
+                device_input = inputs[i].to(device)
 
-            # Model forward, non blocking
-            output = model(device_input)
+                # Model forward, non blocking
+                output = model(device_input)
 
             # Extract output tensor
             output = extract_output_tensor_fn(output)
@@ -137,7 +144,10 @@ def benchmark_vision_torch_xla(
     # Generate golden output for PCC calculation (run on CPU)
     golden_input = inputs[0]
     with torch.no_grad():
-        golden_output = framework_model(golden_input)
+        if isinstance(golden_input, (tuple, list)):
+            golden_output = framework_model(*golden_input)
+        else:
+            golden_output = framework_model(golden_input)
         golden_output = extract_output_tensor_fn(golden_output)
 
     export_model_name = build_xla_export_name(

@@ -491,3 +491,68 @@ def test_vovnet(output_file, request):
         batch_size=batch_size,
         data_format=data_format,
     )
+
+
+def test_infinity(output_file, request):
+    # FoundationVision Infinity: a bitwise autoregressive text-to-image
+    # transformer. Only the transformer (the compute-dominant component) runs on
+    # device; it is a single tensor-in/tensor-out forward producing bitwise
+    # logits, so it slots into the generic vision forward-pass throughput+PCC
+    # harness. The model is kept in float32 (the loader's deterministic default —
+    # Infinity's CUDA path uses selective bf16 + autocast that is fragile to
+    # replicate on the compile path and unnecessary for a 125M model).
+    from third_party.tt_forge_models.foundationvision_infinity.conditional_generation.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration. float32 matches the loader's weight dtype for PCC fidelity.
+    data_format = torch.float32
+    batch_size = 1
+
+    # Load model
+    variant = ModelVariant.INFINITY_125M_256
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model()
+    model = model.eval()
+
+    # The loader builds the transformer with fused_norm=True, which routes
+    # AdaLN normalization through helpers decorated with a nested
+    # @torch.compile (default = inductor backend). Under the device (xla/tt)
+    # compile path those nested compiles fall back to inductor, which has no
+    # scheduling registered for xla tensors (LoweringException on
+    # aten.var_mean.correction). Disable the fused fast-path so normalization
+    # uses the plain, numerically identical nn.LayerNorm modules that the tt
+    # backend compiles natively. Proper fix belongs in the loader
+    # (fused_norm=False); done here to keep the perf bringup self-contained.
+    for m in model.modules():
+        if hasattr(m, "fused_norm_func"):
+            m.fused_norm_func = None
+
+    # The transformer takes two positional tensors (teacher-forcing bitwise
+    # embeddings + Flan-T5 text features), so return them as a tuple; the harness
+    # splats a tuple into the forward call. Batch is fixed at 1 by the loader.
+    sample_inputs = loader.load_inputs()
+    input_size = tuple(sample_inputs["x_BLC_wo_prefix"].shape)
+
+    def load_inputs_fn(batch_size, dtype):
+        inputs = loader.load_inputs()
+        return (inputs["x_BLC_wo_prefix"], inputs["kv_compact"])
+
+    def extract_output_tensor_fn(output):
+        return output
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        input_size=input_size,
+        data_format=data_format,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
