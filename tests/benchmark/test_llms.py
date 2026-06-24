@@ -2780,3 +2780,44 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# NOTE (bringup, status FAILED): allenai/Molmo2-8B is a multimodal
+# image-text-to-text model (task: MM_VISUAL_QA). Its wrapped forward requires
+# image tensors (pixel_values, image_token_pooling, image_grids,
+# image_num_crops, attention_mask) and has the KV cache disabled. The LLM perf
+# harness (benchmark_llm_torch_xla / LLMSamplingWrapper) drives a text-only
+# StaticCache prefill+decode loop and calls the model with
+# input_ids/past_key_values/position_ids/cache_position/use_cache only, so this
+# test raises a TypeError on the first prefill (missing required image inputs)
+# before any device compilation. There is no single-forward multimodal
+# generation harness available; supporting it would require new measurement
+# logic, which is out of scope for perf bringup. Kept for reproducibility.
+def test_molmo2_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.molmo2.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MOLMO2_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
