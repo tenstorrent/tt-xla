@@ -56,6 +56,12 @@ class TTConfig:
     # If unset, it resolves to scheduler_config.max_num_seqs.
     min_num_seqs: Optional[int] = None
 
+    # b1-prefill batch threshold. When <= this many prefills are
+    # pending, AscendScheduler admits at most min_num_seqs fresh prefills/step
+    # (small/b1 graph, served serially) instead of one wasted-row b32 batch;
+    # above it, prefills batch as usual. 0 = off; needs min_num_seqs < max.
+    prefill_batch_threshold: int = 0
+
     batch_size: int = 1
     enable_precompile_all: bool = True
 
@@ -299,6 +305,16 @@ class TTPlatform(Platform):
                 "additional_config['min_num_seqs'] must be <= max_num_seqs "
                 "for the TT backend."
             )
+
+        # b1-prefill batch threshold: resolve default (0 = off)
+        # and persist so the AscendScheduler sees a concrete value; validate >= 0.
+        if additional_config.get("prefill_batch_threshold") is None:
+            additional_config["prefill_batch_threshold"] = 0
+        elif int(additional_config["prefill_batch_threshold"]) < 0:
+            raise ValueError(
+                "additional_config['prefill_batch_threshold'] must be >= 0."
+            )
+        vllm_config.additional_config = additional_config
 
         # Stash cpu_sampling so validate_request() can read it without
         # rebuilding TTConfig per request.
