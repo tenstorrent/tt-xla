@@ -191,3 +191,51 @@ def test_sdxl_lightning(output_file, request):
         optimization_level=0,
         output_image_path="test_sdxl_lightning_output.png",
     )
+
+
+def test_stable_diffusion_v1_5(output_file, request):
+    from benchmarks.sd_v1_5_pipeline import (
+        StableDiffusion15Config,
+        StableDiffusion15Pipeline,
+    )
+
+    # Classic SD1.5 @ 512x512 with classifier-free guidance (50 denoising steps).
+    prompt = "A fantasy landscape with mountains and rivers, highly detailed, 8k"
+    num_inference_steps = 50
+    height = width = 512
+
+    def build_pipeline_fn(compile_options):
+        # Text encoder + UNet on TT; VAE on CPU. The VAE OOMs from GroupNorm
+        # decomposition at opt_level=0; opt_level=1 enables the composite
+        # ttnn.group_norm but switching opt level (UNet opt 0 -> VAE opt 1) trips
+        # a device-hash mismatch (https://github.com/tenstorrent/tt-xla/issues/5176).
+        # So keep the VAE on CPU at bringup; model-perf-tuning can ramp it.
+        pipeline = StableDiffusion15Pipeline(
+            config=StableDiffusion15Config(
+                vae_on_tt=False, compile_options=compile_options
+            )
+        )
+        pipeline.setup()
+
+        def generate_fn(prompt, steps):
+            return pipeline.generate(
+                prompt=prompt,
+                num_inference_steps=steps,
+                seed=DEFAULT_SEED,
+            )
+
+        return pipeline, generate_fn
+
+    test_imagegen(
+        build_pipeline_fn=build_pipeline_fn,
+        model_info_name="stable-diffusion-v1-5",
+        output_file=output_file,
+        request=request,
+        prompt=prompt,
+        num_inference_steps=num_inference_steps,
+        height=height,
+        width=width,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        output_image_path="test_stable_diffusion_v1_5_output.png",
+    )
