@@ -2812,7 +2812,8 @@ def test_llasa_8b(
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
         optimization_level=(
-            optimization_level if optimization_level is not None else 0
+            optimization_level if optimization_level is not None else 2
         ),
-        trace_enabled=False,
+        trace_enabled=True,
+        weight_dtype_overrides={"default": "bfp_bf8"},
     )
