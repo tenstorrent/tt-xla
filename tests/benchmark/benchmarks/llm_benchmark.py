@@ -27,7 +27,12 @@ from llm_utils import (
 from llm_utils.decode_utils import LLMSamplingWrapper
 from loguru import logger
 from torch_xla.distributed.spmd import Mesh
-from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedTokenizer
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    PreTrainedTokenizer,
+    PreTrainedTokenizerBase,
+)
 from transformers.cache_utils import StaticCache
 from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
@@ -85,6 +90,11 @@ def setup_model_and_tokenizer(
         )
     model = model.eval()
     tokenizer = model_loader.tokenizer
+    if tokenizer is None:
+        # Some loaders only populate the tokenizer lazily inside load_inputs()
+        # (rather than in load_model()); trigger that path so it is available.
+        model_loader.load_inputs()
+        tokenizer = model_loader.tokenizer
 
     return model, tokenizer
 
@@ -363,6 +373,18 @@ def benchmark_llm_torch_xla(
     )
     full_model_name = model_loader.get_model_info(variant=model_variant).name
 
+    # Some models (e.g. Mistral-native ones) ship only a non-HuggingFace
+    # tokenizer (mistral-common) that the benchmark cannot call directly to
+    # encode prompts or batch_decode generated tokens. When the tokenizer is
+    # not an HF tokenizer, drive the benchmark from the loader's own tokenized
+    # inputs (via the existing input_prompt_tokens path) and skip the cosmetic
+    # text decoding during generation.
+    hf_tokenizer = tokenizer if isinstance(tokenizer, PreTrainedTokenizerBase) else None
+    default_input_prompt_tokens = None
+    if hf_tokenizer is None and not accuracy_testing:
+        loader_inputs = model_loader.load_inputs()
+        default_input_prompt_tokens = loader_inputs["input_ids"][0].to(torch.long)
+
     # Initialize accuracy testing if enabled
     token_accuracy = None
     custom_input_prompt = None
@@ -381,7 +403,11 @@ def benchmark_llm_torch_xla(
         batch_size,
         max_cache_len,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt
+            if accuracy_testing
+            else default_input_prompt_tokens
+        ),
         use_mla_cache=use_mla_cache,
     )
 
@@ -520,7 +546,9 @@ def benchmark_llm_torch_xla(
             max_cache_len,
             input_prompt=custom_input_prompt,
             input_prompt_tokens=(
-                token_accuracy.input_prompt if accuracy_testing else None
+                token_accuracy.input_prompt
+                if accuracy_testing
+                else default_input_prompt_tokens
             ),
             use_mla_cache=use_mla_cache,
         )
@@ -566,7 +594,11 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=existing_cache,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt
+            if accuracy_testing
+            else default_input_prompt_tokens
+        ),
         use_mla_cache=use_mla_cache,
     )
 
@@ -593,7 +625,7 @@ def benchmark_llm_torch_xla(
         device,
         max_output_tokens,
         verbose=True,
-        tokenizer=tokenizer,
+        tokenizer=hf_tokenizer,
         ground_truth_tokens=ground_truth_for_benchmark,
         collect_logits=False,
     )
@@ -624,7 +656,11 @@ def benchmark_llm_torch_xla(
         max_cache_len,
         past_key_values=decode_only_cache if decode_only else None,
         input_prompt=custom_input_prompt,
-        input_prompt_tokens=(token_accuracy.input_prompt if accuracy_testing else None),
+        input_prompt_tokens=(
+            token_accuracy.input_prompt
+            if accuracy_testing
+            else default_input_prompt_tokens
+        ),
         use_mla_cache=use_mla_cache,
     )
 

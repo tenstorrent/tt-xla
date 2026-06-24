@@ -2780,3 +2780,60 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+def _voxtral_4b_tts_mesh_config_fn(model_loader, num_devices):
+    return (1, num_devices), ("batch", "model")
+
+
+def _voxtral_4b_tts_shard_spec_fn(model_loader, model):
+    # Voxtral-4B-TTS reuses a standard Mistral decoder backbone, so the generic
+    # column/row (Megatron-style) tensor-parallel sharding applies directly.
+    # The loader does not ship its own get_mesh_config/load_shard_spec, so these
+    # are passed explicitly to test_llm_tp.
+    shard_specs = {}
+    for layer in model.model.layers:
+        shard_specs[layer.mlp.up_proj.weight] = ("model", "batch")
+        shard_specs[layer.mlp.gate_proj.weight] = ("model", "batch")
+        shard_specs[layer.mlp.down_proj.weight] = ("batch", "model")
+
+        shard_specs[layer.self_attn.q_proj.weight] = ("model", "batch")
+        shard_specs[layer.self_attn.k_proj.weight] = ("model", "batch")
+        shard_specs[layer.self_attn.v_proj.weight] = ("model", "batch")
+        shard_specs[layer.self_attn.o_proj.weight] = ("batch", "model")
+    return shard_specs
+
+
+def test_voxtral_4b_tts_tp(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.voxtral_tts.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.VOXTRAL_4B_TTS
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        mesh_config_fn=_voxtral_4b_tts_mesh_config_fn,
+        shard_spec_fn=_voxtral_4b_tts_shard_spec_fn,
+        optimization_level=(
+            optimization_level if optimization_level is not None else 0
+        ),  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
