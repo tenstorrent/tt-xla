@@ -86,6 +86,13 @@ def setup_model_and_tokenizer(
     model = model.eval()
     tokenizer = model_loader.tokenizer
 
+    # Some loaders initialize their tokenizer lazily in load_inputs() rather than
+    # in load_model(). Trigger that lazy init so the benchmark always has a
+    # tokenizer to build its own inputs with.
+    if tokenizer is None:
+        model_loader.load_inputs(dtype_override=torch.bfloat16)
+        tokenizer = model_loader.tokenizer
+
     return model, tokenizer
 
 
