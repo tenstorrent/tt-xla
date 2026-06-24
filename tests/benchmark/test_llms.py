@@ -37,6 +37,26 @@ def default_read_logits_fn(output):
     return output.logits
 
 
+def _resolve_pcc_mode(request):
+    """Resolve the LLM PCC-only iteration mode from the --pcc-* CLI flags.
+
+    Returns "prefill" | "decode" | "both" | "" (disabled). --pcc-only, or
+    combining --pcc-prefill with --pcc-decode, asserts both phases.
+    """
+    if request is None:
+        return ""
+    pcc_only = request.config.getoption("--pcc-only")
+    pcc_prefill = request.config.getoption("--pcc-prefill")
+    pcc_decode = request.config.getoption("--pcc-decode")
+    if pcc_only or (pcc_prefill and pcc_decode):
+        return "both"
+    if pcc_prefill:
+        return "prefill"
+    if pcc_decode:
+        return "decode"
+    return ""
+
+
 def test_llm(
     ModelLoaderModule,
     variant,
@@ -163,6 +183,7 @@ def test_llm(
         hf_model_name_for_accuracy=hf_model_name,
         max_output_tokens=max_output_tokens,
         decode_only=decode_only,
+        pcc_mode=_resolve_pcc_mode(request),
         weight_dtype_overrides=weight_dtype_overrides,
         input_output_sharding_spec=input_output_sharding_spec,
         kv_cache_sharding_spec=kv_cache_sharding_spec,
