@@ -550,3 +550,62 @@ def test_unet_for_conditional_generation(output_file, request):
         optimization_level=1,
         trace_enabled=False,
     )
+
+
+def test_seamless_m4t_v2(output_file, request):
+    """Test SeamlessM4T v2 (Large) speech-to-text translation.
+
+    This is an AUDIO_ASR seq2seq model. The loader exposes the ``text_decoder``
+    submodule, which is a single-forward module that consumes ``input_ids`` plus
+    precomputed speech-encoder ``encoder_hidden_states`` (the speech encoder is
+    run on CPU inside ``load_inputs``). That maps cleanly onto the generic
+    single-forward encoder harness used here (same pattern as the UNet test
+    above). (https://huggingface.co/facebook/seamless-m4t-v2-large)
+    """
+    from third_party.tt_forge_models.seamless_m4t_v2.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    def inputs_to_device(inputs, device):
+        """Move all tensor inputs to the target device, leaving others as-is."""
+        return {
+            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+            for k, v in inputs.items()
+        }
+
+    # Configuration. float32 keeps the precomputed speech-encoder hidden states
+    # (produced inside load_inputs) dtype-consistent with the text_decoder.
+    data_format = "float32"
+    batch_size = 1
+
+    # Load model
+    variant = ModelVariant.LARGE
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model().eval()
+
+    load_inputs_fn = lambda batch_size: loader.load_inputs(batch_size=batch_size)
+    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
+    # text_decoder returns BaseModelOutputWithPastAndCrossAttentions (no logits).
+    output_processor_fn = lambda out, inputs: (
+        out.last_hidden_state if hasattr(out, "last_hidden_state") else out[0]
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="seamless_m4t_v2",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=1,  # decoder primed with a single BOS token
+        loop_count=32,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
