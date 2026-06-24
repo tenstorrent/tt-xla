@@ -280,6 +280,7 @@ TP_CONFIGS = [
             "Qwen/Qwen3-32B",
             256,
             mesh_shape=[8, 4],
+            gpu_memory_utilization=0.2,
             enable_const_eval=True,
             enable_data_parallel=True,
             shard_weights_on_batch_axis=False,
