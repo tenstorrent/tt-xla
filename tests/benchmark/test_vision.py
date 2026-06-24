@@ -514,8 +514,8 @@ def test_pi05_base(output_file, request):
         loop_count=loop_count,
         input_size=input_size,
         data_format=data_format,
-        optimization_level=1,
-        trace_enabled=True,
+        optimization_level=2,
+        trace_enabled=False,
     )
 
 
