@@ -491,3 +491,90 @@ def test_vovnet(output_file, request):
         batch_size=batch_size,
         data_format=data_format,
     )
+
+
+# dots.ocr (rednote-hilab/dots.ocr) is an image-text-to-text OCR VLM: a Qwen2
+# decoder language backbone plus a dots_vit vision tower. Its loader wraps the
+# HF model so a single forward takes four positional inputs
+# (input_ids, attention_mask, pixel_values, image_grid_thw) and returns logits
+# directly, with no KV cache. The text-generation LLM harness (test_llm) cannot
+# drive it -- that path constructs text-only input_ids + a StaticCache and would
+# never supply the required image tensors -- so it is benchmarked here through
+# the single-forward vision harness, with a thin adapter that closes over the
+# fixed image inputs and varies only input_ids (the one tensor test_vision
+# moves per iteration). batch_size is pinned to 1 because the multimodal inputs
+# are tied to a single image.
+def test_dots_ocr(output_file, request):
+    from third_party.tt_forge_models.dots_ocr.image_text_generation.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = torch.bfloat16
+    batch_size = 1
+
+    # Load model
+    variant = ModelVariant.DOTS_OCR
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model(dtype_override=data_format)
+    model = model.eval()
+
+    # Capture a single multimodal sample; the image-derived tensors are fixed for
+    # the benchmark and only input_ids is varied per iteration.
+    sample = loader.load_inputs(dtype_override=data_format)
+
+    class _SingleInputAdapter(torch.nn.Module):
+        """Expose the multimodal wrapper as a single-(input_ids)-tensor model.
+
+        The vision benchmark harness moves and feeds exactly one tensor per
+        iteration, so the fixed image inputs are held as (non-persistent)
+        buffers and travel to device with the module.
+        """
+
+        def __init__(self, wrapped, attention_mask, pixel_values, image_grid_thw):
+            super().__init__()
+            self.wrapped = wrapped
+            self.register_buffer("attention_mask", attention_mask, persistent=False)
+            self.register_buffer("pixel_values", pixel_values, persistent=False)
+            self.register_buffer("image_grid_thw", image_grid_thw, persistent=False)
+
+        def forward(self, input_ids):
+            return self.wrapped(
+                input_ids,
+                self.attention_mask,
+                self.pixel_values,
+                self.image_grid_thw,
+            )
+
+    model = _SingleInputAdapter(
+        model,
+        sample["attention_mask"],
+        sample["pixel_values"],
+        sample["image_grid_thw"],
+    ).eval()
+
+    input_ids = sample["input_ids"]
+
+    def load_inputs_fn(batch_size, dtype):
+        # input_ids are integer token ids; the float image inputs are carried by
+        # the adapter buffers, so return the fixed prompt ids unchanged.
+        return input_ids
+
+    def extract_output_tensor_fn(output):
+        # The wrapper already returns the logits tensor.
+        return output
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        data_format=data_format,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
