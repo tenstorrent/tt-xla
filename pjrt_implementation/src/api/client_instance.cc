@@ -478,13 +478,14 @@ tt_pjrt_status ClientInstance::populateMemories() {
 tt_pjrt_status ClientInstance::compileMlirProgram(
     const PJRT_Program *mlir_program, LoadedExecutableInstance **out_executable,
     const std::unordered_map<std::string, std::string> &compile_options,
-    const std::optional<std::vector<int64_t>> &replica_device_ids) {
+    const std::optional<std::vector<int64_t>> &replica_device_ids,
+    size_t target_num_devices) {
 
   std::string_view mlir_code(mlir_program->code, mlir_program->code_size);
 
   std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>> compile_result =
       m_module_builder->buildModule(mlir_code, m_cached_system_descriptor_path,
-                                    compile_options, this);
+                                    compile_options, this, target_num_devices);
   tt_pjrt_status status = std::get<tt_pjrt_status>(compile_result);
   if (!tt_pjrt_status_is_ok(status)) {
     return status;
@@ -844,6 +845,13 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
     return *ErrorInstance::makeError(compile_options_status).release();
   }
 
+  // num_partitions (>1 for a genuine multi-device SPMD compile) tells the
+  // module builder to give no-input graphs the full mesh instead of collapsing
+  // it.
+  size_t target_num_devices =
+      static_cast<size_t>(CompileOptionsParser::extractNumPartitions(
+          args->compile_options, args->compile_options_size));
+
   std::string_view program_format(args->program->format,
                                   args->program->format_size);
   if (program_format != module_builder::c_mlir_format_name) {
@@ -859,7 +867,7 @@ PJRT_Error *onClientCompile(PJRT_Client_Compile_Args *args) {
   tt_pjrt_status compile_status = client_instance->compileMlirProgram(
       args->program,
       reinterpret_cast<LoadedExecutableInstance **>(&args->executable),
-      compile_options_map, replica_device_ids);
+      compile_options_map, replica_device_ids, target_num_devices);
 
   return *ErrorInstance::makeError(compile_status).release();
 }

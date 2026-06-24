@@ -175,6 +175,42 @@ tt_pjrt_status CompileOptionsParser::extractReplicaDeviceIds(
   return tt_pjrt_status::kSuccess;
 }
 
+int64_t
+CompileOptionsParser::extractNumPartitions(const char *compile_options_data,
+                                           size_t compile_options_size) {
+  // ExecutableBuildOptionsProto is field #3 in CompileOptionsProto;
+  // num_partitions is field #5 (VARINT) inside it.
+  constexpr int kExecutableBuildOptionsProtoFieldNumber = 3;
+  constexpr int kNumPartitionsFieldNumber = 5;
+
+  google::protobuf::UnknownFieldSet unknown_fields;
+  if (!parseCompileOptionsProto(compile_options_data, compile_options_size,
+                                unknown_fields)) {
+    return 1;
+  }
+
+  for (int i = 0; i < unknown_fields.field_count(); ++i) {
+    const google::protobuf::UnknownField &field = unknown_fields.field(i);
+    if (field.number() != kExecutableBuildOptionsProtoFieldNumber) {
+      continue;
+    }
+    google::protobuf::UnknownFieldSet exec_build_fields;
+    if (!parseNestedProtobufField(field, exec_build_fields)) {
+      continue;
+    }
+    for (int j = 0; j < exec_build_fields.field_count(); ++j) {
+      const google::protobuf::UnknownField &exec_field =
+          exec_build_fields.field(j);
+      if (exec_field.number() == kNumPartitionsFieldNumber &&
+          exec_field.type() == google::protobuf::UnknownField::TYPE_VARINT) {
+        int64_t num_partitions = static_cast<int64_t>(exec_field.varint());
+        return num_partitions > 0 ? num_partitions : 1;
+      }
+    }
+  }
+  return 1;
+}
+
 tt_pjrt_status CompileOptionsParser::extractCustomProtobufFields(
     const google::protobuf::UnknownFieldSet &unknown_fields,
     std::unordered_map<std::string, std::string> &out_compile_options) {
