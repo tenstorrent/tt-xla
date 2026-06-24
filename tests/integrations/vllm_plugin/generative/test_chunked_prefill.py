@@ -150,7 +150,7 @@ def test_chunked_prefill_batch_all_users_match(monkeypatch):
 
     llm = vllm.LLM(
         model="facebook/opt-125m",
-        max_model_len=128,
+        max_model_len=256,
         max_num_seqs=n_users,
         max_num_batched_tokens=chunk * n_users,
         gpu_memory_utilization=0.001,
