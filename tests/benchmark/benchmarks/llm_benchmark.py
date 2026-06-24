@@ -84,7 +84,18 @@ def setup_model_and_tokenizer(
             experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
         )
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    # Most LLM loaders expose a plain `.tokenizer`. Processor-based (multimodal)
+    # loaders instead expose a `.processor` whose `.tokenizer` drives the text
+    # path; fall back to it so those models can run the text-generation benchmark.
+    tokenizer = getattr(model_loader, "tokenizer", None)
+    if tokenizer is None:
+        processor = getattr(model_loader, "processor", None)
+        tokenizer = getattr(processor, "tokenizer", None) if processor else None
+    if tokenizer is None:
+        raise AttributeError(
+            f"{type(model_loader).__name__} exposes neither a `.tokenizer` nor a "
+            "`.processor.tokenizer`; cannot run the text-generation benchmark."
+        )
 
     return model, tokenizer
 
