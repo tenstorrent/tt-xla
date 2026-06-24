@@ -307,10 +307,9 @@ ModuleBuilder::buildModule(
 
   auto compile_options = CompileOptions::parse(compile_options_map);
 
-  // Construct full name: {model_name}_g{N}
-  // e.g., 1lyr_phi1_bs32_g0
-  // Only applies when user explicitly sets export_model_name.
-  // Reset graph counter when model_name changes (new test run).
+  // IR export keys dump filenames by export_model_name and appends _g{N} (e.g.
+  // resnet50_bs32_g0) so repeated dumps into one export_path don't collide.
+  // Reset the counter when the model name changes (new run).
   if (!compile_options.export_model_name.empty()) {
     if (compile_options.export_model_name != m_last_model_name) {
       m_graph_counter = 0;
@@ -320,18 +319,17 @@ ModuleBuilder::buildModule(
     compile_options.export_model_name += "_g" + std::to_string(graph_num);
   }
 
+  // Each emitted graph gets its own graph_N subdir under export_path so the
+  // fixed-name files (main.py, ttnn.mlir, ...) don't clobber earlier compiles.
+  // Load mode is excluded: it matches saved graphs by hash, not by dir name.
   const bool is_codegen_py =
       compile_options.backend == BackendRuntime::TTNNCodegenPy;
-  const bool codegen_load_mode =
+  const bool is_codegen_cpp =
+      compile_options.backend == BackendRuntime::TTNNCodegenCpp;
+  const bool is_codegen_py_load_mode =
       compile_options.backend == BackendRuntime::TTNNCodegenLoadPy;
-  std::string codegen_export_root;
-
-  // Python codegen emits fixed-name files (main.py, ttnn.mlir, tensors/...),
-  // so each graph gets its own subdirectory under the user-provided
-  // export_path. The subdirectory is matched on load by graph hash via the
-  // module_key file, the counter only keeps names readable.
-  if (is_codegen_py) {
-    codegen_export_root = *compile_options.export_path;
+  if (is_codegen_py || is_codegen_cpp) {
+    const std::string codegen_export_root = *compile_options.export_path;
     static std::mutex counters_mutex;
     static std::unordered_map<std::string, int> counters;
     int graph_index;
@@ -339,11 +337,9 @@ ModuleBuilder::buildModule(
       std::lock_guard<std::mutex> lock(counters_mutex);
       graph_index = counters[codegen_export_root]++;
     }
-    std::string graph_dir_name = compile_options.export_model_name.empty()
-                                     ? "graph_" + std::to_string(graph_index)
-                                     : compile_options.export_model_name;
-    compile_options.export_path =
-        (std::filesystem::path(codegen_export_root) / graph_dir_name).string();
+    compile_options.export_path = (std::filesystem::path(codegen_export_root) /
+                                   ("graph_" + std::to_string(graph_index)))
+                                      .string();
   }
 
   tt_pjrt_status status;
@@ -368,7 +364,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  if (is_codegen_py || codegen_load_mode) {
+  if (is_codegen_py || is_codegen_py_load_mode) {
     compile_options.graph_hash = computeGraphHash(mlir_module);
   }
 
@@ -435,47 +431,13 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  // Load mode: all executable metadata is already collected from SHLO, so
-  // skip SHLO->TTIR->TTNN and codegen entirely; the executable just points at
-  // the saved (possibly user-edited) graph directory matched by hash.
-  if (codegen_load_mode) {
-    std::string matched_dir;
-    // Mesh attributes are only materialized during SHLO->TTIR, which load
-    // mode skips, so mesh shape and device count are restored from the
-    // module_key saved at emit time.
-    std::vector<std::uint32_t> load_mesh_shape;
-    NumDevicesResult load_num_devices;
-    auto num_partitions_attr =
-        mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
-            "mhlo.num_partitions");
-    auto num_replicas_attr =
-        mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
-            "mhlo.num_replicas");
-    load_num_devices.num_partitions =
-        num_partitions_attr ? static_cast<size_t>(num_partitions_attr.getInt())
-                            : 1;
-    load_num_devices.num_replicas =
-        num_replicas_attr ? static_cast<size_t>(num_replicas_attr.getInt()) : 1;
-    status =
-        resolveCodegenLoadDir(compile_options, matched_dir, load_mesh_shape,
-                              load_num_devices.num_devices_to_utilize);
-    if (!tt_pjrt_status_is_ok(status)) {
-      return {status, nullptr};
-    }
-    LOG_F(INFO, "Codegen load: graph %s -> %s",
-          compile_options.graph_hash.c_str(), matched_dir.c_str());
-    compile_options.export_path = matched_dir;
-    std::vector<const char *> load_output_memory_kinds;
-    std::vector<size_t> load_output_memory_kinds_sizes;
-    collectMemoryKinds(num_arguments.num_outputs, load_output_memory_kinds,
-                       load_output_memory_kinds_sizes);
-
-    return buildModuleForTTNNCodegen(
-        mlir_module, std::move(original_mlir_code), std::string(),
-        std::string(), "tt_executable", std::move(num_arguments),
-        load_num_devices, load_mesh_shape, input_shardings, output_shardings,
-        output_types, std::move(load_output_memory_kinds),
-        std::move(load_output_memory_kinds_sizes),
+  // Load mode: executable metadata is already collected from SHLO, so skip
+  // SHLO->TTIR->TTNN and codegen; the executable points at the saved
+  // (possibly user-edited) graph directory matched by hash.
+  if (is_codegen_py_load_mode) {
+    return buildModuleForTTNNCodegenLoad(
+        mlir_module, std::move(original_mlir_code), std::move(num_arguments),
+        input_shardings, output_shardings, output_types,
         std::move(optimized_mlir_code), std::move(compile_options));
   }
 
@@ -1418,7 +1380,6 @@ ModuleBuilder::buildModuleForTTNNCodegen(
                              std::ios::app);
       manifest << "{\"hash\": \"" << compile_options.graph_hash
                << "\", \"dir\": \"" << graph_dir.filename().string()
-               << "\", \"model_name\": \"" << compile_options.export_model_name
                << "\", \"mesh\": \"" << mesh_str << "\"}\n";
     }
   }
@@ -1435,6 +1396,54 @@ ModuleBuilder::buildModuleForTTNNCodegen(
       std::move(output_memory_kinds_sizes), std::move(optimized_mlir_code),
       std::move(compile_options));
   return {tt_pjrt_status::kSuccess, executable_image};
+}
+
+std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
+ModuleBuilder::buildModuleForTTNNCodegenLoad(
+    mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+    std::string &&original_mlir_code, NumArgumentsResult &&num_arguments,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &input_shardings,
+    const std::vector<mlir::tt::sharding_utils::MeshSharding> &output_shardings,
+    const std::vector<PJRT_Buffer_Type> &output_types,
+    std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
+  std::string matched_dir;
+  // Mesh attributes are only materialized during SHLO->TTIR, which load mode
+  // skips, so mesh shape and device count are restored from the module_key
+  // saved at emit time.
+  std::vector<std::uint32_t> load_mesh_shape;
+  NumDevicesResult load_num_devices;
+  auto num_partitions_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_partitions");
+  auto num_replicas_attr =
+      mlir_module->getOperation()->getAttrOfType<mlir::IntegerAttr>(
+          "mhlo.num_replicas");
+  load_num_devices.num_partitions =
+      num_partitions_attr ? static_cast<size_t>(num_partitions_attr.getInt())
+                          : 1;
+  load_num_devices.num_replicas =
+      num_replicas_attr ? static_cast<size_t>(num_replicas_attr.getInt()) : 1;
+  tt_pjrt_status status =
+      resolveCodegenLoadDir(compile_options, matched_dir, load_mesh_shape,
+                            load_num_devices.num_devices_to_utilize);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+  LOG_F(INFO, "Codegen load: graph %s -> %s",
+        compile_options.graph_hash.c_str(), matched_dir.c_str());
+  compile_options.export_path = matched_dir;
+  std::vector<const char *> load_output_memory_kinds;
+  std::vector<size_t> load_output_memory_kinds_sizes;
+  collectMemoryKinds(num_arguments.num_outputs, load_output_memory_kinds,
+                     load_output_memory_kinds_sizes);
+
+  return buildModuleForTTNNCodegen(
+      mlir_module, std::move(original_mlir_code), std::string(), std::string(),
+      "tt_executable", std::move(num_arguments), load_num_devices,
+      load_mesh_shape, input_shardings, output_shardings, output_types,
+      std::move(load_output_memory_kinds),
+      std::move(load_output_memory_kinds_sizes), std::move(optimized_mlir_code),
+      std::move(compile_options));
 }
 
 tt_pjrt_status

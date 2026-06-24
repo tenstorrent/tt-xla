@@ -325,6 +325,21 @@ private:
       std::vector<size_t> &&output_memory_kinds_sizes,
       std::string &&optimized_mlir_code, CompileOptions &&compile_options);
 
+  // Builds the executable for Python codegen load mode: resolves the saved
+  // graph directory by hash and restores the mesh shape / device count from its
+  // module_key (which SHLO->TTIR would otherwise materialize), then points the
+  // executable at that directory instead of compiling.
+  std::tuple<tt_pjrt_status, std::shared_ptr<ExecutableImage>>
+  buildModuleForTTNNCodegenLoad(
+      mlir::OwningOpRef<mlir::ModuleOp> &mlir_module,
+      std::string &&original_mlir_code, NumArgumentsResult &&num_arguments,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &input_shardings,
+      const std::vector<mlir::tt::sharding_utils::MeshSharding>
+          &output_shardings,
+      const std::vector<PJRT_Buffer_Type> &output_types,
+      std::string &&optimized_mlir_code, CompileOptions &&compile_options);
+
   // Invokes tt-alchemist to generate a ready-to-run solution (C++ or Python)
   // independently of the frontend. In the future, this will also prepare
   // everything to generate an .so file for execution.

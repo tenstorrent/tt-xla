@@ -8,8 +8,6 @@
 // c++ standard library includes
 #include <algorithm>
 #include <cstdlib>
-#include <filesystem>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 
@@ -115,6 +113,15 @@ CompileOptions CompileOptions::parse(
   options.export_model_name =
       internal::parseStringOption(compile_options, "export_model_name")
           .value_or("");
+  // Codegen lays out one graph_N directory per graph and matches graphs on load
+  // by hash, so a model label has no role there and would only add a confusing
+  // prefix to the emitted files. Clear it for every codegen backend; only the
+  // IR-export (flatbuffer) path uses export_model_name.
+  if (options.backend == BackendRuntime::TTNNCodegenPy ||
+      options.backend == BackendRuntime::TTNNCodegenCpp ||
+      options.backend == BackendRuntime::TTNNCodegenLoadPy) {
+    options.export_model_name = "";
+  }
 
   // Supply export_path from the matching env var when not given explicitly.
   // In load mode export_path is the directory to read saved graphs from.
@@ -132,25 +139,8 @@ CompileOptions CompileOptions::parse(
             "'TTNNFlatbuffer'");
   }
 
-  // C++ codegen writes fixed-name files (main.cpp, ttnn.mlir, ...) into
-  // export_path, so a second compile in the same process would clobber the
-  // first. Give each compile its own subdirectory. Python codegen gets its
-  // subdirectory assigned in ModuleBuilder, keyed by graph hash. Flatbuffer
-  // outputs are timestamped and don't collide, so they're skipped.
-  if (options.export_path.has_value() &&
-      options.backend == BackendRuntime::TTNNCodegenCpp) {
-    static std::mutex counters_mutex;
-    static std::unordered_map<std::string, int> counters;
-    int graph_index;
-    {
-      std::lock_guard<std::mutex> lock(counters_mutex);
-      graph_index = counters[*options.export_path]++;
-    }
-    options.export_path = (std::filesystem::path(*options.export_path) /
-                           ("graph_" + std::to_string(graph_index)))
-                              .string();
-  }
-
+  // Per-graph codegen subdirectories (graph_N) are assigned in ModuleBuilder,
+  // which owns the codegen output layout; parse() only resolves options.
   return options;
 }
 
