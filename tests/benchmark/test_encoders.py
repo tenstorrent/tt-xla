@@ -498,6 +498,75 @@ def test_bge_m3(output_file, request):
     )
 
 
+def test_bge_m3_embedding_generation(output_file, num_layers, request):
+    """Test BGE-M3 as a plain XLM-RoBERTa encoder for embedding generation.
+
+    Unlike test_bge_m3 (which drives the FlagEmbedding dense/sparse/colbert heads),
+    this runs the clean HuggingFace AutoModel encoder path: input_ids/attention_mask
+    -> last_hidden_state, mean-pooled into a sentence embedding. The loader sets
+    return_dict=False, so the model output is a tuple and last_hidden_state is out[0].
+    """
+    from third_party.tt_forge_models.bge_m3.embedding_generation.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = "bfloat16"
+    input_sequence_length = 128
+
+    # Load model with specified dtype
+    variant = ModelVariant.M3
+    loader = create_model_loader(ModelLoader, num_layers=num_layers, variant=variant)
+    if num_layers is not None and loader is None:
+        pytest.fail(
+            "num_layers override requested but ModelLoader does not support it."
+        )
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    # Create function for loading raw inputs
+    load_inputs_fn = get_default_inputs
+
+    # Create input preprocessing function
+    tokenizer = loader._load_tokenizer()
+    tokenizer.padding_side = "right"
+    preprocess_fn = lambda sentences, device: {
+        k: v.to(device)
+        for k, v in tokenizer(
+            sentences,
+            padding="max_length",
+            truncation=True,
+            max_length=input_sequence_length,
+            return_tensors="pt",
+        ).items()
+    }
+
+    # Model output is a tuple (return_dict=False); out[0] is last_hidden_state.
+    output_processor_fn = lambda out, inputs: apply_mean_pooling(
+        out[0], inputs["attention_mask"]
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name=variant.name,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        num_layers=num_layers,
+        batch_size=8,
+        input_sequence_length=input_sequence_length,
+        loop_count=32,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
+
+
 # Trace disabled: output tensor not on device (https://github.com/tenstorrent/tt-xla/issues/3937)
 def test_unet_for_conditional_generation(output_file, request):
     """Test UNet for Conditional Generation model. This is a core component of the Stable Diffusion XL pipeline (https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)"""

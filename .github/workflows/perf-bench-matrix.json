@@ -76,6 +76,10 @@
         "pytest": "tests/benchmark/test_encoders.py::test_bge_m3"
       },
       {
+        "name": "bge_m3_embedding_generation",
+        "pytest": "tests/benchmark/test_encoders.py::test_bge_m3_embedding_generation"
+      },
+      {
         "name": "vllm_bge_m3_encode_batch1",
         "pytest": "tests/benchmark/test_vllm_benchmarks.py::test_vllm_bge_m3_batch1",
         "vllm": true,
