@@ -26,6 +26,38 @@ WARMUP_STEPS = 32
 MODULE_EXPORT_PATH = "modules"
 
 
+def _move_inputs_to_device(inp, device):
+    """Move a single benchmark input to ``device``.
+
+    Supports the single-tensor case (vision classifiers) as well as
+    multi-input models whose ``load_inputs_fn`` returns a dict or tuple/list of
+    tensors (e.g. multimodal models that take several named tensors). Non-tensor
+    entries are passed through unchanged.
+    """
+    if isinstance(inp, dict):
+        return {
+            k: (v.to(device) if torch.is_tensor(v) else v) for k, v in inp.items()
+        }
+    if isinstance(inp, (list, tuple)):
+        return type(inp)(
+            v.to(device) if torch.is_tensor(v) else v for v in inp
+        )
+    return inp.to(device)
+
+
+def _call_model(model, inp):
+    """Invoke ``model`` with an input produced by ``load_inputs_fn``.
+
+    A dict is splatted as keyword args, a tuple/list as positional args, and a
+    bare tensor is passed directly (the original single-input vision path).
+    """
+    if isinstance(inp, dict):
+        return model(**inp)
+    if isinstance(inp, (list, tuple)):
+        return model(*inp)
+    return model(inp)
+
+
 def execute_and_measure_fps(
     model, inputs, device, loop_count, extract_output_tensor_fn
 ):
@@ -58,11 +90,11 @@ def execute_and_measure_fps(
         outputs = []
         for i in range(loop_count):
             start_iteration_time = time.perf_counter_ns()
-            # Move input to device
-            device_input = inputs[i].to(device)
+            # Move input to device (single tensor, dict, or tuple of tensors)
+            device_input = _move_inputs_to_device(inputs[i], device)
 
             # Model forward, non blocking
-            output = model(device_input)
+            output = _call_model(model, device_input)
 
             # Extract output tensor
             output = extract_output_tensor_fn(output)
@@ -137,7 +169,7 @@ def benchmark_vision_torch_xla(
     # Generate golden output for PCC calculation (run on CPU)
     golden_input = inputs[0]
     with torch.no_grad():
-        golden_output = framework_model(golden_input)
+        golden_output = _call_model(framework_model, golden_input)
         golden_output = extract_output_tensor_fn(golden_output)
 
     export_model_name = build_xla_export_name(

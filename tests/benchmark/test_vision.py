@@ -203,6 +203,62 @@ def test_mobilenetv2(output_file, request):
     )
 
 
+# Kokoro is a text-to-speech model: a single tensor-only forward (phoneme ids +
+# style vector + host-precomputed alignment) producing one waveform tensor, which
+# matches the vision harness's "single forward, PCC on the output tensor" shape.
+# It runs in float32 (the loader documents that lower precision yields mixed-dtype
+# matmuls in the LSTM/decoder) and takes three named inputs, so load_inputs_fn
+# returns a dict (handled generically by the harness). Bringup safe defaults:
+# optimization_level=0, trace_enabled=False.
+def test_kokoro(output_file, request):
+    from third_party.tt_forge_models.kokoro.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration: model is float32-only, single sequence (batch 1).
+    data_format = torch.float32
+    batch_size = 1
+
+    # Load model
+    variant = ModelVariant.BASE
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model()
+    model = model.eval()
+
+    # The inputs are deterministic and the loader recomputes the duration->frame
+    # alignment (a forward through the predictor) on each call, so compute the
+    # input dict once and reuse it for every benchmark iteration.
+    inputs = loader.load_inputs()
+
+    def load_inputs_fn(batch_size, dtype):
+        return inputs
+
+    def extract_output_tensor_fn(output):
+        return output
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        # Not an image; the harness uses input_size only for the reporting string.
+        # Pass (batch, phonemes, frames) so the 3-element formatting is satisfied.
+        input_size=(1, loader.DEFAULT_SEQ_LEN, loader.MAX_FRAMES),
+        data_format=data_format,
+        # The time-unrolled (32-step, bidirectional) LSTMs make a single forward
+        # far heavier than a vision classifier, so use a smaller loop count than
+        # the vision default of 128 to keep the run within a practical wall clock.
+        loop_count=8,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
+
+
 def test_resnet50(output_file, request):
     from third_party.tt_forge_models.resnet.pytorch.loader import (
         ModelLoader,
