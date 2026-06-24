@@ -568,7 +568,7 @@ def test_seamless_m4t_v2_large(output_file, request):
 
     # Configuration
     data_format = "bfloat16"
-    batch_size = 16
+    batch_size = 32
 
     def inputs_to_device(inputs, device):
         """Move tensor inputs to device, leaving non-tensor kwargs (e.g. use_cache) intact."""
