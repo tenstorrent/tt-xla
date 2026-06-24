@@ -9,44 +9,20 @@ Each phase runs in its own process since torch_xla caches graphs in-process."""
 import os
 import subprocess
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
 
-VLLM_SCRIPT = textwrap.dedent(
-    """
-    import sys
-    import vllm
-
-    out_file = sys.argv[1]
-
-    llm = vllm.LLM(
-        model="meta-llama/Llama-3.2-3B",
-        max_num_batched_tokens=16,
-        max_num_seqs=1,
-        max_model_len=16,
-        gpu_memory_utilization=0.002,
-        additional_config={
-            "enable_const_eval": False,
-            "min_context_len": 16,
-            "num_hidden_layers": 1,
-        },
-    )
-    params = vllm.SamplingParams(temperature=0, max_tokens=4)
-    outputs = llm.generate(["Hello"], params)
-    text = outputs[0].outputs[0].text
-    print(f"generated: {text!r}")
-    open(out_file, "w").write(text)
-    """
-)
+# Standalone vLLM generation, run in its own process per phase so torch_xla's
+# in-process graph cache doesn't leak between emit and load.
+VLLM_SCRIPT = Path(__file__).parent / "vllm_serve_helper.py"
 
 
 def run_vllm(tmp_path, env_extra, name):
     out_file = tmp_path / f"{name}.txt"
     env = {**os.environ, **env_extra}
     result = subprocess.run(
-        [sys.executable, "-c", VLLM_SCRIPT, str(out_file)],
+        [sys.executable, str(VLLM_SCRIPT), str(out_file)],
         env=env,
         capture_output=True,
         text=True,
