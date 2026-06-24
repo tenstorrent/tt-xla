@@ -2780,3 +2780,47 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Galaxy (4x8 wormhole_galaxy, 32 devices) variant of the dense Qwen3-32B TP test.
+# KNOWN-FAILING on galaxy: the qwen_3 causal_lm loader has no galaxy sharding support
+# (its get_mesh_config returns a 1D (1, N) mesh and its shard spec was authored for that
+# mesh, so the "batch" axis degenerates to size 1). On galaxy the runtime force-opens the
+# parent mesh as (4, 8); pinning the logical mesh to (4, 8) below lets prefill compile and
+# pass (PCC ~0.9997), but the decode step then reads a mis-sharded static KV cache and the
+# first-decode PCC collapses to ~0 (< required 0.94). A correct bringup needs a galaxy-aware
+# mesh + KV-cache/decode shard spec in the loader (cf. the llama loader's num_devices==32 ->
+# (4, 8) branch) — loader/sharding-strategy work that is out of scope for perf bringup.
+# Safe bringup defaults (optimization_level=0, trace_enabled=False) — model-perf-tuning will ramp.
+def test_qwen_3_32b_tp_galaxy(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.qwen_3.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.QWEN_3_32B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        # The loader's default get_mesh_config requests a 1D (1, 32) mesh, but the
+        # galaxy runtime force-opens the parent mesh as (4, 8). Pin the logical mesh
+        # to (4, 8) so the shard annotation pass matches the physical topology.
+        mesh_config_fn=_galaxy_mesh_config_fn,
+    )
