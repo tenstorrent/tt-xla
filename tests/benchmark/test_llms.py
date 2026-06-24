@@ -28,6 +28,7 @@ DEFAULT_TASK = "text-generation"
 DEFAULT_EXPERIMENTAL_WEIGHT_DTYPE = "bfp_bf8"
 DEFAULT_EXPERIMENTAL_ENABLE_PERMUTE_MATMUL_FUSION = False
 DEFAULT_REQUIRED_PCC = 0.94
+DEFAULT_ENABLE_ACTIVATION_DTYPE_LOWERING = False
 
 
 def default_read_logits_fn(output):
@@ -66,6 +67,7 @@ def test_llm(
     expected_ops: list = None,
     check_fusions: bool = False,
     use_indexer_cache: bool = False,
+    enable_activation_dtype_lowering: bool = DEFAULT_ENABLE_ACTIVATION_DTYPE_LOWERING,
 ):
     """Test LLM model with the given variant and optional configuration overrides.
 
@@ -165,6 +167,7 @@ def test_llm(
         expected_ops=expected_ops,
         check_fusions_enabled=check_fusions,
         use_indexer_cache=use_indexer_cache,
+        enable_activation_dtype_lowering=enable_activation_dtype_lowering,
     )
 
     if output_file:
@@ -1826,6 +1829,10 @@ def test_llama_3_1_70b_tp_galaxy(
         decode_only=decode_only,
         arch="wormhole_galaxy",
         optimization_level=1,
+        # Lower activations to bfp8 around the MLP/O-proj CCL ops to cut the bytes
+        # the collectives move. Validated on the full 80-layer model: TOP1 mean
+        # 95.95% vs 95.80% baseline, TOP5 100% in both, so accuracy is preserved.
+        enable_activation_dtype_lowering=True,
     )
 
 
