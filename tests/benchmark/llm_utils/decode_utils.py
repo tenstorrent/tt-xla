@@ -10,6 +10,7 @@ generate_and_benchmark() (the timed decode loop).
 
 from __future__ import annotations
 
+import copy
 import os
 import time
 from typing import Optional
@@ -121,17 +122,39 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # Composite/multimodal configs (e.g. any-to-any models like Gemma4) nest the
+    # language-model hyperparameters under a text sub-config; get_text_config()
+    # returns that sub-config when present and the config itself otherwise, so it
+    # resolves the LM dims uniformly for both flat and composite configs.
+    text_config = config.get_text_config() if hasattr(config, "get_text_config") else config
+    if hasattr(text_config, "head_dim") and getattr(text_config, "head_dim"):
+        head_dim = text_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = text_config.hidden_size // text_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        text_config, "num_key_value_heads", text_config.num_attention_heads
     )
 
+    # Pass the resolved text sub-config so StaticCache derives the correct
+    # per-layer count: composite configs leave num_hidden_layers on the text
+    # sub-config (the top-level value is None), which would otherwise build a
+    # zero-layer cache. For flat configs text_config is the config itself.
+    cache_config = text_config
+    # Work around a transformers StaticCache constructor bug: it truncates the
+    # per-layer list with `layer_types[:-config.num_kv_shared_layers]`. When a
+    # model sets num_kv_shared_layers == 0 explicitly (rather than omitting it),
+    # this becomes `layer_types[:0]` == [] and yields a zero-layer cache, which
+    # then raises IndexError on the first attention KV update. Models that
+    # genuinely share KV layers use a positive value and are unaffected. For the
+    # 0 case, neutralize the slice on a config copy by making it a full-length
+    # no-op: `-num_hidden_layers` turns `[:-n]` into `[:num_hidden_layers]`,
+    # keeping every layer (and its correct sliding/full type).
+    if getattr(text_config, "num_kv_shared_layers", None) == 0:
+        cache_config = copy.deepcopy(text_config)
+        cache_config.num_kv_shared_layers = -cache_config.num_hidden_layers
     static_cache = StaticCache(
-        config=config,
+        config=cache_config,
         max_batch_size=batch_size,
         max_cache_len=max_cache_len,
         device=device,

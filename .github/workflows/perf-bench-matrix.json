@@ -157,6 +157,11 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "gemma_4_31b_it_tp_galaxy",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_4_31b_it_tp_galaxy",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
         "name": "test_gpt_oss_120b_tp_dp_galaxy_batch_size_128",
         "pytest": "tests/benchmark/test_llms.py::test_gpt_oss_120b_tp_dp_galaxy_batch_size_128",
         "runs-on": "galaxy-wh-6u"

@@ -728,12 +728,16 @@ def benchmark_llm_torch_xla(
         "Tale of Two Cities (Reference Data)" if accuracy_testing else "Random Data"
     )
 
-    # Extract number of layers from model config if available
-    num_layers = (
-        model.config.num_hidden_layers
-        if hasattr(model.config, "num_hidden_layers")
-        else -1
+    # Extract number of layers from model config if available. Composite /
+    # multimodal configs keep num_hidden_layers on the text sub-config (the
+    # top-level value is None), so resolve it via get_text_config(); for flat
+    # configs that returns the config itself.
+    layer_config = (
+        model.config.get_text_config()
+        if hasattr(model.config, "get_text_config")
+        else model.config
     )
+    num_layers = getattr(layer_config, "num_hidden_layers", None) or -1
 
     print_benchmark_results(
         model_title=full_model_name,

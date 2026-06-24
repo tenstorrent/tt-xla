@@ -2780,3 +2780,38 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+def test_gemma_4_31b_it_tp_galaxy(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.gemma4.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_4_31B_IT
+    # The gemma4 loader supplies its own get_mesh_config (Megatron 1D TP,
+    # (1, num_devices)) and load_shard_spec, so test_llm_tp picks them up
+    # automatically. 32 attention heads divide evenly across the 4x8 galaxy
+    # mesh. Bringup-safe defaults: optimization_level=0, trace_enabled=False.
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,
+        trace_enabled=False,
+    )
