@@ -181,6 +181,44 @@ class TTPlatform(Platform):
     # device-side tt::sampling kernel does not yet).
     _cpu_sampling: bool = False
 
+    @classmethod
+    def _validate_speculative_decode_config(cls, vllm_config: VllmConfig) -> None:
+        """Validate the first TT speculative-decode support slice.
+
+        For now, TT only supports method='ngram' in synchronous scheduling.
+        All other methods and async scheduling are rejected explicitly.
+        """
+        speculative_config = vllm_config.speculative_config
+        if speculative_config is None:
+            return
+
+        method = getattr(speculative_config, "method", None)
+        if method != "ngram":
+            raise NotImplementedError(
+                "TT speculative decoding currently supports only "
+                "speculative_config.method='ngram'."
+            )
+
+        if getattr(vllm_config.scheduler_config, "async_scheduling", False):
+            raise NotImplementedError(
+                "TT ngram speculative decoding currently supports only "
+                "synchronous scheduling (async_scheduling=False)."
+            )
+
+        if hasattr(speculative_config, "use_ngram_gpu") and callable(
+            speculative_config.use_ngram_gpu
+        ):
+            if speculative_config.use_ngram_gpu():
+                raise NotImplementedError(
+                    "TT speculative decoding does not support ngram_gpu yet. "
+                    "Use method='ngram' (CPU proposer path)."
+                )
+
+        logger.info(
+            "[TT] Enabling speculative decoding with method='ngram' "
+            "(synchronous scheduling only)."
+        )
+
     def __post_init__(self):
         torch._dynamo.config.ignore_logging_methods(logger.info)
 
@@ -316,9 +354,7 @@ class TTPlatform(Platform):
         if compilation_config.backend == "":
             compilation_config.backend = "tt"
 
-        assert (
-            vllm_config.speculative_config is None
-        ), "TT does not support speculative decoding"
+        cls._validate_speculative_decode_config(vllm_config)
 
         model_config = vllm_config.model_config
         if model_config is not None and model_config.dtype in (
@@ -342,10 +378,6 @@ class TTPlatform(Platform):
         scheduler_config = vllm_config.scheduler_config
         if parallel_config.worker_cls == "auto":
             parallel_config.worker_cls = "vllm_tt.worker.TTWorker"
-
-        assert (
-            not vllm_config.speculative_config
-        ), "Speculative decoding is not yet supported for TT backend"
 
         if (
             scheduler_config.is_multimodal_model
