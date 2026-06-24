@@ -162,3 +162,33 @@ def test_long_prompt_capped_at_per_seq_chunk():
         "long prompt must be capped at the per-seq chunk, not the batch-wide "
         f"budget; scheduled {out.num_scheduled_tokens['r0']} tokens this step"
     )
+
+
+@pytest.mark.push
+@pytest.mark.cpu
+def test_chunk_boundary_remainder():
+    """A prompt of ISL = chunk + 1 must split into two steps: chunk then 1.
+
+    Guards the edge case where a prompt is one token longer than the chunk size.
+    The scheduler must produce a full-chunk step followed by a 1-token remainder
+    step (the continuation prefill). This is the minimal multi-chunk scenario.
+    """
+    chunk = 2 * _BLOCK_SIZE  # 32
+    n_users = 4
+    isl = chunk + 1  # 33 tokens: one more than chunk
+    sched = _make_scheduler(chunk=chunk, max_num_seqs=n_users)
+    sched.add_request(_make_request("r0", num_tokens=isl))
+
+    # Step 1: first chunk (32 tokens).
+    out1 = sched.schedule()
+    assert out1.num_scheduled_tokens["r0"] == chunk, (
+        f"step 1: expected {chunk} tokens (full chunk), "
+        f"got {out1.num_scheduled_tokens['r0']}"
+    )
+
+    # Step 2: remainder (1 token).
+    out2 = sched.schedule()
+    assert out2.num_scheduled_tokens["r0"] == isl - chunk, (
+        f"step 2: expected {isl - chunk} token (remainder), "
+        f"got {out2.num_scheduled_tokens['r0']}"
+    )

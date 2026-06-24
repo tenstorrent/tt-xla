@@ -103,6 +103,37 @@ def test_chunked_sdpa_cpu_matches_reference(n_heads, n_kv, chunk_start):
 
 @pytest.mark.push
 @pytest.mark.cpu
+def test_chunked_sdpa_cpu_single_token_remainder():
+    """A 1-token chunk attending over a large cached prefix must be correct.
+
+    Simulates the final step of a chunked prefill where ISL = chunk_size + 1:
+    the first step processed chunk_size tokens (chunk_start=0, chunk_len=64),
+    and this step processes the 1-token remainder (chunk_start=64, chunk_len=1).
+    """
+    torch.manual_seed(0)
+    users, n_heads, n_kv, head, block_size, nbpu = 2, 8, 2, 64, 32, 4
+    s_len = nbpu * block_size  # 128
+
+    chunk_start = 64  # large prefix already cached
+    chunk_len = 1  # single-token remainder
+
+    key, value = _make_paged_cache(users * nbpu, n_kv, block_size, head, seed=3)
+    page_table = torch.arange(users * nbpu, dtype=torch.int32).view(users, nbpu)
+    query = torch.randn(users, n_heads, chunk_len, head)
+    scale = 1.0 / head**0.5
+
+    start_t = torch.tensor([chunk_start], dtype=torch.int32)
+    out = torch.ops.tt.chunked_scaled_dot_product_attention(
+        query, key, value, page_table, start_t, scale=scale
+    )
+    ref = _reference(query, key, value, page_table, chunk_start, scale)
+
+    assert out.shape == query.shape
+    torch.testing.assert_close(out, ref, atol=1e-4, rtol=1e-4)
+
+
+@pytest.mark.push
+@pytest.mark.cpu
 def test_chunked_sdpa_cpu_start0_is_plain_causal():
     """At chunk_start=0 the op must equal standard causal SDPA over the chunk."""
     torch.manual_seed(0)
