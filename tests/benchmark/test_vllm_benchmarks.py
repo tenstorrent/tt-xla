@@ -278,7 +278,7 @@ TP_CONFIGS = [
     pytest.param(
         _tp_config(
             "Qwen/Qwen3-32B",
-            32,
+            256,
             mesh_shape=[8, 4],
             experimental_weight_dtype="bfp_bf8",
             enable_const_eval=True,
