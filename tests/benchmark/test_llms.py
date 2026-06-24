@@ -2780,3 +2780,45 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Molmo2-8B is a vision-language (image-to-text) model whose language backbone is a
+# causal LM, so the text-only test_llm path applies (top-level Molmo2Config exposes
+# num_attention_heads/hidden_size/head_dim/num_key_value_heads, so the static KV cache
+# builds correctly).
+# FAILED: model never loads under the installed transformers (5.5.1). load_model() loads the
+# custom processor first, which raises TypeError: Unexpected keyword argument
+# image_use_col_tokens (processing_molmo2.py passes a kwarg this transformers version rejects).
+# The custom modeling code is also incompatible: Molmo2RotaryEmbedding.__init__ calls
+# ROPE_INIT_FUNCTIONS["default"], a key removed in this transformers version -> KeyError: 'default'.
+# Both are model/remote-code vs transformers version incompatibilities, not test- or
+# harness-level issues, so there is no forward pass to benchmark. Not registered in
+# perf-bench-matrix.json.
+def test_molmo2_8b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.molmo2.image_to_text.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.MOLMO2_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
