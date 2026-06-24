@@ -2780,3 +2780,83 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+def _gemma_4_26b_a4b_galaxy_shard_spec_fn(model_loader, model):
+    """Sharding specs for Gemma-4 26B-A4B (sparse MoE) on the 4x8 galaxy mesh.
+    TP - 8 : DP - 4 : EP - 32
+
+    Attention is Megatron column->row parallel along the model axis TP - 8:
+    q_proj column-parallel, o_proj row-parallel. The KV projections are left
+    replicated (omitted) — the loader's documented GQA-TP fallback, which also
+    sidesteps the global ``attention_k_eq_v`` layers that carry only a single
+    (unsharddable) global KV head. With ``num_layers=4`` only sliding layers are
+    built, so the cache and KV heads stay homogeneous.
+
+    Each decoder layer carries a dense shared MLP (``mlp.{gate,up,down}_proj``)
+    sharded col->row on the model axis, plus a 128-expert block. Routed expert
+    weights are sharded across both model and batch axes (EP - 32), matching the
+    GLM / DeepSeek-V3.x / Kimi galaxy MoE specs. Router, norms, embeddings and
+    lm_head are replicated.
+    """
+    shard_specs = {}
+
+    lm = model.model.language_model
+    shard_specs[lm.embed_tokens.weight] = (None, None)
+    shard_specs[lm.norm.weight] = (None,)
+
+    for layer in lm.layers:
+        attn = layer.self_attn
+        shard_specs[attn.q_proj.weight] = ("model", None)
+        shard_specs[attn.o_proj.weight] = (None, "model")
+        # k_proj / v_proj replicated (skipped). On global layers v_proj is None
+        # and k_proj holds a single unsharddable KV head; replicating all KV is
+        # the standard GQA-TP fallback.
+
+        # Dense shared MLP: column-parallel gate/up, row-parallel down.
+        shard_specs[layer.mlp.gate_proj.weight] = ("model", None)
+        shard_specs[layer.mlp.up_proj.weight] = ("model", None)
+        shard_specs[layer.mlp.down_proj.weight] = (None, "model")
+
+        # Routed experts: EP-32 across both batch and model axes (expert dim 0).
+        experts = layer.experts
+        shard_specs[experts.gate_up_proj] = (("batch", "model"), None, None)
+        shard_specs[experts.down_proj] = (("batch", "model"), None, None)
+
+    return shard_specs
+
+
+# This test only runs 4 layers so we expect to see incoherent output.
+def test_gemma_4_26b_a4b_it_tp_galaxy_4_layers(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.gemma4.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.GEMMA_4_26B_A4B_IT
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=4 if num_layers is None else num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=32,  # divisible by DP=4; conservative for bringup
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        mesh_config_fn=_galaxy_mesh_config_fn,
+        shard_spec_fn=_gemma_4_26b_a4b_galaxy_shard_spec_fn,
+        input_output_sharding_spec=("batch", None),
+        kv_cache_sharding_spec=("batch", None, None, None),  # KV replicated on model axis
+        experimental_kv_cache_dtype=None,
+    )

@@ -331,6 +331,11 @@
         "runs-on": "galaxy-wh-6u"
       },
       {
+        "name": "gemma_4_26b_a4b_it_tp_galaxy_4_layers",
+        "pytest": "tests/benchmark/test_llms.py::test_gemma_4_26b_a4b_it_tp_galaxy_4_layers",
+        "runs-on": "galaxy-wh-6u"
+      },
+      {
         "name": "kimi_k2_tp_galaxy_2_layers",
         "pyreq": "tiktoken",
         "pytest": "tests/benchmark/test_llms.py::test_kimi_k2_tp_galaxy_2_layers",

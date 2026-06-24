@@ -121,13 +121,18 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
-    if hasattr(config, "head_dim") and getattr(config, "head_dim"):
-        head_dim = config.head_dim
+    # Composite / multimodal configs (e.g. Gemma4ForConditionalGeneration) keep the
+    # decoder hyperparameters under a nested ``text_config``; resolve it so head_dim /
+    # num_attention_heads / num_key_value_heads read correctly. For plain decoder
+    # configs ``get_text_config()`` returns the config unchanged.
+    attn_config = config.get_text_config() if hasattr(config, "get_text_config") else config
+    if hasattr(attn_config, "head_dim") and getattr(attn_config, "head_dim"):
+        head_dim = attn_config.head_dim
     else:
-        head_dim = config.hidden_size // config.num_attention_heads
+        head_dim = attn_config.hidden_size // attn_config.num_attention_heads
 
     num_key_value_heads = getattr(
-        config, "num_key_value_heads", config.num_attention_heads
+        attn_config, "num_key_value_heads", attn_config.num_attention_heads
     )
 
     static_cache = StaticCache(
