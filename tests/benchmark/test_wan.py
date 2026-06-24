@@ -265,7 +265,10 @@ def benchmark_vae_encoder(family, resolution, sharded, output_file, request):
         model_info_name=f"{family.name_prefix}-VAE-Encoder",
         wrapper=wrapper,
         inputs=[x],
-        compiler_config=_trace_compiler_config(),
+        compiler_config=_trace_compiler_config(
+            # Fuse reduce_scatter + all_gather back into a single all_reduce
+            all_reduce_workaround_enabled=False,
+        ),
         mesh_fn=family.shared.wan22_mesh,
         apply_sharding_fn=make_sharding_fn(
             family.shared.shard_vae_encoder_specs, "vae", mesh_aware=True
@@ -306,6 +309,9 @@ def benchmark_vae_decoder(family, resolution, sharded, output_file, request):
         inputs=[z],
         compiler_config=_trace_compiler_config(
             experimental_enable_dram_space_saving_optimization=True,
+            # Fuse reduce_scatter + all_gather back into a single all_reduce
+            # (disable the all_reduce -> RS+AG decomposition workaround).
+            all_reduce_workaround_enabled=False,
         ),
         mesh_fn=family.shared.wan22_mesh,
         apply_sharding_fn=make_sharding_fn(
