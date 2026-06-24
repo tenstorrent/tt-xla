@@ -2832,6 +2832,7 @@ def test_voxtral_4b_tts_tp(
         decode_only=decode_only,
         mesh_config_fn=_voxtral_4b_tts_mesh_config_fn,
         shard_spec_fn=_voxtral_4b_tts_shard_spec_fn,
-        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,
+        trace_enabled=True,
+        weight_dtype_overrides={"default": "bfp_bf8"},
     )
