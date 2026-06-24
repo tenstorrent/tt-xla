@@ -235,7 +235,7 @@ def test_stable_diffusion_v1_5(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=0,
-        trace_enabled=True,
+        optimization_level=1,
+        trace_enabled=False,
         output_image_path="test_stable_diffusion_v1_5_output.png",
     )
