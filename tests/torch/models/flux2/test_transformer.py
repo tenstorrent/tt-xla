@@ -27,6 +27,7 @@ def test_transformer():
 @pytest.mark.tensor_parallel
 @pytest.mark.nightly
 @pytest.mark.model_test
+@pytest.mark.qb2_blackhole
 def test_transformer_sharded():
     _run(sharded=True)
 
