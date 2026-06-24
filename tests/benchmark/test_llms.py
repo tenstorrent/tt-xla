@@ -2780,3 +2780,40 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Bringup at safe defaults (optimization_level=0, trace_enabled=False); the
+# model-perf-tuning pass ramps these. Architecturally identical to the
+# validated 3.1_70B variant (80 layers, GQA 64q:8kv); reuses the loader's
+# (4,8) galaxy mesh and full tensor-parallel shard spec. The galaxy fabric
+# "Failed to add pinning constraints" issue affects all galaxy 70B entries
+# (https://github.com/tenstorrent/tt-xla/issues/5210).
+def test_llama_3_70b_tp_galaxy(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_70B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
