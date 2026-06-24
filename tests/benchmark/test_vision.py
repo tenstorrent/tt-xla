@@ -476,7 +476,7 @@ def test_pi05_base(output_file, request):
     #     forward takes that obs dict positionally, so we unwrap "batch" and rely
     #     on the harness's recursive move_to_device to place the nested tensors.
     data_format = torch.float32
-    batch_size = 1
+    batch_size = 2
     # Flow-matching unrolls an iterative denoise loop per forward, so each sample
     # is heavy; keep loop_count modest while still measuring steady-state FPS.
     loop_count = 8
@@ -515,7 +515,7 @@ def test_pi05_base(output_file, request):
         input_size=input_size,
         data_format=data_format,
         optimization_level=0,
-        trace_enabled=True,
+        trace_enabled=False,
     )
 
 
