@@ -316,6 +316,10 @@
         "pytest": "tests/benchmark/test_encoders.py::test_unet_for_conditional_generation"
       },
       {
+        "name": "seamless_m4t_v2_large",
+        "pytest": "tests/benchmark/test_encoders.py::test_seamless_m4t_v2_large"
+      },
+      {
         "name": "deepseek_v3_1_tp_galaxy_4_layers",
         "pytest": "tests/benchmark/test_llms.py::test_deepseek_v3_1_tp_galaxy_4_layers",
         "runs-on": "galaxy-wh-6u"

@@ -550,3 +550,62 @@ def test_unet_for_conditional_generation(output_file, request):
         optimization_level=1,
         trace_enabled=False,
     )
+
+
+def test_seamless_m4t_v2_large(output_file, request):
+    """Test SeamlessM4T v2's text decoder submodule (facebook/seamless-m4t-v2-large).
+
+    The model under test is the 24-layer encoder-decoder text decoder shared by
+    every SeamlessM4T v2 task. It cross-attends to encoder hidden states, so a
+    single forward over (input_ids, encoder_hidden_states) is benchmarked with the
+    encoder harness rather than the token-generation LLM harness -- the decoder is
+    not a standalone causal LM and its forward requires encoder_hidden_states.
+    """
+    from third_party.tt_forge_models.seamless_m4t_v2.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = "bfloat16"
+    batch_size = 1
+
+    def inputs_to_device(inputs, device):
+        """Move tensor inputs to device, leaving non-tensor kwargs (e.g. use_cache) intact."""
+        return {
+            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+            for k, v in inputs.items()
+        }
+
+    # Load model
+    variant = ModelVariant.LARGE
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+    model = model.eval()
+
+    load_inputs_fn = lambda batch_size: loader.load_inputs(
+        batch_size=batch_size, dtype_override=DTYPE_MAP[data_format]
+    )
+    preprocess_fn = lambda raw_inputs, device: inputs_to_device(raw_inputs, device)
+    output_processor_fn = lambda out, inputs: (
+        out.last_hidden_state if hasattr(out, "last_hidden_state") else out[0]
+    )
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="seamless_m4t_v2_large",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        batch_size=batch_size,
+        input_sequence_length=loader.DECODER_SEQ_LEN,
+        loop_count=32,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
