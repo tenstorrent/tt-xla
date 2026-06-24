@@ -116,6 +116,11 @@
         "runs-on": "n300-llmbox"
       },
       {
+        "name": "llasa_8b_tp",
+        "pytest": "tests/benchmark/test_llms.py::test_llasa_8b_tp",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "mistral_small_24b_instruct_2501_tp",
         "pytest": "tests/benchmark/test_llms.py::test_mistral_small_24b_instruct_2501_tp",
         "runs-on": "n300-llmbox"

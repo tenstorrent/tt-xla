@@ -2780,3 +2780,38 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Llasa-8B is a text-to-speech model built on the Llama-3.1-8B-Instruct
+# backbone (~17 GB bf16); it does not fit on a single 12 GB Wormhole chip, so
+# it is tensor-parallel sharded across the n300's two chips using the mesh /
+# shard spec defined on the loader. Safe bringup defaults (optimization_level=0,
+# trace_enabled=False); model-perf-tuning will ramp these.
+def test_llasa_8b_tp(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.llasa.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLASA_8B
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,
+        trace_enabled=False,
+    )
