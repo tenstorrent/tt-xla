@@ -610,6 +610,7 @@ def test_pyramid_flow_sd3_transformer(output_file, request):
         batch_size=batch_size,
         input_sequence_length=text_seq_len,
         loop_count=32,
-        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        optimization_level=2,
+        trace_enabled=True,
+        experimental_weight_dtype="bfp_bf8",
     )
