@@ -608,4 +608,5 @@ def test_seamless_m4t_v2_large(output_file, request):
         loop_count=32,
         optimization_level=0,
         trace_enabled=True,
+        experimental_weight_dtype="bfp_bf8",
     )
