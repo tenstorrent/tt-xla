@@ -228,6 +228,25 @@ def composite_topk_indices(
     return indices
 
 
+def composite_argmax(
+    input: Tensor,
+    dim: int = -1,
+    keepdim: bool = False,
+) -> Tensor:
+    """Composite argmax with custom sharding rule for distributed argmax.
+
+    Uses ttnn.argmax (fast O(n) max reduction) instead of ttnn.topk
+    (O(n log²n) bitonic sort), yielding significant speedup for greedy
+    decoding on vocab-sharded tensors.
+    """
+    attrs = {"dim": dim, "keepdim": keepdim}
+    builder = StableHLOCompositeBuilder(name="tenstorrent.argmax", attr=attrs)
+    input = builder.mark_inputs(input)
+    output = torch.argmax(input, dim=dim, keepdim=keepdim)
+    output = builder.mark_outputs(output)
+    return output
+
+
 def composite_scaled_dot_product_attention(
     query: Tensor,
     key: Tensor,
@@ -531,6 +550,7 @@ replacements = {
         frozenset({0}): composite_topk_values,
         frozenset({1}): composite_topk_indices,
     },
+    torch.argmax: composite_argmax,
     torch.gather: composite_gather,
     # module replacements
     torch.nn.LayerNorm: replace_layer_norm_module,
