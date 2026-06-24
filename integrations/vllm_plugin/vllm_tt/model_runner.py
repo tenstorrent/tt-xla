@@ -2659,10 +2659,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
                 hsize,
                 self.max_num_reqs,
             )
-            if self.enable_tensor_parallel:
-                safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
-            elif self.parallel_mode == ParallelismMode.DATA_PARALLEL_ONLY:
+            if self.enable_data_parallel:
+                # DP (incl. DP+TP): shard the batch dim on the "batch" axis so
+                # each replica holds only batch/dp_size rows. Matches the
+                # constraint in select_hidden_states; without it the gather
+                # height-shards the full batch and asserts when batch > ~120.
                 safe_mark_sharding(dummy_hidden, self.mesh, ("batch", None, None))
+            elif self.enable_tensor_parallel:
+                safe_mark_sharding(dummy_hidden, self.mesh, (None, None, "batch"))
 
             self.select_hidden_states_compiled(dummy_hidden, indices)
 
@@ -3085,6 +3089,15 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         return self.select_hidden_states(hidden_states, indices_do_sample)
 
     def select_hidden_states(self, hidden_states, indices_do_sample) -> torch.Tensor:
+        # Under data parallelism, pin the batch dim to the "batch" (DP) axis
+        # before the gather. Otherwise the gather height-shards the full
+        # (unsharded) batch onto the worker grid, and the TTNN layout pass
+        # asserts once batch exceeds the worker-grid core count (~120):
+        #   "HeightSharded shard count <batch> exceeds worker grid volume 120".
+        if self.enable_data_parallel:
+            hidden_states = sharding_constraint_tensor(
+                hidden_states, self.mesh, ("batch", None, None)
+            )
         batch_indices = torch.arange(indices_do_sample.shape[0], dtype=torch.int32)
         result = hidden_states[batch_indices, indices_do_sample, :]
         return result
