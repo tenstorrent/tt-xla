@@ -187,6 +187,10 @@ jobs:
         HF_HOME: /mnt/dockercache/huggingface
         TORCH_HOME: /mnt/dockercache/torchhub
         HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        # Debug logging (galaxy bring-up). TTMLIR_RUNTIME_LOGGER_LEVEL needs
+        # the wheel built with -DTT_RUNTIME_DEBUG=ON (see setup.py).
+        TTXLA_LOGGER_LEVEL: VERBOSE
+        TTMLIR_RUNTIME_LOGGER_LEVEL: DEBUG
       run: |
         cd ${{ steps.strings.outputs.work-dir }}
         export PYTHONPATH="${{ steps.strings.outputs.work-dir }}:$PYTHONPATH"
