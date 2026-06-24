@@ -62,8 +62,11 @@ class TTConfig:
     # TPU model loader to share the model across multiple devices.
     enable_tensor_parallel: bool = False
 
-    # Optimization level for tt-mlir compilation.
-    optimization_level: int = 0
+    # Optimization level (0, 1, or 2) that controls multiple optimization passes.
+    # Level 0 (default): All optimizations disabled
+    # Level 1: Basic optimizations (optimizer + Conv2d fusion)
+    # Level 2: Advanced optimizations (optimizer + memory layout + Conv2d fusion)
+    optimization_level: int = 1
 
     # Target dtype for weight conversion (e.g. "bfp_bf8", "bfp_bf4"). Empty disables.
     experimental_weight_dtype: str = ""
