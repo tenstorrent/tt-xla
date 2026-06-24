@@ -57,13 +57,10 @@ CompileOptions CompileOptions::parse(
   options.enable_trace =
       internal::parseBoolOption(compile_options, "enable_trace")
           .value_or(options.enable_trace);
-  // Codegen emit/cpp export input and parameter tensors so generated code can
-  // load real data. Flatbuffer doesn't, and load mode reuses the tensors saved
-  // at emit time rather than overwriting them.
+  // Default export tensors for all backends except TTNNFlatbuffer
   options.export_tensors =
       internal::parseBoolOption(compile_options, "export_tensors")
-          .value_or(options.backend != BackendRuntime::TTNNFlatbuffer &&
-                    options.backend != BackendRuntime::TTNNCodegenLoadPy);
+          .value_or(options.backend != BackendRuntime::TTNNFlatbuffer);
   options.enable_const_eval =
       internal::parseBoolOption(compile_options, "enable_const_eval")
           .value_or(options.enable_const_eval);
@@ -99,15 +96,12 @@ CompileOptions CompileOptions::parse(
       internal::parseStringOption(compile_options,
                                   "ttnn_perf_metrics_output_file")
           .value_or("");
-  // Codegen that only generates source (explicit codegen_py/codegen_cpp)
-  // defaults to a dry run. Flatbuffer, load mode, and env-triggered emit all
-  // execute: emit runs the generated Python live via PythonModelRunner, load
-  // runs the saved code.
-  const bool generate_only =
-      (options.backend == BackendRuntime::TTNNCodegenPy && !emit_dir) ||
-      options.backend == BackendRuntime::TTNNCodegenCpp;
+  // TTNNFlatbuffer and TTNNCodegenLoadPy backends should NOT be dry runs.
+  const bool is_default_not_dry_run =
+      (options.backend == BackendRuntime::TTNNFlatbuffer ||
+       options.backend == BackendRuntime::TTNNCodegenLoadPy);
   options.dry_run = internal::parseBoolOption(compile_options, "dry_run")
-                        .value_or(generate_only);
+                        .value_or(!is_default_not_dry_run);
   options.export_path =
       internal::parseStringOption(compile_options, "export_path");
   options.export_model_name =
@@ -139,8 +133,6 @@ CompileOptions CompileOptions::parse(
             "'TTNNFlatbuffer'");
   }
 
-  // Per-graph codegen subdirectories (graph_N) are assigned in ModuleBuilder,
-  // which owns the codegen output layout; parse() only resolves options.
   return options;
 }
 

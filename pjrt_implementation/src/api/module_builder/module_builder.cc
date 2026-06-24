@@ -326,7 +326,7 @@ ModuleBuilder::buildModule(
       compile_options.backend == BackendRuntime::TTNNCodegenPy;
   const bool is_codegen_cpp =
       compile_options.backend == BackendRuntime::TTNNCodegenCpp;
-  const bool is_codegen_py_load_mode =
+  const bool is_codegen_py_load =
       compile_options.backend == BackendRuntime::TTNNCodegenLoadPy;
   if (is_codegen_py || is_codegen_cpp) {
     const std::string codegen_export_root = *compile_options.export_path;
@@ -364,7 +364,7 @@ ModuleBuilder::buildModule(
     return {status, nullptr};
   }
 
-  if (is_codegen_py || is_codegen_py_load_mode) {
+  if (is_codegen_py || is_codegen_py_load) {
     compile_options.graph_hash = computeGraphHash(mlir_module);
   }
 
@@ -434,7 +434,7 @@ ModuleBuilder::buildModule(
   // Load mode: executable metadata is already collected from SHLO, so skip
   // SHLO->TTIR->TTNN and codegen; the executable points at the saved
   // (possibly user-edited) graph directory matched by hash.
-  if (is_codegen_py_load_mode) {
+  if (is_codegen_py_load) {
     return buildModuleForTTNNCodegenLoad(
         mlir_module, std::move(original_mlir_code), std::move(num_arguments),
         input_shardings, output_shardings, output_types,
@@ -1354,34 +1354,32 @@ ModuleBuilder::buildModuleForTTNNCodegen(
     std::vector<const char *> &&output_memory_kinds,
     std::vector<size_t> &&output_memory_kinds_sizes,
     std::string &&optimized_mlir_code, CompileOptions &&compile_options) {
-  // Load mode points the executable at saved code, so there's nothing to
-  // generate or record; every other backend runs codegen here.
-  if (compile_options.backend != BackendRuntime::TTNNCodegenLoadPy) {
-    tt_pjrt_status status = performCodegen(ttnn_mlir, compile_options);
-    if (!tt_pjrt_status_is_ok(status)) {
-      return {status, nullptr};
+  tt_pjrt_status status = performCodegen(ttnn_mlir, compile_options);
+  if (!tt_pjrt_status_is_ok(status)) {
+    return {status, nullptr};
+  }
+
+  // Python codegen records the graph (hash + mesh) so load mode can later match
+  // it by hash.
+  if (compile_options.backend == BackendRuntime::TTNNCodegenPy &&
+      !compile_options.graph_hash.empty()) {
+    std::filesystem::path graph_dir(*compile_options.export_path);
+    std::string mesh_str;
+    for (size_t i = 0; i < mesh_shape.size(); ++i) {
+      mesh_str += (i ? "x" : "") + std::to_string(mesh_shape[i]);
     }
 
-    if (compile_options.backend == BackendRuntime::TTNNCodegenPy &&
-        !compile_options.graph_hash.empty()) {
-      std::filesystem::path graph_dir(*compile_options.export_path);
-      std::string mesh_str;
-      for (size_t i = 0; i < mesh_shape.size(); ++i) {
-        mesh_str += (i ? "x" : "") + std::to_string(mesh_shape[i]);
-      }
+    std::ofstream key_file(graph_dir / "module_key");
+    key_file << compile_options.graph_hash << "\n"
+             << mesh_str << "\n"
+             << num_devices_result.num_devices_to_utilize << "\n";
+    key_file.close();
 
-      std::ofstream key_file(graph_dir / "module_key");
-      key_file << compile_options.graph_hash << "\n"
-               << mesh_str << "\n"
-               << num_devices_result.num_devices_to_utilize << "\n";
-      key_file.close();
-
-      std::ofstream manifest(graph_dir.parent_path() / "manifest.json",
-                             std::ios::app);
-      manifest << "{\"hash\": \"" << compile_options.graph_hash
-               << "\", \"dir\": \"" << graph_dir.filename().string()
-               << "\", \"mesh\": \"" << mesh_str << "\"}\n";
-    }
+    std::ofstream manifest(graph_dir.parent_path() / "manifest.json",
+                           std::ios::app);
+    manifest << "{\"hash\": \"" << compile_options.graph_hash
+             << "\", \"dir\": \"" << graph_dir.filename().string()
+             << "\", \"mesh\": \"" << mesh_str << "\"}\n";
   }
 
   auto executable_image = SOExecutableImage::createInstance(
@@ -1437,13 +1435,21 @@ ModuleBuilder::buildModuleForTTNNCodegenLoad(
   collectMemoryKinds(num_arguments.num_outputs, load_output_memory_kinds,
                      load_output_memory_kinds_sizes);
 
-  return buildModuleForTTNNCodegen(
-      mlir_module, std::move(original_mlir_code), std::string(), std::string(),
-      "tt_executable", std::move(num_arguments), load_num_devices,
-      load_mesh_shape, input_shardings, output_shardings, output_types,
-      std::move(load_output_memory_kinds),
+  // Skip codegen: point the executable at the saved (possibly user-edited) code
+  // in matched_dir, which export_path now refers to. ttir/ttnn are unused since
+  // nothing was compiled.
+  auto executable_image = SOExecutableImage::createInstance(
+      std::move(original_mlir_code), std::string(), std::string(),
+      "tt_executable", num_arguments.num_inputs, num_arguments.num_outputs,
+      std::move(num_arguments.output_dimensions),
+      std::move(num_arguments.output_ranks),
+      std::move(num_arguments.output_dimensions_flat),
+      load_num_devices.num_partitions, load_num_devices.num_replicas,
+      load_num_devices.num_devices_to_utilize, load_mesh_shape, input_shardings,
+      output_shardings, output_types, std::move(load_output_memory_kinds),
       std::move(load_output_memory_kinds_sizes), std::move(optimized_mlir_code),
       std::move(compile_options));
+  return {tt_pjrt_status::kSuccess, executable_image};
 }
 
 tt_pjrt_status
