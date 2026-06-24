@@ -69,6 +69,32 @@ def _build_weight_map(model_path):
         return {k: "model.safetensors" for k in f.keys()}
 
 
+def _detect_weight_paths(weight_map):
+    """Detect the safetensors key prefixes for the LM body and lm_head.
+
+    Returns (lm_base, lm_head_base) where:
+      lm_base      — prefix before 'embed_tokens.' / 'layers.N.' / 'norm.'
+      lm_head_base — prefix before 'lm_head.'
+
+    Examples:
+      Standard decoder-only:  lm_base='model.',       lm_head_base=''
+      LLaVA-style VLM:        lm_base='language_model.model.', lm_head_base='language_model.'
+      Qwen3.6-27B VLM:        lm_base='model.language_model.', lm_head_base='model.language_model.'
+    """
+    lm_base = None
+    lm_head_base = None
+
+    for key in weight_map:
+        if lm_base is None and "embed_tokens.weight" in key:
+            lm_base = key[: key.index("embed_tokens.weight")]
+        if lm_head_base is None and "lm_head.weight" in key:
+            lm_head_base = key[: key.index("lm_head.weight")]
+        if lm_base is not None and lm_head_base is not None:
+            break
+
+    return lm_base or "model.", lm_head_base or ""
+
+
 def _dequantize_mxfp4_inplace(raw, device):
     """Dequantize MXFP4 *_blocks/*_scales pairs to bf16 in place.
 
@@ -123,22 +149,27 @@ def load_tensors_to_layer(layer, prefix, weight_map, model_path, device):
 def load_model_shell(model_name_or_path):
     """Create an empty model shell for disk-based weight streaming.
 
-    Returns (model, tokenizer, weight_map, model_path). The model has meta tensors,
-    no weights are in RAM. Call load_tensors_to_layer per layer during the sweep
-    to bring weights from disk to GPU one layer at a time.
+    Returns (model, tokenizer, weight_map, model_path, lm_base, lm_head_base).
+    The model has meta tensors; no weights are in RAM.
+
+    lm_base      — safetensors key prefix before 'embed_tokens.' / 'layers.N.' / 'norm.'
+    lm_head_base — safetensors key prefix before 'lm_head.'
     """
     from accelerate import init_empty_weights
 
     model_path = _resolve_model_path(model_name_or_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-    config = AutoConfig.from_pretrained(model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=True)
+    config = AutoConfig.from_pretrained(model_name_or_path, trust_remote_code=True)
+    # VLMs wrap the LM config under text_config; use that for the causal LM shell
+    lm_config = getattr(config, "text_config", config)
 
     with init_empty_weights():
-        model = AutoModelForCausalLM.from_config(config, torch_dtype=torch.bfloat16)
+        model = AutoModelForCausalLM.from_config(lm_config, dtype=torch.bfloat16, trust_remote_code=True)
     model.eval()
 
     weight_map = _build_weight_map(model_path)
-    return model, tokenizer, weight_map, model_path
+    lm_base, lm_head_base = _detect_weight_paths(weight_map)
+    return model, tokenizer, weight_map, model_path, lm_base, lm_head_base
 
 
 def _run_layer(layer, hidden_states, position_ids, position_embeddings=None):
@@ -198,6 +229,7 @@ def _run_forward_sweep(
     layer_list,
     weight_map,
     model_path,
+    lm_base,
     device,
     position_ids,
     position_embeddings,
@@ -212,7 +244,7 @@ def _run_forward_sweep(
     boundary_acts = [[] for _ in range(num_s)]
 
     embed = copy.deepcopy(model.model.embed_tokens)
-    load_tensors_to_layer(embed, "model.embed_tokens.", weight_map, model_path, device)
+    load_tensors_to_layer(embed, f"{lm_base}embed_tokens.", weight_map, model_path, device)
     with torch.no_grad():
         for s, input_ids in enumerate(samples):
             boundary_acts[s].append(
@@ -224,7 +256,7 @@ def _run_forward_sweep(
     for k in range(N):
         layer_gpu = copy.deepcopy(layer_list[k])
         load_tensors_to_layer(
-            layer_gpu, f"model.layers.{k}.", weight_map, model_path, device
+            layer_gpu, f"{lm_base}layers.{k}.", weight_map, model_path, device
         )
         with torch.no_grad():
             for s in range(num_s):
@@ -248,6 +280,8 @@ def _run_lm_head_pass(
     weight_names_set,
     weight_map,
     model_path,
+    lm_base,
+    lm_head_base,
     device,
 ):
     """Compute loss backward through norm+lm_head; return (lm_head_acc, grad_outs).
@@ -257,9 +291,9 @@ def _run_lm_head_pass(
     N = len(boundary_acts[0]) - 1
 
     norm_gpu = copy.deepcopy(model.model.norm)
-    load_tensors_to_layer(norm_gpu, "model.norm.", weight_map, model_path, device)
+    load_tensors_to_layer(norm_gpu, f"{lm_base}norm.", weight_map, model_path, device)
     lm_head_gpu = copy.deepcopy(model.lm_head)
-    load_tensors_to_layer(lm_head_gpu, "lm_head.", weight_map, model_path, device)
+    load_tensors_to_layer(lm_head_gpu, f"{lm_head_base}lm_head.", weight_map, model_path, device)
     for p in lm_head_gpu.parameters():
         p.requires_grad_(True)
 
@@ -301,6 +335,7 @@ def _run_backward_sweep(
     weight_names_set,
     weight_map,
     model_path,
+    lm_base,
     device,
     shared_partials,
     barrier,
@@ -313,7 +348,7 @@ def _run_backward_sweep(
     for k in range(N - 1, -1, -1):
         layer_gpu = copy.deepcopy(layer_list[k])
         load_tensors_to_layer(
-            layer_gpu, f"model.layers.{k}.", weight_map, model_path, device
+            layer_gpu, f"{lm_base}layers.{k}.", weight_map, model_path, device
         )
         for p in layer_gpu.parameters():
             p.requires_grad_(True)
@@ -363,6 +398,8 @@ def fisher_thread_worker(
     weight_names_set,
     weight_map,
     model_path,
+    lm_base,
+    lm_head_base,
     out_dir,
     shared_partials,
     barrier,
@@ -388,6 +425,7 @@ def fisher_thread_worker(
         layer_list,
         weight_map,
         model_path,
+        lm_base,
         device,
         position_ids,
         position_embeddings,
@@ -401,6 +439,8 @@ def fisher_thread_worker(
         weight_names_set,
         weight_map,
         model_path,
+        lm_base,
+        lm_head_base,
         device,
     )
     _sync_reduce_save(
@@ -415,6 +455,7 @@ def fisher_thread_worker(
         weight_names_set,
         weight_map,
         model_path,
+        lm_base,
         device,
         shared_partials,
         barrier,
