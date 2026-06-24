@@ -76,10 +76,12 @@ from vllm.v1.kv_cache_interface import (
 )
 from vllm.v1.outputs import (
     EMPTY_MODEL_RUNNER_OUTPUT,
+    DraftTokenIds,
     LogprobsLists,
     LogprobsTensors,
     ModelRunnerOutput,
 )
+from vllm.v1.spec_decode.ngram_proposer import NgramProposer
 from vllm.v1.worker.kv_connector_model_runner_mixin import (
     KVConnectorModelRunnerMixin,
     KVConnectorOutput,
@@ -389,6 +391,26 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         # NOTE(rob): num_prompt_logprobs only includes reqs
         # that are currently in the prefill phase.
         self.num_prompt_logprobs: dict[str, int] = {}
+
+        # Set up speculative decoding using ngram CPU proposer.
+        self.num_spec_tokens = 0
+        self.drafter: NgramProposer | None = None
+        self._draft_token_ids: list[list[int]] | None = None
+        self._draft_token_req_ids: list[str] | None = None
+
+        if self.speculative_config:
+            self.num_spec_tokens = self.speculative_config.num_speculative_tokens
+            # Initialize ngram CPU proposer for speculative decoding
+            if self.speculative_config.method == "ngram":
+                self.drafter = NgramProposer(vllm_config)
+
+        logger.info(
+            "[spec-debug] init: spec_config=%s method=%s num_spec_tokens=%d drafter=%s",
+            self.speculative_config is not None,
+            getattr(self.speculative_config, "method", None),
+            self.num_spec_tokens,
+            type(self.drafter).__name__ if self.drafter is not None else None,
+        )
 
         # Initialize input batch early to avoid AttributeError in _update_states
         self.input_batch = InputBatch(
@@ -1520,6 +1542,109 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
 
         return hidden_states.reshape(*restore_shape, hidden_states.shape[-1])
 
+    def propose_draft_token_ids(
+        self,
+        scheduler_output: "SchedulerOutput",
+        sampled_token_ids: torch.Tensor,
+    ) -> list[list[int]]:
+        """Propose draft token IDs for speculative decoding using ngram proposer.
+
+        Args:
+            scheduler_output: Scheduler output from execute_model
+            sampled_token_ids: Sampled token IDs from sampling
+
+        Returns:
+            List of draft token ID lists, one per request
+        """
+        if not self.drafter or not self.num_spec_tokens:
+            # Return empty draft tokens for all requests
+            logger.info(
+                "[spec-debug] propose: skipped drafter=%s num_spec_tokens=%d num_reqs=%d",
+                self.drafter is not None,
+                self.num_spec_tokens,
+                self.input_batch.num_reqs,
+            )
+            return [[] for _ in range(self.input_batch.num_reqs)]
+
+        # Convert sampled_token_ids to list of lists for ngram proposer
+        sampled_token_ids_list = sampled_token_ids.cpu().tolist()
+        if not isinstance(sampled_token_ids_list[0], list):
+            # If it's a 2D tensor with single column, wrap each id in a list
+            sampled_token_ids_list = [[int(tid)] for tid in sampled_token_ids_list]
+
+        # Get token counts for each request (number of tokens already in context)
+        num_tokens_no_spec = np.array(
+            [
+                self.input_batch.num_tokens_no_spec[i]
+                for i in range(self.input_batch.num_reqs)
+            ],
+            dtype=np.int32,
+        )
+
+        # Get token IDs for each request
+        token_ids_cpu = np.zeros(
+            (self.input_batch.num_reqs, self.max_model_len), dtype=np.int32
+        )
+        for i in range(self.input_batch.num_reqs):
+            if self.input_batch.num_tokens_no_spec[i] > 0:
+                # Copy tokens from input_batch to numpy array
+                token_ids_cpu[i, : self.input_batch.num_tokens_no_spec[i]] = (
+                    self.input_batch.token_ids_cpu[
+                        i, : self.input_batch.num_tokens_no_spec[i]
+                    ]
+                )
+
+        # Propose draft tokens using ngram proposer
+        draft_token_ids = self.drafter.propose(
+            sampled_token_ids_list,
+            num_tokens_no_spec,
+            token_ids_cpu,
+        )
+
+        num_non_empty = sum(1 for t in draft_token_ids if t)
+        total_drafts = sum(len(t) for t in draft_token_ids)
+        logger.info(
+            "[spec-debug] propose: num_reqs=%d sampled_shape=%s non_empty=%d total_drafts=%d",
+            self.input_batch.num_reqs,
+            tuple(sampled_token_ids.shape),
+            num_non_empty,
+            total_drafts,
+        )
+        if num_non_empty:
+            first_idx = next(i for i, t in enumerate(draft_token_ids) if t)
+            logger.info(
+                "[spec-debug] propose: first_non_empty_req_idx=%d drafts=%s",
+                first_idx,
+                draft_token_ids[first_idx],
+            )
+
+        return draft_token_ids
+
+    def take_draft_token_ids(self) -> DraftTokenIds | None:
+        """Take draft token IDs and request IDs from proposer.
+
+        Returns:
+            DraftTokenIds with request IDs and draft token IDs, or None if no drafts
+        """
+        if not self._draft_token_ids or not self._draft_token_req_ids:
+            logger.info("[spec-debug] take_draft_token_ids: no pending drafts")
+            return None
+
+        draft_token_ids = self._draft_token_ids
+        req_ids = self._draft_token_req_ids
+
+        # Clear for next iteration
+        self._draft_token_ids = None
+        self._draft_token_req_ids = None
+
+        logger.info(
+            "[spec-debug] take_draft_token_ids: reqs=%d total_drafts=%d",
+            len(req_ids),
+            sum(len(t) for t in draft_token_ids),
+        )
+
+        return DraftTokenIds(req_ids, draft_token_ids)
+
     @torch.no_grad()
     def execute_model(
         self,
@@ -1534,6 +1659,14 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         torch._dynamo.config.dynamic_shapes = False
         # Update cached state
         self._update_states(scheduler_output)
+        if self.num_spec_tokens:
+            scheduled_spec = scheduler_output.scheduled_spec_decode_tokens
+            logger.info(
+                "[spec-debug] execute_model: total_sched_tokens=%d spec_reqs=%d spec_tokens=%d",
+                scheduler_output.total_num_scheduled_tokens,
+                len(scheduled_spec),
+                sum(len(v) for v in scheduled_spec.values()),
+            )
         if not scheduler_output.total_num_scheduled_tokens:
             if not has_kv_transfer_group():
                 # Return empty ModelRunnerOutput if there's no work to do.
@@ -1798,6 +1931,27 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
             pooler_output=[],
             kv_connector_output=kv_connector_output,
         )
+
+        # Propose draft tokens for speculative decoding
+        if self.num_spec_tokens and self.drafter:
+            # Get draft token proposals for all requests
+            all_draft_tokens = self.propose_draft_token_ids(
+                scheduler_output, selected_token_ids
+            )
+
+            # Filter to requests with non-empty draft tokens
+            self._draft_token_req_ids = []
+            self._draft_token_ids = []
+            for i, draft_tokens in enumerate(all_draft_tokens):
+                if draft_tokens:
+                    self._draft_token_req_ids.append(req_ids[i])
+                    self._draft_token_ids.append(draft_tokens)
+
+            logger.info(
+                "[spec-debug] sample_tokens: stored_draft_reqs=%d stored_draft_tokens=%d",
+                len(self._draft_token_req_ids),
+                sum(len(t) for t in self._draft_token_ids),
+            )
 
         # Check there are no new graphs compiled - all the graphs should be
         # captured and compiled during warm up.
@@ -2681,6 +2835,7 @@ class TTModelRunner(LoRAModelRunnerMixin, KVConnectorModelRunnerMixin):
         """
         Precompile all the subgraphs with possible input shapes.
         """
+        return
         torch._dynamo.config.dynamic_shapes = False
         with self.maybe_setup_dummy_loras(self.lora_config):
             if not self.tt_config.cpu_sampling:
