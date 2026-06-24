@@ -577,7 +577,7 @@ def test_seamless_m4t_v2(output_file, request):
     # Configuration. float32 keeps the precomputed speech-encoder hidden states
     # (produced inside load_inputs) dtype-consistent with the text_decoder.
     data_format = "float32"
-    batch_size = 2
+    batch_size = 4
 
     # Load model
     variant = ModelVariant.LARGE
