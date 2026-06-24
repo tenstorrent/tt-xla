@@ -166,12 +166,13 @@ def test_long_prompt_capped_at_per_seq_chunk():
 
 @pytest.mark.push
 @pytest.mark.cpu
-def test_chunk_boundary_remainder():
-    """A prompt of ISL = chunk + 1 must split into two steps: chunk then 1.
+def test_chunk_boundary_avoids_single_token_remainder():
+    """ISL = chunk + 1 must NOT produce a 1-token final chunk.
 
-    Guards the edge case where a prompt is one token longer than the chunk size.
-    The scheduler must produce a full-chunk step followed by a 1-token remainder
-    step (the continuation prefill). This is the minimal multi-chunk scenario.
+    A 1-token "prefill" chunk would be misrouted to the decode path
+    (is_prefill := query_len > 1). The scheduler's _block_aligned_chunk backs
+    off by one block so the final chunk is > 1 token. With ISL=33, chunk=32,
+    block_size=16: step 1 takes 16 (not 32), step 2 takes the remaining 17.
     """
     chunk = 2 * _BLOCK_SIZE  # 32
     n_users = 4
@@ -179,16 +180,18 @@ def test_chunk_boundary_remainder():
     sched = _make_scheduler(chunk=chunk, max_num_seqs=n_users)
     sched.add_request(_make_request("r0", num_tokens=isl))
 
-    # Step 1: first chunk (32 tokens).
+    # Step 1: backs off by one block to avoid leaving a 1-token final chunk.
     out1 = sched.schedule()
-    assert out1.num_scheduled_tokens["r0"] == chunk, (
-        f"step 1: expected {chunk} tokens (full chunk), "
-        f"got {out1.num_scheduled_tokens['r0']}"
+    expected_step1 = chunk - _BLOCK_SIZE  # 16
+    assert out1.num_scheduled_tokens["r0"] == expected_step1, (
+        f"step 1: expected {expected_step1} tokens (backed off to avoid "
+        f"1-token remainder), got {out1.num_scheduled_tokens['r0']}"
     )
 
-    # Step 2: remainder (1 token).
+    # Step 2: takes the rest (17 tokens) as the final chunk.
     out2 = sched.schedule()
-    assert out2.num_scheduled_tokens["r0"] == isl - chunk, (
-        f"step 2: expected {isl - chunk} token (remainder), "
+    expected_step2 = isl - expected_step1  # 17
+    assert out2.num_scheduled_tokens["r0"] == expected_step2, (
+        f"step 2: expected {expected_step2} tokens (final chunk), "
         f"got {out2.num_scheduled_tokens['r0']}"
     )
