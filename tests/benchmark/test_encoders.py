@@ -550,3 +550,61 @@ def test_unet_for_conditional_generation(output_file, request):
         optimization_level=1,
         trace_enabled=False,
     )
+
+
+def test_bagel(output_file, num_layers, request):
+    """BAGEL (ByteDance) Qwen2 MoT backbone — text/"und" understanding path.
+
+    BAGEL is a unified multimodal model. The loader exposes its Qwen2-7B-scale
+    Mixture-of-Transformers backbone through a clean, fixed-shape, tensors-only forward
+    (`BagelTextBackbone`) that consumes `input_ids` and returns the final hidden states
+    `[seq_len, hidden]` — a single forward pass with no autoregressive decode and no logits
+    head. That single-forward, hidden-state interface is the encoder benchmark's shape, so it
+    is driven here via `test_encoder` rather than the autoregressive `test_llm`/`test_llm_tp`
+    helpers (which require KV-cache decode + per-token logits this model does not produce).
+    """
+    from third_party.tt_forge_models.bagel.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # Configuration
+    data_format = "bfloat16"
+    input_sequence_length = ModelLoader.DEFAULT_SEQ_LEN  # 128
+
+    variant = ModelVariant.BAGEL_MODEL
+    loader = create_model_loader(ModelLoader, num_layers=num_layers, variant=variant)
+    if num_layers is not None and loader is None:
+        pytest.fail(
+            "num_layers override requested but ModelLoader does not support it."
+        )
+    model_info_name = loader.get_model_info(variant=variant).name
+    print(f"\nLoading model {model_info_name}...")
+    model = loader.load_model(dtype_override=DTYPE_MAP[data_format])
+
+    # The clean forward takes raw input_ids ([1, seq_len]); there are no sentences/tokenizer
+    # on this path, so synthesize input_ids directly and feed them as the model kwarg.
+    load_inputs_fn = lambda batch_size: loader.load_inputs(
+        seq_len=input_sequence_length
+    )
+    preprocess_fn = lambda raw_inputs, device: {"input_ids": raw_inputs.to(device)}
+    # Output is the backbone hidden states tensor; pass it straight through for PCC.
+    output_processor_fn = lambda out, inputs: loader.unpack_forward_output(out)
+
+    test_encoder(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        display_name="bagel",
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        preprocess_fn=preprocess_fn,
+        output_processor_fn=output_processor_fn,
+        data_format=data_format,
+        num_layers=num_layers,
+        batch_size=1,  # backbone forward processes a single packed sequence
+        input_sequence_length=input_sequence_length,
+        loop_count=8,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

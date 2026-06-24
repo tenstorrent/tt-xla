@@ -767,6 +767,11 @@
         "skip-ttnn-dump": true,
         "skip-device-perf": true,
         "runs-on": "n300-llmbox"
+      },
+      {
+        "name": "bagel",
+        "pytest": "tests/benchmark/test_encoders.py::test_bagel",
+        "runs-on": "galaxy-bh"
       }
     ]
   }
