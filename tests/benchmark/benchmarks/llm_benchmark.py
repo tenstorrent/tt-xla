@@ -85,6 +85,12 @@ def setup_model_and_tokenizer(
         )
     model = model.eval()
     tokenizer = model_loader.tokenizer
+    if tokenizer is None:
+        # Some loaders populate the tokenizer lazily (inside load_inputs) rather
+        # than in load_model. Trigger that path so the benchmark always has a
+        # tokenizer to build inputs with.
+        model_loader.load_inputs()
+        tokenizer = model_loader.tokenizer
 
     return model, tokenizer
 
