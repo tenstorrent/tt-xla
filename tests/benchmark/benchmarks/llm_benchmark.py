@@ -84,7 +84,20 @@ def setup_model_and_tokenizer(
             experts_implementation or DEFAULT_EXPERTS_IMPLEMENTATION
         )
     model = model.eval()
-    tokenizer = model_loader.tokenizer
+    # Most LLM loaders expose a `.tokenizer`. Multimodal loaders (e.g. VLMs that
+    # subclass AutoProcessor) instead expose a `.processor` whose `.tokenizer`
+    # is the text tokenizer the benchmark needs. Fall back to it so the perf path
+    # can drive such models text-only.
+    tokenizer = getattr(model_loader, "tokenizer", None)
+    if tokenizer is None:
+        processor = getattr(model_loader, "processor", None)
+        if processor is not None:
+            tokenizer = getattr(processor, "tokenizer", processor)
+    if tokenizer is None:
+        raise ValueError(
+            "Model loader exposes neither a `.tokenizer` nor a `.processor` with "
+            "a `.tokenizer`; cannot construct text inputs for the LLM benchmark."
+        )
 
     return model, tokenizer
 

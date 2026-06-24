@@ -121,6 +121,12 @@ def init_static_cache(
     dtype: torch.dtype = torch.bfloat16,
 ) -> StaticCache:
     """Initialize a transformers StaticCache consistently."""
+    # Multimodal configs (e.g. Qwen2.5-VL based VLMs) nest the language-model
+    # attention dims under a text sub-config. get_text_config() returns that
+    # sub-config for such models and `self` for plain text models, so this is a
+    # no-op for the common text-only case.
+    if hasattr(config, "get_text_config"):
+        config = config.get_text_config()
     if hasattr(config, "head_dim") and getattr(config, "head_dim"):
         head_dim = config.head_dim
     else:
