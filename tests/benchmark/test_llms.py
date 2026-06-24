@@ -2780,3 +2780,39 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Voxtral-4B-TTS LM backbone: a Ministral-3-3B-derived Mistral decoder reconstructed
+# as a MistralForCausalLM (CausalLMOutputWithPast -> default .logits read works).
+# Bringup safe defaults: optimization_level=0, trace_enabled=False.
+def test_voxtral_tts_4b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.voxtral_tts.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.BACKBONE_4B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level if optimization_level is not None else 0
+        ),
+        trace_enabled=False,
+    )

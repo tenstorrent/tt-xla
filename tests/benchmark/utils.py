@@ -132,6 +132,72 @@ def create_model_loader(ModelLoader, num_layers: Optional[int] = None, *args, **
     return ModelLoader(*args, num_layers=num_layers, **kwargs)
 
 
+class TekkenTokenizerAdapter:
+    """Adapt a mistral-common ``MistralTokenizer`` to the minimal HF tokenizer
+    interface the LLM benchmark relies on.
+
+    Mistral-native models (e.g. Voxtral, Devstral, Magistral) ship only a
+    ``tekken.json`` tokenizer loaded via ``mistral-common``. That object is not
+    a callable HF ``PreTrainedTokenizer``, so the benchmark's
+    ``tokenizer(prompt, return_tensors="pt", ...)`` and ``tokenizer.batch_decode``
+    calls fail against it. This wrapper exposes just those two operations,
+    delegating to the low-level tekken tokenizer (``encode``/``decode``). It is
+    keyed on tokenizer type, not on any specific model.
+    """
+
+    def __init__(self, mistral_tokenizer):
+        self._tok = mistral_tokenizer
+        # Low-level byte/BPE tokenizer exposing encode(str, bos, eos)/decode(ids).
+        self._inner = mistral_tokenizer.instruct_tokenizer.tokenizer
+
+    def __call__(
+        self, text, return_tensors="pt", max_length=None, truncation=False, **kwargs
+    ):
+        if isinstance(text, str):
+            text = [text]
+        token_lists = [self._inner.encode(t, bos=True, eos=False) for t in text]
+        if truncation and max_length is not None:
+            token_lists = [ids[:max_length] for ids in token_lists]
+        # The benchmark feeds identical prompts across the batch, so the encoded
+        # lengths match and stack cleanly.
+        input_ids = torch.tensor(token_lists, dtype=torch.long)
+        return {"input_ids": input_ids}
+
+    def _decode_one(self, ids):
+        if isinstance(ids, torch.Tensor):
+            ids = ids.tolist()
+        if isinstance(ids, int):
+            ids = [ids]
+        return self._inner.decode(list(ids))
+
+    def batch_decode(self, sequences, **kwargs):
+        if isinstance(sequences, torch.Tensor):
+            sequences = sequences.tolist()
+        return [self._decode_one(ids) for ids in sequences]
+
+    def decode(self, token_ids, **kwargs):
+        return self._decode_one(token_ids)
+
+
+def adapt_tokenizer_if_needed(tokenizer):
+    """Wrap non-HF Mistral-native tokenizers so the benchmark can use them.
+
+    Returns the tokenizer unchanged unless it is a mistral-common
+    ``MistralTokenizer``, in which case it is wrapped in
+    ``TekkenTokenizerAdapter``. Safe to call when ``mistral-common`` is not
+    installed.
+    """
+    if tokenizer is None:
+        return None
+    try:
+        from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+    except Exception:
+        return tokenizer
+    if isinstance(tokenizer, MistralTokenizer):
+        return TekkenTokenizerAdapter(tokenizer)
+    return tokenizer
+
+
 def aggregate_ttnn_perf_metrics(ttnn_perf_metrics_output_file, results):
     """
     Aggregate TTNN performance metrics from multiple graph files and update results.

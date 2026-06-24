@@ -33,6 +33,7 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 from tt_torch.sharding import sharding_constraint_hook
 from tt_torch.weight_dtype import apply_weight_dtype_overrides
 from utils import (
+    adapt_tokenizer_if_needed,
     build_xla_export_name,
     compute_pcc,
     compute_rel_l2,
@@ -85,6 +86,13 @@ def setup_model_and_tokenizer(
         )
     model = model.eval()
     tokenizer = model_loader.tokenizer
+    # Some loaders populate self.tokenizer lazily (only in load_inputs) rather
+    # than during load_model; trigger the loader's own loader if available.
+    if tokenizer is None and hasattr(model_loader, "_load_tokenizer"):
+        tokenizer = model_loader._load_tokenizer()
+    # Mistral-native models expose a mistral-common tokenizer that is not a
+    # callable HF tokenizer; wrap it so the benchmark can tokenize/decode.
+    tokenizer = adapt_tokenizer_if_needed(tokenizer)
 
     return model, tokenizer
 
