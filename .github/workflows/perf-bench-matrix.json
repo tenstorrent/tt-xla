@@ -63,6 +63,13 @@
         "pytest": "tests/benchmark/test_vision.py::test_vovnet"
       },
       {
+        "name": "pi05_base",
+        "pyreq": "lerobot[pi,transformers-dep]",
+        "libreq": "libgl1 libglib2.0-0 ffmpeg",
+        "runs-on": "n150-perf",
+        "pytest": "tests/benchmark/test_vision.py::test_pi05_base"
+      },
+      {
         "name": "playground_v2_5",
         "pytest": "tests/benchmark/test_imagegen.py::test_playground_v2_5"
       },

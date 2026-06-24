@@ -16,6 +16,7 @@ from utils import (
     create_benchmark_result,
     get_benchmark_metadata,
     get_xla_device_arch,
+    move_to_device,
     print_benchmark_results,
 )
 
@@ -58,8 +59,10 @@ def execute_and_measure_fps(
         outputs = []
         for i in range(loop_count):
             start_iteration_time = time.perf_counter_ns()
-            # Move input to device
-            device_input = inputs[i].to(device)
+            # Move input to device. Recursive so multi-modal inputs (dicts/lists of
+            # tensors, e.g. a vision-language-action batch) move too; for a plain
+            # tensor this is identical to inputs[i].to(device).
+            device_input = move_to_device(inputs[i], device)
 
             # Model forward, non blocking
             output = model(device_input)

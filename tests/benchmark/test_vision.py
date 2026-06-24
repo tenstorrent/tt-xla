@@ -458,6 +458,67 @@ def test_vit(output_file, request):
     )
 
 
+def test_pi05_base(output_file, request):
+    from third_party.tt_forge_models.pi05.vision_language_action.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    # pi05 is a flow-matching vision-language-action policy (PaliGemma gemma_2b
+    # backbone + gemma_300m action expert). It runs a single forward
+    # (predict_action_chunk) that returns an action-chunk tensor validated by PCC,
+    # so it maps onto the vision harness (single forward -> tensor -> PCC + FPS).
+    # Two model-specific facts drive the config below:
+    #   * float32 only - the loader documents bf16 breaking on CPU inductor and
+    #     forces float32 weights, so data_format must be float32 (not the bf16
+    #     vision default).
+    #   * dict input - load_inputs returns {"batch": <obs dict>}; the wrapper's
+    #     forward takes that obs dict positionally, so we unwrap "batch" and rely
+    #     on the harness's recursive move_to_device to place the nested tensors.
+    data_format = torch.float32
+    batch_size = 1
+    # Flow-matching unrolls an iterative denoise loop per forward, so each sample
+    # is heavy; keep loop_count modest while still measuring steady-state FPS.
+    loop_count = 8
+
+    variant = ModelVariant.PI05_BASE
+    loader = ModelLoader(variant=variant)
+    model_info_name = loader.get_model_info(variant=variant).name
+    model = loader.load_model(dtype_override=data_format, device="cpu")
+    model = model.eval()
+
+    # Report the SigLIP image dimension if discoverable; nominal otherwise.
+    input_size = (3, 224, 224)
+    input_features = getattr(loader.config, "input_features", None) or {}
+    for feature in input_features.values():
+        shape = getattr(feature, "shape", None)
+        if shape is not None and len(shape) == 3:
+            input_size = tuple(shape)
+            break
+
+    def load_inputs_fn(batch_size, dtype):
+        # Unwrap "batch" so model(device_input) -> wrapper.forward(batch=obs_dict).
+        return loader.load_inputs(batch_size=batch_size, device="cpu")["batch"]
+
+    def extract_output_tensor_fn(output):
+        return loader.unpack_forward_output(output)
+
+    test_vision(
+        model=model,
+        model_info_name=model_info_name,
+        output_file=output_file,
+        request=request,
+        load_inputs_fn=load_inputs_fn,
+        extract_output_tensor_fn=extract_output_tensor_fn,
+        batch_size=batch_size,
+        loop_count=loop_count,
+        input_size=input_size,
+        data_format=data_format,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
+
+
 def test_vovnet(output_file, request):
     from third_party.tt_forge_models.vovnet.pytorch.loader import (
         ModelLoader,

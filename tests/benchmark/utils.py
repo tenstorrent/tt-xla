@@ -571,6 +571,35 @@ def move_to_cpu(data):
     return data
 
 
+def move_to_device(data, device):
+    """Recursively move all tensors in a data structure to ``device``.
+
+    Mirrors ``move_to_cpu``: handles plain tensors, dicts, lists, tuples, and
+    HuggingFace ModelOutput objects, preserving the container type. Non-tensor
+    leaves are returned unchanged (e.g. ints, strings, None). Only the device is
+    changed - dtypes are preserved, so bool masks / int ids in multi-modal inputs
+    keep their type. For a plain tensor this is exactly ``data.to(device)``, so
+    existing single-tensor callers are unaffected.
+    """
+    if isinstance(data, torch.Tensor):
+        return data.to(device)
+    # Check for HuggingFace ModelOutput BEFORE dict (ModelOutput inherits from OrderedDict).
+    elif hasattr(data, "to_tuple") and hasattr(data, "keys"):
+        for key in list(data.keys()):
+            value = data[key]
+            if isinstance(value, torch.Tensor):
+                data[key] = value.to(device)
+            elif value is not None:
+                data[key] = move_to_device(value, device)
+        return data
+    elif isinstance(data, dict):
+        return {k: move_to_device(v, device) for k, v in data.items()}
+    elif isinstance(data, (list, tuple)):
+        moved = [move_to_device(item, device) for item in data]
+        return type(data)(moved)
+    return data
+
+
 def save_image(image: torch.Tensor, filepath: str = "output.png"):
     """Save a diffusion-model output tensor (range [-1, 1], CHW or BCHW) as a PNG."""
     image = (
