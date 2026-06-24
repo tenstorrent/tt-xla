@@ -335,7 +335,7 @@ def partition_vocab_parallel_embedding(
     # (SPMD can't shard an embedding's index dim).
     batch_axis = "batch" if shard_weights_on_batch_axis else None
     safe_mark_sharding(layer.weight, mesh, (None, batch_axis))
-    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, batch_axis))
+    hook_forward = sharding_constraint_hook(layer, mesh, (None, None, None))
     layer.register_forward_hook(hook_forward)
     logger.debug("Applied parallel sharding to %s", layer)
     return layer
