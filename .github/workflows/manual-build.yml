@@ -38,6 +38,16 @@ on:
         required: false
         type: string
 
+# call-build-docker.yml pushes images to ghcr and writes checks, so the caller
+# must grant these (matches manual-test.yml). Without this block the run hits a
+# startup_failure: "requesting 'checks: write, packages: write', but is only
+# allowed 'checks: none, packages: read'".
+permissions:
+  actions: write
+  packages: write
+  checks: write
+  contents: read
+
 jobs:
   build-image:
     uses: ./.github/workflows/call-build-docker.yml
