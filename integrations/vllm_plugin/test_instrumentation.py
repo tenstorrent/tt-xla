@@ -125,6 +125,30 @@ def test_enabled_emits_three_event_types(tmp_path):
     assert done["req_id"] == "r0"
     assert done["out_len"] == 3
     assert done["isl"] == 10
+    # Enriched completion fields (v2): keys always present.
+    for k in ("first_token_ts", "ttft", "mean_rate", "finish_reason"):
+        assert k in done
+
+
+def test_completion_ttft_and_finish_reason(tmp_path):
+    """admit -> first decoded token (via snapshot) -> completion yields a ttft
+    and a heuristic finish_reason (out_len vs max_tokens)."""
+    d = _setup(tmp_path, enabled=True)
+    ib = _FakeInputBatch()
+    instr.emit_request_admitted(_FakeRequest("r0", 10), 0)  # max_tokens=128
+    # r0 has out_len 3 (>0) in the fake batch -> first_token recorded here.
+    instr.emit_step_snapshot(ib, _FakeScheduler())
+    instr.emit_request_completed(ib, "r0")
+    events = [
+        json.loads(line)
+        for line in open(os.path.join(d, instr.EVENTS_FILENAME))
+        if line.strip()
+    ]
+    done = next(e for e in events if e["event"] == instr.EVENT_REQUEST_COMPLETED)
+    assert done["first_token_ts"] is not None
+    assert done["ttft"] is not None and done["ttft"] >= 0
+    # out_len 3 < max_tokens 128 -> "stop"
+    assert done["finish_reason"] == "stop"
 
 
 def test_step_snapshot_scheduled_and_kind(tmp_path):

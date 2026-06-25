@@ -37,8 +37,9 @@ import time
 from typing import Any, Optional
 
 # Schema version: bump when the event/snapshot field layout changes so consumers
-# can detect mismatches.
-SCHEMA_VERSION = 1
+# can detect mismatches. v2 added slots[].scheduled, step_kind, num_slots, and
+# request_completed.{ttft,mean_rate,first_token_ts,finish_reason}.
+SCHEMA_VERSION = 2
 
 EVENT_REQUEST_ADMITTED = "request_admitted"
 EVENT_STEP_SNAPSHOT = "step_snapshot"
@@ -68,6 +69,9 @@ class _State:
         # Per-request decode-rate tracking: req_id -> (last_out_len, last_ts).
         # Bounded by active slots; entries are dropped on completion.
         self.rate_track: dict[str, tuple[int, float]] = {}
+        # Per-request lifecycle milestones for the completion summary:
+        # req_id -> {"arrival": ts, "first_token": ts|None, "max_tokens": int|None}.
+        self.req_meta: dict[str, dict] = {}
 
 
 _S = _State()
@@ -187,6 +191,11 @@ def emit_request_admitted(request: Any, req_index: Optional[int] = None) -> None
         # Seed decode-rate tracking so the first snapshot has a baseline.
         if req_id is not None:
             _S.rate_track[req_id] = (0, now)
+            _S.req_meta[req_id] = {
+                "arrival": now,
+                "first_token": None,
+                "max_tokens": getattr(sampling, "max_tokens", None),
+            }
         evt = {
             "schema": SCHEMA_VERSION,
             "event": EVENT_REQUEST_ADMITTED,
@@ -258,6 +267,11 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
                 ot = out_token_ids[i]
                 out_len = len(ot) if ot is not None else 0
 
+            # First decoded token -> TTFT milestone (accurate to snapshot cadence).
+            meta = _S.req_meta.get(req_id)
+            if meta is not None and meta["first_token"] is None and out_len > 0:
+                meta["first_token"] = now
+
             # PREFILL while the prompt isn't fully processed; DECODE after.
             if n_prompt is not None and n_computed is not None:
                 state = "PREFILL" if n_computed < n_prompt else "DECODE"
@@ -303,6 +317,7 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
             _, ts = _S.rate_track[stale]
             if (now - ts) > 5.0:
                 _S.rate_track.pop(stale, None)
+                _S.req_meta.pop(stale, None)  # don't leak if completion was missed
 
         num_waiting = None
         if scheduler_output is not None:
@@ -348,9 +363,10 @@ def emit_request_completed(input_batch: Any, req_id: str) -> None:
     """Hook: InputBatch.remove_request(), called at the TOP before the slot's
     state is cleared (req_output_token_ids[idx] is set to None in-method).
 
-    O(1) per request. Note: input_batch has no finish_reason, so we report
-    what's available (out_len, ISL) and let the viewer derive ttft/mean-rate
-    from the admit event + snapshots it already saw.
+    O(1) per request. Carries the lifecycle summary derived from the milestones
+    tracked since admit: ttft, mean decode rate, and a heuristic finish_reason
+    (length vs stop, from out_len vs max_tokens -- the engine's real reason
+    isn't available at this hook).
     """
     if not enabled():
         return
@@ -371,15 +387,32 @@ def emit_request_completed(input_batch: Any, req_id: str) -> None:
             if num_prompt is not None:
                 n_prompt = int(num_prompt[idx])
 
+        now = time.time()
+        meta = _S.req_meta.pop(req_id, None)
         _S.rate_track.pop(req_id, None)
+        arrival = meta["arrival"] if meta else None
+        first_token = meta["first_token"] if meta else None
+        max_tokens = meta["max_tokens"] if meta else None
+        ttft = (first_token - arrival) if (arrival and first_token) else None
+        mean_rate = None
+        if first_token and out_len and out_len > 0 and now > first_token:
+            mean_rate = out_len / (now - first_token)
+        finish_reason = None
+        if out_len is not None and max_tokens:
+            finish_reason = "length" if out_len >= max_tokens else "stop"
+
         evt = {
             "schema": SCHEMA_VERSION,
             "event": EVENT_REQUEST_COMPLETED,
-            "ts": time.time(),
+            "ts": now,
             "req_id": req_id,
             "slot_idx": idx,
             "isl": n_prompt,
             "out_len": out_len,
+            "first_token_ts": first_token,
+            "ttft": round(ttft, 4) if ttft is not None else None,
+            "mean_rate": round(mean_rate, 2) if mean_rate is not None else None,
+            "finish_reason": finish_reason,
         }
         if _S.write_events:
             _append_event(evt)
