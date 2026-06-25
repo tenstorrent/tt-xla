@@ -284,7 +284,6 @@ TP_CONFIGS = [
             gpu_memory_utilization=0.085,
             enable_data_parallel=True,
             shard_weights_on_batch_axis=False,
-            num_hidden_layers=3,
         ),
         id="devstral-123b-galaxy-tp",
     ),
