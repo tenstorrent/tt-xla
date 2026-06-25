@@ -2780,3 +2780,43 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# dots.ocr is a multimodal document-OCR VLM (task: MM_DOC_OCR). Hardware bringup
+# fails on the vision tower's patch-embed Conv2d, but the loader deliberately
+# exposes the text-only Qwen2 decoder path (load_inputs returns input_ids /
+# attention_mask, model via AutoModelForCausalLM), so the LM decode sub-network
+# is benchmarkable here — analogous to olmOCR's text-only decode perf path.
+def test_dots_ocr_1_7b(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.dots_ocr.image_text_to_text.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.DOTS_OCR_1_7B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=(
+            optimization_level
+            if optimization_level is not None
+            else DEFAULT_OPTIMIZATION_LEVEL
+        ),
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
