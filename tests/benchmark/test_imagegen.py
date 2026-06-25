@@ -232,7 +232,12 @@ def test_stable_diffusion_v1_5(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=2,
+        # Perf-tuning sweep result: opt=0/trace=False is the only working config.
+        # opt>=1 trips TT_THROW "Unsupported buffer type" on the CLIP text encoder
+        # (same as playground_v2_5); trace_enabled=True fails with "Error code: 13"
+        # at the XLA warmup-cache compile. No bfp8 knob is exposed for imagegen, and
+        # the pipeline is batch=1 (no batch sweep). So the bringup default stands.
+        optimization_level=0,
         trace_enabled=False,
         output_image_path="test_stable_diffusion_v1_5_output.png",
     )
