@@ -159,6 +159,11 @@ class Model:
         """Populate/refresh a stream from a snapshot slot dict."""
         rid = str(slot.get("req_id"))
         st = self.streams.get(rid)
+        # Terminal is terminal: once a request_completed event marks a stream
+        # done/cancelled, ignore stale slot data still naming it (req_ids are
+        # never reused), so a lagging snapshot can't resurrect it.
+        if st is not None and st.state in (S_DONE, S_CANCELLED, S_ERROR):
+            return
         if st is None:
             st = StreamState(id=rid)
             self.add(st)
@@ -428,10 +433,15 @@ class SnapshotSource(Source):
         for slot in snap.get("slots", []):
             self.m.upsert_slot(slot, now)
             live.add(str(slot.get("req_id")))
-        # Anything previously active but absent from the latest step is done.
-        for st in self.m.active():
-            if st.id not in live and st.slot_idx is not None:
-                st.state = S_DONE
+        # Completion is signaled ONLY by the request_completed event (see
+        # _read_events) -- never inferred from snapshot absence. A prefill step
+        # can omit in-flight decoders that are merely paused, not finished;
+        # marking those DONE was wrong (they flip back the moment prefill ends).
+        # If they're absent during a prefill step, they're stalled, so show that.
+        if self.m.step_kind in ("prefill", "mixed"):
+            for st in self.m.active():
+                if st.id not in live and st.state in (S_DECODE, S_STALLED):
+                    st.state = S_STALLED
 
     def _read_events(self):
         try:
