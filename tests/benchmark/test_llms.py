@@ -2780,3 +2780,39 @@ def test_glm_4_7_tp_galaxy_4_layers(
         kv_cache_sharding_spec=("batch", "model", None, None),
         required_pcc=0.99,
     )
+
+
+# Voxtral-4B-TTS-2603 is a TTS pipeline; only its LM backbone (a Mistral
+# decoder-only causal LM, the dominant-compute component) is benchmarked here.
+# The acoustic transformer / neural codec heads are out of scope. Brought up on
+# n300 (2 chips) via tensor parallelism using the loader's Megatron column->row
+# get_mesh_config / load_shard_spec hooks (mesh (1, 2)).
+def test_voxtral_4b_tts_tp(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+    optimization_level,
+):
+    from third_party.tt_forge_models.voxtral_tts.text_to_speech.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.VOXTRAL_4B_TTS
+    test_llm_tp(
+        ModelLoader,
+        variant,
+        output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )

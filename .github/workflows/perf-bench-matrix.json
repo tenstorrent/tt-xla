@@ -295,6 +295,12 @@
         "pytest": "tests/benchmark/test_llms.py::test_ministral_8b"
       },
       {
+        "name": "voxtral_4b_tts_tp",
+        "pyreq": "mistral-common>=1.10.0",
+        "pytest": "tests/benchmark/test_llms.py::test_voxtral_4b_tts_tp",
+        "runs-on": "n300-llmbox"
+      },
+      {
         "name": "qwen_3_4b_embedding",
         "pytest": "tests/benchmark/test_encoders.py::test_qwen3_embedding_4b"
       },
