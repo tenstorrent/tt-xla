@@ -405,7 +405,13 @@ class SnapshotSource(Source):
         self.events_path = os.path.join(directory, "events.jsonl")
         self.interval = 1.0 / poll_hz
         self._stop = False
-        self._events_pos = 0
+        # Attach live: skip events already in the log so a restart against a
+        # running server doesn't replay (and resurrect) the whole run's history.
+        # In-flight requests still appear via the current snapshot.
+        try:
+            self._events_pos = os.path.getsize(self.events_path)
+        except OSError:
+            self._events_pos = 0
         self.m.source_label = f"snapshot ({directory})"
 
     async def run(self):
@@ -468,6 +474,8 @@ class SnapshotSource(Source):
                         state=S_PREFILL,
                         isl=evt.get("isl"),
                         slot_idx=evt.get("slot_idx"),
+                        # Anchor to the real arrival time so elapsed/age is true.
+                        t_start=evt.get("ts") or time.time(),
                     )
                     self.m.add(st)
                     self.m.notice = f"admitted {rid} (ISL {evt.get('isl')})"
@@ -475,9 +483,14 @@ class SnapshotSource(Source):
                 st = self.m.streams.get(rid)
                 if st:
                     st.state = S_DONE
-                    st.finish_reason = "completed"
+                    st.finish_reason = evt.get("finish_reason") or "completed"
                     if evt.get("out_len") is not None:
                         st.n_tokens = evt["out_len"]
+                    if evt.get("ttft") is not None:
+                        st.ttft = evt["ttft"]
+                    # Freeze elapsed at completion (else a DONE row keeps ticking
+                    # because no snapshot updates t_last after it leaves the batch).
+                    st.t_last = evt.get("ts") or time.time()
 
     async def aclose(self):
         self._stop = True
