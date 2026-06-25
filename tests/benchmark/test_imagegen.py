@@ -242,6 +242,6 @@ def test_fibo(output_file, request):
         num_inference_steps=num_inference_steps,
         height=height,
         width=width,
-        optimization_level=2,   # model-perf-tuning: isolate trace contribution
-        trace_enabled=False,    # model-perf-tuning: isolate trace contribution
+        optimization_level=1,   # model-perf-tuning: check opt=1 vs opt=2 tradeoff
+        trace_enabled=False,    # model-perf-tuning: check opt=1 vs opt=2 tradeoff
     )
