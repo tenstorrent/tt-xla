@@ -793,6 +793,12 @@ test_config:
     reason: "Aborted - https://github.com/tenstorrent/tt-mlir/issues/6786"
     bringup_status: FAILED_RUNTIME
 
+  xtts_v2/pytorch-XTTS_v2-single_device-inference:
+    assert_pcc: false
+    status: KNOWN_FAILURE_XFAIL
+    reason: "FE compilation fails: HiFiGAN decoder's no-op squeeze lowers to prims::view_of, which the tt functionalization pass cannot handle - https://github.com/tenstorrent/tt-xla/issues/5375"
+    bringup_status: FAILED_FE_COMPILATION
+
   albert/token_classification/pytorch-Xlarge_v2-single_device-inference:
     status: EXPECTED_PASSING
 
