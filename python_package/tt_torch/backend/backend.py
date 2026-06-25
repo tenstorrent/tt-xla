@@ -41,6 +41,13 @@ from .metadata_propagation import (
     MetadataInterpreter,
     extract_nodes_info,
 )
+from .partitioner_patch import install_partitioner_outputless_partition_workaround
+
+# torch_xla's CPU-fallback partitioner asserts a partition has at least one
+# output. In-place cache write-backs (e.g. vLLM GatedDeltaNet conv/ssm state)
+# functionalize to zero-user `copy_` sinks that can form an output-less
+# partition. Drop such partitions so their nodes run via the parent graph.
+install_partitioner_outputless_partition_workaround()
 from .passes import (
     _build_normalized_fqn_lookup,
     _normalize_fx_name,

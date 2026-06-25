@@ -203,8 +203,8 @@ def tt_chunk_gated_delta_rule(
             gc = gf[bi, cs:ce].transpose(0, 1)  # [HV,Lc]
             betac = bf[bi, cs:ce].transpose(0, 1)
             o_chunk, S0 = _process_chunk(qc, kc, vc, gc, betac, S0, scale)
-            out[bi, cs:ce] = o_chunk.transpose(0, 1)  # back to [Lc,HV,V]
+            out[bi, cs:ce] = o_chunk.transpose(0, 1).contiguous()  # back to [Lc,HV,V]
 
         final_state[seq_idx] = S0
 
-    return out.to(v.dtype), (final_state if output_final_state else None)
+    return out.contiguous().to(v.dtype), (final_state if output_final_state else None)
