@@ -20,14 +20,17 @@
 #                       to run with TT_INSTRUMENT=1 (see vllm_tt/instrumentation.py).
 #
 # Two renderers:
-#   rich   (default if `rich` is installed) -- a live table + footer.
-#   plain  (--plain, or auto-fallback)      -- stdlib ANSI, zero extra deps.
+#   textual (default in a tty) -- a scrollable, selectable DataTable + live
+#            footer. Select a row to target it with `k`. Needs `textual`
+#            (pip install -r integrations/vllm_plugin/tools/requirements.txt).
+#   plain   (--plain, non-tty, or if textual is missing) -- stdlib ANSI, zero
+#            extra deps; used for headless/CI runs (with --exit-after).
 #
 # Keys (in a tty):
 #   n  launch 1 request        b  launch a burst (default 4)
-#   k  cancel newest in-flight  t  toggle token-text / counter mode
+#   k  cancel selected row      t  toggle token-text / counter mode
 #   p  toggle prefill highlight  q  quit (aborts all streams cleanly)
-#   1..9  launch that many at once
+#   1..9  launch that many at once   (plain renderer cancels the newest)
 # (client + demo are interactive; snapshot is read-only except t/p/q.)
 #
 # Honest limits of --source client (Approach A): it CANNOT distinguish prefill
@@ -528,78 +531,175 @@ def _state_color(state: str) -> str:
     }.get(state, "white")
 
 
-class RichRenderer:
-    def __init__(self, model: Model):
-        from rich.console import Console
-        from rich.live import Live
+_TABLE_COLS = [
+    "ID",
+    "SLOT",
+    "STATE",
+    "ISL",
+    "OUT",
+    "tok/s",
+    "TTFT",
+    "elapsed",
+    "text/tokens",
+]
 
-        self.m = model
-        self.Console = Console
-        self.console = Console()
-        self._Live = Live
 
-    def _table(self):
-        from rich.table import Table
-        from rich.text import Text
+def make_textual_app(
+    model: Model,
+    source: Source,
+    burst_n: int,
+    start_n: int = 0,
+    exit_after: float = 0.0,
+):
+    """Build the Textual dashboard app. Imports textual lazily and defines the
+    App subclass here so the module still imports (for --plain / headless) when
+    textual isn't installed. Raises ImportError if textual is missing."""
+    from rich.text import Text
+    from textual.app import App, ComposeResult
+    from textual.binding import Binding
+    from textual.widgets import DataTable, Footer, Header, Static
 
-        m = self.m
-        t = Table(expand=True, pad_edge=False)
-        t.add_column("ID", style="bold", no_wrap=True)
-        t.add_column("SLOT", justify="right", no_wrap=True)
-        t.add_column("STATE", no_wrap=True)
-        t.add_column("ISL", justify="right", no_wrap=True)
-        t.add_column("OUT", justify="right", no_wrap=True)
-        t.add_column("tok/s", justify="right", no_wrap=True)
-        t.add_column("TTFT", justify="right", no_wrap=True)
-        t.add_column("elapsed", justify="right", no_wrap=True)
-        t.add_column("text" if not m.counter_mode else "tokens", overflow="ellipsis")
-        for st in m.visible():
-            color = _state_color(st.state)
-            row_style = ""
-            if m.highlight_prefill and st.state == S_PREFILL:
-                row_style = "on grey23"
-            last_col = (
-                ("#" * min(40, st.n_tokens // 4)) if m.counter_mode else st.text_tail
-            )
-            t.add_row(
-                st.id,
-                str(st.slot_idx) if st.slot_idx is not None else "-",
-                Text(st.state, style=color),
-                str(st.isl) if st.isl is not None else "-",
-                str(st.n_tokens),
-                _fmt(st.rate, 1),
-                _fmt(st.ttft, 2) + "s" if st.ttft else "-",
-                _fmt(st.elapsed, 1) + "s",
-                last_col,
-                style=row_style,
-            )
-        return t
-
-    def _footer(self):
-        from rich.panel import Panel
-
-        m = self.m
-        act = m.active()
-        n_prefill = sum(1 for s in act if s.state == S_PREFILL)
-        n_decode = sum(1 for s in act if s.state == S_DECODE)
-        waiting = m.num_waiting if m.num_waiting is not None else "-"
-        body = (
-            f"[bold]source[/] {m.source_label}    "
-            f"[green]decoding[/] {n_decode}  [yellow]prefill[/] {n_prefill}  "
-            f"waiting {waiting}  done {len(m.streams) - len(act)}\n"
-            f"[bold]agg[/] {m.agg_rate():.1f} tok/s   total tokens {m.total_tokens()}   "
-            f"[dim]keys: n launch  b burst  k cancel  t counter  p prefill-hl  q quit[/]\n"
-            f"[cyan]{m.notice}[/]"
+    def cells_for(st: StreamState, m: Model):
+        if m.highlight_prefill and st.state == S_PREFILL:
+            state = Text(st.state, style="black on yellow")
+        else:
+            state = Text(st.state, style=_state_color(st.state))
+        last = (
+            ("#" * min(48, st.n_tokens // 4)) if m.counter_mode else st.text_tail[-60:]
         )
-        return Panel(body, title="TT vLLM live dashboard", border_style="blue")
+        return [
+            st.id,
+            str(st.slot_idx) if st.slot_idx is not None else "-",
+            state,
+            str(st.isl) if st.isl is not None else "-",
+            str(st.n_tokens),
+            _fmt(st.rate, 1),
+            f"{st.ttft:.2f}s" if st.ttft else "-",
+            f"{st.elapsed:.1f}s",
+            last,
+        ]
 
-    async def loop(self, stop_evt: asyncio.Event):
-        from rich.console import Group
+    class Dashboard(App):
+        TITLE = "TT vLLM live dashboard"
+        CSS = """
+        DataTable { height: 1fr; }
+        #stats { height: 3; padding: 0 1; background: $panel; color: $text; }
+        """
+        BINDINGS = [
+            Binding("q", "quit_clean", "quit"),
+            Binding("n", "launch_one", "launch"),
+            Binding("b", "burst", "burst"),
+            Binding("k", "cancel_sel", "cancel"),
+            Binding("t", "toggle_counter", "counter"),
+            Binding("p", "toggle_prefill", "prefill-hl"),
+        ]
 
-        with self._Live(console=self.console, screen=True, auto_refresh=False) as live:
-            while not stop_evt.is_set():
-                live.update(Group(self._table(), self._footer()), refresh=True)
-                await asyncio.sleep(0.1)
+        def __init__(self):
+            super().__init__()
+            self.m = model
+            self.source = source
+            self._col_keys: list = []
+            self._row_keys: set = set()
+
+        def compose(self) -> ComposeResult:
+            yield Header(show_clock=True)
+            yield DataTable(id="slots", zebra_stripes=True)
+            yield Static("", id="stats")
+            yield Footer()
+
+        async def on_mount(self) -> None:
+            self.sub_title = self.m.source_label
+            table = self.query_one(DataTable)
+            self._col_keys = list(table.add_columns(*_TABLE_COLS))
+            table.cursor_type = "row"
+            self.run_worker(self.source.run(), name="source", exclusive=False)
+            if start_n:
+                await self.source.launch(start_n)
+            self.set_interval(0.1, self.refresh_view)
+            if exit_after:
+                self.set_timer(exit_after, self.action_quit_clean)
+
+        def refresh_view(self) -> None:
+            m = self.m
+            table = self.query_one(DataTable)
+            visible = m.visible()
+            vidset = {s.id for s in visible}
+            for rid in list(self._row_keys):
+                if rid not in vidset:
+                    try:
+                        table.remove_row(rid)
+                    except Exception:
+                        pass
+                    self._row_keys.discard(rid)
+            for st in visible:
+                cells = cells_for(st, m)
+                if st.id in self._row_keys:
+                    for ck, val in zip(self._col_keys, cells):
+                        table.update_cell(st.id, ck, val, update_width=False)
+                else:
+                    table.add_row(*cells, key=st.id)
+                    self._row_keys.add(st.id)
+            self._update_stats()
+
+        def _update_stats(self) -> None:
+            m = self.m
+            act = m.active()
+            n_pref = sum(1 for s in act if s.state == S_PREFILL)
+            n_dec = sum(1 for s in act if s.state == S_DECODE)
+            waiting = m.num_waiting if m.num_waiting is not None else "-"
+            txt = (
+                f"[b]source[/] {m.source_label}    "
+                f"[green]decode[/] {n_dec}  [yellow]prefill[/] {n_pref}  "
+                f"waiting {waiting}  done {len(m.streams) - len(act)}    "
+                f"[b]agg[/] {m.agg_rate():.1f} tok/s   total {m.total_tokens()} tok"
+            )
+            if m.notice:
+                txt += f"\n[cyan]{m.notice}[/]"
+            self.query_one("#stats", Static).update(txt)
+
+        async def on_key(self, event) -> None:
+            # 1..9 launch that many at once (kept off the footer to reduce noise).
+            if event.key.isdigit() and event.key != "0":
+                await self._launch(int(event.key))
+
+        async def _launch(self, n: int) -> None:
+            if self.source.interactive:
+                await self.source.launch(n)
+            else:
+                self.m.notice = "launch disabled for snapshot source (read-only)"
+
+        async def action_launch_one(self) -> None:
+            await self._launch(1)
+
+        async def action_burst(self) -> None:
+            await self._launch(burst_n)
+
+        async def action_cancel_sel(self) -> None:
+            if not self.source.interactive:
+                self.m.notice = "cancel disabled for snapshot source (read-only)"
+                return
+            target = None
+            try:
+                table = self.query_one(DataTable)
+                key = table.coordinate_to_cell_key(table.cursor_coordinate)
+                target = key.row_key.value
+            except Exception:
+                target = None
+            await self.source.cancel(target)
+
+        def action_toggle_counter(self) -> None:
+            self.m.counter_mode = not self.m.counter_mode
+
+        def action_toggle_prefill(self) -> None:
+            self.m.highlight_prefill = not self.m.highlight_prefill
+
+        async def action_quit_clean(self) -> None:
+            try:
+                await self.source.aclose()
+            finally:
+                self.exit()
+
+    return Dashboard()
 
 
 class PlainRenderer:
@@ -733,27 +833,14 @@ def build_source(args, model: Model) -> Source:
     return ClientSource(model, cfg)
 
 
-def pick_renderer(model: Model, want_plain: bool):
-    if want_plain:
-        return PlainRenderer(model)
-    try:
-        import rich  # noqa: F401
-
-        return RichRenderer(model)
-    except ImportError:
-        model.notice = "rich not installed -- using plain renderer (pip install rich)"
-        return PlainRenderer(model)
-
-
-async def amain(args):
-    model = Model()
-    source = build_source(args, model)
-    renderer = pick_renderer(model, args.plain)
+async def amain(args, model: Model, source: Source):
+    """Plain (stdlib ANSI) run loop -- used for --plain, non-tty, and headless
+    --exit-after runs. The textual renderer is driven separately in main()."""
     stop_evt = asyncio.Event()
 
     tasks = [
         asyncio.create_task(source.run()),
-        asyncio.create_task(renderer.loop(stop_evt)),
+        asyncio.create_task(PlainRenderer(model).loop(stop_evt)),
         asyncio.create_task(keyboard(source, model, stop_evt, args.burst)),
     ]
     if args.source == "client" and args.start:
@@ -823,8 +910,34 @@ def main():
     )
     args = p.parse_args()
 
+    model = Model()
+    source = build_source(args, model)
+
+    # Textual in a real terminal; otherwise the stdlib plain renderer (also the
+    # path for --plain and headless --exit-after verification).
+    want_textual = not args.plain and sys.stdin.isatty() and sys.stdout.isatty()
+    if want_textual:
+        try:
+            app = make_textual_app(
+                model,
+                source,
+                args.burst,
+                args.start if args.source == "client" else 0,
+                args.exit_after,
+            )
+        except ImportError:
+            print(
+                "textual not installed; falling back to --plain. Install with:\n"
+                "  pip install -r integrations/vllm_plugin/tools/requirements.txt",
+                file=sys.stderr,
+            )
+            app = None
+        if app is not None:
+            app.run()
+            return
+
     try:
-        asyncio.run(amain(args))
+        asyncio.run(amain(args, model, source))
     except KeyboardInterrupt:
         pass
 

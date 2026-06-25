@@ -28,13 +28,20 @@ python3 integrations/vllm_plugin/tools/live_dashboard.py --source demo
 ```
 
 In a tty you get keys: `n` launch one, `b` burst, `1`..`9` launch that many,
-`k` cancel newest, `t` counter/text, `p` prefill highlight, `q` quit. Fire a
-burst while streams decode and watch every running stream's tok/s dip during the
-burst's prefill window — that hitch *is* the visualization.
+`k` cancel the selected row, `t` counter/text, `p` prefill highlight, `q` quit.
+Fire a burst while streams decode and watch every running stream's tok/s dip
+during the burst's prefill window — that hitch *is* the visualization.
 
-Renderer: uses [`rich`](https://github.com/Textualize/rich) if installed,
-otherwise a stdlib ANSI fallback (or force it with `--plain`). No `textual`
-dependency.
+Renderer: a [`textual`](https://github.com/Textualize/textual) TUI in a tty —
+a scrollable, selectable slot table (use ↑/↓ then `k` to cancel a specific
+stream) plus a live footer. Install the optional UI deps once:
+
+```bash
+pip install -r integrations/vllm_plugin/tools/requirements.txt
+```
+
+Without textual (or with `--plain`, a non-tty, or `--exit-after`) it falls back
+to a stdlib ANSI renderer with zero extra deps — handy for headless/CI runs.
 
 ## Approach A — play against a running server (zero server changes)
 
