@@ -20,12 +20,18 @@ def get_mesh_shape_for_device_count(num_devices: int) -> Tuple[int, int]:
         ``(batch_dim, model_dim)`` with product equal to ``num_devices``.
 
     Examples:
+        2 -> (1, 2)    # e.g. n300 / p300
+        4 -> (1, 4)    # e.g. single bh_quietbox
         8 -> (2, 4)    # e.g. dual_bh_quietbox
         16 -> (1, 16)  # e.g. dual T3K / loudbox 1x16
         32 -> (4, 8)   # e.g. single galaxy
         64 -> (8, 8)   # e.g. dual galaxy
         128 -> (8, 16) # e.g. quad galaxy
     """
+    if num_devices == 2:
+        return (1, 2)
+    if num_devices == 4:
+        return (1, 4)
     if num_devices == 8:
         return (2, 4)
     if num_devices == 16:
@@ -38,7 +44,7 @@ def get_mesh_shape_for_device_count(num_devices: int) -> Tuple[int, int]:
         return (8, 16)
     raise ValueError(
         f"Unsupported device count: {num_devices}. "
-        f"Supported counts: 8, 16, 32, 64, 128"
+        f"Supported counts: 2, 4, 8, 16, 32, 64, 128"
     )
 
 
