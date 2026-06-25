@@ -22,6 +22,9 @@ if EXPORT_DIR is None:
     )
     os.environ["TTXLA_CODEGEN_EXPORT_DIR"] = EXPORT_DIR
 
+# Set proper location data in IRs
+os.environ["XLA_HLO_DEBUG"] = "1"
+
 import vllm
 
 
@@ -34,12 +37,12 @@ def main():
         max_model_len=512,
         max_num_batched_tokens=512,
         max_num_seqs=1,
-        gpu_memory_utilization=0.4,
+        gpu_memory_utilization=0.02,
         additional_config={"enable_const_eval": False, "min_context_len": 32},
     )
-    params = vllm.SamplingParams(temperature=0, max_tokens=16)
-    out = llm.generate(["Hello"], params)
-    print("generated:", repr(out[0].outputs[0].text), flush=True)
+    # params = vllm.SamplingParams(temperature=0, max_tokens=16)
+    # out = llm.generate(["Hello"], params)
+    # print("generated:", repr(out[0].outputs[0].text), flush=True)
 
     print(f"\ncodegen emitted under {export_dir}:")
     if export_dir.is_dir():

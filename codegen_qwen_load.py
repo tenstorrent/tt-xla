@@ -41,7 +41,7 @@ def main():
         max_model_len=512,
         max_num_batched_tokens=512,
         max_num_seqs=1,
-        gpu_memory_utilization=0.4,
+        gpu_memory_utilization=0.02,
         additional_config={"enable_const_eval": False, "min_context_len": 32},
     )
     params = vllm.SamplingParams(temperature=0, max_tokens=16)
