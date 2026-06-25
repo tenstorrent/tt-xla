@@ -1110,6 +1110,38 @@ def test_llama_3_1_8b(
     )
 
 
+# Base (non-instruct) meta-llama/Llama-3.1-8B, single-chip perf baseline (p150).
+# Bringup-safe defaults: optimization_level=0, trace_enabled=False.
+def test_llama_3_1_8b_base(
+    output_file,
+    num_layers,
+    request,
+    accuracy_testing,
+    batch_size,
+    max_output_tokens,
+    decode_only,
+):
+    from third_party.tt_forge_models.llama.causal_lm.pytorch.loader import (
+        ModelLoader,
+        ModelVariant,
+    )
+
+    variant = ModelVariant.LLAMA_3_1_8B
+    test_llm(
+        ModelLoaderModule=ModelLoader,
+        variant=variant,
+        output_file=output_file,
+        num_layers=num_layers,
+        request=request,
+        accuracy_testing=accuracy_testing,
+        batch_size=batch_size,
+        max_output_tokens=max_output_tokens,
+        decode_only=decode_only,
+        optimization_level=0,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+    )
+
+
 def test_falcon3_7b_tp(
     output_file,
     num_layers,
