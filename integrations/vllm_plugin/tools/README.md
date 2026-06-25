@@ -139,6 +139,28 @@ For watch-only, use `--source snapshot`; to generate load without telemetry, use
 | `TT_INSTRUMENT_EVENTS` | `1` | also append admit/complete to `events.jsonl` |
 | `TT_INSTRUMENT_SNAPSHOTS_JSONL` | `0` | also append each snapshot to `events.jsonl` |
 
+## Offline analysis (`analyze_run.py`)
+
+After a run, post-process its `events.jsonl` into a summary + a zoomable timeline
+— no live watching needed:
+
+```bash
+python3 integrations/vllm_plugin/tools/analyze_run.py \
+    --dir /tmp/tt_instrument/qwen3-8b --html run.html --json run.json
+```
+
+Prints a markdown summary (throughput, TTFT / OSL / latency percentiles,
+concurrency & overlap, and — with snapshots — where slot-time went, stall-seconds
+of interference, step-kind breakdown, occupancy). `--html` writes a
+self-contained, dependency-free timeline of the N batch slots colored by
+prefill/decode/stalled (wheel-zoom, drag-pan).
+
+**Fidelity:** with only `request_admitted`/`request_completed` you get
+per-request bars + overlap + TTFT/OSL/latency. For the per-slot state timeline,
+stall cost, and step breakdown, run the server with
+**`TT_INSTRUMENT_SNAPSHOTS_JSONL=1`** so step snapshots land in the log too
+(same sampling caveat as live — finer with a lower `TT_INSTRUMENT_THROTTLE_MS`).
+
 ## The schema (the A↔B contract)
 
 `schema` version is `instrumentation.SCHEMA_VERSION`. Two sinks in
@@ -149,28 +171,32 @@ For watch-only, use `--source snapshot`; to generate load without telemetry, use
 - **`events.jsonl`** — append-only `request_admitted` + `request_completed`
   (truncated at each fresh run). For offline analysis / request-mix audits.
 
+Current `schema` is `2`.
+
 ```jsonc
 // request_admitted  (events.jsonl)
-{"schema":1,"event":"request_admitted","ts":<float>,"req_id":"...","slot_idx":3,
+{"schema":2,"event":"request_admitted","ts":<float>,"req_id":"...","slot_idx":3,
  "isl":512,"sampling":{"temperature":0.7,"top_k":20,"top_p":0.95,"min_p":0.0,
    "repetition_penalty":1.1,"presence_penalty":0.0,"frequency_penalty":0.0,
    "seed":7,"max_tokens":128,"n":1}}
 
 // step_snapshot  (snapshot.json; one per step, throttled)
-{"schema":1,"event":"step_snapshot","ts":<float>,"step_idx":42,"num_running":3,
- "num_waiting":1,"agg_rate":63.2,"step_kind":"prefill",
+{"schema":2,"event":"step_snapshot","ts":<float>,"step_idx":42,"num_running":3,
+ "num_waiting":1,"num_slots":32,"agg_rate":63.2,"step_kind":"prefill",
  "slots":[{"slot_idx":0,"req_id":"...","state":"DECODE","num_prompt_tokens":512,
    "num_computed_tokens":512,"out_len":37,"inst_rate":21.1,"scheduled":0}, ...]}
 
 // request_completed  (events.jsonl)
-{"schema":1,"event":"request_completed","ts":<float>,"req_id":"...","slot_idx":0,
- "isl":512,"out_len":200}
+{"schema":2,"event":"request_completed","ts":<float>,"req_id":"...","slot_idx":0,
+ "isl":512,"out_len":200,"first_token_ts":<float>,"ttft":0.41,"mean_rate":21.0,
+ "finish_reason":"length"}
 ```
 
 `step_snapshot.slots[*]` maps directly onto the dashboard's `StreamState`, which
-is why one renderer serves all three sources. Note `request_completed` has no
-`finish_reason` (not available at `InputBatch.remove_request`); a viewer derives
-TTFT/mean-rate from the admit event + the snapshots it already saw.
+is why one renderer serves all the sources. `request_completed` carries a derived
+lifecycle summary — `ttft`, `mean_rate`, and a *heuristic* `finish_reason`
+(`length` vs `stop` from `out_len` vs `max_tokens`; the engine's real reason
+isn't available at `InputBatch.remove_request`).
 
 **`scheduled` / `step_kind` — the stall signal.** `state` is the prompt-based
 PREFILL/DECODE label (`num_computed < num_prompt`); it says nothing about whether
