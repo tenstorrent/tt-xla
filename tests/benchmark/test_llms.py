@@ -2818,5 +2818,5 @@ def test_dots_ocr_1_7b(
             if optimization_level is not None
             else DEFAULT_OPTIMIZATION_LEVEL
         ),
-        trace_enabled=False,  # safe default for bringup; model-perf-tuning will ramp
+        trace_enabled=True,  # perf-tuning: enable trace (only knob held back from max-perf)
     )
