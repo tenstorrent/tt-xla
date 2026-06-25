@@ -758,18 +758,9 @@ tt_pjrt_status ModuleBuilder::runCompilerStableHLOPipeline(
   mlir::tt::stablehlo::StableHLOPipelineOptions stablehlo_pipeline_options;
   stablehlo_pipeline_options.resultPresharded = result_presharded;
 
-  // A graph with no inputs inherits the full device mesh so that a genuinely
-  // distributed result lands on all devices (see #4439). But that is only
-  // correct when something is actually sharded across devices: a no-input graph
-  // that merely produces a replicated value (e.g. gemma's standalone
-  // `sqrt(hidden_size)` scalar normalizer) is executed on a single device, so
-  // stamping it with the full mesh inflates the device count and breaks
-  // execution with a "Device count mismatch" error. Only adopt the full mesh
-  // when a result is genuinely device-sharded; otherwise let it default to a
-  // single device.
   if (current_mesh_shape.has_value() && current_mesh_shape->size() == 2 &&
-      !moduleHasAnyFuncArguments(mlir_module) &&
-      anyShardedAcrossDevices(output_shardings)) {
+      (moduleHasAnyFuncArguments(mlir_module) ||
+       anyShardedAcrossDevices(output_shardings))) {
     stablehlo_pipeline_options.meshShape = {
         static_cast<int64_t>((*current_mesh_shape)[0]),
         static_cast<int64_t>((*current_mesh_shape)[1])};

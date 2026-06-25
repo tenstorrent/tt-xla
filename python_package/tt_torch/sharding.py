@@ -50,21 +50,26 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
     replace with actual axis names from the mesh definition.
 
     Mesh axes with size 1 are treated as replicated (empty set).
+    Placeholder index i maps to the i-th mesh axis, counting ALL axes
+    (including size-1 ones). This matches tt-mlir's positional resolution in
+    replaceMeshIdxPlaceholders (ShardyUtils.cpp), which keeps degenerate axes
+    in the compiled mesh.
 
     Example:
         partition_spec = ("batch", None, None)
-        mesh.axis_names = ("batch", "model")
+        mesh.axis_names = ("batch", "model"), mesh_shape = (2, 4)
         → '#sdy.sharding_per_value<[<@mesh, [{"mesh_idx_0"}, {}, {}]>]>'
 
-        With unreduced=["model"]:
-        → '#sdy.sharding_per_value<[<@mesh, [{"mesh_idx_0"}, {}, {}], unreduced={"mesh_idx_1"}>]>'
+        partition_spec = (None, "model")
+        mesh.axis_names = ("batch", "model"), mesh_shape = (1, 2)
+        → '#sdy.sharding_per_value<[<@mesh, [{}, {"mesh_idx_1"}]>]>'
+        (model is axis index 1; mesh_idx_1 resolves to the model axis)
     """
     dim_shardings = []
     for axis in partition_spec:
         if axis is None:
             dim_shardings.append("{}")
         elif isinstance(axis, str):
-            # Map axis name to mesh index placeholder (e.g., "batch" -> "mesh_idx_0")
             try:
                 axis_idx = mesh.axis_names.index(axis)
                 if mesh.mesh_shape[axis_idx] > 1:
@@ -76,19 +81,21 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
         elif isinstance(axis, int):
             if mesh.mesh_shape[axis] > 1:
                 dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
-            dim_shardings.append(f'{{"{_MESH_IDX_PREFIX}{axis}"}}')
+            else:
+                dim_shardings.append("{}")
         elif isinstance(axis, (list, tuple)):
-            # Compound sharding: ("model", "batch") → single dim sharded on both axes
             axis_refs = []
             for ax_name in axis:
                 if isinstance(ax_name, str):
                     try:
                         axis_idx = mesh.axis_names.index(ax_name)
-                        axis_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
+                        if mesh.mesh_shape[axis_idx] > 1:
+                            axis_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
                     except ValueError:
                         pass
                 elif isinstance(ax_name, int):
-                    axis_refs.append(f'"{_MESH_IDX_PREFIX}{ax_name}"')
+                    if mesh.mesh_shape[ax_name] > 1:
+                        axis_refs.append(f'"{_MESH_IDX_PREFIX}{ax_name}"')
             if axis_refs:
                 dim_shardings.append("{" + ", ".join(axis_refs) + "}")
             else:
@@ -106,11 +113,13 @@ def _partition_spec_to_sdy_sharding(mesh, partition_spec, unreduced=None) -> str
             if isinstance(ax, str):
                 try:
                     axis_idx = mesh.axis_names.index(ax)
-                    unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
+                    if mesh.mesh_shape[axis_idx] > 1:
+                        unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{axis_idx}"')
                 except ValueError:
                     pass
             elif isinstance(ax, int):
-                unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{ax}"')
+                if mesh.mesh_shape[ax] > 1:
+                    unreduced_refs.append(f'"{_MESH_IDX_PREFIX}{ax}"')
         if unreduced_refs:
             unreduced_str = f", unreduced={{{', '.join(unreduced_refs)}}}"
 
