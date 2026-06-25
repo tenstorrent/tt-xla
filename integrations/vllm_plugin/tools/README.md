@@ -111,6 +111,25 @@ stdlib-only and strictly `O(active_slots)` per step (snapshots are throttled by
 `TT_INSTRUMENT_THROTTLE_MS`, default 100 ms) — telemetry must never reintroduce
 a per-step host regression (cf. #4278).
 
+## Interactive — drive the server *and* see its truth (`--source interactive`)
+
+`client` infers from its own traffic; `snapshot` shows ground truth but is
+read-only. `interactive` is both in one TUI: it fires requests like a client
+(`n`/`b`/`k`/digits) while the **display is the snapshot ground truth** (real
+slots, PREFILL/DECODE, stall, the slot grid). Needs a `TT_INSTRUMENT=1` server
+and `--dir`:
+
+```bash
+python3 integrations/vllm_plugin/tools/live_dashboard.py --source interactive \
+    --dir /tmp/tt_instrument/qwen3-8b --port 8000 --model Qwen/Qwen3-8B
+```
+
+Two honest limits (the OpenAI API hides the engine's `req_id` from clients): a
+request you fire can't be matched to a specific snapshot row, and `k` cancels
+*your newest launched* request (per-connection abort), not an arbitrary slot.
+For watch-only, use `--source snapshot`; to generate load without telemetry, use
+`--source client`.
+
 ### Env vars
 | var | default | meaning |
 |---|---|---|

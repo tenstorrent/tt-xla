@@ -10,7 +10,7 @@
 # requests perturbs in-flight streams (the decode "hitch" during a burst's
 # prefill -- the headline visualization).
 #
-# Three data sources (the same renderer + model serve all three):
+# Four data sources (the same renderer + model serve all of them):
 #   --source demo      synthetic data, NO server. Run this first to see the UI.
 #   --source client    fire OpenAI-compatible requests at a running server and
 #                       INFER state from SSE token cadence (Approach A: zero
@@ -18,6 +18,9 @@
 #   --source snapshot  read the engine's own telemetry (Approach B): true slots,
 #                       real PREFILL vs DECODE, num_waiting. Requires the server
 #                       to run with TT_INSTRUMENT=1 (see vllm_tt/instrumentation.py).
+#   --source interactive  BOTH: drive an instrumented server like a client
+#                       (n/b/k/digits) while the display is the snapshot ground
+#                       truth. Needs --dir + a TT_INSTRUMENT=1 server.
 #
 # Two renderers:
 #   textual (default in a tty) -- a scrollable, selectable DataTable + live
@@ -477,12 +480,18 @@ class ClientSource(Source):
 
     interactive = True
 
-    def __init__(self, model: Model, cfg: dict):
+    def __init__(self, model: Model, cfg: dict, track: bool = True):
         self.m = model
         self.cfg = cfg
+        # track=False: fire/cancel requests for load only; do NOT write display
+        # rows (the snapshot source owns the display in interactive mode).
+        self.track = track
         self._tasks: dict[str, asyncio.Task] = {}
+        self._order: list[str] = []  # launch order, for cancel-newest
+        self._local: dict[str, StreamState] = {}  # streams not added to the model
         self._session = None
-        self.m.source_label = f"client {cfg['host']}:{cfg['port']} [{cfg['model']}]"
+        if track:
+            self.m.source_label = f"client {cfg['host']}:{cfg['port']} [{cfg['model']}]"
 
     async def _ensure_session(self):
         if self._session is None:
@@ -579,24 +588,43 @@ class ClientSource(Source):
     async def launch(self, n: int = 1):
         for _ in range(n):
             st = StreamState(id=self.m.new_id("c"), osl_target=self.cfg["max_tokens"])
-            self.m.add(st)
+            if self.track:
+                self.m.add(st)
+            else:
+                self._local[st.id] = st
+            self._order.append(st.id)
             self._tasks[st.id] = asyncio.create_task(self._stream(st))
         self.m.notice = f"launched {n} request(s)"
 
     async def cancel(self, target: Optional[str] = None):
-        act = self.m.active()
-        st = self.m.streams.get(target) if target else (act[-1] if act else None)
-        if st and st.id in self._tasks:
-            self._tasks[st.id].cancel()
-            self.m.notice = f"cancelled {st.id}"
+        # Resolve to a request WE launched. In interactive mode the selected row
+        # is an engine req_id we don't own, so fall back to our newest live one.
+        rid = target if (target and target in self._tasks) else None
+        if rid is None:
+            for cand in reversed(self._order):
+                t = self._tasks.get(cand)
+                if t and not t.done():
+                    rid = cand
+                    break
+        if rid and rid in self._tasks:
+            self._tasks[rid].cancel()
+            st = self.m.streams.get(rid) or self._local.get(rid)
+            if st:
+                st.state = S_CANCELLED
+                st.finish_reason = "cancelled"
+            self.m.notice = f"cancelled {rid}"
 
     async def run(self):
-        # Reaper: keep finished tasks from accumulating; prune old rows.
+        # Reaper: keep finished tasks/refs from accumulating; prune old rows.
         while True:
-            for rid, t in list(self._tasks.items()):
-                if t.done():
-                    self._tasks.pop(rid, None)
-            self.m.prune()
+            done = [rid for rid, t in self._tasks.items() if t.done()]
+            for rid in done:
+                self._tasks.pop(rid, None)
+                self._local.pop(rid, None)
+                if rid in self._order:
+                    self._order.remove(rid)
+            if self.track:
+                self.m.prune()
             await asyncio.sleep(0.2)
 
     async def aclose(self):
@@ -605,6 +633,41 @@ class ClientSource(Source):
         await asyncio.gather(*self._tasks.values(), return_exceptions=True)
         if self._session is not None:
             await self._session.close()
+
+
+class InteractiveSource(Source):
+    """Drive a running (instrumented) server AND show its ground truth in one
+    TUI: a launch-only ClientSource generates load (n/b/k/digits), while a
+    SnapshotSource owns the display (real slots, PREFILL/DECODE, stall, grid).
+
+    The OpenAI API doesn't expose the engine's req_id to the client, so launched
+    requests can't be matched to specific snapshot rows, and `k` cancels OUR
+    newest launched request (per-connection abort), not an arbitrary slot."""
+
+    interactive = True
+
+    def __init__(self, model: Model, cfg: dict, directory: str, poll_hz=10.0):
+        self.m = model
+        self.client = ClientSource(model, cfg, track=False)
+        self.snap = SnapshotSource(model, directory, poll_hz)
+        self.m.source_label = (
+            f"interactive {cfg['host']}:{cfg['port']} [{cfg['model']}] "
+            f"+ snapshot ({directory})"
+        )
+
+    async def run(self):
+        await asyncio.gather(self.client.run(), self.snap.run())
+
+    async def launch(self, n: int = 1):
+        await self.client.launch(n)
+
+    async def cancel(self, target: Optional[str] = None):
+        # Ignore the selected (engine) row; cancel our newest launched request.
+        await self.client.cancel(None)
+
+    async def aclose(self):
+        await self.client.aclose()
+        await self.snap.aclose()
 
 
 # ----------------------------------------------------------------------------
@@ -1019,6 +1082,8 @@ def build_source(args, model: Model) -> Source:
         ignore_eos=args.ignore_eos,
         completions=args.completions,
     )
+    if args.source == "interactive":
+        return InteractiveSource(model, cfg, args.dir)
     return ClientSource(model, cfg)
 
 
@@ -1032,7 +1097,7 @@ async def amain(args, model: Model, source: Source):
         asyncio.create_task(PlainRenderer(model).loop(stop_evt)),
         asyncio.create_task(keyboard(source, model, stop_evt, args.burst)),
     ]
-    if args.source == "client" and args.start:
+    if args.source in ("client", "interactive") and args.start:
         await source.launch(args.start)
 
     if args.exit_after:
@@ -1052,7 +1117,12 @@ async def amain(args, model: Model, source: Source):
 
 def main():
     p = argparse.ArgumentParser(description="Live TT vLLM inference dashboard")
-    p.add_argument("--source", choices=["demo", "client", "snapshot"], default="demo")
+    p.add_argument(
+        "--source",
+        choices=["demo", "client", "snapshot", "interactive"],
+        default="demo",
+        help="interactive = drive a server (client) + show its telemetry (snapshot)",
+    )
     p.add_argument("--plain", action="store_true", help="force stdlib ANSI renderer")
     # client / server
     p.add_argument("--host", default="localhost")
@@ -1118,7 +1188,7 @@ def main():
                 model,
                 source,
                 args.burst,
-                args.start if args.source == "client" else 0,
+                args.start if args.source in ("client", "interactive") else 0,
                 args.exit_after,
             )
         except ImportError:
