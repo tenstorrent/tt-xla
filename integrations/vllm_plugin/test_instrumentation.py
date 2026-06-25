@@ -51,6 +51,16 @@ class _FakeInputBatch:
         self.req_id_to_index = {"r0": 0, "r1": 1}
 
 
+class _FakeScheduler:
+    """Stand-in for scheduler_output: r0 (decode) scheduled out this step,
+    r1 (prefill) gets the compute."""
+
+    num_waiting = 2
+
+    def __init__(self):
+        self.num_scheduled_tokens = {"r0": 0, "r1": 20}
+
+
 def _setup(tmp_path, enabled):
     for k in list(os.environ):
         if k.startswith("TT_INSTRUMENT"):
@@ -115,6 +125,66 @@ def test_enabled_emits_three_event_types(tmp_path):
     assert done["req_id"] == "r0"
     assert done["out_len"] == 3
     assert done["isl"] == 10
+
+
+def test_step_snapshot_scheduled_and_kind(tmp_path):
+    """scheduler_output.num_scheduled_tokens -> per-slot `scheduled` + step_kind,
+    the authoritative stall signal."""
+    d = _setup(tmp_path, enabled=True)
+    instr.emit_step_snapshot(_FakeInputBatch(), _FakeScheduler())
+    snap = json.load(open(os.path.join(d, instr.SNAPSHOT_FILENAME)))
+
+    sched = {s["req_id"]: s["scheduled"] for s in snap["slots"]}
+    assert sched == {"r0": 0, "r1": 20}  # r0 got no compute -> stalled
+    assert snap["num_waiting"] == 2
+    # Only r1 (a PREFILL slot) is scheduled, so the step is a prefill step.
+    assert snap["step_kind"] == "prefill"
+
+
+def test_no_scheduler_means_scheduled_none(tmp_path):
+    """Without scheduler_output we must not claim scheduled==0 (that would look
+    like a stall). It's None == 'unknown'."""
+    d = _setup(tmp_path, enabled=True)
+    instr.emit_step_snapshot(_FakeInputBatch(), None)
+    snap = json.load(open(os.path.join(d, instr.SNAPSHOT_FILENAME)))
+    assert all(s["scheduled"] is None for s in snap["slots"])
+    assert snap["step_kind"] is None
+
+
+def test_consumer_derives_stalled(tmp_path):
+    """Dashboard maps a DECODE slot with scheduled==0 to STALLED, but leaves it
+    DECODE when scheduled is unknown (None)."""
+    sys.path.insert(0, os.path.join(_HERE, "tools"))
+    import live_dashboard as dash
+
+    m = dash.Model()
+    m.upsert_slot(
+        {
+            "req_id": "r0",
+            "slot_idx": 0,
+            "state": "DECODE",
+            "out_len": 5,
+            "num_prompt_tokens": 10,
+            "num_computed_tokens": 10,
+            "scheduled": 0,
+        },
+        0.0,
+    )
+    assert m.streams["r0"].state == dash.S_STALLED
+
+    m.upsert_slot(
+        {
+            "req_id": "r1",
+            "slot_idx": 1,
+            "state": "DECODE",
+            "out_len": 5,
+            "num_prompt_tokens": 10,
+            "num_computed_tokens": 10,
+            "scheduled": None,
+        },
+        0.0,
+    )
+    assert m.streams["r1"].state == dash.S_DECODE
 
 
 def test_snapshot_throttle(tmp_path):

@@ -228,9 +228,21 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
         num_prompt = getattr(input_batch, "num_prompt_tokens", None)
         out_token_ids = getattr(input_batch, "req_output_token_ids", None)
 
+        # Authoritative per-step schedule: {req_id: tokens scheduled this step}.
+        # A running req absent from this dict got no compute this step -- the
+        # reliable "stalled" signal (vs inferring it from a flat out_len). None
+        # when unavailable (e.g. no scheduler_output), so consumers can tell
+        # "not scheduled" apart from "don't know".
+        sched = None
+        if scheduler_output is not None:
+            cand = getattr(scheduler_output, "num_scheduled_tokens", None)
+            if isinstance(cand, dict):
+                sched = cand
+
         slots = []
         agg_rate = 0.0
         live_ids = set()
+        any_prefill = any_decode = False
         for i in range(num_reqs):
             req_id = req_ids[i] if i < len(req_ids) else None
             if req_id is None:
@@ -248,6 +260,13 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
                 state = "PREFILL" if n_computed < n_prompt else "DECODE"
             else:
                 state = "UNKNOWN"
+
+            scheduled = None if sched is None else int(sched.get(req_id, 0))
+            if scheduled:
+                if state == "PREFILL":
+                    any_prefill = True
+                elif state == "DECODE":
+                    any_decode = True
 
             # Instantaneous decode rate from the delta since this req's last
             # snapshot. O(1) dict lookup per slot.
@@ -270,6 +289,7 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
                     "num_computed_tokens": n_computed,
                     "out_len": out_len,
                     "inst_rate": round(inst_rate, 2) if inst_rate is not None else None,
+                    "scheduled": scheduled,
                 }
             )
 
@@ -287,6 +307,18 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
             # scheduler queue. Surface a waiting count only if it's there.
             num_waiting = getattr(scheduler_output, "num_waiting", None)
 
+        # What kind of step this is, from the schedule. None when unknown.
+        if sched is None:
+            step_kind = None
+        elif any_prefill and any_decode:
+            step_kind = "mixed"
+        elif any_prefill:
+            step_kind = "prefill"
+        elif any_decode:
+            step_kind = "decode"
+        else:
+            step_kind = "idle"
+
         snap = {
             "schema": SCHEMA_VERSION,
             "event": EVENT_STEP_SNAPSHOT,
@@ -295,6 +327,7 @@ def emit_step_snapshot(input_batch: Any, scheduler_output: Any = None) -> None:
             "num_running": len(slots),
             "num_waiting": num_waiting,
             "agg_rate": round(agg_rate, 2),
+            "step_kind": step_kind,
             "slots": slots,
         }
         _write_snapshot(snap)

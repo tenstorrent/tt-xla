@@ -128,6 +128,7 @@ class Model:
         self.highlight_prefill: bool = True
         self.source_label: str = ""
         self.num_waiting: Optional[int] = None
+        self.step_kind: Optional[str] = None  # decode/prefill/mixed (snapshot src)
         self.notice: str = ""
         self._seq = 0
 
@@ -153,7 +154,15 @@ class Model:
         st.n_tokens = slot.get("out_len", st.n_tokens) or st.n_tokens
         snap_state = slot.get("state")
         if snap_state in (S_PREFILL, S_DECODE):
-            st.state = snap_state
+            # A running decode slot that got no compute this step (authoritative
+            # scheduled==0) is genuinely stalled -- e.g. paused while a peer
+            # prefills. `scheduled is None` means the engine didn't report it,
+            # so don't claim a stall.
+            scheduled = slot.get("scheduled")
+            if snap_state == S_DECODE and scheduled == 0:
+                st.state = S_STALLED
+            else:
+                st.state = snap_state
             if snap_state == S_DECODE and st.t_first is None:
                 st.t_first = now
                 st.ttft = max(0.0, now - st.t_start)
@@ -378,6 +387,7 @@ class SnapshotSource(Source):
         if snap.get("event") != "step_snapshot":
             return
         self.m.num_waiting = snap.get("num_waiting")
+        self.m.step_kind = snap.get("step_kind")
         live = set()
         for slot in snap.get("slots", []):
             self.m.upsert_slot(slot, now)
@@ -698,10 +708,13 @@ def make_textual_app(
             act = m.active()
             n_pref = sum(1 for s in act if s.state == S_PREFILL)
             n_dec = sum(1 for s in act if s.state == S_DECODE)
+            n_stall = sum(1 for s in act if s.state == S_STALLED)
             waiting = m.num_waiting if m.num_waiting is not None else "-"
+            kind = f"  step={m.step_kind}" if m.step_kind else ""
             txt = (
-                f"[b]source[/] {m.source_label}    "
+                f"[b]source[/] {m.source_label}{kind}    "
                 f"[green]decode[/] {n_dec}  [yellow]prefill[/] {n_pref}  "
+                f"[red]stalled[/] {n_stall}  "
                 f"waiting {waiting}  done {len(m.streams) - len(act)}    "
                 f"[b]agg[/] {m.agg_rate():.1f} tok/s   total {m.total_tokens()} tok"
             )
@@ -781,12 +794,14 @@ class PlainRenderer:
         act = m.active()
         n_pref = sum(1 for s in act if s.state == S_PREFILL)
         n_dec = sum(1 for s in act if s.state == S_DECODE)
+        n_stall = sum(1 for s in act if s.state == S_STALLED)
         waiting = m.num_waiting if m.num_waiting is not None else "-"
+        kind = f"  step={m.step_kind}" if m.step_kind else ""
         out.append("\n")
         out.append(
-            f"decoding {n_dec}  prefill {n_pref}  waiting {waiting}  "
-            f"done {len(m.streams) - len(act)}  |  agg {m.agg_rate():.1f} tok/s  "
-            f"total {m.total_tokens()} tok\n"
+            f"decoding {n_dec}  prefill {n_pref}  stalled {n_stall}  "
+            f"waiting {waiting}  done {len(m.streams) - len(act)}{kind}  |  "
+            f"agg {m.agg_rate():.1f} tok/s  total {m.total_tokens()} tok\n"
         )
         out.append(
             "keys: n launch  b burst  k cancel  t counter  p prefill-hl  q quit\n"

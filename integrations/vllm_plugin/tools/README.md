@@ -117,9 +117,9 @@ a per-step host regression (cf. #4278).
 
 // step_snapshot  (snapshot.json; one per step, throttled)
 {"schema":1,"event":"step_snapshot","ts":<float>,"step_idx":42,"num_running":3,
- "num_waiting":1,"agg_rate":63.2,
+ "num_waiting":1,"agg_rate":63.2,"step_kind":"prefill",
  "slots":[{"slot_idx":0,"req_id":"...","state":"DECODE","num_prompt_tokens":512,
-   "num_computed_tokens":512,"out_len":37,"inst_rate":21.1}, ...]}
+   "num_computed_tokens":512,"out_len":37,"inst_rate":21.1,"scheduled":0}, ...]}
 
 // request_completed  (events.jsonl)
 {"schema":1,"event":"request_completed","ts":<float>,"req_id":"...","slot_idx":0,
@@ -130,6 +130,19 @@ a per-step host regression (cf. #4278).
 is why one renderer serves all three sources. Note `request_completed` has no
 `finish_reason` (not available at `InputBatch.remove_request`); a viewer derives
 TTFT/mean-rate from the admit event + the snapshots it already saw.
+
+**`scheduled` / `step_kind` — the stall signal.** `state` is the prompt-based
+PREFILL/DECODE label (`num_computed < num_prompt`); it says nothing about whether
+a slot actually ran this step. `slots[*].scheduled` is the authoritative count
+from `scheduler_output.num_scheduled_tokens` — tokens that slot was scheduled to
+process this step (`null` if the engine didn't report it, so "not scheduled"
+isn't confused with "unknown"). A running **DECODE slot with `scheduled == 0` got
+no compute this step** — a real stall (e.g. paused while a peer prefills); the
+dashboard renders it `STALLED`. `step_kind` (`decode`/`prefill`/`mixed`/`idle`)
+summarizes the whole step. Reliability caveat: snapshots are *sampled* (throttle,
+default 100 ms), so a very short stall can fall between samples — `scheduled` is
+authoritative for the steps captured, but isn't a per-step audit. Lower the
+throttle for finer accounting (at some host cost).
 
 `tt-inference-server` (or any downstream) can consume these files directly — the
 data stream is the shared interface, not the TUI.
