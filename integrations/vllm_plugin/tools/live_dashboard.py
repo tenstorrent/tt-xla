@@ -57,11 +57,12 @@ from typing import Optional
 S_CONNECTING = "CONNECTING"
 S_PREFILL = "PREFILL"  # request sent / scheduled, no output token yet (TTFT window)
 S_DECODE = "DECODE"
+S_STALLED = "STALLED"  # decode paused while another request prefills (demo only)
 S_DONE = "DONE"
 S_CANCELLED = "CANCELLED"
 S_ERROR = "ERROR"
 
-_ACTIVE_STATES = {S_CONNECTING, S_PREFILL, S_DECODE}
+_ACTIVE_STATES = {S_CONNECTING, S_PREFILL, S_DECODE, S_STALLED}
 
 
 @dataclass
@@ -202,21 +203,44 @@ class Source:
 
 
 class DemoSource(Source):
-    """Synthesizes arrivals, prefill windows, decode, and the interference dip
-    a new request's prefill imposes on in-flight decode. No server."""
+    """Synthesizes arrivals, prefill windows, decode, and the interference a new
+    request's prefill imposes on in-flight decode. No server.
+
+    interference shapes (--demo-interference):
+      freeze    in-flight decode emits NO tokens while any request prefills
+                (state -> STALLED, OUT frozen), then resumes with a one-shot
+                latency-spike blip. This mirrors TT, where prefill and decode
+                are typically separate steps so a prefill step doesn't advance
+                decode -- a pause, not a slow-down.
+      slowdown  in-flight decode continues at a reduced rate during prefill.
+                A gentler, chunked-prefill-like approximation.
+
+    Both magnitudes are invented for teaching; trust --source snapshot/client
+    for what the real chip does."""
 
     interactive = True
 
-    def __init__(self, model: Model, base_rate=22.0, isl=512, osl=160, auto=True):
+    def __init__(
+        self,
+        model: Model,
+        base_rate=22.0,
+        isl=512,
+        osl=160,
+        auto=True,
+        interference="freeze",
+    ):
         self.m = model
         self.base_rate = base_rate
         self.isl = isl
         self.osl = osl
         self.auto = auto
+        self.interference = interference
         self._accum: dict[str, float] = {}  # fractional token accumulator
         self._prefill_until: dict[str, float] = {}
+        self._stalled_since: dict[str, float] = {}  # freeze: when decode paused
+        self._spike_ticks: dict[str, int] = {}  # freeze: post-resume blip
         self._stop = False
-        self.m.source_label = "demo (synthetic)"
+        self.m.source_label = f"demo (synthetic, {interference})"
 
     def _admit(self):
         st = StreamState(
@@ -247,6 +271,34 @@ class DemoSource(Source):
             st.finish_reason = "cancelled"
             self.m.notice = f"cancelled {st.id}"
 
+    def _decode_rate(self, st: StreamState, prefilling: bool, now: float) -> float:
+        """Per-tick decode rate for one in-flight stream given whether some
+        other request is prefilling. Also drives the STALLED state + the
+        one-shot resume latency spike in freeze mode."""
+        if self.interference == "slowdown":
+            st.state = S_DECODE
+            return self.base_rate * (0.3 if prefilling else 1.0)
+
+        # freeze: decode is paused entirely while anything prefills.
+        if prefilling:
+            if st.state != S_STALLED:
+                st.state = S_STALLED
+                self._stalled_since[st.id] = now
+            return 0.0
+
+        if st.state == S_STALLED:
+            # Just resumed: model the long inter-token gap as a brief low-rate
+            # blip (the latency spike) before recovering to full speed.
+            stall = max(1e-3, now - self._stalled_since.pop(st.id, now))
+            st.state = S_DECODE
+            self._spike_ticks[st.id] = 3  # ~0.3s of post-stall recovery
+            return 1.0 / stall
+
+        if self._spike_ticks.get(st.id, 0) > 0:
+            self._spike_ticks[st.id] -= 1
+            return self.base_rate * 0.15
+        return self.base_rate
+
     async def run(self):
         last_auto = time.time()
         while not self._stop:
@@ -254,12 +306,11 @@ class DemoSource(Source):
             if self.auto and (now - last_auto) > 2.6 and len(self.m.active()) < 6:
                 self._admit()
                 last_auto = now
-            # A new request's prefill stalls everyone's decode -> visible dip.
+            # A new request's prefill interferes with everyone's decode.
             prefilling = any(
                 s.state == S_PREFILL and self._prefill_until.get(s.id, 0) > now
                 for s in self.m.active()
             )
-            mult = 0.3 if prefilling else 1.0
             for st in list(self.m.active()):
                 if st.state == S_PREFILL:
                     if self._prefill_until.get(st.id, 0) <= now:
@@ -271,16 +322,16 @@ class DemoSource(Source):
                         st.t_last = now
                         self._accum[st.id] = 0.0
                     continue
-                if st.state == S_DECODE:
-                    cur_rate = self.base_rate * mult
-                    self._accum[st.id] += cur_rate * 0.1
-                    n_new = int(self._accum[st.id])
-                    if n_new:
-                        self._accum[st.id] -= n_new
-                        st.n_tokens += n_new
-                        st.text_tail = (st.text_tail + "x" * n_new)[-120:]
-                        st.t_last = now
-                    # Modeled instantaneous rate (drops during interference).
+                if st.state in (S_DECODE, S_STALLED):
+                    cur_rate = self._decode_rate(st, prefilling, now)
+                    if cur_rate > 0:
+                        self._accum[st.id] += cur_rate * 0.1
+                        n_new = int(self._accum[st.id])
+                        if n_new:
+                            self._accum[st.id] -= n_new
+                            st.n_tokens += n_new
+                            st.text_tail = (st.text_tail + "x" * n_new)[-120:]
+                            st.t_last = now
                     st.rate = cur_rate
                     if st.osl_target and st.n_tokens >= st.osl_target:
                         st.state = S_DONE
@@ -524,6 +575,7 @@ def _state_color(state: str) -> str:
     return {
         S_PREFILL: "yellow",
         S_DECODE: "green",
+        S_STALLED: "bold red",
         S_DONE: "dim",
         S_CANCELLED: "red",
         S_ERROR: "red",
@@ -811,7 +863,11 @@ async def keyboard(source: Source, model: Model, stop_evt: asyncio.Event, burst_
 def build_source(args, model: Model) -> Source:
     if args.source == "demo":
         return DemoSource(
-            model, isl=args.isl, osl=args.max_tokens, auto=not args.no_auto
+            model,
+            isl=args.isl,
+            osl=args.max_tokens,
+            auto=not args.no_auto,
+            interference=args.demo_interference,
         )
     if args.source == "snapshot":
         return SnapshotSource(model, args.dir)
@@ -901,6 +957,12 @@ def main():
     p.add_argument("--isl", type=int, default=512, help="demo: synthetic ISL")
     p.add_argument(
         "--no-auto", action="store_true", help="demo: don't auto-spawn requests"
+    )
+    p.add_argument(
+        "--demo-interference",
+        choices=["freeze", "slowdown"],
+        default="freeze",
+        help="demo: how a prefill perturbs in-flight decode (default: freeze)",
     )
     p.add_argument(
         "--exit-after",
